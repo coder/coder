@@ -1,7 +1,6 @@
 import { assign, createMachine } from "xstate"
-import * as API from "../../api/api"
-import * as TypesGen from "../../api/typesGenerated"
-import { displayMsg } from "../../components/GlobalSnackbar/utils"
+import * as API from "api/api"
+import * as TypesGen from "api/typesGenerated"
 
 export const Language = {
   updateAvailable: "New version available",
@@ -42,11 +41,7 @@ export const updateCheckMachine = createMachine(
           id: "getUpdateCheck",
           onDone: [
             {
-              actions: [
-                "assignUpdateCheck",
-                "clearGetUpdateCheckError",
-                "notifyUpdateAvailable",
-              ],
+              actions: ["assignUpdateCheck", "clearGetUpdateCheckError"],
               target: "#updateCheckState.success",
             },
           ],
@@ -85,19 +80,6 @@ export const updateCheckMachine = createMachine(
         ...context,
         getUpdateCheckError: undefined,
       })),
-      notifyUpdateAvailable: (context: UpdateCheckContext) => {
-        if (context.updateCheck && !context.updateCheck.current) {
-          // TODO(mafredri): HTML formatting, persistance?
-          displayMsg(
-            Language.updateAvailable,
-            Language.updateAvailableMessage(
-              context.updateCheck.version,
-              context.updateCheck.url,
-              "https://coder.com/docs/coder-oss/latest/admin/upgrade",
-            ),
-          )
-        }
-      },
     },
   },
 )

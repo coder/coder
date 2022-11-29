@@ -18,7 +18,8 @@ import { AlertBannerCtas } from "./AlertBannerCtas"
  * @param dismissible: determines whether or not the banner should have a `Dismiss` CTA
  * @param retry: a handler to retry the action that spawned the error
  */
-export const AlertBanner: FC<AlertBannerProps> = ({
+export const AlertBanner: FC<React.PropsWithChildren<AlertBannerProps>> = ({
+  children,
   severity,
   text,
   error,
@@ -55,6 +56,7 @@ export const AlertBanner: FC<AlertBannerProps> = ({
         <Stack direction="row" alignItems="center" spacing={1}>
           {severityConstants[severity].icon}
           <Stack spacing={0}>
+            {children}
             {alertMessage}
             {detail && (
               <Expander expanded={showDetails} setExpanded={setShowDetails}>

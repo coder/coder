@@ -6,6 +6,7 @@ import { XServiceContext } from "../../xServices/StateContext"
 import { Footer } from "../Footer/Footer"
 import { Navbar } from "../Navbar/Navbar"
 import { RequireAuth } from "../RequireAuth/RequireAuth"
+import { UpdateCheckBanner } from "components/UpdateCheckBanner/UpdateCheckBanner"
 
 interface AuthAndFrameProps {
   children: JSX.Element
@@ -18,11 +19,13 @@ export const AuthAndFrame: FC<AuthAndFrameProps> = ({ children }) => {
   const styles = useStyles()
   const xServices = useContext(XServiceContext)
   const [buildInfoState] = useActor(xServices.buildInfoXService)
+  const [updateCheckState] = useActor(xServices.updateCheckXService)
 
   return (
     <RequireAuth>
       <div className={styles.site}>
         <Navbar />
+        <UpdateCheckBanner updateCheck={updateCheckState.context.updateCheck} />
         <div className={styles.siteContent}>
           <Suspense fallback={<Loader />}>{children}</Suspense>
         </div>
