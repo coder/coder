@@ -355,6 +355,7 @@ export interface GitAuthConfig {
   readonly client_id: string
   readonly auth_url: string
   readonly token_url: string
+  readonly validate_url: string
   readonly regex: string
   readonly no_refresh: boolean
   readonly scopes: string[]

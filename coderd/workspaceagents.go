@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/netip"
@@ -1159,6 +1160,19 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 			if gitAuthLink.OAuthExpiry.Before(database.Now()) {
 				continue
 			}
+			if gitAuthConfig.ValidateURL != "" {
+				valid, err := validateGitToken(ctx, gitAuthConfig.ValidateURL, gitAuthLink.OAuthAccessToken)
+				if err != nil {
+					api.Logger.Warn(ctx, "failed to validate git auth token",
+						slog.F("workspace_owner_id", workspace.OwnerID.String()),
+						slog.F("validate_url", gitAuthConfig.ValidateURL),
+						slog.Error(err),
+					)
+				}
+				if !valid {
+					continue
+				}
+			}
 			httpapi.Write(ctx, rw, http.StatusOK, formatGitAuthAccessToken(gitAuthConfig.Type, gitAuthLink.OAuthAccessToken))
 			return
 		}
@@ -1214,6 +1228,24 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	if gitAuthConfig.ValidateURL != "" {
+		valid, err := validateGitToken(ctx, gitAuthConfig.ValidateURL, token.AccessToken)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to validate Git authentication token.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if !valid {
+			// The token is no longer valid!
+			httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceAgentGitAuthResponse{
+				URL: redirectURL.String(),
+			})
+			return
+		}
+	}
+
 	if token.AccessToken != gitAuthLink.OAuthAccessToken {
 		// Update it
 		err = api.Database.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
@@ -1233,6 +1265,30 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 		}
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, formatGitAuthAccessToken(gitAuthConfig.Type, token.AccessToken))
+}
+
+// validateGitToken ensures the git token provided is valid
+// against the provided URL.
+func validateGitToken(ctx context.Context, validateURL, token string) (bool, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, validateURL, nil)
+	if err != nil {
+		return false, err
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode == http.StatusUnauthorized {
+		// The token is no longer valid!
+		return false, nil
+	}
+	if res.StatusCode != http.StatusOK {
+		data, _ := io.ReadAll(res.Body)
+		return false, xerrors.Errorf("git token validation failed: status %d: body: %s", res.StatusCode, data)
+	}
+	return true, nil
 }
 
 // Provider types have different username/password formats.

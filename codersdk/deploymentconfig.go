@@ -126,6 +126,7 @@ type GitAuthConfig struct {
 	ClientSecret string   `json:"-" yaml:"client_secret"`
 	AuthURL      string   `json:"auth_url"`
 	TokenURL     string   `json:"token_url"`
+	ValidateURL  string   `json:"validate_url"`
 	Regex        string   `json:"regex"`
 	NoRefresh    bool     `json:"no_refresh"`
 	Scopes       []string `json:"scopes"`
