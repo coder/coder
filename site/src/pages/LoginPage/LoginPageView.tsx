@@ -6,6 +6,10 @@ import { useLocation } from "react-router-dom"
 import { AuthContext } from "xServices/auth/authXService"
 import { LoginErrors, SignInForm } from "components/SignInForm/SignInForm"
 import { retrieveRedirect } from "util/redirect"
+import { Pill } from "components/Pill/Pill"
+import { useTranslation } from "react-i18next"
+import IdeaIcon from "@material-ui/icons/EmojiObjects"
+import { colors } from "theme/colors"
 
 interface LocationState {
   isRedirect: boolean
@@ -31,6 +35,7 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
   const { authError, getUserError, checkPermissionsError, getMethodsError } =
     context
   const styles = useStyles()
+  const { t } = useTranslation("loginPage")
 
   return isLoading ? (
     <FullScreenLoader />
@@ -61,6 +66,12 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
 
       <div className={styles.right}>
         <div className={styles.tipWrapper}>
+          <Pill
+            icon={<IdeaIcon className={styles.pillIcon} />}
+            text={t("tipCaption")}
+            className={styles.pill}
+            type="secondary"
+          />
           <div className={styles.tipContent}>
             <h2 className={styles.tipTitle}>Scheduling</h2>
             <p>
@@ -132,6 +143,25 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
+    position: "relative",
+  },
+
+  pill: {
+    position: "absolute",
+    top: theme.spacing(3),
+    right: theme.spacing(3),
+    fontWeight: 600,
+    fontSize: 10,
+    letterSpacing: "0.1em",
+    textTransform: "uppercase",
+    background: theme.palette.divider,
+    border: 0,
+    padding: theme.spacing(0, 1.5),
+    height: theme.spacing(3.5),
+  },
+
+  pillIcon: {
+    color: colors.yellow[5],
   },
 
   tipContent: {
