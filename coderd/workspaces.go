@@ -672,10 +672,11 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	var dbTTL sql.NullInt64
 
 	err := api.Database.InTx(func(s database.Store) error {
+		var validityErr error
 		// don't override 0 ttl with template default here because it indicates disabled auto-stop
-		dbTTL, err := validWorkspaceTTLMillis(req.TTLMillis, 0)
-		if err != nil {
-			return codersdk.ValidationError{Field: "ttl_ms", Detail: err.Error()}
+		dbTTL, validityErr = validWorkspaceTTLMillis(req.TTLMillis, 0)
+		if validityErr != nil {
+			return codersdk.ValidationError{Field: "ttl_ms", Detail: validityErr.Error()}
 		}
 		if err := s.UpdateWorkspaceTTL(ctx, database.UpdateWorkspaceTTLParams{
 			ID:  workspace.ID,
