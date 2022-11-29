@@ -79,7 +79,9 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
       {workspace.latest_build.daily_cost > 0 && (
         <StatsItem
           label={Language.costLabel}
-          value={`${workspace.latest_build.daily_cost} / ${quota_budget}`}
+          value={`${workspace.latest_build.daily_cost} ${
+            quota_budget ? `/ ${quota_budget}` : ""
+          }`}
         />
       )}
     </Stats>
