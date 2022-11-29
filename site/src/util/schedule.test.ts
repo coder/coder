@@ -1,5 +1,7 @@
 import dayjs from "dayjs"
 import duration from "dayjs/plugin/duration"
+import { emptySchedule } from "pages/WorkspaceSchedulePage/schedule"
+import { emptyTTL } from "pages/WorkspaceSchedulePage/ttl"
 import { Template, Workspace } from "../api/typesGenerated"
 import * as Mocks from "../testHelpers/entities"
 import {
@@ -12,6 +14,7 @@ import {
   getMaxDeadlineChange,
   getMinDeadline,
   stripTimezone,
+  scheduleChanged,
 } from "./schedule"
 
 dayjs.extend(duration)
@@ -139,5 +142,73 @@ describe("getMaxDeadlineChange", () => {
     const minDeadline = dayjs()
     // you can only subtract 2 hours even though the min is 2:40 less
     expect(getMaxDeadlineChange(deadline, minDeadline)).toEqual(2)
+  })
+})
+
+describe("scheduleChanged", () => {
+  describe("autoStart", () => {
+    it("should be true if toggle values are different", () => {
+      const autoStart = { autoStartEnabled: true, ...emptySchedule }
+      const formValues = {
+        autoStartEnabled: false,
+        ...emptySchedule,
+        autoStopEnabled: false,
+        ttl: emptyTTL,
+      }
+      expect(scheduleChanged(autoStart, formValues)).toBe(true)
+    })
+    it("should be true if schedule values are different", () => {
+      const autoStart = { autoStartEnabled: true, ...emptySchedule }
+      const formValues = {
+        autoStartEnabled: true,
+        ...{ ...emptySchedule, monday: true, startTime: "09:00" },
+        autoStopEnabled: false,
+        ttl: emptyTTL,
+      }
+      expect(scheduleChanged(autoStart, formValues)).toBe(true)
+    })
+    it("should be false if all autostart values are the same", () => {
+      const autoStart = { autoStartEnabled: true, ...emptySchedule }
+      const formValues = {
+        autoStartEnabled: true,
+        ...emptySchedule,
+        autoStopEnabled: false,
+        ttl: emptyTTL,
+      }
+      expect(scheduleChanged(autoStart, formValues)).toBe(false)
+    })
+  })
+
+  describe("autoStop", () => {
+    it("should be true if toggle values are different", () => {
+      const autoStop = { autoStopEnabled: true, ttl: 1000 }
+      const formValues = {
+        autoStartEnabled: false,
+        ...emptySchedule,
+        autoStopEnabled: false,
+        ttl: 1000,
+      }
+      expect(scheduleChanged(autoStop, formValues)).toBe(true)
+    })
+    it("should be true if ttl values are different", () => {
+      const autoStop = { autoStopEnabled: true, ttl: 1000 }
+      const formValues = {
+        autoStartEnabled: false,
+        ...emptySchedule,
+        autoStopEnabled: true,
+        ttl: 2000,
+      }
+      expect(scheduleChanged(autoStop, formValues)).toBe(true)
+    })
+    it("should be false if all autostop values are the same", () => {
+      const autoStop = { autoStopEnabled: true, ttl: 1000 }
+      const formValues = {
+        autoStartEnabled: false,
+        ...emptySchedule,
+        autoStopEnabled: true,
+        ttl: 1000,
+      }
+      expect(scheduleChanged(autoStop, formValues)).toBe(false)
+    })
   })
 })
