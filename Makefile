@@ -457,7 +457,6 @@ ifdef CI
 else
 	yarn run format:write
 endif
-.PHONY: docs/admin/prometheus.md # As the .md file can be edited manually and the generator works in-place, we need to use .PHONY.
 
 update-golden-files: cli/testdata/.gen-golden
 .PHONY: update-golden-files
