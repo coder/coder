@@ -189,6 +189,7 @@ func Test_Runner(t *testing.T) {
 
 	t.Run("ExpectOutput", func(t *testing.T) {
 		t.Parallel()
+		t.Skip("Flaky: https://github.com/coder/coder/issues/5187")
 
 		t.Run("Matches", func(t *testing.T) {
 			t.Parallel()
