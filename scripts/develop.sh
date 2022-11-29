@@ -85,7 +85,7 @@ start_cmd() {
 
 	echo "== CMD: $*" >&2
 
-	FORCE_COLOR=1 "$@" 3>&2 > >(
+	FORCE_COLOR=1 "$@" > >(
 		# Ignore interrupt, read will keep reading until stdin is gone.
 		trap '' INT
 
