@@ -2,6 +2,7 @@ package deployment_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/require"
@@ -25,19 +26,21 @@ func TestConfig(t *testing.T) {
 	}{{
 		Name: "Deployment",
 		Env: map[string]string{
-			"CODER_ADDRESS":              "0.0.0.0:8443",
-			"CODER_ACCESS_URL":           "https://dev.coder.com",
-			"CODER_PG_CONNECTION_URL":    "some-url",
-			"CODER_PPROF_ADDRESS":        "something",
-			"CODER_PPROF_ENABLE":         "true",
-			"CODER_PROMETHEUS_ADDRESS":   "hello-world",
-			"CODER_PROMETHEUS_ENABLE":    "true",
-			"CODER_PROVISIONER_DAEMONS":  "5",
-			"CODER_SECURE_AUTH_COOKIE":   "true",
-			"CODER_SSH_KEYGEN_ALGORITHM": "potato",
-			"CODER_TELEMETRY":            "false",
-			"CODER_TELEMETRY_TRACE":      "false",
-			"CODER_WILDCARD_ACCESS_URL":  "something-wildcard.com",
+			"CODER_ADDRESS":                          "0.0.0.0:8443",
+			"CODER_ACCESS_URL":                       "https://dev.coder.com",
+			"CODER_PG_CONNECTION_URL":                "some-url",
+			"CODER_PPROF_ADDRESS":                    "something",
+			"CODER_PPROF_ENABLE":                     "true",
+			"CODER_PROMETHEUS_ADDRESS":               "hello-world",
+			"CODER_PROMETHEUS_ENABLE":                "true",
+			"CODER_PROVISIONER_DAEMONS":              "5",
+			"CODER_PROVISIONER_DAEMON_POLL_INTERVAL": "5s",
+			"CODER_PROVISIONER_DAEMON_POLL_JITTER":   "1s",
+			"CODER_SECURE_AUTH_COOKIE":               "true",
+			"CODER_SSH_KEYGEN_ALGORITHM":             "potato",
+			"CODER_TELEMETRY":                        "false",
+			"CODER_TELEMETRY_TRACE":                  "false",
+			"CODER_WILDCARD_ACCESS_URL":              "something-wildcard.com",
 		},
 		Valid: func(config *codersdk.DeploymentConfig) {
 			require.Equal(t, config.Address.Value, "0.0.0.0:8443")
@@ -48,6 +51,8 @@ func TestConfig(t *testing.T) {
 			require.Equal(t, config.Prometheus.Address.Value, "hello-world")
 			require.Equal(t, config.Prometheus.Enable.Value, true)
 			require.Equal(t, config.Provisioner.Daemons.Value, 5)
+			require.Equal(t, config.Provisioner.DaemonPollInterval.Value, 5*time.Second)
+			require.Equal(t, config.Provisioner.DaemonPollJitter.Value, 1*time.Second)
 			require.Equal(t, config.SecureAuthCookie.Value, true)
 			require.Equal(t, config.SSHKeygenAlgorithm.Value, "potato")
 			require.Equal(t, config.Telemetry.Enable.Value, false)

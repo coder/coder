@@ -950,13 +950,16 @@ func newProvisionerDaemon(
 		}()
 		provisioners[string(database.ProvisionerTypeEcho)] = sdkproto.NewDRPCProvisionerClient(echoClient)
 	}
+	debounce := time.Second
 	return provisionerd.New(func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 		// This debounces calls to listen every second. Read the comment
 		// in provisionerdserver.go to learn more!
-		return coderAPI.CreateInMemoryProvisionerDaemon(ctx, time.Second)
+		return coderAPI.CreateInMemoryProvisionerDaemon(ctx, debounce)
 	}, &provisionerd.Options{
 		Logger:              logger,
-		PollInterval:        500 * time.Millisecond,
+		JobPollInterval:     cfg.Provisioner.DaemonPollInterval.Value,
+		JobPollJitter:       cfg.Provisioner.DaemonPollJitter.Value,
+		JobPollDebounce:     debounce,
 		UpdateInterval:      500 * time.Millisecond,
 		ForceCancelInterval: cfg.Provisioner.ForceCancelInterval.Value,
 		Provisioners:        provisioners,

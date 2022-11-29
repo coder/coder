@@ -526,6 +526,8 @@ export interface PrometheusConfig {
 // From codersdk/deploymentconfig.go
 export interface ProvisionerConfig {
   readonly daemons: DeploymentConfigField<number>
+  readonly daemon_poll_interval: DeploymentConfigField<number>
+  readonly daemon_poll_jitter: DeploymentConfigField<number>
   readonly force_cancel_interval: DeploymentConfigField<number>
 }
 
