@@ -18,6 +18,9 @@ gotests.coverage
 .gitpod.yml
 .DS_Store
 
+# Make target for updating golden files.
+cli/testdata/.gen-golden
+
 # Front-end ignore
 .next/
 site/.eslintcache
@@ -46,3 +49,6 @@ site/out/
 **/*.swp
 .coderv2/*
 **/__debug_bin
+
+# direnv
+.envrc

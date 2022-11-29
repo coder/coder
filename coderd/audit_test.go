@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -24,9 +25,6 @@ func TestAuditLogs(t *testing.T) {
 		err := client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{})
 		require.NoError(t, err)
 
-		count, err := client.AuditLogCount(ctx, codersdk.AuditLogCountRequest{})
-		require.NoError(t, err)
-
 		alogs, err := client.AuditLogs(ctx, codersdk.AuditLogsRequest{
 			Pagination: codersdk.Pagination{
 				Limit: 1,
@@ -34,7 +32,7 @@ func TestAuditLogs(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.Equal(t, int64(1), count.Count)
+		require.Equal(t, int64(1), alogs.Count)
 		require.Len(t, alogs.AuditLogs, 1)
 	})
 }
@@ -54,12 +52,14 @@ func TestAuditLogsFilter(t *testing.T) {
 		err := client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
 			Action:       codersdk.AuditActionCreate,
 			ResourceType: codersdk.ResourceTypeTemplate,
+			Time:         time.Date(2022, 8, 15, 14, 30, 45, 100, time.UTC), // 2022-8-15 14:30:45
 		})
 		require.NoError(t, err)
 		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
 			Action:       codersdk.AuditActionCreate,
 			ResourceType: codersdk.ResourceTypeUser,
 			ResourceID:   userResourceID,
+			Time:         time.Date(2022, 8, 16, 14, 30, 45, 100, time.UTC), // 2022-8-16 14:30:45
 		})
 		require.NoError(t, err)
 
@@ -68,6 +68,7 @@ func TestAuditLogsFilter(t *testing.T) {
 			Action:       codersdk.AuditActionDelete,
 			ResourceType: codersdk.ResourceTypeUser,
 			ResourceID:   userResourceID,
+			Time:         time.Date(2022, 8, 15, 14, 30, 45, 100, time.UTC), // 2022-8-15 14:30:45
 		})
 		require.NoError(t, err)
 
@@ -127,6 +128,21 @@ func TestAuditLogsFilter(t *testing.T) {
 				SearchQuery:    "action:invalid",
 				ExpectedResult: 3,
 			},
+			{
+				Name:           "FilterOnCreateSingleDay",
+				SearchQuery:    "action:create date_from:2022-08-15 date_to:2022-08-15",
+				ExpectedResult: 1,
+			},
+			{
+				Name:           "FilterOnCreateDateFrom",
+				SearchQuery:    "action:create date_from:2022-08-15",
+				ExpectedResult: 2,
+			},
+			{
+				Name:           "FilterOnCreateDateTo",
+				SearchQuery:    "action:create date_to:2022-08-15",
+				ExpectedResult: 1,
+			},
 		}
 
 		for _, testCase := range testCases {
@@ -142,16 +158,7 @@ func TestAuditLogsFilter(t *testing.T) {
 				})
 				require.NoError(t, err, "fetch audit logs")
 				require.Len(t, auditLogs.AuditLogs, testCase.ExpectedResult, "expected audit logs returned")
-			})
-
-			// Test count filtering
-			t.Run("GetCount"+testCase.Name, func(t *testing.T) {
-				t.Parallel()
-				response, err := client.AuditLogCount(ctx, codersdk.AuditLogCountRequest{
-					SearchQuery: testCase.SearchQuery,
-				})
-				require.NoError(t, err, "fetch audit logs count")
-				require.Equal(t, int(response.Count), testCase.ExpectedResult, "expected audit logs count returned")
+				require.Equal(t, testCase.ExpectedResult, int(auditLogs.Count), "expected audit log count returned")
 			})
 		}
 	})

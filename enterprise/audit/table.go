@@ -48,22 +48,24 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"updated_at":  ActionIgnore, // Changes, but is implicit and not helpful in a diff.
 	},
 	&database.Template{}: {
-		"id":                     ActionTrack,
-		"created_at":             ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
-		"updated_at":             ActionIgnore, // Changes, but is implicit and not helpful in a diff.
-		"organization_id":        ActionIgnore, /// Never changes.
-		"deleted":                ActionIgnore, // Changes, but is implicit when a delete event is fired.
-		"name":                   ActionTrack,
-		"provisioner":            ActionTrack,
-		"active_version_id":      ActionTrack,
-		"description":            ActionTrack,
-		"icon":                   ActionTrack,
-		"max_ttl":                ActionTrack,
-		"min_autostart_interval": ActionTrack,
-		"created_by":             ActionTrack,
-		"is_private":             ActionTrack,
-		"group_acl":              ActionTrack,
-		"user_acl":               ActionTrack,
+		"id":                               ActionTrack,
+		"created_at":                       ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
+		"updated_at":                       ActionIgnore, // Changes, but is implicit and not helpful in a diff.
+		"organization_id":                  ActionIgnore, /// Never changes.
+		"deleted":                          ActionIgnore, // Changes, but is implicit when a delete event is fired.
+		"name":                             ActionTrack,
+		"display_name":                     ActionTrack,
+		"provisioner":                      ActionTrack,
+		"active_version_id":                ActionTrack,
+		"description":                      ActionTrack,
+		"icon":                             ActionTrack,
+		"default_ttl":                      ActionTrack,
+		"min_autostart_interval":           ActionTrack,
+		"created_by":                       ActionTrack,
+		"is_private":                       ActionTrack,
+		"group_acl":                        ActionTrack,
+		"user_acl":                         ActionTrack,
+		"allow_user_cancel_workspace_jobs": ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":              ActionTrack,
@@ -108,6 +110,23 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"name":            ActionTrack,
 		"organization_id": ActionIgnore, // Never changes.
 		"avatar_url":      ActionTrack,
+		"quota_allowance": ActionTrack,
+	},
+	// We don't show any diff for the WorkspaceBuild resource
+	&database.WorkspaceBuild{}: {
+		"id":                  ActionIgnore,
+		"created_at":          ActionIgnore,
+		"updated_at":          ActionIgnore,
+		"workspace_id":        ActionIgnore,
+		"template_version_id": ActionIgnore,
+		"build_number":        ActionIgnore,
+		"transition":          ActionIgnore,
+		"initiator_id":        ActionIgnore,
+		"provisioner_state":   ActionIgnore,
+		"job_id":              ActionIgnore,
+		"deadline":            ActionIgnore,
+		"reason":              ActionIgnore,
+		"daily_cost":          ActionIgnore,
 	},
 })
 

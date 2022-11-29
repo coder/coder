@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import EventSourceMock from "eventsourcemock"
@@ -25,6 +24,7 @@ import {
   MockWorkspaceBuild,
   MockWorkspaceResource2,
   renderWithAuth,
+  waitForLoaderToBeRemoved,
 } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
 import { WorkspacePage } from "./WorkspacePage"
@@ -33,15 +33,12 @@ const { t } = i18next
 
 // It renders the workspace page and waits for it be loaded
 const renderWorkspacePage = async () => {
-  const getTemplateMock = jest
-    .spyOn(api, "getTemplate")
-    .mockResolvedValueOnce(MockTemplate)
+  jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate)
   renderWithAuth(<WorkspacePage />, {
     route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
     path: "/@:username/:workspace",
   })
-  await screen.findByText(MockWorkspace.name)
-  expect(getTemplateMock).toBeCalled()
+  await waitForLoaderToBeRemoved()
 }
 
 /**
@@ -50,12 +47,9 @@ const renderWorkspacePage = async () => {
  * We don't need to test the UI exhaustively because Storybook does that; just enough to prove that the
  * workspaceStatus was calculated correctly.
  */
-
 const testButton = async (label: string, actionMock: jest.SpyInstance) => {
   await renderWorkspacePage()
-  // REMARK: exact here because the "Start" button and "START" label for
-  //         workspace schedule could otherwise conflict.
-  const button = await screen.findByText(label, { exact: true })
+  const button = await screen.findByRole("button", { name: label })
   fireEvent.click(button)
   expect(actionMock).toBeCalled()
 }
@@ -92,26 +86,6 @@ afterAll(() => {
 })
 
 describe("WorkspacePage", () => {
-  it("shows a workspace", async () => {
-    await renderWorkspacePage()
-    const workspaceName = await screen.findByText(MockWorkspace.name)
-    expect(workspaceName).toBeDefined()
-    const header = screen.getByTestId("header")
-    const status = await within(header).findByRole("status")
-    expect(status).toHaveTextContent("Running")
-    // wait for workspace page to finish loading
-    await screen.findByText("stop")
-  })
-  it("requests a stop job when the user presses Stop", async () => {
-    const stopWorkspaceMock = jest
-      .spyOn(api, "stopWorkspace")
-      .mockResolvedValueOnce(MockWorkspaceBuild)
-    testButton(
-      t("actionButton.stop", { ns: "workspacePage" }),
-      stopWorkspaceMock,
-    )
-  })
-
   it("requests a delete job when the user presses Delete and confirms", async () => {
     const user = userEvent.setup()
     const deleteWorkspaceMock = jest
@@ -150,11 +124,23 @@ describe("WorkspacePage", () => {
     const startWorkspaceMock = jest
       .spyOn(api, "startWorkspace")
       .mockImplementation(() => Promise.resolve(MockWorkspaceBuild))
-    testButton(
+    await testButton(
       t("actionButton.start", { ns: "workspacePage" }),
       startWorkspaceMock,
     )
   })
+
+  it("requests a stop job when the user presses Stop", async () => {
+    const stopWorkspaceMock = jest
+      .spyOn(api, "stopWorkspace")
+      .mockResolvedValueOnce(MockWorkspaceBuild)
+
+    await testButton(
+      t("actionButton.stop", { ns: "workspacePage" }),
+      stopWorkspaceMock,
+    )
+  })
+
   it("requests cancellation when the user presses Cancel", async () => {
     server.use(
       rest.get(
@@ -288,7 +274,8 @@ describe("WorkspacePage", () => {
       // Wait for the results to be loaded
       await waitFor(async () => {
         const rows = table.querySelectorAll("tbody > tr")
-        expect(rows).toHaveLength(MockBuilds.length)
+        // Added +1 because of the date row
+        expect(rows).toHaveLength(MockBuilds.length + 1)
       })
     })
   })
@@ -325,11 +312,7 @@ describe("WorkspacePage", () => {
         ),
       )
 
-      renderWithAuth(<WorkspacePage />, {
-        route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
-        path: "/@:username/:workspace",
-      })
-
+      await renderWorkspacePage()
       const agent1Names = await screen.findAllByText(MockWorkspaceAgent.name)
       expect(agent1Names.length).toEqual(1)
       const agent2Names = await screen.findAllByText(

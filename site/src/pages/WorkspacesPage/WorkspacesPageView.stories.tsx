@@ -1,4 +1,5 @@
 import { ComponentMeta, Story } from "@storybook/react"
+import { createPaginationRef } from "components/PaginationWidget/utils"
 import dayjs from "dayjs"
 import { spawn } from "xstate"
 import {
@@ -87,6 +88,9 @@ export default {
   title: "pages/WorkspacesPageView",
   component: WorkspacesPageView,
   argTypes: {
+    paginationRef: {
+      defaultValue: createPaginationRef({ page: 1, limit: 25 }),
+    },
     workspaceRefs: {
       options: [
         ...Object.keys(workspaces),
@@ -108,6 +112,7 @@ AllStates.args = {
     ...Object.values(additionalWorkspaces),
   ],
   count: 14,
+  isNonInitialPage: false,
 }
 
 export const OwnerHasNoWorkspaces = Template.bind({})
@@ -115,6 +120,7 @@ OwnerHasNoWorkspaces.args = {
   workspaceRefs: [],
   filter: workspaceFilterQuery.me,
   count: 0,
+  isNonInitialPage: false,
 }
 
 export const NoResults = Template.bind({})
@@ -122,4 +128,13 @@ NoResults.args = {
   workspaceRefs: [],
   filter: "searchtearmwithnoresults",
   count: 0,
+  isNonInitialPage: false,
+}
+
+export const EmptyPage = Template.bind({})
+EmptyPage.args = {
+  workspaceRefs: [],
+  filter: workspaceFilterQuery.me,
+  count: 0,
+  isNonInitialPage: true,
 }

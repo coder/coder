@@ -1,6 +1,6 @@
 {
   "format_version": "1.0",
-  "terraform_version": "1.2.8",
+  "terraform_version": "1.3.3",
   "values": {
     "root_module": {
       "resources": [
@@ -14,13 +14,15 @@
           "values": {
             "arch": "amd64",
             "auth": "token",
+            "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "id": "ecf210c8-aaa7-4a14-9b44-2a5f805f0126",
+            "id": "f911bd98-54fc-476a-aec1-df6e525630a9",
             "init_script": "",
             "os": "linux",
             "startup_script": null,
-            "token": "7e748146-cea2-45cb-927d-b4a90b0021b3"
+            "token": "fa05ad9c-2062-4707-a27f-12364c89641e",
+            "troubleshooting_url": null
           },
           "sensitive_values": {}
         },
@@ -32,20 +34,25 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
-            "agent_id": "ecf210c8-aaa7-4a14-9b44-2a5f805f0126",
+            "agent_id": "f911bd98-54fc-476a-aec1-df6e525630a9",
             "command": null,
+            "display_name": null,
             "healthcheck": [],
             "icon": null,
-            "id": "95667002-bd60-4d2c-9313-0666f66c44ff",
+            "id": "038d0f6c-90b7-465b-915a-8a9f0cf21757",
             "name": null,
             "relative_path": null,
+            "share": "owner",
+            "slug": "app1",
             "subdomain": null,
             "url": null
           },
           "sensitive_values": {
             "healthcheck": []
           },
-          "depends_on": ["coder_agent.dev1"]
+          "depends_on": [
+            "coder_agent.dev1"
+          ]
         },
         {
           "address": "coder_app.app2",
@@ -55,8 +62,9 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
-            "agent_id": "ecf210c8-aaa7-4a14-9b44-2a5f805f0126",
+            "agent_id": "f911bd98-54fc-476a-aec1-df6e525630a9",
             "command": null,
+            "display_name": null,
             "healthcheck": [
               {
                 "interval": 5,
@@ -65,16 +73,22 @@
               }
             ],
             "icon": null,
-            "id": "817c6904-69e1-485f-a057-4ddac83a9c5a",
+            "id": "c00ec121-a167-4418-8c4e-2ccae0a0cd6e",
             "name": null,
             "relative_path": null,
+            "share": "owner",
+            "slug": "app2",
             "subdomain": true,
             "url": null
           },
           "sensitive_values": {
-            "healthcheck": [{}]
+            "healthcheck": [
+              {}
+            ]
           },
-          "depends_on": ["coder_agent.dev1"]
+          "depends_on": [
+            "coder_agent.dev1"
+          ]
         },
         {
           "address": "coder_app.app3",
@@ -84,20 +98,25 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
-            "agent_id": "ecf210c8-aaa7-4a14-9b44-2a5f805f0126",
+            "agent_id": "f911bd98-54fc-476a-aec1-df6e525630a9",
             "command": null,
+            "display_name": null,
             "healthcheck": [],
             "icon": null,
-            "id": "c4a502b3-cc82-4fdf-952b-4b429e711798",
+            "id": "e9226aa6-a1a6-42a7-8557-64620cbf3dc2",
             "name": null,
             "relative_path": null,
+            "share": "owner",
+            "slug": "app3",
             "subdomain": false,
             "url": null
           },
           "sensitive_values": {
             "healthcheck": []
           },
-          "depends_on": ["coder_agent.dev1"]
+          "depends_on": [
+            "coder_agent.dev1"
+          ]
         },
         {
           "address": "null_resource.dev",
@@ -107,11 +126,13 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "1281108380136021489",
+            "id": "5577006791947779410",
             "triggers": null
           },
           "sensitive_values": {},
-          "depends_on": ["coder_agent.dev1"]
+          "depends_on": [
+            "coder_agent.dev1"
+          ]
         }
       ]
     }

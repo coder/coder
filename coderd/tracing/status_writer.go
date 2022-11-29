@@ -23,6 +23,13 @@ type StatusWriter struct {
 	wroteHeader bool
 }
 
+func StatusWriterMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		sw := &StatusWriter{ResponseWriter: rw}
+		next.ServeHTTP(sw, r)
+	})
+}
+
 func (w *StatusWriter) WriteHeader(status int) {
 	if !w.wroteHeader {
 		w.Status = status

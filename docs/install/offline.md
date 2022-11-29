@@ -6,7 +6,7 @@ Coder can run in offline / air-gapped environments.
 
 First, build and push a container image extending our official image with the following:
 
-- Terraform [(supported versions)](https://github.com/coder/coder/blob/main/provisioner/terraform/serve.go#L24-L25)
+- Terraform [(supported versions)](https://github.com/coder/coder/blob/main/provisioner/terraform/install.go#L23-L24)
 - CLI config (.tfrc) for Terraform referring to [external mirror](https://www.terraform.io/cli/config/config-file#explicit-installation-method-configuration)
 - [Terraform Providers](https://registry.terraform.io) for templates
   - These could also be specified via a volume mount (Docker) or [network mirror](https://www.terraform.io/internals/provider-network-mirror-protocol). See below for details.
@@ -27,7 +27,7 @@ RUN mkdir -p /opt/terraform
 # In order to run Coder airgapped or within private networks,
 # Terraform has to be bundled into the image in PATH or /opt.
 #
-# See https://github.com/coder/coder/blob/main/provisioner/terraform/serve.go#L24-L25
+# See https://github.com/coder/coder/blob/main/provisioner/terraform/install.go#L23-L24
 # for supported Terraform versions.
 ARG TERRAFORM_VERSION=1.3.0
 RUN curl -LOs https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip \
@@ -51,7 +51,7 @@ RUN mkdir -p /opt/terraform/plugins
 ADD filesystem-mirror-example.tfrc /opt/terraform/config.tfrc
 
 # Optionally, we can "seed" the filesystem mirror with common providers.
-# Coder and Docker. Comment out lines 37-47 if you plan on only using a
+# Coder and Docker. Comment out lines 40-49 if you plan on only using a
 # volume or network mirror:
 RUN mkdir -p /opt/terraform/plugins/registry.terraform.io
 WORKDIR /opt/terraform/plugins/registry.terraform.io
@@ -70,7 +70,7 @@ WORKDIR /home/coder
 # Option 2) Use a network mirror.
 #    https://developer.hashicorp.com/terraform/cli/config/config-file#network_mirror
 
-#    Be sure uncomment line 56 and edit network-mirror-example.tfrc to
+#    Be sure uncomment line 60 and edit network-mirror-example.tfrc to
 #    specify the HTTPS base URL of your mirror.
 
 # ADD network-mirror-example.tfrc /opt/terraform/config.tfrc
@@ -122,7 +122,7 @@ services:
   coder:
     image: registry.example.com/coder:latest
     volumes:
-      - ./plugins:/opt/registry.terraform.io
+      - ./plugins:/opt/terraform/plugins
     # ...
   database:
     image: registry.example.com/postgres:13

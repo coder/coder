@@ -38,6 +38,7 @@ func ActiveUsers(ctx context.Context, registerer prometheus.Registerer, db datab
 				return
 			case <-ticker.C:
 			}
+
 			apiKeys, err := db.GetAPIKeysLastUsedAfter(ctx, database.Now().Add(-1*time.Hour))
 			if err != nil {
 				continue
@@ -82,6 +83,7 @@ func Workspaces(ctx context.Context, registerer prometheus.Registerer, db databa
 				return
 			case <-ticker.C:
 			}
+
 			builds, err := db.GetLatestWorkspaceBuilds(ctx)
 			if err != nil {
 				continue

@@ -42,7 +42,7 @@ WHERE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without
 		-- duplicating or missing data.
-		WHEN @after_id :: uuid != '00000000-00000000-00000000-00000000' THEN (
+		WHEN @after_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
 			-- The pagination cursor is the last ID of the previous page.
 			-- The query is ordered by the build_number field, so select all
 			-- rows after the cursor.
@@ -124,7 +124,7 @@ INSERT INTO
 VALUES
 	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;
 
--- name: UpdateWorkspaceBuildByID :exec
+-- name: UpdateWorkspaceBuildByID :one
 UPDATE
 	workspace_builds
 SET
@@ -132,4 +132,13 @@ SET
 	provisioner_state = $3,
 	deadline = $4
 WHERE
-	id = $1;
+	id = $1 RETURNING *;
+
+-- name: UpdateWorkspaceBuildCostByID :one
+UPDATE
+	workspace_builds
+SET
+	daily_cost = $2
+WHERE
+	id = $1 RETURNING *;
+

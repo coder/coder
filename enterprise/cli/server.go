@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/enterprise/audit"
 	"github.com/coder/coder/enterprise/audit/backends"
 	"github.com/coder/coder/enterprise/coderd"
+	"github.com/coder/coder/enterprise/trialer"
 	"github.com/coder/coder/tailnet"
 
 	agpl "github.com/coder/coder/cli"
@@ -26,8 +27,8 @@ import (
 func server() *cobra.Command {
 	vip := deployment.NewViper()
 	cmd := agpl.Server(vip, func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, io.Closer, error) {
-		if options.DeploymentConfig.DERPServerRelayURL.Value != "" {
-			_, err := url.Parse(options.DeploymentConfig.DERPServerRelayURL.Value)
+		if options.DeploymentConfig.DERP.Server.RelayURL.Value != "" {
+			_, err := url.Parse(options.DeploymentConfig.DERP.Server.RelayURL.Value)
 			if err != nil {
 				return nil, nil, xerrors.Errorf("derp-server-relay-address must be a valid HTTP URL: %w", err)
 			}
@@ -57,14 +58,15 @@ func server() *cobra.Command {
 			)
 		}
 
+		options.TrialGenerator = trialer.New(options.Database, "https://v2-licensor.coder.com/trial", coderd.Keys)
+
 		o := &coderd.Options{
 			AuditLogging:           options.DeploymentConfig.AuditLogging.Value,
 			BrowserOnly:            options.DeploymentConfig.BrowserOnly.Value,
 			SCIMAPIKey:             []byte(options.DeploymentConfig.SCIMAPIKey.Value),
-			UserWorkspaceQuota:     options.DeploymentConfig.UserWorkspaceQuota.Value,
 			RBAC:                   true,
-			DERPServerRelayAddress: options.DeploymentConfig.DERPServerRelayURL.Value,
-			DERPServerRegionID:     options.DeploymentConfig.DERPServerRegionID.Value,
+			DERPServerRelayAddress: options.DeploymentConfig.DERP.Server.RelayURL.Value,
+			DERPServerRegionID:     options.DeploymentConfig.DERP.Server.RegionID.Value,
 
 			Options: options,
 		}

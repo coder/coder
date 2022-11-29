@@ -1,6 +1,6 @@
 {
   "format_version": "1.0",
-  "terraform_version": "1.2.8",
+  "terraform_version": "1.3.3",
   "values": {
     "root_module": {
       "resources": [
@@ -14,13 +14,15 @@
           "values": {
             "arch": "amd64",
             "auth": "token",
+            "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "id": "0bfa269a-e373-4fbc-929a-07b8ed0f3477",
+            "id": "7766b2a9-c00f-4cde-9acc-1fc05651dbdf",
             "init_script": "",
             "os": "linux",
             "startup_script": null,
-            "token": "4bc54f84-7d97-492a-ad98-40ae7dfbb300"
+            "token": "5e54c173-a813-4df0-b87d-0617082769dc",
+            "troubleshooting_url": null
           },
           "sensitive_values": {}
         },
@@ -32,9 +34,10 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
+            "daily_cost": 29,
             "hide": true,
             "icon": "/icon/server.svg",
-            "id": "2ee6d253-dec1-4336-95ba-bd5e93cf4c84",
+            "id": "e43f1cd6-5dbb-4d6b-8942-37f914b37be5",
             "item": [
               {
                 "is_null": false,
@@ -61,12 +64,19 @@
                 "value": "squirrel"
               }
             ],
-            "resource_id": "3043919679469754967"
+            "resource_id": "5577006791947779410"
           },
           "sensitive_values": {
-            "item": [{}, {}, {}, {}]
+            "item": [
+              {},
+              {},
+              {},
+              {}
+            ]
           },
-          "depends_on": ["null_resource.about"]
+          "depends_on": [
+            "null_resource.about"
+          ]
         },
         {
           "address": "null_resource.about",
@@ -76,7 +86,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "3043919679469754967",
+            "id": "5577006791947779410",
             "triggers": null
           },
           "sensitive_values": {}

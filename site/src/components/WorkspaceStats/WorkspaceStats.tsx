@@ -1,55 +1,59 @@
 import Link from "@material-ui/core/Link"
-import { makeStyles, useTheme } from "@material-ui/core/styles"
+import { makeStyles } from "@material-ui/core/styles"
 import { OutdatedHelpTooltip } from "components/Tooltips"
 import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
 import { createDayString } from "util/createDayString"
-import { getDisplayWorkspaceBuildInitiatedBy } from "util/workspace"
+import {
+  getDisplayWorkspaceBuildInitiatedBy,
+  getDisplayWorkspaceTemplateName,
+} from "util/workspace"
 import { Workspace } from "../../api/typesGenerated"
-import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 
 const Language = {
   workspaceDetails: "Workspace Details",
   templateLabel: "Template",
   statusLabel: "Workspace Status",
   versionLabel: "Version",
-  lastBuiltLabel: "Last Built",
+  lastBuiltLabel: "Last built",
   outdated: "Outdated",
   upToDate: "Up to date",
-  byLabel: "Last Built by",
+  byLabel: "Last built by",
+  costLabel: "Daily cost",
 }
 
 export interface WorkspaceStatsProps {
   workspace: Workspace
+  quota_budget?: number
   handleUpdate: () => void
 }
 
 export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
   workspace,
+  quota_budget,
   handleUpdate,
 }) => {
   const styles = useStyles()
-  const theme = useTheme()
   const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(
     workspace.latest_build,
   )
+  const displayTemplateName = getDisplayWorkspaceTemplateName(workspace)
 
   return (
     <div className={styles.stats} aria-label={Language.workspaceDetails}>
       <div className={styles.statItem}>
-        <span className={styles.statsLabel}>{Language.templateLabel}</span>
+        <span className={styles.statsLabel}>{Language.templateLabel}:</span>
         <Link
           component={RouterLink}
           to={`/templates/${workspace.template_name}`}
           className={combineClasses([styles.statsValue, styles.link])}
         >
-          {workspace.template_name}
+          {displayTemplateName}
         </Link>
       </div>
-      <div className={styles.statsDivider} />
       <div className={styles.statItem}>
-        <span className={styles.statsLabel}>{Language.versionLabel}</span>
+        <span className={styles.statsLabel}>{Language.versionLabel}:</span>
         <span className={styles.statsValue}>
           {workspace.outdated ? (
             <span className={styles.outdatedLabel}>
@@ -60,24 +64,28 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
               />
             </span>
           ) : (
-            <span style={{ color: theme.palette.text.secondary }}>
-              {Language.upToDate}
-            </span>
+            Language.upToDate
           )}
         </span>
       </div>
-      <div className={styles.statsDivider} />
       <div className={styles.statItem}>
-        <span className={styles.statsLabel}>{Language.lastBuiltLabel}</span>
+        <span className={styles.statsLabel}>{Language.lastBuiltLabel}:</span>
         <span className={styles.statsValue} data-chromatic="ignore">
           {createDayString(workspace.latest_build.created_at)}
         </span>
       </div>
-      <div className={styles.statsDivider} />
       <div className={styles.statItem}>
-        <span className={styles.statsLabel}>{Language.byLabel}</span>
+        <span className={styles.statsLabel}>{Language.byLabel}:</span>
         <span className={styles.statsValue}>{initiatedBy}</span>
       </div>
+      {workspace.latest_build.daily_cost > 0 && (
+        <div className={styles.statItem}>
+          <span className={styles.statsLabel}>{Language.costLabel}:</span>
+          <span className={styles.statsValue}>
+            {workspace.latest_build.daily_cost} / {quota_budget}
+          </span>
+        </div>
+      )}
     </div>
   )
 }
@@ -86,13 +94,11 @@ const useStyles = makeStyles((theme) => ({
   stats: {
     paddingLeft: theme.spacing(2),
     paddingRight: theme.spacing(2),
-    backgroundColor: theme.palette.background.paper,
     borderRadius: theme.shape.borderRadius,
     border: `1px solid ${theme.palette.divider}`,
     display: "flex",
     alignItems: "center",
     color: theme.palette.text.secondary,
-    fontFamily: MONOSPACE_FONT_FAMILY,
     margin: "0px",
     [theme.breakpoints.down("sm")]: {
       display: "block",
@@ -100,34 +106,23 @@ const useStyles = makeStyles((theme) => ({
   },
 
   statItem: {
-    minWidth: "16%",
     padding: theme.spacing(2),
     paddingTop: theme.spacing(1.75),
+    display: "flex",
+    alignItems: "baseline",
+    gap: theme.spacing(1),
   },
 
   statsLabel: {
-    fontSize: 12,
-    textTransform: "uppercase",
     display: "block",
-    fontWeight: 600,
     wordWrap: "break-word",
   },
 
   statsValue: {
-    fontSize: 16,
     marginTop: theme.spacing(0.25),
     display: "block",
     wordWrap: "break-word",
-  },
-
-  statsDivider: {
-    width: 1,
-    height: theme.spacing(5),
-    backgroundColor: theme.palette.divider,
-    marginRight: theme.spacing(2),
-    [theme.breakpoints.down("sm")]: {
-      display: "none",
-    },
+    color: theme.palette.text.primary,
   },
 
   capitalize: {
@@ -138,6 +133,7 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.primary,
     fontWeight: 600,
   },
+
   outdatedLabel: {
     color: theme.palette.error.main,
     display: "flex",

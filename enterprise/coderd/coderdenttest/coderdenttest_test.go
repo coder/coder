@@ -33,7 +33,8 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	ctx, _ := testutil.Context(t)
 	admin := coderdtest.CreateFirstUser(t, client)
 	license := coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-		TemplateRBAC: true,
+		TemplateRBAC:               true,
+		ExternalProvisionerDaemons: true,
 	})
 	group, err := client.CreateGroup(ctx, admin.OrganizationID, codersdk.CreateGroupRequest{
 		Name: "testgroup",
@@ -44,8 +45,11 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	a := coderdtest.NewAuthTester(ctx, t, client, api.AGPL, admin)
 	a.URLParams["licenses/{id}"] = fmt.Sprintf("licenses/%d", license.ID)
 	a.URLParams["groups/{group}"] = fmt.Sprintf("groups/%s", group.ID.String())
+	a.URLParams["{groupName}"] = group.Name
 
 	skipRoutes, assertRoute := coderdtest.AGPLRoutes(a)
+	skipRoutes["GET:/api/v2/organizations/{organization}/provisionerdaemons/serve"] = "This route checks for RBAC dependent on input parameters!"
+
 	assertRoute["GET:/api/v2/entitlements"] = coderdtest.RouteCheck{
 		NoAuthorize: true,
 	}
@@ -79,7 +83,19 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		AssertAction: rbac.ActionRead,
 		AssertObject: groupObj,
 	}
-	assertRoute["PATCH:/api/v2/groups/{group}"] = coderdtest.RouteCheck{
+	assertRoute["GET:/api/v2/organizations/{organization}/groups/{groupName}"] = coderdtest.RouteCheck{
+		AssertAction: rbac.ActionRead,
+		AssertObject: groupObj,
+	}
+	assertRoute["GET:/api/v2/organizations/{organization}/provisionerdaemons"] = coderdtest.RouteCheck{
+		AssertAction: rbac.ActionRead,
+		AssertObject: rbac.ResourceProvisionerDaemon,
+	}
+	assertRoute["GET:/api/v2/organizations/{organization}/provisionerdaemons"] = coderdtest.RouteCheck{
+		AssertAction: rbac.ActionRead,
+		AssertObject: rbac.ResourceProvisionerDaemon,
+	}
+	assertRoute["GET:/api/v2/groups/{group}"] = coderdtest.RouteCheck{
 		AssertAction: rbac.ActionRead,
 		AssertObject: groupObj,
 	}

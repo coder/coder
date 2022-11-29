@@ -27,7 +27,8 @@
     "updating": "Updating",
     "starting": "Starting...",
     "stopping": "Stopping...",
-    "deleting": "Deleting..."
+    "deleting": "Deleting...",
+    "changeVersion": "Change version"
   },
   "disabledButton": {
     "canceling": "Canceling",
@@ -37,6 +38,18 @@
   "agentStatus": {
     "connected": "Connected",
     "connecting": "Connecting...",
-    "disconnected": "Disconnected"
+    "disconnected": "Disconnected",
+    "timeout": "Timeout"
+  },
+  "buildMessage": {
+    "start": "started",
+    "stop": "stopped",
+    "delete": "deleted",
+    "theWorkspace": "the workspace",
+    "automatically": "automatically "
+  },
+  "buildData": {
+    "reason": "Reason",
+    "duration": "Duration"
   }
 }

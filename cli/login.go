@@ -38,10 +38,13 @@ func init() {
 }
 
 func login() *cobra.Command {
+	const firstUserTrialEnv = "CODER_FIRST_USER_TRIAL"
+
 	var (
 		email    string
 		username string
 		password string
+		trial    bool
 	)
 	cmd := &cobra.Command{
 		Use:   "login <url>",
@@ -86,7 +89,7 @@ func login() *cobra.Command {
 				return xerrors.Errorf("Failed to check server %q for first user, is the URL correct and is coder accessible from your browser? Error - has initial user: %w", serverURL.String(), err)
 			}
 			if !hasInitialUser {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), caret+"Your Coder deployment hasn't been set up!\n")
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), Caret+"Your Coder deployment hasn't been set up!\n")
 
 				if username == "" {
 					if !isTTY(cmd) {
@@ -162,11 +165,20 @@ func login() *cobra.Command {
 					}
 				}
 
+				if !cmd.Flags().Changed("first-user-trial") && os.Getenv(firstUserTrialEnv) == "" {
+					v, _ := cliui.Prompt(cmd, cliui.PromptOptions{
+						Text:      "Start a 30-day trial of Enterprise?",
+						IsConfirm: true,
+						Default:   "yes",
+					})
+					trial = v == "yes" || v == "y"
+				}
+
 				_, err = client.CreateFirstUser(cmd.Context(), codersdk.CreateFirstUserRequest{
-					Email:            email,
-					Username:         username,
-					OrganizationName: username,
-					Password:         password,
+					Email:    email,
+					Username: username,
+					Password: password,
+					Trial:    trial,
 				})
 				if err != nil {
 					return xerrors.Errorf("create initial user: %w", err)
@@ -214,7 +226,7 @@ func login() *cobra.Command {
 					Text:   "Paste your token here:",
 					Secret: true,
 					Validate: func(token string) error {
-						client.SessionToken = token
+						client.SetSessionToken(token)
 						_, err := client.User(cmd.Context(), codersdk.Me)
 						if err != nil {
 							return xerrors.New("That's not a valid token!")
@@ -228,7 +240,7 @@ func login() *cobra.Command {
 			}
 
 			// Login to get user data - verify it is OK before persisting
-			client.SessionToken = sessionToken
+			client.SetSessionToken(sessionToken)
 			resp, err := client.User(cmd.Context(), codersdk.Me)
 			if err != nil {
 				return xerrors.Errorf("get user: %w", err)
@@ -244,13 +256,14 @@ func login() *cobra.Command {
 				return xerrors.Errorf("write server url: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), caret+"Welcome to Coder, %s! You're authenticated.\n", cliui.Styles.Keyword.Render(resp.Username))
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), Caret+"Welcome to Coder, %s! You're authenticated.\n", cliui.Styles.Keyword.Render(resp.Username))
 			return nil
 		},
 	}
 	cliflag.StringVarP(cmd.Flags(), &email, "first-user-email", "", "CODER_FIRST_USER_EMAIL", "", "Specifies an email address to use if creating the first user for the deployment.")
 	cliflag.StringVarP(cmd.Flags(), &username, "first-user-username", "", "CODER_FIRST_USER_USERNAME", "", "Specifies a username to use if creating the first user for the deployment.")
 	cliflag.StringVarP(cmd.Flags(), &password, "first-user-password", "", "CODER_FIRST_USER_PASSWORD", "", "Specifies a password to use if creating the first user for the deployment.")
+	cliflag.BoolVarP(cmd.Flags(), &trial, "first-user-trial", "", firstUserTrialEnv, false, "Specifies whether a trial license should be provisioned for the Coder deployment or not.")
 	return cmd
 }
 
@@ -283,6 +296,17 @@ func openURL(cmd *cobra.Command, urlToOpen string) error {
 	if wsl {
 		// #nosec
 		return exec.Command("cmd.exe", "/c", "start", strings.ReplaceAll(urlToOpen, "&", "^&")).Start()
+	}
+
+	browserEnv := os.Getenv("BROWSER")
+	if browserEnv != "" {
+		browserSh := fmt.Sprintf("%s '%s'", browserEnv, urlToOpen)
+		cmd := exec.CommandContext(cmd.Context(), "sh", "-c", browserSh)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			return xerrors.Errorf("failed to run %v (out: %q): %w", cmd.Args, out, err)
+		}
+		return nil
 	}
 
 	return browser.OpenURL(urlToOpen)

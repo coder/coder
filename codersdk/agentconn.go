@@ -14,12 +14,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
-	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/speedtest"
-	"tailscale.com/tailcfg"
 
+	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/tailnet"
 )
 
@@ -132,24 +132,18 @@ type AgentConn struct {
 	CloseFunc func()
 }
 
+func (c *AgentConn) AwaitReachable(ctx context.Context) bool {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	return c.Conn.AwaitReachable(ctx, TailnetIP)
+}
+
 func (c *AgentConn) Ping(ctx context.Context) (time.Duration, error) {
-	errCh := make(chan error, 1)
-	durCh := make(chan time.Duration, 1)
-	go c.Conn.Ping(TailnetIP, tailcfg.PingDisco, func(pr *ipnstate.PingResult) {
-		if pr.Err != "" {
-			errCh <- xerrors.New(pr.Err)
-			return
-		}
-		durCh <- time.Duration(pr.LatencySeconds * float64(time.Second))
-	})
-	select {
-	case err := <-errCh:
-		return 0, err
-	case <-ctx.Done():
-		return 0, ctx.Err()
-	case dur := <-durCh:
-		return dur, nil
-	}
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	return c.Conn.Ping(ctx, TailnetIP)
 }
 
 func (c *AgentConn) CloseWithError(_ error) error {
@@ -165,14 +159,17 @@ func (c *AgentConn) Close() error {
 
 // @typescript-ignore ReconnectingPTYInit
 type ReconnectingPTYInit struct {
-	ID      string
+	ID      uuid.UUID
 	Height  uint16
 	Width   uint16
 	Command string
 }
 
-func (c *AgentConn) ReconnectingPTY(id string, height, width uint16, command string) (net.Conn, error) {
-	conn, err := c.DialContextTCP(context.Background(), netip.AddrPortFrom(TailnetIP, uint16(TailnetReconnectingPTYPort)))
+func (c *AgentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, height, width uint16, command string) (net.Conn, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	conn, err := c.DialContextTCP(ctx, netip.AddrPortFrom(TailnetIP, uint16(TailnetReconnectingPTYPort)))
 	if err != nil {
 		return nil, err
 	}
@@ -197,14 +194,18 @@ func (c *AgentConn) ReconnectingPTY(id string, height, width uint16, command str
 	return conn, nil
 }
 
-func (c *AgentConn) SSH() (net.Conn, error) {
-	return c.DialContextTCP(context.Background(), netip.AddrPortFrom(TailnetIP, uint16(TailnetSSHPort)))
+func (c *AgentConn) SSH(ctx context.Context) (net.Conn, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	return c.DialContextTCP(ctx, netip.AddrPortFrom(TailnetIP, uint16(TailnetSSHPort)))
 }
 
 // SSHClient calls SSH to create a client that uses a weak cipher
 // for high throughput.
-func (c *AgentConn) SSHClient() (*ssh.Client, error) {
-	netConn, err := c.SSH()
+func (c *AgentConn) SSHClient(ctx context.Context) (*ssh.Client, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	netConn, err := c.SSH(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("ssh: %w", err)
 	}
@@ -220,8 +221,10 @@ func (c *AgentConn) SSHClient() (*ssh.Client, error) {
 	return ssh.NewClient(sshConn, channels, requests), nil
 }
 
-func (c *AgentConn) Speedtest(direction speedtest.Direction, duration time.Duration) ([]speedtest.Result, error) {
-	speedConn, err := c.DialContextTCP(context.Background(), netip.AddrPortFrom(TailnetIP, uint16(TailnetSpeedtestPort)))
+func (c *AgentConn) Speedtest(ctx context.Context, direction speedtest.Direction, duration time.Duration) ([]speedtest.Result, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	speedConn, err := c.DialContextTCP(ctx, netip.AddrPortFrom(TailnetIP, uint16(TailnetSpeedtestPort)))
 	if err != nil {
 		return nil, xerrors.Errorf("dial speedtest: %w", err)
 	}
@@ -233,6 +236,8 @@ func (c *AgentConn) Speedtest(direction speedtest.Direction, duration time.Durat
 }
 
 func (c *AgentConn) DialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
 	if network == "unix" {
 		return nil, xerrors.New("network must be tcp or udp")
 	}
@@ -277,6 +282,8 @@ func (c *AgentConn) statisticsClient() *http.Client {
 }
 
 func (c *AgentConn) doStatisticsRequest(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
 	host := net.JoinHostPort(TailnetIP.String(), strconv.Itoa(TailnetStatisticsPort))
 	url := fmt.Sprintf("http://%s%s", host, path)
 
@@ -309,6 +316,8 @@ type ListeningPort struct {
 }
 
 func (c *AgentConn) ListeningPorts(ctx context.Context) (ListeningPortsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
 	res, err := c.doStatisticsRequest(ctx, http.MethodGet, "/api/v0/listening-ports", nil)
 	if err != nil {
 		return ListeningPortsResponse{}, xerrors.Errorf("do request: %w", err)

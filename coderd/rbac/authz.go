@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/rbac/regosql"
 	"github.com/coder/coder/coderd/tracing"
 )
 
@@ -20,7 +21,7 @@ type Authorizer interface {
 
 type PreparedAuthorized interface {
 	Authorize(ctx context.Context, object Object) error
-	Compile() (AuthorizeFilter, error)
+	CompileToSQL(cfg regosql.ConvertConfig) (string, error)
 }
 
 // Filter takes in a list of objects, and will filter the list removing all

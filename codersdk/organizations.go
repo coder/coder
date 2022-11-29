@@ -36,11 +36,12 @@ type Organization struct {
 type CreateTemplateVersionRequest struct {
 	Name string `json:"name,omitempty" validate:"omitempty,template_name"`
 	// TemplateID optionally associates a version with a template.
-	TemplateID uuid.UUID `json:"template_id,omitempty"`
+	TemplateID      uuid.UUID                `json:"template_id,omitempty"`
+	StorageMethod   ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required"`
+	FileID          uuid.UUID                `json:"file_id" validate:"required"`
+	Provisioner     ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo,required"`
+	ProvisionerTags map[string]string        `json:"tags"`
 
-	StorageMethod ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required"`
-	FileID        uuid.UUID                `json:"file_id" validate:"required"`
-	Provisioner   ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo,required"`
 	// ParameterValues allows for additional parameters to be provided
 	// during the dry-run provision stage.
 	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
@@ -50,6 +51,8 @@ type CreateTemplateVersionRequest struct {
 type CreateTemplateRequest struct {
 	// Name is the name of the template.
 	Name string `json:"name" validate:"template_name,required"`
+	// DisplayName is the displayed name of the template.
+	DisplayName string `json:"display_name,omitempty" validate:"template_display_name"`
 	// Description is a description of what the template contains. It must be
 	// less than 128 bytes.
 	Description string `json:"description,omitempty" validate:"lt=128"`
@@ -66,14 +69,13 @@ type CreateTemplateRequest struct {
 	VersionID       uuid.UUID                `json:"template_version_id" validate:"required"`
 	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
 
-	// MaxTTLMillis allows optionally specifying the maximum allowable TTL
+	// DefaultTTLMillis allows optionally specifying the default TTL
 	// for all workspaces created from this template.
-	MaxTTLMillis *int64 `json:"max_ttl_ms,omitempty"`
+	DefaultTTLMillis *int64 `json:"default_ttl_ms,omitempty"`
 
-	// MinAutostartIntervalMillis allows optionally specifying the minimum
-	// allowable duration between autostarts for all workspaces created from
-	// this template.
-	MinAutostartIntervalMillis *int64 `json:"min_autostart_interval_ms,omitempty"`
+	// Allow users to cancel in-progress workspace jobs.
+	// *bool as the default value is "true".
+	AllowUserCancelWorkspaceJobs *bool `json:"allow_user_cancel_workspace_jobs"`
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.
@@ -134,6 +136,25 @@ func (c *Client) CreateTemplateVersion(ctx context.Context, organizationID uuid.
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusCreated {
+		return TemplateVersion{}, readBodyAsError(res)
+	}
+
+	var templateVersion TemplateVersion
+	return templateVersion, json.NewDecoder(res.Body).Decode(&templateVersion)
+}
+
+func (c *Client) TemplateVersionByOrganizationAndName(ctx context.Context, organizationID uuid.UUID, name string) (TemplateVersion, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/organizations/%s/templateversions/%s", organizationID.String(), name),
+		nil,
+	)
+
+	if err != nil {
+		return TemplateVersion{}, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
 		return TemplateVersion{}, readBodyAsError(res)
 	}
 

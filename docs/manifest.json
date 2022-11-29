@@ -56,6 +56,11 @@
           "path": "./install/offline.md"
         },
         {
+          "title": "External database",
+          "description": "Use external PostgreSQL database",
+          "path": "./install/database.md"
+        },
+        {
           "title": "Uninstall",
           "description": "Learn how to uninstall Coder",
           "path": "./install/uninstall.md"
@@ -76,19 +81,19 @@
         },
         {
           "title": "Google Cloud Platform",
-          "description": "Setup Coder with Google Cloud Platform",
+          "description": "Setup Coder on a GCP Compute Engine VM",
           "icon_path": "./images/google-cloud.svg",
           "path": "./quickstart/google-cloud-platform.md"
         },
         {
           "title": "AWS",
-          "description": "Setup Coder with AWS",
+          "description": "Setup Coder on an AWS EC2 VM",
           "icon_path": "./images/aws.svg",
           "path": "./quickstart/aws.md"
         },
         {
           "title": "Azure",
-          "description": "Setup Coder with Azure",
+          "description": "Setup Coder on an Azure VM",
           "icon_path": "./images/azure.svg",
           "path": "./quickstart/azure.md"
         }
@@ -100,6 +105,13 @@
       "path": "./templates.md",
       "icon_path": "./images/icons/picture.svg",
       "children": [
+        {
+          "title": "Resource Persistence",
+          "description": "Learn how resource persistence works in Coder",
+          "path": "./templates/resource-persistence.md",
+          "icon_path": "./images/icons/infinity.svg",
+          "last_updated": "2022-10-23"
+        },
         {
           "title": "Provider Authentication",
           "description": "Learn how to authenticate the provisioner",
@@ -224,6 +236,12 @@
           "icon_path": "./images/icons/toggle_on.svg"
         },
         {
+          "title": "Git Providers",
+          "description": "Learn how connect Coder with external git providers",
+          "icon_path": "./images/icons/git.svg",
+          "path": "./admin/git-providers.md"
+        },
+        {
           "title": "Upgrading",
           "description": "Learn how to upgrade Coder",
           "icon_path": "./images/icons/upgrade.svg",
@@ -257,18 +275,18 @@
           "state": "enterprise"
         },
         {
-          "title": "Enterprise",
-          "description": "Learn how to enable Enterprise features",
-          "icon_path": "./images/icons/group.svg",
-          "path": "./admin/enterprise.md"
-        },
-        {
           "title": "Telemetry",
           "description": "Learn what usage telemetry Coder collects",
           "icon_path": "./images/icons/science.svg",
           "path": "./admin/telemetry.md"
         }
       ]
+    },
+    {
+      "title": "Enterprise",
+      "description": "Learn how to enable Enterprise features",
+      "icon_path": "./images/icons/group.svg",
+      "path": "./enterprise.md"
     },
     {
       "title": "Contributing",

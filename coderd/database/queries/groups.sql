@@ -75,13 +75,14 @@ INSERT INTO groups (
 	id,
 	name,
 	organization_id,
-	avatar_url
+	avatar_url,
+	quota_allowance
 )
 VALUES
-	( $1, $2, $3, $4) RETURNING *;
+	( $1, $2, $3, $4, $5) RETURNING *;
 
 -- We use the organization_id as the id
--- for simplicity since all users is 
+-- for simplicity since all users is
 -- every member of the org.
 -- name: InsertAllUsersGroup :one
 INSERT INTO groups (
@@ -97,9 +98,10 @@ UPDATE
 	groups
 SET
 	name = $1,
-	avatar_url = $2
+	avatar_url = $2,
+	quota_allowance = $3
 WHERE
-	id = $3
+	id = $4
 RETURNING *;
 
 -- name: InsertGroupMember :exec
@@ -110,14 +112,14 @@ INSERT INTO group_members (
 VALUES ( $1, $2);
 
 -- name: DeleteGroupMember :exec
-DELETE FROM 
-	group_members 
+DELETE FROM
+	group_members
 WHERE
 	user_id = $1;
 
 -- name: DeleteGroupByID :exec
-DELETE FROM 
-	groups 
+DELETE FROM
+	groups
 WHERE
 	id = $1;
 

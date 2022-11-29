@@ -14,16 +14,15 @@ import { Resources } from "../Resources/Resources"
 import { Stack } from "../Stack/Stack"
 import { WorkspaceActions } from "../WorkspaceActions/WorkspaceActions"
 import { WorkspaceDeletedBanner } from "../WorkspaceDeletedBanner/WorkspaceDeletedBanner"
-import { WorkspaceScheduleBanner } from "../WorkspaceScheduleBanner/WorkspaceScheduleBanner"
 import { WorkspaceScheduleButton } from "../WorkspaceScheduleButton/WorkspaceScheduleButton"
-import { WorkspaceSection } from "../WorkspaceSection/WorkspaceSection"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
 import { AlertBanner } from "../AlertBanner/AlertBanner"
 import { useTranslation } from "react-i18next"
 import {
-  EstimateTransitionTime,
+  ActiveTransition,
   WorkspaceBuildProgress,
 } from "components/WorkspaceBuildProgress/WorkspaceBuildProgress"
+import { AgentRow } from "components/Resources/AgentRow"
 
 export enum WorkspaceErrors {
   GET_RESOURCES_ERROR = "getResourcesError",
@@ -33,10 +32,6 @@ export enum WorkspaceErrors {
 }
 
 export interface WorkspaceProps {
-  bannerProps: {
-    isLoading?: boolean
-    onExtend: () => void
-  }
   scheduleProps: {
     onDeadlinePlus: (hours: number) => void
     onDeadlineMinus: (hours: number) => void
@@ -50,6 +45,7 @@ export interface WorkspaceProps {
   handleDelete: () => void
   handleUpdate: () => void
   handleCancel: () => void
+  handleChangeVersion: () => void
   isUpdating: boolean
   workspace: TypesGen.Workspace
   resources?: TypesGen.WorkspaceResource[]
@@ -60,19 +56,20 @@ export interface WorkspaceProps {
   buildInfo?: TypesGen.BuildInfoResponse
   applicationsHost?: string
   template?: TypesGen.Template
+  quota_budget?: number
 }
 
 /**
  * Workspace is the top-level component for viewing an individual workspace
  */
 export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
-  bannerProps,
   scheduleProps,
   handleStart,
   handleStop,
   handleDelete,
   handleUpdate,
   handleCancel,
+  handleChangeVersion,
   workspace,
   isUpdating,
   resources,
@@ -83,10 +80,12 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   buildInfo,
   applicationsHost,
   template,
+  quota_budget,
 }) => {
   const { t } = useTranslation("workspacePage")
   const styles = useStyles()
   const navigate = useNavigate()
+  const serverVersion = buildInfo?.version || ""
   const hasTemplateIcon =
     workspace.template_icon && workspace.template_icon !== ""
 
@@ -118,13 +117,9 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
     />
   )
 
-  let buildTimeEstimate: number | undefined = undefined
-  let isTransitioning: boolean | undefined = undefined
+  let transitionStats: TypesGen.TransitionStats | undefined = undefined
   if (template !== undefined) {
-    ;[buildTimeEstimate, isTransitioning] = EstimateTransitionTime(
-      template,
-      workspace,
-    )
+    transitionStats = ActiveTransition(template, workspace)
   }
 
   return (
@@ -150,15 +145,12 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               handleDelete={handleDelete}
               handleUpdate={handleUpdate}
               handleCancel={handleCancel}
+              handleChangeVersion={handleChangeVersion}
               isUpdating={isUpdating}
             />
           </Stack>
         }
       >
-        <WorkspaceStatusBadge
-          build={workspace.latest_build}
-          className={styles.statusBadge}
-        />
         <Stack direction="row" spacing={3} alignItems="center">
           {hasTemplateIcon && (
             <img
@@ -168,7 +160,13 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             />
           )}
           <div>
-            <PageHeaderTitle>{workspace.name}</PageHeaderTitle>
+            <PageHeaderTitle>
+              {workspace.name}
+              <WorkspaceStatusBadge
+                build={workspace.latest_build}
+                className={styles.statusBadge}
+              />
+            </PageHeaderTitle>
             <PageHeaderSubtitle condensed>
               {workspace.owner_name}
             </PageHeaderSubtitle>
@@ -179,59 +177,62 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
       <Stack
         direction="column"
         className={styles.firstColumnSpacer}
-        spacing={2.5}
+        spacing={4}
       >
         {buildError}
         {cancellationError}
         {workspaceRefreshWarning}
-
-        <WorkspaceScheduleBanner
-          isLoading={bannerProps.isLoading}
-          onExtend={bannerProps.onExtend}
-          workspace={workspace}
-        />
 
         <WorkspaceDeletedBanner
           workspace={workspace}
           handleClick={() => navigate(`/templates`)}
         />
 
-        <WorkspaceStats workspace={workspace} handleUpdate={handleUpdate} />
+        <WorkspaceStats
+          workspace={workspace}
+          quota_budget={quota_budget}
+          handleUpdate={handleUpdate}
+        />
 
-        {isTransitioning !== undefined && isTransitioning && (
+        {transitionStats !== undefined && (
           <WorkspaceBuildProgress
             workspace={workspace}
-            buildEstimate={buildTimeEstimate}
+            transitionStats={transitionStats}
+          />
+        )}
+
+        {Boolean(workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]) && (
+          <AlertBanner
+            severity="error"
+            error={workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]}
           />
         )}
 
         {typeof resources !== "undefined" && resources.length > 0 && (
           <Resources
             resources={resources}
-            getResourcesError={
-              workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]
-            }
-            workspace={workspace}
-            canUpdateWorkspace={canUpdateWorkspace}
-            buildInfo={buildInfo}
-            hideSSHButton={hideSSHButton}
-            applicationsHost={applicationsHost}
+            agentRow={(agent) => (
+              <AgentRow
+                key={agent.id}
+                agent={agent}
+                workspace={workspace}
+                applicationsHost={applicationsHost}
+                showApps={canUpdateWorkspace}
+                hideSSHButton={hideSSHButton}
+                serverVersion={serverVersion}
+              />
+            )}
           />
         )}
 
-        <WorkspaceSection
-          title="Logs"
-          contentsProps={{ className: styles.timelineContents }}
-        >
-          {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (
-            <AlertBanner
-              severity="error"
-              error={workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR]}
-            />
-          ) : (
-            <BuildsTable builds={builds} className={styles.timelineTable} />
-          )}
-        </WorkspaceSection>
+        {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (
+          <AlertBanner
+            severity="error"
+            error={workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR]}
+          />
+        ) : (
+          <BuildsTable builds={builds} />
+        )}
       </Stack>
     </Margins>
   )
@@ -242,7 +243,7 @@ const spacerWidth = 300
 export const useStyles = makeStyles((theme) => {
   return {
     statusBadge: {
-      marginBottom: theme.spacing(3),
+      marginLeft: theme.spacing(2),
     },
 
     actions: {
@@ -274,10 +275,6 @@ export const useStyles = makeStyles((theme) => {
 
     timelineContents: {
       margin: 0,
-    },
-
-    timelineTable: {
-      border: 0,
     },
   }
 })

@@ -19,9 +19,16 @@ func NewDB(t *testing.T) (database.Store, database.Pubsub) {
 	db := databasefake.New()
 	pubsub := database.NewPubsubInMemory()
 	if os.Getenv("DB") != "" {
-		connectionURL, closePg, err := postgres.Open()
-		require.NoError(t, err)
-		t.Cleanup(closePg)
+		connectionURL := os.Getenv("CODER_PG_CONNECTION_URL")
+		if connectionURL == "" {
+			var (
+				err     error
+				closePg func()
+			)
+			connectionURL, closePg, err = postgres.Open()
+			require.NoError(t, err)
+			t.Cleanup(closePg)
+		}
 		sqlDB, err := sql.Open("postgres", connectionURL)
 		require.NoError(t, err)
 		t.Cleanup(func() {

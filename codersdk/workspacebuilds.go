@@ -51,23 +51,25 @@ const (
 // WorkspaceBuild is an at-point representation of a workspace state.
 // BuildNumbers start at 1 and increase by 1 for each subsequent build
 type WorkspaceBuild struct {
-	ID                 uuid.UUID           `json:"id"`
-	CreatedAt          time.Time           `json:"created_at"`
-	UpdatedAt          time.Time           `json:"updated_at"`
-	WorkspaceID        uuid.UUID           `json:"workspace_id"`
-	WorkspaceName      string              `json:"workspace_name"`
-	WorkspaceOwnerID   uuid.UUID           `json:"workspace_owner_id"`
-	WorkspaceOwnerName string              `json:"workspace_owner_name"`
-	TemplateVersionID  uuid.UUID           `json:"template_version_id"`
-	BuildNumber        int32               `json:"build_number"`
-	Transition         WorkspaceTransition `json:"transition"`
-	InitiatorID        uuid.UUID           `json:"initiator_id"`
-	InitiatorUsername  string              `json:"initiator_name"`
-	Job                ProvisionerJob      `json:"job"`
-	Reason             BuildReason         `db:"reason" json:"reason"`
-	Resources          []WorkspaceResource `json:"resources"`
-	Deadline           NullTime            `json:"deadline,omitempty"`
-	Status             WorkspaceStatus     `json:"status"`
+	ID                  uuid.UUID           `json:"id"`
+	CreatedAt           time.Time           `json:"created_at"`
+	UpdatedAt           time.Time           `json:"updated_at"`
+	WorkspaceID         uuid.UUID           `json:"workspace_id"`
+	WorkspaceName       string              `json:"workspace_name"`
+	WorkspaceOwnerID    uuid.UUID           `json:"workspace_owner_id"`
+	WorkspaceOwnerName  string              `json:"workspace_owner_name"`
+	TemplateVersionID   uuid.UUID           `json:"template_version_id"`
+	TemplateVersionName string              `json:"template_version_name"`
+	BuildNumber         int32               `json:"build_number"`
+	Transition          WorkspaceTransition `json:"transition"`
+	InitiatorID         uuid.UUID           `json:"initiator_id"`
+	InitiatorUsername   string              `json:"initiator_name"`
+	Job                 ProvisionerJob      `json:"job"`
+	Reason              BuildReason         `db:"reason" json:"reason"`
+	Resources           []WorkspaceResource `json:"resources"`
+	Deadline            NullTime            `json:"deadline,omitempty"`
+	Status              WorkspaceStatus     `json:"status"`
+	DailyCost           int32               `json:"daily_cost"`
 }
 
 type WorkspaceResource struct {
@@ -81,6 +83,7 @@ type WorkspaceResource struct {
 	Icon       string                      `json:"icon"`
 	Agents     []WorkspaceAgent            `json:"agents,omitempty"`
 	Metadata   []WorkspaceResourceMetadata `json:"metadata,omitempty"`
+	DailyCost  int32                       `json:"daily_cost"`
 }
 
 type WorkspaceResourceMetadata struct {
@@ -117,13 +120,13 @@ func (c *Client) CancelWorkspaceBuild(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-// WorkspaceBuildLogsBefore returns logs that occurred before a specific time.
-func (c *Client) WorkspaceBuildLogsBefore(ctx context.Context, build uuid.UUID, before time.Time) ([]ProvisionerJobLog, error) {
+// WorkspaceBuildLogsBefore returns logs that occurred before a specific log ID.
+func (c *Client) WorkspaceBuildLogsBefore(ctx context.Context, build uuid.UUID, before int64) ([]ProvisionerJobLog, error) {
 	return c.provisionerJobLogsBefore(ctx, fmt.Sprintf("/api/v2/workspacebuilds/%s/logs", build), before)
 }
 
-// WorkspaceBuildLogsAfter streams logs for a workspace build that occurred after a specific time.
-func (c *Client) WorkspaceBuildLogsAfter(ctx context.Context, build uuid.UUID, after time.Time) (<-chan ProvisionerJobLog, io.Closer, error) {
+// WorkspaceBuildLogsAfter streams logs for a workspace build that occurred after a specific log ID.
+func (c *Client) WorkspaceBuildLogsAfter(ctx context.Context, build uuid.UUID, after int64) (<-chan ProvisionerJobLog, io.Closer, error) {
 	return c.provisionerJobLogsAfter(ctx, fmt.Sprintf("/api/v2/workspacebuilds/%s/logs", build), after)
 }
 

@@ -2,6 +2,7 @@ import { FieldError } from "api/errors"
 import { everyOneGroup } from "util/groups"
 import * as Types from "../api/types"
 import * as TypesGen from "../api/typesGenerated"
+import { range } from "lodash"
 
 export const MockTemplateDAUResponse: TypesGen.TemplateDAUsResponse = {
   entries: [
@@ -48,8 +49,6 @@ export const MockAuditorRole: TypesGen.Role = {
   display_name: "Auditor",
 }
 
-export const MockSiteRoles = [MockUserAdminRole, MockAuditorRole]
-
 // assignableRole takes a role and a boolean. The boolean implies if the
 // actor can assign (add/remove) the role from other users.
 export function assignableRole(
@@ -61,6 +60,12 @@ export function assignableRole(
     assignable: assignable,
   }
 }
+
+export const MockSiteRoles = [MockUserAdminRole, MockAuditorRole]
+export const MockAssignableSiteRoles = [
+  assignableRole(MockUserAdminRole, true),
+  assignableRole(MockAuditorRole, true),
+]
 
 export const MockMemberPermissions = {
   viewAuditLog: false,
@@ -126,6 +131,7 @@ export const MockProvisioner: TypesGen.ProvisionerDaemon = {
   id: "test-provisioner",
   name: "Test Provisioner",
   provisioners: ["echo"],
+  tags: {},
 }
 
 export const MockProvisionerJob: TypesGen.ProvisionerJob = {
@@ -134,6 +140,7 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
   status: "succeeded",
   file_id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
   completed_at: "2022-05-17T17:39:01.382927298Z",
+  tags: {},
 }
 
 export const MockFailedProvisionerJob: TypesGen.ProvisionerJob = {
@@ -171,8 +178,24 @@ name:Template test
 You can add instructions here
 
 [Some link info](https://coder.com)`,
-  created_by_id: "test-creator-id",
-  created_by_name: "test_creator",
+  created_by: MockUser,
+}
+
+export const MockTemplateVersion2: TypesGen.TemplateVersion = {
+  id: "test-template-version-2",
+  created_at: "2022-05-17T17:39:01.382927298Z",
+  updated_at: "2022-05-17T17:39:01.382927298Z",
+  template_id: "test-template",
+  job: MockProvisionerJob,
+  name: "test-version-2",
+  readme: `---
+name:Template test 2
+---
+## Instructions
+You can add instructions here
+
+[Some link info](https://coder.com)`,
+  created_by: MockUser,
 }
 
 export const MockTemplate: TypesGen.Template = {
@@ -181,26 +204,37 @@ export const MockTemplate: TypesGen.Template = {
   updated_at: "2022-05-18T17:39:01.382927298Z",
   organization_id: MockOrganization.id,
   name: "test-template",
+  display_name: "Test Template",
   provisioner: MockProvisioner.provisioners[0],
   active_version_id: MockTemplateVersion.id,
   workspace_owner_count: 2,
   active_user_count: 1,
   build_time_stats: {
-    start_ms: 1000,
-    stop_ms: 2000,
-    delete_ms: 3000,
+    start: {
+      P50: 1000,
+      P95: 1500,
+    },
+    stop: {
+      P50: 1000,
+      P95: 1500,
+    },
+    delete: {
+      P50: 1000,
+      P95: 1500,
+    },
   },
   description: "This is a test description.",
-  max_ttl_ms: 24 * 60 * 60 * 1000,
-  min_autostart_interval_ms: 60 * 60 * 1000,
+  default_ttl_ms: 24 * 60 * 60 * 1000,
   created_by_id: "test-creator-id",
   created_by_name: "test_creator",
   icon: "/icon/code.svg",
+  allow_user_cancel_workspace_jobs: true,
 }
 
 export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
   id: "test-app",
-  name: "test-app",
+  slug: "test-app",
+  display_name: "Test App",
   icon: "",
   subdomain: false,
   health: "disabled",
@@ -230,6 +264,8 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
       preferred: true,
     },
   },
+  connection_timeout_seconds: 120,
+  troubleshooting_url: "https://coder.com/troubleshoot",
 }
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
@@ -273,6 +309,15 @@ export const MockWorkspaceAgentConnecting: TypesGen.WorkspaceAgent = {
   latency: {},
 }
 
+export const MockWorkspaceAgentTimeout: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-timeout",
+  name: "a-timed-out-workspace-agent",
+  status: "timeout",
+  version: "",
+  latency: {},
+}
+
 export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
   agents: [
     MockWorkspaceAgent,
@@ -291,6 +336,7 @@ export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
     { key: "type", value: "a-workspace-resource", sensitive: false },
     { key: "api_key", value: "12345678", sensitive: true },
   ],
+  daily_cost: 10,
 }
 
 export const MockWorkspaceResource2: TypesGen.WorkspaceResource = {
@@ -311,6 +357,7 @@ export const MockWorkspaceResource2: TypesGen.WorkspaceResource = {
     { key: "type", value: "google_compute_disk", sensitive: false },
     { key: "size", value: "32GB", sensitive: false },
   ],
+  daily_cost: 10,
 }
 
 export const MockWorkspaceResource3: TypesGen.WorkspaceResource = {
@@ -331,6 +378,7 @@ export const MockWorkspaceResource3: TypesGen.WorkspaceResource = {
     { key: "type", value: "google_compute_disk", sensitive: false },
     { key: "size", value: "32GB", sensitive: false },
   ],
+  daily_cost: 20,
 }
 
 export const MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest =
@@ -352,7 +400,8 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   initiator_id: MockUser.id,
   initiator_name: MockUser.username,
   job: MockProvisionerJob,
-  template_version_id: "",
+  template_version_id: MockTemplateVersion.id,
+  template_version_name: MockTemplateVersion.name,
   transition: "start",
   updated_at: "2022-05-17T17:39:01.382927298Z",
   workspace_name: "test-workspace",
@@ -363,6 +412,7 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   reason: "initiator",
   resources: [MockWorkspaceResource],
   status: "running",
+  daily_cost: 20,
 }
 
 export const MockFailedWorkspaceBuild = (
@@ -374,7 +424,8 @@ export const MockFailedWorkspaceBuild = (
   initiator_id: MockUser.id,
   initiator_name: MockUser.username,
   job: MockFailedProvisionerJob,
-  template_version_id: "",
+  template_version_id: MockTemplateVersion.id,
+  template_version_name: MockTemplateVersion.name,
   transition: transition,
   updated_at: "2022-05-17T17:39:01.382927298Z",
   workspace_name: "test-workspace",
@@ -385,6 +436,7 @@ export const MockFailedWorkspaceBuild = (
   reason: "initiator",
   resources: [],
   status: "running",
+  daily_cost: 20,
 })
 
 export const MockWorkspaceBuildStop: TypesGen.WorkspaceBuild = {
@@ -413,6 +465,9 @@ export const MockWorkspace: TypesGen.Workspace = {
   template_id: MockTemplate.id,
   template_name: MockTemplate.name,
   template_icon: MockTemplate.icon,
+  template_display_name: MockTemplate.display_name,
+  template_allow_user_cancel_workspace_jobs:
+    MockTemplate.allow_user_cancel_workspace_jobs,
   outdated: false,
   owner_id: MockUser.id,
   owner_name: MockUser.username,
@@ -505,15 +560,21 @@ export const MockPendingWorkspace: TypesGen.Workspace = {
   },
 }
 
+// just over one page of workspaces
+export const MockWorkspacesResponse: TypesGen.WorkspacesResponse = {
+  workspaces: range(1, 27).map((id: number) => ({
+    ...MockWorkspace,
+    id: id.toString(),
+    name: `${MockWorkspace.name}${id}`,
+  })),
+  count: 26,
+}
+
 // requests the MockWorkspace
 export const MockWorkspaceRequest: TypesGen.CreateWorkspaceRequest = {
   name: "test",
   parameter_values: [],
   template_id: "test-template",
-}
-
-export const MockWorkspaceCountResponse: TypesGen.WorkspaceCountResponse = {
-  count: 26, // just over 1 page
 }
 
 export const MockUserAgent: Types.UserAgent = {
@@ -539,7 +600,7 @@ export const MockGitSSHKey: TypesGen.GitSSHKey = {
 
 export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
   {
-    id: "836f8ab6-5202-4711-afa5-293394ced011",
+    id: 1,
     created_at: "2022-05-19T16:45:31.005Z",
     log_source: "provisioner_daemon",
     log_level: "info",
@@ -547,7 +608,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "",
   },
   {
-    id: "2db0ae92-b310-4a6e-8b1f-23380b70ac7f",
+    id: 2,
     created_at: "2022-05-19T16:45:31.006Z",
     log_source: "provisioner_daemon",
     log_level: "info",
@@ -555,7 +616,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "",
   },
   {
-    id: "37a5b7b1-b3eb-47cf-b80b-bd16e2e08a3d",
+    id: 3,
     created_at: "2022-05-19T16:45:31.072Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -563,7 +624,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "",
   },
   {
-    id: "5e4e37a1-c217-48bc-84f5-7f1c3efbd042",
+    id: 4,
     created_at: "2022-05-19T16:45:31.073Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -571,7 +632,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "Initializing the backend...",
   },
   {
-    id: "060ed132-5d12-4584-9005-5c9557febe2f",
+    id: 5,
     created_at: "2022-05-19T16:45:31.077Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -579,7 +640,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "",
   },
   {
-    id: "b2e70a1c-1943-4616-8ac9-25326c9f7e7b",
+    id: 6,
     created_at: "2022-05-19T16:45:31.078Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -587,7 +648,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "Initializing provider plugins...",
   },
   {
-    id: "993107fe-6dfb-42ec-912a-b32f50e60d62",
+    id: 7,
     created_at: "2022-05-19T16:45:31.078Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -595,7 +656,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: '- Finding hashicorp/google versions matching "~\u003e 4.15"...',
   },
   {
-    id: "2ad2e2a1-7a75-4827-8cb9-928acfc6fc07",
+    id: 8,
     created_at: "2022-05-19T16:45:31.123Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -603,7 +664,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: '- Finding coder/coder versions matching "0.3.4"...',
   },
   {
-    id: "7c723a90-0190-4c2f-9d97-ede39ef3d55f",
+    id: 9,
     created_at: "2022-05-19T16:45:31.137Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -611,7 +672,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "- Using hashicorp/google v4.21.0 from the shared cache directory",
   },
   {
-    id: "3910144b-411b-4a53-9900-88d406ed9bf4",
+    id: 10,
     created_at: "2022-05-19T16:45:31.344Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -619,7 +680,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "- Using coder/coder v0.3.4 from the shared cache directory",
   },
   {
-    id: "e3a02ad4-edc0-442f-8b9a-39d01d56b43b",
+    id: 11,
     created_at: "2022-05-19T16:45:31.388Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -627,7 +688,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "",
   },
   {
-    id: "440cceb3-aabf-4838-979b-1fd37fe2d8d8",
+    id: 12,
     created_at: "2022-05-19T16:45:31.388Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -636,7 +697,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
       "Terraform has created a lock file .terraform.lock.hcl to record the provider",
   },
   {
-    id: "90e1f244-78ff-4d95-871e-b2bebcabc39a",
+    id: 13,
     created_at: "2022-05-19T16:45:31.389Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -645,7 +706,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
       "selections it made above. Include this file in your version control repository",
   },
   {
-    id: "e4527d6c-2412-452b-a946-5870787caf6b",
+    id: 14,
     created_at: "2022-05-19T16:45:31.389Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -654,7 +715,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
       "so that Terraform can guarantee to make the same selections by default when",
   },
   {
-    id: "02f96d19-d94b-4d0e-a1c4-313a0d2ff9e3",
+    id: 15,
     created_at: "2022-05-19T16:45:31.39Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -662,7 +723,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: 'you run "terraform init" in the future.',
   },
   {
-    id: "667c03ca-1b24-4f36-a598-f0322cf3e2a1",
+    id: 16,
     created_at: "2022-05-19T16:45:31.39Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -670,7 +731,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "",
   },
   {
-    id: "48039d6a-9b21-460f-9ca3-4b0e2becfd18",
+    id: 17,
     created_at: "2022-05-19T16:45:31.391Z",
     log_source: "provisioner",
     log_level: "debug",
@@ -678,7 +739,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "Terraform has been successfully initialized!",
   },
   {
-    id: "6fe4b64f-3aa6-4850-96e9-6db8478a53be",
+    id: 18,
     created_at: "2022-05-19T16:45:31.42Z",
     log_source: "provisioner",
     log_level: "info",
@@ -686,7 +747,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "Terraform 1.1.9",
   },
   {
-    id: "fa7b6321-7ecd-492d-a671-6366186fad08",
+    id: 19,
     created_at: "2022-05-19T16:45:33.537Z",
     log_source: "provisioner",
     log_level: "info",
@@ -694,7 +755,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "coder_agent.dev: Plan to create",
   },
   {
-    id: "e677e49f-c5ba-417c-8c9d-78bdad744ce1",
+    id: 20,
     created_at: "2022-05-19T16:45:33.537Z",
     log_source: "provisioner",
     log_level: "info",
@@ -702,7 +763,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "google_compute_disk.root: Plan to create",
   },
   {
-    id: "4b0e6168-29e4-4419-bf81-b57e31087666",
+    id: 21,
     created_at: "2022-05-19T16:45:33.538Z",
     log_source: "provisioner",
     log_level: "info",
@@ -710,7 +771,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "google_compute_instance.dev[0]: Plan to create",
   },
   {
-    id: "5902f89c-8acd-45e2-9bd6-de4d6fd8fc9c",
+    id: 22,
     created_at: "2022-05-19T16:45:33.539Z",
     log_source: "provisioner",
     log_level: "info",
@@ -718,7 +779,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "Plan: 3 to add, 0 to change, 0 to destroy.",
   },
   {
-    id: "a8107907-7c53-4aae-bb48-9a5f9759c7d5",
+    id: 23,
     created_at: "2022-05-19T16:45:33.712Z",
     log_source: "provisioner",
     log_level: "info",
@@ -726,7 +787,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "coder_agent.dev: Creating...",
   },
   {
-    id: "aaf13503-2f1a-4f6c-aced-b8fc48304dc1",
+    id: 24,
     created_at: "2022-05-19T16:45:33.719Z",
     log_source: "provisioner",
     log_level: "info",
@@ -735,7 +796,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
       "coder_agent.dev: Creation complete after 0s [id=d07f5bdc-4a8d-4919-9cdb-0ac6ba9e64d6]",
   },
   {
-    id: "4ada8886-f5b3-4fee-a1a3-72064b50d5ae",
+    id: 25,
     created_at: "2022-05-19T16:45:34.139Z",
     log_source: "provisioner",
     log_level: "info",
@@ -743,7 +804,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "google_compute_disk.root: Creating...",
   },
   {
-    id: "8ffc59e8-a4d0-4ffe-9bcc-cb84ca51cc22",
+    id: 26,
     created_at: "2022-05-19T16:45:44.14Z",
     log_source: "provisioner",
     log_level: "info",
@@ -751,7 +812,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "google_compute_disk.root: Still creating... [10s elapsed]",
   },
   {
-    id: "063189fd-75ad-415a-ac77-8c34b9e202b2",
+    id: 27,
     created_at: "2022-05-19T16:45:47.106Z",
     log_source: "provisioner",
     log_level: "info",
@@ -760,7 +821,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
       "google_compute_disk.root: Creation complete after 13s [id=projects/bruno-coder-v2/zones/europe-west4-b/disks/coder-developer-bruno-dev-123-root]",
   },
   {
-    id: "6fd554a1-a7a2-439f-b8d8-369d6c1ead21",
+    id: 28,
     created_at: "2022-05-19T16:45:47.118Z",
     log_source: "provisioner",
     log_level: "info",
@@ -768,7 +829,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "google_compute_instance.dev[0]: Creating...",
   },
   {
-    id: "87388f7e-ab01-44b1-b35e-8e06636164d3",
+    id: 29,
     created_at: "2022-05-19T16:45:57.122Z",
     log_source: "provisioner",
     log_level: "info",
@@ -776,7 +837,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "google_compute_instance.dev[0]: Still creating... [10s elapsed]",
   },
   {
-    id: "baa40120-3f18-40d2-a35c-b11f421a1ce1",
+    id: 30,
     created_at: "2022-05-19T16:46:00.837Z",
     log_source: "provisioner",
     log_level: "info",
@@ -785,7 +846,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
       "google_compute_instance.dev[0]: Creation complete after 14s [id=projects/bruno-coder-v2/zones/europe-west4-b/instances/coder-developer-bruno-dev-123]",
   },
   {
-    id: "00e18953-fba6-4b43-97a3-ecf376553c08",
+    id: 31,
     created_at: "2022-05-19T16:46:00.846Z",
     log_source: "provisioner",
     log_level: "info",
@@ -793,7 +854,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "Apply complete! Resources: 3 added, 0 changed, 0 destroyed.",
   },
   {
-    id: "431811da-b534-4d92-b6e5-44814548c812",
+    id: 32,
     created_at: "2022-05-19T16:46:00.847Z",
     log_source: "provisioner",
     log_level: "info",
@@ -801,7 +862,7 @@ export const MockWorkspaceBuildLogs: TypesGen.ProvisionerJobLog[] = [
     output: "Outputs: 0",
   },
   {
-    id: "70459334-4878-4bda-a546-98eee166c4c6",
+    id: 33,
     created_at: "2022-05-19T16:46:02.283Z",
     log_source: "provisioner_daemon",
     log_level: "info",
@@ -814,15 +875,29 @@ export const MockCancellationMessage = {
   message: "Job successfully canceled",
 }
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-export const makeMockApiError = ({
-  message,
-  detail,
-  validations,
-}: {
+type MockAPIInput = {
   message?: string
   detail?: string
   validations?: FieldError[]
+}
+
+type MockAPIOutput = {
+  response: {
+    data: {
+      message: string
+      detail: string | undefined
+      validations: FieldError[] | undefined
+    }
+  }
+  isAxiosError: boolean
+}
+
+type MakeMockApiErrorFunction = (input: MockAPIInput) => MockAPIOutput
+
+export const makeMockApiError: MakeMockApiErrorFunction = ({
+  message,
+  detail,
+  validations,
 }) => ({
   response: {
     data: {
@@ -902,8 +977,8 @@ export const MockAuditLog: TypesGen.AuditLog = {
     },
   },
   status_code: 200,
-  additional_fields: "",
-  description: "{user} updated workspace {target}",
+  additional_fields: {},
+  description: "{user} created workspace {target}",
   user: MockUser,
 }
 
@@ -911,6 +986,8 @@ export const MockAuditLog2: TypesGen.AuditLog = {
   ...MockAuditLog,
   id: "53bded77-7b9d-4e82-8771-991a34d759f9",
   action: "write",
+  time: "2022-05-20T16:45:57.122Z",
+  description: "{user} updated workspace {target}",
   diff: {
     workspace_name: {
       old: "old-workspace-name",
@@ -935,9 +1012,21 @@ export const MockAuditLog2: TypesGen.AuditLog = {
   },
 }
 
+export const MockAuditLogWithWorkspaceBuild: TypesGen.AuditLog = {
+  ...MockAuditLog,
+  id: "f90995bf-4a2b-4089-b597-e66e025e523e",
+  request_id: "61555889-2875-475c-8494-f7693dd5d75b",
+  action: "stop",
+  resource_type: "workspace_build",
+  description: "{user} stopped workspace build for {target}",
+  additional_fields: {
+    workspaceName: "test2",
+  },
+}
+
 export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
-  user_workspace_count: 0,
-  user_workspace_limit: 100,
+  credits_consumed: 0,
+  budget: 100,
 }
 
 export const MockGroup: TypesGen.Group = {
@@ -946,6 +1035,7 @@ export const MockGroup: TypesGen.Group = {
   avatar_url: "https://example.com",
   organization_id: MockOrganization.id,
   members: [MockUser, MockUser2],
+  quota_allowance: 5,
 }
 
 export const MockTemplateACL: TypesGen.TemplateACL = {

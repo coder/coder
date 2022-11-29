@@ -7,6 +7,9 @@ MacOS = "macOS"
 [default.extend-words]
 # do as sudo replacement
 doas = "doas"
+darcula = "darcula"
+Hashi = "Hashi"
+trialer = "trialer"
 
 [files]
 extend-exclude = [

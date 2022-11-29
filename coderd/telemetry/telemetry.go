@@ -39,15 +39,18 @@ type Options struct {
 	// URL is an endpoint to direct telemetry towards!
 	URL *url.URL
 
-	BuiltinPostgres   bool
-	DeploymentID      string
-	GitHubOAuth       bool
-	OIDCAuth          bool
-	OIDCIssuerURL     string
-	Prometheus        bool
-	STUN              bool
-	SnapshotFrequency time.Duration
-	Tunnel            bool
+	BuiltinPostgres    bool
+	DeploymentID       string
+	GitHubOAuth        bool
+	OIDCAuth           bool
+	OIDCIssuerURL      string
+	Wildcard           bool
+	DERPServerRelayURL string
+	GitAuth            []GitAuth
+	Prometheus         bool
+	STUN               bool
+	SnapshotFrequency  time.Duration
+	Tunnel             bool
 }
 
 // New constructs a reporter for telemetry data.
@@ -228,27 +231,30 @@ func (r *remoteReporter) deployment() error {
 		containerized = *sysInfo.Containerized
 	}
 	data, err := json.Marshal(&Deployment{
-		ID:              r.options.DeploymentID,
-		Architecture:    sysInfo.Architecture,
-		BuiltinPostgres: r.options.BuiltinPostgres,
-		Containerized:   containerized,
-		Kubernetes:      os.Getenv("KUBERNETES_SERVICE_HOST") != "",
-		GitHubOAuth:     r.options.GitHubOAuth,
-		OIDCAuth:        r.options.OIDCAuth,
-		OIDCIssuerURL:   r.options.OIDCIssuerURL,
-		Prometheus:      r.options.Prometheus,
-		STUN:            r.options.STUN,
-		Tunnel:          r.options.Tunnel,
-		OSType:          sysInfo.OS.Type,
-		OSFamily:        sysInfo.OS.Family,
-		OSPlatform:      sysInfo.OS.Platform,
-		OSName:          sysInfo.OS.Name,
-		OSVersion:       sysInfo.OS.Version,
-		CPUCores:        runtime.NumCPU(),
-		MemoryTotal:     mem.Total,
-		MachineID:       sysInfo.UniqueID,
-		StartedAt:       r.startedAt,
-		ShutdownAt:      r.shutdownAt,
+		ID:                 r.options.DeploymentID,
+		Architecture:       sysInfo.Architecture,
+		BuiltinPostgres:    r.options.BuiltinPostgres,
+		Containerized:      containerized,
+		Wildcard:           r.options.Wildcard,
+		DERPServerRelayURL: r.options.DERPServerRelayURL,
+		GitAuth:            r.options.GitAuth,
+		Kubernetes:         os.Getenv("KUBERNETES_SERVICE_HOST") != "",
+		GitHubOAuth:        r.options.GitHubOAuth,
+		OIDCAuth:           r.options.OIDCAuth,
+		OIDCIssuerURL:      r.options.OIDCIssuerURL,
+		Prometheus:         r.options.Prometheus,
+		STUN:               r.options.STUN,
+		Tunnel:             r.options.Tunnel,
+		OSType:             sysInfo.OS.Type,
+		OSFamily:           sysInfo.OS.Family,
+		OSPlatform:         sysInfo.OS.Platform,
+		OSName:             sysInfo.OS.Name,
+		OSVersion:          sysInfo.OS.Version,
+		CPUCores:           runtime.NumCPU(),
+		MemoryTotal:        mem.Total,
+		MachineID:          sysInfo.UniqueID,
+		StartedAt:          r.startedAt,
+		ShutdownAt:         r.shutdownAt,
 	})
 	if err != nil {
 		return xerrors.Errorf("marshal deployment: %w", err)
@@ -344,10 +350,11 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		users, err := r.options.Database.GetUsers(ctx, database.GetUsersParams{})
+		userRows, err := r.options.Database.GetUsers(ctx, database.GetUsersParams{})
 		if err != nil {
 			return xerrors.Errorf("get users: %w", err)
 		}
+		users := database.ConvertUserRows(userRows)
 		var firstUser database.User
 		for _, dbUser := range users {
 			if dbUser.Status != database.UserStatusActive {
@@ -373,10 +380,11 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		workspaces, err := r.options.Database.GetWorkspaces(ctx, database.GetWorkspacesParams{})
+		workspaceRows, err := r.options.Database.GetWorkspaces(ctx, database.GetWorkspacesParams{})
 		if err != nil {
 			return xerrors.Errorf("get workspaces: %w", err)
 		}
+		workspaces := database.ConvertWorkspaceRows(workspaceRows)
 		snapshot.Workspaces = make([]Workspace, 0, len(workspaces))
 		for _, dbWorkspace := range workspaces {
 			snapshot.Workspaces = append(snapshot.Workspaces, ConvertWorkspace(dbWorkspace))
@@ -435,6 +443,17 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		snapshot.WorkspaceResourceMetadata = make([]WorkspaceResourceMetadata, 0, len(workspaceMetadata))
 		for _, metadata := range workspaceMetadata {
 			snapshot.WorkspaceResourceMetadata = append(snapshot.WorkspaceResourceMetadata, ConvertWorkspaceResourceMetadata(metadata))
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		licenses, err := r.options.Database.GetUnexpiredLicenses(ctx)
+		if err != nil {
+			return xerrors.Errorf("get licenses: %w", err)
+		}
+		snapshot.Licenses = make([]License, 0, len(licenses))
+		for _, license := range licenses {
+			snapshot.Licenses = append(snapshot.Licenses, ConvertLicense(license))
 		}
 		return nil
 	})
@@ -512,17 +531,28 @@ func ConvertProvisionerJob(job database.ProvisionerJob) ProvisionerJob {
 
 // ConvertWorkspaceAgent anonymizes a workspace agent.
 func ConvertWorkspaceAgent(agent database.WorkspaceAgent) WorkspaceAgent {
-	return WorkspaceAgent{
-		ID:                   agent.ID,
-		CreatedAt:            agent.CreatedAt,
-		ResourceID:           agent.ResourceID,
-		InstanceAuth:         agent.AuthInstanceID.Valid,
-		Architecture:         agent.Architecture,
-		OperatingSystem:      agent.OperatingSystem,
-		EnvironmentVariables: agent.EnvironmentVariables.Valid,
-		StartupScript:        agent.StartupScript.Valid,
-		Directory:            agent.Directory != "",
+	snapAgent := WorkspaceAgent{
+		ID:                       agent.ID,
+		CreatedAt:                agent.CreatedAt,
+		ResourceID:               agent.ResourceID,
+		InstanceAuth:             agent.AuthInstanceID.Valid,
+		Architecture:             agent.Architecture,
+		OperatingSystem:          agent.OperatingSystem,
+		EnvironmentVariables:     agent.EnvironmentVariables.Valid,
+		StartupScript:            agent.StartupScript.Valid,
+		Directory:                agent.Directory != "",
+		ConnectionTimeoutSeconds: agent.ConnectionTimeoutSeconds,
 	}
+	if agent.FirstConnectedAt.Valid {
+		snapAgent.FirstConnectedAt = &agent.FirstConnectedAt.Time
+	}
+	if agent.LastConnectedAt.Valid {
+		snapAgent.LastConnectedAt = &agent.LastConnectedAt.Time
+	}
+	if agent.DisconnectedAt.Valid {
+		snapAgent.DisconnectedAt = &agent.DisconnectedAt.Time
+	}
+	return snapAgent
 }
 
 // ConvertWorkspaceApp anonymizes a workspace app.
@@ -539,10 +569,11 @@ func ConvertWorkspaceApp(app database.WorkspaceApp) WorkspaceApp {
 // ConvertWorkspaceResource anonymizes a workspace resource.
 func ConvertWorkspaceResource(resource database.WorkspaceResource) WorkspaceResource {
 	return WorkspaceResource{
-		ID:         resource.ID,
-		JobID:      resource.JobID,
-		Transition: resource.Transition,
-		Type:       resource.Type,
+		ID:           resource.ID,
+		JobID:        resource.JobID,
+		Transition:   resource.Transition,
+		Type:         resource.Type,
+		InstanceType: resource.InstanceType.String,
 	}
 }
 
@@ -602,6 +633,14 @@ func ConvertTemplateVersion(version database.TemplateVersion) TemplateVersion {
 	return snapVersion
 }
 
+// ConvertLicense anonymizes a license.
+func ConvertLicense(license database.License) License {
+	return License{
+		UploadedAt: license.UploadedAt,
+		UUID:       license.Uuid.UUID,
+	}
+}
+
 // Snapshot represents a point-in-time anonymized database dump.
 // Data is aggregated by latest on the server-side, so partial data
 // can be sent without issue.
@@ -611,6 +650,7 @@ type Snapshot struct {
 	APIKeys                   []APIKey                    `json:"api_keys"`
 	ParameterSchemas          []ParameterSchema           `json:"parameter_schemas"`
 	ProvisionerJobs           []ProvisionerJob            `json:"provisioner_jobs"`
+	Licenses                  []License                   `json:"licenses"`
 	Templates                 []Template                  `json:"templates"`
 	TemplateVersions          []TemplateVersion           `json:"template_versions"`
 	Users                     []User                      `json:"users"`
@@ -624,27 +664,34 @@ type Snapshot struct {
 
 // Deployment contains information about the host running Coder.
 type Deployment struct {
-	ID              string     `json:"id"`
-	Architecture    string     `json:"architecture"`
-	BuiltinPostgres bool       `json:"builtin_postgres"`
-	Containerized   bool       `json:"containerized"`
-	Kubernetes      bool       `json:"kubernetes"`
-	Tunnel          bool       `json:"tunnel"`
-	GitHubOAuth     bool       `json:"github_oauth"`
-	OIDCAuth        bool       `json:"oidc_auth"`
-	OIDCIssuerURL   string     `json:"oidc_issuer_url"`
-	Prometheus      bool       `json:"prometheus"`
-	STUN            bool       `json:"stun"`
-	OSType          string     `json:"os_type"`
-	OSFamily        string     `json:"os_family"`
-	OSPlatform      string     `json:"os_platform"`
-	OSName          string     `json:"os_name"`
-	OSVersion       string     `json:"os_version"`
-	CPUCores        int        `json:"cpu_cores"`
-	MemoryTotal     uint64     `json:"memory_total"`
-	MachineID       string     `json:"machine_id"`
-	StartedAt       time.Time  `json:"started_at"`
-	ShutdownAt      *time.Time `json:"shutdown_at"`
+	ID                 string     `json:"id"`
+	Architecture       string     `json:"architecture"`
+	BuiltinPostgres    bool       `json:"builtin_postgres"`
+	Containerized      bool       `json:"containerized"`
+	Kubernetes         bool       `json:"kubernetes"`
+	Tunnel             bool       `json:"tunnel"`
+	Wildcard           bool       `json:"wildcard"`
+	DERPServerRelayURL string     `json:"derp_server_relay_url"`
+	GitAuth            []GitAuth  `json:"git_auth"`
+	GitHubOAuth        bool       `json:"github_oauth"`
+	OIDCAuth           bool       `json:"oidc_auth"`
+	OIDCIssuerURL      string     `json:"oidc_issuer_url"`
+	Prometheus         bool       `json:"prometheus"`
+	STUN               bool       `json:"stun"`
+	OSType             string     `json:"os_type"`
+	OSFamily           string     `json:"os_family"`
+	OSPlatform         string     `json:"os_platform"`
+	OSName             string     `json:"os_name"`
+	OSVersion          string     `json:"os_version"`
+	CPUCores           int        `json:"cpu_cores"`
+	MemoryTotal        uint64     `json:"memory_total"`
+	MachineID          string     `json:"machine_id"`
+	StartedAt          time.Time  `json:"started_at"`
+	ShutdownAt         *time.Time `json:"shutdown_at"`
+}
+
+type GitAuth struct {
+	Type string `json:"type"`
 }
 
 type APIKey struct {
@@ -667,10 +714,11 @@ type User struct {
 }
 
 type WorkspaceResource struct {
-	ID         uuid.UUID                    `json:"id"`
-	JobID      uuid.UUID                    `json:"job_id"`
-	Transition database.WorkspaceTransition `json:"transition"`
-	Type       string                       `json:"type"`
+	ID           uuid.UUID                    `json:"id"`
+	JobID        uuid.UUID                    `json:"job_id"`
+	Transition   database.WorkspaceTransition `json:"transition"`
+	Type         string                       `json:"type"`
+	InstanceType string                       `json:"instance_type"`
 }
 
 type WorkspaceResourceMetadata struct {
@@ -680,15 +728,19 @@ type WorkspaceResourceMetadata struct {
 }
 
 type WorkspaceAgent struct {
-	ID                   uuid.UUID `json:"id"`
-	CreatedAt            time.Time `json:"created_at"`
-	ResourceID           uuid.UUID `json:"resource_id"`
-	InstanceAuth         bool      `json:"instance_auth"`
-	Architecture         string    `json:"architecture"`
-	OperatingSystem      string    `json:"operating_system"`
-	EnvironmentVariables bool      `json:"environment_variables"`
-	StartupScript        bool      `json:"startup_script"`
-	Directory            bool      `json:"directory"`
+	ID                       uuid.UUID  `json:"id"`
+	CreatedAt                time.Time  `json:"created_at"`
+	ResourceID               uuid.UUID  `json:"resource_id"`
+	InstanceAuth             bool       `json:"instance_auth"`
+	Architecture             string     `json:"architecture"`
+	OperatingSystem          string     `json:"operating_system"`
+	EnvironmentVariables     bool       `json:"environment_variables"`
+	StartupScript            bool       `json:"startup_script"`
+	Directory                bool       `json:"directory"`
+	FirstConnectedAt         *time.Time `json:"first_connected_at"`
+	LastConnectedAt          *time.Time `json:"last_connected_at"`
+	DisconnectedAt           *time.Time `json:"disconnected_at"`
+	ConnectionTimeoutSeconds int32      `json:"connection_timeout_seconds"`
 }
 
 type WorkspaceApp struct {
@@ -757,6 +809,11 @@ type ParameterSchema struct {
 	JobID               uuid.UUID `json:"job_id"`
 	Name                string    `json:"name"`
 	ValidationCondition string    `json:"validation_condition"`
+}
+
+type License struct {
+	UploadedAt time.Time `json:"uploaded_at"`
+	UUID       uuid.UUID `json:"uuid"`
 }
 
 type noopReporter struct{}

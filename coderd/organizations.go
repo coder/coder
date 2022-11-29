@@ -88,7 +88,7 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("create %q group: %w", database.AllUsersGroup, err)
 		}
 		return nil
-	})
+	}, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error inserting organization member.",

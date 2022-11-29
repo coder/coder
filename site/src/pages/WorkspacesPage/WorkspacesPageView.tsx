@@ -4,6 +4,7 @@ import { Maybe } from "components/Conditionals/Maybe"
 import { PaginationWidget } from "components/PaginationWidget/PaginationWidget"
 import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
+import { PaginationMachineRef } from "xServices/pagination/paginationXService"
 import { Margins } from "../../components/Margins/Margins"
 import {
   PageHeader,
@@ -31,14 +32,10 @@ export interface WorkspacesPageViewProps {
   workspaceRefs?: WorkspaceItemMachineRef[]
   count?: number
   getWorkspacesError: Error | unknown
-  getCountError: Error | unknown
-  page: number
-  limit: number
   filter?: string
   onFilter: (query: string) => void
-  onNext: () => void
-  onPrevious: () => void
-  onGoToPage: (page: number) => void
+  paginationRef: PaginationMachineRef
+  isNonInitialPage: boolean
 }
 
 export const WorkspacesPageView: FC<
@@ -48,14 +45,10 @@ export const WorkspacesPageView: FC<
   workspaceRefs,
   count,
   getWorkspacesError,
-  getCountError,
-  page,
-  limit,
   filter,
   onFilter,
-  onNext,
-  onPrevious,
-  onGoToPage,
+  paginationRef,
+  isNonInitialPage,
 }) => {
   const presetFilters = [
     { query: workspaceFilterQuery.me, name: Language.yourWorkspacesButton },
@@ -97,10 +90,6 @@ export const WorkspacesPageView: FC<
           />
         </Maybe>
 
-        <Maybe condition={getCountError !== undefined}>
-          <AlertBanner error={getCountError} severity="warning" />
-        </Maybe>
-
         <SearchBarWithFilter
           filter={filter}
           onFilter={onFilter}
@@ -112,18 +101,10 @@ export const WorkspacesPageView: FC<
         isLoading={isLoading}
         workspaceRefs={workspaceRefs}
         filter={filter}
+        isNonInitialPage={isNonInitialPage}
       />
 
-      <PaginationWidget
-        prevLabel=""
-        nextLabel=""
-        onPrevClick={onPrevious}
-        onNextClick={onNext}
-        onPageClick={onGoToPage}
-        numRecords={count}
-        activePage={page}
-        numRecordsPerPage={limit}
-      />
+      <PaginationWidget numRecords={count} paginationRef={paginationRef} />
     </Margins>
   )
 }

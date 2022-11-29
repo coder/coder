@@ -69,7 +69,7 @@ func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.Cr
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
-		Provision: []*proto.Provision_Response{{
+		ProvisionApply: []*proto.Provision_Response{{
 			Type: &proto.Provision_Response_Complete{
 				Complete: &proto.Provision_Complete{
 					Resources: []*proto.Resource{{
@@ -83,17 +83,20 @@ func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.Cr
 							},
 							Apps: []*proto.App{
 								{
-									Name:         testAppNameOwner,
+									Slug:         testAppNameOwner,
+									DisplayName:  testAppNameOwner,
 									SharingLevel: proto.AppSharingLevel_OWNER,
 									Url:          fmt.Sprintf("http://localhost:%d", appPort),
 								},
 								{
-									Name:         testAppNameAuthenticated,
+									Slug:         testAppNameAuthenticated,
+									DisplayName:  testAppNameAuthenticated,
 									SharingLevel: proto.AppSharingLevel_AUTHENTICATED,
 									Url:          fmt.Sprintf("http://localhost:%d", appPort),
 								},
 								{
-									Name:         testAppNamePublic,
+									Slug:         testAppNamePublic,
+									DisplayName:  testAppNamePublic,
 									SharingLevel: proto.AppSharingLevel_PUBLIC,
 									Url:          fmt.Sprintf("http://localhost:%d", appPort),
 								},
@@ -117,7 +120,7 @@ func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.Cr
 			},
 		},
 	}
-	agentClient.SessionToken = authToken
+	agentClient.SetSessionToken(authToken)
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,
 		Logger: slogtest.Make(t, nil).Named("agent"),

@@ -3,7 +3,6 @@ import {
   createWorkspace,
   getTemplates,
   getTemplateVersionSchema,
-  getWorkspaceQuota,
 } from "api/api"
 import {
   CreateWorkspaceRequest,
@@ -11,7 +10,6 @@ import {
   Template,
   User,
   Workspace,
-  WorkspaceQuota,
 } from "api/typesGenerated"
 import { assign, createMachine } from "xstate"
 
@@ -19,7 +17,6 @@ type CreateWorkspaceContext = {
   organizationId: string
   owner: User | null
   templateName: string
-  workspaceQuotaEnabled: boolean
   templates?: Template[]
   selectedTemplate?: Template
   templateSchema?: ParameterSchema[]
@@ -30,8 +27,6 @@ type CreateWorkspaceContext = {
   getTemplateSchemaError?: Error | unknown
   permissions?: Record<string, boolean>
   checkPermissionsError?: Error | unknown
-  workspaceQuota?: WorkspaceQuota
-  getWorkspaceQuotaError?: Error | unknown
 }
 
 type CreateWorkspaceEvent = {
@@ -59,9 +54,6 @@ export const createWorkspaceMachine = createMachine(
         }
         getTemplateSchema: {
           data: ParameterSchema[]
-        }
-        getWorkspaceQuota: {
-          data: WorkspaceQuota
         }
         createWorkspace: {
           data: Workspace
@@ -110,25 +102,11 @@ export const createWorkspaceMachine = createMachine(
           src: "checkPermissions",
           id: "checkPermissions",
           onDone: {
-            actions: ["assignPermissions"],
-            target: "gettingWorkspaceQuota",
-          },
-          onError: {
-            actions: ["assignCheckPermissionsError"],
-          },
-        },
-      },
-      gettingWorkspaceQuota: {
-        entry: "clearGetWorkspaceQuotaError",
-        invoke: {
-          src: "getWorkspaceQuota",
-          onDone: {
-            actions: ["assignWorkspaceQuota"],
+            actions: "assignPermissions",
             target: "fillingParams",
           },
           onError: {
-            actions: ["assignGetWorkspaceQuotaError"],
-            target: "error",
+            actions: ["assignCheckPermissionsError"],
           },
         },
       },
@@ -140,7 +118,7 @@ export const createWorkspaceMachine = createMachine(
           },
           SELECT_OWNER: {
             actions: ["assignOwner"],
-            target: "gettingWorkspaceQuota",
+            target: ["fillingParams"],
           },
         },
       },
@@ -212,17 +190,6 @@ export const createWorkspaceMachine = createMachine(
           createWorkspaceRequest,
         )
       },
-      getWorkspaceQuota: (context) => {
-        if (!context.workspaceQuotaEnabled) {
-          // resolving with a limit of 0 will disable the component
-          return Promise.resolve({
-            user_workspace_count: 0,
-            user_workspace_limit: 0,
-          })
-        }
-
-        return getWorkspaceQuota(context.owner?.id ?? "me")
-      },
     },
     guards: {
       areTemplatesEmpty: (_, event) => event.data.length === 0,
@@ -277,15 +244,6 @@ export const createWorkspaceMachine = createMachine(
       }),
       clearGetTemplateSchemaError: assign({
         getTemplateSchemaError: (_) => undefined,
-      }),
-      assignWorkspaceQuota: assign({
-        workspaceQuota: (_, event) => event.data,
-      }),
-      assignGetWorkspaceQuotaError: assign({
-        getWorkspaceQuotaError: (_, event) => event.data,
-      }),
-      clearGetWorkspaceQuotaError: assign({
-        getWorkspaceQuotaError: (_) => undefined,
       }),
     },
   },

@@ -129,18 +129,22 @@ func TestPatchGroup(t *testing.T) {
 		})
 		ctx, _ := testutil.Context(t)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
-			Name:      "hi",
-			AvatarURL: "https://example.com",
+			Name:           "hi",
+			AvatarURL:      "https://example.com",
+			QuotaAllowance: 10,
 		})
 		require.NoError(t, err)
+		require.Equal(t, 10, group.QuotaAllowance)
 
 		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
-			Name:      "bye",
-			AvatarURL: pointer.String("https://google.com"),
+			Name:           "bye",
+			AvatarURL:      pointer.String("https://google.com"),
+			QuotaAllowance: pointer.Int(20),
 		})
 		require.NoError(t, err)
 		require.Equal(t, "bye", group.Name)
 		require.Equal(t, "https://google.com", group.AvatarURL)
+		require.Equal(t, 20, group.QuotaAllowance)
 	})
 
 	// The FE sends a request from the edit page where the old name == new name.
@@ -416,6 +420,26 @@ func TestGroup(t *testing.T) {
 		require.NoError(t, err)
 
 		ggroup, err := client.Group(ctx, group.ID)
+		require.NoError(t, err)
+		require.Equal(t, group, ggroup)
+	})
+
+	t.Run("ByName", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdenttest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			TemplateRBAC: true,
+		})
+		ctx, _ := testutil.Context(t)
+		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "hi",
+		})
+		require.NoError(t, err)
+
+		ggroup, err := client.GroupByOrgAndName(ctx, group.OrganizationID, group.Name)
 		require.NoError(t, err)
 		require.Equal(t, group, ggroup)
 	})

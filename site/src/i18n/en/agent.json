@@ -1,0 +1,22 @@
+{
+  "shareTooltip": {
+    "private": "Private, only accessible by you",
+    "authenticated": "Shared with all authenticated users",
+    "public": "Shared publicly"
+  },
+  "labels": {
+    "agent": "Agent",
+    "os": "OS",
+    "apps": "Apps",
+    "noApps": "None"
+  },
+  "status": {
+    "timeout": "Timeout"
+  },
+  "timeoutTooltip": {
+    "title": "Agent is taking too long to connect",
+    "message": "We noticed this agent is taking longer than expected to connect.",
+    "link": "Troubleshoot"
+  },
+  "unableToConnect": "Unable to connect"
+}

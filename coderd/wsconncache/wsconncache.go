@@ -86,8 +86,18 @@ func (c *Cache) Acquire(r *http.Request, id uuid.UUID) (*Conn, func(), error) {
 		// A singleflight group is used to allow for concurrent requests to the
 		// same identifier to resolve.
 		rawConn, err, _ = c.connGroup.Do(id.String(), func() (interface{}, error) {
+			c.closeMutex.Lock()
+			select {
+			case <-c.closed:
+				c.closeMutex.Unlock()
+				return nil, xerrors.New("closed")
+			default:
+			}
+			c.closeGroup.Add(1)
+			c.closeMutex.Unlock()
 			agentConn, err := c.dialer(r, id)
 			if err != nil {
+				c.closeGroup.Done()
 				return nil, xerrors.Errorf("dial: %w", err)
 			}
 			timeoutCtx, timeoutCancelFunc := context.WithCancel(context.Background())
@@ -102,9 +112,6 @@ func (c *Cache) Acquire(r *http.Request, id uuid.UUID) (*Conn, func(), error) {
 				timeoutCancel: timeoutCancelFunc,
 				transport:     transport,
 			}
-			c.closeMutex.Lock()
-			c.closeGroup.Add(1)
-			c.closeMutex.Unlock()
 			go func() {
 				defer c.closeGroup.Done()
 				var err error

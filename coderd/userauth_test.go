@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/golang-jwt/jwt"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
 )
@@ -37,12 +39,31 @@ func (o *oauth2Config) Exchange(context.Context, string, ...oauth2.AuthCodeOptio
 		return o.token, nil
 	}
 	return &oauth2.Token{
-		AccessToken: "token",
+		AccessToken:  "token",
+		RefreshToken: "refresh",
+		Expiry:       database.Now().Add(time.Hour),
 	}, nil
 }
 
-func (*oauth2Config) TokenSource(context.Context, *oauth2.Token) oauth2.TokenSource {
-	return nil
+func (o *oauth2Config) TokenSource(context.Context, *oauth2.Token) oauth2.TokenSource {
+	return &oauth2TokenSource{
+		token: o.token,
+	}
+}
+
+type oauth2TokenSource struct {
+	token *oauth2.Token
+}
+
+func (o *oauth2TokenSource) Token() (*oauth2.Token, error) {
+	if o.token != nil {
+		return o.token, nil
+	}
+	return &oauth2.Token{
+		AccessToken:  "token",
+		RefreshToken: "refresh",
+		Expiry:       database.Now().Add(time.Hour),
+	}, nil
 }
 
 func TestUserAuthMethods(t *testing.T) {
@@ -254,7 +275,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		resp := oauth2Callback(t, client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 
-		client.SessionToken = authCookieValue(resp.Cookies())
+		client.SetSessionToken(authCookieValue(resp.Cookies()))
 		user, err := client.User(context.Background(), "me")
 		require.NoError(t, err)
 		require.Equal(t, "kyle@coder.com", user.Email)
@@ -288,6 +309,124 @@ func TestUserOAuth2Github(t *testing.T) {
 				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
 					return []*github.UserEmail{{
 						Email:    github.String("kyle@coder.com"),
+						Verified: github.Bool(true),
+						Primary:  github.Bool(true),
+					}}, nil
+				},
+			},
+		})
+		resp := oauth2Callback(t, client)
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+	})
+	t.Run("SignupAllowedTeamInFirstOrganization", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			GithubOAuth2Config: &coderd.GithubOAuth2Config{
+				AllowSignups:       true,
+				AllowOrganizations: []string{"coder", "nil"},
+				AllowTeams:         []coderd.GithubOAuth2Team{{"coder", "backend"}},
+				OAuth2Config:       &oauth2Config{},
+				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
+					return []*github.Membership{
+						{
+							State: &stateActive,
+							Organization: &github.Organization{
+								Login: github.String("coder"),
+							},
+						},
+						{
+							State: &stateActive,
+							Organization: &github.Organization{
+								Login: github.String("nil"),
+							},
+						},
+					}, nil
+				},
+				TeamMembership: func(ctx context.Context, client *http.Client, org, team, username string) (*github.Membership, error) {
+					return &github.Membership{}, nil
+				},
+				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
+					return &github.User{
+						Login: github.String("mathias"),
+					}, nil
+				},
+				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
+					return []*github.UserEmail{{
+						Email:    github.String("mathias@coder.com"),
+						Verified: github.Bool(true),
+						Primary:  github.Bool(true),
+					}}, nil
+				},
+			},
+		})
+		resp := oauth2Callback(t, client)
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+	})
+	t.Run("SignupAllowedTeamInSecondOrganization", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			GithubOAuth2Config: &coderd.GithubOAuth2Config{
+				AllowSignups:       true,
+				AllowOrganizations: []string{"coder", "nil"},
+				AllowTeams:         []coderd.GithubOAuth2Team{{"nil", "null"}},
+				OAuth2Config:       &oauth2Config{},
+				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
+					return []*github.Membership{
+						{
+							State: &stateActive,
+							Organization: &github.Organization{
+								Login: github.String("coder"),
+							},
+						},
+						{
+							State: &stateActive,
+							Organization: &github.Organization{
+								Login: github.String("nil"),
+							},
+						},
+					}, nil
+				},
+				TeamMembership: func(ctx context.Context, client *http.Client, org, team, username string) (*github.Membership, error) {
+					return &github.Membership{}, nil
+				},
+				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
+					return &github.User{
+						Login: github.String("mathias"),
+					}, nil
+				},
+				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
+					return []*github.UserEmail{{
+						Email:    github.String("mathias@coder.com"),
+						Verified: github.Bool(true),
+						Primary:  github.Bool(true),
+					}}, nil
+				},
+			},
+		})
+		resp := oauth2Callback(t, client)
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+	})
+	t.Run("SignupAllowEveryone", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			GithubOAuth2Config: &coderd.GithubOAuth2Config{
+				AllowSignups:  true,
+				AllowEveryone: true,
+				OAuth2Config:  &oauth2Config{},
+				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
+					return []*github.Membership{}, nil
+				},
+				TeamMembership: func(ctx context.Context, client *http.Client, org, team, username string) (*github.Membership, error) {
+					return nil, xerrors.New("no teams")
+				},
+				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
+					return &github.User{
+						Login: github.String("mathias"),
+					}, nil
+				},
+				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
+					return []*github.UserEmail{{
+						Email:    github.String("mathias@coder.com"),
 						Verified: github.Bool(true),
 						Primary:  github.Bool(true),
 					}}, nil
@@ -340,13 +479,14 @@ func TestUserOIDC(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
-		Name         string
-		Claims       jwt.MapClaims
-		AllowSignups bool
-		EmailDomain  string
-		Username     string
-		AvatarURL    string
-		StatusCode   int
+		Name                string
+		Claims              jwt.MapClaims
+		AllowSignups        bool
+		EmailDomain         string
+		Username            string
+		AvatarURL           string
+		StatusCode          int
+		IgnoreEmailVerified bool
 	}{{
 		Name: "EmailOnly",
 		Claims: jwt.MapClaims{
@@ -363,6 +503,24 @@ func TestUserOIDC(t *testing.T) {
 		},
 		AllowSignups: true,
 		StatusCode:   http.StatusForbidden,
+	}, {
+		Name: "EmailNotAString",
+		Claims: jwt.MapClaims{
+			"email":          3.14159,
+			"email_verified": false,
+		},
+		AllowSignups: true,
+		StatusCode:   http.StatusBadRequest,
+	}, {
+		Name: "EmailNotVerifiedIgnored",
+		Claims: jwt.MapClaims{
+			"email":          "kyle@kwc.io",
+			"email_verified": false,
+		},
+		AllowSignups:        true,
+		StatusCode:          http.StatusTemporaryRedirect,
+		Username:            "kyle",
+		IgnoreEmailVerified: true,
 	}, {
 		Name: "NotInRequiredEmailDomain",
 		Claims: jwt.MapClaims{
@@ -454,6 +612,7 @@ func TestUserOIDC(t *testing.T) {
 			config := conf.OIDCConfig()
 			config.AllowSignups = tc.AllowSignups
 			config.EmailDomain = tc.EmailDomain
+			config.IgnoreEmailVerified = tc.IgnoreEmailVerified
 
 			client := coderdtest.New(t, &coderdtest.Options{
 				OIDCConfig: config,
@@ -464,14 +623,14 @@ func TestUserOIDC(t *testing.T) {
 			ctx, _ := testutil.Context(t)
 
 			if tc.Username != "" {
-				client.SessionToken = authCookieValue(resp.Cookies())
+				client.SetSessionToken(authCookieValue(resp.Cookies()))
 				user, err := client.User(ctx, "me")
 				require.NoError(t, err)
 				require.Equal(t, tc.Username, user.Username)
 			}
 
 			if tc.AvatarURL != "" {
-				client.SessionToken = authCookieValue(resp.Cookies())
+				client.SetSessionToken(authCookieValue(resp.Cookies()))
 				user, err := client.User(ctx, "me")
 				require.NoError(t, err)
 				require.Equal(t, tc.AvatarURL, user.AvatarURL)
@@ -499,7 +658,7 @@ func TestUserOIDC(t *testing.T) {
 
 		ctx, _ := testutil.Context(t)
 
-		client.SessionToken = authCookieValue(resp.Cookies())
+		client.SetSessionToken(authCookieValue(resp.Cookies()))
 		user, err := client.User(ctx, "me")
 		require.NoError(t, err)
 		require.Equal(t, "jon", user.Username)
@@ -513,7 +672,7 @@ func TestUserOIDC(t *testing.T) {
 		resp = oidcCallback(t, client, code)
 		assert.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 
-		client.SessionToken = authCookieValue(resp.Cookies())
+		client.SetSessionToken(authCookieValue(resp.Cookies()))
 		user, err = client.User(ctx, "me")
 		require.NoError(t, err)
 		require.True(t, strings.HasPrefix(user.Username, "jon-"), "username %q should have prefix %q", user.Username, "jon-")

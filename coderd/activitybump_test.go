@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
@@ -31,7 +30,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 
-		workspace = createWorkspaceWithApps(t, client, user.OrganizationID, 1234, func(cwr *codersdk.CreateWorkspaceRequest) {
+		workspace = createWorkspaceWithApps(t, client, user.OrganizationID, "", 1234, func(cwr *codersdk.CreateWorkspaceRequest) {
 			cwr.TTLMillis = &ttlMillis
 		})
 
@@ -88,7 +87,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		require.NoError(t, err)
 		defer conn.Close()
 
-		sshConn, err := conn.SSHClient()
+		sshConn, err := conn.SSHClient(ctx)
 		require.NoError(t, err)
 		_ = sshConn.Close()
 

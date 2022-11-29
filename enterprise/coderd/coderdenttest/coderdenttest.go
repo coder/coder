@@ -70,7 +70,6 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		SCIMAPIKey:                 options.SCIMAPIKey,
 		DERPServerRelayAddress:     oop.AccessURL.String(),
 		DERPServerRegionID:         oop.DERPMap.RegionIDs()[0],
-		UserWorkspaceQuota:         options.UserWorkspaceQuota,
 		Options:                    oop,
 		EntitlementsUpdateInterval: options.EntitlementsUpdateInterval,
 		Keys:                       Keys,
@@ -100,19 +99,20 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 }
 
 type LicenseOptions struct {
-	AccountType      string
-	AccountID        string
-	Trial            bool
-	AllFeatures      bool
-	GraceAt          time.Time
-	ExpiresAt        time.Time
-	UserLimit        int64
-	AuditLog         bool
-	BrowserOnly      bool
-	SCIM             bool
-	WorkspaceQuota   bool
-	TemplateRBAC     bool
-	HighAvailability bool
+	AccountType                string
+	AccountID                  string
+	Trial                      bool
+	AllFeatures                bool
+	GraceAt                    time.Time
+	ExpiresAt                  time.Time
+	UserLimit                  int64
+	AuditLog                   bool
+	BrowserOnly                bool
+	SCIM                       bool
+	TemplateRBAC               bool
+	HighAvailability           bool
+	MultipleGitAuth            bool
+	ExternalProvisionerDaemons bool
 }
 
 // AddLicense generates a new license with the options provided and inserts it.
@@ -144,10 +144,6 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 	if options.SCIM {
 		scim = 1
 	}
-	var workspaceQuota int64
-	if options.WorkspaceQuota {
-		workspaceQuota = 1
-	}
 	highAvailability := int64(0)
 	if options.HighAvailability {
 		highAvailability = 1
@@ -156,6 +152,16 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 	rbacEnabled := int64(0)
 	if options.TemplateRBAC {
 		rbacEnabled = 1
+	}
+
+	multipleGitAuth := int64(0)
+	if options.MultipleGitAuth {
+		multipleGitAuth = 1
+	}
+
+	externalProvisionerDaemons := int64(0)
+	if options.ExternalProvisionerDaemons {
+		externalProvisionerDaemons = 1
 	}
 
 	c := &license.Claims{
@@ -172,13 +178,14 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		Version:        license.CurrentVersion,
 		AllFeatures:    options.AllFeatures,
 		Features: license.Features{
-			UserLimit:        options.UserLimit,
-			AuditLog:         auditLog,
-			BrowserOnly:      browserOnly,
-			SCIM:             scim,
-			WorkspaceQuota:   workspaceQuota,
-			HighAvailability: highAvailability,
-			TemplateRBAC:     rbacEnabled,
+			UserLimit:                  options.UserLimit,
+			AuditLog:                   auditLog,
+			BrowserOnly:                browserOnly,
+			SCIM:                       scim,
+			HighAvailability:           highAvailability,
+			TemplateRBAC:               rbacEnabled,
+			MultipleGitAuth:            multipleGitAuth,
+			ExternalProvisionerDaemons: externalProvisionerDaemons,
 		},
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodEdDSA, c)

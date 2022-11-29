@@ -11,9 +11,12 @@ import (
 	"time"
 
 	"github.com/hashicorp/yamux"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/spf13/afero"
+	"github.com/valyala/fasthttp/fasthttputil"
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.11.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/atomic"
 	"golang.org/x/xerrors"
@@ -41,12 +44,14 @@ type Provisioners map[string]sdkproto.DRPCProvisionerClient
 
 // Options provides customizations to the behavior of a provisioner daemon.
 type Options struct {
-	Filesystem afero.Fs
-	Logger     slog.Logger
-	Tracer     trace.TracerProvider
+	Filesystem     afero.Fs
+	Logger         slog.Logger
+	TracerProvider trace.TracerProvider
+	Metrics        *Metrics
 
 	ForceCancelInterval time.Duration
 	UpdateInterval      time.Duration
+	LogBufferInterval   time.Duration
 	PollInterval        time.Duration
 	Provisioners        Provisioners
 	WorkDirectory       string
@@ -54,6 +59,9 @@ type Options struct {
 
 // New creates and starts a provisioner daemon.
 func New(clientDialer Dialer, opts *Options) *Server {
+	if opts == nil {
+		opts = &Options{}
+	}
 	if opts.PollInterval == 0 {
 		opts.PollInterval = 5 * time.Second
 	}
@@ -61,19 +69,27 @@ func New(clientDialer Dialer, opts *Options) *Server {
 		opts.UpdateInterval = 5 * time.Second
 	}
 	if opts.ForceCancelInterval == 0 {
-		opts.ForceCancelInterval = time.Minute
+		opts.ForceCancelInterval = 10 * time.Minute
+	}
+	if opts.LogBufferInterval == 0 {
+		opts.LogBufferInterval = 50 * time.Millisecond
 	}
 	if opts.Filesystem == nil {
 		opts.Filesystem = afero.NewOsFs()
 	}
-	if opts.Tracer == nil {
-		opts.Tracer = trace.NewNoopTracerProvider()
+	if opts.TracerProvider == nil {
+		opts.TracerProvider = trace.NewNoopTracerProvider()
+	}
+	if opts.Metrics == nil {
+		reg := prometheus.NewRegistry()
+		mets := NewMetrics(reg)
+		opts.Metrics = &mets
 	}
 
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	daemon := &Server{
 		opts:   opts,
-		tracer: opts.Tracer.Tracer(tracing.TracerName),
+		tracer: opts.TracerProvider.Tracer(tracing.TracerName),
 
 		clientDialer: clientDialer,
 
@@ -101,6 +117,42 @@ type Server struct {
 	closeError   error
 	shutdown     chan struct{}
 	activeJob    *runner.Runner
+}
+
+type Metrics struct {
+	Runner runner.Metrics
+}
+
+func NewMetrics(reg prometheus.Registerer) Metrics {
+	auto := promauto.With(reg)
+	durationToFloatMs := func(d time.Duration) float64 {
+		return float64(d.Milliseconds())
+	}
+
+	return Metrics{
+		Runner: runner.Metrics{
+			ConcurrentJobs: auto.NewGaugeVec(prometheus.GaugeOpts{
+				Namespace: "coderd",
+				Subsystem: "provisionerd",
+				Name:      "jobs_current",
+			}, []string{"provisioner"}),
+			JobTimings: auto.NewHistogramVec(prometheus.HistogramOpts{
+				Namespace: "coderd",
+				Subsystem: "provisionerd",
+				Name:      "job_timings_ms",
+				Buckets: []float64{
+					durationToFloatMs(1 * time.Second),
+					durationToFloatMs(10 * time.Second),
+					durationToFloatMs(30 * time.Second),
+					durationToFloatMs(1 * time.Minute),
+					durationToFloatMs(5 * time.Minute),
+					durationToFloatMs(10 * time.Minute),
+					durationToFloatMs(30 * time.Minute),
+					durationToFloatMs(1 * time.Hour),
+				},
+			}, []string{"provisioner", "status"}),
+		},
+	}
 }
 
 // Connect establishes a connection to coderd.
@@ -271,24 +323,29 @@ func (p *Server) acquireJob(ctx context.Context) {
 		return
 	}
 
-	p.activeJob = runner.NewRunner(
+	p.activeJob = runner.New(
 		ctx,
 		job,
-		p,
-		p.opts.Logger,
-		p.opts.Filesystem,
-		p.opts.WorkDirectory,
-		provisioner,
-		p.opts.UpdateInterval,
-		p.opts.ForceCancelInterval,
-		p.tracer,
+		runner.Options{
+			Updater:             p,
+			QuotaCommitter:      p,
+			Logger:              p.opts.Logger,
+			Filesystem:          p.opts.Filesystem,
+			WorkDirectory:       p.opts.WorkDirectory,
+			Provisioner:         provisioner,
+			UpdateInterval:      p.opts.UpdateInterval,
+			ForceCancelInterval: p.opts.ForceCancelInterval,
+			LogDebounceInterval: p.opts.LogBufferInterval,
+			Tracer:              p.tracer,
+			Metrics:             p.opts.Metrics.Runner,
+		},
 	)
 
 	go p.activeJob.Run()
 }
 
 func retryable(err error) bool {
-	return xerrors.Is(err, yamux.ErrSessionShutdown) || xerrors.Is(err, io.EOF) ||
+	return xerrors.Is(err, yamux.ErrSessionShutdown) || xerrors.Is(err, io.EOF) || xerrors.Is(err, fasthttputil.ErrInmemoryListenerClosed) ||
 		// annoyingly, dRPC sometimes returns context.Canceled if the transport was closed, even if the context for
 		// the RPC *is not canceled*.  Retrying is fine if the RPC context is not canceled.
 		xerrors.Is(err, context.Canceled)
@@ -311,6 +368,17 @@ func (p *Server) clientDoWithRetries(
 		return resp, err
 	}
 	return nil, ctx.Err()
+}
+
+func (p *Server) CommitQuota(ctx context.Context, in *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error) {
+	out, err := p.clientDoWithRetries(ctx, func(ctx context.Context, client proto.DRPCProvisionerDaemonClient) (any, error) {
+		return client.CommitQuota(ctx, in)
+	})
+	if err != nil {
+		return nil, err
+	}
+	// nolint: forcetypeassert
+	return out.(*proto.CommitQuotaResponse), nil
 }
 
 func (p *Server) UpdateJob(ctx context.Context, in *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {

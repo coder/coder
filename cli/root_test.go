@@ -2,8 +2,12 @@ package cli_test
 
 import (
 	"bytes"
+	"flag"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -13,10 +17,81 @@ import (
 
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli"
-	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/testutil"
 )
+
+var updateGoldenFiles = flag.Bool("update", false, "update .golden files")
+
+//nolint:tparallel,paralleltest // These test sets env vars.
+func TestCommandHelp(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		cmd  []string
+		env  map[string]string
+	}{
+		{
+			name: "coder --help",
+			cmd:  []string{"--help"},
+			env: map[string]string{
+				"CODER_CONFIG_DIR": "/tmp/coder-cli-test-config",
+			},
+		},
+		{
+			name: "coder server --help",
+			cmd:  []string{"server", "--help"},
+			env: map[string]string{
+				"CODER_CONFIG_DIR":      "/tmp/coder-cli-test-config",
+				"CODER_CACHE_DIRECTORY": "/tmp/coder-cli-test-cache",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			// Unset all CODER_ environment variables for a clean slate.
+			for _, kv := range os.Environ() {
+				name := strings.Split(kv, "=")[0]
+				if _, ok := tt.env[name]; !ok && strings.HasPrefix(name, "CODER_") {
+					t.Setenv(name, "")
+				}
+			}
+			// Override environment variables for a reproducible test.
+			for k, v := range tt.env {
+				t.Setenv(k, v)
+			}
+
+			ctx, _ := testutil.Context(t)
+
+			var buf bytes.Buffer
+			root, _ := clitest.New(t, tt.cmd...)
+			root.SetOut(&buf)
+			err := root.ExecuteContext(ctx)
+			require.NoError(t, err)
+
+			got := buf.Bytes()
+			// Remove CRLF newlines (Windows).
+			got = bytes.ReplaceAll(got, []byte{'\r', '\n'}, []byte{'\n'})
+
+			gf := filepath.Join("testdata", strings.Replace(tt.name, " ", "_", -1)+".golden")
+			if *updateGoldenFiles {
+				t.Logf("update golden file for: %q: %s", tt.name, gf)
+				err = os.WriteFile(gf, got, 0o600)
+				require.NoError(t, err, "update golden file")
+			}
+
+			want, err := os.ReadFile(gf)
+			require.NoError(t, err, "read golden file, run \"make update-golden-files\" and commit the changes")
+			// Remove CRLF newlines (Windows).
+			want = bytes.ReplaceAll(want, []byte{'\r', '\n'}, []byte{'\n'})
+			require.Equal(t, string(want), string(got), "golden file mismatch: %s, run \"make update-golden-files\", verify and commit the changes", gf)
+		})
+	}
+}
 
 func TestRoot(t *testing.T) {
 	t.Parallel()
@@ -153,20 +228,5 @@ func TestRoot(t *testing.T) {
 		cmd.SetOut(buf)
 		// This won't succeed, because we're using the login cmd to assert requests.
 		_ = cmd.Execute()
-	})
-
-	t.Run("Experimental", func(t *testing.T) {
-		t.Parallel()
-
-		cmd, _ := clitest.New(t, "--experimental")
-		err := cmd.Execute()
-		require.NoError(t, err)
-		require.True(t, cli.ExperimentalEnabled(cmd))
-
-		cmd, _ = clitest.New(t, "help", "--verbose")
-		_ = cmd.Execute()
-		_, set := cliflag.IsSet(cmd, "verbose")
-		require.True(t, set)
-		require.ErrorContains(t, cli.EnsureExperimental(cmd, "verbose"), "--experimental")
 	})
 }

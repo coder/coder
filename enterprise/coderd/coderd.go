@@ -20,12 +20,12 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/workspacequota"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/enterprise/derpmesh"
 	"github.com/coder/coder/enterprise/replicasync"
 	"github.com/coder/coder/enterprise/tailnet"
+	"github.com/coder/coder/provisionerd/proto"
 	agpltailnet "github.com/coder/coder/tailnet"
 )
 
@@ -77,12 +77,28 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		r.Route("/organizations/{organization}/groups", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
+				api.templateRBACEnabledMW,
 				httpmw.ExtractOrganizationParam(api.Database),
 			)
 			r.Post("/", api.postGroupByOrganization)
 			r.Get("/", api.groups)
-		})
+			r.Route("/{groupName}", func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractGroupByNameParam(api.Database),
+				)
 
+				r.Get("/", api.group)
+			})
+		})
+		r.Route("/organizations/{organization}/provisionerdaemons", func(r chi.Router) {
+			r.Use(
+				api.provisionerDaemonsEnabledMW,
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(api.Database),
+			)
+			r.Get("/", api.provisionerDaemons)
+			r.Get("/serve", api.provisionerDaemonServe)
+		})
 		r.Route("/templates/{template}/acl", func(r chi.Router) {
 			r.Use(
 				api.templateRBACEnabledMW,
@@ -92,7 +108,6 @@ func New(ctx context.Context, options *Options) (*API, error) {
 			r.Get("/", api.templateACL)
 			r.Patch("/", api.patchTemplateACL)
 		})
-
 		r.Route("/groups/{group}", func(r chi.Router) {
 			r.Use(
 				api.templateRBACEnabledMW,
@@ -103,9 +118,10 @@ func New(ctx context.Context, options *Options) (*API, error) {
 			r.Patch("/", api.patchGroup)
 			r.Delete("/", api.deleteGroup)
 		})
-
 		r.Route("/workspace-quota", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
+			r.Use(
+				apiKeyMiddleware,
+			)
 			r.Route("/{user}", func(r chi.Router) {
 				r.Use(httpmw.ExtractUserParam(options.Database, false))
 				r.Get("/", api.workspaceQuota)
@@ -150,6 +166,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 	}
 	var err error
 	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.Pubsub, &replicasync.Options{
+		ID:           api.AGPL.ID,
 		RelayAddress: options.DERPServerRelayAddress,
 		RegionID:     int32(options.DERPServerRegionID),
 		TLSConfig:    meshTLSConfig,
@@ -174,9 +191,8 @@ type Options struct {
 	RBAC         bool
 	AuditLogging bool
 	// Whether to block non-browser connections.
-	BrowserOnly        bool
-	SCIMAPIKey         []byte
-	UserWorkspaceQuota int
+	BrowserOnly bool
+	SCIMAPIKey  []byte
 
 	// Used for high availability.
 	DERPServerRelayAddress string
@@ -211,18 +227,19 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	api.entitlementsMu.Lock()
 	defer api.entitlementsMu.Unlock()
 
-	entitlements, err := license.Entitlements(ctx, api.Database, api.Logger, len(api.replicaManager.All()), api.Keys, map[string]bool{
-		codersdk.FeatureAuditLog:         api.AuditLogging,
-		codersdk.FeatureBrowserOnly:      api.BrowserOnly,
-		codersdk.FeatureSCIM:             len(api.SCIMAPIKey) != 0,
-		codersdk.FeatureWorkspaceQuota:   api.UserWorkspaceQuota != 0,
-		codersdk.FeatureHighAvailability: api.DERPServerRelayAddress != "",
-		codersdk.FeatureTemplateRBAC:     api.RBAC,
+	entitlements, err := license.Entitlements(ctx, api.Database, api.Logger, len(api.replicaManager.All()), len(api.GitAuthConfigs), api.Keys, map[string]bool{
+		codersdk.FeatureAuditLog:                   api.AuditLogging,
+		codersdk.FeatureBrowserOnly:                api.BrowserOnly,
+		codersdk.FeatureSCIM:                       len(api.SCIMAPIKey) != 0,
+		codersdk.FeatureHighAvailability:           api.DERPServerRelayAddress != "",
+		codersdk.FeatureMultipleGitAuth:            len(api.GitAuthConfigs) > 1,
+		codersdk.FeatureTemplateRBAC:               api.RBAC,
+		codersdk.FeatureExternalProvisionerDaemons: true,
 	})
 	if err != nil {
 		return err
 	}
-	entitlements.Experimental = api.Experimental
+	entitlements.Experimental = api.DeploymentConfig.Experimental.Value
 
 	featureChanged := func(featureName string) (changed bool, enabled bool) {
 		if api.entitlements.Features == nil {
@@ -252,17 +269,19 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		api.AGPL.WorkspaceClientCoordinateOverride.Store(&handler)
 	}
 
-	if changed, enabled := featureChanged(codersdk.FeatureWorkspaceQuota); changed {
-		enforcer := workspacequota.NewNop()
+	if changed, enabled := featureChanged(codersdk.FeatureTemplateRBAC); changed {
 		if enabled {
-			enforcer = NewEnforcer(api.Options.UserWorkspaceQuota)
+			committer := committer{Database: api.Database}
+			ptr := proto.QuotaCommitter(&committer)
+			api.AGPL.QuotaCommitter.Store(&ptr)
+		} else {
+			api.AGPL.QuotaCommitter.Store(nil)
 		}
-		api.AGPL.WorkspaceQuotaEnforcer.Store(&enforcer)
 	}
 
 	if changed, enabled := featureChanged(codersdk.FeatureHighAvailability); changed {
 		coordinator := agpltailnet.NewCoordinator()
-		if api.Experimental && enabled {
+		if enabled {
 			haCoordinator, err := tailnet.NewCoordinator(api.Logger, api.Pubsub)
 			if err != nil {
 				api.Logger.Error(ctx, "unable to set up high availability coordinator", slog.Error(err))

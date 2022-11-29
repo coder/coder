@@ -1,6 +1,8 @@
 {
   "cSpell.words": [
+    "afero",
     "apps",
+    "ASKPASS",
     "awsidentity",
     "bodyclose",
     "buildinfo",
@@ -15,20 +17,26 @@
     "codersdk",
     "cronstrue",
     "databasefake",
+    "dbtype",
     "DERP",
     "derphttp",
     "derpmap",
     "devel",
+    "devtunnel",
     "dflags",
     "drpc",
     "drpcconn",
     "drpcmux",
     "drpcserver",
     "Dsts",
+    "embeddedpostgres",
     "enablements",
+    "errgroup",
     "eventsourcemock",
+    "Failf",
     "fatih",
     "Formik",
+    "gitauth",
     "gitsshkey",
     "goarch",
     "gographviz",
@@ -78,9 +86,11 @@
     "parameterscopeid",
     "pqtype",
     "prometheusmetrics",
+    "promhttp",
     "promptui",
     "protobuf",
     "provisionerd",
+    "provisionerdserver",
     "provisionersdk",
     "ptty",
     "ptys",
@@ -118,7 +128,9 @@
     "tfplan",
     "tfstate",
     "tios",
+    "tmpdir",
     "tparallel",
+    "trialer",
     "trimprefix",
     "tsdial",
     "tslogger",
@@ -150,10 +162,7 @@
     "xstate",
     "yamux"
   ],
-  "cSpell.ignorePaths": [
-    "site/package.json",
-    ".vscode/settings.json"
-  ],
+  "cSpell.ignorePaths": ["site/package.json", ".vscode/settings.json"],
   "emeraldwalk.runonsave": {
     "commands": [
       {
@@ -185,10 +194,7 @@
   // To reduce redundancy in tests, it's covered by other packages.
   // Since package coverage pairing can't be defined, all packages cover
   // all other packages.
-  "go.testFlags": [
-    "-short",
-    "-coverpkg=./..."
-  ],
+  "go.testFlags": ["-short", "-coverpkg=./..."],
   // We often use a version of TypeScript that's ahead of the version shipped
   // with VS Code.
   "typescript.tsdk": "./site/node_modules/typescript/lib"

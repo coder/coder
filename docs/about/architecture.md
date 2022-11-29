@@ -1,28 +1,10 @@
 # Architecture
 
-## Agents
+This document provides a high level overview of Coder's architecture.
 
-An agent is the Coder service that runs within a user's remote workspace.
-It provides a consistent interface for coderd and clients to communicate
-with workspaces regardless of operating system, architecture, or cloud.
+## Diagram
 
-It offers the following services along with much more:
-
-- SSH
-- Port forwarding
-- Liveness checks
-- `startup_script` automation
-
-## Service Bundling
-
-While coderd, provisionerd and Postgres can be orchestrated independently,
-our default installation paths bundle them all together into one system service.
-It's perfectly fine to run a production deployment this way, but there are
-certain situations that necessitate decomposition:
-
-- Reducing global client latency (distribute coderd and centralize database)
-- Running untrusted provisioners (separate provisionerd from nodes with DB access)
-- Achieving greater availability and efficiency (horizontally scale individual services)
+![Architecture Diagram](../images/architecture-diagram.png)
 
 ## coderd
 
@@ -43,16 +25,30 @@ It offers:
 provisionerd is the execution context for infrastructure modifying providers.
 At the moment, the only provider is Terraform (running `terraform`).
 
-Since the provisionerd can be separated from coderd, it can run the provider
-in a myriad of ways on the same Coder deployment. For example, provisioners
-can have different `terraform` versions to satisfy the requirements of different
-templates.
+> At the moment, provisionerd cannot be separated from coderd. Follow [this GitHub issue](https://github.com/coder/coder/issues/44) for more details.
 
-Separability is also advantageous for security. Since provisionerd has no
-database access, infrastructure admins that are not necessarily Coder admins
-can be safely given access to the provisionerd node. As Coder scales and
-multiple infrastructure teams appear, each can be given access to their own
-set of provisionerd nodes, with each set of nodes having their own cloud credentials.
+## Agents
+
+An agent is the Coder service that runs within a user's remote workspace.
+It provides a consistent interface for coderd and clients to communicate
+with workspaces regardless of operating system, architecture, or cloud.
+
+It offers the following services along with much more:
+
+- SSH
+- Port forwarding
+- Liveness checks
+- `startup_script` automation
+
+Templates are responsible for [creating and running agents](../templates.md#coder-agent) within workspaces.
+
+## Service Bundling
+
+While coderd and Postgres can be orchestrated independently,our default installation
+paths bundle them all together into one system service. It's perfectly fine to run a production deployment this way, but there are certain situations that necessitate decomposition:
+
+- Reducing global client latency (distribute coderd and centralize database)
+- Achieving greater availability and efficiency (horizontally scale individual services)
 
 ## Workspaces
 

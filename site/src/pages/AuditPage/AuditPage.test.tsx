@@ -29,15 +29,38 @@ describe("AuditPage", () => {
 
   describe("Filtering", () => {
     it("filters by typing", async () => {
-      const getAuditLogsSpy = jest
-        .spyOn(API, "getAuditLogs")
-        .mockResolvedValue({ audit_logs: [MockAuditLog] })
-
       render(<AuditPage />)
       await waitForLoaderToBeRemoved()
+      await screen.findByText("updated", { exact: false })
 
-      // Reset spy so we can focus on the call with the filter
-      getAuditLogsSpy.mockReset()
+      const filterField = screen.getByLabelText("Filter")
+      const query = "resource_type:workspace action:create"
+      await userEvent.type(filterField, query)
+      await screen.findByText("created", { exact: false })
+      const editWorkspace = screen.queryByText("updated", { exact: false })
+      expect(editWorkspace).not.toBeInTheDocument()
+    })
+
+    it("filters by URL", async () => {
+      const getAuditLogsSpy = jest
+        .spyOn(API, "getAuditLogs")
+        .mockResolvedValue({ audit_logs: [MockAuditLog], count: 1 })
+
+      const query = "resource_type:workspace action:create"
+      history.push(`/audit?filter=${encodeURIComponent(query)}`)
+      render(<AuditPage />)
+
+      await waitForLoaderToBeRemoved()
+
+      expect(getAuditLogsSpy).toBeCalledWith({ limit: 25, offset: 0, q: query })
+    })
+
+    it("resets page to 1 when filter is changed", async () => {
+      history.push(`/audit?page=2`)
+      render(<AuditPage />)
+
+      await waitForLoaderToBeRemoved()
+      const getAuditLogsSpy = jest.spyOn(API, "getAuditLogs")
 
       const filterField = screen.getByLabelText("Filter")
       const query = "resource_type:workspace action:create"
@@ -50,20 +73,6 @@ describe("AuditPage", () => {
           q: query,
         }),
       )
-    })
-
-    it("filters by URL", async () => {
-      const getAuditLogsSpy = jest
-        .spyOn(API, "getAuditLogs")
-        .mockResolvedValue({ audit_logs: [MockAuditLog] })
-
-      const query = "resource_type:workspace action:create"
-      history.push(`/audit?filter=${encodeURIComponent(query)}`)
-      render(<AuditPage />)
-
-      await waitForLoaderToBeRemoved()
-
-      expect(getAuditLogsSpy).toBeCalledWith({ limit: 25, offset: 0, q: query })
     })
   })
 })

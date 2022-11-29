@@ -39,7 +39,7 @@ export const SearchBarWithFilter: React.FC<
   // debounce query string entry by user
   // we want the dependency array empty here
   // as we don't need to redefine the function
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
   const debouncedOnFilter = useCallback(
     debounce((debouncedQueryString: string) => {
       onFilter(debouncedQueryString)

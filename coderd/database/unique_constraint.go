@@ -7,6 +7,7 @@ type UniqueConstraint string
 // UniqueConstraint enums.
 const (
 	UniqueFilesHashCreatedByKey                    UniqueConstraint = "files_hash_created_by_key"                      // ALTER TABLE ONLY files ADD CONSTRAINT files_hash_created_by_key UNIQUE (hash, created_by);
+	UniqueGitAuthLinksProviderIDUserIDKey          UniqueConstraint = "git_auth_links_provider_id_user_id_key"         // ALTER TABLE ONLY git_auth_links ADD CONSTRAINT git_auth_links_provider_id_user_id_key UNIQUE (provider_id, user_id);
 	UniqueGroupMembersUserIDGroupIDKey             UniqueConstraint = "group_members_user_id_group_id_key"             // ALTER TABLE ONLY group_members ADD CONSTRAINT group_members_user_id_group_id_key UNIQUE (user_id, group_id);
 	UniqueGroupsNameOrganizationIDKey              UniqueConstraint = "groups_name_organization_id_key"                // ALTER TABLE ONLY groups ADD CONSTRAINT groups_name_organization_id_key UNIQUE (name, organization_id);
 	UniqueLicensesJWTKey                           UniqueConstraint = "licenses_jwt_key"                               // ALTER TABLE ONLY licenses ADD CONSTRAINT licenses_jwt_key UNIQUE (jwt);
@@ -15,7 +16,7 @@ const (
 	UniqueProvisionerDaemonsNameKey                UniqueConstraint = "provisioner_daemons_name_key"                   // ALTER TABLE ONLY provisioner_daemons ADD CONSTRAINT provisioner_daemons_name_key UNIQUE (name);
 	UniqueSiteConfigsKeyKey                        UniqueConstraint = "site_configs_key_key"                           // ALTER TABLE ONLY site_configs ADD CONSTRAINT site_configs_key_key UNIQUE (key);
 	UniqueTemplateVersionsTemplateIDNameKey        UniqueConstraint = "template_versions_template_id_name_key"         // ALTER TABLE ONLY template_versions ADD CONSTRAINT template_versions_template_id_name_key UNIQUE (template_id, name);
-	UniqueWorkspaceAppsAgentIDNameKey              UniqueConstraint = "workspace_apps_agent_id_name_key"               // ALTER TABLE ONLY workspace_apps ADD CONSTRAINT workspace_apps_agent_id_name_key UNIQUE (agent_id, name);
+	UniqueWorkspaceAppsAgentIDSlugIndex            UniqueConstraint = "workspace_apps_agent_id_slug_idx"               // ALTER TABLE ONLY workspace_apps ADD CONSTRAINT workspace_apps_agent_id_slug_idx UNIQUE (agent_id, slug);
 	UniqueWorkspaceBuildsJobIDKey                  UniqueConstraint = "workspace_builds_job_id_key"                    // ALTER TABLE ONLY workspace_builds ADD CONSTRAINT workspace_builds_job_id_key UNIQUE (job_id);
 	UniqueWorkspaceBuildsWorkspaceIDBuildNumberKey UniqueConstraint = "workspace_builds_workspace_id_build_number_key" // ALTER TABLE ONLY workspace_builds ADD CONSTRAINT workspace_builds_workspace_id_build_number_key UNIQUE (workspace_id, build_number);
 	UniqueIndexOrganizationName                    UniqueConstraint = "idx_organization_name"                          // CREATE UNIQUE INDEX idx_organization_name ON organizations USING btree (name);

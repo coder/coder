@@ -123,6 +123,8 @@ linters-settings:
 
   misspell:
     locale: US
+    ignore-words:
+      - trialer
 
   nestif:
     min-complexity: 4 # Min complexity of if statements (def 5, goal 4)

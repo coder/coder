@@ -19,6 +19,7 @@ const (
 	ResourceTypeTemplateVersion ResourceType = "template_version"
 	ResourceTypeUser            ResourceType = "user"
 	ResourceTypeWorkspace       ResourceType = "workspace"
+	ResourceTypeWorkspaceBuild  ResourceType = "workspace_build"
 	ResourceTypeGitSSHKey       ResourceType = "git_ssh_key"
 	ResourceTypeAPIKey          ResourceType = "api_key"
 	ResourceTypeGroup           ResourceType = "group"
@@ -36,6 +37,8 @@ func (r ResourceType) FriendlyString() string {
 		return "user"
 	case ResourceTypeWorkspace:
 		return "workspace"
+	case ResourceTypeWorkspaceBuild:
+		return "workspace build"
 	case ResourceTypeGitSSHKey:
 		return "git ssh key"
 	case ResourceTypeAPIKey:
@@ -53,6 +56,8 @@ const (
 	AuditActionCreate AuditAction = "create"
 	AuditActionWrite  AuditAction = "write"
 	AuditActionDelete AuditAction = "delete"
+	AuditActionStart  AuditAction = "start"
+	AuditActionStop   AuditAction = "stop"
 )
 
 func (a AuditAction) FriendlyString() string {
@@ -63,6 +68,10 @@ func (a AuditAction) FriendlyString() string {
 		return "updated"
 	case AuditActionDelete:
 		return "deleted"
+	case AuditActionStart:
+		return "started"
+	case AuditActionStop:
+		return "stopped"
 	default:
 		return "unknown"
 	}
@@ -104,20 +113,14 @@ type AuditLogsRequest struct {
 
 type AuditLogResponse struct {
 	AuditLogs []AuditLog `json:"audit_logs"`
-}
-
-type AuditLogCountRequest struct {
-	SearchQuery string `json:"q,omitempty"`
-}
-
-type AuditLogCountResponse struct {
-	Count int64 `json:"count"`
+	Count     int64      `json:"count"`
 }
 
 type CreateTestAuditLogRequest struct {
 	Action       AuditAction  `json:"action,omitempty"`
 	ResourceType ResourceType `json:"resource_type,omitempty"`
 	ResourceID   uuid.UUID    `json:"resource_id,omitempty"`
+	Time         time.Time    `json:"time,omitempty"`
 }
 
 // AuditLogs retrieves audit logs from the given page.
@@ -144,35 +147,6 @@ func (c *Client) AuditLogs(ctx context.Context, req AuditLogsRequest) (AuditLogR
 	err = json.NewDecoder(res.Body).Decode(&logRes)
 	if err != nil {
 		return AuditLogResponse{}, err
-	}
-
-	return logRes, nil
-}
-
-// AuditLogCount returns the count of all audit logs in the product.
-func (c *Client) AuditLogCount(ctx context.Context, req AuditLogCountRequest) (AuditLogCountResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/audit/count", nil, func(r *http.Request) {
-		q := r.URL.Query()
-		var params []string
-		if req.SearchQuery != "" {
-			params = append(params, req.SearchQuery)
-		}
-		q.Set("q", strings.Join(params, " "))
-		r.URL.RawQuery = q.Encode()
-	})
-	if err != nil {
-		return AuditLogCountResponse{}, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return AuditLogCountResponse{}, readBodyAsError(res)
-	}
-
-	var logRes AuditLogCountResponse
-	err = json.NewDecoder(res.Body).Decode(&logRes)
-	if err != nil {
-		return AuditLogCountResponse{}, err
 	}
 
 	return logRes, nil
