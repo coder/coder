@@ -1160,7 +1160,14 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 				continue
 			}
 			if gitAuthConfig.ValidateURL != "" {
-				valid, _ := validateGitToken(ctx, gitAuthConfig.ValidateURL, gitAuthLink.OAuthAccessToken)
+				valid, err := validateGitToken(ctx, gitAuthConfig.ValidateURL, gitAuthLink.OAuthAccessToken)
+				if err != nil {
+					api.Logger.Warn(ctx, "failed to validate git auth token",
+						slog.F("workspace_owner_id", workspace.OwnerID.String()),
+						slog.F("validate_url", gitAuthConfig.ValidateURL),
+						slog.Error(err),
+					)
+				}
 				if !valid {
 					continue
 				}
@@ -1221,9 +1228,9 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	if gitAuthConfig.ValidateURL != "" {
-		valid, err := validateGitToken(r.Context(), gitAuthConfig.ValidateURL, token.AccessToken)
+		valid, err := validateGitToken(ctx, gitAuthConfig.ValidateURL, token.AccessToken)
 		if err != nil {
-			httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to validate Git authentication token.",
 				Detail:  err.Error(),
 			})
@@ -1278,7 +1285,7 @@ func validateGitToken(ctx context.Context, validateURL, token string) (bool, err
 	}
 	if res.StatusCode != http.StatusOK {
 		data, _ := io.ReadAll(res.Body)
-		return false, xerrors.Errorf("body: %s", data)
+		return false, xerrors.Errorf("git token validation failed: status %d: body: %s", res.StatusCode, data)
 	}
 	return true, nil
 }

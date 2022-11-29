@@ -937,6 +937,9 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 	})
 	t.Run("ValidateURL", func(t *testing.T) {
 		t.Parallel()
+		ctx, cancelFunc := testutil.Context(t)
+		defer cancelFunc()
+
 		srv := httptest.NewServer(nil)
 		defer srv.Close()
 		client := coderdtest.New(t, &coderdtest.Options{
@@ -987,7 +990,7 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 		srv.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusUnauthorized)
 		})
-		res, err := agentClient.WorkspaceAgentGitAuth(context.Background(), "github.com/asd/asd", false)
+		res, err := agentClient.WorkspaceAgentGitAuth(ctx, "github.com/asd/asd", false)
 		require.NoError(t, err)
 		require.NotEmpty(t, res.URL)
 
@@ -997,11 +1000,11 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 			w.WriteHeader(http.StatusForbidden)
 			w.Write([]byte("Something went wrong!"))
 		})
-		_, err = agentClient.WorkspaceAgentGitAuth(context.Background(), "github.com/asd/asd", false)
+		_, err = agentClient.WorkspaceAgentGitAuth(ctx, "github.com/asd/asd", false)
 		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusInternalServerError, apiError.StatusCode())
-		require.Equal(t, "Something went wrong!", apiError.Detail)
+		require.Equal(t, "git token validation failed: status 403: body: Something went wrong!", apiError.Detail)
 	})
 
 	t.Run("ExpiredNoRefresh", func(t *testing.T) {
