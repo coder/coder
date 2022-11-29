@@ -449,8 +449,14 @@ site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find codersdk
 	cd site
 	yarn run format:types
 
-docs/admin/prometheus.md: scripts/metricsdocgen/main.go
+docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics
 	go run scripts/metricsdocgen/main.go
+	cd site
+ifdef CI
+	yarn run format:check
+else
+	yarn run format:write
+endif
 .PHONY: docs/admin/prometheus.md # As the .md file can be edited manually and the generator works in-place, we need to use .PHONY.
 
 update-golden-files: cli/testdata/.gen-golden
