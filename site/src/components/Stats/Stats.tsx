@@ -50,9 +50,10 @@ const useStyles = makeStyles((theme) => ({
 
   statsValue: {
     marginTop: theme.spacing(0.25),
-    display: "block",
+    display: "flex",
     wordWrap: "break-word",
     color: theme.palette.text.primary,
+    alignItems: "center",
 
     "& a": {
       color: theme.palette.text.primary,
