@@ -22,12 +22,11 @@ For example, this command will do the following:
 - return results (e.g. `99 succeeded, 1 failed to connect` )
 
 ```sh
-coder loadtest create-workspaces \
+coder scaletest create-workspaces \
     --count 100 \
     --template "my-custom-template" \
     --parameter image="my-custom-image" \
-    --run-command "sleep 3 && echo hello" \
-    --connect-timeout "10s"
+    --run-command "sleep 3 && echo hello"
 
 # Run `coder scaletest --help` for all usage
 ```
