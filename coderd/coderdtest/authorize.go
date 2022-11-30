@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/coder/coder/coderd/database/databasefake"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,12 +18,19 @@ import (
 
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/rbac/regosql"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
 func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
+	// For any route using SQL filters, we need to know if the database is an
+	// in memory fake. This is because the in memory fake does not use SQL, and
+	// still uses rego. So this boolean indicates how to assert the expected
+	// behavior.
+	_, isMemoryDB := a.api.Database.(databasefake.FakeDatabase)
+
 	// Some quick reused objects
 	workspaceRBACObj := rbac.ResourceWorkspace.InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
 	workspaceExecObj := rbac.ResourceWorkspaceExecution.InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
@@ -46,8 +55,6 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"POST:/api/v2/csp/reports":      {NoAuthorize: true},
 		"POST:/api/v2/authcheck":        {NoAuthorize: true},
 		"GET:/api/v2/applications/host": {NoAuthorize: true},
-		// This is a dummy endpoint for compatibility with older CLI versions.
-		"GET:/api/v2/workspaceagents/{workspaceagent}/dial": {NoAuthorize: true},
 
 		// Has it's own auth
 		"GET:/api/v2/users/oauth2/github/callback": {NoAuthorize: true},
@@ -124,11 +131,6 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"GET:/api/v2/workspaceagents/{workspaceagent}/coordinate": {
 			AssertAction: rbac.ActionCreate,
 			AssertObject: workspaceExecObj,
-		},
-		"GET:/api/v2/organizations/{organization}/templates": {
-			StatusCode:   http.StatusOK,
-			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
 		},
 		"POST:/api/v2/organizations/{organization}/templates": {
 			AssertAction: rbac.ActionCreate,
@@ -240,7 +242,18 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"GET:/api/v2/organizations/{organization}/templateversions/{templateversionname}": {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 
 		// Endpoints that use the SQLQuery filter.
-		"GET:/api/v2/workspaces/": {StatusCode: http.StatusOK, NoAuthorize: true},
+		"GET:/api/v2/workspaces/": {
+			StatusCode:   http.StatusOK,
+			NoAuthorize:  !isMemoryDB,
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceWorkspace,
+		},
+		"GET:/api/v2/organizations/{organization}/templates": {
+			StatusCode:   http.StatusOK,
+			NoAuthorize:  !isMemoryDB,
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate,
+		},
 	}
 
 	// Routes like proxy routes support all HTTP methods. A helper func to expand
@@ -549,10 +562,10 @@ func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Obje
 	return f.Original.ByRoleName(ctx, f.SubjectID, f.Roles, f.Scope, f.Groups, f.Action, object)
 }
 
-// Compile returns a compiled version of the authorizer that will work for
+// CompileToSQL returns a compiled version of the authorizer that will work for
 // in memory databases. This fake version will not work against a SQL database.
-func (f *fakePreparedAuthorizer) Compile() (rbac.AuthorizeFilter, error) {
-	return f, nil
+func (fakePreparedAuthorizer) CompileToSQL(_ regosql.ConvertConfig) (string, error) {
+	return "", xerrors.New("not implemented")
 }
 
 func (f *fakePreparedAuthorizer) Eval(object rbac.Object) bool {
@@ -562,13 +575,6 @@ func (f *fakePreparedAuthorizer) Eval(object rbac.Object) bool {
 func (f fakePreparedAuthorizer) RegoString() string {
 	if f.HardCodedRegoString != "" {
 		return f.HardCodedRegoString
-	}
-	panic("not implemented")
-}
-
-func (f fakePreparedAuthorizer) SQLString(_ rbac.SQLConfig) string {
-	if f.HardCodedSQLString != "" {
-		return f.HardCodedSQLString
 	}
 	panic("not implemented")
 }

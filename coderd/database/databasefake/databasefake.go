@@ -20,6 +20,13 @@ import (
 	"github.com/coder/coder/coderd/util/slice"
 )
 
+// FakeDatabase is helpful for knowing if the underlying db is an in memory fake
+// database. This is only in the databasefake package, so will only be used
+// by unit tests.
+type FakeDatabase interface {
+	IsFakeDB()
+}
+
 var errDuplicateKey = &pq.Error{
 	Code:    "23505",
 	Message: "duplicate key value violates unique constraint",
@@ -117,6 +124,7 @@ type data struct {
 	lastLicenseID int32
 }
 
+func (fakeQuerier) IsFakeDB() {}
 func (*fakeQuerier) Ping(_ context.Context) (time.Duration, error) {
 	return 0, nil
 }
@@ -488,11 +496,20 @@ func (q *fakeQuerier) GetFilteredUserCount(ctx context.Context, arg database.Get
 	return count, err
 }
 
-func (q *fakeQuerier) GetAuthorizedUserCount(_ context.Context, params database.GetFilteredUserCountParams, authorizedFilter rbac.AuthorizeFilter) (int64, error) {
+func (q *fakeQuerier) GetAuthorizedUserCount(ctx context.Context, params database.GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	users := append([]database.User{}, q.users...)
+	users := make([]database.User, 0, len(q.users))
+
+	for _, user := range q.users {
+		// If the filter exists, ensure the object is authorized.
+		if prepared != nil && prepared.Authorize(ctx, user.RBACObject()) != nil {
+			continue
+		}
+
+		users = append(users, user)
+	}
 
 	if params.Deleted {
 		tmp := make([]database.User, 0, len(users))
@@ -537,13 +554,6 @@ func (q *fakeQuerier) GetAuthorizedUserCount(_ context.Context, params database.
 		}
 
 		users = usersFilteredByRole
-	}
-
-	for _, user := range q.workspaces {
-		// If the filter exists, ensure the object is authorized.
-		if authorizedFilter != nil && !authorizedFilter.Eval(user.RBACObject()) {
-			continue
-		}
 	}
 
 	return int64(len(users)), nil
@@ -750,7 +760,7 @@ func (q *fakeQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspa
 }
 
 //nolint:gocyclo
-func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]database.GetWorkspacesRow, error) {
+func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]database.GetWorkspacesRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -923,7 +933,7 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 		}
 
 		// If the filter exists, ensure the object is authorized.
-		if authorizedFilter != nil && !authorizedFilter.Eval(workspace.RBACObject()) {
+		if prepared != nil && prepared.Authorize(ctx, workspace.RBACObject()) != nil {
 			continue
 		}
 		workspaces = append(workspaces, workspace)
@@ -1505,12 +1515,20 @@ func (q *fakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 	return database.Template{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetTemplatesWithFilter(_ context.Context, arg database.GetTemplatesWithFilterParams) ([]database.Template, error) {
+func (q *fakeQuerier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTemplatesWithFilterParams) ([]database.Template, error) {
+	return q.GetAuthorizedTemplates(ctx, arg, nil)
+}
+
+func (q *fakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	var templates []database.Template
 	for _, template := range q.templates {
+		if prepared != nil && prepared.Authorize(ctx, template.RBACObject()) != nil {
+			continue
+		}
+
 		if template.Deleted != arg.Deleted {
 			continue
 		}
@@ -1664,6 +1682,26 @@ func (q *fakeQuerier) GetTemplateVersionByID(_ context.Context, templateVersionI
 		return templateVersion, nil
 	}
 	return database.TemplateVersion{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetTemplateVersionsByIDs(_ context.Context, ids []uuid.UUID) ([]database.TemplateVersion, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	versions := make([]database.TemplateVersion, 0)
+	for _, version := range q.templateVersions {
+		for _, id := range ids {
+			if id == version.ID {
+				versions = append(versions, version)
+				break
+			}
+		}
+	}
+	if len(versions) == 0 {
+		return nil, sql.ErrNoRows
+	}
+
+	return versions, nil
 }
 
 func (q *fakeQuerier) GetTemplateVersionByJobID(_ context.Context, jobID uuid.UUID) (database.TemplateVersion, error) {

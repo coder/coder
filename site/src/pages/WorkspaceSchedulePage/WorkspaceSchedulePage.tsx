@@ -4,6 +4,7 @@ import { scheduleToAutoStart } from "pages/WorkspaceSchedulePage/schedule"
 import { ttlMsToAutoStop } from "pages/WorkspaceSchedulePage/ttl"
 import React, { useEffect, useState } from "react"
 import { Navigate, useNavigate, useParams } from "react-router-dom"
+import { scheduleChanged } from "util/schedule"
 import * as TypesGen from "../../api/typesGenerated"
 import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 import { WorkspaceScheduleForm } from "../../components/WorkspaceScheduleForm/WorkspaceScheduleForm"
@@ -108,10 +109,10 @@ export const WorkspaceSchedulePage: React.FC = () => {
         onSubmit={(values) => {
           scheduleSend({
             type: "SUBMIT_SCHEDULE",
-            autoStart: values.autoStartEnabled
-              ? formValuesToAutoStartRequest(values)
-              : undefined,
+            autoStart: formValuesToAutoStartRequest(values),
             ttl: formValuesToTTLRequest(values),
+            autoStartChanged: scheduleChanged(autoStart, values),
+            autoStopChanged: scheduleChanged(autoStop, values),
           })
         }}
       />

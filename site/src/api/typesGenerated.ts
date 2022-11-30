@@ -355,6 +355,7 @@ export interface GitAuthConfig {
   readonly client_id: string
   readonly auth_url: string
   readonly token_url: string
+  readonly validate_url: string
   readonly regex: string
   readonly no_refresh: boolean
   readonly scopes: string[]
@@ -441,6 +442,7 @@ export interface OIDCConfig {
   readonly email_domain: DeploymentConfigField<string>
   readonly issuer_url: DeploymentConfigField<string>
   readonly scopes: DeploymentConfigField<string[]>
+  readonly ignore_email_verified: DeploymentConfigField<boolean>
 }
 
 // From codersdk/organizations.go
@@ -879,6 +881,7 @@ export interface WorkspaceBuild {
   readonly workspace_owner_id: string
   readonly workspace_owner_name: string
   readonly template_version_id: string
+  readonly template_version_name: string
   readonly build_number: number
   readonly transition: WorkspaceTransition
   readonly initiator_id: string

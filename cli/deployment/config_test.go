@@ -123,22 +123,36 @@ func TestConfig(t *testing.T) {
 			require.Equal(t, config.Trace.HoneycombAPIKey.Value, "my-honeycomb-key")
 		},
 	}, {
+		Name: "OIDC_Defaults",
+		Env:  map[string]string{},
+		Valid: func(config *codersdk.DeploymentConfig) {
+			require.Empty(t, config.OIDC.IssuerURL.Value)
+			require.Empty(t, config.OIDC.EmailDomain.Value)
+			require.Empty(t, config.OIDC.ClientID.Value)
+			require.Empty(t, config.OIDC.ClientSecret.Value)
+			require.True(t, config.OIDC.AllowSignups.Value)
+			require.ElementsMatch(t, config.OIDC.Scopes.Value, []string{"openid", "email", "profile"})
+			require.False(t, config.OIDC.IgnoreEmailVerified.Value)
+		},
+	}, {
 		Name: "OIDC",
 		Env: map[string]string{
-			"CODER_OIDC_ISSUER_URL":    "https://accounts.google.com",
-			"CODER_OIDC_EMAIL_DOMAIN":  "coder.com",
-			"CODER_OIDC_CLIENT_ID":     "client",
-			"CODER_OIDC_CLIENT_SECRET": "secret",
-			"CODER_OIDC_ALLOW_SIGNUPS": "false",
-			"CODER_OIDC_SCOPES":        "something,here",
+			"CODER_OIDC_ISSUER_URL":            "https://accounts.google.com",
+			"CODER_OIDC_EMAIL_DOMAIN":          "coder.com",
+			"CODER_OIDC_CLIENT_ID":             "client",
+			"CODER_OIDC_CLIENT_SECRET":         "secret",
+			"CODER_OIDC_ALLOW_SIGNUPS":         "false",
+			"CODER_OIDC_SCOPES":                "something,here",
+			"CODER_OIDC_IGNORE_EMAIL_VERIFIED": "true",
 		},
 		Valid: func(config *codersdk.DeploymentConfig) {
 			require.Equal(t, config.OIDC.IssuerURL.Value, "https://accounts.google.com")
 			require.Equal(t, config.OIDC.EmailDomain.Value, "coder.com")
 			require.Equal(t, config.OIDC.ClientID.Value, "client")
 			require.Equal(t, config.OIDC.ClientSecret.Value, "secret")
-			require.Equal(t, config.OIDC.AllowSignups.Value, false)
+			require.False(t, config.OIDC.AllowSignups.Value)
 			require.Equal(t, config.OIDC.Scopes.Value, []string{"something", "here"})
+			require.True(t, config.OIDC.IgnoreEmailVerified.Value)
 		},
 	}, {
 		Name: "GitHub",
@@ -165,6 +179,7 @@ func TestConfig(t *testing.T) {
 			"CODER_GITAUTH_0_CLIENT_SECRET": "secret",
 			"CODER_GITAUTH_0_AUTH_URL":      "https://auth.com",
 			"CODER_GITAUTH_0_TOKEN_URL":     "https://token.com",
+			"CODER_GITAUTH_0_VALIDATE_URL":  "https://validate.com",
 			"CODER_GITAUTH_0_REGEX":         "github.com",
 			"CODER_GITAUTH_0_SCOPES":        "read write",
 			"CODER_GITAUTH_0_NO_REFRESH":    "true",
@@ -186,6 +201,7 @@ func TestConfig(t *testing.T) {
 				ClientSecret: "secret",
 				AuthURL:      "https://auth.com",
 				TokenURL:     "https://token.com",
+				ValidateURL:  "https://validate.com",
 				Regex:        "github.com",
 				Scopes:       []string{"read", "write"},
 				NoRefresh:    true,

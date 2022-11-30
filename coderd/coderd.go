@@ -204,8 +204,10 @@ func New(options *Options) *API {
 	})
 
 	r.Use(
-		httpmw.AttachRequestID,
 		httpmw.Recover(api.Logger),
+		tracing.StatusWriterMiddleware,
+		tracing.Middleware(api.TracerProvider),
+		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(api.RealIPConfig),
 		httpmw.Logger(api.Logger),
 		httpmw.Prometheus(options.PrometheusRegistry),
@@ -239,7 +241,6 @@ func New(options *Options) *API {
 
 	apps := func(r chi.Router) {
 		r.Use(
-			tracing.Middleware(api.TracerProvider),
 			httpmw.RateLimit(options.APIRateLimit, time.Minute),
 			httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
 				DB:            options.Database,
@@ -287,7 +288,6 @@ func New(options *Options) *API {
 
 		r.NotFound(func(rw http.ResponseWriter, r *http.Request) { httpapi.RouteNotFound(rw) })
 		r.Use(
-			tracing.Middleware(api.TracerProvider),
 			// Specific routes can specify smaller limits.
 			httpmw.RateLimit(options.APIRateLimit, time.Minute),
 		)
@@ -508,14 +508,6 @@ func New(options *Options) *API {
 				r.Get("/listening-ports", api.workspaceAgentListeningPorts)
 				r.Get("/connection", api.workspaceAgentConnection)
 				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
-				// TODO: This can be removed in October. It allows for a friendly
-				// error message when transitioning from WebRTC to Tailscale. See:
-				// https://github.com/coder/coder/issues/4126
-				r.Get("/dial", func(w http.ResponseWriter, r *http.Request) {
-					httpapi.Write(r.Context(), w, http.StatusGone, codersdk.Response{
-						Message: "Your Coder CLI is out of date, and requires v0.8.15+ to connect!",
-					})
-				})
 			})
 		})
 		r.Route("/workspaces", func(r chi.Router) {

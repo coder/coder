@@ -169,8 +169,11 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				defer func() {
 					cmd.Printf("Stopping built-in PostgreSQL...\n")
 					// Gracefully shut PostgreSQL down!
-					_ = closeFunc()
-					cmd.Printf("Stopped built-in PostgreSQL\n")
+					if err := closeFunc(); err != nil {
+						cmd.Printf("Failed to stop built-in PostgreSQL: %v\n", err)
+					} else {
+						cmd.Printf("Stopped built-in PostgreSQL\n")
+					}
 				}()
 			}
 
@@ -396,6 +399,10 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				ctx, err := handleOauth2ClientCertificates(ctx, cfg)
 				if err != nil {
 					return xerrors.Errorf("configure oidc client certificates: %w", err)
+				}
+
+				if cfg.OIDC.IgnoreEmailVerified.Value {
+					logger.Warn(ctx, "coder will not check email_verified for OIDC logins")
 				}
 
 				oidcProvider, err := oidc.NewProvider(ctx, cfg.OIDC.IssuerURL.Value)

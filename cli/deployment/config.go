@@ -231,6 +231,12 @@ func newConfig() *codersdk.DeploymentConfig {
 				Flag:    "oidc-scopes",
 				Default: []string{oidc.ScopeOpenID, "profile", "email"},
 			},
+			IgnoreEmailVerified: &codersdk.DeploymentConfigField[bool]{
+				Name:    "OIDC Ignore Email Verified",
+				Usage:   "Ignore the email_verified claim from the upstream provider.",
+				Flag:    "oidc-ignore-email-verified",
+				Default: false,
+			},
 		},
 
 		Telemetry: &codersdk.TelemetryConfig{

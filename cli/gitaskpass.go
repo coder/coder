@@ -62,7 +62,7 @@ func gitAskpass() *cobra.Command {
 					if err != nil {
 						continue
 					}
-					cmd.Printf("\nYou've been authenticated with Git!\n")
+					cmd.Printf("You've been authenticated with Git!\n")
 					break
 				}
 			}
