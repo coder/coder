@@ -16,8 +16,9 @@ import { AlertBannerCtas } from "./AlertBannerCtas"
  * @param text: default text to be displayed to the user; useful for warnings or as a fallback error message
  * @param error: should be passed in if the severity is 'Error'; warnings can use 'text' instead
  * @param actions: an array of CTAs passed in by the consumer
- * @param dismissible: determines whether or not the banner should have a `Dismiss` CTA
  * @param retry: a handler to retry the action that spawned the error
+ * @param dismissible: determines whether or not the banner should have a `Dismiss` CTA
+ * @param onDismiss: a handler that is called when the `Dismiss` CTA is clicked, after the animation has finished
  */
 export const AlertBanner: FC<React.PropsWithChildren<AlertBannerProps>> = ({
   children,
@@ -27,6 +28,7 @@ export const AlertBanner: FC<React.PropsWithChildren<AlertBannerProps>> = ({
   actions = [],
   retry,
   dismissible = false,
+  onDismiss,
 }) => {
   const { t } = useTranslation("common")
 
@@ -50,7 +52,7 @@ export const AlertBanner: FC<React.PropsWithChildren<AlertBannerProps>> = ({
   const [showDetails, setShowDetails] = useState(false)
 
   return (
-    <Collapse in={open}>
+    <Collapse in={open} onExited={() => onDismiss && onDismiss()}>
       <Stack
         className={classes.alertContainer}
         direction="row"

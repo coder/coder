@@ -1,7 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { useActor } from "@xstate/react"
 import { Loader } from "components/Loader/Loader"
-import { FC, Suspense, useContext } from "react"
+import { FC, Suspense, useContext, useEffect } from "react"
 import { XServiceContext } from "../../xServices/StateContext"
 import { Footer } from "../Footer/Footer"
 import { Navbar } from "../Navbar/Navbar"
@@ -19,20 +19,35 @@ interface AuthAndFrameProps {
 export const AuthAndFrame: FC<AuthAndFrameProps> = ({ children }) => {
   const styles = useStyles({})
   const xServices = useContext(XServiceContext)
+  const [authState] = useActor(xServices.authXService)
   const [buildInfoState] = useActor(xServices.buildInfoXService)
-  const [updateCheckState] = useActor(xServices.updateCheckXService)
+  const [updateCheckState, updateCheckSend] = useActor(
+    xServices.updateCheckXService,
+  )
+
+  useEffect(() => {
+    if (authState.matches("signedIn")) {
+      updateCheckSend("CHECK")
+    } else {
+      updateCheckSend("CLEAR")
+    }
+  }, [authState, updateCheckSend])
 
   return (
     <RequireAuth>
       <div className={styles.site}>
         <Navbar />
-        <div className={styles.siteBanner}>
-          <Margins>
-            <UpdateCheckBanner
-              updateCheck={updateCheckState.context.updateCheck}
-            />
-          </Margins>
-        </div>
+        {updateCheckState.context.show && (
+          <div className={styles.updateCheckBanner}>
+            <Margins>
+              <UpdateCheckBanner
+                updateCheck={updateCheckState.context.updateCheck}
+                error={updateCheckState.context.error}
+                onDismiss={() => updateCheckSend("DISMISS")}
+              />
+            </Margins>
+          </div>
+        )}
         <div className={styles.siteContent}>
           <Suspense fallback={<Loader />}>{children}</Suspense>
         </div>
@@ -48,12 +63,15 @@ const useStyles = makeStyles((theme) => ({
     minHeight: "100vh",
     flexDirection: "column",
   },
-  siteBanner: {
+  updateCheckBanner: {
+    // Add spacing at the top and remove some from the bottom. Removal
+    // is necessary to avoid a visual jerk when the banner is dismissed.
+    // It also give a more pleasant distance to the site content when
+    // the banner is visible.
     marginTop: theme.spacing(2),
+    marginBottom: -theme.spacing(2),
   },
   siteContent: {
     flex: 1,
-    // Accommodate for banner margin since it is dismissible.
-    marginTop: -theme.spacing(2),
   },
 }))

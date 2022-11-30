@@ -1,21 +1,33 @@
 import { assign, createMachine } from "xstate"
-import * as API from "api/api"
-import * as TypesGen from "api/typesGenerated"
+import { checkAuthorization, getUpdateCheck } from "api/api"
+import { AuthorizationResponse, UpdateCheckResponse } from "api/typesGenerated"
 
-export const Language = {
-  updateAvailable: "New version available",
-  updateAvailableMessage: (
-    version: string,
-    url: string,
-    upgrade_instructions_url: string,
-  ): string =>
-    `Coder ${version} is now available at ${url}. See ${upgrade_instructions_url} for information on how to upgrade.`,
-}
+export const checks = {
+  viewUpdateCheck: "viewUpdateCheck",
+} as const
+
+export const permissionsToCheck = {
+  [checks.viewUpdateCheck]: {
+    object: {
+      resource_type: "update_check",
+    },
+    action: "read",
+  },
+} as const
+
+export type Permissions = Record<keyof typeof permissionsToCheck, boolean>
 
 export interface UpdateCheckContext {
-  getUpdateCheckError?: Error | unknown
-  updateCheck?: TypesGen.UpdateCheckResponse
+  show: boolean
+  updateCheck?: UpdateCheckResponse
+  permissions?: Permissions
+  error?: Error | unknown
 }
+
+export type UpdateCheckEvent =
+  | { type: "CHECK" }
+  | { type: "CLEAR" }
+  | { type: "DISMISS" }
 
 export const updateCheckMachine = createMachine(
   {
@@ -24,62 +36,137 @@ export const updateCheckMachine = createMachine(
     tsTypes: {} as import("./updateCheckXService.typegen").Typegen0,
     schema: {
       context: {} as UpdateCheckContext,
+      events: {} as UpdateCheckEvent,
       services: {} as {
+        checkPermissions: {
+          data: AuthorizationResponse
+        }
         getUpdateCheck: {
-          data: TypesGen.UpdateCheckResponse
+          data: UpdateCheckResponse
         }
       },
     },
     context: {
-      updateCheck: undefined,
+      show: false,
     },
-    initial: "gettingUpdateCheck",
+    initial: "idle",
     states: {
-      gettingUpdateCheck: {
+      idle: {
+        on: {
+          CHECK: {
+            target: "fetchingPermissions",
+          },
+        },
+      },
+      fetchingPermissions: {
+        invoke: {
+          src: "checkPermissions",
+          id: "checkPermissions",
+          onDone: [
+            {
+              actions: ["assignPermissions"],
+              target: "checkingPermissions",
+            },
+          ],
+          onError: [
+            {
+              actions: ["assignError"],
+              target: "show",
+            },
+          ],
+        },
+      },
+      checkingPermissions: {
+        always: [
+          {
+            target: "fetchingUpdateCheck",
+            cond: "canViewUpdateCheck",
+          },
+          {
+            target: "dismissOrClear",
+            cond: "canNotViewUpdateCheck",
+          },
+        ],
+      },
+      fetchingUpdateCheck: {
         invoke: {
           src: "getUpdateCheck",
           id: "getUpdateCheck",
           onDone: [
             {
-              actions: ["assignUpdateCheck", "clearGetUpdateCheckError"],
-              target: "#updateCheckState.success",
+              actions: ["assignUpdateCheck", "clearError"],
+              target: "show",
             },
           ],
           onError: [
             {
-              actions: ["assignGetUpdateCheckError", "clearUpdateCheck"],
-              target: "#updateCheckState.failure",
+              actions: ["assignError", "clearUpdateCheck"],
+              target: "show",
             },
           ],
         },
       },
-      success: {
-        type: "final",
+      show: {
+        entry: "assignShow",
+        always: [
+          {
+            target: "dismissOrClear",
+          },
+        ],
       },
-      failure: {
+      dismissOrClear: {
+        on: {
+          DISMISS: {
+            actions: ["assignHide"],
+            target: "dismissed",
+          },
+          CLEAR: {
+            actions: ["clearUpdateCheck", "clearError", "assignHide"],
+            target: "idle",
+          },
+        },
+      },
+      dismissed: {
         type: "final",
       },
     },
   },
   {
     services: {
-      getUpdateCheck: API.getUpdateCheck,
+      checkPermissions: async () =>
+        checkAuthorization({ checks: permissionsToCheck }),
+      getUpdateCheck: getUpdateCheck,
     },
     actions: {
+      assignPermissions: assign({
+        permissions: (_, event) => event.data as Permissions,
+      }),
+      assignShow: assign({
+        show: true,
+      }),
+      assignHide: assign({
+        show: false,
+      }),
       assignUpdateCheck: assign({
         updateCheck: (_, event) => event.data,
       }),
-      clearUpdateCheck: assign((context: UpdateCheckContext) => ({
+      clearUpdateCheck: assign((context) => ({
         ...context,
         updateCheck: undefined,
       })),
-      assignGetUpdateCheckError: assign({
-        getUpdateCheckError: (_, event) => event.data,
+      assignError: assign({
+        error: (_, event) => event.data,
       }),
-      clearGetUpdateCheckError: assign((context: UpdateCheckContext) => ({
+      clearError: assign((context) => ({
         ...context,
-        getUpdateCheckError: undefined,
+        error: undefined,
       })),
+    },
+    guards: {
+      canViewUpdateCheck: (context) =>
+        context.permissions?.[checks.viewUpdateCheck] || false,
+      canNotViewUpdateCheck: (context) =>
+        !context.permissions?.[checks.viewUpdateCheck],
     },
   },
 )

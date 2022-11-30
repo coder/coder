@@ -5,17 +5,19 @@ import * as TypesGen from "api/typesGenerated"
 
 export interface UpdateCheckBannerProps {
   updateCheck?: TypesGen.UpdateCheckResponse
+  error?: Error | unknown
+  onDismiss?: () => void
 }
 
 export const UpdateCheckBanner: React.FC<
   React.PropsWithChildren<UpdateCheckBannerProps>
-> = ({ updateCheck }) => {
+> = ({ updateCheck, error, onDismiss }) => {
   const { t } = useTranslation("common")
 
   return (
     <>
-      {updateCheck && !updateCheck.current && (
-        <AlertBanner severity="info" dismissible>
+      {!error && updateCheck && !updateCheck.current && (
+        <AlertBanner severity="info" onDismiss={onDismiss} dismissible>
           <div>
             <Trans
               t={t}
@@ -31,6 +33,15 @@ export const UpdateCheckBanner: React.FC<
             </Trans>
           </div>
         </AlertBanner>
+      )}
+      {error && (
+        <AlertBanner
+          severity="error"
+          error={error}
+          text={t("updateCheck.error")}
+          onDismiss={onDismiss}
+          dismissible
+        />
       )}
     </>
   )
