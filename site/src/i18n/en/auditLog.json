@@ -8,8 +8,6 @@
     "emptyPage": "No audit logs available on this page",
     "noLogs": "No audit logs available",
     "logRow": {
-      "buildTarget": "build",
-      "buildFriendlyString": " for workspace ",
       "ip": "IP: ",
       "os": "OS: ",
       "browser": "Browser: ",

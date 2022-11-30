@@ -15,28 +15,8 @@ import { PaletteIndex } from "theme/palettes"
 import userAgentParser from "ua-parser-js"
 import { combineClasses } from "util/combineClasses"
 import { AuditLogDiff } from "./AuditLogDiff"
-import { Link as RouterLink } from "react-router-dom"
 import i18next from "i18next"
-import Link from "@material-ui/core/Link"
-
-const determineResourceLink = (auditLog: AuditLog): JSX.Element | undefined => {
-  const { t } = i18next
-  const linkTarget = auditLog.resource_target.trim()
-
-  if (auditLog.resource_type === "workspace_build") {
-    return <>{t("auditLog:table.logRow.buildTarget")}</>
-  } else if (auditLog.resource_type === "git_ssh_key") {
-    return
-  } else {
-    return <strong>{linkTarget}</strong>
-  }
-}
-
-export const readableActionMessage = (auditLog: AuditLog): string => {
-  return auditLog.description
-    .replace("{user}", `${auditLog.user?.username.trim()}`)
-    .replace("{target}", "")
-}
+import { AuditLogDescription } from "./AuditLogDescription"
 
 const httpStatusColor = (httpStatus: number): PaletteIndex => {
   if (httpStatus >= 300 && httpStatus < 500) {
@@ -125,25 +105,7 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
                   alignItems="baseline"
                   spacing={1}
                 >
-                  <span>
-                    {readableActionMessage(auditLog)}{" "}
-                    {auditLog.resource_link ? (
-                      <Link component={RouterLink} to={auditLog.resource_link}>
-                        {determineResourceLink(auditLog)}
-                      </Link>
-                    ) : (
-                      <strong>{determineResourceLink(auditLog)}</strong>
-                    )}
-                    {auditLog.resource_type === "workspace_build" &&
-                      auditLog.additional_fields.workspaceName && (
-                        <>
-                          {t("auditLog:table.logRow.buildFriendlyString")}
-                          <strong>
-                            {auditLog.additional_fields.workspaceName}
-                          </strong>
-                        </>
-                      )}
-                  </span>
+                  <AuditLogDescription auditLog={auditLog} />
                   <span className={styles.auditLogTime}>
                     {new Date(auditLog.time).toLocaleTimeString()}
                   </span>

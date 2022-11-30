@@ -207,32 +207,84 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 
 type AdditionalFields struct {
 	WorkspaceName string
+	WorkspaceID   string
 	BuildNumber   string
 }
 
-func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAuditLogsOffsetRow) string {
+func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.GetAuditLogsOffsetRow) bool {
 	switch alog.ResourceType {
 	case database.ResourceTypeTemplate:
-		return fmt.Sprintf("/templates/%s",
-			alog.ResourceTarget)
+		template, err := api.Database.GetTemplateByID(ctx, alog.ResourceID)
+		if err != nil {
+			api.Logger.Error(ctx, "could not get template", slog.Error(err))
+		}
+		return template.Deleted
 	case database.ResourceTypeUser:
-		return fmt.Sprintf("/users?filter=%s",
-			alog.ResourceTarget)
+		user, err := api.Database.GetUserByID(ctx, alog.ResourceID)
+		if err != nil {
+			api.Logger.Error(ctx, "could not get user", slog.Error(err))
+		}
+		return user.Deleted
 	case database.ResourceTypeWorkspace:
-		return fmt.Sprintf("/@%s/%s",
-			alog.UserUsername.String, alog.ResourceTarget)
+		workspace, err := api.Database.GetWorkspaceByID(ctx, alog.ResourceID)
+		if err != nil {
+			api.Logger.Error(ctx, "could not get workspace", slog.Error(err))
+		}
+		return workspace.Deleted
 	case database.ResourceTypeWorkspaceBuild:
 		additionalFieldsBytes := []byte(alog.AdditionalFields)
 		var additionalFields AdditionalFields
 		err := json.Unmarshal(additionalFieldsBytes, &additionalFields)
 		if err != nil {
-			api.Logger.Error(ctx, "could not unmarshal workspace name for friendly string", slog.Error(err))
+			api.Logger.Error(ctx, "could not unmarshal workspace ID", slog.Error(err))
+		}
+		// if we don't have a WorkspaceID, we return true so as to hide the link in the UI
+		if len(additionalFields.WorkspaceID) < 1 {
+			return true
+		}
+		// We use workspace as a proxy for workspace build here
+		workspace, err := api.Database.GetWorkspaceByID(ctx, uuid.MustParse(additionalFields.WorkspaceID))
+		if err != nil {
+			api.Logger.Error(ctx, "could not get workspace", slog.Error(err))
+		}
+		return workspace.Deleted
+	default:
+		return false
+	}
+}
+
+func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAuditLogsOffsetRow) string {
+	switch alog.ResourceType {
+	case database.ResourceTypeTemplate:
+		if api.auditLogIsResourceDeleted(ctx, alog) {
+			return ""
+		}
+		return fmt.Sprintf("/templates/%s",
+			alog.ResourceTarget)
+	case database.ResourceTypeUser:
+		if api.auditLogIsResourceDeleted(ctx, alog) {
+			return ""
+		}
+		return fmt.Sprintf("/users?filter=%s",
+			alog.ResourceTarget)
+	case database.ResourceTypeWorkspace:
+		if api.auditLogIsResourceDeleted(ctx, alog) {
+			return ""
+		}
+		return fmt.Sprintf("/@%s/%s",
+			alog.UserUsername.String, alog.ResourceTarget)
+	case database.ResourceTypeWorkspaceBuild:
+		if api.auditLogIsResourceDeleted(ctx, alog) {
+			return ""
+		}
+		additionalFieldsBytes := []byte(alog.AdditionalFields)
+		var additionalFields AdditionalFields
+		err := json.Unmarshal(additionalFieldsBytes, &additionalFields)
+		if err != nil {
+			api.Logger.Error(ctx, "could not unmarshal workspace name", slog.Error(err))
 		}
 		return fmt.Sprintf("/@%s/%s/builds/%s",
 			alog.UserUsername.String, additionalFields.WorkspaceName, additionalFields.BuildNumber)
-	case database.ResourceTypeGroup:
-		return fmt.Sprintf("/groups/%s",
-			alog.ResourceID)
 	default:
 		return ""
 	}
@@ -243,20 +295,26 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 		codersdk.AuditAction(alog.Action).FriendlyString(),
 	)
 
-	// Strings for workspace_builds follow the below format:
-	// "{user} started workspace build for {target}"
-	// where target is a workspace instead of the workspace build,
+	// Strings for starting/stopping workspace builds follow the below format:
+	// "{user} started build for workspace {target}"
+	// where target is a workspace instead of a workspace build
 	// passed in on the FE via AuditLog.AdditionalFields rather than derived in request.go:35
-	if alog.ResourceType != database.ResourceTypeWorkspaceBuild {
-		str += fmt.Sprintf(" %s",
-			codersdk.ResourceType(alog.ResourceType).FriendlyString())
+	if alog.ResourceType == database.ResourceTypeWorkspaceBuild && alog.Action != database.AuditActionDelete {
+		str += " build for"
 	}
 
-	// We don't display the name for git ssh keys. It's fairly long and doesn't
+	// We don't display the name (target) for git ssh keys. It's fairly long and doesn't
 	// make too much sense to display.
-	if alog.ResourceType != database.ResourceTypeGitSshKey {
-		str += " {target}"
+	if alog.ResourceType == database.ResourceTypeGitSshKey {
+		str += fmt.Sprintf(" the %s",
+			codersdk.ResourceType(alog.ResourceType).FriendlyString())
+		return str
 	}
+
+	str += fmt.Sprintf(" %s",
+		codersdk.ResourceType(alog.ResourceType).FriendlyString())
+
+	str += " {target}"
 
 	return str
 }

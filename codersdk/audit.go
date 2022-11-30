@@ -38,7 +38,9 @@ func (r ResourceType) FriendlyString() string {
 	case ResourceTypeWorkspace:
 		return "workspace"
 	case ResourceTypeWorkspaceBuild:
-		return "workspace build"
+		// workspace builds have a unique friendly string
+		// see coderd/audit.go:298 for explanation
+		return "workspace"
 	case ResourceTypeGitSSHKey:
 		return "git ssh key"
 	case ResourceTypeAPIKey:
