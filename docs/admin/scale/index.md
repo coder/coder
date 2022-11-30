@@ -34,4 +34,4 @@ coder loadtest create-workspaces \
 
 > To avoid user outages and orphaned resources, we recommend running scale tests on a secondary "staging" environment.
 
-If a test fails, you can leverage Coder's [performance tracing](#) and [prometheus metrics](#) to identify bottlenecks during scale tests. Additionally, you can use your existing cloud monitoring stack to measure load, view server logs, etc.
+If a test fails, you can leverage Coder's [performance tracing](#) and [prometheus metrics](../prometheus.md) to identify bottlenecks during scale tests. Additionally, you can use your existing cloud monitoring stack to measure load, view server logs, etc.
