@@ -19,7 +19,7 @@ For example, this command will do the following:
 - establish a SSH connection to each workspace
 - run `sleep 3 && echo hello` on each workspace via the web terminal
 - close connections, attempt to delete all workspaces
-- return results (e.g. `99 succeeded, 1 failed to connect` )
+- return results (e.g. `99 succeeded, 1 failed to connect`)
 
 ```sh
 coder scaletest create-workspaces \
