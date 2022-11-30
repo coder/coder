@@ -28,7 +28,7 @@ coder scaletest create-workspaces \
     --parameter image="my-custom-image" \
     --run-command "sleep 3 && echo hello"
 
-# Run `coder scaletest --help` for all usage
+# Run `coder scaletest create-workspaces --help` for all usage
 ```
 
 > To avoid user outages and orphaned resources, we recommend running scale tests on a secondary "staging" environment.
