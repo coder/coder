@@ -22,6 +22,12 @@ This is a reference architecture for Coder on [Google Kubernetes Engine](#). We 
 - **Replica count**: `1`
 - **Provisioner daemons**: `30`
 - **Template**: [kubernetes example](https://github.com/coder/coder/tree/main/examples/templates/kubernetes)
+- **Coder server limits**:
+  - CPU: `2 cores`
+  - RAM: `4 GB`
+- **Coder server requests**:
+  - CPU: `2 cores`
+  - RAM: `4 GB`
 
 ## 100 users
 
@@ -48,3 +54,9 @@ For deployments with 100+ users, we recommend running the Coder server in a sepa
 - **Replica count**: `4`
 - **Provisioner daemons**: `25`
 - **Template**: [kubernetes example](https://github.com/coder/coder/tree/main/examples/templates/kubernetes)
+- **Coder server limits**:
+  - CPU: `4 cores`
+  - RAM: `8 GB`
+- **Coder server requests**:
+  - CPU: `4 cores`
+  - RAM: `8 GB`
