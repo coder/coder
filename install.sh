@@ -119,18 +119,18 @@ echo_systemd_postinstall() {
 	cath <<EOF
 $1 package has been installed.
 
-To run Coder as a system service:
+Run Coder:
 
-  # (Optional) Set up an external access URL
-  $ sudo vim /etc/coder.d/coder.env
-  # Use systemd to start Coder now and on reboot
+  # Start Coder now and on reboot
   $ sudo systemctl enable --now coder
-  # View the logs to ensure a successful start
   $ journalctl -u coder.service -b
 
-Or, just run the server directly:
-
+  # Or just run the server directly
   $ coder server
+
+Use Coder:
+
+  $ coder login <deployment url>
 
 EOF
 }
