@@ -235,12 +235,6 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 	return str
 }
 
-type AdditionalFields struct {
-	WorkspaceName string
-	WorkspaceID   string
-	BuildNumber   string
-}
-
 func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.GetAuditLogsOffsetRow) bool {
 	switch alog.ResourceType {
 	case database.ResourceTypeTemplate:
@@ -262,18 +256,12 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 		}
 		return workspace.Deleted
 	case database.ResourceTypeWorkspaceBuild:
-		additionalFieldsBytes := []byte(alog.AdditionalFields)
-		var additionalFields AdditionalFields
-		err := json.Unmarshal(additionalFieldsBytes, &additionalFields)
+		workspaceBuild, err := api.Database.GetWorkspaceBuildByID(ctx, alog.ResourceID)
 		if err != nil {
-			api.Logger.Error(ctx, "could not unmarshal workspace ID", slog.Error(err))
-		}
-		// if we don't have a WorkspaceID, we return true so as to hide the link in the UI
-		if len(additionalFields.WorkspaceID) < 1 {
-			return true
+			api.Logger.Error(ctx, "could not fetch workspace build", slog.Error(err))
 		}
 		// We use workspace as a proxy for workspace build here
-		workspace, err := api.Database.GetWorkspaceByID(ctx, uuid.MustParse(additionalFields.WorkspaceID))
+		workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
 		if err != nil {
 			api.Logger.Error(ctx, "could not fetch workspace", slog.Error(err))
 		}
@@ -281,6 +269,11 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 	default:
 		return false
 	}
+}
+
+type AdditionalFields struct {
+	WorkspaceName string
+	BuildNumber   string
 }
 
 func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAuditLogsOffsetRow) string {

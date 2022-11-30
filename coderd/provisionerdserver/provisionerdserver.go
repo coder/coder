@@ -543,7 +543,6 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 				// can form a friendly string for the user to view in the UI.
 				workspaceResourceInfo := map[string]string{
 					"workspaceName": workspace.Name,
-					"workspaceId":   workspace.ID.String(),
 					"buildNumber":   strconv.FormatInt(int64(build.BuildNumber), 10),
 				}
 
@@ -761,7 +760,6 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			// can form a friendly string for the user to view in the UI.
 			workspaceResourceInfo := map[string]string{
 				"workspaceName": workspace.Name,
-				"workspaceId":   workspace.ID.String(),
 				"buildNumber":   strconv.FormatInt(int64(workspaceBuild.BuildNumber), 10),
 			}
 
