@@ -36,7 +36,7 @@ func TestReplicas(t *testing.T) {
 				Pubsub:   pubsub,
 			},
 		})
-		secondClient.SessionToken = firstClient.SessionToken
+		secondClient.SetSessionToken(firstClient.SessionToken())
 		ents, err := secondClient.Entitlements(context.Background())
 		require.NoError(t, err)
 		require.Len(t, ents.Errors, 1)
@@ -67,7 +67,7 @@ func TestReplicas(t *testing.T) {
 				Pubsub:   pubsub,
 			},
 		})
-		secondClient.SessionToken = firstClient.SessionToken
+		secondClient.SetSessionToken(firstClient.SessionToken())
 		replicas, err := secondClient.Replicas(context.Background())
 		require.NoError(t, err)
 		require.Len(t, replicas, 2)
@@ -110,7 +110,7 @@ func TestReplicas(t *testing.T) {
 				TLSCertificates: certificates,
 			},
 		})
-		secondClient.SessionToken = firstClient.SessionToken
+		secondClient.SetSessionToken(firstClient.SessionToken())
 		replicas, err := secondClient.Replicas(context.Background())
 		require.NoError(t, err)
 		require.Len(t, replicas, 2)

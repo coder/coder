@@ -22,6 +22,12 @@ type Config struct {
 	Regex *regexp.Regexp
 	// Type is the type of provider.
 	Type codersdk.GitProvider
+	// NoRefresh stops Coder from using the refresh token
+	// to renew the access token.
+	//
+	// Some organizations have security policies that require
+	// re-authentication for every token.
+	NoRefresh bool
 }
 
 // ConvertConfig converts the YAML configuration entry to the
@@ -47,7 +53,7 @@ func ConvertConfig(entries []codersdk.GitAuthConfig, accessURL *url.URL) ([]*Con
 			// Default to the type.
 			entry.ID = string(typ)
 		}
-		if valid := httpapi.UsernameValid(entry.ID); valid != nil {
+		if valid := httpapi.NameValid(entry.ID); valid != nil {
 			return nil, xerrors.Errorf("git auth provider %q doesn't have a valid id: %w", entry.ID, valid)
 		}
 
@@ -107,6 +113,7 @@ func ConvertConfig(entries []codersdk.GitAuthConfig, accessURL *url.URL) ([]*Con
 			ID:           entry.ID,
 			Regex:        regex,
 			Type:         typ,
+			NoRefresh:    entry.NoRefresh,
 		})
 	}
 	return configs, nil

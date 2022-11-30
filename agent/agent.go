@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bufio"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
@@ -32,6 +33,7 @@ import (
 	"golang.org/x/xerrors"
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
+	"tailscale.com/types/netlogtype"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/agent/usershell"
@@ -56,6 +58,7 @@ const (
 
 type Options struct {
 	Filesystem             afero.Fs
+	TempDir                string
 	ExchangeToken          func(ctx context.Context) (string, error)
 	Client                 Client
 	ReconnectingPTYTimeout time.Duration
@@ -78,6 +81,9 @@ func New(options Options) io.Closer {
 	if options.Filesystem == nil {
 		options.Filesystem = afero.NewOsFs()
 	}
+	if options.TempDir == "" {
+		options.TempDir = os.TempDir()
+	}
 	if options.ExchangeToken == nil {
 		options.ExchangeToken = func(ctx context.Context) (string, error) {
 			return "", nil
@@ -93,7 +99,7 @@ func New(options Options) io.Closer {
 		client:                 options.Client,
 		exchangeToken:          options.ExchangeToken,
 		filesystem:             options.Filesystem,
-		stats:                  &Stats{},
+		tempDir:                options.TempDir,
 	}
 	server.init(ctx)
 	return server
@@ -104,6 +110,7 @@ type agent struct {
 	client        Client
 	exchangeToken func(ctx context.Context) (string, error)
 	filesystem    afero.Fs
+	tempDir       string
 
 	reconnectingPTYs       sync.Map
 	reconnectingPTYTimeout time.Duration
@@ -120,7 +127,6 @@ type agent struct {
 	sshServer    *ssh.Server
 
 	network *tailnet.Conn
-	stats   *Stats
 }
 
 // runLoop attempts to start the agent in a retry loop.
@@ -168,7 +174,7 @@ func (a *agent) run(ctx context.Context) error {
 	if err != nil {
 		return xerrors.Errorf("fetch metadata: %w", err)
 	}
-	a.logger.Info(context.Background(), "fetched metadata")
+	a.logger.Info(ctx, "fetched metadata")
 	oldMetadata := a.metadata.Swap(metadata)
 
 	// The startup script should only execute on the first run!
@@ -202,7 +208,7 @@ func (a *agent) run(ctx context.Context) error {
 	a.closeMutex.Lock()
 	network := a.network
 	a.closeMutex.Unlock()
-	if a.network == nil {
+	if network == nil {
 		a.logger.Debug(ctx, "creating tailnet")
 		network, err = a.createTailnet(ctx, metadata.DERPMap)
 		if err != nil {
@@ -232,22 +238,16 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*t
 		return nil, xerrors.New("closed")
 	}
 	network, err := tailnet.NewConn(&tailnet.Options{
-		Addresses: []netip.Prefix{netip.PrefixFrom(codersdk.TailnetIP, 128)},
-		DERPMap:   derpMap,
-		Logger:    a.logger.Named("tailnet"),
+		Addresses:          []netip.Prefix{netip.PrefixFrom(codersdk.TailnetIP, 128)},
+		DERPMap:            derpMap,
+		Logger:             a.logger.Named("tailnet"),
+		EnableTrafficStats: true,
 	})
 	if err != nil {
 		a.closeMutex.Unlock()
 		return nil, xerrors.Errorf("create tailnet: %w", err)
 	}
 	a.network = network
-	network.SetForwardTCPCallback(func(conn net.Conn, listenerExists bool) net.Conn {
-		if listenerExists {
-			// If a listener already exists, we would double-wrap the conn.
-			return conn
-		}
-		return a.stats.wrapConn(conn)
-	})
 	a.connCloseWait.Add(4)
 	a.closeMutex.Unlock()
 
@@ -262,7 +262,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*t
 			if err != nil {
 				return
 			}
-			go a.sshServer.HandleConn(a.stats.wrapConn(conn))
+			go a.sshServer.HandleConn(conn)
 		}
 	}()
 
@@ -278,7 +278,6 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*t
 				a.logger.Debug(ctx, "accept pty failed", slog.Error(err))
 				return
 			}
-			conn = a.stats.wrapConn(conn)
 			// This cannot use a JSON decoder, since that can
 			// buffer additional data that is required for the PTY.
 			rawLen := make([]byte, 2)
@@ -359,7 +358,7 @@ func (a *agent) runCoordinator(ctx context.Context, network *tailnet.Conn) error
 		return err
 	}
 	defer coordinator.Close()
-	a.logger.Info(context.Background(), "connected to coordination server")
+	a.logger.Info(ctx, "connected to coordination server")
 	sendNodes, errChan := tailnet.ServeCoordinator(coordinator, network.UpdateNodes)
 	network.SetNodeCallback(sendNodes)
 	select {
@@ -375,14 +374,14 @@ func (a *agent) runStartupScript(ctx context.Context, script string) error {
 		return nil
 	}
 
-	writer, err := os.OpenFile(filepath.Join(os.TempDir(), "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0o600)
+	a.logger.Info(ctx, "running startup script", slog.F("script", script))
+	writer, err := a.filesystem.OpenFile(filepath.Join(a.tempDir, "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return xerrors.Errorf("open startup script log file: %w", err)
 	}
 	defer func() {
 		_ = writer.Close()
 	}()
-
 	cmd, err := a.createCommand(ctx, script, nil)
 	if err != nil {
 		return xerrors.Errorf("create command: %w", err)
@@ -470,37 +469,59 @@ func (a *agent) init(ctx context.Context) {
 		},
 		SubsystemHandlers: map[string]ssh.SubsystemHandler{
 			"sftp": func(session ssh.Session) {
+				ctx := session.Context()
+
+				// Typically sftp sessions don't request a TTY, but if they do,
+				// we must ensure the gliderlabs/ssh CRLF emulation is disabled.
+				// Otherwise sftp will be broken. This can happen if a user sets
+				// `RequestTTY force` in their SSH config.
 				session.DisablePTYEmulation()
 
 				var opts []sftp.ServerOption
 				// Change current working directory to the users home
 				// directory so that SFTP connections land there.
-				// https://github.com/coder/coder/issues/3620
-				u, err := user.Current()
+				homedir, err := userHomeDir()
 				if err != nil {
-					a.logger.Warn(ctx, "get sftp working directory failed, unable to get current user", slog.Error(err))
+					sshLogger.Warn(ctx, "get sftp working directory failed, unable to get home dir", slog.Error(err))
 				} else {
-					opts = append(opts, sftp.WithServerWorkingDirectory(u.HomeDir))
+					opts = append(opts, sftp.WithServerWorkingDirectory(homedir))
 				}
 
 				server, err := sftp.NewServer(session, opts...)
 				if err != nil {
-					a.logger.Debug(session.Context(), "initialize sftp server", slog.Error(err))
+					sshLogger.Debug(ctx, "initialize sftp server", slog.Error(err))
 					return
 				}
 				defer server.Close()
+
 				err = server.Serve()
 				if errors.Is(err, io.EOF) {
+					// Unless we call `session.Exit(0)` here, the client won't
+					// receive `exit-status` because `(*sftp.Server).Close()`
+					// calls `Close()` on the underlying connection (session),
+					// which actually calls `channel.Close()` because it isn't
+					// wrapped. This causes sftp clients to receive a non-zero
+					// exit code. Typically sftp clients don't echo this exit
+					// code but `scp` on macOS does (when using the default
+					// SFTP backend).
+					_ = session.Exit(0)
 					return
 				}
-				a.logger.Debug(session.Context(), "sftp server exited with error", slog.Error(err))
+				sshLogger.Warn(ctx, "sftp server closed with error", slog.Error(err))
+				_ = session.Exit(1)
 			},
 		},
 	}
 
 	go a.runLoop(ctx)
 	cl, err := a.client.AgentReportStats(ctx, a.logger, func() *codersdk.AgentStats {
-		return a.stats.Copy()
+		stats := map[netlogtype.Connection]netlogtype.Counts{}
+		a.closeMutex.Lock()
+		if a.network != nil {
+			stats = a.network.ExtractTrafficStats()
+		}
+		a.closeMutex.Unlock()
+		return convertAgentStats(stats)
 	})
 	if err != nil {
 		a.logger.Error(ctx, "report stats", slog.Error(err))
@@ -512,6 +533,23 @@ func (a *agent) init(ctx context.Context) {
 		<-a.closed
 		cl.Close()
 	}()
+}
+
+func convertAgentStats(counts map[netlogtype.Connection]netlogtype.Counts) *codersdk.AgentStats {
+	stats := &codersdk.AgentStats{
+		ConnsByProto: map[string]int64{},
+		NumConns:     int64(len(counts)),
+	}
+
+	for conn, count := range counts {
+		stats.ConnsByProto[conn.Proto.String()]++
+		stats.RxPackets += int64(count.RxPackets)
+		stats.RxBytes += int64(count.RxBytes)
+		stats.TxPackets += int64(count.TxPackets)
+		stats.TxBytes += int64(count.TxBytes)
+	}
+
+	return stats
 }
 
 // createCommand processes raw command input with OpenSSH-like behavior.
@@ -538,29 +576,34 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 		return nil, xerrors.Errorf("metadata is the wrong type: %T", metadata)
 	}
 
-	// gliderlabs/ssh returns a command slice of zero
-	// when a shell is requested.
-	command := rawCommand
-	if len(command) == 0 {
-		command = shell
-		if runtime.GOOS != "windows" {
-			// On Linux and macOS, we should start a login
-			// shell to consume juicy environment variables!
-			command += " -l"
-		}
-	}
-
 	// OpenSSH executes all commands with the users current shell.
 	// We replicate that behavior for IDE support.
 	caller := "-c"
 	if runtime.GOOS == "windows" {
 		caller = "/c"
 	}
-	cmd := exec.CommandContext(ctx, shell, caller, command)
+	args := []string{caller, rawCommand}
+
+	// gliderlabs/ssh returns a command slice of zero
+	// when a shell is requested.
+	if len(rawCommand) == 0 {
+		args = []string{}
+		if runtime.GOOS != "windows" {
+			// On Linux and macOS, we should start a login
+			// shell to consume juicy environment variables!
+			args = append(args, "-l")
+		}
+	}
+
+	cmd := exec.CommandContext(ctx, shell, args...)
 	cmd.Dir = metadata.Directory
 	if cmd.Dir == "" {
-		// Default to $HOME if a directory is not set!
-		cmd.Dir = os.Getenv("HOME")
+		// Default to user home if a directory is not set.
+		homedir, err := userHomeDir()
+		if err != nil {
+			return nil, xerrors.Errorf("get home dir: %w", err)
+		}
+		cmd.Dir = homedir
 	}
 	cmd.Env = append(os.Environ(), env...)
 	executablePath, err := os.Executable()
@@ -636,6 +679,18 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 		// See https://github.com/coder/coder/issues/3371.
 		session.DisablePTYEmulation()
 
+		if !isQuietLogin(session.RawCommand()) {
+			metadata, ok := a.metadata.Load().(codersdk.WorkspaceAgentMetadata)
+			if ok {
+				err = showMOTD(session, metadata.MOTDFile)
+				if err != nil {
+					a.logger.Error(ctx, "show MOTD", slog.Error(err))
+				}
+			} else {
+				a.logger.Warn(ctx, "metadata lookup failed, unable to show MOTD")
+			}
+		}
+
 		cmd.Env = append(cmd.Env, fmt.Sprintf("TERM=%s", sshPty.Term))
 
 		// The pty package sets `SSH_TTY` on supported platforms.
@@ -701,6 +756,7 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 func (a *agent) handleReconnectingPTY(ctx context.Context, msg codersdk.ReconnectingPTYInit, conn net.Conn) {
 	defer conn.Close()
 
+	connectionID := uuid.NewString()
 	var rpty *reconnectingPTY
 	rawRPTY, ok := a.reconnectingPTYs.Load(msg.ID)
 	if ok {
@@ -736,8 +792,12 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, msg codersdk.Reconnec
 		a.closeMutex.Unlock()
 		ctx, cancelFunc := context.WithCancel(ctx)
 		rpty = &reconnectingPTY{
-			activeConns: make(map[string]net.Conn),
-			ptty:        ptty,
+			activeConns: map[string]net.Conn{
+				// We have to put the connection in the map instantly otherwise
+				// the connection won't be closed if the process instantly dies.
+				connectionID: conn,
+			},
+			ptty: ptty,
 			// Timeouts created with an after func can be reset!
 			timeout:        time.AfterFunc(a.reconnectingPTYTimeout, cancelFunc),
 			circularBuffer: circularBuffer,
@@ -803,7 +863,6 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, msg codersdk.Reconnec
 		a.logger.Warn(ctx, "write reconnecting pty buffer", slog.F("id", msg.ID), slog.Error(err))
 		return
 	}
-	connectionID := uuid.NewString()
 	// Multiple connections to the same TTY are permitted.
 	// This could easily be used for terminal sharing, but
 	// we do it because it's a nice user experience to
@@ -957,19 +1016,74 @@ func Bicopy(ctx context.Context, c1, c2 io.ReadWriteCloser) {
 	}
 }
 
-// ExpandRelativeHomePath expands the tilde at the beginning of a path to the
-// current user's home directory and returns a full absolute path.
-func ExpandRelativeHomePath(in string) (string, error) {
-	usr, err := user.Current()
+// isQuietLogin checks if the SSH server should perform a quiet login or not.
+//
+// https://github.com/openssh/openssh-portable/blob/25bd659cc72268f2858c5415740c442ee950049f/session.c#L816
+func isQuietLogin(rawCommand string) bool {
+	// We are always quiet unless this is a login shell.
+	if len(rawCommand) != 0 {
+		return true
+	}
+
+	// Best effort, if we can't get the home directory,
+	// we can't lookup .hushlogin.
+	homedir, err := userHomeDir()
 	if err != nil {
-		return "", xerrors.Errorf("get current user details: %w", err)
+		return false
 	}
 
-	if in == "~" {
-		in = usr.HomeDir
-	} else if strings.HasPrefix(in, "~/") {
-		in = filepath.Join(usr.HomeDir, in[2:])
+	_, err = os.Stat(filepath.Join(homedir, ".hushlogin"))
+	return err == nil
+}
+
+// showMOTD will output the message of the day from
+// the given filename to dest, if the file exists.
+//
+// https://github.com/openssh/openssh-portable/blob/25bd659cc72268f2858c5415740c442ee950049f/session.c#L784
+func showMOTD(dest io.Writer, filename string) error {
+	if filename == "" {
+		return nil
 	}
 
-	return filepath.Abs(in)
+	f, err := os.Open(filename)
+	if err != nil {
+		if xerrors.Is(err, os.ErrNotExist) {
+			// This is not an error, there simply isn't a MOTD to show.
+			return nil
+		}
+		return xerrors.Errorf("open MOTD: %w", err)
+	}
+	defer f.Close()
+
+	s := bufio.NewScanner(f)
+	for s.Scan() {
+		// Carriage return ensures each line starts
+		// at the beginning of the terminal.
+		_, err = fmt.Fprint(dest, s.Text()+"\r\n")
+		if err != nil {
+			return xerrors.Errorf("write MOTD: %w", err)
+		}
+	}
+	if err := s.Err(); err != nil {
+		return xerrors.Errorf("read MOTD: %w", err)
+	}
+
+	return nil
+}
+
+// userHomeDir returns the home directory of the current user, giving
+// priority to the $HOME environment variable.
+func userHomeDir() (string, error) {
+	// First we check the environment.
+	homedir, err := os.UserHomeDir()
+	if err == nil {
+		return homedir, nil
+	}
+
+	// As a fallback, we try the user information.
+	u, err := user.Current()
+	if err != nil {
+		return "", xerrors.Errorf("current user: %w", err)
+	}
+	return u.HomeDir, nil
 }

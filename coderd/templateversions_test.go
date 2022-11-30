@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -14,6 +13,7 @@ import (
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
@@ -98,9 +98,9 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 		user := coderdtest.CreateFirstUser(t, client)
 		data, err := echo.Tar(&echo.Responses{
-			Parse:           echo.ParseComplete,
-			Provision:       echo.ProvisionComplete,
-			ProvisionDryRun: echo.ProvisionComplete,
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ProvisionComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
 		})
 		require.NoError(t, err)
 
@@ -123,6 +123,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, "bananas", version.Name)
+		require.Equal(t, provisionerdserver.ScopeOrganization, version.Job.Tags[provisionerdserver.TagScope])
 
 		require.Len(t, auditor.AuditLogs, 1)
 		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[0].Action)
@@ -152,7 +153,7 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			Provision: []*proto.Provision_Response{{
+			ProvisionApply: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Log{
 					Log: &proto.Log{},
 				},
@@ -191,7 +192,7 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			Provision: []*proto.Provision_Response{{
+			ProvisionApply: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Log{
 					Log: &proto.Log{},
 				},
@@ -254,7 +255,7 @@ func TestDeprecatedTemplateVersionSchema(t *testing.T) {
 					},
 				},
 			}},
-			Provision: echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionComplete,
 		})
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
@@ -283,7 +284,7 @@ func TestDeprecatedTemplateVersionSchema(t *testing.T) {
 					},
 				},
 			}},
-			Provision: echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionComplete,
 		})
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
@@ -389,7 +390,7 @@ func TestDeprecatedTemplateVersionParameters(t *testing.T) {
 					},
 				},
 			}},
-			Provision: echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionComplete,
 		})
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
@@ -427,7 +428,7 @@ func TestTemplateVersionResources(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			Provision: []*proto.Provision_Response{{
+			ProvisionApply: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Complete{
 					Complete: &proto.Provision_Complete{
 						Resources: []*proto.Resource{{
@@ -464,11 +465,10 @@ func TestTemplateVersionLogs(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	user := coderdtest.CreateFirstUser(t, client)
-	before := time.Now()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse:           echo.ParseComplete,
-		ProvisionDryRun: echo.ProvisionComplete,
-		Provision: []*proto.Provision_Response{{
+		Parse:         echo.ParseComplete,
+		ProvisionPlan: echo.ProvisionComplete,
+		ProvisionApply: []*proto.Provision_Response{{
 			Type: &proto.Provision_Response_Log{
 				Log: &proto.Log{
 					Level:  proto.LogLevel_INFO,
@@ -499,7 +499,7 @@ func TestTemplateVersionLogs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	logs, closer, err := client.TemplateVersionLogsAfter(ctx, version.ID, before)
+	logs, closer, err := client.TemplateVersionLogsAfter(ctx, version.ID, 0)
 	require.NoError(t, err)
 	defer closer.Close()
 	for {
@@ -638,7 +638,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			Provision: []*proto.Provision_Response{
+			ProvisionApply: []*proto.Provision_Response{
 				{
 					Type: &proto.Provision_Response_Log{
 						Log: &proto.Log{},
@@ -659,7 +659,6 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		defer cancel()
 
 		// Create template version dry-run
-		after := time.Now()
 		job, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{
 			ParameterValues: []codersdk.DeprecatedCreateParameterRequest{},
 		})
@@ -671,7 +670,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		require.Equal(t, job.ID, newJob.ID)
 
 		// Stream logs
-		logs, closer, err := client.TemplateVersionDryRunLogsAfter(ctx, version.ID, job.ID, after)
+		logs, closer, err := client.TemplateVersionDryRunLogsAfter(ctx, version.ID, job.ID, 0)
 		require.NoError(t, err)
 		defer closer.Close()
 
@@ -708,7 +707,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		// This import job will never finish
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			Provision: []*proto.Provision_Response{{
+			ProvisionApply: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Log{
 					Log: &proto.Log{},
 				},
@@ -738,7 +737,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 				Parse: echo.ParseComplete,
-				Provision: []*proto.Provision_Response{
+				ProvisionApply: []*proto.Provision_Response{
 					{
 						Type: &proto.Provision_Response_Log{
 							Log: &proto.Log{},
@@ -813,7 +812,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 			user := coderdtest.CreateFirstUser(t, client)
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 				Parse: echo.ParseComplete,
-				Provision: []*proto.Provision_Response{
+				ProvisionApply: []*proto.Provision_Response{
 					{
 						Type: &proto.Provision_Response_Log{
 							Log: &proto.Log{},
@@ -964,4 +963,37 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTemplateVersionByOrganizationAndName(t *testing.T) {
+	t.Parallel()
+	t.Run("NotFound", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.TemplateVersionByOrganizationAndName(ctx, user.OrganizationID, "nothing")
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+	})
+
+	t.Run("Found", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.TemplateVersionByOrganizationAndName(ctx, user.OrganizationID, version.Name)
+		require.NoError(t, err)
+	})
 }

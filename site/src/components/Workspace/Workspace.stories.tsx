@@ -15,10 +15,6 @@ const Template: Story<WorkspaceProps> = (args) => <Workspace {...args} />
 
 export const Running = Template.bind({})
 Running.args = {
-  bannerProps: {
-    isLoading: false,
-    onExtend: action("extend"),
-  },
   scheduleProps: {
     onDeadlineMinus: () => {
       // do nothing, this is just for storybook
@@ -36,6 +32,8 @@ Running.args = {
         Mocks.MockTemplate,
       )
     },
+    maxDeadlineDecrease: 1000,
+    maxDeadlineIncrease: 1000,
   },
   workspace: Mocks.MockWorkspace,
   handleStart: action("start"),

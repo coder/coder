@@ -56,6 +56,7 @@ func TestLogin(t *testing.T) {
 			"email", "user@coder.com",
 			"password", "password",
 			"password", "password", // Confirm.
+			"trial", "yes",
 		}
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
@@ -74,7 +75,7 @@ func TestLogin(t *testing.T) {
 		// accurately detect Windows ptys when they are not attached to a process:
 		// https://github.com/mattn/go-isatty/issues/59
 		doneChan := make(chan struct{})
-		root, _ := clitest.New(t, "login", client.URL.String(), "--first-user-username", "testuser", "--first-user-email", "user@coder.com", "--first-user-password", "password")
+		root, _ := clitest.New(t, "login", client.URL.String(), "--first-user-username", "testuser", "--first-user-email", "user@coder.com", "--first-user-password", "password", "--first-user-trial")
 		pty := ptytest.New(t)
 		root.SetIn(pty.Input())
 		root.SetOut(pty.Output())
@@ -127,6 +128,8 @@ func TestLogin(t *testing.T) {
 		pty.WriteLine("pass")
 		pty.ExpectMatch("Confirm")
 		pty.WriteLine("pass")
+		pty.ExpectMatch("trial")
+		pty.WriteLine("yes")
 		pty.ExpectMatch("Welcome to Coder")
 		<-doneChan
 	})
@@ -148,7 +151,7 @@ func TestLogin(t *testing.T) {
 		}()
 
 		pty.ExpectMatch("Paste your token here:")
-		pty.WriteLine(client.SessionToken)
+		pty.WriteLine(client.SessionToken())
 		pty.ExpectMatch("Welcome to Coder")
 		<-doneChan
 	})
@@ -183,11 +186,11 @@ func TestLogin(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		root, cfg := clitest.New(t, "login", client.URL.String(), "--token", client.SessionToken)
+		root, cfg := clitest.New(t, "login", client.URL.String(), "--token", client.SessionToken())
 		err := root.Execute()
 		require.NoError(t, err)
 		sessionFile, err := cfg.Session().Read()
 		require.NoError(t, err)
-		require.Equal(t, client.SessionToken, sessionFile)
+		require.Equal(t, client.SessionToken(), sessionFile)
 	})
 }

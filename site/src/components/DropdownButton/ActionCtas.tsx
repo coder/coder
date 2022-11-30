@@ -3,6 +3,7 @@ import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
 import BlockIcon from "@material-ui/icons/Block"
 import CloudQueueIcon from "@material-ui/icons/CloudQueue"
+import UpdateOutlined from "@material-ui/icons/UpdateOutlined"
 import CropSquareIcon from "@material-ui/icons/CropSquare"
 import DeleteOutlineIcon from "@material-ui/icons/DeleteOutline"
 import PlayCircleOutlineIcon from "@material-ui/icons/PlayCircleOutline"
@@ -29,6 +30,23 @@ export const UpdateButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({
       onClick={handleAction}
     >
       {t("actionButton.update")}
+    </Button>
+  )
+}
+
+export const ChangeVersionButton: FC<
+  React.PropsWithChildren<WorkspaceAction>
+> = ({ handleAction }) => {
+  const styles = useStyles()
+  const { t } = useTranslation("workspacePage")
+
+  return (
+    <Button
+      className={styles.actionButton}
+      startIcon={<UpdateOutlined />}
+      onClick={handleAction}
+    >
+      {t("actionButton.changeVersion")}
     </Button>
   )
 }
@@ -160,7 +178,6 @@ const useStyles = makeStyles((theme) => ({
   // this is all custom to work with our button wrapper
   loadingButton: {
     border: "none",
-    borderLeft: "1px solid #333740", // MUI disabled button
-    borderRadius: "3px 0px 0px 3px",
+    borderRadius: `${theme.shape.borderRadius} 0px 0px ${theme.shape.borderRadius}`,
   },
 }))

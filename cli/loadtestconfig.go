@@ -7,15 +7,18 @@ import (
 
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/loadtest/agentconn"
 	"github.com/coder/coder/loadtest/harness"
 	"github.com/coder/coder/loadtest/placebo"
+	"github.com/coder/coder/loadtest/reconnectingpty"
 	"github.com/coder/coder/loadtest/workspacebuild"
 )
 
 // LoadTestConfig is the overall configuration for a call to `coder loadtest`.
 type LoadTestConfig struct {
-	Strategy LoadTestStrategy `json:"strategy"`
-	Tests    []LoadTest       `json:"tests"`
+	Strategy        LoadTestStrategy `json:"strategy"`
+	CleanupStrategy LoadTestStrategy `json:"cleanup_strategy"`
+	Tests           []LoadTest       `json:"tests"`
 	// Timeout sets a timeout for the entire test run, to control the timeout
 	// for each individual run use strategy.timeout.
 	Timeout httpapi.Duration `json:"timeout"`
@@ -86,8 +89,10 @@ func (s LoadTestStrategy) ExecutionStrategy() harness.ExecutionStrategy {
 type LoadTestType string
 
 const (
-	LoadTestTypePlacebo        LoadTestType = "placebo"
-	LoadTestTypeWorkspaceBuild LoadTestType = "workspacebuild"
+	LoadTestTypeAgentConn       LoadTestType = "agentconn"
+	LoadTestTypePlacebo         LoadTestType = "placebo"
+	LoadTestTypeReconnectingPTY LoadTestType = "reconnectingpty"
+	LoadTestTypeWorkspaceBuild  LoadTestType = "workspacebuild"
 )
 
 type LoadTest struct {
@@ -97,25 +102,37 @@ type LoadTest struct {
 	// the count is 0 or negative, defaults to 1.
 	Count int `json:"count"`
 
+	// AgentConn must be set if type == "agentconn".
+	AgentConn *agentconn.Config `json:"agentconn,omitempty"`
 	// Placebo must be set if type == "placebo".
 	Placebo *placebo.Config `json:"placebo,omitempty"`
+	// ReconnectingPTY must be set if type == "reconnectingpty".
+	ReconnectingPTY *reconnectingpty.Config `json:"reconnectingpty,omitempty"`
 	// WorkspaceBuild must be set if type == "workspacebuild".
 	WorkspaceBuild *workspacebuild.Config `json:"workspacebuild,omitempty"`
 }
 
 func (t LoadTest) NewRunner(client *codersdk.Client) (harness.Runnable, error) {
 	switch t.Type {
+	case LoadTestTypeAgentConn:
+		if t.AgentConn == nil {
+			return nil, xerrors.New("agentconn config must be set")
+		}
+		return agentconn.NewRunner(client, *t.AgentConn), nil
 	case LoadTestTypePlacebo:
 		if t.Placebo == nil {
 			return nil, xerrors.New("placebo config must be set")
 		}
-
 		return placebo.NewRunner(*t.Placebo), nil
+	case LoadTestTypeReconnectingPTY:
+		if t.ReconnectingPTY == nil {
+			return nil, xerrors.New("reconnectingpty config must be set")
+		}
+		return reconnectingpty.NewRunner(client, *t.ReconnectingPTY), nil
 	case LoadTestTypeWorkspaceBuild:
 		if t.WorkspaceBuild == nil {
 			return nil, xerrors.Errorf("workspacebuild config must be set")
 		}
-
 		return workspacebuild.NewRunner(client, *t.WorkspaceBuild), nil
 	default:
 		return nil, xerrors.Errorf("unknown test type %q", t.Type)
@@ -126,6 +143,10 @@ func (c *LoadTestConfig) Validate() error {
 	err := c.Strategy.Validate()
 	if err != nil {
 		return xerrors.Errorf("validate strategy: %w", err)
+	}
+	err = c.CleanupStrategy.Validate()
+	if err != nil {
+		return xerrors.Errorf("validate cleanup_strategy: %w", err)
 	}
 
 	for i, test := range c.Tests {
@@ -155,6 +176,15 @@ func (s *LoadTestStrategy) Validate() error {
 
 func (t *LoadTest) Validate() error {
 	switch t.Type {
+	case LoadTestTypeAgentConn:
+		if t.AgentConn == nil {
+			return xerrors.Errorf("agentconn test type must specify agentconn")
+		}
+
+		err := t.AgentConn.Validate()
+		if err != nil {
+			return xerrors.Errorf("validate agentconn: %w", err)
+		}
 	case LoadTestTypePlacebo:
 		if t.Placebo == nil {
 			return xerrors.Errorf("placebo test type must specify placebo")
@@ -163,6 +193,15 @@ func (t *LoadTest) Validate() error {
 		err := t.Placebo.Validate()
 		if err != nil {
 			return xerrors.Errorf("validate placebo: %w", err)
+		}
+	case LoadTestTypeReconnectingPTY:
+		if t.ReconnectingPTY == nil {
+			return xerrors.Errorf("reconnectingpty test type must specify reconnectingpty")
+		}
+
+		err := t.ReconnectingPTY.Validate()
+		if err != nil {
+			return xerrors.Errorf("validate reconnectingpty: %w", err)
 		}
 	case LoadTestTypeWorkspaceBuild:
 		if t.WorkspaceBuild == nil {

@@ -143,19 +143,13 @@ func newConfig() *codersdk.DeploymentConfig {
 			Name:    "Cache Directory",
 			Usage:   "The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.",
 			Flag:    "cache-dir",
-			Default: defaultCacheDir(),
+			Default: DefaultCacheDir(),
 		},
 		InMemoryDatabase: &codersdk.DeploymentConfigField[bool]{
 			Name:   "In Memory Database",
 			Usage:  "Controls whether data will be stored in an in-memory database.",
 			Flag:   "in-memory",
 			Hidden: true,
-		},
-		ProvisionerDaemons: &codersdk.DeploymentConfigField[int]{
-			Name:    "Provisioner Daemons",
-			Usage:   "Number of provisioner daemons to create on start. If builds are stuck in queued state for a long time, consider increasing this.",
-			Flag:    "provisioner-daemons",
-			Default: 3,
 		},
 		PostgresURL: &codersdk.DeploymentConfigField[string]{
 			Name:   "Postgres Connection URL",
@@ -190,6 +184,11 @@ func newConfig() *codersdk.DeploymentConfig {
 					Name:  "OAuth2 GitHub Allow Signups",
 					Usage: "Whether new users can sign up with GitHub.",
 					Flag:  "oauth2-github-allow-signups",
+				},
+				AllowEveryone: &codersdk.DeploymentConfigField[bool]{
+					Name:  "OAuth2 GitHub Allow Everyone",
+					Usage: "Allow all logins, setting this option means allowed orgs and teams must be empty.",
+					Flag:  "oauth2-github-allow-everyone",
 				},
 				EnterpriseBaseURL: &codersdk.DeploymentConfigField[string]{
 					Name:  "OAuth2 GitHub Enterprise Base URL",
@@ -231,6 +230,12 @@ func newConfig() *codersdk.DeploymentConfig {
 				Usage:   "Scopes to grant when authenticating with OIDC.",
 				Flag:    "oidc-scopes",
 				Default: []string{oidc.ScopeOpenID, "profile", "email"},
+			},
+			IgnoreEmailVerified: &codersdk.DeploymentConfigField[bool]{
+				Name:    "OIDC Ignore Email Verified",
+				Usage:   "Ignore the email_verified claim from the upstream provider.",
+				Flag:    "oidc-ignore-email-verified",
+				Default: false,
 			},
 		},
 
@@ -288,6 +293,16 @@ func newConfig() *codersdk.DeploymentConfig {
 				Flag:    "tls-min-version",
 				Default: "tls12",
 			},
+			ClientCertFile: &codersdk.DeploymentConfigField[string]{
+				Name:  "TLS Client Cert File",
+				Usage: "Path to certificate for client TLS authentication. It requires a PEM-encoded file.",
+				Flag:  "tls-client-cert-file",
+			},
+			ClientKeyFile: &codersdk.DeploymentConfigField[string]{
+				Name:  "TLS Client Key File",
+				Usage: "Path to key for client TLS authentication. It requires a PEM-encoded file.",
+				Flag:  "tls-client-key-file",
+			},
 		},
 		Trace: &codersdk.TraceConfig{
 			Enable: &codersdk.DeploymentConfigField[bool]{
@@ -300,6 +315,11 @@ func newConfig() *codersdk.DeploymentConfig {
 				Usage:  "Enables trace exporting to Honeycomb.io using the provided API Key.",
 				Flag:   "trace-honeycomb-api-key",
 				Secret: true,
+			},
+			CaptureLogs: &codersdk.DeploymentConfigField[bool]{
+				Name:  "Capture Logs in Traces",
+				Usage: "Enables capturing of logs as events in traces. This is useful for debugging, but may result in a very large amount of events being sent to the tracing backend which may incur significant costs. If the verbose flag was supplied, debug-level logs will be included.",
+				Flag:  "trace-logs",
 			},
 		},
 		SecureAuthCookie: &codersdk.DeploymentConfigField[bool]{
@@ -333,6 +353,13 @@ func newConfig() *codersdk.DeploymentConfig {
 			Hidden:  true,
 			Default: 10 * time.Minute,
 		},
+		AgentFallbackTroubleshootingURL: &codersdk.DeploymentConfigField[string]{
+			Name:    "Agent Fallback Troubleshooting URL",
+			Usage:   "URL to use for agent troubleshooting when not set in the template",
+			Flag:    "agent-fallback-troubleshooting-url",
+			Hidden:  true,
+			Default: "https://coder.com/docs/coder-oss/latest/templates#troubleshooting-templates",
+		},
 		AuditLogging: &codersdk.DeploymentConfigField[bool]{
 			Name:       "Audit Logging",
 			Usage:      "Specifies whether audit logging is enabled.",
@@ -353,11 +380,30 @@ func newConfig() *codersdk.DeploymentConfig {
 			Enterprise: true,
 			Secret:     true,
 		},
-		UserWorkspaceQuota: &codersdk.DeploymentConfigField[int]{
-			Name:       "User Workspace Quota",
-			Usage:      "Enables and sets a limit on how many workspaces each user can create.",
-			Flag:       "user-workspace-quota",
-			Enterprise: true,
+		Provisioner: &codersdk.ProvisionerConfig{
+			Daemons: &codersdk.DeploymentConfigField[int]{
+				Name:    "Provisioner Daemons",
+				Usage:   "Number of provisioner daemons to create on start. If builds are stuck in queued state for a long time, consider increasing this.",
+				Flag:    "provisioner-daemons",
+				Default: 3,
+			},
+			ForceCancelInterval: &codersdk.DeploymentConfigField[time.Duration]{
+				Name:    "Force Cancel Interval",
+				Usage:   "Time to force cancel provisioning tasks that are stuck.",
+				Flag:    "provisioner-force-cancel-interval",
+				Default: 10 * time.Minute,
+			},
+		},
+		APIRateLimit: &codersdk.DeploymentConfigField[int]{
+			Name:    "API Rate Limit",
+			Usage:   "Maximum number of requests per minute allowed to the API per user, or per IP address for unauthenticated users. Negative values mean no rate limit. Some API endpoints are always rate limited regardless of this value to prevent denial-of-service attacks.",
+			Flag:    "api-rate-limit",
+			Default: 512,
+		},
+		Experimental: &codersdk.DeploymentConfigField[bool]{
+			Name:  "Experimental",
+			Usage: "Enable experimental features. Experimental features are not ready for production.",
+			Flag:  "experimental",
 		},
 	}
 }
@@ -489,9 +535,11 @@ func readSliceFromViper[T any](vip *viper.Viper, key string, value any) []T {
 				newType := reflect.Indirect(reflect.New(elementType))
 				instance = &newType
 			}
-			switch instance.Field(i).Type().String() {
+			switch v := instance.Field(i).Type().String(); v {
 			case "[]string":
 				value = vip.GetStringSlice(configKey)
+			case "bool":
+				value = vip.GetBool(configKey)
 			default:
 			}
 			instance.Field(i).Set(reflect.ValueOf(value))
@@ -632,7 +680,7 @@ func formatEnv(key string) string {
 	return "CODER_" + strings.ToUpper(strings.NewReplacer("-", "_", ".", "_").Replace(key))
 }
 
-func defaultCacheDir() string {
+func DefaultCacheDir() string {
 	defaultCacheDir, err := os.UserCacheDir()
 	if err != nil {
 		defaultCacheDir = os.TempDir()

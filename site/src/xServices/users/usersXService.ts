@@ -57,6 +57,7 @@ export interface UsersContext {
   updateUserRolesError?: Error | unknown
   paginationContext: PaginationContext
   paginationRef: PaginationMachineRef
+  count: number
 }
 
 export type UsersEvent =
@@ -101,7 +102,7 @@ export type UsersEvent =
   | { type: "UPDATE_PAGE"; page: string }
 
 export const usersMachine =
-  /** @xstate-layout N4IgpgJg5mDOIC5QFdZgE6wMoBcCGOYAdLPujgJYB2UACnlNQRQPZUDEA2gAwC6ioAA4tYFSmwEgAHogCMADiLcA7AFYVAFgCcW5bNkaAbACZDAGhABPOVsNEAzN1XGDhw92PduW+wF9fFqgY2PiERDA4lDQAqmiY7BBsxNQAbiwA1sQRscE8-EggwqLiVJIyCPKyRHryyk4m9lrGzfYW1ggaGqpERvaq9soasqrKfgEgQZi4BFlgkdRQOfEY6CzoRIIANgQAZmsAtuFzS7B5kkVirKUF5QC0ssrGRLV1rs2VyrptiJ3K1cbyHQaUyqSoDVT+QJxEIzIgUCCbMDsLDRLC0ACiADkACIAfVR6IASmcChcSmVEMZOkRDPpgYZ5J4NNx5PZWlY5A8qvZjH15Nx7IZVFp5KoNJCJtDpmF4Yj2Nj0QAZdEAFXR+KwRJJQhElwkN0phi0RAMqncjIZo0Z3wqtSIOgZGg+3HNsglkxhMoRSIAggBhFUASQAaj61RqtXxzrryQaEKZ7Pb7KLBQCTLJ3Kobe5E2adINjE1DE7jO6paFkt72IT0ZqVRHCbjaD6sFgAOoAeUJ2O1hRjVwp8dkxq6A2UFuTyhMWY5CFcdlkhbB8n5vNBZeC0srcuitGxYfVBMbhI7yqwvbJA7jtwBfwF3lG-WHPhtjO4NIZ7lk9Q0fI3UwrOEq13fdw2bABxdEL37fVQDuHk7BUTQnEcAEdGzLoaQtdQ+h8Ywp3-T1tyRECD1xAAxQNFTVYko1JGDrjgxB7m6LQjABfCtBUYduFkV9h2qAZv3w5wuIhcYPS3IgAGM2B2Ch0H2JYsFQQQwCoUQ2HYP0O0xSjCQAWQbXEUTRLEsEDXToOKK8mNtRMCyFXpPjcLQbX0FcTU+EtnFwhlCKk2SqHkxTlNU9TNI4P0fUxP0lWM0yMUxCyrLonUbNg6REFBbpmU+LiHipbhOnc-D3xXUURVpWlioCwCgpCpS4mxMBERKbTdP0oyj1xBVlTVay9UYrKKh8e1vHkbRgRUBobS0fQelFRc9F-Nj5EMOrYQahSmowFq2qubSYrixVjL61UoLSvsMuG8paSeYZ7AzNlDHHN65rcGliv5AVPjNExNrCbbQriH1pMoFJmC0nS9MDQzjP9INQyDVL8nSobBxeD8BnsTops6NzZ0MXHFrZKk2NUfQNok8strknaljBiGoai474p6xGQzDSzMUG2M7OFVjuMXQVeNUSmbTqRNlt-NwnuUR5xRpzdANgcKqAgBYlgSJI4SoNJMhIdWICWPnbJG4ZFxNcX+XHbxhzUOa6i8o1vBFdRaTdZWANhNXYDUjWtbidgVjWDZthwPZFKN-31JNuIzcy8oPPfEYXEm3R8NGPjZ1kRwNCUYU8-w2Xv3EqEVdhCBWrmIOMB1qhkn1jJiGrtqwFNq7LyTuRKeNAxmS0UENEeXjJZGapmRGEfVrTwHW5rqJFmD0P1i2XYDiINu5g7hOu4Ywd9CH6oWVFV4uItdzeONMU6TZWpFxH+eiDwcGKEhpftcSRu9YN4hX+ZoQTuaNroYzjJbRMPgeQujUOob85hZxmlTrSEYLpTAKDNM-AB79mAxBXugVYa8I5R0ONgj+u8MCJ1upyWwk9vwsmTMVAw48C7aAZFyMUU59DP2BrtdA9BYCwAAO5rAgISOAcwOqw3hj1ZsrZOzdlxDWOsVDMZimqPAgwxhKbixFO5HCX1ibaABJTV6ygeH0xBhgARwjRHiLQDgI6sV2aakbHI9sXY8TKNVKouMad7T9FsMTI0Csnr6LtAYUWahFxMnMd7IiRB0ASPmHg6xeBBEiPQBABuTc-6JOSUsGxmSIC+LsnndRecmjqD0KMfC7lxwLlMLofot5RTUwrj7MISSHGfziEU0RIcCFh3XpHTe3Tjh9PSbYrJpSLYPGNCoRwoJ3iihXO5IUTwRS6BqMWAYwJn7IEEBAXBy8MCEhYIiWAOTf4tyIIc45QC4jnMubMu4VoTTFSFG+SpGgPp-CnFA4SzhtDl0lJXMI9yTlLGeXAQZhDw4b2jpCx5ZyLlwFecxL8Dghi6FegoPogp+LGlGHoDwahCxOH8OMKgLBq7wAKJJVWZAl70EYFQFm0YbqDluM4E+nxPgsmLCKXkr5uiFktDob8zJXpKw6QkiIvTgicrAXZW47geiSqGHigEi4ZztBBEQfobIjWeBiVoZ+sowDKv5hbHkzwmiDB5M0NwYpfmzjUAXZwZ9OjfjYk9CxwUGZxBUrHDS5tu7UIQKCRQXEhgjzluUnO7Qj4F0qBgqBeF2lgs6cQXhSx9q10yhGwcJgnhGlpI8IeT5xZzQWk6dQ6h+QPHFmMOVgVLF8KZjgm1xa4zVUnkaZkuMvBDD1YgIxpMeRTUphmZ+fsA6a1Sega15tk4ZkUEXV2TgxTCnkO5YYfwnoKHFVSSccS22AW3oq5d9EuXgIUFUHQvFTCvAMHo2cK4C4eCEn0dwXQHhYLfh-OuN70Y2rXWNbRDribzSNUm8dngTTfkBLyFB8aA2NUKVM4p9i5grp7lG+ahq1AijzsCcl8G5wGPcEYpoS0zHP3GSk05-DsOiPw5GjyC5nBeFZOaDwY65xsI-GoWoDb1pqAOUcqFTy0X0rA6u5inR3xrlsCyOoAohhzSMPaGpr03C8TZPPDj3KGkfKMMswzbEbS3AcgKRcSEnArkGPIKlvggA */
+  /** @xstate-layout N4IgpgJg5mDOIC5QFdZgE6wMoBcCGOYAdLPujgJYB2UACnlNQRQPZUDEA2gAwC6ioAA4tYFSmwEgAHogC0ARgBMigBxEAnCoCsAdhWrdK9QBYdAGhABPRPO7ruRAMzdj3HYuNbFANm5b1AL4BFqgY2PiERDA4lDQAqmiY7BBsxNQAbiwA1sTRCWE8-EggwqLiVJIyCArc8upOxt6K-o7qjloq3ioW1ghKPkQu6m2KOraaw0EhieEEuWAx1FD5SRjoLOhEggA2BABmGwC2UQsrsIWSpWKsFcVVCqqOGoqOKnUqKrW15lY2ivI6IiNRqOHR6bhdXRTEChTC4OZECgQbZgdhYOJYWgAUQAcgARAD6GKxACULsUruVKnIdLoiPJjPItF42p0fI4ejYtMZjE4ASoxi4dI4lCpobDZpEkSj2HisQAZLEAFSxRKwpPJQhE1wkdxp3nqAJM3i0zm8tPknL63gNRB0TQBTNBHRM4pm8KlyNRAEEAMJKgCSADVvSq1Rq+JdtVS9dUdMYnkN1C9uM0Teofr15CpXEQPt95IXC952m6wh60l72CSseqleGSQTaN6sFgAOoAeRJeM1JWjN2pca8RH+bmar3tdUUVve3me8kcIqU3G0NrLcIilZlcVoeNDquJjZJHcVWF7lIHsdk8d5As6ybeHxLxitym4Dh5b1pYx0LhUjnXSUt1RHc9zDZsAHEsXPftdVAe4GT0IEMz0UYtAhV51BnZwHDsTQDQXZNNEAitESrUD9wJAAxAN5RVMlIwpWDbnguR5BNXlEPUbNmk+Ixp1+PpFHULQgUcbxTH8YTCy8EjNyIABjNg9godBDhWLBUEEMAqFENh2F9DscRokkAFkGwJdFMVxLAAyMmCykvVjqg8eQ82UdQJJ5DxaWZGdmUUDRWi8VM+LGbw5IRJSqBUtSNK0nS9I4X1vRxX0FQsqzsRxWz7MYrVHLg6Q5GMbQgWZbiS3tbhWktQT2P+PMBR0DMM0dLQIuCGF3Xk6LYvUxI8TAFFygMoyTPMw8CTlRUVQcnUWOKlzlEGBlHATPRhn0JkZy6XlSuMUZamEox7UiyI+tUgaMCGkabgM1L0vlCyZuVaD8r7QrFvuYwM3pewRUhTxPkzGx7XqYTGTayTtEUc7iEuuLEm9BTKHSZh9MM4yAzMiy-UDENAzyooCoWwdZBeNQfBccT0NqbkOhnHNAXaPxVHsJpTB0eHFOUq6VhRtGMeSx6Mqm-Hg1DOycXmmNnNkdC51KlqlHaYTRgErM2lvZkDUO37-ELHnYASqgICWFZklSREqEyHISFNiAVllpyltaJ5fscXivd0UqsPq0q3MLFrzRzV5MONx2LcSdg1g2LZdhwA41Id2BtLN52PovIqqhNUTOgI2xF3tUEZy5kcXXNQ6Vx8TrpnLeSIGGhZo4wK2qDSW3smIJuRrATOSc+snY1cD83hC1lPG8OqswkiHGghX8Du0Ywed7lv4hjuPNh2fYjiIdfCAHqMvsHc03PfdpPI6xkF26eqS1E5pUNUbQM1GHm8FRih0diZYY5SB3G2dtiBfyFkfRILsc6IGCiOX8vgmTsTGJ5F89UwQOBDtoU0pgPCry6hKUiYCf7ME3m3beCc94pyIb-fukCs7MTPtPIgCDhJuE+O7bwM49BPBFCYXQoxhjsTFPgnqUU+ZIwwPQWAsAADuGwIAkjgAsMa2NcZTWbK2Ts3YCQ1jrFA76bEPiDFaP+G0UkXhaFfLUNQWhsx6xeM4dweD64bjETFfmiQpGyPkYotAOAHppTFuqRsGj2xdkJLo5U+jya2MBDTWkyhaQGk6K+WwolGjuH+KVaeDIeboCUYsUh6AvFyPQBAduncQFEHyX4lYJT5HRNjKCD2RYRIgyaIoPwM5uJuXEsKDqjwVZ5IKX-OpeBpGlPKeQ3eSd941NOJ48Z3iymNOchJJ4bRFyXy6MmLo3TPIaAFJ0xcug3CMh5sgQQEASH-wwCSFgKJYAVOAd3IglzrkQLuQ8uAqy3adAaHYdiSgOivBnogf4tpWhbQBK4ZQuSRENwRO8m5Kx7mPNjugdYO9E7J2OMiz56A0U-PoafWMJo3I+AZLXcc7FLGCThXObiYxRie2DvDdgFEww0TohGQe2cDHVFsAmekvgTnsV+mkq09gHDOHWs0TpU5OpdSoCwJu8BigEPkqQPA5Alj0EYFQYWJ9h7ywXAyPMdgEzV02bSKVC47SfHfLSX65pSwItcZEaIoyZjGrlktBQSh6guAhI0aejJhQzjcKJA0Xt2g8i8Aqnm0owC+tdghO+eYTRoSLo0DM2F4xEGwZ00wbg1bc3dUBXm7iJHoE0mnRKrt+XkwlcY0wrI6jZlqP5YcbRjQeDsLoM6FbSKI2uugW6LcipNqvNk5hph1rTw6HUPZD8cxAhzEdQNp1nHdURRdcRY7BbEL9dO+WpVo2lSjQKEUjJ2hM25KtNoisvaHXNJHetZtW7oFTdAhAbxmF2HjKCIwIl1b+SZGJES75RimIBGvZu3qMA-oFQKO0edxJVW8kYXazI7ToT9nTAUrph3yWoSixIyHBxlQkrYaDnwOqaFBn0N4c5bGsm0MdcYPNR1jImT4gplGZ0SXpKaAdYJQRtHNFYjwThWoLg8JVESwy-GIeKUsyZgnnIMjcuGuVEIl2mCsamJwXsBR2BeOKuuu6PXEHxV+ol6rSZ+qqCKQYyYMNoRBsKVBvR-j-ITHPcS7DXhWc1XMTT-qATGa4jxDoK5kxWjeL0mqIJ5NczwUEIAA */
   createMachine(
     {
       tsTypes: {} as import("./usersXService.typegen").Typegen0,
@@ -110,7 +111,7 @@ export const usersMachine =
         events: {} as UsersEvent,
         services: {} as {
           getUsers: {
-            data: TypesGen.User[]
+            data: TypesGen.GetUsersResponse
           }
           createUser: {
             data: TypesGen.User
@@ -134,6 +135,15 @@ export const usersMachine =
       },
       predictableActionArguments: true,
       id: "usersState",
+      on: {
+        UPDATE_FILTER: {
+          actions: ["assignFilter", "sendResetPage"],
+        },
+        UPDATE_PAGE: {
+          target: "gettingUsers",
+          actions: "updateURL",
+        },
+      },
       initial: "startingPagination",
       states: {
         startingPagination: {
@@ -191,13 +201,6 @@ export const usersMachine =
             UPDATE_USER_ROLES: {
               target: "updatingUserRoles",
               actions: "assignUserIdToUpdateRoles",
-            },
-            UPDATE_PAGE: {
-              target: "gettingUsers",
-              actions: "updateURL",
-            },
-            UPDATE_FILTER: {
-              actions: ["assignFilter", "sendResetPage"],
             },
           },
         },
@@ -418,7 +421,8 @@ export const usersMachine =
           userIdToUpdateRoles: (_) => undefined,
         }),
         assignUsers: assign({
-          users: (_, event) => event.data,
+          users: (_, event) => event.data.users,
+          count: (_, event) => event.data.count,
         }),
         assignFilter: assign({
           filter: (_, event) => event.query,
@@ -466,6 +470,7 @@ export const usersMachine =
         clearUsers: assign((context: UsersContext) => ({
           ...context,
           users: undefined,
+          count: undefined,
         })),
         clearSuspendUserError: assign({
           suspendUserError: (_) => undefined,

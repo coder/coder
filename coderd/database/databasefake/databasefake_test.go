@@ -38,7 +38,7 @@ func TestInTx(t *testing.T) {
 			})
 			assert.NoError(t, err)
 			return nil
-		})
+		}, nil)
 		assert.NoError(t, err)
 	}()
 	var nums []int
@@ -74,6 +74,7 @@ func TestExactMethods(t *testing.T) {
 	extraFakeMethods := map[string]string{
 		// Example
 		// "SortFakeLists": "Helper function used",
+		"IsFakeDB": "Helper function used for unit testing",
 	}
 
 	fake := reflect.TypeOf(databasefake.New())

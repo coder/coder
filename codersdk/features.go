@@ -15,14 +15,14 @@ const (
 )
 
 const (
-	FeatureUserLimit        = "user_limit"
-	FeatureAuditLog         = "audit_log"
-	FeatureBrowserOnly      = "browser_only"
-	FeatureSCIM             = "scim"
-	FeatureWorkspaceQuota   = "workspace_quota"
-	FeatureTemplateRBAC     = "template_rbac"
-	FeatureHighAvailability = "high_availability"
-	FeatureMultipleGitAuth  = "multiple_git_auth"
+	FeatureUserLimit                  = "user_limit"
+	FeatureAuditLog                   = "audit_log"
+	FeatureBrowserOnly                = "browser_only"
+	FeatureSCIM                       = "scim"
+	FeatureTemplateRBAC               = "template_rbac"
+	FeatureHighAvailability           = "high_availability"
+	FeatureMultipleGitAuth            = "multiple_git_auth"
+	FeatureExternalProvisionerDaemons = "external_provisioner_daemons"
 )
 
 var FeatureNames = []string{
@@ -30,10 +30,10 @@ var FeatureNames = []string{
 	FeatureAuditLog,
 	FeatureBrowserOnly,
 	FeatureSCIM,
-	FeatureWorkspaceQuota,
 	FeatureTemplateRBAC,
 	FeatureHighAvailability,
 	FeatureMultipleGitAuth,
+	FeatureExternalProvisionerDaemons,
 }
 
 type Feature struct {

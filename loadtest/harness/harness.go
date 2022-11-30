@@ -3,40 +3,37 @@ package harness
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/coderd/tracing"
 )
 
-// ExecutionStrategy defines how a TestHarness should execute a set of runs. It
-// essentially defines the concurrency model for a given testing session.
-type ExecutionStrategy interface {
-	// Execute runs the given runs in whatever way the strategy wants. An error
-	// may only be returned if the strategy has a failure itself, not if any of
-	// the runs fail.
-	Execute(ctx context.Context, runs []*TestRun) error
-}
-
-// TestHarness runs a bunch of registered test runs using the given
-// ExecutionStrategy.
+// TestHarness runs a bunch of registered test runs using the given execution
+// strategies.
 type TestHarness struct {
-	strategy ExecutionStrategy
+	runStrategy     ExecutionStrategy
+	cleanupStrategy ExecutionStrategy
 
 	mut     *sync.Mutex
 	runIDs  map[string]struct{}
 	runs    []*TestRun
 	started bool
 	done    chan struct{}
+	elapsed time.Duration
 }
 
-// NewTestHarness creates a new TestHarness with the given ExecutionStrategy.
-func NewTestHarness(strategy ExecutionStrategy) *TestHarness {
+// NewTestHarness creates a new TestHarness with the given execution strategies.
+func NewTestHarness(runStrategy, cleanupStrategy ExecutionStrategy) *TestHarness {
 	return &TestHarness{
-		strategy: strategy,
-		mut:      new(sync.Mutex),
-		runIDs:   map[string]struct{}{},
-		runs:     []*TestRun{},
-		done:     make(chan struct{}),
+		runStrategy:     runStrategy,
+		cleanupStrategy: cleanupStrategy,
+		mut:             new(sync.Mutex),
+		runIDs:          map[string]struct{}{},
+		runs:            []*TestRun{},
+		done:            make(chan struct{}),
 	}
 }
 
@@ -47,6 +44,9 @@ func NewTestHarness(strategy ExecutionStrategy) *TestHarness {
 //
 // Panics if called more than once.
 func (h *TestHarness) Run(ctx context.Context) (err error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
 	h.mut.Lock()
 	if h.started {
 		h.mut.Unlock()
@@ -55,15 +55,29 @@ func (h *TestHarness) Run(ctx context.Context) (err error) {
 	h.started = true
 	h.mut.Unlock()
 
+	runFns := make([]TestFn, len(h.runs))
+	for i, run := range h.runs {
+		runFns[i] = run.Run
+	}
+
 	defer close(h.done)
 	defer func() {
 		e := recover()
 		if e != nil {
-			err = xerrors.Errorf("execution strategy panicked: %w", e)
+			err = xerrors.Errorf("panic in harness.Run: %+v", e)
 		}
 	}()
 
-	err = h.strategy.Execute(ctx, h.runs)
+	start := time.Now()
+	defer func() {
+		h.mut.Lock()
+		defer h.mut.Unlock()
+		h.elapsed = time.Since(start)
+	}()
+
+	// We don't care about test failures here since they already get recorded
+	// by the *TestRun.
+	_, err = h.runStrategy.Run(ctx, runFns)
 	//nolint:revive // we use named returns because we mutate it in a defer
 	return
 }
@@ -82,20 +96,34 @@ func (h *TestHarness) Cleanup(ctx context.Context) (err error) {
 		panic("harness has not finished")
 	}
 
+	cleanupFns := make([]TestFn, len(h.runs))
+	for i, run := range h.runs {
+		cleanupFns[i] = run.Cleanup
+	}
+
 	defer func() {
 		e := recover()
 		if e != nil {
-			err = multierror.Append(err, xerrors.Errorf("panic in cleanup: %w", e))
+			err = xerrors.Errorf("panic in harness.Cleanup: %+v", e)
 		}
 	}()
 
-	for _, run := range h.runs {
-		e := run.Cleanup(ctx)
-		if e != nil {
-			err = multierror.Append(err, xerrors.Errorf("cleanup for %s failed: %w", run.FullID(), e))
+	var cleanupErrs []error
+	cleanupErrs, err = h.cleanupStrategy.Run(ctx, cleanupFns)
+	if err != nil {
+		err = xerrors.Errorf("cleanup strategy error: %w", err)
+		//nolint:revive // we use named returns because we mutate it in a defer
+		return
+	}
+
+	var merr error
+	for _, cleanupErr := range cleanupErrs {
+		if cleanupErr != nil {
+			merr = multierror.Append(merr, cleanupErr)
 		}
 	}
 
+	err = merr
 	//nolint:revive // we use named returns because we mutate it in a defer
 	return
 }

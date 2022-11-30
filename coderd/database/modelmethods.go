@@ -71,3 +71,46 @@ func (User) RBACObject() rbac.Object {
 func (License) RBACObject() rbac.Object {
 	return rbac.ResourceLicense
 }
+
+func ConvertUserRows(rows []GetUsersRow) []User {
+	users := make([]User, len(rows))
+	for i, r := range rows {
+		users[i] = User{
+			ID:             r.ID,
+			Email:          r.Email,
+			Username:       r.Username,
+			HashedPassword: r.HashedPassword,
+			CreatedAt:      r.CreatedAt,
+			UpdatedAt:      r.UpdatedAt,
+			Status:         r.Status,
+			RBACRoles:      r.RBACRoles,
+			LoginType:      r.LoginType,
+			AvatarURL:      r.AvatarURL,
+			Deleted:        r.Deleted,
+			LastSeenAt:     r.LastSeenAt,
+		}
+	}
+
+	return users
+}
+
+func ConvertWorkspaceRows(rows []GetWorkspacesRow) []Workspace {
+	workspaces := make([]Workspace, len(rows))
+	for i, r := range rows {
+		workspaces[i] = Workspace{
+			ID:                r.ID,
+			CreatedAt:         r.CreatedAt,
+			UpdatedAt:         r.UpdatedAt,
+			OwnerID:           r.OwnerID,
+			OrganizationID:    r.OrganizationID,
+			TemplateID:        r.TemplateID,
+			Deleted:           r.Deleted,
+			Name:              r.Name,
+			AutostartSchedule: r.AutostartSchedule,
+			Ttl:               r.Ttl,
+			LastUsedAt:        r.LastUsedAt,
+		}
+	}
+
+	return workspaces
+}

@@ -14,13 +14,12 @@ import { Resources } from "../Resources/Resources"
 import { Stack } from "../Stack/Stack"
 import { WorkspaceActions } from "../WorkspaceActions/WorkspaceActions"
 import { WorkspaceDeletedBanner } from "../WorkspaceDeletedBanner/WorkspaceDeletedBanner"
-import { WorkspaceScheduleBanner } from "../WorkspaceScheduleBanner/WorkspaceScheduleBanner"
 import { WorkspaceScheduleButton } from "../WorkspaceScheduleButton/WorkspaceScheduleButton"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
 import { AlertBanner } from "../AlertBanner/AlertBanner"
 import { useTranslation } from "react-i18next"
 import {
-  EstimateTransitionTime,
+  ActiveTransition,
   WorkspaceBuildProgress,
 } from "components/WorkspaceBuildProgress/WorkspaceBuildProgress"
 import { AgentRow } from "components/Resources/AgentRow"
@@ -33,10 +32,6 @@ export enum WorkspaceErrors {
 }
 
 export interface WorkspaceProps {
-  bannerProps: {
-    isLoading?: boolean
-    onExtend: () => void
-  }
   scheduleProps: {
     onDeadlinePlus: (hours: number) => void
     onDeadlineMinus: (hours: number) => void
@@ -50,6 +45,7 @@ export interface WorkspaceProps {
   handleDelete: () => void
   handleUpdate: () => void
   handleCancel: () => void
+  handleChangeVersion: () => void
   isUpdating: boolean
   workspace: TypesGen.Workspace
   resources?: TypesGen.WorkspaceResource[]
@@ -60,19 +56,20 @@ export interface WorkspaceProps {
   buildInfo?: TypesGen.BuildInfoResponse
   applicationsHost?: string
   template?: TypesGen.Template
+  quota_budget?: number
 }
 
 /**
  * Workspace is the top-level component for viewing an individual workspace
  */
 export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
-  bannerProps,
   scheduleProps,
   handleStart,
   handleStop,
   handleDelete,
   handleUpdate,
   handleCancel,
+  handleChangeVersion,
   workspace,
   isUpdating,
   resources,
@@ -83,6 +80,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   buildInfo,
   applicationsHost,
   template,
+  quota_budget,
 }) => {
   const { t } = useTranslation("workspacePage")
   const styles = useStyles()
@@ -119,13 +117,9 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
     />
   )
 
-  let buildTimeEstimate: number | undefined = undefined
-  let isTransitioning: boolean | undefined = undefined
+  let transitionStats: TypesGen.TransitionStats | undefined = undefined
   if (template !== undefined) {
-    ;[buildTimeEstimate, isTransitioning] = EstimateTransitionTime(
-      template,
-      workspace,
-    )
+    transitionStats = ActiveTransition(template, workspace)
   }
 
   return (
@@ -151,6 +145,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               handleDelete={handleDelete}
               handleUpdate={handleUpdate}
               handleCancel={handleCancel}
+              handleChangeVersion={handleChangeVersion}
               isUpdating={isUpdating}
             />
           </Stack>
@@ -188,23 +183,21 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
         {cancellationError}
         {workspaceRefreshWarning}
 
-        <WorkspaceScheduleBanner
-          isLoading={bannerProps.isLoading}
-          onExtend={bannerProps.onExtend}
-          workspace={workspace}
-        />
-
         <WorkspaceDeletedBanner
           workspace={workspace}
           handleClick={() => navigate(`/templates`)}
         />
 
-        <WorkspaceStats workspace={workspace} handleUpdate={handleUpdate} />
+        <WorkspaceStats
+          workspace={workspace}
+          quota_budget={quota_budget}
+          handleUpdate={handleUpdate}
+        />
 
-        {isTransitioning !== undefined && isTransitioning && (
+        {transitionStats !== undefined && (
           <WorkspaceBuildProgress
             workspace={workspace}
-            buildEstimate={buildTimeEstimate}
+            transitionStats={transitionStats}
           />
         )}
 

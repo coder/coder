@@ -45,7 +45,11 @@ For more examples, see `coder port-forward --help`.
 ## Dashboard
 
 > To enable port forwarding via the dashboard, Coder must be configured with a
-> [wildcard access URL](../admin/configure.md#wildcard-access-url).
+> [wildcard access URL](../admin/configure.md#wildcard-access-url). If an access
+> URL is not specified, Coder will create [a publicly accessible URL](../admin/configure.md#tunnel)
+> to reverse proxy the deployment, and port forwarding will work. There is a
+> known limitation where if the port forwarding URL length is greater than 63
+> characters, port forwarding will not work.
 
 ### From an arbitrary port
 
@@ -57,13 +61,13 @@ One way to port forward in the dashboard is to use the "Port forward" button to 
 
 Another way to port forward is to configure a `coder_app` resource in the workspace's template. This approach shows a visual application icon in the dashboard. See the following `coder_app` example for a Node React app and note the `subdomain` and `share` settings:
 
-```sh
+```hcl
 # node app
 resource "coder_app" "node-react-app" {
-  agent_id = coder_agent.dev.id
-  name     = "node-react-app"
-  icon     = "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/React-icon.svg/2300px-React-icon.svg.png"
-  url      = "http://localhost:3000"
+  agent_id  = coder_agent.dev.id
+  slug      = "node-react-app"
+  icon      = "https://upload.wikimedia.org/wikipedia/commons/a/a7/React-icon.svg"
+  url       = "http://localhost:3000"
   subdomain = true
   share     = "authenticated"
 
@@ -71,7 +75,7 @@ resource "coder_app" "node-react-app" {
     url       = "http://localhost:3000/healthz"
     interval  = 10
     threshold = 30
-  }  
+  }
 
 }
 ```

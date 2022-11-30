@@ -15,6 +15,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -59,7 +60,7 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims, err := license.Parse(addLicense.License, api.Keys)
+	rawClaims, err := license.ParseRaw(addLicense.License, api.Keys)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid license",
@@ -67,7 +68,7 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	exp, ok := claims["exp"].(float64)
+	exp, ok := rawClaims["exp"].(float64)
 	if !ok {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid license",
@@ -77,10 +78,24 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 	}
 	expTime := time.Unix(int64(exp), 0)
 
+	claims, err := license.ParseClaims(addLicense.License, api.Keys)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid license",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	id, err := uuid.Parse(claims.ID)
 	dl, err := api.Database.InsertLicense(ctx, database.InsertLicenseParams{
 		UploadedAt: database.Now(),
 		JWT:        addLicense.License,
 		Exp:        expTime,
+		Uuid: uuid.NullUUID{
+			UUID:  id,
+			Valid: err == nil,
+		},
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -103,7 +118,7 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 		// don't fail the HTTP request, since we did write it successfully to the database
 	}
 
-	httpapi.Write(ctx, rw, http.StatusCreated, convertLicense(dl, claims))
+	httpapi.Write(ctx, rw, http.StatusCreated, convertLicense(dl, rawClaims))
 }
 
 func (api *API) licenses(rw http.ResponseWriter, r *http.Request) {
@@ -189,6 +204,7 @@ func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {
 func convertLicense(dl database.License, c jwt.MapClaims) codersdk.License {
 	return codersdk.License{
 		ID:         dl.ID,
+		UUID:       dl.Uuid.UUID,
 		UploadedAt: dl.UploadedAt,
 		Claims:     c,
 	}

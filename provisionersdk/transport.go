@@ -2,10 +2,11 @@ package provisionersdk
 
 import (
 	"context"
-	"io"
 	"net"
+	"sync"
 
 	"github.com/hashicorp/yamux"
+	"github.com/valyala/fasthttp/fasthttputil"
 	"storj.io/drpc"
 	"storj.io/drpc/drpcconn"
 )
@@ -16,24 +17,8 @@ const (
 	MaxMessageSize = 4 << 20
 )
 
-// TransportPipe creates an in-memory pipe for dRPC transport.
-func TransportPipe() (*yamux.Session, *yamux.Session) {
-	c1, c2 := net.Pipe()
-	yamuxConfig := yamux.DefaultConfig()
-	yamuxConfig.LogOutput = io.Discard
-	client, err := yamux.Client(c1, yamuxConfig)
-	if err != nil {
-		panic(err)
-	}
-	server, err := yamux.Server(c2, yamuxConfig)
-	if err != nil {
-		panic(err)
-	}
-	return client, server
-}
-
-// Conn returns a multiplexed dRPC connection from a yamux session.
-func Conn(session *yamux.Session) drpc.Conn {
+// MultiplexedConn returns a multiplexed dRPC connection from a yamux session.
+func MultiplexedConn(session *yamux.Session) drpc.Conn {
 	return &multiplexedDRPC{session}
 }
 
@@ -74,6 +59,65 @@ func (m *multiplexedDRPC) NewStream(ctx context.Context, rpc string, enc drpc.En
 		go func() {
 			<-stream.Context().Done()
 			_ = dConn.Close()
+		}()
+	}
+	return stream, err
+}
+
+func MemTransportPipe() (drpc.Conn, net.Listener) {
+	m := &memDRPC{
+		closed: make(chan struct{}),
+		l:      fasthttputil.NewInmemoryListener(),
+	}
+
+	return m, m.l
+}
+
+type memDRPC struct {
+	closeOnce sync.Once
+	closed    chan struct{}
+	l         *fasthttputil.InmemoryListener
+}
+
+func (m *memDRPC) Close() error {
+	err := m.l.Close()
+	m.closeOnce.Do(func() { close(m.closed) })
+	return err
+}
+
+func (m *memDRPC) Closed() <-chan struct{} {
+	return m.closed
+}
+
+func (m *memDRPC) Invoke(ctx context.Context, rpc string, enc drpc.Encoding, inMessage, outMessage drpc.Message) error {
+	conn, err := m.l.Dial()
+	if err != nil {
+		return err
+	}
+
+	dConn := drpcconn.New(conn)
+	defer func() {
+		_ = dConn.Close()
+		_ = conn.Close()
+	}()
+	return dConn.Invoke(ctx, rpc, enc, inMessage, outMessage)
+}
+
+func (m *memDRPC) NewStream(ctx context.Context, rpc string, enc drpc.Encoding) (drpc.Stream, error) {
+	conn, err := m.l.Dial()
+	if err != nil {
+		return nil, err
+	}
+	dConn := drpcconn.New(conn)
+	stream, err := dConn.NewStream(ctx, rpc, enc)
+	if err == nil {
+		go func() {
+			select {
+			case <-stream.Context().Done():
+			case <-m.closed:
+			}
+			_ = dConn.Close()
+			_ = conn.Close()
 		}()
 	}
 	return stream, err

@@ -40,8 +40,8 @@ func TestTemplatePush(t *testing.T) {
 
 		// Create new template version with a new parameter
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
-			Parse:     createTestParseResponse(),
-			Provision: echo.ProvisionComplete,
+			Parse:          createTestParseResponse(),
+			ProvisionApply: echo.ProvisionComplete,
 		})
 		cmd, root := clitest.New(t, "templates", "push", template.Name, "-y", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
@@ -91,8 +91,8 @@ func TestTemplatePush(t *testing.T) {
 
 		// Remove the param
 		source = clitest.CreateTemplateVersionSource(t, &echo.Responses{
-			Parse:     echo.ParseComplete,
-			Provision: echo.ProvisionComplete,
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ProvisionComplete,
 		})
 
 		cmd, root = clitest.New(t, "templates", "push", template.Name, "-y", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
@@ -119,8 +119,8 @@ func TestTemplatePush(t *testing.T) {
 
 		// Test the cli command.
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
-			Parse:     echo.ParseComplete,
-			Provision: echo.ProvisionComplete,
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ProvisionComplete,
 		})
 		cmd, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example")
 		clitest.SetupConfig(t, client, root)
@@ -165,8 +165,8 @@ func TestTemplatePush(t *testing.T) {
 
 		// Test the cli command.
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
-			Parse:     echo.ParseComplete,
-			Provision: echo.ProvisionComplete,
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ProvisionComplete,
 		})
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID,

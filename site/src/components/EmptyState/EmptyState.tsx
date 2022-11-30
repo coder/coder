@@ -2,7 +2,6 @@ import Box from "@material-ui/core/Box"
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import { FC, ReactNode } from "react"
-import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { combineClasses } from "../../util/combineClasses"
 
 export interface EmptyStateProps {
@@ -10,9 +9,9 @@ export interface EmptyStateProps {
   message: string
   /** Longer optional description to display below the message */
   description?: string | React.ReactNode
-  descriptionClassName?: string
   cta?: ReactNode
   className?: string
+  image?: ReactNode
 }
 
 /**
@@ -26,63 +25,54 @@ export interface EmptyStateProps {
 export const EmptyState: FC<React.PropsWithChildren<EmptyStateProps>> = (
   props,
 ) => {
-  const {
-    message,
-    description,
-    cta,
-    descriptionClassName,
-    className,
-    ...boxProps
-  } = props
+  const { message, description, cta, className, image, ...boxProps } = props
   const styles = useStyles()
 
   return (
     <Box className={combineClasses([styles.root, className])} {...boxProps}>
-      <div className={styles.header}>
-        <Typography variant="h5" className={styles.title}>
-          {message}
+      <Typography variant="h5" className={styles.title}>
+        {message}
+      </Typography>
+      {description && (
+        <Typography
+          variant="body2"
+          color="textSecondary"
+          className={styles.description}
+        >
+          {description}
         </Typography>
-        {description && (
-          <Typography
-            variant="body2"
-            color="textSecondary"
-            className={combineClasses([
-              styles.description,
-              descriptionClassName,
-            ])}
-          >
-            {description}
-          </Typography>
-        )}
-      </div>
-      {cta}
+      )}
+      {cta && <div className={styles.cta}>{cta}</div>}
+      {image}
     </Box>
   )
 }
 
-const useStyles = makeStyles(
-  (theme) => ({
-    root: {
-      display: "flex",
-      flexDirection: "column",
-      justifyContent: "center",
-      alignItems: "center",
-      textAlign: "center",
-      minHeight: 300,
-      padding: theme.spacing(3),
-      fontFamily: MONOSPACE_FONT_FAMILY,
-    },
-    header: {
-      marginBottom: theme.spacing(3),
-    },
-    title: {
-      fontWeight: 600,
-      fontFamily: "inherit",
-    },
-    description: {
-      marginTop: theme.spacing(1),
-      fontFamily: "inherit",
-    },
-  }),
-  { name: "EmptyState" },
-)
+const useStyles = makeStyles((theme) => ({
+  root: {
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    alignItems: "center",
+    textAlign: "center",
+    minHeight: 360,
+    padding: theme.spacing(10, 5),
+    position: "relative",
+  },
+
+  title: {
+    fontSize: theme.spacing(3),
+  },
+
+  description: {
+    marginTop: theme.spacing(1.5),
+    fontSize: theme.spacing(2),
+    lineHeight: "140%",
+    maxWidth: theme.spacing(60),
+  },
+
+  cta: {
+    marginTop: theme.spacing(4),
+  },
+}))

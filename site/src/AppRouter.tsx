@@ -30,7 +30,6 @@ const NotFoundPage = lazy(() => import("./pages/404Page/404Page"))
 const CliAuthenticationPage = lazy(
   () => import("./pages/CliAuthPage/CliAuthPage"),
 )
-const HealthzPage = lazy(() => import("./pages/HealthzPage/HealthzPage"))
 const AccountPage = lazy(
   () => import("./pages/UserSettingsPage/AccountPage/AccountPage"),
 )
@@ -47,6 +46,9 @@ const WorkspaceBuildPage = lazy(
   () => import("./pages/WorkspaceBuildPage/WorkspaceBuildPage"),
 )
 const WorkspacePage = lazy(() => import("./pages/WorkspacePage/WorkspacePage"))
+const WorkspaceChangeVersionPage = lazy(
+  () => import("./pages/WorkspaceChangeVersionPage/WorkspaceChangeVersionPage"),
+)
 const WorkspaceSchedulePage = lazy(
   () => import("./pages/WorkspaceSchedulePage/WorkspaceSchedulePage"),
 )
@@ -84,6 +86,9 @@ const NetworkSettingsPage = lazy(
   () => import("./pages/DeploySettingsPage/NetworkSettingsPage"),
 )
 const GitAuthPage = lazy(() => import("./pages/GitAuthPage/GitAuthPage"))
+const TemplateVersionPage = lazy(
+  () => import("./pages/TemplateVersionPage/TemplateVersionPage"),
+)
 
 export const AppRouter: FC = () => {
   const xServices = useContext(XServiceContext)
@@ -107,7 +112,6 @@ export const AppRouter: FC = () => {
 
         <Route path="login" element={<LoginPage />} />
         <Route path="setup" element={<SetupPage />} />
-        <Route path="healthz" element={<HealthzPage />} />
         <Route
           path="cli-auth"
           element={
@@ -125,16 +129,14 @@ export const AppRouter: FC = () => {
           }
         />
 
-        <Route path="workspaces">
-          <Route
-            index
-            element={
-              <AuthAndFrame>
-                <WorkspacesPage />
-              </AuthAndFrame>
-            }
-          />
-        </Route>
+        <Route
+          path="workspaces"
+          element={
+            <AuthAndFrame>
+              <WorkspacesPage />
+            </AuthAndFrame>
+          }
+        />
 
         <Route path="templates">
           <Route
@@ -183,6 +185,16 @@ export const AppRouter: FC = () => {
                 </RequireAuth>
               }
             />
+            <Route path="versions">
+              <Route
+                path=":version"
+                element={
+                  <AuthAndFrame>
+                    <TemplateVersionPage />
+                  </AuthAndFrame>
+                }
+              />
+            </Route>
           </Route>
         </Route>
 
@@ -351,6 +363,7 @@ export const AppRouter: FC = () => {
                 </AuthAndFrame>
               }
             />
+
             <Route
               path="schedule"
               element={
@@ -375,6 +388,15 @@ export const AppRouter: FC = () => {
                 <AuthAndFrame>
                   <WorkspaceBuildPage />
                 </AuthAndFrame>
+              }
+            />
+
+            <Route
+              path="change-version"
+              element={
+                <RequireAuth>
+                  <WorkspaceChangeVersionPage />
+                </RequireAuth>
               }
             />
           </Route>

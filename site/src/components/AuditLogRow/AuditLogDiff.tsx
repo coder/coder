@@ -89,6 +89,7 @@ const useStyles = makeStyles((theme) => ({
     paddingRight: theme.spacing(2),
     lineHeight: "160%",
     alignSelf: "stretch",
+    overflowWrap: "anywhere",
   },
 
   diffOld: {

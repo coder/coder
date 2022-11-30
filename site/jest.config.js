@@ -18,7 +18,6 @@ module.exports = {
       coverageReporters: ["text", "lcov"],
       displayName: "test",
       preset: "ts-jest",
-
       roots: ["<rootDir>"],
       setupFilesAfterEnv: ["./jest.setup.ts"],
       transform: {
@@ -26,7 +25,7 @@ module.exports = {
       },
       testEnvironment: "jsdom",
       testRegex: "(/__tests__/.*|(\\.|/)(test|spec))\\.tsx?$",
-      testPathIgnorePatterns: ["/node_modules/", "/__tests__/fakes", "/e2e/"],
+      testPathIgnorePatterns: ["/node_modules/", "/e2e/"],
       moduleDirectories: ["node_modules", "<rootDir>/src"],
       moduleNameMapper: {
         "\\.css$": "<rootDir>/src/testHelpers/styleMock.ts",
@@ -62,16 +61,5 @@ module.exports = {
     "!<rootDir>/jest.config.js",
     "!<rootDir>/out/**/*.*",
     "!<rootDir>/storybook-static/**/*.*",
-  ],
-  reporters: [
-    "default",
-    [
-      "jest-junit",
-      {
-        suiteName: "Front-end Jest Tests",
-        outputDirectory: "./test-results",
-        outputName: "junit.xml",
-      },
-    ],
   ],
 }

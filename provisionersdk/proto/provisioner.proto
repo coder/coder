@@ -40,6 +40,9 @@ message Agent {
         string token = 9;
         string instance_id = 10;
     }
+	int32 connection_timeout_seconds = 11;
+	string troubleshooting_url = 12;
+	string motd_file = 13;
 }
 
 enum AppSharingLevel {
@@ -85,6 +88,7 @@ message Resource {
     bool hide = 5;
     string icon = 6;
     string instance_type = 7;
+    int32 daily_cost = 8;
 }
 
 // ParameterOption represents a singular option that a parameter may expose.
@@ -122,6 +126,7 @@ enum WorkspaceTransition {
 }
 
 // Provision consumes source-code from a directory to produce resources.
+// Exactly one of Plan or Apply must be provided in a single session.
 message Provision {
     message Metadata {
         string coder_url = 1;
@@ -132,19 +137,32 @@ message Provision {
         string workspace_owner_id = 6;
         string workspace_owner_email = 7;
     }
-    message Start {
+
+    // Config represents execution configuration shared by both Plan and
+    // Apply commands.
+    message Config {
         string directory = 1;
+        bytes state = 2;
+        Metadata metadata = 3;
+    }
+
+    message Plan {
+        Config config = 1;
         repeated ParameterValue deprecated_parameter_values = 2;
         repeated ParameterValue parameter_values = 3;
-        Metadata metadata = 4;
-        bytes state = 5;
-        bool dry_run = 6;
     }
+
+    message Apply {
+        Config config = 1;
+        bytes plan = 2;
+    }
+
     message Cancel {}
     message Request {
         oneof type {
-            Start start = 1;
-            Cancel cancel = 2;
+            Plan plan = 1;
+            Apply apply = 2;
+            Cancel cancel = 3;
         }
     }
     message Complete {
@@ -152,6 +170,7 @@ message Provision {
         string error = 2;
         repeated Resource resources = 3;
         repeated Parameter parameters = 4;
+        bytes plan = 5;
     }
     message Response {
         oneof type {

@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/enterprise/audit"
 	"github.com/coder/coder/enterprise/audit/backends"
 	"github.com/coder/coder/enterprise/coderd"
+	"github.com/coder/coder/enterprise/trialer"
 	"github.com/coder/coder/tailnet"
 
 	agpl "github.com/coder/coder/cli"
@@ -57,11 +58,12 @@ func server() *cobra.Command {
 			)
 		}
 
+		options.TrialGenerator = trialer.New(options.Database, "https://v2-licensor.coder.com/trial", coderd.Keys)
+
 		o := &coderd.Options{
 			AuditLogging:           options.DeploymentConfig.AuditLogging.Value,
 			BrowserOnly:            options.DeploymentConfig.BrowserOnly.Value,
 			SCIMAPIKey:             []byte(options.DeploymentConfig.SCIMAPIKey.Value),
-			UserWorkspaceQuota:     options.DeploymentConfig.UserWorkspaceQuota.Value,
 			RBAC:                   true,
 			DERPServerRelayAddress: options.DeploymentConfig.DERP.Server.RelayURL.Value,
 			DERPServerRegionID:     options.DeploymentConfig.DERP.Server.RegionID.Value,

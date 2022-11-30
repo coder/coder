@@ -242,7 +242,11 @@ func (c *Cache) TemplateUniqueUsers(id uuid.UUID) (int, bool) {
 }
 
 func (c *Cache) TemplateBuildTimeStats(id uuid.UUID) codersdk.TemplateBuildTimeStats {
-	var unknown codersdk.TemplateBuildTimeStats
+	unknown := codersdk.TemplateBuildTimeStats{
+		codersdk.WorkspaceTransitionStart:  {},
+		codersdk.WorkspaceTransitionStop:   {},
+		codersdk.WorkspaceTransitionDelete: {},
+	}
 
 	m := c.templateAverageBuildTime.Load()
 	if m == nil {
@@ -256,7 +260,7 @@ func (c *Cache) TemplateBuildTimeStats(id uuid.UUID) codersdk.TemplateBuildTimeS
 		return unknown
 	}
 
-	convertMedian := func(m float64) *int64 {
+	convertMillis := func(m float64) *int64 {
 		if m <= 0 {
 			return nil
 		}
@@ -265,8 +269,17 @@ func (c *Cache) TemplateBuildTimeStats(id uuid.UUID) codersdk.TemplateBuildTimeS
 	}
 
 	return codersdk.TemplateBuildTimeStats{
-		StartMillis:  convertMedian(resp.StartMedian),
-		StopMillis:   convertMedian(resp.StopMedian),
-		DeleteMillis: convertMedian(resp.DeleteMedian),
+		codersdk.WorkspaceTransitionStart: {
+			P50: convertMillis(resp.Start50),
+			P95: convertMillis(resp.Start95),
+		},
+		codersdk.WorkspaceTransitionStop: {
+			P50: convertMillis(resp.Stop50),
+			P95: convertMillis(resp.Stop95),
+		},
+		codersdk.WorkspaceTransitionDelete: {
+			P50: convertMillis(resp.Delete50),
+			P95: convertMillis(resp.Delete95),
+		},
 	}
 }

@@ -1,79 +1,106 @@
 import LinearProgress from "@material-ui/core/LinearProgress"
 import makeStyles from "@material-ui/core/styles/makeStyles"
-import { Template, Workspace } from "api/typesGenerated"
+import { TransitionStats, Template, Workspace } from "api/typesGenerated"
 import dayjs, { Dayjs } from "dayjs"
 import { FC, useEffect, useState } from "react"
-import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 
 import duration from "dayjs/plugin/duration"
 
 dayjs.extend(duration)
 
+// ActiveTransition gets the build estimate for the workspace,
+// if it is in a transition state.
+export const ActiveTransition = (
+  template: Template,
+  workspace: Workspace,
+): TransitionStats | undefined => {
+  const status = workspace.latest_build.status
+
+  switch (status) {
+    case "starting":
+      return template.build_time_stats.start
+    case "stopping":
+      return template.build_time_stats.stop
+    case "deleting":
+      return template.build_time_stats.delete
+    default:
+      return undefined
+  }
+}
+
 const estimateFinish = (
   startedAt: Dayjs,
-  buildEstimate: number,
-): [number, string] => {
-  const realPercentage = dayjs().diff(startedAt) / buildEstimate
+  p50: number,
+  p95: number,
+): [number | undefined, string] => {
+  const sinceStart = dayjs().diff(startedAt)
+  const secondsLeft = (est: number) =>
+    Math.max(
+      Math.ceil(dayjs.duration((1 - sinceStart / est) * est).asSeconds()),
+      0,
+    )
 
-  const maxPercentage = 1
-  if (realPercentage > maxPercentage) {
-    return [maxPercentage * 100, "Any moment now..."]
-  }
+  const lowGuess = secondsLeft(p50)
+  const highGuess = secondsLeft(p95)
 
-  return [
-    realPercentage * 100,
-    `~${Math.ceil(
-      dayjs.duration((1 - realPercentage) * buildEstimate).asSeconds(),
-    )} seconds remaining...`,
+  const anyMomentNow: [number | undefined, string] = [
+    undefined,
+    "Any moment now...",
   ]
+
+  const p50percent = (sinceStart * 100) / p50
+  if (highGuess <= 0) {
+    return anyMomentNow
+  }
+  const diff = highGuess - lowGuess
+  if (diff < 3) {
+    // If there is sufficient consistency, keep display simple.
+    return [p50percent, `${highGuess} seconds remaining...`]
+  }
+  return [p50percent, `Up to ${highGuess} seconds remaining...`]
 }
 
 export interface WorkspaceBuildProgressProps {
   workspace: Workspace
-  buildEstimate?: number
-}
-
-// EstimateTransitionTime gets the build estimate for the workspace,
-// if it is in a transition state.
-export const EstimateTransitionTime = (
-  template: Template,
-  workspace: Workspace,
-): [number | undefined, boolean] => {
-  switch (workspace.latest_build.status) {
-    case "starting":
-      return [template.build_time_stats.start_ms, true]
-    case "stopping":
-      return [template.build_time_stats.stop_ms, true]
-    case "deleting":
-      return [template.build_time_stats.delete_ms, true]
-    default:
-      // Not in a transition state
-      return [undefined, false]
-  }
+  transitionStats: TransitionStats
 }
 
 export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
   workspace,
-  buildEstimate,
+  transitionStats: transitionStats,
 }) => {
   const styles = useStyles()
   const job = workspace.latest_build.job
   const [progressValue, setProgressValue] = useState<number | undefined>(0)
+  const [progressText, setProgressText] = useState<string | undefined>(
+    "Finding ETA...",
+  )
 
   // By default workspace is updated every second, which can cause visual stutter
   // when the build estimate is a few seconds. The timer ensures no observable
   // stutter in all cases.
   useEffect(() => {
     const updateProgress = () => {
-      if (job.status !== "running" || buildEstimate === undefined) {
+      if (
+        job.status !== "running" ||
+        transitionStats.P50 === undefined ||
+        transitionStats.P95 === undefined
+      ) {
         setProgressValue(undefined)
+        setProgressText(undefined)
         return
       }
-      const est = estimateFinish(dayjs(job.started_at), buildEstimate)[0]
+
+      const [est, text] = estimateFinish(
+        dayjs(job.started_at),
+        transitionStats.P50,
+        transitionStats.P95,
+      )
       setProgressValue(est)
+      setProgressText(text)
     }
     setTimeout(updateProgress, 5)
-  }, [progressValue, job, buildEstimate])
+  }, [progressValue, job, transitionStats])
 
   return (
     <div className={styles.stack}>
@@ -84,9 +111,7 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
           // (e.g. the build isn't yet running). If we flicker from the
           // indeterminate bar to the determinate bar, the vigilant user
           // perceives the bar jumping from 100% to 0%.
-          progressValue !== undefined &&
-          progressValue < 100 &&
-          buildEstimate !== undefined
+          progressValue !== undefined && progressValue < 100
             ? "determinate"
             : "indeterminate"
         }
@@ -97,17 +122,7 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
       />
       <div className={styles.barHelpers}>
         <div className={styles.label}>{`Build ${job.status}`}</div>
-        <div className={styles.label}>
-          {(() => {
-            if (job.status !== "running") {
-              return ""
-            } else if (buildEstimate !== undefined) {
-              return estimateFinish(dayjs(job.started_at), buildEstimate)[1]
-            } else {
-              return "Unknown ETA"
-            }
-          })()}
-        </div>
+        <div className={styles.label}>{progressText}</div>
       </div>
     </div>
   )
@@ -124,11 +139,10 @@ const useStyles = makeStyles((theme) => ({
   barHelpers: {
     display: "flex",
     justifyContent: "space-between",
+    marginTop: theme.spacing(0.5),
   },
   label: {
-    fontFamily: MONOSPACE_FONT_FAMILY,
     fontSize: 12,
-    textTransform: "uppercase",
     display: "block",
     fontWeight: 600,
     color: theme.palette.text.secondary,

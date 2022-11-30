@@ -1,6 +1,6 @@
-import { getAuditLogs, getAuditLogsCount } from "api/api"
+import { getAuditLogs } from "api/api"
 import { getErrorMessage } from "api/errors"
-import { AuditLog } from "api/typesGenerated"
+import { AuditLog, AuditLogResponse } from "api/typesGenerated"
 import { displayError } from "components/GlobalSnackbar/utils"
 import { getPaginationData } from "components/PaginationWidget/utils"
 import {
@@ -29,10 +29,7 @@ export const auditMachine = createMachine(
       context: {} as AuditContext,
       services: {} as {
         loadAuditLogsAndCount: {
-          data: {
-            auditLogs: AuditLog[]
-            count: number
-          }
+          data: AuditLogResponse
         }
       },
       events: {} as
@@ -59,17 +56,17 @@ export const auditMachine = createMachine(
         invoke: {
           src: "loadAuditLogsAndCount",
           onDone: {
-            target: "success",
+            target: "idle",
             actions: ["assignAuditLogsAndCount"],
           },
           onError: {
-            target: "error",
+            target: "idle",
             actions: ["displayApiError"],
           },
         },
-        onDone: "success",
+        onDone: "idle",
       },
-      success: {
+      idle: {
         on: {
           UPDATE_PAGE: {
             actions: ["updateURL"],
@@ -80,9 +77,6 @@ export const auditMachine = createMachine(
           },
         },
       },
-      error: {
-        type: "final",
-      },
     },
   },
   {
@@ -91,7 +85,7 @@ export const auditMachine = createMachine(
         auditLogs: (_) => undefined,
       }),
       assignAuditLogsAndCount: assign({
-        auditLogs: (_, event) => event.data.auditLogs,
+        auditLogs: (_, event) => event.data.audit_logs,
         count: (_, event) => event.data.count,
       }),
       assignPaginationRef: assign({
@@ -117,21 +111,11 @@ export const auditMachine = createMachine(
       loadAuditLogsAndCount: async (context) => {
         if (context.paginationRef) {
           const { offset, limit } = getPaginationData(context.paginationRef)
-          const [auditLogs, count] = await Promise.all([
-            getAuditLogs({
-              offset,
-              limit,
-              q: context.filter,
-            }).then((data) => data.audit_logs),
-            getAuditLogsCount({
-              q: context.filter,
-            }).then((data) => data.count),
-          ])
-
-          return {
-            auditLogs,
-            count,
-          }
+          return getAuditLogs({
+            offset,
+            limit,
+            q: context.filter,
+          })
         } else {
           throw new Error("Cannot get audit logs without pagination data")
         }

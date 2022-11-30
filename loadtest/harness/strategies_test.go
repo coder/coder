@@ -22,16 +22,22 @@ func Test_LinearExecutionStrategy(t *testing.T) {
 		lastSeenI int64 = -1
 		count     int64
 	)
-	runs := strategyTestData(100, func(_ context.Context, i int, _ io.Writer) error {
+	runs, fns := strategyTestData(100, func(_ context.Context, i int, _ io.Writer) error {
 		atomic.AddInt64(&count, 1)
 		swapped := atomic.CompareAndSwapInt64(&lastSeenI, int64(i-1), int64(i))
 		assert.True(t, swapped)
 		time.Sleep(2 * time.Millisecond)
+
+		if i%2 == 0 {
+			return xerrors.New("error")
+		}
 		return nil
 	})
+
 	strategy := harness.LinearExecutionStrategy{}
-	err := strategy.Execute(context.Background(), runs)
+	runErrs, err := strategy.Run(context.Background(), fns)
 	require.NoError(t, err)
+	require.Len(t, runErrs, 50)
 	require.EqualValues(t, 100, atomic.LoadInt64(&count))
 
 	lastStartTime := time.Time{}
@@ -44,15 +50,19 @@ func Test_LinearExecutionStrategy(t *testing.T) {
 
 //nolint:paralleltest // this tests uses timings to determine if it's working
 func Test_ConcurrentExecutionStrategy(t *testing.T) {
-	runs := strategyTestData(10, func(_ context.Context, i int, _ io.Writer) error {
+	runs, fns := strategyTestData(10, func(_ context.Context, i int, _ io.Writer) error {
 		time.Sleep(1 * time.Second)
+		if i%2 == 0 {
+			return xerrors.New("error")
+		}
 		return nil
 	})
 	strategy := harness.ConcurrentExecutionStrategy{}
 
 	startTime := time.Now()
-	err := strategy.Execute(context.Background(), runs)
+	runErrs, err := strategy.Run(context.Background(), fns)
 	require.NoError(t, err)
+	require.Len(t, runErrs, 5)
 
 	// Should've taken at least 900ms to run but less than 5 seconds.
 	require.True(t, time.Since(startTime) > 900*time.Millisecond)
@@ -68,8 +78,11 @@ func Test_ConcurrentExecutionStrategy(t *testing.T) {
 
 //nolint:paralleltest // this tests uses timings to determine if it's working
 func Test_ParallelExecutionStrategy(t *testing.T) {
-	runs := strategyTestData(10, func(_ context.Context, _ int, _ io.Writer) error {
+	runs, fns := strategyTestData(10, func(_ context.Context, i int, _ io.Writer) error {
 		time.Sleep(1 * time.Second)
+		if i%2 == 0 {
+			return xerrors.New("error")
+		}
 		return nil
 	})
 	strategy := harness.ParallelExecutionStrategy{
@@ -78,8 +91,9 @@ func Test_ParallelExecutionStrategy(t *testing.T) {
 
 	startTime := time.Now()
 	time.Sleep(time.Millisecond)
-	err := strategy.Execute(context.Background(), runs)
+	runErrs, err := strategy.Run(context.Background(), fns)
 	require.NoError(t, err)
+	require.Len(t, runErrs, 5)
 
 	// Should've taken at least 1900ms to run but less than 8 seconds.
 	require.True(t, time.Since(startTime) > 1900*time.Millisecond)
@@ -112,7 +126,7 @@ func Test_ParallelExecutionStrategy(t *testing.T) {
 
 //nolint:paralleltest // this tests uses timings to determine if it's working
 func Test_TimeoutExecutionStrategy(t *testing.T) {
-	runs := strategyTestData(1, func(ctx context.Context, _ int, _ io.Writer) error {
+	runs, fns := strategyTestData(1, func(ctx context.Context, _ int, _ io.Writer) error {
 		ticker := time.NewTicker(500 * time.Millisecond)
 		defer ticker.Stop()
 
@@ -128,8 +142,9 @@ func Test_TimeoutExecutionStrategy(t *testing.T) {
 		Inner:   harness.LinearExecutionStrategy{},
 	}
 
-	err := strategy.Execute(context.Background(), runs)
+	runErrs, err := strategy.Run(context.Background(), fns)
 	require.NoError(t, err)
+	require.Len(t, runErrs, 0)
 
 	for _, run := range runs {
 		require.NoError(t, run.Result().Error)
@@ -138,7 +153,7 @@ func Test_TimeoutExecutionStrategy(t *testing.T) {
 
 //nolint:paralleltest // this tests uses timings to determine if it's working
 func Test_ShuffleExecutionStrategyWrapper(t *testing.T) {
-	runs := strategyTestData(100000, func(_ context.Context, i int, _ io.Writer) error {
+	runs, fns := strategyTestData(100000, func(_ context.Context, i int, _ io.Writer) error {
 		// t.Logf("run %d", i)
 		return nil
 	})
@@ -146,8 +161,9 @@ func Test_ShuffleExecutionStrategyWrapper(t *testing.T) {
 		Inner: harness.LinearExecutionStrategy{},
 	}
 
-	err := strategy.Execute(context.Background(), runs)
+	runErrs, err := strategy.Run(context.Background(), fns)
 	require.NoError(t, err)
+	require.Len(t, runErrs, 0)
 
 	// Ensure not in order by sorting the start time of each run.
 	unsortedTimes := make([]time.Time, len(runs))
@@ -164,12 +180,15 @@ func Test_ShuffleExecutionStrategyWrapper(t *testing.T) {
 	require.NotEqual(t, unsortedTimes, sortedTimes)
 }
 
-func strategyTestData(count int, runFn func(ctx context.Context, i int, logs io.Writer) error) []*harness.TestRun {
-	out := make([]*harness.TestRun, count)
+func strategyTestData(count int, runFn func(ctx context.Context, i int, logs io.Writer) error) ([]*harness.TestRun, []harness.TestFn) {
+	var (
+		runs = make([]*harness.TestRun, count)
+		fns  = make([]harness.TestFn, count)
+	)
 	for i := 0; i < count; i++ {
 		i := i
 
-		out[i] = harness.NewTestRun("test", strconv.Itoa(i), testFns{
+		runs[i] = harness.NewTestRun("test", strconv.Itoa(i), testFns{
 			RunFn: func(ctx context.Context, id string, logs io.Writer) error {
 				if runFn != nil {
 					return runFn(ctx, i, logs)
@@ -177,7 +196,8 @@ func strategyTestData(count int, runFn func(ctx context.Context, i int, logs io.
 				return nil
 			},
 		})
+		fns[i] = runs[i].Run
 	}
 
-	return out
+	return runs, fns
 }

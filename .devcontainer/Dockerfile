@@ -3,7 +3,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ENV EDITOR=vim
 
-RUN apt-get update && apt-get upgrade
+RUN apt-get update && apt-get upgrade --yes
 
 RUN apt-get install --yes \
         ca-certificates \

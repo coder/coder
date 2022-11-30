@@ -9,9 +9,14 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
+
+	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/loadtest/harness"
+	"github.com/coder/coder/loadtest/loadtestutil"
 )
 
 type Runner struct {
@@ -32,6 +37,14 @@ func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 
 // Run implements Runnable.
 func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	logs = loadtestutil.NewSyncWriter(logs)
+	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug)
+	r.client.Logger = logger
+	r.client.LogBodies = true
+
 	req := r.cfg.Request
 	if req.Name == "" {
 		randName, err := cryptorand.HexString(8)
@@ -41,14 +54,13 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 		req.Name = "test-" + randName
 	}
 
-	after := time.Now()
 	workspace, err := r.client.CreateWorkspace(ctx, r.cfg.OrganizationID, r.cfg.UserID, req)
 	if err != nil {
 		return xerrors.Errorf("create workspace: %w", err)
 	}
 	r.workspaceID = workspace.ID
 
-	err = waitForBuild(ctx, logs, r.client, workspace.LatestBuild.ID, after)
+	err = waitForBuild(ctx, logs, r.client, workspace.LatestBuild.ID)
 	if err != nil {
 		return xerrors.Errorf("wait for build: %w", err)
 	}
@@ -67,8 +79,9 @@ func (r *Runner) Cleanup(ctx context.Context, _ string) error {
 	if r.workspaceID == uuid.Nil {
 		return nil
 	}
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
 
-	after := time.Now()
 	build, err := r.client.CreateWorkspaceBuild(ctx, r.workspaceID, codersdk.CreateWorkspaceBuildRequest{
 		Transition: codersdk.WorkspaceTransitionDelete,
 	})
@@ -78,7 +91,7 @@ func (r *Runner) Cleanup(ctx context.Context, _ string) error {
 
 	// TODO: capture these logs
 	logs := io.Discard
-	err = waitForBuild(ctx, logs, r.client, build.ID, after)
+	err = waitForBuild(ctx, logs, r.client, build.ID)
 	if err != nil {
 		return xerrors.Errorf("wait for build: %w", err)
 	}
@@ -86,7 +99,9 @@ func (r *Runner) Cleanup(ctx context.Context, _ string) error {
 	return nil
 }
 
-func waitForBuild(ctx context.Context, w io.Writer, client *codersdk.Client, buildID uuid.UUID, after time.Time) error {
+func waitForBuild(ctx context.Context, w io.Writer, client *codersdk.Client, buildID uuid.UUID) error {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
 	_, _ = fmt.Fprint(w, "Build is currently queued...")
 
 	// Wait for build to start.
@@ -106,7 +121,7 @@ func waitForBuild(ctx context.Context, w io.Writer, client *codersdk.Client, bui
 
 	_, _ = fmt.Fprintln(w, "\nBuild started! Streaming logs below:")
 
-	logs, closer, err := client.WorkspaceBuildLogsAfter(ctx, buildID, after)
+	logs, closer, err := client.WorkspaceBuildLogsAfter(ctx, buildID, 0)
 	if err != nil {
 		return xerrors.Errorf("start streaming build logs: %w", err)
 	}
@@ -156,6 +171,8 @@ func waitForBuild(ctx context.Context, w io.Writer, client *codersdk.Client, bui
 }
 
 func waitForAgents(ctx context.Context, w io.Writer, client *codersdk.Client, workspaceID uuid.UUID) error {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
 	_, _ = fmt.Fprint(w, "Waiting for agents to connect...\n\n")
 
 	for {

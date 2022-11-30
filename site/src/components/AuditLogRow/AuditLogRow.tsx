@@ -1,7 +1,6 @@
 import Collapse from "@material-ui/core/Collapse"
 import { makeStyles } from "@material-ui/core/styles"
 import TableCell from "@material-ui/core/TableCell"
-import TableRow from "@material-ui/core/TableRow"
 import { AuditLog } from "api/typesGenerated"
 import {
   CloseDropdown,
@@ -9,18 +8,21 @@ import {
 } from "components/DropdownArrows/DropdownArrows"
 import { Pill } from "components/Pill/Pill"
 import { Stack } from "components/Stack/Stack"
+import { TimelineEntry } from "components/Timeline/TimelineEntry"
 import { UserAvatar } from "components/UserAvatar/UserAvatar"
 import { useState } from "react"
 import { PaletteIndex } from "theme/palettes"
 import userAgentParser from "ua-parser-js"
-import { combineClasses } from "util/combineClasses"
 import { AuditLogDiff } from "./AuditLogDiff"
 
 export const readableActionMessage = (auditLog: AuditLog): string => {
   let target = auditLog.resource_target.trim()
 
   // audit logs with a resource_type of workspace build use workspace name as a target
-  if (auditLog.resource_type === "workspace_build") {
+  if (
+    auditLog.resource_type === "workspace_build" &&
+    auditLog.additional_fields.workspaceName
+  ) {
     target = auditLog.additional_fields.workspaceName.trim()
   }
 
@@ -68,19 +70,16 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
   }
 
   return (
-    <TableRow
+    <TimelineEntry
       key={auditLog.id}
       data-testid={`audit-log-row-${auditLog.id}`}
-      className={styles.auditLogRow}
+      clickable={shouldDisplayDiff}
     >
       <TableCell className={styles.auditLogCell}>
         <Stack
           direction="row"
           alignItems="center"
-          className={combineClasses({
-            [styles.auditLogHeader]: true,
-            [styles.clickable]: shouldDisplayDiff,
-          })}
+          className={styles.auditLogHeader}
           tabIndex={0}
           onClick={toggle}
           onKeyDown={(event) => {
@@ -164,7 +163,7 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
           </Collapse>
         )}
       </TableCell>
-    </TableRow>
+    </TimelineEntry>
   )
 }
 
@@ -174,38 +173,8 @@ const useStyles = makeStyles((theme) => ({
     border: 0,
   },
 
-  auditLogRow: {
-    position: "relative",
-
-    "&:focus": {
-      outlineStyle: "solid",
-      outlineOffset: -1,
-      outlineWidth: 2,
-      outlineColor: theme.palette.secondary.dark,
-    },
-
-    "&:not(:last-child) td:before": {
-      position: "absolute",
-      top: 20,
-      left: 50,
-      display: "block",
-      content: "''",
-      height: "100%",
-      width: 2,
-      background: theme.palette.divider,
-    },
-  },
-
   auditLogHeader: {
     padding: theme.spacing(2, 4),
-  },
-
-  clickable: {
-    cursor: "pointer",
-
-    "&:hover": {
-      backgroundColor: theme.palette.action.hover,
-    },
   },
 
   auditLogHeaderInfo: {

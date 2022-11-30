@@ -35,7 +35,7 @@ describe("readableActionMessage()", () => {
 
     // Then
     expect(friendlyString).toBe(
-      "<strong>TestUser</strong> updated workspace <strong>bruno-dev</strong>",
+      "<strong>TestUser</strong> created workspace <strong>bruno-dev</strong>",
     )
   })
 })

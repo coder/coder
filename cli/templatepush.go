@@ -18,11 +18,12 @@ import (
 
 func templatePush() *cobra.Command {
 	var (
-		directory     string
-		versionName   string
-		provisioner   string
-		parameterFile string
-		alwaysPrompt  bool
+		directory       string
+		versionName     string
+		provisioner     string
+		parameterFile   string
+		alwaysPrompt    bool
+		provisionerTags []string
 	)
 
 	cmd := &cobra.Command{
@@ -75,6 +76,11 @@ func templatePush() *cobra.Command {
 			}
 			spin.Stop()
 
+			tags, err := ParseProvisionerTags(provisionerTags)
+			if err != nil {
+				return err
+			}
+
 			job, _, err := createValidTemplateVersion(cmd, createValidTemplateVersionArgs{
 				Name:            versionName,
 				Client:          client,
@@ -84,6 +90,7 @@ func templatePush() *cobra.Command {
 				ParameterFile:   parameterFile,
 				Template:        &template,
 				ReuseParameters: !alwaysPrompt,
+				ProvisionerTags: tags,
 			})
 			if err != nil {
 				return err

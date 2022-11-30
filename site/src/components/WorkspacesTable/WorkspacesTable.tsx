@@ -21,11 +21,12 @@ export interface WorkspacesTableProps {
   isLoading?: boolean
   workspaceRefs?: WorkspaceItemMachineRef[]
   filter?: string
+  isNonInitialPage: boolean
 }
 
 export const WorkspacesTable: FC<
   React.PropsWithChildren<WorkspacesTableProps>
-> = ({ isLoading, workspaceRefs, filter }) => {
+> = ({ isLoading, workspaceRefs, filter, isNonInitialPage }) => {
   return (
     <TableContainer>
       <Table>
@@ -44,6 +45,7 @@ export const WorkspacesTable: FC<
             isLoading={isLoading}
             workspaceRefs={workspaceRefs}
             filter={filter}
+            isNonInitialPage={isNonInitialPage}
           />
         </TableBody>
       </Table>

@@ -146,6 +146,6 @@ func genTemplateVersionSource() *echo.Responses {
 				},
 			},
 		},
-		Provision: echo.ProvisionComplete,
+		ProvisionApply: echo.ProvisionComplete,
 	}
 }

@@ -1,5 +1,8 @@
 import { useMachine } from "@xstate/react"
-import { getPaginationContext } from "components/PaginationWidget/utils"
+import {
+  getPaginationContext,
+  nonInitialPage,
+} from "components/PaginationWidget/utils"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { useSearchParams } from "react-router-dom"
@@ -24,8 +27,7 @@ const WorkspacesPage: FC = () => {
     },
   })
 
-  const { workspaceRefs, count, getWorkspacesError, getCountError } =
-    workspacesState.context
+  const { workspaceRefs, count, getWorkspacesError } = workspacesState.context
   const paginationRef = workspacesState.context
     .paginationRef as PaginationMachineRef
 
@@ -41,7 +43,6 @@ const WorkspacesPage: FC = () => {
         workspaceRefs={workspaceRefs}
         count={count}
         getWorkspacesError={getWorkspacesError}
-        getCountError={getCountError}
         onFilter={(query) => {
           send({
             type: "UPDATE_FILTER",
@@ -49,6 +50,7 @@ const WorkspacesPage: FC = () => {
           })
         }}
         paginationRef={paginationRef}
+        isNonInitialPage={nonInitialPage(searchParams)}
       />
     </>
   )
