@@ -32,10 +32,10 @@ export const WorkspacesTable: FC<
       <Table>
         <TableHead>
           <TableRow>
-            <TableCell width="25%">{Language.name}</TableCell>
-            <TableCell width="35%">{Language.template}</TableCell>
+            <TableCell width="30%">{Language.name}</TableCell>
+            <TableCell width="25%">{Language.template}</TableCell>
+            <TableCell width="25%">{Language.version}</TableCell>
             <TableCell width="20%">{Language.lastUsed}</TableCell>
-            <TableCell width="20%">{Language.version}</TableCell>
             <TableCell width="20%">{Language.status}</TableCell>
             <TableCell width="1%"></TableCell>
           </TableRow>

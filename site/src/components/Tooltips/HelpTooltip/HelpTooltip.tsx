@@ -4,6 +4,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import HelpIcon from "@material-ui/icons/HelpOutline"
 import OpenInNewIcon from "@material-ui/icons/OpenInNew"
 import React, { createContext, useContext, useRef, useState } from "react"
+import { combineClasses } from "util/combineClasses"
 import { Stack } from "../../Stack/Stack"
 
 type Icon = typeof HelpIcon
@@ -13,6 +14,9 @@ export interface HelpTooltipProps {
   // Useful to test on storybook
   open?: boolean
   size?: Size
+  icon?: Icon
+  iconClassName?: string
+  buttonClassName?: string
 }
 
 export const Language = {
@@ -66,7 +70,14 @@ export const HelpPopover: React.FC<
 
 export const HelpTooltip: React.FC<
   React.PropsWithChildren<HelpTooltipProps>
-> = ({ children, open, size = "medium" }) => {
+> = ({
+  children,
+  open,
+  size = "medium",
+  icon: Icon = HelpIcon,
+  iconClassName,
+  buttonClassName,
+}) => {
   const styles = useStyles({ size })
   const anchorRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(Boolean(open))
@@ -81,7 +92,7 @@ export const HelpTooltip: React.FC<
       <button
         ref={anchorRef}
         aria-describedby={id}
-        className={styles.button}
+        className={combineClasses([styles.button, buttonClassName])}
         onClick={(event) => {
           event.stopPropagation()
           setIsOpen(true)
@@ -94,7 +105,7 @@ export const HelpTooltip: React.FC<
         }}
         aria-label={Language.ariaLabel}
       >
-        <HelpIcon className={styles.icon} />
+        <Icon className={combineClasses([styles.icon, iconClassName])} />
       </button>
       <HelpPopover
         id={id}
