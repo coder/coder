@@ -2,10 +2,15 @@ import { FC } from "react"
 import { AuditLog } from "api/typesGenerated"
 import { Link as RouterLink } from "react-router-dom"
 import Link from "@material-ui/core/Link"
+import { makeStyles } from "@material-ui/core/styles"
+import i18next from "i18next"
 
 export const AuditLogDescription: FC<{ auditLog: AuditLog }> = ({
   auditLog,
 }): JSX.Element => {
+  const classes = useStyles()
+  const { t } = i18next
+
   let target = auditLog.resource_target.trim()
 
   // audit logs with a resource_type of workspace build use workspace name as a target
@@ -41,6 +46,18 @@ export const AuditLogDescription: FC<{ auditLog: AuditLog }> = ({
       ) : (
         <strong>{target}</strong>
       )}
+      {auditLog.is_deleted && (
+        <span className={classes.deletedLabel}>
+          <> {t("auditLog:table.logRow.deletedLabel")}</>
+        </span>
+      )}
     </span>
   )
 }
+
+const useStyles = makeStyles((theme) => ({
+  deletedLabel: {
+    ...theme.typography.caption,
+    color: theme.palette.text.secondary,
+  },
+}))

@@ -105,6 +105,7 @@ type AuditLog struct {
 	AdditionalFields json.RawMessage `json:"additional_fields"`
 	Description      string          `json:"description"`
 	ResourceLink     string          `json:"resource_link"`
+	IsDeleted        bool            `json:"is_deleted"`
 
 	User *User `json:"user"`
 }

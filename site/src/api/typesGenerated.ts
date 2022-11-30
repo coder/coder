@@ -68,6 +68,7 @@ export interface AuditLog {
   readonly additional_fields: Record<string, string>
   readonly description: string
   readonly resource_link: string
+  readonly is_deleted: boolean
   readonly user?: User
 }
 
