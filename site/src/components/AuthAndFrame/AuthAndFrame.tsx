@@ -7,6 +7,7 @@ import { Footer } from "../Footer/Footer"
 import { Navbar } from "../Navbar/Navbar"
 import { RequireAuth } from "../RequireAuth/RequireAuth"
 import { UpdateCheckBanner } from "components/UpdateCheckBanner/UpdateCheckBanner"
+import { Margins } from "components/Margins/Margins"
 
 interface AuthAndFrameProps {
   children: JSX.Element
@@ -16,7 +17,7 @@ interface AuthAndFrameProps {
  * Wraps page in RequireAuth and renders it between Navbar and Footer
  */
 export const AuthAndFrame: FC<AuthAndFrameProps> = ({ children }) => {
-  const styles = useStyles()
+  const styles = useStyles({})
   const xServices = useContext(XServiceContext)
   const [buildInfoState] = useActor(xServices.buildInfoXService)
   const [updateCheckState] = useActor(xServices.updateCheckXService)
@@ -25,7 +26,13 @@ export const AuthAndFrame: FC<AuthAndFrameProps> = ({ children }) => {
     <RequireAuth>
       <div className={styles.site}>
         <Navbar />
-        <UpdateCheckBanner updateCheck={updateCheckState.context.updateCheck} />
+        <div className={styles.siteBanner}>
+          <Margins>
+            <UpdateCheckBanner
+              updateCheck={updateCheckState.context.updateCheck}
+            />
+          </Margins>
+        </div>
         <div className={styles.siteContent}>
           <Suspense fallback={<Loader />}>{children}</Suspense>
         </div>
@@ -35,13 +42,18 @@ export const AuthAndFrame: FC<AuthAndFrameProps> = ({ children }) => {
   )
 }
 
-const useStyles = makeStyles(() => ({
+const useStyles = makeStyles((theme) => ({
   site: {
     display: "flex",
     minHeight: "100vh",
     flexDirection: "column",
   },
+  siteBanner: {
+    marginTop: theme.spacing(2),
+  },
   siteContent: {
     flex: 1,
+    // Accommodate for banner margin since it is dismissible.
+    marginTop: -theme.spacing(2),
   },
 }))

@@ -1,4 +1,4 @@
-import { useState, FC } from "react"
+import { useState, FC, Children } from "react"
 import Collapse from "@material-ui/core/Collapse"
 import { Stack } from "components/Stack/Stack"
 import { makeStyles, Theme } from "@material-ui/core/styles"
@@ -11,6 +11,7 @@ import { severityConstants } from "./severityConstants"
 import { AlertBannerCtas } from "./AlertBannerCtas"
 
 /**
+ * @param children: the children to be displayed in the alert
  * @param severity: the level of alert severity (see ./severityTypes.ts)
  * @param text: default text to be displayed to the user; useful for warnings or as a fallback error message
  * @param error: should be passed in if the severity is 'Error'; warnings can use 'text' instead
@@ -31,12 +32,16 @@ export const AlertBanner: FC<React.PropsWithChildren<AlertBannerProps>> = ({
 
   const [open, setOpen] = useState(true)
 
+  // Set a fallback message if no text or children are provided.
+  const defaultMessage =
+    text ??
+    (Children.count(children) === 0
+      ? t("warningsAndErrors.somethingWentWrong")
+      : "")
+
   // if an error is passed in, display that error, otherwise
   // display the text passed in, e.g. warning text
-  const alertMessage = getErrorMessage(
-    error,
-    text ?? t("warningsAndErrors.somethingWentWrong"),
-  )
+  const alertMessage = getErrorMessage(error, defaultMessage)
 
   // if we have an error, check if there's detail to display
   const detail = error ? getErrorDetail(error) : undefined
