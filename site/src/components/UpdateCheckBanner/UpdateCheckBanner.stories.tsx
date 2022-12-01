@@ -30,5 +30,5 @@ NoUpdateAvailable.args = {
 
 export const UpdateCheckError = Template.bind({})
 UpdateCheckError.args = {
-  error: new Error("Coder update check failed."),
+  error: new Error("Something went wrong."),
 }

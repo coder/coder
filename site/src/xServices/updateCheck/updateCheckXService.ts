@@ -4,7 +4,7 @@ import { AuthorizationResponse, UpdateCheckResponse } from "api/typesGenerated"
 
 export const checks = {
   viewUpdateCheck: "viewUpdateCheck",
-} as const
+}
 
 export const permissionsToCheck = {
   [checks.viewUpdateCheck]: {
@@ -13,7 +13,7 @@ export const permissionsToCheck = {
     },
     action: "read",
   },
-} as const
+}
 
 export type Permissions = Record<keyof typeof permissionsToCheck, boolean>
 
