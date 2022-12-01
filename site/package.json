@@ -98,7 +98,7 @@
     "@xstate/cli": "0.3.0",
     "canvas": "2.10.0",
     "chromatic": "6.11.4",
-    "eslint": "8.24.0",
+    "eslint": "8.28.0",
     "eslint-config-prettier": "8.5.0",
     "eslint-import-resolver-alias": "1.1.2",
     "eslint-import-resolver-typescript": "3.5.0",
