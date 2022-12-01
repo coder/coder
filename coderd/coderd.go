@@ -643,8 +643,8 @@ func compressHandler(h http.Handler) http.Handler {
 	return cmp.Handler(h)
 }
 
-// CreateInMemoryProvisionerDaemon is an in-memory connection to a provisionerd.  Useful when starting coderd and provisionerd
-// in the same process.
+// CreateInMemoryProvisionerDaemon is an in-memory connection to a provisionerd.
+// Useful when starting coderd and provisionerd in the same process.
 func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce time.Duration) (client proto.DRPCProvisionerDaemonClient, err error) {
 	clientSession, serverSession := provisionersdk.MemTransportPipe()
 	defer func() {

@@ -388,6 +388,18 @@ func newConfig() *codersdk.DeploymentConfig {
 				Flag:    "provisioner-daemons",
 				Default: 3,
 			},
+			DaemonPollInterval: &codersdk.DeploymentConfigField[time.Duration]{
+				Name:    "Poll Interval",
+				Usage:   "Time to wait before polling for a new job.",
+				Flag:    "provisioner-daemon-poll-interval",
+				Default: time.Second,
+			},
+			DaemonPollJitter: &codersdk.DeploymentConfigField[time.Duration]{
+				Name:    "Poll Jitter",
+				Usage:   "Random jitter added to the poll interval.",
+				Flag:    "provisioner-daemon-poll-jitter",
+				Default: 100 * time.Millisecond,
+			},
 			ForceCancelInterval: &codersdk.DeploymentConfigField[time.Duration]{
 				Name:    "Force Cancel Interval",
 				Usage:   "Time to force cancel provisioning tasks that are stuck.",

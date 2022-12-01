@@ -18,7 +18,6 @@ import (
 	"storj.io/drpc/drpcserver"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"

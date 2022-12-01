@@ -135,6 +135,8 @@ type GitAuthConfig struct {
 
 type ProvisionerConfig struct {
 	Daemons             *DeploymentConfigField[int]           `json:"daemons" typescript:",notnull"`
+	DaemonPollInterval  *DeploymentConfigField[time.Duration] `json:"daemon_poll_interval" typescript:",notnull"`
+	DaemonPollJitter    *DeploymentConfigField[time.Duration] `json:"daemon_poll_jitter" typescript:",notnull"`
 	ForceCancelInterval *DeploymentConfigField[time.Duration] `json:"force_cancel_interval" typescript:",notnull"`
 }
 
