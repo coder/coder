@@ -3480,6 +3480,34 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 	return i, err
 }
 
+const getPreviousTemplateVersionByID = `-- name: GetPreviousTemplateVersionByID :one
+SELECT
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by
+FROM
+	template_versions
+WHERE
+	created_at < (SELECT created_at FROM template_versions WHERE template_versions.id = $1)
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+func (q *sqlQuerier) GetPreviousTemplateVersionByID(ctx context.Context, id uuid.UUID) (TemplateVersion, error) {
+	row := q.db.QueryRowContext(ctx, getPreviousTemplateVersionByID, id)
+	var i TemplateVersion
+	err := row.Scan(
+		&i.ID,
+		&i.TemplateID,
+		&i.OrganizationID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		&i.Readme,
+		&i.JobID,
+		&i.CreatedBy,
+	)
+	return i, err
+}
+
 const getTemplateVersionByID = `-- name: GetTemplateVersionByID :one
 SELECT
 	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by

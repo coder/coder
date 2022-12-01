@@ -1717,6 +1717,25 @@ func (q *fakeQuerier) GetTemplateVersionByJobID(_ context.Context, jobID uuid.UU
 	return database.TemplateVersion{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetPreviousTemplateVersionByID(_ context.Context, id uuid.UUID) (database.TemplateVersion, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	var previousIndex = -1
+	for index, templateVersion := range q.templateVersions {
+		if templateVersion.ID != id {
+			continue
+		}
+		previousIndex = index - 1
+	}
+
+	if previousIndex < 0 {
+		return database.TemplateVersion{}, sql.ErrNoRows
+	}
+
+	return q.templateVersions[previousIndex], nil
+}
+
 func (q *fakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.UUID) ([]database.ParameterSchema, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
