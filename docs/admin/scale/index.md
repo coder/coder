@@ -35,7 +35,7 @@ The test does the following:
 - close connections, attempt to delete all workspaces
 - return results (e.g. `99 succeeded, 1 failed to connect`)
 
-Workspace jobs run concurrently, meaning that the test will attempt to connect to each workspace as soon as it is provisioned instead of first waiting for all 100 workspaces to create.
+Workspace jobs run concurrently, meaning that the test will attempt to connect to each workspace as soon as it is provisioned instead of waiting for all 100 workspaces to create.
 
 ## Troubleshooting
 
