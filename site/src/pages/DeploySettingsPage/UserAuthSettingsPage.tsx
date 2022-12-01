@@ -43,7 +43,7 @@ const UserAuthSettingsPage: React.FC = () => {
             options={{
               client_id: deploymentConfig.oidc.client_id,
               allow_signups: deploymentConfig.oidc.allow_signups,
-              email_domain: deploymentConfig.oidc.email_domain,
+              email_domains: deploymentConfig.oidc.email_domains,
               issuer_url: deploymentConfig.oidc.issuer_url,
               scopes: deploymentConfig.oidc.scopes,
             }}

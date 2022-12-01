@@ -72,7 +72,7 @@ to the `/etc/coder.d/coder.env` file:
 
 ```console
 CODER_OIDC_ISSUER_URL="https://accounts.google.com"
-CODER_OIDC_EMAIL_DOMAIN="your-domain"
+CODER_OIDC_EMAIL_DOMAINS="your-domain"
 CODER_OIDC_CLIENT_ID="533...ent.com"
 CODER_OIDC_CLIENT_SECRET="G0CSP...7qSM"
 ```
