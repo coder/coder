@@ -11504,10 +11504,10 @@ raw-loader@^4.0.2:
     loader-utils "^2.0.0"
     schema-utils "^3.0.0"
 
-react-chartjs-2@4.3.1:
-  version "4.3.1"
-  resolved "https://registry.yarnpkg.com/react-chartjs-2/-/react-chartjs-2-4.3.1.tgz#9941e7397fb963f28bb557addb401e9ff96c6681"
-  integrity sha512-5i3mjP6tU7QSn0jvb8I4hudTzHJqS8l00ORJnVwI2sYu0ihpj83Lv2YzfxunfxTZkscKvZu2F2w9LkwNBhj6xA==
+react-chartjs-2@5.0.0:
+  version "5.0.0"
+  resolved "https://registry.yarnpkg.com/react-chartjs-2/-/react-chartjs-2-5.0.0.tgz#bd55afc982b09241f248caa0fa9cc5c8f4acff1a"
+  integrity sha512-cA9dd1P4hHOfb4lpxaT6ghmfk3ZW0JgL94BpEf5sTTWFeeykNw3HgddcnTjFOikva9tLSnYTPE2b43cAUKZx5Q==
 
 react-docgen-typescript@^2.1.1:
   version "2.2.2"
