@@ -966,7 +966,7 @@ func TestTemplateVersionByOrganizationAndName(t *testing.T) {
 
 func TestPreviousTemplateVersion(t *testing.T) {
 	t.Parallel()
-	t.Run("Not found", func(t *testing.T) {
+	t.Run("Previous version not found", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
@@ -981,12 +981,13 @@ func TestPreviousTemplateVersion(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
 
-	t.Run("Found", func(t *testing.T) {
+	t.Run("Previous version found", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		previousVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		latestVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, nil, *previousVersion.TemplateID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, previousVersion.ID)
+		latestVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, nil, template.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
