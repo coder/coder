@@ -192,7 +192,7 @@ type OIDCConfig struct {
 	httpmw.OAuth2Config
 
 	Verifier *oidc.IDTokenVerifier
-	// EmailDomains is the domain to enforce when a user authenticates.
+	// EmailDomains are the domains to enforce when a user authenticates.
 	EmailDomains []string
 	AllowSignups bool
 	// IgnoreEmailVerified allows ignoring the email_verified claim
