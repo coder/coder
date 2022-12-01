@@ -2,6 +2,7 @@ import Link from "@material-ui/core/Link"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Trans, useTranslation } from "react-i18next"
 import * as TypesGen from "api/typesGenerated"
+import { FC } from "react"
 
 export interface UpdateCheckBannerProps {
   updateCheck?: TypesGen.UpdateCheckResponse
@@ -9,7 +10,7 @@ export interface UpdateCheckBannerProps {
   onDismiss?: () => void
 }
 
-export const UpdateCheckBanner: React.FC<
+export const UpdateCheckBanner: FC<
   React.PropsWithChildren<UpdateCheckBannerProps>
 > = ({ updateCheck, error, onDismiss }) => {
   const { t } = useTranslation("common")

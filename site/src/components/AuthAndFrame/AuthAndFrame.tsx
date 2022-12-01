@@ -17,7 +17,7 @@ interface AuthAndFrameProps {
  * Wraps page in RequireAuth and renders it between Navbar and Footer
  */
 export const AuthAndFrame: FC<AuthAndFrameProps> = ({ children }) => {
-  const styles = useStyles({})
+  const styles = useStyles()
   const xServices = useContext(XServiceContext)
   const [authState] = useActor(xServices.authXService)
   const [buildInfoState] = useActor(xServices.buildInfoXService)
