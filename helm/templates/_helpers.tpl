@@ -54,15 +54,6 @@ Coder listen port (must be > 1024)
 {{- end }}
 
 {{/*
-Coder Prometheus port (must be > 1024)
-*/}}
-{{- define "coder.prometheusPort" -}}
-{{- range .Values.coder.env }}
-6666
-{{- end }}
-{{- end }}
-
-{{/*
 Coder service port
 */}}
 {{- define "coder.servicePort" }}

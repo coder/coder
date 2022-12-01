@@ -77,14 +77,20 @@ spec:
             {{- with .Values.coder.env -}}
             {{ toYaml . | nindent 12 }}
             {{- end }}
+            {{- range .Values.coder.env }}
+            {{- if eq .name "CODER_PROMETHEUS_ADDRESS" }}
+            - name: CODER_PROMETHEUS_ENABLE
+              value: "true"
+            {{- end }}
+            {{- end }}
           ports:
             - name: {{ include "coder.portName" . | quote }}
               containerPort: {{ include "coder.port" . }}
               protocol: TCP
             {{- range .Values.coder.env }}
-            {{- if eq .name "CODER_PROMETHEUS_ENABLE" }}
-            - name: "prometheus"
-              containerPort: {{ include "coder.prometheusPort" . }}
+            {{- if eq .name "CODER_PROMETHEUS_ADDRESS" }}
+            - name: "prometheus-http"
+              containerPort: {{ (splitList ":" .value) | last }}
               protocol: TCP
             {{- end }}
             {{- end }}
