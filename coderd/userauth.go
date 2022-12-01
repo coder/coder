@@ -291,7 +291,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	}
 	// Check if one or comma delimited list of allowed domains is provided.
 	// If a suffix matches, break and continue, otherwise error.
-	if len(api.OIDCConfig.EmailDomains) != 0 {
+	if len(api.OIDCConfig.EmailDomains) > 0 {
 		ok = false
 		for _, domain := range api.OIDCConfig.EmailDomains {
 			if strings.HasSuffix(strings.ToLower(email), strings.ToLower(domain)) {
