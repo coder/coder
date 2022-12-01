@@ -1721,8 +1721,13 @@ func (q *fakeQuerier) GetPreviousTemplateVersionByID(_ context.Context, id uuid.
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	templateVersions := slices.Clone(q.templateVersions)
+	slices.SortFunc(templateVersions, func(i, j database.TemplateVersion) bool {
+		return i.CreatedAt.After(j.CreatedAt)
+	})
+
 	var previousIndex = -1
-	for index, templateVersion := range q.templateVersions {
+	for index, templateVersion := range templateVersions {
 		if templateVersion.ID != id {
 			continue
 		}
@@ -1733,7 +1738,7 @@ func (q *fakeQuerier) GetPreviousTemplateVersionByID(_ context.Context, id uuid.
 		return database.TemplateVersion{}, sql.ErrNoRows
 	}
 
-	return q.templateVersions[previousIndex], nil
+	return templateVersions[previousIndex], nil
 }
 
 func (q *fakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.UUID) ([]database.ParameterSchema, error) {
