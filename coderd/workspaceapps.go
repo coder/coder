@@ -40,8 +40,13 @@ const (
 )
 
 func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
+	host := api.AppHostname
+	if api.AccessURL.Port() != "" {
+		host += fmt.Sprintf(":%s", api.AccessURL.Port())
+	}
+
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.GetAppHostResponse{
-		Host: api.AppHostname,
+		Host: host,
 	})
 }
 

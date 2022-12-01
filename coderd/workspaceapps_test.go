@@ -69,7 +69,8 @@ func TestGetAppHost(t *testing.T) {
 			_ = coderdtest.CreateFirstUser(t, client)
 			host, err = client.GetAppHost(ctx)
 			require.NoError(t, err)
-			require.Equal(t, c, host.Host)
+			domain := strings.Split(host.Host, ":")[0]
+			require.Equal(t, c, domain)
 		})
 	}
 }
@@ -204,13 +205,17 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 	if appHost != "" {
 		metadata, err := agentClient.WorkspaceAgentMetadata(context.Background())
 		require.NoError(t, err)
-		require.Equal(t, fmt.Sprintf(
+		proxyURL := fmt.Sprintf(
 			"http://{{port}}--%s--%s--%s%s",
 			proxyTestAgentName,
 			workspace.Name,
 			"testuser",
 			strings.ReplaceAll(appHost, "*", ""),
-		), metadata.VSCodePortProxyURI)
+		)
+		if client.URL.Port() != "" {
+			proxyURL += fmt.Sprintf(":%s", client.URL.Port())
+		}
+		require.Equal(t, proxyURL, metadata.VSCodePortProxyURI)
 	}
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,
