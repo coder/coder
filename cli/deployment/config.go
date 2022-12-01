@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/viper"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/codersdk"
@@ -404,6 +405,12 @@ func newConfig() *codersdk.DeploymentConfig {
 			Name:  "Experimental",
 			Usage: "Enable experimental features. Experimental features are not ready for production.",
 			Flag:  "experimental",
+		},
+		UpdateCheck: &codersdk.DeploymentConfigField[bool]{
+			Name:    "Update Check",
+			Usage:   "Periodically check for new releases of Coder and inform the owner. The check is performed once per day.",
+			Flag:    "update-check",
+			Default: flag.Lookup("test.v") == nil && !buildinfo.IsDev(),
 		},
 	}
 }

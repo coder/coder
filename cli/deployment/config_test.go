@@ -38,6 +38,7 @@ func TestConfig(t *testing.T) {
 			"CODER_TELEMETRY":            "false",
 			"CODER_TELEMETRY_TRACE":      "false",
 			"CODER_WILDCARD_ACCESS_URL":  "something-wildcard.com",
+			"CODER_UPDATE_CHECK":         "false",
 		},
 		Valid: func(config *codersdk.DeploymentConfig) {
 			require.Equal(t, config.Address.Value, "0.0.0.0:8443")
@@ -53,6 +54,7 @@ func TestConfig(t *testing.T) {
 			require.Equal(t, config.Telemetry.Enable.Value, false)
 			require.Equal(t, config.Telemetry.Trace.Value, false)
 			require.Equal(t, config.WildcardAccessURL.Value, "something-wildcard.com")
+			require.Equal(t, config.UpdateCheck.Value, false)
 		},
 	}, {
 		Name: "DERP",
