@@ -56,8 +56,6 @@ coder:
         secretKeyRef:
           name: coder-db-url
           key: url
-    - name: CODER_PROMETHEUS_ADDRESS # Override the network interface targeting localhost
-      value: "0.0.0.0:2112"
   # coder.tls -- The TLS configuration for Coder.
   tls:
     # coder.tls.secretNames -- A list of TLS server certificate secrets to mount
