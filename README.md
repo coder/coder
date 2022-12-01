@@ -95,7 +95,7 @@ Please file [an issue](https://github.com/coder/coder/issues/new) if any informa
 | [Coder](https://github.com/coder/coder)                     | Platform | OSS + Self-Managed | Pay your cloud                | All [Terraform](https://www.terraform.io/registry/providers) resources, all clouds, multi-architecture: Linux, Mac, Windows, containers, VMs, amd64, arm64 |
 | [code-server](https://github.com/cdr/code-server)           | Web IDE  | OSS + Self-Managed | Pay your cloud                | Linux, Mac, Windows, containers, VMs, amd64, arm64                                                                                                         |
 | [Coder (Classic)](https://coder.com/docs)                   | Platform | Self-Managed       | Pay your cloud + license fees | Kubernetes Linux Containers                                                                                                                                |
-| [GitHub Codespaces]([https://github.com/features/codespaces](https://coder.com/blog/github-codespaces-coder-and-enterprise-customers)) | Platform | SaaS               | 2x Azure Compute              | Linux Virtual Machines                                                                                                                                           |
+| [GitHub Codespaces](https://coder.com/blog/github-codespaces-coder-and-enterprise-customers) | Platform | SaaS               | 2x Microsoft Azure Compute              | Linux Virtual Machines on Microsoft Azure                                                                                                                                           |
 
 ---
 
