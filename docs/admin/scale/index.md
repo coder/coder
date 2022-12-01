@@ -13,24 +13,30 @@ We regularly scale-test Coder against various reference architectures. Additiona
 
 Since Coder's performance is highly dependent on the templates and workflows you support, we recommend using our scale testing utility against your own environments.
 
-For example, this command will do the following:
-
-- create 100 workspaces
-- establish a SSH connection to each workspace
-- run `sleep 3 && echo hello` on each workspace via the web terminal
-- close connections, attempt to delete all workspaces
-- return results (e.g. `99 succeeded, 1 failed to connect`)
+The following command will run the same scenario against your own Coder deployment. You can also specify a template name and any parameter values.
 
 ```sh
 coder scaletest create-workspaces \
     --count 100 \
     --template "my-custom-template" \
     --parameter image="my-custom-image" \
-    --run-command "sleep 3 && echo hello"
+    --run-command "sleep 2 && echo hello"
 
 # Run `coder scaletest create-workspaces --help` for all usage
 ```
 
-> To avoid user outages and orphaned resources, we recommend running scale tests on a secondary "staging" environment.
+> To avoid outages and orphaned resources, we recommend running scale tests on a secondary "staging" environment.
 
-If a test fails, you can leverage Coder's [performance tracing](#) and [prometheus metrics](../prometheus.md) to identify bottlenecks during scale tests. Additionally, you can use your existing cloud monitoring stack to measure load, view server logs, etc.
+The test does the following:
+
+- create `n` workspaces
+- establish SSH connection to each workspace
+- run `sleep 3 && echo hello` on each workspace via the web terminal
+- close connections, attempt to delete all workspaces
+- return results (e.g. `99 succeeded, 1 failed to connect`)
+
+Workspace jobs run concurrently, meaning that the test will attempt to connect to each workspace as soon as it is provisioned instead of first waiting for all 100 workspaces to create.
+
+## Troubleshooting
+
+If a load test fails or if you are experiencing performance issues during day-to-day use, you can leverage Coder's [performance tracing](#) and [prometheus metrics](../prometheus.md) to identify bottlenecks during scale tests. Additionally, you can use your existing cloud monitoring stack to measure load, view server logs, etc.
