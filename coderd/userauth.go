@@ -289,8 +289,17 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		}
 		username = httpapi.UsernameFrom(username)
 	}
+	// Check if one or comma delimited list of allowed domains is provided.
+	// If a suffix matches, break and continue, otherwise error.
 	if api.OIDCConfig.EmailDomain != "" {
-		if !strings.HasSuffix(strings.ToLower(email), strings.ToLower(api.OIDCConfig.EmailDomain)) {
+		ok = false
+		for _, domain := range strings.Split(api.OIDCConfig.EmailDomain, ",") {
+			if strings.HasSuffix(strings.ToLower(email), domain) {
+				ok = true
+				break
+			}
+		}
+		if !ok {
 			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 				Message: fmt.Sprintf("Your email %q is not a part of the %q domain!", email, api.OIDCConfig.EmailDomain),
 			})
