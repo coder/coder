@@ -482,7 +482,7 @@ func TestUserOIDC(t *testing.T) {
 		Name                string
 		Claims              jwt.MapClaims
 		AllowSignups        bool
-		EmailDomain         string
+		EmailDomains        []string
 		Username            string
 		AvatarURL           string
 		StatusCode          int
@@ -528,8 +528,10 @@ func TestUserOIDC(t *testing.T) {
 			"email_verified": true,
 		},
 		AllowSignups: true,
-		EmailDomain:  "coder.com",
-		StatusCode:   http.StatusForbidden,
+		EmailDomains: []string{
+			"coder.com",
+		},
+		StatusCode: http.StatusForbidden,
 	}, {
 		Name: "EmailDomainCaseInsensitive",
 		Claims: jwt.MapClaims{
@@ -537,8 +539,10 @@ func TestUserOIDC(t *testing.T) {
 			"email_verified": true,
 		},
 		AllowSignups: true,
-		EmailDomain:  "kwc.io",
-		StatusCode:   http.StatusTemporaryRedirect,
+		EmailDomains: []string{
+			"kwc.io",
+		},
+		StatusCode: http.StatusTemporaryRedirect,
 	}, {
 		Name:         "EmptyClaims",
 		Claims:       jwt.MapClaims{},
@@ -611,7 +615,7 @@ func TestUserOIDC(t *testing.T) {
 
 			config := conf.OIDCConfig()
 			config.AllowSignups = tc.AllowSignups
-			config.EmailDomain = tc.EmailDomain
+			config.EmailDomains = tc.EmailDomains
 			config.IgnoreEmailVerified = tc.IgnoreEmailVerified
 
 			client := coderdtest.New(t, &coderdtest.Options{

@@ -127,7 +127,7 @@ func TestConfig(t *testing.T) {
 		Env:  map[string]string{},
 		Valid: func(config *codersdk.DeploymentConfig) {
 			require.Empty(t, config.OIDC.IssuerURL.Value)
-			require.Empty(t, config.OIDC.EmailDomain.Value)
+			require.Empty(t, config.OIDC.EmailDomains.Value)
 			require.Empty(t, config.OIDC.ClientID.Value)
 			require.Empty(t, config.OIDC.ClientSecret.Value)
 			require.True(t, config.OIDC.AllowSignups.Value)
@@ -147,7 +147,7 @@ func TestConfig(t *testing.T) {
 		},
 		Valid: func(config *codersdk.DeploymentConfig) {
 			require.Equal(t, config.OIDC.IssuerURL.Value, "https://accounts.google.com")
-			require.Equal(t, config.OIDC.EmailDomain.Value, "coder.com")
+			require.Equal(t, config.OIDC.EmailDomains.Value, "coder.com")
 			require.Equal(t, config.OIDC.ClientID.Value, "client")
 			require.Equal(t, config.OIDC.ClientSecret.Value, "secret")
 			require.False(t, config.OIDC.AllowSignups.Value)
