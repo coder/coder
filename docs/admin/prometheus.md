@@ -36,7 +36,7 @@ coderd_api_active_users_duration_hour 0
 | `coderd_api_websocket_durations_ms` | histogram | Websocket duration distribution of requests in milliseconds | `path` |
 | `coderd_api_workspace_latest_build_total` | gauge | The latest workspace builds with a status. | `status` |
 | `coderd_provisionerd_job_timings_ms` | histogram | The provisioner job time duration. | `provisioner` `status` |
-| `coderd_provisionerd_jobs_current` | gauge | The number of concurrently running provisioner jobs. | `provisioner` |
+| `coderd_provisionerd_jobs_current` | gauge | The number of currently running provisioner jobs. | `provisioner` |
 | `go_gc_duration_seconds` | summary | A summary of the pause duration of garbage collection cycles. |  |
 | `go_goroutines` | gauge | Number of goroutines that currently exist. |  |
 | `go_info` | gauge | Information about the Go environment. | `version` |

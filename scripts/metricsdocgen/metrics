@@ -476,7 +476,7 @@ coderd_provisionerd_job_timings_ms_bucket{provisioner="terraform",status="succes
 coderd_provisionerd_job_timings_ms_bucket{provisioner="terraform",status="success",le="+Inf"} 2
 coderd_provisionerd_job_timings_ms_sum{provisioner="terraform",status="success"} 21600
 coderd_provisionerd_job_timings_ms_count{provisioner="terraform",status="success"} 2
-# HELP coderd_provisionerd_jobs_current The number of concurrently running provisioner jobs.
+# HELP coderd_provisionerd_jobs_current The number of currently running provisioner jobs.
 # TYPE coderd_provisionerd_jobs_current gauge
 coderd_provisionerd_jobs_current{provisioner="terraform"} 0
 # HELP go_gc_duration_seconds A summary of the pause duration of garbage collection cycles.
