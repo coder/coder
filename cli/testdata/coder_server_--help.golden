@@ -228,6 +228,10 @@ Flags:
                                                      verbose flag was supplied, debug-level
                                                      logs will be included.
                                                      Consumes $CODER_TRACE_CAPTURE_LOGS
+      --update-check                                 Periodically check for new releases of
+                                                     Coder and inform the owner. The check is
+                                                     performed once per day.
+                                                     Consumes $CODER_UPDATE_CHECK
       --wildcard-access-url string                   Specifies the wildcard hostname to use
                                                      for workspace applications in the form
                                                      "*.example.com".

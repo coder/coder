@@ -24,6 +24,12 @@ export const MockBuildInfo: TypesGen.BuildInfoResponse = {
   version: "v99.999.9999+c9cdf14",
 }
 
+export const MockUpdateCheck: TypesGen.UpdateCheckResponse = {
+  current: true,
+  url: "file:///mock-url",
+  version: "v99.999.9999+c9cdf14",
+}
+
 export const MockOwnerRole: TypesGen.Role = {
   name: "owner",
   display_name: "Owner",

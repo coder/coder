@@ -141,11 +141,13 @@ func NewMetrics(reg prometheus.Registerer) Metrics {
 				Namespace: "coderd",
 				Subsystem: "provisionerd",
 				Name:      "jobs_current",
+				Help:      "The number of currently running provisioner jobs.",
 			}, []string{"provisioner"}),
 			JobTimings: auto.NewHistogramVec(prometheus.HistogramOpts{
 				Namespace: "coderd",
 				Subsystem: "provisionerd",
 				Name:      "job_timings_ms",
+				Help:      "The provisioner job time duration.",
 				Buckets: []float64{
 					durationToFloatMs(1 * time.Second),
 					durationToFloatMs(10 * time.Second),

@@ -299,6 +299,7 @@ export interface DeploymentConfig {
   readonly provisioner: ProvisionerConfig
   readonly api_rate_limit: DeploymentConfigField<number>
   readonly experimental: DeploymentConfigField<boolean>
+  readonly update_check: DeploymentConfigField<boolean>
 }
 
 // From codersdk/deploymentconfig.go
@@ -702,6 +703,13 @@ export interface TransitionStats {
 // From codersdk/templates.go
 export interface UpdateActiveTemplateVersion {
   readonly id: string
+}
+
+// From codersdk/updatecheck.go
+export interface UpdateCheckResponse {
+  readonly current: boolean
+  readonly version: string
+  readonly url: string
 }
 
 // From codersdk/users.go
