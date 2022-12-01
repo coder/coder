@@ -1717,31 +1717,39 @@ func (q *fakeQuerier) GetTemplateVersionByJobID(_ context.Context, jobID uuid.UU
 	return database.TemplateVersion{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetPreviousTemplateVersionByOrganizationAndName(_ context.Context, arg database.GetPreviousTemplateVersionByOrganizationAndNameParams) (database.TemplateVersion, error) {
+func (q *fakeQuerier) GetPreviousTemplateVersion(_ context.Context, arg database.GetPreviousTemplateVersionParams) (database.TemplateVersion, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	templateVersions := slices.Clone(q.templateVersions)
-	slices.SortFunc(templateVersions, func(i, j database.TemplateVersion) bool {
+	sortedTemplateVersions := slices.Clone(q.templateVersions)
+	slices.SortFunc(sortedTemplateVersions, func(i, j database.TemplateVersion) bool {
 		return i.CreatedAt.After(j.CreatedAt)
 	})
 
-	var previousIndex = -1
-	for index, templateVersion := range templateVersions {
+	templateVersions := make([]database.TemplateVersion, 0)
+	for _, templateVersion := range sortedTemplateVersions {
 		if templateVersion.OrganizationID != arg.OrganizationID {
 			continue
 		}
-		if !strings.EqualFold(templateVersion.Name, arg.Name) {
+		if templateVersion.TemplateID != arg.TemplateID {
 			continue
 		}
-		previousIndex = index - 1
+		templateVersions = append(templateVersions, templateVersion)
 	}
 
-	if previousIndex < 0 {
-		return database.TemplateVersion{}, sql.ErrNoRows
+	templateVersionIndex := -1
+	for versionIndex, templateVersion := range templateVersions {
+		if strings.EqualFold(templateVersion.Name, arg.Name) {
+			templateVersionIndex = versionIndex
+			break
+		}
 	}
 
-	return templateVersions[previousIndex], nil
+	if templateVersionIndex > 0 {
+		return templateVersions[templateVersionIndex], nil
+	}
+
+	return database.TemplateVersion{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.UUID) ([]database.ParameterSchema, error) {

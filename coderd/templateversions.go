@@ -644,13 +644,32 @@ func (api *API) previousTemplateVersionByOrganizationAndName(rw http.ResponseWri
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
 	templateVersionName := chi.URLParam(r, "templateversionname")
-	templateVersion, err := api.Database.GetPreviousTemplateVersionByOrganizationAndName(ctx, database.GetPreviousTemplateVersionByOrganizationAndNameParams{
+	templateVersion, err := api.Database.GetTemplateVersionByOrganizationAndName(ctx, database.GetTemplateVersionByOrganizationAndNameParams{
 		OrganizationID: organization.ID,
 		Name:           templateVersionName,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: fmt.Sprintf("No previous template version found for name %q.", templateVersionName),
+			Message: fmt.Sprintf("No template version found by name %q.", templateVersionName),
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template version.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	previousTemplateVersion, err := api.Database.GetPreviousTemplateVersion(ctx, database.GetPreviousTemplateVersionParams{
+		OrganizationID: organization.ID,
+		Name:           templateVersionName,
+		TemplateID:     templateVersion.TemplateID,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: fmt.Sprintf("No previous template version found for %q.", templateVersionName),
 		})
 		return
 	}
@@ -661,7 +680,8 @@ func (api *API) previousTemplateVersionByOrganizationAndName(rw http.ResponseWri
 		})
 		return
 	}
-	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
+
+	job, err := api.Database.GetProvisionerJobByID(ctx, previousTemplateVersion.JobID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job.",
@@ -679,7 +699,7 @@ func (api *API) previousTemplateVersionByOrganizationAndName(rw http.ResponseWri
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user))
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(previousTemplateVersion, convertProvisionerJob(job), user))
 }
 
 func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Request) {
