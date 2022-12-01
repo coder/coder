@@ -49,8 +49,16 @@ coder:
   # - CODER_TLS_ENABLE: set if tls.secretName is not empty.
   # - CODER_TLS_CERT_FILE: set if tls.secretName is not empty.
   # - CODER_TLS_KEY_FILE: set if tls.secretName is not empty.
-  env: []
-
+  env:
+    - name: CODER_PG_CONNECTION_URL
+      valueFrom:
+        secretKeyRef:
+          name: coder-db-url
+          key: url
+    - name: CODER_PROMETHEUS_ENABLE
+      value: "true"
+    - name: CODER_PROMETHEUS_ADDRESS # Override the network interface targeting localhost
+      value: "0.0.0.0:2112"
   # coder.tls -- The TLS configuration for Coder.
   tls:
     # coder.tls.secretNames -- A list of TLS server certificate secrets to mount

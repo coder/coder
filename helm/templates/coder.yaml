@@ -81,6 +81,13 @@ spec:
             - name: {{ include "coder.portName" . | quote }}
               containerPort: {{ include "coder.port" . }}
               protocol: TCP
+            {{- range .Values.coder.env }}
+            {{- if eq .name "CODER_PROMETHEUS_ENABLE" }}
+            - name: "prometheus"
+              containerPort: {{ include "coder.prometheusPort" . }}
+              protocol: TCP
+            {{- end }}
+            {{- end }}
           readinessProbe:
             httpGet:
               path: /api/v2/buildinfo
