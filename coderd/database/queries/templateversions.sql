@@ -111,12 +111,16 @@ SET
 WHERE
 	job_id = $1;
 
--- name: GetPreviousTemplateVersionByID :one
+-- name: GetPreviousTemplateVersionByOrganizationAndName :one
 SELECT
 	*
 FROM
 	template_versions
 WHERE
-	created_at < (SELECT created_at FROM template_versions WHERE template_versions.id = @id)
+	created_at < (
+		SELECT created_at
+		FROM template_versions as tv
+		WHERE tv.organization_id = $1 AND tv.name = $2
+	)
 ORDER BY created_at DESC
 LIMIT 1;
