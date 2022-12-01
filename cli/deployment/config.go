@@ -408,7 +408,7 @@ func newConfig() *codersdk.DeploymentConfig {
 		},
 		UpdateCheck: &codersdk.DeploymentConfigField[bool]{
 			Name:    "Update Check",
-			Usage:   "Periodically check for new releases of Coder and inform the owner.",
+			Usage:   "Periodically check for new releases of Coder and inform the owner. The check is performed once per day.",
 			Flag:    "update-check",
 			Default: flag.Lookup("test.v") == nil && !buildinfo.IsDev(),
 		},

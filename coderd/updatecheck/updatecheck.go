@@ -49,6 +49,9 @@ type Options struct {
 	// Interval is the interval at which to check for updates,
 	// default 24h.
 	Interval time.Duration
+	// UpdateTimeout sets the timeout for the update check,
+	// default 30s.
+	UpdateTimeout time.Duration
 	// Notify is called when a newer version of Coder (than the
 	// last update check) is available.
 	Notify func(r Result)
@@ -64,6 +67,9 @@ func New(db database.Store, log slog.Logger, opts Options) *Checker {
 	}
 	if opts.Interval == 0 {
 		opts.Interval = 24 * time.Hour
+	}
+	if opts.UpdateTimeout == 0 {
+		opts.UpdateTimeout = 30 * time.Second
 	}
 	if opts.Notify == nil {
 		opts.Notify = func(r Result) {}
@@ -166,8 +172,11 @@ func (c *Checker) start() {
 }
 
 func (c *Checker) update() (r Result, err error) {
+	ctx, cancel := context.WithTimeout(c.ctx, c.opts.UpdateTimeout)
+	defer cancel()
+
 	c.log.Info(c.ctx, "checking for update")
-	req, err := http.NewRequestWithContext(c.ctx, http.MethodGet, c.opts.URL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.opts.URL, nil)
 	if err != nil {
 		return r, xerrors.Errorf("new request: %w", err)
 	}
@@ -193,14 +202,14 @@ func (c *Checker) update() (r Result, err error) {
 		Version: rr.GetTagName(),
 		URL:     rr.GetHTMLURL(),
 	}
-	c.log.Info(c.ctx, "update check result", slog.F("latest_version", r.Version))
+	c.log.Info(ctx, "update check result", slog.F("latest_version", r.Version))
 
 	b, err := json.Marshal(r)
 	if err != nil {
 		return r, xerrors.Errorf("json marshal result: %w", err)
 	}
 
-	err = c.db.InsertOrUpdateLastUpdateCheck(c.ctx, string(b))
+	err = c.db.InsertOrUpdateLastUpdateCheck(ctx, string(b))
 	if err != nil {
 		return r, err
 	}

@@ -3,6 +3,7 @@ package coderd
 import (
 	"database/sql"
 	"net/http"
+	"strings"
 
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
@@ -41,8 +42,12 @@ func (api *API) updateCheck(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Since our dev version (v0.12.9-devel+f7246386) is not semver compatible,
+	// ignore everything after "-"."
+	versionWithoutDevel := strings.SplitN(buildinfo.Version(), "-", 2)[0]
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UpdateCheckResponse{
-		Current: semver.Compare(buildinfo.Version(), uc.Version) >= 0,
+		Current: semver.Compare(versionWithoutDevel, uc.Version) >= 0,
 		Version: uc.Version,
 		URL:     uc.URL,
 	})
