@@ -42,7 +42,7 @@ Function AddToPath
   ; Native calls are used here to check actual length of PATH
 
   ; $4 = RegOpenKey(HKEY_CURRENT_USER, "Environment", &$3)
-	System::Call "advapi32::RegOpenKey(i 0x80000002, t'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', *i.r3) i.r4"
+  System::Call "advapi32::RegOpenKey(i 0x80000002, t'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', *i.r3) i.r4"
   IntCmp $4 0 0 done done
   ; $4 = RegQueryValueEx($3, "PATH", (DWORD*)0, (DWORD*)0, &$1, ($2=NSIS_MAX_STRLEN, &$2))
   ; RegCloseKey($3)
