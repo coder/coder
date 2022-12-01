@@ -19,15 +19,6 @@ UpdateAvailable.args = {
   },
 }
 
-export const NoUpdateAvailable = Template.bind({})
-NoUpdateAvailable.args = {
-  updateCheck: {
-    current: true,
-    version: "v0.12.9",
-    url: "https://github.com/coder/coder/releases/tag/v0.12.9",
-  },
-}
-
 export const UpdateCheckError = Template.bind({})
 UpdateCheckError.args = {
   error: new Error("Something went wrong."),
