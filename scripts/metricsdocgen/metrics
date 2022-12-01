@@ -463,7 +463,7 @@ coderd_api_websocket_durations_ms_count{path="/api/v2/workspaceagents/me/coordin
 # TYPE coderd_api_workspace_latest_build_total gauge
 coderd_api_workspace_latest_build_total{status="failed"} 1
 coderd_api_workspace_latest_build_total{status="succeeded"} 5
-# HELP coderd_provisionerd_job_timings_ms
+# HELP coderd_provisionerd_job_timings_ms The provisioner job time duration.
 # TYPE coderd_provisionerd_job_timings_ms histogram
 coderd_provisionerd_job_timings_ms_bucket{provisioner="terraform",status="success",le="1000"} 0
 coderd_provisionerd_job_timings_ms_bucket{provisioner="terraform",status="success",le="10000"} 1
@@ -476,7 +476,7 @@ coderd_provisionerd_job_timings_ms_bucket{provisioner="terraform",status="succes
 coderd_provisionerd_job_timings_ms_bucket{provisioner="terraform",status="success",le="+Inf"} 2
 coderd_provisionerd_job_timings_ms_sum{provisioner="terraform",status="success"} 21600
 coderd_provisionerd_job_timings_ms_count{provisioner="terraform",status="success"} 2
-# HELP coderd_provisionerd_jobs_current
+# HELP coderd_provisionerd_jobs_current The number of concurrently running provisioner jobs.
 # TYPE coderd_provisionerd_jobs_current gauge
 coderd_provisionerd_jobs_current{provisioner="terraform"} 0
 # HELP go_gc_duration_seconds A summary of the pause duration of garbage collection cycles.
