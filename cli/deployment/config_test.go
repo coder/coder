@@ -138,7 +138,7 @@ func TestConfig(t *testing.T) {
 		Name: "OIDC",
 		Env: map[string]string{
 			"CODER_OIDC_ISSUER_URL":            "https://accounts.google.com",
-			"CODER_OIDC_EMAIL_DOMAIN":          "coder.com",
+			"CODER_OIDC_EMAIL_DOMAINS":         "coder.com",
 			"CODER_OIDC_CLIENT_ID":             "client",
 			"CODER_OIDC_CLIENT_SECRET":         "secret",
 			"CODER_OIDC_ALLOW_SIGNUPS":         "false",
