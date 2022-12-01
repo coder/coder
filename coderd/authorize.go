@@ -192,9 +192,10 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 			case rbac.ResourceGroup.Type:
 				dbObj, dbErr = api.Database.GetGroupByID(ctx, id)
 			default:
+				msg := fmt.Sprintf("Object type %q does not support \"resource_id\" field.", v.Object.ResourceType)
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message:     fmt.Sprintf("Object type %q does not support \"resource_id\" field.", v.Object.ResourceType),
-					Validations: []codersdk.ValidationError{{Field: "resource_type", Detail: err.Error()}},
+					Message:     msg,
+					Validations: []codersdk.ValidationError{{Field: "resource_type", Detail: msg}},
 				})
 				return
 			}
@@ -206,7 +207,7 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 			obj = dbObj.RBACObject()
 		}
 
-		err := api.Authorizer.ByRoleName(r.Context(), auth.ID.String(), auth.Roles, auth.Scope.ToRBAC(), auth.Groups, rbac.Action(v.Action), obj)
+		err := api.Authorizer.ByRoleName(ctx, auth.ID.String(), auth.Roles, auth.Scope.ToRBAC(), auth.Groups, rbac.Action(v.Action), obj)
 		response[k] = err == nil
 	}
 
