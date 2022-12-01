@@ -986,7 +986,7 @@ func TestPreviousTemplateVersion(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		previousVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		latestVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		latestVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, nil, *previousVersion.TemplateID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
