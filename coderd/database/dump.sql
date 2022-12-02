@@ -641,6 +641,8 @@ CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WH
 
 CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username)) WHERE (deleted = false);
 
+CREATE INDEX workspace_agents_auth_token_idx ON workspace_agents USING btree (auth_token);
+
 CREATE INDEX workspace_agents_resource_id_idx ON workspace_agents USING btree (resource_id);
 
 CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (job_id);
