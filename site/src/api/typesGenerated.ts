@@ -439,7 +439,7 @@ export interface OIDCConfig {
   readonly allow_signups: DeploymentConfigField<boolean>
   readonly client_id: DeploymentConfigField<string>
   readonly client_secret: DeploymentConfigField<string>
-  readonly email_domains: DeploymentConfigField<string[]>
+  readonly email_domain: DeploymentConfigField<string[]>
   readonly issuer_url: DeploymentConfigField<string>
   readonly scopes: DeploymentConfigField<string[]>
   readonly ignore_email_verified: DeploymentConfigField<boolean>
