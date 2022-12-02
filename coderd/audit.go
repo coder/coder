@@ -241,8 +241,12 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow, additionalFields A
 	// where target is a workspace instead of a workspace build
 	// passed in on the FE via AuditLog.AdditionalFields rather than derived in request.go:35
 	if alog.ResourceType == database.ResourceTypeWorkspaceBuild && alog.Action != database.AuditActionDelete {
-		str += fmt.Sprintf(" build #%s for",
-			additionalFields.BuildNumber)
+		if len(additionalFields.BuildNumber) == 0 {
+			str += " build for"
+		} else {
+			str += fmt.Sprintf(" build #%s for",
+				additionalFields.BuildNumber)
+		}
 	}
 
 	// We don't display the name (target) for git ssh keys. It's fairly long and doesn't
@@ -324,6 +328,9 @@ func auditLogResourceLink(alog database.GetAuditLogsOffsetRow, additionalFields 
 		return fmt.Sprintf("/@%s/%s",
 			alog.UserUsername.String, alog.ResourceTarget)
 	case database.ResourceTypeWorkspaceBuild:
+		if len(additionalFields.WorkspaceName) == 0 || len(additionalFields.BuildNumber) == 0 {
+			return ""
+		}
 		return fmt.Sprintf("/@%s/%s/builds/%s",
 			alog.UserUsername.String, additionalFields.WorkspaceName, additionalFields.BuildNumber)
 	default:
