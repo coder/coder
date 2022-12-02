@@ -159,6 +159,11 @@ func (api *API) convertAuditLogs(ctx context.Context, dblogs []database.GetAudit
 	return alogs
 }
 
+type AdditionalFields struct {
+	WorkspaceName string
+	BuildNumber   string
+}
+
 func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
 	ip, _ := netip.AddrFromSlice(dblog.Ip.IPNet.IP)
 
@@ -184,6 +189,13 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 		}
 	}
 
+	additionalFieldsBytes := []byte(dblog.AdditionalFields)
+	var additionalFields AdditionalFields
+	err := json.Unmarshal(additionalFieldsBytes, &additionalFields)
+	if err != nil {
+		api.Logger.Error(ctx, "unmarshal additional fields", slog.Error(err))
+	}
+
 	return codersdk.AuditLog{
 		ID:               dblog.ID,
 		RequestID:        dblog.RequestID,
@@ -200,23 +212,24 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 		StatusCode:       dblog.StatusCode,
 		AdditionalFields: dblog.AdditionalFields,
 		User:             user,
-		Description:      auditLogDescription(dblog),
-		ResourceLink:     api.auditLogResourceLink(ctx, dblog),
+		Description:      auditLogDescription(dblog, additionalFields),
+		ResourceLink:     api.auditLogResourceLink(ctx, dblog, additionalFields),
 		IsDeleted:        api.auditLogIsResourceDeleted(ctx, dblog),
 	}
 }
 
-func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
+func auditLogDescription(alog database.GetAuditLogsOffsetRow, additionalFields AdditionalFields) string {
 	str := fmt.Sprintf("{user} %s",
 		codersdk.AuditAction(alog.Action).FriendlyString(),
 	)
 
 	// Strings for starting/stopping workspace builds follow the below format:
-	// "{user} started build for workspace {target}"
+	// "{user} started build #{build_number} for workspace {target}"
 	// where target is a workspace instead of a workspace build
 	// passed in on the FE via AuditLog.AdditionalFields rather than derived in request.go:35
 	if alog.ResourceType == database.ResourceTypeWorkspaceBuild && alog.Action != database.AuditActionDelete {
-		str += " build for"
+		str += fmt.Sprintf(" build #%s for",
+			additionalFields.BuildNumber)
 	}
 
 	// We don't display the name (target) for git ssh keys. It's fairly long and doesn't
@@ -271,12 +284,7 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 	}
 }
 
-type AdditionalFields struct {
-	WorkspaceName string
-	BuildNumber   string
-}
-
-func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAuditLogsOffsetRow) string {
+func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAuditLogsOffsetRow, additionalFields AdditionalFields) string {
 	if api.auditLogIsResourceDeleted(ctx, alog) {
 		return ""
 	}
@@ -292,12 +300,6 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 		return fmt.Sprintf("/@%s/%s",
 			alog.UserUsername.String, alog.ResourceTarget)
 	case database.ResourceTypeWorkspaceBuild:
-		additionalFieldsBytes := []byte(alog.AdditionalFields)
-		var additionalFields AdditionalFields
-		err := json.Unmarshal(additionalFieldsBytes, &additionalFields)
-		if err != nil {
-			api.Logger.Error(ctx, "could not unmarshal workspace name", slog.Error(err))
-		}
 		return fmt.Sprintf("/@%s/%s/builds/%s",
 			alog.UserUsername.String, additionalFields.WorkspaceName, additionalFields.BuildNumber)
 	default:
