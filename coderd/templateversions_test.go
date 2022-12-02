@@ -321,7 +321,7 @@ func TestTemplateVersionParameters(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionDryRun: []*proto.Provision_Response{{
+			ProvisionPlan: []*proto.Provision_Response{{
 				Type: &proto.Provision_Response_Complete{
 					Complete: &proto.Provision_Complete{
 						Parameters: []*proto.Parameter{{

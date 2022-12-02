@@ -904,7 +904,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		}
 
 		templateVersionID := uuid.New()
-		jobInput, err := json.Marshal(templateVersionImportJob{
+		jobInput, err := json.Marshal(provisionerdserver.TemplateVersionImportJob{
 			TemplateVersionID: templateVersionID,
 		})
 		if err != nil {

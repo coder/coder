@@ -38,10 +38,6 @@ var (
 	lastAcquireMutex sync.RWMutex
 )
 
-type templateVersionImportJob struct {
-	TemplateVersionID uuid.UUID `json:"template_version_id"`
-}
-
 type Server struct {
 	AccessURL      *url.URL
 	ID             uuid.UUID
@@ -593,7 +589,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 
 	switch jobType := completed.Type.(type) {
 	case *proto.CompletedJob_TemplateImport_:
-		var input templateVersionImportJob
+		var input TemplateVersionImportJob
 		err = json.Unmarshal(job.Input, &input)
 		if err != nil {
 			return nil, xerrors.Errorf("unmarshal job data: %w", err)
@@ -1102,6 +1098,10 @@ func auditActionFromTransition(transition database.WorkspaceTransition) database
 	default:
 		return database.AuditActionWrite
 	}
+}
+
+type TemplateVersionImportJob struct {
+	TemplateVersionID uuid.UUID `json:"template_version_id"`
 }
 
 // WorkspaceProvisionJob is the payload for the "workspace_provision" job type.
