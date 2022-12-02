@@ -606,7 +606,7 @@ export interface ServerSentEvent {
 
 // From codersdk/servicebanner.go
 export interface ServiceBanner {
-  readonly enabled?: boolean
+  readonly enabled: boolean
   readonly message?: string
   readonly background_color?: string
 }

@@ -11,9 +11,11 @@ export type ServiceBannerContext = {
   getServiceBannerError?: Error | unknown
 }
 
-export type ServiceBannerEvent = {
-  type: "GET_BANNER"
-}
+export type ServiceBannerEvent =
+  | {
+      type: "GET_BANNER"
+    }
+  | { type: "SET_PREVIEW"; serviceBanner: ServiceBanner }
 
 const emptyBanner = {
   enabled: false,
@@ -41,6 +43,7 @@ export const serviceBannerMachine = createMachine(
       idle: {
         on: {
           GET_BANNER: "gettingBanner",
+          SET_PREVIEW: "settingPreview",
         },
       },
       gettingBanner: {
@@ -58,10 +61,19 @@ export const serviceBannerMachine = createMachine(
           },
         },
       },
+      settingPreview: {
+        entry: ["clearGetBannerError", "assignPreviewBanner"],
+        always: {
+          target: "idle",
+        },
+      },
     },
   },
   {
     actions: {
+      assignPreviewBanner: assign({
+        serviceBanner: (_, event) => event.serviceBanner,
+      }),
       assignBanner: assign({
         serviceBanner: (_, event) => event.data as ServiceBanner,
       }),

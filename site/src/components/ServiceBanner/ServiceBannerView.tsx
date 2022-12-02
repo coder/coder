@@ -14,6 +14,7 @@ export const ServiceBannerView: React.FC<ServiceBannerViewProps> = ({
   const styles = useStyles()
   const markdownElementsAllowed = [
     "text",
+    "a",
     "strong",
     "delete",
     "emphasis",
@@ -27,6 +28,7 @@ export const ServiceBannerView: React.FC<ServiceBannerViewProps> = ({
       <div className={styles.centerContent}>
         <ReactMarkdown
           allowedElements={markdownElementsAllowed}
+          linkTarget="_blank"
           unwrapDisallowed
         >
           {message}
