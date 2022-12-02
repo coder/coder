@@ -33,6 +33,9 @@ realpath() {
 SCRIPT_DIR="$(realpath "$(dirname "${BASH_SOURCE[0]}")")"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR" && realpath "$(git rev-parse --show-toplevel)")"
 
+# Allow specifying/overriding make command via environment
+MAKECMD?=make
+
 # Allow specifying/overriding GETOPT via environment
 GETOPT?=getopt
 
@@ -173,7 +176,7 @@ if [[ "${CODER_LIBSH_NO_CHECK_DEPENDENCIES:-}" != *t* ]]; then
 	# We have to disable pipefail temporarily to avoid ERRPIPE errors when
 	# piping into `head -n1`.
 	set +o pipefail
-	make_version="$(make --version 2>/dev/null | head -n1 | grep -oE '([[:digit:]]+\.){1,2}[[:digit:]]+')"
+	make_version="$($(MAKECMD) --version 2>/dev/null | head -n1 | grep -oE '([[:digit:]]+\.){1,2}[[:digit:]]+')"
 	set -o pipefail
 	if [[ ${make_version//.*/} -lt 4 ]]; then
 		libsh_bad_dependencies=1
