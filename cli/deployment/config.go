@@ -216,9 +216,9 @@ func newConfig() *codersdk.DeploymentConfig {
 				Secret: true,
 			},
 			EmailDomains: &codersdk.DeploymentConfigField[[]string]{
-				Name:  "OIDC Email Domains",
+				Name:  "OIDC Email Domain",
 				Usage: "Email domains that clients logging in with OIDC must match.",
-				Flag:  "oidc-email-domains",
+				Flag:  "oidc-email-domain",
 			},
 			IssuerURL: &codersdk.DeploymentConfigField[string]{
 				Name:  "OIDC Issuer URL",
