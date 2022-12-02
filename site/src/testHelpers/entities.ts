@@ -961,7 +961,7 @@ export const MockAuditLog: TypesGen.AuditLog = {
   additional_fields: {},
   description: "{user} created workspace {target}",
   user: MockUser,
-  resource_link: "",
+  resource_link: "/@admin/bruno-dev",
   is_deleted: false,
 }
 
@@ -1005,6 +1005,11 @@ export const MockAuditLogWithWorkspaceBuild: TypesGen.AuditLog = {
   additional_fields: {
     workspaceName: "test2",
   },
+}
+
+export const MockAuditLogWithDeletedResource: TypesGen.AuditLog = {
+  ...MockAuditLog,
+  is_deleted: true,
 }
 
 export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {

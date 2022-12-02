@@ -185,6 +185,14 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 		}
 	}
 
+	isDeleted := api.auditLogIsResourceDeleted(ctx, dblog)
+	var resourceLink string
+	if isDeleted {
+		resourceLink = ""
+	} else {
+		resourceLink = api.auditLogResourceLink(ctx, dblog)
+	}
+
 	return codersdk.AuditLog{
 		ID:               dblog.ID,
 		RequestID:        dblog.RequestID,
@@ -202,8 +210,8 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 		AdditionalFields: dblog.AdditionalFields,
 		User:             user,
 		Description:      auditLogDescription(dblog),
-		ResourceLink:     api.auditLogResourceLink(ctx, dblog),
-		IsDeleted:        api.auditLogIsResourceDeleted(ctx, dblog),
+		ResourceLink:     resourceLink,
+		IsDeleted:        isDeleted,
 	}
 }
 
@@ -243,9 +251,8 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 		if err != nil {
 			if xerrors.Is(err, sql.ErrNoRows) {
 				return true
-			} else {
-				api.Logger.Error(ctx, "fetch template", slog.Error(err))
 			}
+			api.Logger.Error(ctx, "fetch template", slog.Error(err))
 		}
 		return template.Deleted
 	case database.ResourceTypeUser:
@@ -253,9 +260,8 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 		if err != nil {
 			if xerrors.Is(err, sql.ErrNoRows) {
 				return true
-			} else {
-				api.Logger.Error(ctx, "fetch user", slog.Error(err))
 			}
+			api.Logger.Error(ctx, "fetch user", slog.Error(err))
 		}
 		return user.Deleted
 	case database.ResourceTypeWorkspace:
@@ -263,9 +269,8 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 		if err != nil {
 			if xerrors.Is(err, sql.ErrNoRows) {
 				return true
-			} else {
-				api.Logger.Error(ctx, "fetch workspace", slog.Error(err))
 			}
+			api.Logger.Error(ctx, "fetch workspace", slog.Error(err))
 		}
 		return workspace.Deleted
 	case database.ResourceTypeWorkspaceBuild:
@@ -273,18 +278,16 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 		if err != nil {
 			if xerrors.Is(err, sql.ErrNoRows) {
 				return true
-			} else {
-				api.Logger.Error(ctx, "fetch workspace build", slog.Error(err))
 			}
+			api.Logger.Error(ctx, "fetch workspace build", slog.Error(err))
 		}
 		// We use workspace as a proxy for workspace build here
 		workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
 		if err != nil {
 			if xerrors.Is(err, sql.ErrNoRows) {
 				return true
-			} else {
-				api.Logger.Error(ctx, "fetch workspace", slog.Error(err))
 			}
+			api.Logger.Error(ctx, "fetch workspace", slog.Error(err))
 		}
 		return workspace.Deleted
 	default:
@@ -298,10 +301,6 @@ type AdditionalFields struct {
 }
 
 func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAuditLogsOffsetRow) string {
-	if api.auditLogIsResourceDeleted(ctx, alog) {
-		return ""
-	}
-
 	switch alog.ResourceType {
 	case database.ResourceTypeTemplate:
 		return fmt.Sprintf("/templates/%s",
