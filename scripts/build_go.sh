@@ -27,6 +27,9 @@ set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+# Allow specifying/overriding GETOPT via environment
+GETOPT?=getopt
+
 version=""
 os="${GOOS:-linux}"
 arch="${GOARCH:-amd64}"
@@ -35,7 +38,7 @@ sign_darwin="${CODER_SIGN_DARWIN:-0}"
 output_path=""
 agpl="${CODER_BUILD_AGPL:-0}"
 
-args="$(getopt -o "" -l version:,os:,arch:,output:,slim,agpl,sign-darwin -- "$@")"
+args="$($(GETOPT) -o "" -l version:,os:,arch:,output:,slim,agpl,sign-darwin -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in

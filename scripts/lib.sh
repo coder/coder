@@ -33,6 +33,9 @@ realpath() {
 SCRIPT_DIR="$(realpath "$(dirname "${BASH_SOURCE[0]}")")"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR" && realpath "$(git rev-parse --show-toplevel)")"
 
+# Allow specifying/overriding GETOPT via environment
+GETOPT?=getopt
+
 # pushd is a silent alternative to the real pushd shell command.
 pushd() {
 	command pushd "$@" >/dev/null || error "Could not pushd to '$*'"
@@ -149,7 +152,7 @@ if [[ "${CODER_LIBSH_NO_CHECK_DEPENDENCIES:-}" != *t* ]]; then
 	fi
 
 	# BSD getopt (which is installed by default on Macs) is not supported.
-	if [[ "$(getopt --version)" == *--* ]]; then
+	if [[ "$($(GETOPT) --version)" == *--* ]]; then
 		libsh_bad_dependencies=1
 		log "ERROR: You need GNU getopt to run the scripts in the Coder repo."
 		if isdarwin; then
