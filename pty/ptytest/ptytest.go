@@ -14,7 +14,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -76,7 +75,9 @@ func create(t *testing.T, ptty pty.PTY, name string) *PTY {
 		// Close pty only so that the copy goroutine can consume the
 		// remainder of it's buffer and then exit.
 		err := ptty.Close()
-		assert.NoError(t, err, "close pty")
+		// Pty may already be closed, so don't fail the test, but log
+		// the error in case it's significant.
+		logf(t, name, "closed pty: %v", err)
 
 		select {
 		case <-ctx.Done():
