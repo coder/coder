@@ -467,7 +467,7 @@ cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(GO_SRC_FILES)
 	touch "$@"
 
 test: test-clean
-	gotestsum -- -v -short ./...
+	gotestsum --debug -- -v -short ./...
 .PHONY: test
 
 # When updating -timeout for this test, keep in sync with
