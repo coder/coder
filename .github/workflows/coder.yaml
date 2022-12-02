@@ -336,7 +336,7 @@ jobs:
             echo ::set-output name=cover::false
           fi
           set -x
-          gotestsum --junitfile="gotests.xml" --packages="./..." -- -parallel=8 -timeout=3m -short -failfast $COVERAGE_FLAGS
+          gotestsum --junitfile="gotests.xml" --packages="./..." --debug -- -parallel=8 -timeout=3m -short -failfast $COVERAGE_FLAGS
 
       - uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
