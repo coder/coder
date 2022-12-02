@@ -261,6 +261,11 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (ne
 		a.closeMutex.Unlock()
 		return nil, xerrors.Errorf("create tailnet: %w", err)
 	}
+	defer func() {
+		if err != nil {
+			network.Close()
+		}
+	}()
 	a.network = network
 	a.closeMutex.Unlock()
 
