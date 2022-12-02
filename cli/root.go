@@ -211,7 +211,7 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 	_ = cmd.PersistentFlags().MarkHidden(varAgentURL)
 	cliflag.String(cmd.PersistentFlags(), config.FlagName, "", "CODER_CONFIG_DIR", configdir.LocalConfig("coderv2"), "Path to the global `coder` config directory.")
 	cliflag.StringArray(cmd.PersistentFlags(), varHeader, "", "CODER_HEADER", []string{}, "HTTP headers added to all requests. Provide as \"Key=Value\"")
-	cliflag.String(cmd.PersistentFlags(), varHttpProxy, "", "CODER_HTTP_PROXY", "", "HTTP proxy used used for client requests. Not inherited by children.")
+	cliflag.String(cmd.PersistentFlags(), varHttpProxy, "", "CODER_HTTP_PROXY", "", "HTTP proxy used for client requests. Not inherited by children.")
 	cmd.PersistentFlags().Bool(varForceTty, false, "Force the `coder` command to run as if connected to a TTY.")
 	_ = cmd.PersistentFlags().MarkHidden(varForceTty)
 	cmd.PersistentFlags().Bool(varNoOpen, false, "Block automatically opening URLs in the browser.")
