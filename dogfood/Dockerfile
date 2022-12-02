@@ -143,7 +143,6 @@ RUN apt-get update --quiet && apt-get install --yes \
       asciinema \
       zsh \
       ansible \
-      neovim \
       google-cloud-sdk \
       google-cloud-sdk-datastore-emulator \
       kubectl \
