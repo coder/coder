@@ -27,11 +27,11 @@ set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-# Allow specifying go command via environment
-GOCMD?=go
+#Allow specifying go command via environment
+GOCMD="${GOCMD:-go}"
 
 # Allow specifying/overriding GETOPT via environment
-GETOPT?=getopt
+GETOPT="${GETOPT:-getopt}"
 
 version=""
 os="${GOOS:-linux}"
@@ -41,7 +41,7 @@ sign_darwin="${CODER_SIGN_DARWIN:-0}"
 output_path=""
 agpl="${CODER_BUILD_AGPL:-0}"
 
-args="$($(GETOPT) -o "" -l version:,os:,arch:,output:,slim,agpl,sign-darwin -- "$@")"
+args="$(${GETOPT} -o "" -l version:,os:,arch:,output:,slim,agpl,sign-darwin -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -93,7 +93,7 @@ if [[ "$version" == "" ]]; then
 fi
 
 # Check dependencies
-dependencies go
+dependencies ${GOCMD}
 if [[ "$sign_darwin" == 1 ]]; then
 	dependencies rcodesign
 	requiredenvs AC_CERTIFICATE_FILE AC_CERTIFICATE_PASSWORD_FILE
@@ -132,7 +132,7 @@ cmd_path="./enterprise/cmd/coder"
 if [[ "$agpl" == 1 ]]; then
 	cmd_path="./cmd/coder"
 fi
-CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" GOARM="$arm_version" $(GOCMD) build \
+CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" GOARM="$arm_version" ${GOCMD} build \
 	"${build_args[@]}" \
 	"$cmd_path" 1>&2
 
