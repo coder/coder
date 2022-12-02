@@ -289,8 +289,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		}
 		username = httpapi.UsernameFrom(username)
 	}
-	// Check if one or comma delimited list of allowed domains is provided.
-	// If a suffix matches, break and continue, otherwise error.
 	if len(api.OIDCConfig.EmailDomain) > 0 {
 		ok = false
 		for _, domain := range api.OIDCConfig.EmailDomain {
