@@ -992,8 +992,8 @@ func TestPreviousTemplateVersion(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.PreviousTemplateVersion(ctx, user.OrganizationID, latestVersion.Name)
+		result, err := client.PreviousTemplateVersion(ctx, user.OrganizationID, latestVersion.Name)
 		require.NoError(t, err)
-		require.Equal(t, previousVersion.ID, latestVersion.ID)
+		require.Equal(t, previousVersion.ID, result.ID)
 	})
 }
