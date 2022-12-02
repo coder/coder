@@ -119,7 +119,7 @@ FROM
 WHERE
 	created_at < (
 		SELECT created_at
-		FROM template_versions as tv
+		FROM template_versions AS tv
 		WHERE tv.organization_id = $1 AND tv.name = $2 AND tv.template_id = $3
 	)
 ORDER BY created_at DESC
