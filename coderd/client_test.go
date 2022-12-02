@@ -16,7 +16,7 @@ func doWithRetries(t require.TestingT, client *codersdk.Client, req *http.Reques
 	require.Eventually(t, func() bool {
 		resp, err = client.HTTPClient.Do(req)
 		return resp.StatusCode != http.StatusBadGateway
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.WaitLong, testutil.IntervalFast)
 	return resp, err
 }
 
@@ -25,7 +25,7 @@ func requestWithRetries(t require.TestingT, client *codersdk.Client, ctx context
 	var err error
 	require.Eventually(t, func() bool {
 		resp, err = client.Request(ctx, method, path, body, opts...)
-		return resp.StatusCode != http.StatusBadGateway
-	}, testutil.WaitShort, testutil.IntervalFast)
+		return resp == nil || resp.StatusCode != http.StatusBadGateway
+	}, testutil.WaitLong, testutil.IntervalFast)
 	return resp, err
 }
