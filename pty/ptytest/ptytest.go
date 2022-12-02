@@ -72,8 +72,13 @@ func create(t *testing.T, ptty pty.PTY, name string) *PTY {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
-		_ = out.Close()
-		_ = ptty.Close()
+		// Close pty only so that the copy goroutine can consume the
+		// remainder of it's buffer and then exit.
+		err := ptty.Close()
+		// Pty may already be closed, so don't fail the test, but log
+		// the error in case it's significant.
+		logf(t, name, "closed pty: %v", err)
+
 		select {
 		case <-ctx.Done():
 			fatalf(t, name, "cleanup", "copy did not close in time")
