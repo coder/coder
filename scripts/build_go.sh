@@ -27,6 +27,9 @@ set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+# Allow specifying go command via environment
+GOCMD?=go
+
 # Allow specifying/overriding GETOPT via environment
 GETOPT?=getopt
 
@@ -129,7 +132,7 @@ cmd_path="./enterprise/cmd/coder"
 if [[ "$agpl" == 1 ]]; then
 	cmd_path="./cmd/coder"
 fi
-CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" GOARM="$arm_version" go build \
+CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" GOARM="$arm_version" $(GOCMD) build \
 	"${build_args[@]}" \
 	"$cmd_path" 1>&2
 
