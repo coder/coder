@@ -126,7 +126,7 @@ require (
 	github.com/spf13/viper v1.14.0
 	github.com/stretchr/testify v1.8.1
 	github.com/tabbed/pqtype v0.1.1
-	github.com/u-root/u-root v0.10.0
+	github.com/u-root/u-root v0.9.1-0.20221104004445-18fd0ce36891
 	github.com/unrolled/secure v1.13.0
 	github.com/valyala/fasthttp v1.41.0
 	go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1
@@ -163,6 +163,13 @@ require (
 	nhooyr.io/websocket v1.8.7
 	storj.io/drpc v0.0.33-0.20220622181519-9206537a4db7
 	tailscale.com v1.32.2
+)
+
+require (
+	github.com/dustin/go-humanize v1.0.0 // indirect
+	github.com/google/goterm v0.0.0-20200907032337-555d40f16ae2 // indirect
+	github.com/pierrec/lz4/v4 v4.1.14 // indirect
+	github.com/u-root/gobusybox/src v0.0.0-20220728145311-85dc1fd1bc75 // indirect
 )
 
 require (
