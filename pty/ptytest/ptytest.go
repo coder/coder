@@ -14,6 +14,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -72,35 +73,14 @@ func create(t *testing.T, ptty pty.PTY, name string) *PTY {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
-		type message struct {
-			name string
-			err  error
-		}
-		closeC := make(chan message, 2)
-		doClose := func(name string, c io.Closer) {
-			select {
-			case <-ctx.Done():
-			case closeC <- message{name: name, err: c.Close()}:
-			}
-		}
-		// Close the tty asynchronously to allow the select below to timeout.
-		go func() {
-			// Close the tty first so allow out to consume its last bytes.
-			doClose("ptty", ptty)
-			doClose("stdbuf", out)
-		}()
+		// Close pty only so that the copy goroutine can consume the
+		// remainder of it's buffer and then exit.
+		err := ptty.Close()
+		assert.NoError(t, err, "close pty")
 
-	More:
 		select {
 		case <-ctx.Done():
 			fatalf(t, name, "cleanup", "copy did not close in time")
-		case m := <-closeC:
-			if m.err != nil {
-				logf(t, name, "copy close error: %s: %v", m.name, m.err)
-			} else {
-				logf(t, name, "copy closed: %s", m.name)
-			}
-			goto More
 		case <-copyDone:
 		}
 	})
