@@ -45,6 +45,8 @@ const (
 	varAgentToken       = "agent-token"
 	varAgentURL         = "agent-url"
 	varHeader           = "header"
+	varHttpProxy        = "http-proxy"
+	varHttpsProxy       = "https-proxy"
 	varNoOpen           = "no-open"
 	varNoVersionCheck   = "no-version-warning"
 	varNoFeatureWarning = "no-feature-warning"
@@ -210,6 +212,7 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 	_ = cmd.PersistentFlags().MarkHidden(varAgentURL)
 	cliflag.String(cmd.PersistentFlags(), config.FlagName, "", "CODER_CONFIG_DIR", configdir.LocalConfig("coderv2"), "Path to the global `coder` config directory.")
 	cliflag.StringArray(cmd.PersistentFlags(), varHeader, "", "CODER_HEADER", []string{}, "HTTP headers added to all requests. Provide as \"Key=Value\"")
+	cliflag.String(cmd.PersistentFlags(), varHttpProxy, "", "CODER_HTTP_PROXY", "", "HTTP proxy used used for client requests. Not inherited by children.")
 	cmd.PersistentFlags().Bool(varForceTty, false, "Force the `coder` command to run as if connected to a TTY.")
 	_ = cmd.PersistentFlags().MarkHidden(varForceTty)
 	cmd.PersistentFlags().Bool(varNoOpen, false, "Block automatically opening URLs in the browser.")
@@ -316,8 +319,21 @@ func createUnauthenticatedClient(cmd *cobra.Command, serverURL *url.URL) (*coder
 	if err != nil {
 		return nil, err
 	}
+	// If http proxy is set then adjust the transport to use it.
+	httpProxy, err := cmd.Flags().GetString(varHttpProxy)
+	if err != nil {
+		return nil, err
+	}
+	baseTransport := http.DefaultTransport.(*http.Transport).Clone()
+	if httpProxy != "" {
+		httpProxyUrl, err := url.Parse(httpProxy)
+		if err != nil {
+			return nil, err
+		}
+		baseTransport.Proxy = http.ProxyURL(httpProxyUrl)
+	}
 	transport := &headerTransport{
-		transport: http.DefaultTransport,
+		transport: baseTransport,
 		headers:   map[string]string{},
 	}
 	for _, header := range headers {
@@ -348,6 +364,20 @@ func createAgentClient(cmd *cobra.Command) (*codersdk.Client, error) {
 	}
 	client := codersdk.New(serverURL)
 	client.SetSessionToken(token)
+	// If http proxy is set then adjust the transport to use it.
+	httpProxy, err := cmd.Flags().GetString(varHttpProxy)
+	if err != nil {
+		return nil, err
+	}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if httpProxy != "" {
+		httpProxyUrl, err := url.Parse(httpProxy)
+		if err != nil {
+			return nil, err
+		}
+		transport.Proxy = http.ProxyURL(httpProxyUrl)
+	}
+	client.HTTPClient.Transport = transport
 	return client, nil
 }
 
