@@ -68,6 +68,11 @@ func VersionsMatch(v1, v2 string) bool {
 	return semver.MajorMinor(v1) == semver.MajorMinor(v2)
 }
 
+// IsDev returns true if this is a development build.
+func IsDev() bool {
+	return strings.HasPrefix(Version(), develPrefix)
+}
+
 // ExternalURL returns a URL referencing the current Coder version.
 // For production builds, this will link directly to a release.
 // For development builds, this will link to a commit.

@@ -23,6 +23,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/tracing"
+	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionerd/runner"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
@@ -52,7 +53,9 @@ type Options struct {
 	ForceCancelInterval time.Duration
 	UpdateInterval      time.Duration
 	LogBufferInterval   time.Duration
-	PollInterval        time.Duration
+	JobPollInterval     time.Duration
+	JobPollJitter       time.Duration
+	JobPollDebounce     time.Duration
 	Provisioners        Provisioners
 	WorkDirectory       string
 }
@@ -62,8 +65,11 @@ func New(clientDialer Dialer, opts *Options) *Server {
 	if opts == nil {
 		opts = &Options{}
 	}
-	if opts.PollInterval == 0 {
-		opts.PollInterval = 5 * time.Second
+	if opts.JobPollInterval == 0 {
+		opts.JobPollInterval = 5 * time.Second
+	}
+	if opts.JobPollJitter == 0 {
+		opts.JobPollJitter = time.Second
 	}
 	if opts.UpdateInterval == 0 {
 		opts.UpdateInterval = 5 * time.Second
@@ -135,11 +141,13 @@ func NewMetrics(reg prometheus.Registerer) Metrics {
 				Namespace: "coderd",
 				Subsystem: "provisionerd",
 				Name:      "jobs_current",
+				Help:      "The number of currently running provisioner jobs.",
 			}, []string{"provisioner"}),
 			JobTimings: auto.NewHistogramVec(prometheus.HistogramOpts{
 				Namespace: "coderd",
 				Subsystem: "provisionerd",
 				Name:      "job_timings_ms",
+				Help:      "The provisioner job time duration.",
 				Buckets: []float64{
 					durationToFloatMs(1 * time.Second),
 					durationToFloatMs(10 * time.Second),
@@ -205,8 +213,8 @@ func (p *Server) connect(ctx context.Context) {
 		if p.isClosed() {
 			return
 		}
-		ticker := time.NewTicker(p.opts.PollInterval)
-		defer ticker.Stop()
+		timer := time.NewTimer(p.opts.JobPollInterval)
+		defer timer.Stop()
 		for {
 			client, ok := p.client()
 			if !ok {
@@ -217,11 +225,21 @@ func (p *Server) connect(ctx context.Context) {
 				return
 			case <-client.DRPCConn().Closed():
 				return
-			case <-ticker.C:
+			case <-timer.C:
 				p.acquireJob(ctx)
+				timer.Reset(p.nextInterval())
 			}
 		}
 	}()
+}
+
+func (p *Server) nextInterval() time.Duration {
+	r, err := cryptorand.Float64()
+	if err != nil {
+		panic("get random float:" + err.Error())
+	}
+
+	return p.opts.JobPollInterval + time.Duration(float64(p.opts.JobPollJitter)*r)
 }
 
 func (p *Server) client() (proto.DRPCProvisionerDaemonClient, bool) {
@@ -246,6 +264,11 @@ func (p *Server) isRunningJob() bool {
 	}
 }
 
+var (
+	lastAcquire      time.Time
+	lastAcquireMutex sync.RWMutex
+)
+
 // Locks a job in the database, and runs it!
 func (p *Server) acquireJob(ctx context.Context) {
 	p.mutex.Lock()
@@ -261,6 +284,18 @@ func (p *Server) acquireJob(ctx context.Context) {
 		return
 	}
 
+	// This prevents loads of provisioner daemons from consistently sending
+	// requests when no jobs are available.
+	//
+	// The debounce only occurs when no job is returned, so if loads of jobs are
+	// added at once, they will start after at most this duration.
+	lastAcquireMutex.RLock()
+	if !lastAcquire.IsZero() && time.Since(lastAcquire) < p.opts.JobPollDebounce {
+		lastAcquireMutex.RUnlock()
+		return
+	}
+	lastAcquireMutex.RUnlock()
+
 	var err error
 	client, ok := p.client()
 	if !ok {
@@ -269,10 +304,9 @@ func (p *Server) acquireJob(ctx context.Context) {
 
 	job, err := client.AcquireJob(ctx, &proto.Empty{})
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
-			return
-		}
-		if errors.Is(err, yamux.ErrSessionShutdown) {
+		if errors.Is(err, context.Canceled) ||
+			errors.Is(err, yamux.ErrSessionShutdown) ||
+			errors.Is(err, fasthttputil.ErrInmemoryListenerClosed) {
 			return
 		}
 
@@ -280,6 +314,9 @@ func (p *Server) acquireJob(ctx context.Context) {
 		return
 	}
 	if job.JobId == "" {
+		lastAcquireMutex.Lock()
+		lastAcquire = time.Now()
+		lastAcquireMutex.Unlock()
 		return
 	}
 

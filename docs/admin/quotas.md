@@ -1,21 +1,19 @@
 # Quotas
 
-Coder Enterprise admins may define quotas to control costs
-and ensure equitable access to cloud resources. The quota system controls
-instantaneous cost. For example, the system can ensure that every user in your
-deployment has a spend rate lower than $10/day at any given moment.
+Quotas are a mechanism for controlling spend by associating costs with workspace
+templates and assigning budgets to users. Users that exceed their budget will be
+blocked from launching more workspaces until they either delete their other workspaces
+or get their budget extended.
 
-The workspace provisioner enforces quota during workspace start and stop operations.
-When users reach their quota, they may unblock themselves by stopping or deleting
-their workspace(s).
+For example: A template is configured with a cost of 5 credits per day, and the user is 
+granted a budget of 15 credits per day. This budget limits the user to 3 concurrent workspaces.
 
 Quotas are licensed with [Groups](./groups.md).
 
 ## Definitions
 
-- **Credits** is the fundamental unit of the quota system. They map to the
-  smallest denomination of your preferred currency. For example, if you work with USD,
-  think of each credit as a cent.
+- **Credits** is the fundamental unit representing cost in the quota system. This integer
+  can be arbitrary, or it can map to your preferred currency.
 - **Budget** is the per-user, enforced, upper limit to credit spend.
 - **Allowance** is a grant of credits to the budget.
 
@@ -29,18 +27,13 @@ less quota than an online workspace.
 A common use case is separating costs for a persistent volume and ephemeral compute:
 
 ```hcl
-resource "coder_metadata" "volume" {
-    resource_id = "${docker_volume.home_volume.id}"
-    cost = 10
-}
-
 resource "docker_volume" "home_volume" {
   name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}-root"
 }
 
-resource "coder_metadata" "container" {
-    resource_id = "${docker_container.workspace.id}"
-    cost = 20
+resource "coder_metadata" "home_volume" {
+    resource_id = docker_volume.home_volume.id
+    daily_cost  = 10
 }
 
 resource "docker_container" "workspace" {
@@ -53,10 +46,22 @@ resource "docker_container" "workspace" {
     read_only      = false
   }
 }
+
+resource "coder_metadata" "workspace" {
+    count       = data.coder_workspace.me.start_count 
+    resource_id = docker_container.workspace.id
+    daily_cost  = 20
+}
 ```
 
-In that template, the workspace consumes 10 quota credits when it's offline, and
-30 when it's online.
+When the workspace above is shut down, the `docker_container` and 
+`coder_metadata` both get deleted. This reduces the cost from 30 credits to
+10 credits. 
+
+Resources without a `daily_cost` value are considered to cost 0. If the  cost 
+was removed on the `docker_volume` above, the template would consume 0 credits when 
+it's offline. This technique is good for incentivizing users to shut down their
+unused workspaces and freeing up compute in the cluster.
 
 ## Establishing Budgets
 
@@ -69,18 +74,20 @@ For example:
 
 | Group Name | Quota Allowance |
 | ---------- | --------------- |
-| Frontend   | 100             |
-| Backend    | 200             |
-| Data       | 300             |
+| Frontend   | 10              |
+| Backend    | 20              |
+| Data       | 30              |
 
 <br/>
 
 | Username | Groups            | Effective Budget |
 | -------- | ----------------- | ---------------- |
-| jill     | Frontend, Backend | 300              |
-| jack     | Backend, Data     | 500              |
-| sam      | Data              | 300              |
-| alex     | Frontend          | 100              |
+| jill     | Frontend, Backend | 30               |
+| jack     | Backend, Data     | 50               |
+| sam      | Data              | 30               |
+| alex     | Frontend          | 10               |
+
+By default, groups are assumed to have a default allowance of 0.
 
 ## Quota Enforcement
 

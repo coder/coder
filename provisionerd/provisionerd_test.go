@@ -918,6 +918,7 @@ func TestProvisionerd(t *testing.T) {
 					<-failChan
 					_ = client.DRPCConn().Close()
 					second.Store(true)
+					time.Sleep(50 * time.Millisecond)
 					failedOnce.Do(func() { close(failedChan) })
 				}()
 			}
@@ -1052,11 +1053,11 @@ func createTar(t *testing.T, files map[string]string) []byte {
 // Creates a provisionerd implementation with the provided dialer and provisioners.
 func createProvisionerd(t *testing.T, dialer provisionerd.Dialer, provisioners provisionerd.Provisioners) *provisionerd.Server {
 	server := provisionerd.New(dialer, &provisionerd.Options{
-		Logger:         slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
-		PollInterval:   50 * time.Millisecond,
-		UpdateInterval: 50 * time.Millisecond,
-		Provisioners:   provisioners,
-		WorkDirectory:  t.TempDir(),
+		Logger:          slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
+		JobPollInterval: 50 * time.Millisecond,
+		UpdateInterval:  50 * time.Millisecond,
+		Provisioners:    provisioners,
+		WorkDirectory:   t.TempDir(),
 	})
 	t.Cleanup(func() {
 		_ = server.Close()

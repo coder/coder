@@ -9,5 +9,6 @@ export interface AlertBannerProps {
   error?: ApiError | Error | unknown
   actions?: ReactElement[]
   dismissible?: boolean
+  onDismiss?: () => void
   retry?: () => void
 }

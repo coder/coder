@@ -104,7 +104,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	queryStr := r.URL.Query().Get("q")
-	filter, errs := workspaceSearchQuery(queryStr, page)
+	filter, errs := workspaceSearchQuery(queryStr, page, api.AgentInactiveDisconnectTimeout)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid workspace search query.",
@@ -118,7 +118,8 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		filter.OwnerUsername = ""
 	}
 
-	sqlFilter, err := api.HTTPAuth.AuthorizeSQLFilter(r, rbac.ActionRead, rbac.ResourceWorkspace.Type)
+	// Workspaces do not have ACL columns.
+	prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, rbac.ActionRead, rbac.ResourceWorkspace.Type)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error preparing sql filter.",
@@ -127,7 +128,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workspaceRows, err := api.Database.GetAuthorizedWorkspaces(ctx, filter, sqlFilter)
+	workspaceRows, err := api.Database.GetAuthorizedWorkspaces(ctx, filter, prepared)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspaces.",
@@ -492,6 +493,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		[]database.WorkspaceResourceMetadatum{},
 		[]database.WorkspaceAgent{},
 		[]database.WorkspaceApp{},
+		database.TemplateVersion{},
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -670,15 +672,8 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	var dbTTL sql.NullInt64
 
 	err := api.Database.InTx(func(s database.Store) error {
-		template, err := s.GetTemplateByID(ctx, workspace.TemplateID)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Error fetching workspace template!",
-			})
-			return xerrors.Errorf("fetch workspace template: %w", err)
-		}
-
-		dbTTL, err = validWorkspaceTTLMillis(req.TTLMillis, template.DefaultTTL)
+		// don't override 0 ttl with template default here because it indicates disabled auto-stop
+		dbTTL, err := validWorkspaceTTLMillis(req.TTLMillis, 0)
 		if err != nil {
 			return codersdk.ValidationError{Field: "ttl_ms", Detail: err.Error()}
 		}
@@ -791,6 +786,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		api.Logger.Info(ctx, "extending workspace", slog.Error(err))
 	}
+	api.publishWorkspaceUpdate(ctx, workspace.ID)
 	httpapi.Write(ctx, rw, code, resp)
 }
 
@@ -937,6 +933,7 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 		data.metadata,
 		data.agents,
 		data.apps,
+		data.templateVersions,
 	)
 	if err != nil {
 		return workspaceData{}, xerrors.Errorf("convert workspace builds: %w", err)
@@ -1098,8 +1095,10 @@ func validWorkspaceSchedule(s *string) (sql.NullString, error) {
 
 // workspaceSearchQuery takes a query string and returns the workspace filter.
 // It also can return the list of validation errors to return to the api.
-func workspaceSearchQuery(query string, page codersdk.Pagination) (database.GetWorkspacesParams, []codersdk.ValidationError) {
+func workspaceSearchQuery(query string, page codersdk.Pagination, agentInactiveDisconnectTimeout time.Duration) (database.GetWorkspacesParams, []codersdk.ValidationError) {
 	filter := database.GetWorkspacesParams{
+		AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
+
 		Offset: int32(page.Offset),
 		Limit:  int32(page.Limit),
 	}
@@ -1146,7 +1145,7 @@ func workspaceSearchQuery(query string, page codersdk.Pagination) (database.GetW
 	filter.TemplateName = parser.String(searchParams, "", "template")
 	filter.Name = parser.String(searchParams, "", "name")
 	filter.Status = parser.String(searchParams, "", "status")
-
+	filter.HasAgent = parser.String(searchParams, "", "has-agent")
 	return filter, parser.Errors
 }
 

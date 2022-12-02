@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/viper"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/codersdk"
@@ -231,6 +232,12 @@ func newConfig() *codersdk.DeploymentConfig {
 				Flag:    "oidc-scopes",
 				Default: []string{oidc.ScopeOpenID, "profile", "email"},
 			},
+			IgnoreEmailVerified: &codersdk.DeploymentConfigField[bool]{
+				Name:    "OIDC Ignore Email Verified",
+				Usage:   "Ignore the email_verified claim from the upstream provider.",
+				Flag:    "oidc-ignore-email-verified",
+				Default: false,
+			},
 		},
 
 		Telemetry: &codersdk.TelemetryConfig{
@@ -381,6 +388,18 @@ func newConfig() *codersdk.DeploymentConfig {
 				Flag:    "provisioner-daemons",
 				Default: 3,
 			},
+			DaemonPollInterval: &codersdk.DeploymentConfigField[time.Duration]{
+				Name:    "Poll Interval",
+				Usage:   "Time to wait before polling for a new job.",
+				Flag:    "provisioner-daemon-poll-interval",
+				Default: time.Second,
+			},
+			DaemonPollJitter: &codersdk.DeploymentConfigField[time.Duration]{
+				Name:    "Poll Jitter",
+				Usage:   "Random jitter added to the poll interval.",
+				Flag:    "provisioner-daemon-poll-jitter",
+				Default: 100 * time.Millisecond,
+			},
 			ForceCancelInterval: &codersdk.DeploymentConfigField[time.Duration]{
 				Name:    "Force Cancel Interval",
 				Usage:   "Time to force cancel provisioning tasks that are stuck.",
@@ -398,6 +417,12 @@ func newConfig() *codersdk.DeploymentConfig {
 			Name:  "Experimental",
 			Usage: "Enable experimental features. Experimental features are not ready for production.",
 			Flag:  "experimental",
+		},
+		UpdateCheck: &codersdk.DeploymentConfigField[bool]{
+			Name:    "Update Check",
+			Usage:   "Periodically check for new releases of Coder and inform the owner. The check is performed once per day.",
+			Flag:    "update-check",
+			Default: flag.Lookup("test.v") == nil && !buildinfo.IsDev(),
 		},
 	}
 }

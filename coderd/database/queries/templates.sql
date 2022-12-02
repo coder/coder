@@ -34,6 +34,8 @@ WHERE
 			id = ANY(@ids)
 		ELSE true
 	END
+  -- Authorize Filter clause will be injected below in GetAuthorizedTemplates
+  -- @authorize_filter
 ORDER BY (name, id) ASC
 ;
 

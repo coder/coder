@@ -2,6 +2,7 @@ package agent_test
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -191,6 +192,92 @@ func TestAgent(t *testing.T) {
 		} else {
 			assert.Equal(t, 127, exitErr.ExitStatus())
 		}
+	})
+
+	//nolint:paralleltest // This test sets an environment variable.
+	t.Run("Session TTY MOTD", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			// This might be our implementation, or ConPTY itself.
+			// It's difficult to find extensive tests for it, so
+			// it seems like it could be either.
+			t.Skip("ConPTY appears to be inconsistent on Windows.")
+		}
+
+		wantMOTD := "Welcome to your Coder workspace!"
+
+		tmpdir := t.TempDir()
+		name := filepath.Join(tmpdir, "motd")
+		err := os.WriteFile(name, []byte(wantMOTD), 0o600)
+		require.NoError(t, err, "write motd file")
+
+		// Set HOME so we can ensure no ~/.hushlogin is present.
+		t.Setenv("HOME", tmpdir)
+
+		session := setupSSHSession(t, codersdk.WorkspaceAgentMetadata{
+			MOTDFile: name,
+		})
+		err = session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
+		require.NoError(t, err)
+
+		ptty := ptytest.New(t)
+		var stdout bytes.Buffer
+		session.Stdout = &stdout
+		session.Stderr = ptty.Output()
+		session.Stdin = ptty.Input()
+		err = session.Shell()
+		require.NoError(t, err)
+
+		ptty.WriteLine("exit 0")
+		err = session.Wait()
+		require.NoError(t, err)
+
+		require.Contains(t, stdout.String(), wantMOTD, "should show motd")
+	})
+
+	//nolint:paralleltest // This test sets an environment variable.
+	t.Run("Session TTY Hushlogin", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			// This might be our implementation, or ConPTY itself.
+			// It's difficult to find extensive tests for it, so
+			// it seems like it could be either.
+			t.Skip("ConPTY appears to be inconsistent on Windows.")
+		}
+
+		wantNotMOTD := "Welcome to your Coder workspace!"
+
+		tmpdir := t.TempDir()
+		name := filepath.Join(tmpdir, "motd")
+		err := os.WriteFile(name, []byte(wantNotMOTD), 0o600)
+		require.NoError(t, err, "write motd file")
+
+		// Create hushlogin to silence motd.
+		f, err := os.Create(filepath.Join(tmpdir, ".hushlogin"))
+		require.NoError(t, err, "create .hushlogin file")
+		err = f.Close()
+		require.NoError(t, err, "close .hushlogin file")
+
+		// Set HOME so we can ensure ~/.hushlogin is present.
+		t.Setenv("HOME", tmpdir)
+
+		session := setupSSHSession(t, codersdk.WorkspaceAgentMetadata{
+			MOTDFile: name,
+		})
+		err = session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
+		require.NoError(t, err)
+
+		ptty := ptytest.New(t)
+		var stdout bytes.Buffer
+		session.Stdout = &stdout
+		session.Stderr = ptty.Output()
+		session.Stdin = ptty.Input()
+		err = session.Shell()
+		require.NoError(t, err)
+
+		ptty.WriteLine("exit 0")
+		err = session.Wait()
+		require.NoError(t, err)
+
+		require.NotContains(t, stdout.String(), wantNotMOTD, "should not show motd")
 	})
 
 	t.Run("LocalForwarding", func(t *testing.T) {

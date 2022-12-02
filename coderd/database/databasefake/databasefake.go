@@ -20,6 +20,13 @@ import (
 	"github.com/coder/coder/coderd/util/slice"
 )
 
+// FakeDatabase is helpful for knowing if the underlying db is an in memory fake
+// database. This is only in the databasefake package, so will only be used
+// by unit tests.
+type FakeDatabase interface {
+	IsFakeDB()
+}
+
 var errDuplicateKey = &pq.Error{
 	Code:    "23505",
 	Message: "duplicate key value violates unique constraint",
@@ -112,11 +119,13 @@ type data struct {
 	workspaceResources        []database.WorkspaceResource
 	workspaces                []database.Workspace
 
-	deploymentID  string
-	derpMeshKey   string
-	lastLicenseID int32
+	deploymentID    string
+	derpMeshKey     string
+	lastUpdateCheck []byte
+	lastLicenseID   int32
 }
 
+func (fakeQuerier) IsFakeDB() {}
 func (*fakeQuerier) Ping(_ context.Context) (time.Duration, error) {
 	return 0, nil
 }
@@ -488,11 +497,20 @@ func (q *fakeQuerier) GetFilteredUserCount(ctx context.Context, arg database.Get
 	return count, err
 }
 
-func (q *fakeQuerier) GetAuthorizedUserCount(_ context.Context, params database.GetFilteredUserCountParams, authorizedFilter rbac.AuthorizeFilter) (int64, error) {
+func (q *fakeQuerier) GetAuthorizedUserCount(ctx context.Context, params database.GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	users := append([]database.User{}, q.users...)
+	users := make([]database.User, 0, len(q.users))
+
+	for _, user := range q.users {
+		// If the filter exists, ensure the object is authorized.
+		if prepared != nil && prepared.Authorize(ctx, user.RBACObject()) != nil {
+			continue
+		}
+
+		users = append(users, user)
+	}
 
 	if params.Deleted {
 		tmp := make([]database.User, 0, len(users))
@@ -537,13 +555,6 @@ func (q *fakeQuerier) GetAuthorizedUserCount(_ context.Context, params database.
 		}
 
 		users = usersFilteredByRole
-	}
-
-	for _, user := range q.workspaces {
-		// If the filter exists, ensure the object is authorized.
-		if authorizedFilter != nil && !authorizedFilter.Eval(user.RBACObject()) {
-			continue
-		}
 	}
 
 	return int64(len(users)), nil
@@ -750,7 +761,7 @@ func (q *fakeQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspa
 }
 
 //nolint:gocyclo
-func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, authorizedFilter rbac.AuthorizeFilter) ([]database.GetWorkspacesRow, error) {
+func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]database.GetWorkspacesRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -871,6 +882,44 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 			}
 		}
 
+		if arg.HasAgent != "" {
+			build, err := q.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+			if err != nil {
+				return nil, xerrors.Errorf("get latest build: %w", err)
+			}
+
+			job, err := q.GetProvisionerJobByID(ctx, build.JobID)
+			if err != nil {
+				return nil, xerrors.Errorf("get provisioner job: %w", err)
+			}
+
+			workspaceResources, err := q.GetWorkspaceResourcesByJobID(ctx, job.ID)
+			if err != nil {
+				return nil, xerrors.Errorf("get workspace resources: %w", err)
+			}
+
+			var workspaceResourceIDs []uuid.UUID
+			for _, wr := range workspaceResources {
+				workspaceResourceIDs = append(workspaceResourceIDs, wr.ID)
+			}
+
+			workspaceAgents, err := q.GetWorkspaceAgentsByResourceIDs(ctx, workspaceResourceIDs)
+			if err != nil {
+				return nil, xerrors.Errorf("get workspace agents: %w", err)
+			}
+
+			var hasAgentMatched bool
+			for _, wa := range workspaceAgents {
+				if mapAgentStatus(wa, arg.AgentInactiveDisconnectTimeoutSeconds) == arg.HasAgent {
+					hasAgentMatched = true
+				}
+			}
+
+			if !hasAgentMatched {
+				continue
+			}
+		}
+
 		if len(arg.TemplateIds) > 0 {
 			match := false
 			for _, id := range arg.TemplateIds {
@@ -885,7 +934,7 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 		}
 
 		// If the filter exists, ensure the object is authorized.
-		if authorizedFilter != nil && !authorizedFilter.Eval(workspace.RBACObject()) {
+		if prepared != nil && prepared.Authorize(ctx, workspace.RBACObject()) != nil {
 			continue
 		}
 		workspaces = append(workspaces, workspace)
@@ -907,6 +956,40 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 	}
 
 	return convertToWorkspaceRows(workspaces, int64(beforePageCount)), nil
+}
+
+// mapAgentStatus determines the agent status based on different timestamps like created_at, last_connected_at, disconnected_at, etc.
+// The function must be in sync with: coderd/workspaceagents.go:convertWorkspaceAgent.
+func mapAgentStatus(dbAgent database.WorkspaceAgent, agentInactiveDisconnectTimeoutSeconds int64) string {
+	var status string
+	connectionTimeout := time.Duration(dbAgent.ConnectionTimeoutSeconds) * time.Second
+	switch {
+	case !dbAgent.FirstConnectedAt.Valid:
+		switch {
+		case connectionTimeout > 0 && database.Now().Sub(dbAgent.CreatedAt) > connectionTimeout:
+			// If the agent took too long to connect the first time,
+			// mark it as timed out.
+			status = "timeout"
+		default:
+			// If the agent never connected, it's waiting for the compute
+			// to start up.
+			status = "connecting"
+		}
+	case dbAgent.DisconnectedAt.Time.After(dbAgent.LastConnectedAt.Time):
+		// If we've disconnected after our last connection, we know the
+		// agent is no longer connected.
+		status = "disconnected"
+	case database.Now().Sub(dbAgent.LastConnectedAt.Time) > time.Duration(agentInactiveDisconnectTimeoutSeconds)*time.Second:
+		// The connection died without updating the last connected.
+		status = "disconnected"
+	case dbAgent.LastConnectedAt.Valid:
+		// The agent should be assumed connected if it's under inactivity timeouts
+		// and last connected at has been properly set.
+		status = "connected"
+	default:
+		panic("unknown agent status: " + status)
+	}
+	return status
 }
 
 func convertToWorkspaceRows(workspaces []database.Workspace, count int64) []database.GetWorkspacesRow {
@@ -1433,12 +1516,20 @@ func (q *fakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 	return database.Template{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetTemplatesWithFilter(_ context.Context, arg database.GetTemplatesWithFilterParams) ([]database.Template, error) {
+func (q *fakeQuerier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTemplatesWithFilterParams) ([]database.Template, error) {
+	return q.GetAuthorizedTemplates(ctx, arg, nil)
+}
+
+func (q *fakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	var templates []database.Template
 	for _, template := range q.templates {
+		if prepared != nil && prepared.Authorize(ctx, template.RBACObject()) != nil {
+			continue
+		}
+
 		if template.Deleted != arg.Deleted {
 			continue
 		}
@@ -1592,6 +1683,26 @@ func (q *fakeQuerier) GetTemplateVersionByID(_ context.Context, templateVersionI
 		return templateVersion, nil
 	}
 	return database.TemplateVersion{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetTemplateVersionsByIDs(_ context.Context, ids []uuid.UUID) ([]database.TemplateVersion, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	versions := make([]database.TemplateVersion, 0)
+	for _, version := range q.templateVersions {
+		for _, id := range ids {
+			if id == version.ID {
+				versions = append(versions, version)
+				break
+			}
+		}
+	}
+	if len(versions) == 0 {
+		return nil, sql.ErrNoRows
+	}
+
+	return versions, nil
 }
 
 func (q *fakeQuerier) GetTemplateVersionByJobID(_ context.Context, jobID uuid.UUID) (database.TemplateVersion, error) {
@@ -2363,6 +2474,7 @@ func (q *fakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 		ResourceMetadata:         arg.ResourceMetadata,
 		ConnectionTimeoutSeconds: arg.ConnectionTimeoutSeconds,
 		TroubleshootingURL:       arg.TroubleshootingURL,
+		MOTDFile:                 arg.MOTDFile,
 	}
 
 	q.workspaceAgents = append(q.workspaceAgents, agent)
@@ -2895,6 +3007,7 @@ func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.U
 	}
 	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
+
 func (q *fakeQuerier) UpdateWorkspaceBuildCostByID(_ context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) (database.WorkspaceBuild, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -3158,6 +3271,24 @@ func (q *fakeQuerier) GetDERPMeshKey(_ context.Context) (string, error) {
 	defer q.mutex.RUnlock()
 
 	return q.derpMeshKey, nil
+}
+
+func (q *fakeQuerier) InsertOrUpdateLastUpdateCheck(_ context.Context, data string) error {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	q.lastUpdateCheck = []byte(data)
+	return nil
+}
+
+func (q *fakeQuerier) GetLastUpdateCheck(_ context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if q.lastUpdateCheck == nil {
+		return "", sql.ErrNoRows
+	}
+	return string(q.lastUpdateCheck), nil
 }
 
 func (q *fakeQuerier) InsertLicense(

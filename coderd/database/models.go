@@ -675,6 +675,8 @@ type WorkspaceAgent struct {
 	ConnectionTimeoutSeconds int32 `db:"connection_timeout_seconds" json:"connection_timeout_seconds"`
 	// URL for troubleshooting the agent.
 	TroubleshootingURL string `db:"troubleshooting_url" json:"troubleshooting_url"`
+	// Path to file inside workspace containing the message of the day (MOTD) to show to the user when logging in via SSH.
+	MOTDFile string `db:"motd_file" json:"motd_file"`
 }
 
 type WorkspaceApp struct {

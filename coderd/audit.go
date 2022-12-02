@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/tabbed/pqtype"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
@@ -189,11 +190,23 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 		}
 	}
 
-	additionalFieldsBytes := []byte(dblog.AdditionalFields)
-	var additionalFields AdditionalFields
-	err := json.Unmarshal(additionalFieldsBytes, &additionalFields)
+	var (
+		additionalFieldsBytes = []byte(dblog.AdditionalFields)
+		additionalFields      AdditionalFields
+		err                   = json.Unmarshal(additionalFieldsBytes, &additionalFields)
+	)
 	if err != nil {
 		api.Logger.Error(ctx, "unmarshal additional fields", slog.Error(err))
+	}
+
+	var (
+		isDeleted    = api.auditLogIsResourceDeleted(ctx, dblog)
+		resourceLink string
+	)
+	if isDeleted {
+		resourceLink = ""
+	} else {
+		resourceLink = auditLogResourceLink(dblog, additionalFields)
 	}
 
 	return codersdk.AuditLog{
@@ -213,8 +226,8 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 		AdditionalFields: dblog.AdditionalFields,
 		User:             user,
 		Description:      auditLogDescription(dblog, additionalFields),
-		ResourceLink:     api.auditLogResourceLink(ctx, dblog, additionalFields),
-		IsDeleted:        api.auditLogIsResourceDeleted(ctx, dblog),
+		ResourceLink:     resourceLink,
+		IsDeleted:        isDeleted,
 	}
 }
 
@@ -253,30 +266,45 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 	case database.ResourceTypeTemplate:
 		template, err := api.Database.GetTemplateByID(ctx, alog.ResourceID)
 		if err != nil {
-			api.Logger.Error(ctx, "could not fetch template", slog.Error(err))
+			if xerrors.Is(err, sql.ErrNoRows) {
+				return true
+			}
+			api.Logger.Error(ctx, "fetch template", slog.Error(err))
 		}
 		return template.Deleted
 	case database.ResourceTypeUser:
 		user, err := api.Database.GetUserByID(ctx, alog.ResourceID)
 		if err != nil {
-			api.Logger.Error(ctx, "could not fetch user", slog.Error(err))
+			if xerrors.Is(err, sql.ErrNoRows) {
+				return true
+			}
+			api.Logger.Error(ctx, "fetch user", slog.Error(err))
 		}
 		return user.Deleted
 	case database.ResourceTypeWorkspace:
 		workspace, err := api.Database.GetWorkspaceByID(ctx, alog.ResourceID)
 		if err != nil {
-			api.Logger.Error(ctx, "could not fetch workspace", slog.Error(err))
+			if xerrors.Is(err, sql.ErrNoRows) {
+				return true
+			}
+			api.Logger.Error(ctx, "fetch workspace", slog.Error(err))
 		}
 		return workspace.Deleted
 	case database.ResourceTypeWorkspaceBuild:
 		workspaceBuild, err := api.Database.GetWorkspaceBuildByID(ctx, alog.ResourceID)
 		if err != nil {
-			api.Logger.Error(ctx, "could not fetch workspace build", slog.Error(err))
+			if xerrors.Is(err, sql.ErrNoRows) {
+				return true
+			}
+			api.Logger.Error(ctx, "fetch workspace build", slog.Error(err))
 		}
 		// We use workspace as a proxy for workspace build here
 		workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
 		if err != nil {
-			api.Logger.Error(ctx, "could not fetch workspace", slog.Error(err))
+			if xerrors.Is(err, sql.ErrNoRows) {
+				return true
+			}
+			api.Logger.Error(ctx, "fetch workspace", slog.Error(err))
 		}
 		return workspace.Deleted
 	default:
@@ -284,11 +312,7 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 	}
 }
 
-func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAuditLogsOffsetRow, additionalFields AdditionalFields) string {
-	if api.auditLogIsResourceDeleted(ctx, alog) {
-		return ""
-	}
-
+func auditLogResourceLink(alog database.GetAuditLogsOffsetRow, additionalFields AdditionalFields) string {
 	switch alog.ResourceType {
 	case database.ResourceTypeTemplate:
 		return fmt.Sprintf("/templates/%s",

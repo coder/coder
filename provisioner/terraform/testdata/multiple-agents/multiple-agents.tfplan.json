@@ -17,6 +17,7 @@
             "connection_timeout": 120,
             "dir": null,
             "env": null,
+            "motd_file": null,
             "os": "linux",
             "startup_script": null,
             "troubleshooting_url": null
@@ -36,6 +37,7 @@
             "connection_timeout": 1,
             "dir": null,
             "env": null,
+            "motd_file": "/etc/motd",
             "os": "darwin",
             "startup_script": null,
             "troubleshooting_url": null
@@ -55,6 +57,7 @@
             "connection_timeout": 120,
             "dir": null,
             "env": null,
+            "motd_file": null,
             "os": "windows",
             "startup_script": null,
             "troubleshooting_url": "https://coder.com/troubleshoot"
@@ -94,6 +97,7 @@
           "connection_timeout": 120,
           "dir": null,
           "env": null,
+          "motd_file": null,
           "os": "linux",
           "startup_script": null,
           "troubleshooting_url": null
@@ -126,6 +130,7 @@
           "connection_timeout": 1,
           "dir": null,
           "env": null,
+          "motd_file": "/etc/motd",
           "os": "darwin",
           "startup_script": null,
           "troubleshooting_url": null
@@ -158,6 +163,7 @@
           "connection_timeout": 120,
           "dir": null,
           "env": null,
+          "motd_file": null,
           "os": "windows",
           "startup_script": null,
           "troubleshooting_url": "https://coder.com/troubleshoot"
@@ -200,7 +206,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.6.1"
+        "version_constraint": "0.6.4"
       },
       "null": {
         "name": "null",
@@ -237,6 +243,9 @@
             },
             "connection_timeout": {
               "constant_value": 1
+            },
+            "motd_file": {
+              "constant_value": "/etc/motd"
             },
             "os": {
               "constant_value": "darwin"

@@ -98,6 +98,9 @@ Flags:
       --oidc-email-domain string                     Email domain that clients logging in with
                                                      OIDC must match.
                                                      Consumes $CODER_OIDC_EMAIL_DOMAIN
+      --oidc-ignore-email-verified                   Ignore the email_verified claim from the
+                                                     upstream provider.
+                                                     Consumes $CODER_OIDC_IGNORE_EMAIL_VERIFIED
       --oidc-issuer-url string                       Issuer URL to use for Login with OIDC.
                                                      Consumes $CODER_OIDC_ISSUER_URL
       --oidc-scopes strings                          Scopes to grant when authenticating with
@@ -125,6 +128,15 @@ Flags:
       --prometheus-enable                            Serve prometheus metrics on the address
                                                      defined by prometheus address.
                                                      Consumes $CODER_PROMETHEUS_ENABLE
+      --provisioner-daemon-poll-interval duration    Time to wait before polling for a new
+                                                     job.
+                                                     Consumes
+                                                     $CODER_PROVISIONER_DAEMON_POLL_INTERVAL
+                                                     (default 1s)
+      --provisioner-daemon-poll-jitter duration      Random jitter added to the poll interval.
+                                                     Consumes
+                                                     $CODER_PROVISIONER_DAEMON_POLL_JITTER
+                                                     (default 100ms)
       --provisioner-daemons int                      Number of provisioner daemons to create
                                                      on start. If builds are stuck in queued
                                                      state for a long time, consider
@@ -216,6 +228,10 @@ Flags:
                                                      verbose flag was supplied, debug-level
                                                      logs will be included.
                                                      Consumes $CODER_TRACE_CAPTURE_LOGS
+      --update-check                                 Periodically check for new releases of
+                                                     Coder and inform the owner. The check is
+                                                     performed once per day.
+                                                     Consumes $CODER_UPDATE_CHECK
       --wildcard-access-url string                   Specifies the wildcard hostname to use
                                                      for workspace applications in the form
                                                      "*.example.com".

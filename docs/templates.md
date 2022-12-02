@@ -341,6 +341,10 @@ practices:
 
 Template permissions can be used to give users and groups access to specific templates. [Learn more about RBAC](./admin/rbac.md).
 
+## Community Templates
+
+You can see a list of community templates by our users [here](../examples/templates/community-templates.md). 
+
 ## Next Steps
 
 - Learn about [Authentication & Secrets](templates/authentication.md)

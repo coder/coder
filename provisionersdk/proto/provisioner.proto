@@ -87,6 +87,7 @@ message Agent {
     }
 	int32 connection_timeout_seconds = 11;
 	string troubleshooting_url = 12;
+	string motd_file = 13;
 }
 
 enum AppSharingLevel {

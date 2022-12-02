@@ -45,8 +45,10 @@ export type WorkspaceScheduleEvent =
   | { type: "GET_WORKSPACE"; username: string; workspaceName: string }
   | {
       type: "SUBMIT_SCHEDULE"
-      autoStart: TypesGen.UpdateWorkspaceAutostartRequest | undefined
+      autoStart: TypesGen.UpdateWorkspaceAutostartRequest
+      autoStartChanged: boolean
       ttl: TypesGen.UpdateWorkspaceTTLRequest
+      autoStopChanged: boolean
     }
 
 export const workspaceSchedule = createMachine(
@@ -195,10 +197,12 @@ export const workspaceSchedule = createMachine(
           throw new Error("Failed to load workspace.")
         }
 
-        if (event.autoStart?.schedule !== undefined) {
+        if (event.autoStartChanged) {
           await API.putWorkspaceAutostart(context.workspace.id, event.autoStart)
         }
-        await API.putWorkspaceAutostop(context.workspace.id, event.ttl)
+        if (event.autoStopChanged) {
+          await API.putWorkspaceAutostop(context.workspace.id, event.ttl)
+        }
       },
     },
   },
