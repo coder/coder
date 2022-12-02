@@ -24,6 +24,12 @@ export const MockBuildInfo: TypesGen.BuildInfoResponse = {
   version: "v99.999.9999+c9cdf14",
 }
 
+export const MockUpdateCheck: TypesGen.UpdateCheckResponse = {
+  current: true,
+  url: "file:///mock-url",
+  version: "v99.999.9999+c9cdf14",
+}
+
 export const MockOwnerRole: TypesGen.Role = {
   name: "owner",
   display_name: "Owner",
@@ -173,6 +179,23 @@ export const MockTemplateVersion: TypesGen.TemplateVersion = {
   name: "test-version",
   readme: `---
 name:Template test
+---
+## Instructions
+You can add instructions here
+
+[Some link info](https://coder.com)`,
+  created_by: MockUser,
+}
+
+export const MockTemplateVersion2: TypesGen.TemplateVersion = {
+  id: "test-template-version-2",
+  created_at: "2022-05-17T17:39:01.382927298Z",
+  updated_at: "2022-05-17T17:39:01.382927298Z",
+  template_id: "test-template",
+  job: MockProvisionerJob,
+  name: "test-version-2",
+  readme: `---
+name:Template test 2
 ---
 ## Instructions
 You can add instructions here
@@ -383,7 +406,8 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   initiator_id: MockUser.id,
   initiator_name: MockUser.username,
   job: MockProvisionerJob,
-  template_version_id: "",
+  template_version_id: MockTemplateVersion.id,
+  template_version_name: MockTemplateVersion.name,
   transition: "start",
   updated_at: "2022-05-17T17:39:01.382927298Z",
   workspace_name: "test-workspace",
@@ -406,7 +430,8 @@ export const MockFailedWorkspaceBuild = (
   initiator_id: MockUser.id,
   initiator_name: MockUser.username,
   job: MockFailedProvisionerJob,
-  template_version_id: "",
+  template_version_id: MockTemplateVersion.id,
+  template_version_name: MockTemplateVersion.name,
   transition: transition,
   updated_at: "2022-05-17T17:39:01.382927298Z",
   workspace_name: "test-workspace",

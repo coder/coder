@@ -38,6 +38,12 @@ CODER_OAUTH2_GITHUB_CLIENT_ID="8d1...e05"
 CODER_OAUTH2_GITHUB_CLIENT_SECRET="57ebc9...02c24c"
 ```
 
+**Note:** To allow everyone to signup using GitHub, set:
+
+```console
+CODER_OAUTH2_GITHUB_ALLOW_EVERYONE=true
+```
+
 Once complete, run `sudo service coder restart` to reboot Coder.
 
 ## OpenID Connect with Google
@@ -76,10 +82,20 @@ Once complete, run `sudo service coder restart` to reboot Coder.
 > When a new user is created, the `preferred_username` claim becomes the username. If this claim is empty, the email address will be stripped of the domain, and become the username (e.g. `example@coder.com` becomes `example`).
 
 If your OpenID Connect provider requires client TLS certificates for authentication, you can configure them like so:
+
 ```console
 CODER_TLS_CLIENT_CERT_FILE=/path/to/cert.pem
 CODER_TLS_CLIENT_KEY_FILE=/path/to/key.pem
 ```
+
+Coder requires all OIDC email addresses to be verified by default. If the `email_verified` claim is present in the token response from the identity provider, Coder will validate that its value is `true`.
+If needed, you can disable this behavior with the following setting:
+
+```console
+CODER_OIDC_IGNORE_EMAIL_VERIFIED=true
+```
+
+> **Note:** This will cause Coder to implicitly treat all OIDC emails as "verified".
 
 ## SCIM (enterprise)
 

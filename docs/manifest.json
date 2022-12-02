@@ -275,6 +275,12 @@
           "state": "enterprise"
         },
         {
+          "title": "Prometheus",
+          "description": "Learn how to collect Prometheus metrics",
+          "icon_path": "./images/icons/speed.svg",
+          "path": "./admin/prometheus.md"
+        },
+        {
           "title": "Telemetry",
           "description": "Learn what usage telemetry Coder collects",
           "icon_path": "./images/icons/science.svg",

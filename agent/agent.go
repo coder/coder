@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bufio"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
@@ -230,13 +231,27 @@ func (a *agent) run(ctx context.Context) error {
 	return nil
 }
 
-func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*tailnet.Conn, error) {
+func (a *agent) trackConnGoroutine(fn func()) error {
+	a.closeMutex.Lock()
+	defer a.closeMutex.Unlock()
+	if a.isClosed() {
+		return xerrors.New("track conn goroutine: agent is closed")
+	}
+	a.connCloseWait.Add(1)
+	go func() {
+		defer a.connCloseWait.Done()
+		fn()
+	}()
+	return nil
+}
+
+func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (network *tailnet.Conn, err error) {
 	a.closeMutex.Lock()
 	if a.isClosed() {
 		a.closeMutex.Unlock()
 		return nil, xerrors.New("closed")
 	}
-	network, err := tailnet.NewConn(&tailnet.Options{
+	network, err = tailnet.NewConn(&tailnet.Options{
 		Addresses:          []netip.Prefix{netip.PrefixFrom(codersdk.TailnetIP, 128)},
 		DERPMap:            derpMap,
 		Logger:             a.logger.Named("tailnet"),
@@ -246,16 +261,24 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*t
 		a.closeMutex.Unlock()
 		return nil, xerrors.Errorf("create tailnet: %w", err)
 	}
+	defer func() {
+		if err != nil {
+			network.Close()
+		}
+	}()
 	a.network = network
-	a.connCloseWait.Add(4)
 	a.closeMutex.Unlock()
 
 	sshListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetSSHPort))
 	if err != nil {
 		return nil, xerrors.Errorf("listen on the ssh port: %w", err)
 	}
-	go func() {
-		defer a.connCloseWait.Done()
+	defer func() {
+		if err != nil {
+			_ = sshListener.Close()
+		}
+	}()
+	if err = a.trackConnGoroutine(func() {
 		for {
 			conn, err := sshListener.Accept()
 			if err != nil {
@@ -263,14 +286,20 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*t
 			}
 			go a.sshServer.HandleConn(conn)
 		}
-	}()
+	}); err != nil {
+		return nil, err
+	}
 
 	reconnectingPTYListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetReconnectingPTYPort))
 	if err != nil {
 		return nil, xerrors.Errorf("listen for reconnecting pty: %w", err)
 	}
-	go func() {
-		defer a.connCloseWait.Done()
+	defer func() {
+		if err != nil {
+			_ = reconnectingPTYListener.Close()
+		}
+	}()
+	if err = a.trackConnGoroutine(func() {
 		for {
 			conn, err := reconnectingPTYListener.Accept()
 			if err != nil {
@@ -297,36 +326,48 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*t
 			}
 			go a.handleReconnectingPTY(ctx, msg, conn)
 		}
-	}()
+	}); err != nil {
+		return nil, err
+	}
 
 	speedtestListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetSpeedtestPort))
 	if err != nil {
 		return nil, xerrors.Errorf("listen for speedtest: %w", err)
 	}
-	go func() {
-		defer a.connCloseWait.Done()
+	defer func() {
+		if err != nil {
+			_ = speedtestListener.Close()
+		}
+	}()
+	if err = a.trackConnGoroutine(func() {
 		for {
 			conn, err := speedtestListener.Accept()
 			if err != nil {
 				a.logger.Debug(ctx, "speedtest listener failed", slog.Error(err))
 				return
 			}
-			a.closeMutex.Lock()
-			a.connCloseWait.Add(1)
-			a.closeMutex.Unlock()
-			go func() {
-				defer a.connCloseWait.Done()
+			if err = a.trackConnGoroutine(func() {
 				_ = speedtest.ServeConn(conn)
-			}()
+			}); err != nil {
+				a.logger.Debug(ctx, "speedtest listener failed", slog.Error(err))
+				_ = conn.Close()
+				return
+			}
 		}
-	}()
+	}); err != nil {
+		return nil, err
+	}
 
 	statisticsListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetStatisticsPort))
 	if err != nil {
 		return nil, xerrors.Errorf("listen for statistics: %w", err)
 	}
-	go func() {
-		defer a.connCloseWait.Done()
+	defer func() {
+		if err != nil {
+			_ = statisticsListener.Close()
+		}
+	}()
+	if err = a.trackConnGoroutine(func() {
 		defer statisticsListener.Close()
 		server := &http.Server{
 			Handler:           a.statisticsHandler(),
@@ -340,11 +381,13 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (*t
 			_ = server.Close()
 		}()
 
-		err = server.Serve(statisticsListener)
+		err := server.Serve(statisticsListener)
 		if err != nil && !xerrors.Is(err, http.ErrServerClosed) && !strings.Contains(err.Error(), "use of closed network connection") {
 			a.logger.Critical(ctx, "serve statistics HTTP server", slog.Error(err))
 		}
-	}()
+	}); err != nil {
+		return nil, err
+	}
 
 	return network, nil
 }
@@ -479,12 +522,11 @@ func (a *agent) init(ctx context.Context) {
 				var opts []sftp.ServerOption
 				// Change current working directory to the users home
 				// directory so that SFTP connections land there.
-				// https://github.com/coder/coder/issues/3620
-				u, err := user.Current()
+				homedir, err := userHomeDir()
 				if err != nil {
-					sshLogger.Warn(ctx, "get sftp working directory failed, unable to get current user", slog.Error(err))
+					sshLogger.Warn(ctx, "get sftp working directory failed, unable to get home dir", slog.Error(err))
 				} else {
-					opts = append(opts, sftp.WithServerWorkingDirectory(u.HomeDir))
+					opts = append(opts, sftp.WithServerWorkingDirectory(homedir))
 				}
 
 				server, err := sftp.NewServer(session, opts...)
@@ -527,12 +569,15 @@ func (a *agent) init(ctx context.Context) {
 		a.logger.Error(ctx, "report stats", slog.Error(err))
 		return
 	}
-	a.connCloseWait.Add(1)
-	go func() {
-		defer a.connCloseWait.Done()
+
+	if err = a.trackConnGoroutine(func() {
 		<-a.closed
-		cl.Close()
-	}()
+		_ = cl.Close()
+	}); err != nil {
+		a.logger.Error(ctx, "report stats goroutine", slog.Error(err))
+		_ = cl.Close()
+		return
+	}
 }
 
 func convertAgentStats(counts map[netlogtype.Connection]netlogtype.Counts) *codersdk.AgentStats {
@@ -598,8 +643,12 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	cmd := exec.CommandContext(ctx, shell, args...)
 	cmd.Dir = metadata.Directory
 	if cmd.Dir == "" {
-		// Default to $HOME if a directory is not set!
-		cmd.Dir = os.Getenv("HOME")
+		// Default to user home if a directory is not set.
+		homedir, err := userHomeDir()
+		if err != nil {
+			return nil, xerrors.Errorf("get home dir: %w", err)
+		}
+		cmd.Dir = homedir
 	}
 	cmd.Env = append(os.Environ(), env...)
 	executablePath, err := os.Executable()
@@ -674,6 +723,18 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 		// Disable minimal PTY emulation set by gliderlabs/ssh (NL-to-CRNL).
 		// See https://github.com/coder/coder/issues/3371.
 		session.DisablePTYEmulation()
+
+		if !isQuietLogin(session.RawCommand()) {
+			metadata, ok := a.metadata.Load().(codersdk.WorkspaceAgentMetadata)
+			if ok {
+				err = showMOTD(session, metadata.MOTDFile)
+				if err != nil {
+					a.logger.Error(ctx, "show MOTD", slog.Error(err))
+				}
+			} else {
+				a.logger.Warn(ctx, "metadata lookup failed, unable to show MOTD")
+			}
+		}
 
 		cmd.Env = append(cmd.Env, fmt.Sprintf("TERM=%s", sshPty.Term))
 
@@ -771,9 +832,6 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, msg codersdk.Reconnec
 			return
 		}
 
-		a.closeMutex.Lock()
-		a.connCloseWait.Add(1)
-		a.closeMutex.Unlock()
 		ctx, cancelFunc := context.WithCancel(ctx)
 		rpty = &reconnectingPTY{
 			activeConns: map[string]net.Conn{
@@ -802,7 +860,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, msg codersdk.Reconnec
 			_ = process.Wait()
 			rpty.Close()
 		}()
-		go func() {
+		if err = a.trackConnGoroutine(func() {
 			buffer := make([]byte, 1024)
 			for {
 				read, err := rpty.ptty.Output().Read(buffer)
@@ -830,8 +888,10 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, msg codersdk.Reconnec
 			_ = process.Kill()
 			rpty.Close()
 			a.reconnectingPTYs.Delete(msg.ID)
-			a.connCloseWait.Done()
-		}()
+		}); err != nil {
+			a.logger.Error(ctx, "start reconnecting pty routine", slog.F("id", msg.ID), slog.Error(err))
+			return
+		}
 	}
 	// Resize the PTY to initial height + width.
 	err := rpty.ptty.Resize(msg.Height, msg.Width)
@@ -1000,19 +1060,74 @@ func Bicopy(ctx context.Context, c1, c2 io.ReadWriteCloser) {
 	}
 }
 
-// ExpandRelativeHomePath expands the tilde at the beginning of a path to the
-// current user's home directory and returns a full absolute path.
-func ExpandRelativeHomePath(in string) (string, error) {
-	usr, err := user.Current()
+// isQuietLogin checks if the SSH server should perform a quiet login or not.
+//
+// https://github.com/openssh/openssh-portable/blob/25bd659cc72268f2858c5415740c442ee950049f/session.c#L816
+func isQuietLogin(rawCommand string) bool {
+	// We are always quiet unless this is a login shell.
+	if len(rawCommand) != 0 {
+		return true
+	}
+
+	// Best effort, if we can't get the home directory,
+	// we can't lookup .hushlogin.
+	homedir, err := userHomeDir()
 	if err != nil {
-		return "", xerrors.Errorf("get current user details: %w", err)
+		return false
 	}
 
-	if in == "~" {
-		in = usr.HomeDir
-	} else if strings.HasPrefix(in, "~/") {
-		in = filepath.Join(usr.HomeDir, in[2:])
+	_, err = os.Stat(filepath.Join(homedir, ".hushlogin"))
+	return err == nil
+}
+
+// showMOTD will output the message of the day from
+// the given filename to dest, if the file exists.
+//
+// https://github.com/openssh/openssh-portable/blob/25bd659cc72268f2858c5415740c442ee950049f/session.c#L784
+func showMOTD(dest io.Writer, filename string) error {
+	if filename == "" {
+		return nil
 	}
 
-	return filepath.Abs(in)
+	f, err := os.Open(filename)
+	if err != nil {
+		if xerrors.Is(err, os.ErrNotExist) {
+			// This is not an error, there simply isn't a MOTD to show.
+			return nil
+		}
+		return xerrors.Errorf("open MOTD: %w", err)
+	}
+	defer f.Close()
+
+	s := bufio.NewScanner(f)
+	for s.Scan() {
+		// Carriage return ensures each line starts
+		// at the beginning of the terminal.
+		_, err = fmt.Fprint(dest, s.Text()+"\r\n")
+		if err != nil {
+			return xerrors.Errorf("write MOTD: %w", err)
+		}
+	}
+	if err := s.Err(); err != nil {
+		return xerrors.Errorf("read MOTD: %w", err)
+	}
+
+	return nil
+}
+
+// userHomeDir returns the home directory of the current user, giving
+// priority to the $HOME environment variable.
+func userHomeDir() (string, error) {
+	// First we check the environment.
+	homedir, err := os.UserHomeDir()
+	if err == nil {
+		return homedir, nil
+	}
+
+	// As a fallback, we try the user information.
+	u, err := user.Current()
+	if err != nil {
+		return "", xerrors.Errorf("current user: %w", err)
+	}
+	return u.HomeDir, nil
 }

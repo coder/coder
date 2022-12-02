@@ -195,6 +195,9 @@ type OIDCConfig struct {
 	// EmailDomain is the domain to enforce when a user authenticates.
 	EmailDomain  string
 	AllowSignups bool
+	// IgnoreEmailVerified allows ignoring the email_verified claim
+	// from an upstream OIDC provider. See #5065 for context.
+	IgnoreEmailVerified bool
 }
 
 func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
@@ -264,10 +267,13 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	if ok {
 		verified, ok := verifiedRaw.(bool)
 		if ok && !verified {
-			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-				Message: fmt.Sprintf("Verify the %q email address on your OIDC provider to authenticate!", email),
-			})
-			return
+			if !api.OIDCConfig.IgnoreEmailVerified {
+				httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+					Message: fmt.Sprintf("Verify the %q email address on your OIDC provider to authenticate!", email),
+				})
+				return
+			}
+			api.Logger.Warn(ctx, "allowing unverified oidc email %q")
 		}
 	}
 	// The username is a required property in Coder. We make a best-effort

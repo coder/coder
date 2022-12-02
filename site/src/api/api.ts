@@ -376,6 +376,12 @@ export const getBuildInfo = async (): Promise<TypesGen.BuildInfoResponse> => {
   return response.data
 }
 
+export const getUpdateCheck =
+  async (): Promise<TypesGen.UpdateCheckResponse> => {
+    const response = await axios.get("/api/v2/updatecheck")
+    return response.data
+  }
+
 export const putWorkspaceAutostart = async (
   workspaceID: string,
   autostart: TypesGen.UpdateWorkspaceAutostartRequest,

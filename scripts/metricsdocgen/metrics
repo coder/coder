@@ -1,0 +1,576 @@
+# HELP coderd_api_active_users_duration_hour The number of users that have been active within the last hour.
+# TYPE coderd_api_active_users_duration_hour gauge
+coderd_api_active_users_duration_hour 0
+# HELP coderd_api_concurrent_requests The number of concurrent API requests
+# TYPE coderd_api_concurrent_requests gauge
+coderd_api_concurrent_requests 1
+# HELP coderd_api_concurrent_websockets The total number of concurrent API websockets
+# TYPE coderd_api_concurrent_websockets gauge
+coderd_api_concurrent_websockets 1
+# HELP coderd_api_request_latencies_ms Latency distribution of requests in milliseconds
+# TYPE coderd_api_request_latencies_ms histogram
+coderd_api_request_latencies_ms_bucket{method="GET",path="",le="1"} 10
+coderd_api_request_latencies_ms_bucket{method="GET",path="",le="5"} 13
+coderd_api_request_latencies_ms_bucket{method="GET",path="",le="10"} 14
+coderd_api_request_latencies_ms_bucket{method="GET",path="",le="25"} 15
+coderd_api_request_latencies_ms_bucket{method="GET",path="",le="50"} 15
+coderd_api_request_latencies_ms_bucket{method="GET",path="",le="100"} 15
+coderd_api_request_latencies_ms_bucket{method="GET",path="",le="500"} 15
+coderd_api_request_latencies_ms_bucket{method="GET",path="",le="1000"} 15
+coderd_api_request_latencies_ms_bucket{method="GET",path="",le="5000"} 15
+coderd_api_request_latencies_ms_bucket{method="GET",path="",le="10000"} 15
+coderd_api_request_latencies_ms_bucket{method="GET",path="",le="30000"} 16
+coderd_api_request_latencies_ms_bucket{method="GET",path="",le="+Inf"} 16
+coderd_api_request_latencies_ms_sum{method="GET",path=""} 14914.475126
+coderd_api_request_latencies_ms_count{method="GET",path=""} 16
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/applications/host/",le="1"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/applications/host/",le="5"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/applications/host/",le="10"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/applications/host/",le="25"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/applications/host/",le="50"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/applications/host/",le="100"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/applications/host/",le="500"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/applications/host/",le="1000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/applications/host/",le="5000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/applications/host/",le="10000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/applications/host/",le="30000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/applications/host/",le="+Inf"} 1
+coderd_api_request_latencies_ms_sum{method="GET",path="/api/v2/applications/host/"} 1.403417
+coderd_api_request_latencies_ms_count{method="GET",path="/api/v2/applications/host/"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/buildinfo/",le="1"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/buildinfo/",le="5"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/buildinfo/",le="10"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/buildinfo/",le="25"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/buildinfo/",le="50"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/buildinfo/",le="100"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/buildinfo/",le="500"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/buildinfo/",le="1000"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/buildinfo/",le="5000"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/buildinfo/",le="10000"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/buildinfo/",le="30000"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/buildinfo/",le="+Inf"} 5
+coderd_api_request_latencies_ms_sum{method="GET",path="/api/v2/buildinfo/"} 0.579417
+coderd_api_request_latencies_ms_count{method="GET",path="/api/v2/buildinfo/"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/entitlements",le="1"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/entitlements",le="5"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/entitlements",le="10"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/entitlements",le="25"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/entitlements",le="50"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/entitlements",le="100"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/entitlements",le="500"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/entitlements",le="1000"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/entitlements",le="5000"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/entitlements",le="10000"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/entitlements",le="30000"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/entitlements",le="+Inf"} 5
+coderd_api_request_latencies_ms_sum{method="GET",path="/api/v2/entitlements"} 0.479
+coderd_api_request_latencies_ms_count{method="GET",path="/api/v2/entitlements"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/organizations/*",le="1"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/organizations/*",le="5"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/organizations/*",le="10"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/organizations/*",le="25"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/organizations/*",le="50"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/organizations/*",le="100"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/organizations/*",le="500"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/organizations/*",le="1000"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/organizations/*",le="5000"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/organizations/*",le="10000"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/organizations/*",le="30000"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/organizations/*",le="+Inf"} 2
+coderd_api_request_latencies_ms_sum{method="GET",path="/api/v2/organizations/*"} 0.9122079999999999
+coderd_api_request_latencies_ms_count{method="GET",path="/api/v2/organizations/*"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/templates/{template}/",le="1"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/templates/{template}/",le="5"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/templates/{template}/",le="10"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/templates/{template}/",le="25"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/templates/{template}/",le="50"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/templates/{template}/",le="100"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/templates/{template}/",le="500"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/templates/{template}/",le="1000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/templates/{template}/",le="5000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/templates/{template}/",le="10000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/templates/{template}/",le="30000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/templates/{template}/",le="+Inf"} 1
+coderd_api_request_latencies_ms_sum{method="GET",path="/api/v2/templates/{template}/"} 5.077833
+coderd_api_request_latencies_ms_count{method="GET",path="/api/v2/templates/{template}/"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/authmethods",le="1"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/authmethods",le="5"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/authmethods",le="10"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/authmethods",le="25"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/authmethods",le="50"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/authmethods",le="100"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/authmethods",le="500"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/authmethods",le="1000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/authmethods",le="5000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/authmethods",le="10000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/authmethods",le="30000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/authmethods",le="+Inf"} 1
+coderd_api_request_latencies_ms_sum{method="GET",path="/api/v2/users/authmethods"} 0.191791
+coderd_api_request_latencies_ms_count{method="GET",path="/api/v2/users/authmethods"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/first",le="1"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/first",le="5"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/first",le="10"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/first",le="25"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/first",le="50"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/first",le="100"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/first",le="500"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/first",le="1000"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/first",le="5000"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/first",le="10000"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/first",le="30000"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/first",le="+Inf"} 2
+coderd_api_request_latencies_ms_sum{method="GET",path="/api/v2/users/first"} 2.0617080000000003
+coderd_api_request_latencies_ms_count{method="GET",path="/api/v2/users/first"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}",le="1"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}",le="5"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}",le="10"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}",le="25"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}",le="50"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}",le="100"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}",le="500"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}",le="1000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}",le="5000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}",le="10000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}",le="30000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}",le="+Inf"} 1
+coderd_api_request_latencies_ms_sum{method="GET",path="/api/v2/users/{user}"} 2.014417
+coderd_api_request_latencies_ms_count{method="GET",path="/api/v2/users/{user}"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/",le="1"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/",le="5"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/",le="10"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/",le="25"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/",le="50"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/",le="100"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/",le="500"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/",le="1000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/",le="5000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/",le="10000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/",le="30000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/",le="+Inf"} 1
+coderd_api_request_latencies_ms_sum{method="GET",path="/api/v2/users/{user}/"} 9.146291
+coderd_api_request_latencies_ms_count{method="GET",path="/api/v2/users/{user}/"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/*",le="1"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/*",le="5"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/*",le="10"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/*",le="25"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/*",le="50"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/*",le="100"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/*",le="500"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/*",le="1000"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/*",le="5000"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/*",le="10000"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/*",le="30000"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/*",le="+Inf"} 2
+coderd_api_request_latencies_ms_sum{method="GET",path="/api/v2/users/{user}/*"} 2.014167
+coderd_api_request_latencies_ms_count{method="GET",path="/api/v2/users/{user}/*"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/",le="1"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/",le="5"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/",le="10"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/",le="25"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/",le="50"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/",le="100"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/",le="500"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/",le="1000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/",le="5000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/",le="10000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/",le="30000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/",le="+Inf"} 1
+coderd_api_request_latencies_ms_sum{method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/"} 22.11575
+coderd_api_request_latencies_ms_count{method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspace-quota/{user}/",le="1"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspace-quota/{user}/",le="5"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspace-quota/{user}/",le="10"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspace-quota/{user}/",le="25"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspace-quota/{user}/",le="50"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspace-quota/{user}/",le="100"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspace-quota/{user}/",le="500"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspace-quota/{user}/",le="1000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspace-quota/{user}/",le="5000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspace-quota/{user}/",le="10000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspace-quota/{user}/",le="30000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspace-quota/{user}/",le="+Inf"} 1
+coderd_api_request_latencies_ms_sum{method="GET",path="/api/v2/workspace-quota/{user}/"} 17.540958
+coderd_api_request_latencies_ms_count{method="GET",path="/api/v2/workspace-quota/{user}/"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaceagents/me/metadata",le="1"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaceagents/me/metadata",le="5"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaceagents/me/metadata",le="10"} 8
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaceagents/me/metadata",le="25"} 13
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaceagents/me/metadata",le="50"} 13
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaceagents/me/metadata",le="100"} 13
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaceagents/me/metadata",le="500"} 13
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaceagents/me/metadata",le="1000"} 13
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaceagents/me/metadata",le="5000"} 13
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaceagents/me/metadata",le="10000"} 13
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaceagents/me/metadata",le="30000"} 13
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaceagents/me/metadata",le="+Inf"} 13
+coderd_api_request_latencies_ms_sum{method="GET",path="/api/v2/workspaceagents/me/metadata"} 128.53212800000003
+coderd_api_request_latencies_ms_count{method="GET",path="/api/v2/workspaceagents/me/metadata"} 13
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces",le="1"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces",le="5"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces",le="10"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces",le="25"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces",le="50"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces",le="100"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces",le="500"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces",le="1000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces",le="5000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces",le="10000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces",le="30000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces",le="+Inf"} 1
+coderd_api_request_latencies_ms_sum{method="GET",path="/api/v2/workspaces"} 1.406459
+coderd_api_request_latencies_ms_count{method="GET",path="/api/v2/workspaces"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/",le="1"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/",le="5"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/",le="10"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/",le="25"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/",le="50"} 3
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/",le="100"} 3
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/",le="500"} 3
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/",le="1000"} 3
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/",le="5000"} 3
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/",le="10000"} 3
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/",le="30000"} 3
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/",le="+Inf"} 3
+coderd_api_request_latencies_ms_sum{method="GET",path="/api/v2/workspaces/"} 72.264375
+coderd_api_request_latencies_ms_count{method="GET",path="/api/v2/workspaces/"} 3
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/{workspace}/builds/",le="1"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/{workspace}/builds/",le="5"} 2
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/{workspace}/builds/",le="10"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/{workspace}/builds/",le="25"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/{workspace}/builds/",le="50"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/{workspace}/builds/",le="100"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/{workspace}/builds/",le="500"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/{workspace}/builds/",le="1000"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/{workspace}/builds/",le="5000"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/{workspace}/builds/",le="10000"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/{workspace}/builds/",le="30000"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/{workspace}/builds/",le="+Inf"} 5
+coderd_api_request_latencies_ms_sum{method="GET",path="/api/v2/workspaces/{workspace}/builds/"} 32.382791999999995
+coderd_api_request_latencies_ms_count{method="GET",path="/api/v2/workspaces/{workspace}/builds/"} 5
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/{workspace}/watch",le="1"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/{workspace}/watch",le="5"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/{workspace}/watch",le="10"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/{workspace}/watch",le="25"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/{workspace}/watch",le="50"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/{workspace}/watch",le="100"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/{workspace}/watch",le="500"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/{workspace}/watch",le="1000"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/{workspace}/watch",le="5000"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/{workspace}/watch",le="10000"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/{workspace}/watch",le="30000"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/api/v2/workspaces/{workspace}/watch",le="+Inf"} 1
+coderd_api_request_latencies_ms_sum{method="GET",path="/api/v2/workspaces/{workspace}/watch"} 4.690710009291e+06
+coderd_api_request_latencies_ms_count{method="GET",path="/api/v2/workspaces/{workspace}/watch"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/derp/",le="1"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/derp/",le="5"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/derp/",le="10"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/derp/",le="25"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/derp/",le="50"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/derp/",le="100"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/derp/",le="500"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/derp/",le="1000"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/derp/",le="5000"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/derp/",le="10000"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/derp/",le="30000"} 0
+coderd_api_request_latencies_ms_bucket{method="GET",path="/derp/",le="+Inf"} 15
+coderd_api_request_latencies_ms_sum{method="GET",path="/derp/"} 3.2032344336794e+07
+coderd_api_request_latencies_ms_count{method="GET",path="/derp/"} 15
+coderd_api_request_latencies_ms_bucket{method="GET",path="/derp/latency-check",le="1"} 4
+coderd_api_request_latencies_ms_bucket{method="GET",path="/derp/latency-check",le="5"} 4
+coderd_api_request_latencies_ms_bucket{method="GET",path="/derp/latency-check",le="10"} 4
+coderd_api_request_latencies_ms_bucket{method="GET",path="/derp/latency-check",le="25"} 4
+coderd_api_request_latencies_ms_bucket{method="GET",path="/derp/latency-check",le="50"} 4
+coderd_api_request_latencies_ms_bucket{method="GET",path="/derp/latency-check",le="100"} 4
+coderd_api_request_latencies_ms_bucket{method="GET",path="/derp/latency-check",le="500"} 4
+coderd_api_request_latencies_ms_bucket{method="GET",path="/derp/latency-check",le="1000"} 4
+coderd_api_request_latencies_ms_bucket{method="GET",path="/derp/latency-check",le="5000"} 4
+coderd_api_request_latencies_ms_bucket{method="GET",path="/derp/latency-check",le="10000"} 4
+coderd_api_request_latencies_ms_bucket{method="GET",path="/derp/latency-check",le="30000"} 4
+coderd_api_request_latencies_ms_bucket{method="GET",path="/derp/latency-check",le="+Inf"} 4
+coderd_api_request_latencies_ms_sum{method="GET",path="/derp/latency-check"} 0.905
+coderd_api_request_latencies_ms_count{method="GET",path="/derp/latency-check"} 4
+coderd_api_request_latencies_ms_bucket{method="GET",path="/healthz",le="1"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/healthz",le="5"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/healthz",le="10"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/healthz",le="25"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/healthz",le="50"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/healthz",le="100"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/healthz",le="500"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/healthz",le="1000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/healthz",le="5000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/healthz",le="10000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/healthz",le="30000"} 1
+coderd_api_request_latencies_ms_bucket{method="GET",path="/healthz",le="+Inf"} 1
+coderd_api_request_latencies_ms_sum{method="GET",path="/healthz"} 0.181458
+coderd_api_request_latencies_ms_count{method="GET",path="/healthz"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/authcheck/",le="1"} 0
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/authcheck/",le="5"} 2
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/authcheck/",le="10"} 2
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/authcheck/",le="25"} 2
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/authcheck/",le="50"} 2
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/authcheck/",le="100"} 2
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/authcheck/",le="500"} 2
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/authcheck/",le="1000"} 2
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/authcheck/",le="5000"} 2
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/authcheck/",le="10000"} 2
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/authcheck/",le="30000"} 2
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/authcheck/",le="+Inf"} 2
+coderd_api_request_latencies_ms_sum{method="POST",path="/api/v2/authcheck/"} 7.37975
+coderd_api_request_latencies_ms_count{method="POST",path="/api/v2/authcheck/"} 2
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/csp/reports",le="1"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/csp/reports",le="5"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/csp/reports",le="10"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/csp/reports",le="25"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/csp/reports",le="50"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/csp/reports",le="100"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/csp/reports",le="500"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/csp/reports",le="1000"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/csp/reports",le="5000"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/csp/reports",le="10000"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/csp/reports",le="30000"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/csp/reports",le="+Inf"} 1
+coderd_api_request_latencies_ms_sum{method="POST",path="/api/v2/csp/reports"} 0.427333
+coderd_api_request_latencies_ms_count{method="POST",path="/api/v2/csp/reports"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/files",le="1"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/files",le="5"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/files",le="10"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/files",le="25"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/files",le="50"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/files",le="100"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/files",le="500"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/files",le="1000"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/files",le="5000"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/files",le="10000"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/files",le="30000"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/files",le="+Inf"} 1
+coderd_api_request_latencies_ms_sum{method="POST",path="/api/v2/files"} 0.382875
+coderd_api_request_latencies_ms_count{method="POST",path="/api/v2/files"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/users/login",le="1"} 0
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/users/login",le="5"} 0
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/users/login",le="10"} 0
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/users/login",le="25"} 0
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/users/login",le="50"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/users/login",le="100"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/users/login",le="500"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/users/login",le="1000"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/users/login",le="5000"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/users/login",le="10000"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/users/login",le="30000"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/users/login",le="+Inf"} 1
+coderd_api_request_latencies_ms_sum{method="POST",path="/api/v2/users/login"} 48.730291
+coderd_api_request_latencies_ms_count{method="POST",path="/api/v2/users/login"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/app-health",le="1"} 0
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/app-health",le="5"} 0
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/app-health",le="10"} 0
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/app-health",le="25"} 0
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/app-health",le="50"} 0
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/app-health",le="100"} 0
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/app-health",le="500"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/app-health",le="1000"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/app-health",le="5000"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/app-health",le="10000"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/app-health",le="30000"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/app-health",le="+Inf"} 1
+coderd_api_request_latencies_ms_sum{method="POST",path="/api/v2/workspaceagents/me/app-health"} 146.071041
+coderd_api_request_latencies_ms_count{method="POST",path="/api/v2/workspaceagents/me/app-health"} 1
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/report-stats",le="1"} 0
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/report-stats",le="5"} 55
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/report-stats",le="10"} 111
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/report-stats",le="25"} 112
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/report-stats",le="50"} 112
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/report-stats",le="100"} 112
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/report-stats",le="500"} 113
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/report-stats",le="1000"} 113
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/report-stats",le="5000"} 113
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/report-stats",le="10000"} 113
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/report-stats",le="30000"} 113
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/report-stats",le="+Inf"} 113
+coderd_api_request_latencies_ms_sum{method="POST",path="/api/v2/workspaceagents/me/report-stats"} 690.1916720000005
+coderd_api_request_latencies_ms_count{method="POST",path="/api/v2/workspaceagents/me/report-stats"} 113
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/version",le="1"} 0
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/version",le="5"} 2
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/version",le="10"} 12
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/version",le="25"} 19
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/version",le="50"} 19
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/version",le="100"} 19
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/version",le="500"} 19
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/version",le="1000"} 19
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/version",le="5000"} 19
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/version",le="10000"} 19
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/version",le="30000"} 19
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaceagents/me/version",le="+Inf"} 19
+coderd_api_request_latencies_ms_sum{method="POST",path="/api/v2/workspaceagents/me/version"} 175.97979099999998
+coderd_api_request_latencies_ms_count{method="POST",path="/api/v2/workspaceagents/me/version"} 19
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaces/{workspace}/builds/",le="1"} 0
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaces/{workspace}/builds/",le="5"} 0
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaces/{workspace}/builds/",le="10"} 0
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaces/{workspace}/builds/",le="25"} 2
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaces/{workspace}/builds/",le="50"} 2
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaces/{workspace}/builds/",le="100"} 2
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaces/{workspace}/builds/",le="500"} 2
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaces/{workspace}/builds/",le="1000"} 2
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaces/{workspace}/builds/",le="5000"} 2
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaces/{workspace}/builds/",le="10000"} 2
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaces/{workspace}/builds/",le="30000"} 2
+coderd_api_request_latencies_ms_bucket{method="POST",path="/api/v2/workspaces/{workspace}/builds/",le="+Inf"} 2
+coderd_api_request_latencies_ms_sum{method="POST",path="/api/v2/workspaces/{workspace}/builds/"} 39.575375
+coderd_api_request_latencies_ms_count{method="POST",path="/api/v2/workspaces/{workspace}/builds/"} 2
+# HELP coderd_api_requests_processed_total The total number of processed API requests
+# TYPE coderd_api_requests_processed_total counter
+coderd_api_requests_processed_total{code="0",method="GET",path="/derp/"} 15
+coderd_api_requests_processed_total{code="101",method="GET",path="/api/v2/workspaceagents/me/coordinate"} 12
+coderd_api_requests_processed_total{code="200",method="GET",path=""} 16
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/applications/host/"} 1
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/buildinfo/"} 5
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/entitlements"} 5
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/templates/{template}/"} 1
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/users/authmethods"} 1
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/users/first"} 2
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/users/{user}/"} 1
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/"} 1
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/workspace-quota/{user}/"} 1
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/workspaceagents/me/metadata"} 13
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/workspaces/"} 3
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/workspaces/{workspace}/builds/"} 5
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/workspaces/{workspace}/watch"} 1
+coderd_api_requests_processed_total{code="200",method="GET",path="/derp/latency-check"} 4
+coderd_api_requests_processed_total{code="200",method="GET",path="/healthz"} 1
+coderd_api_requests_processed_total{code="200",method="POST",path="/api/v2/authcheck/"} 2
+coderd_api_requests_processed_total{code="200",method="POST",path="/api/v2/csp/reports"} 1
+coderd_api_requests_processed_total{code="200",method="POST",path="/api/v2/workspaceagents/me/app-health"} 1
+coderd_api_requests_processed_total{code="200",method="POST",path="/api/v2/workspaceagents/me/report-stats"} 113
+coderd_api_requests_processed_total{code="200",method="POST",path="/api/v2/workspaceagents/me/version"} 13
+coderd_api_requests_processed_total{code="201",method="POST",path="/api/v2/users/login"} 1
+coderd_api_requests_processed_total{code="201",method="POST",path="/api/v2/workspaces/{workspace}/builds/"} 2
+coderd_api_requests_processed_total{code="401",method="GET",path="/api/v2/organizations/*"} 2
+coderd_api_requests_processed_total{code="401",method="GET",path="/api/v2/users/{user}"} 1
+coderd_api_requests_processed_total{code="401",method="GET",path="/api/v2/users/{user}/*"} 2
+coderd_api_requests_processed_total{code="401",method="GET",path="/api/v2/workspaces"} 1
+coderd_api_requests_processed_total{code="401",method="POST",path="/api/v2/files"} 1
+coderd_api_requests_processed_total{code="500",method="POST",path="/api/v2/workspaceagents/me/version"} 6
+# HELP coderd_api_websocket_durations_ms Websocket duration distribution of requests in milliseconds
+# TYPE coderd_api_websocket_durations_ms histogram
+coderd_api_websocket_durations_ms_bucket{path="/api/v2/workspaceagents/me/coordinate",le="1"} 0
+coderd_api_websocket_durations_ms_bucket{path="/api/v2/workspaceagents/me/coordinate",le="1000"} 0
+coderd_api_websocket_durations_ms_bucket{path="/api/v2/workspaceagents/me/coordinate",le="60000"} 3
+coderd_api_websocket_durations_ms_bucket{path="/api/v2/workspaceagents/me/coordinate",le="3.6e+06"} 10
+coderd_api_websocket_durations_ms_bucket{path="/api/v2/workspaceagents/me/coordinate",le="5.4e+07"} 12
+coderd_api_websocket_durations_ms_bucket{path="/api/v2/workspaceagents/me/coordinate",le="1.08e+08"} 12
+coderd_api_websocket_durations_ms_bucket{path="/api/v2/workspaceagents/me/coordinate",le="+Inf"} 12
+coderd_api_websocket_durations_ms_sum{path="/api/v2/workspaceagents/me/coordinate"} 3.1344549662249e+07
+coderd_api_websocket_durations_ms_count{path="/api/v2/workspaceagents/me/coordinate"} 12
+# HELP coderd_api_workspace_latest_build_total The latest workspace builds with a status.
+# TYPE coderd_api_workspace_latest_build_total gauge
+coderd_api_workspace_latest_build_total{status="failed"} 1
+coderd_api_workspace_latest_build_total{status="succeeded"} 5
+# HELP coderd_provisionerd_job_timings_ms The provisioner job time duration.
+# TYPE coderd_provisionerd_job_timings_ms histogram
+coderd_provisionerd_job_timings_ms_bucket{provisioner="terraform",status="success",le="1000"} 0
+coderd_provisionerd_job_timings_ms_bucket{provisioner="terraform",status="success",le="10000"} 1
+coderd_provisionerd_job_timings_ms_bucket{provisioner="terraform",status="success",le="30000"} 2
+coderd_provisionerd_job_timings_ms_bucket{provisioner="terraform",status="success",le="60000"} 2
+coderd_provisionerd_job_timings_ms_bucket{provisioner="terraform",status="success",le="300000"} 2
+coderd_provisionerd_job_timings_ms_bucket{provisioner="terraform",status="success",le="600000"} 2
+coderd_provisionerd_job_timings_ms_bucket{provisioner="terraform",status="success",le="1.8e+06"} 2
+coderd_provisionerd_job_timings_ms_bucket{provisioner="terraform",status="success",le="3.6e+06"} 2
+coderd_provisionerd_job_timings_ms_bucket{provisioner="terraform",status="success",le="+Inf"} 2
+coderd_provisionerd_job_timings_ms_sum{provisioner="terraform",status="success"} 21600
+coderd_provisionerd_job_timings_ms_count{provisioner="terraform",status="success"} 2
+# HELP coderd_provisionerd_jobs_current The number of currently running provisioner jobs.
+# TYPE coderd_provisionerd_jobs_current gauge
+coderd_provisionerd_jobs_current{provisioner="terraform"} 0
+# HELP go_gc_duration_seconds A summary of the pause duration of garbage collection cycles.
+# TYPE go_gc_duration_seconds summary
+go_gc_duration_seconds{quantile="0"} 8.0708e-05
+go_gc_duration_seconds{quantile="0.25"} 0.000212166
+go_gc_duration_seconds{quantile="0.5"} 0.00025625
+go_gc_duration_seconds{quantile="0.75"} 0.000320875
+go_gc_duration_seconds{quantile="1"} 0.008116959
+go_gc_duration_seconds_sum 3.244371009
+go_gc_duration_seconds_count 9054
+# HELP go_goroutines Number of goroutines that currently exist.
+# TYPE go_goroutines gauge
+go_goroutines 97
+# HELP go_info Information about the Go environment.
+# TYPE go_info gauge
+go_info{version="go1.19"} 1
+# HELP go_memstats_alloc_bytes Number of bytes allocated and still in use.
+# TYPE go_memstats_alloc_bytes gauge
+go_memstats_alloc_bytes 1.3981856e+07
+# HELP go_memstats_alloc_bytes_total Total number of bytes allocated, even if freed.
+# TYPE go_memstats_alloc_bytes_total counter
+go_memstats_alloc_bytes_total 6.5972069512e+10
+# HELP go_memstats_buck_hash_sys_bytes Number of bytes used by the profiling bucket hash table.
+# TYPE go_memstats_buck_hash_sys_bytes gauge
+go_memstats_buck_hash_sys_bytes 1.650133e+06
+# HELP go_memstats_frees_total Total number of frees.
+# TYPE go_memstats_frees_total counter
+go_memstats_frees_total 4.1306426e+07
+# HELP go_memstats_gc_sys_bytes Number of bytes used for garbage collection system metadata.
+# TYPE go_memstats_gc_sys_bytes gauge
+go_memstats_gc_sys_bytes 2.1621904e+07
+# HELP go_memstats_heap_alloc_bytes Number of heap bytes allocated and still in use.
+# TYPE go_memstats_heap_alloc_bytes gauge
+go_memstats_heap_alloc_bytes 1.3981856e+07
+# HELP go_memstats_heap_idle_bytes Number of heap bytes waiting to be used.
+# TYPE go_memstats_heap_idle_bytes gauge
+go_memstats_heap_idle_bytes 4.50527232e+08
+# HELP go_memstats_heap_inuse_bytes Number of heap bytes that are in use.
+# TYPE go_memstats_heap_inuse_bytes gauge
+go_memstats_heap_inuse_bytes 2.1659648e+07
+# HELP go_memstats_heap_objects Number of allocated objects.
+# TYPE go_memstats_heap_objects gauge
+go_memstats_heap_objects 66703
+# HELP go_memstats_heap_released_bytes Number of heap bytes released to OS.
+# TYPE go_memstats_heap_released_bytes gauge
+go_memstats_heap_released_bytes 4.47094784e+08
+# HELP go_memstats_heap_sys_bytes Number of heap bytes obtained from system.
+# TYPE go_memstats_heap_sys_bytes gauge
+go_memstats_heap_sys_bytes 4.7218688e+08
+# HELP go_memstats_last_gc_time_seconds Number of seconds since 1970 of last garbage collection.
+# TYPE go_memstats_last_gc_time_seconds gauge
+go_memstats_last_gc_time_seconds 1.6697085143449228e+09
+# HELP go_memstats_lookups_total Total number of pointer lookups.
+# TYPE go_memstats_lookups_total counter
+go_memstats_lookups_total 0
+# HELP go_memstats_mallocs_total Total number of mallocs.
+# TYPE go_memstats_mallocs_total counter
+go_memstats_mallocs_total 4.1373129e+07
+# HELP go_memstats_mcache_inuse_bytes Number of bytes in use by mcache structures.
+# TYPE go_memstats_mcache_inuse_bytes gauge
+go_memstats_mcache_inuse_bytes 9600
+# HELP go_memstats_mcache_sys_bytes Number of bytes used for mcache structures obtained from system.
+# TYPE go_memstats_mcache_sys_bytes gauge
+go_memstats_mcache_sys_bytes 15600
+# HELP go_memstats_mspan_inuse_bytes Number of bytes in use by mspan structures.
+# TYPE go_memstats_mspan_inuse_bytes gauge
+go_memstats_mspan_inuse_bytes 274312
+# HELP go_memstats_mspan_sys_bytes Number of bytes used for mspan structures obtained from system.
+# TYPE go_memstats_mspan_sys_bytes gauge
+go_memstats_mspan_sys_bytes 1.0608e+06
+# HELP go_memstats_next_gc_bytes Number of heap bytes when next garbage collection will take place.
+# TYPE go_memstats_next_gc_bytes gauge
+go_memstats_next_gc_bytes 1.5806984e+07
+# HELP go_memstats_other_sys_bytes Number of bytes used for other system allocations.
+# TYPE go_memstats_other_sys_bytes gauge
+go_memstats_other_sys_bytes 1.348195e+06
+# HELP go_memstats_stack_inuse_bytes Number of bytes in use by the stack allocator.
+# TYPE go_memstats_stack_inuse_bytes gauge
+go_memstats_stack_inuse_bytes 1.769472e+06
+# HELP go_memstats_stack_sys_bytes Number of bytes obtained from system for stack allocator.
+# TYPE go_memstats_stack_sys_bytes gauge
+go_memstats_stack_sys_bytes 1.769472e+06
+# HELP go_memstats_sys_bytes Number of bytes obtained from system.
+# TYPE go_memstats_sys_bytes gauge
+go_memstats_sys_bytes 4.99652984e+08
+# HELP go_threads Number of OS threads created.
+# TYPE go_threads gauge
+go_threads 14
+# HELP promhttp_metric_handler_requests_in_flight Current number of scrapes being served.
+# TYPE promhttp_metric_handler_requests_in_flight gauge
+promhttp_metric_handler_requests_in_flight 1
+# HELP promhttp_metric_handler_requests_total Total number of scrapes by HTTP status code.
+# TYPE promhttp_metric_handler_requests_total counter
+promhttp_metric_handler_requests_total{code="200"} 79
+promhttp_metric_handler_requests_total{code="500"} 0
+promhttp_metric_handler_requests_total{code="503"} 0

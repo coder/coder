@@ -74,6 +74,7 @@ func TestExactMethods(t *testing.T) {
 	extraFakeMethods := map[string]string{
 		// Example
 		// "SortFakeLists": "Helper function used",
+		"IsFakeDB": "Helper function used for unit testing",
 	}
 
 	fake := reflect.TypeOf(databasefake.New())

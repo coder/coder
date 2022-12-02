@@ -22,6 +22,8 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
+// To update the golden files:
+// make update-golden-files
 var updateGoldenFiles = flag.Bool("update", false, "update .golden files")
 
 //nolint:tparallel,paralleltest // These test sets env vars.
