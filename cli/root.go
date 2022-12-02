@@ -46,7 +46,6 @@ const (
 	varAgentURL         = "agent-url"
 	varHeader           = "header"
 	varHttpProxy        = "http-proxy"
-	varHttpsProxy       = "https-proxy"
 	varNoOpen           = "no-open"
 	varNoVersionCheck   = "no-version-warning"
 	varNoFeatureWarning = "no-feature-warning"
