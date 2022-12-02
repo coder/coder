@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -537,10 +538,11 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 			if getWorkspaceErr != nil {
 				server.Logger.Error(ctx, "failed to create audit log - get workspace err", slog.Error(err))
 			} else {
-				// We pass the workspace name to the Auditor so that it
-				// can form a friendly string for the user.
+				// We pass the below information to the Auditor so that it
+				// can form a friendly string for the user to view in the UI.
 				workspaceResourceInfo := map[string]string{
 					"workspaceName": workspace.Name,
+					"buildNumber":   strconv.FormatInt(int64(build.BuildNumber), 10),
 				}
 
 				wriBytes, err := json.Marshal(workspaceResourceInfo)
@@ -752,10 +754,11 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			auditor := server.Auditor.Load()
 			auditAction := auditActionFromTransition(workspaceBuild.Transition)
 
-			// We pass the workspace name to the Auditor so that it
-			// can form a friendly string for the user.
+			// We pass the below information to the Auditor so that it
+			// can form a friendly string for the user to view in the UI.
 			workspaceResourceInfo := map[string]string{
 				"workspaceName": workspace.Name,
+				"buildNumber":   strconv.FormatInt(int64(workspaceBuild.BuildNumber), 10),
 			}
 
 			wriBytes, err := json.Marshal(workspaceResourceInfo)
