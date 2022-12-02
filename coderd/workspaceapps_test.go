@@ -367,7 +367,9 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		require.NoError(t, err)
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 		require.NoError(t, err)
-		resp, err := client.HTTPClient.Do(req)
+
+		var resp *http.Response
+		resp, err = doWithRetries(t, client, req)
 		require.NoError(t, err)
 		resp.Body.Close()
 
