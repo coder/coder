@@ -663,3 +663,8 @@ export const getFile = async (fileId: string): Promise<ArrayBuffer> => {
   })
   return response.data
 }
+
+export const getServiceBanner = async (): Promise<TypesGen.ServiceBanner> => {
+  const response = await axios.get(`/api/v2/service-banner`)
+  return response.data
+}

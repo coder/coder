@@ -127,6 +127,12 @@ func New(ctx context.Context, options *Options) (*API, error) {
 				r.Get("/", api.workspaceQuota)
 			})
 		})
+		r.Route("/service-banner", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+			)
+			r.Get("/", api.serviceBanner)
+		})
 	})
 
 	if len(options.SCIMAPIKey) != 0 {

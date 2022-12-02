@@ -604,6 +604,13 @@ export interface ServerSentEvent {
   readonly data: any
 }
 
+// From codersdk/servicebanner.go
+export interface ServiceBanner {
+  readonly enabled?: boolean
+  readonly message?: string
+  readonly background_color?: string
+}
+
 // From codersdk/deploymentconfig.go
 export interface TLSConfig {
   readonly enable: DeploymentConfigField<boolean>
