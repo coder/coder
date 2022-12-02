@@ -172,6 +172,13 @@ RUN apt-get update --quiet && apt-get install --yes \
 RUN curl -L https://github.com/cli/cli/releases/download/v2.14.7/gh_2.14.7_linux_amd64.deb -o gh.deb && \
     dpkg -i gh.deb
 
+# Install latest version of neovim
+# Required by tools like LunarVim
+RUN apt-get install -y software-properties-common && \
+	add-apt-repository -y ppa:neovim-ppa/unstable && \
+	apt-get update && \
+	apt-get install -y neovim && \
+
 # Install Lazygit
 # See https://github.com/jesseduffield/lazygit#ubuntu
 RUN LAZYGIT_VERSION=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | grep '"tag_name":' |  sed -E 's/.*"v*([^"]+)".*/\1/') && \
