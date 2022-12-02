@@ -210,10 +210,13 @@ func (a *agent) run(ctx context.Context) error {
 	a.closeMutex.Unlock()
 	if network == nil {
 		a.logger.Debug(ctx, "creating tailnet")
-		err = a.createTailnet(ctx, metadata.DERPMap)
+		network, err = a.createTailnet(ctx, metadata.DERPMap)
 		if err != nil {
 			return xerrors.Errorf("create tailnet: %w", err)
 		}
+		a.closeMutex.Lock()
+		a.network = network
+		a.closeMutex.Unlock()
 	} else {
 		// Update the DERP map!
 		network.SetDERPMap(metadata.DERPMap)
@@ -242,10 +245,9 @@ func (a *agent) trackConnGoroutine(fn func()) error {
 	return nil
 }
 
-func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (err error) {
+func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (network *tailnet.Conn, err error) {
 	a.closeMutex.Lock()
 	if a.isClosed() {
-		a.network = nil
 		a.closeMutex.Unlock()
 		return nil, xerrors.New("closed")
 	}
@@ -262,9 +264,6 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (er
 	defer func() {
 		if err != nil {
 			network.Close()
-			a.closeMutex.Lock()
-			a.network = nil
-			a.closeMutex.Unlock()
 		}
 	}()
 	a.network = network
@@ -288,7 +287,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (er
 			go a.sshServer.HandleConn(conn)
 		}
 	}); err != nil {
-		return err
+		return nil, err
 	}
 
 	reconnectingPTYListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetReconnectingPTYPort))
@@ -328,7 +327,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (er
 			go a.handleReconnectingPTY(ctx, msg, conn)
 		}
 	}); err != nil {
-		return err
+		return nil, err
 	}
 
 	speedtestListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetSpeedtestPort))
@@ -356,7 +355,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (er
 			}
 		}
 	}); err != nil {
-		return err
+		return nil, err
 	}
 
 	statisticsListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetStatisticsPort))
@@ -387,7 +386,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (er
 			a.logger.Critical(ctx, "serve statistics HTTP server", slog.Error(err))
 		}
 	}); err != nil {
-		return err
+		return nil, err
 	}
 
 	return network, nil
