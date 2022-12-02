@@ -251,9 +251,14 @@ func setupFakeLicenseServerTest(t *testing.T, args ...string) *cobra.Command {
 }
 
 func attachPty(t *testing.T, cmd *cobra.Command) *ptytest.PTY {
+	t.Helper()
 	pty := ptytest.New(t)
 	cmd.SetIn(pty.Input())
 	cmd.SetOut(pty.Output())
+	t.Cleanup(func() {
+		err := pty.Close()
+		assert.NoError(t, err, "pty close failed")
+	})
 	return pty
 }
 
