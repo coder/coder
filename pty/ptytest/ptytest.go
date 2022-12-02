@@ -72,27 +72,33 @@ func create(t *testing.T, ptty pty.PTY, name string) *PTY {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
-		errC := make(chan error, 2)
-		doClose := func(c io.Closer) {
+		type message struct {
+			name string
+			err  error
+		}
+		closeC := make(chan message, 2)
+		doClose := func(name string, c io.Closer) {
 			select {
 			case <-ctx.Done():
-			case errC <- c.Close():
+			case closeC <- message{name: name, err: c.Close()}:
 			}
 		}
 		// Close the tty asynchronously to allow the select below to timeout.
 		go func() {
 			// Close the tty first so allow out to consume its last bytes.
-			doClose(ptty)
-			doClose(out)
+			doClose("ptty", ptty)
+			doClose("stdbuf", out)
 		}()
 
 	More:
 		select {
 		case <-ctx.Done():
 			fatalf(t, name, "cleanup", "copy did not close in time")
-		case err := <-errC:
-			if err != nil {
-				logf(t, name, "copy close error: %v", err)
+		case m := <-closeC:
+			if m.err != nil {
+				logf(t, name, "copy close error: %s: %v", m.name, m.err)
+			} else {
+				logf(t, name, "copy closed: %s", m.name)
 			}
 			goto More
 		case <-copyDone:
