@@ -10,6 +10,9 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
+// Issue: https://github.com/coder/coder/issues/5249
+// While running tests in parallel, the web server seems to be overloaded and responds with HTTP 502.
+// require.Eventually expects correct HTTP responses.
 func doWithRetries(t require.TestingT, client *codersdk.Client, req *http.Request) (*http.Response, error) {
 	var resp *http.Response
 	var err error
