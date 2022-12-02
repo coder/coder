@@ -72,11 +72,29 @@ func create(t *testing.T, ptty pty.PTY, name string) *PTY {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
-		_ = out.Close()
-		_ = ptty.Close()
+		errC := make(chan error, 2)
+		doClose := func(c io.Closer) {
+			select {
+			case <-ctx.Done():
+			case errC <- c.Close():
+			}
+		}
+		// Close the tty asynchronously to allow the select below to timeout.
+		go func() {
+			// Close the tty first so allow out to consume its last bytes.
+			doClose(ptty)
+			doClose(out)
+		}()
+
+	More:
 		select {
 		case <-ctx.Done():
 			fatalf(t, name, "cleanup", "copy did not close in time")
+		case err := <-errC:
+			if err != nil {
+				logf(t, name, "copy close error: %v", err)
+			}
+			goto More
 		case <-copyDone:
 		}
 	})
