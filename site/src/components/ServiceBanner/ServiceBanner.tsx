@@ -12,7 +12,6 @@ export const ServiceBanner: React.FC = () => {
   const { message, background_color, enabled } =
     serviceBannerState.context.serviceBanner
 
-  /** Gets license data on app mount because LicenseBanner is mounted in App */
   useEffect(() => {
     serviceBannerSend("GET_BANNER")
   }, [serviceBannerSend])
