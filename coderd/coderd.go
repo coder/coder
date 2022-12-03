@@ -174,8 +174,9 @@ func New(options *Options) *API {
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
 		},
-		metricsCache: metricsCache,
-		Auditor:      atomic.Pointer[audit.Auditor]{},
+		prometheusMetrics: newPrometheusMetrics(options.PrometheusRegistry),
+		metricsCache:      metricsCache,
+		Auditor:           atomic.Pointer[audit.Auditor]{},
 	}
 	if options.UpdateCheckOptions != nil {
 		api.updateChecker = updatecheck.New(
@@ -580,10 +581,9 @@ func New(options *Options) *API {
 
 type API struct {
 	*Options
-	// ID is a uniquely generated ID on initialization.
-	// This is used to associate objects with a specific
-	// Coder API instance, like workspace agents to a
-	// specific replica.
+	// ID is a uniquely generated ID on initialization. This is used to
+	// associate objects with a specific Coder API instance, like workspace
+	// agents to a specific replica.
 	ID                                uuid.UUID
 	Auditor                           atomic.Pointer[audit.Auditor]
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
@@ -601,6 +601,7 @@ type API struct {
 	WebsocketWaitMutex sync.Mutex
 	WebsocketWaitGroup sync.WaitGroup
 
+	prometheusMetrics   *prometheusMetrics
 	metricsCache        *metricscache.Cache
 	workspaceAgentCache *wsconncache.Cache
 	updateChecker       *updatecheck.Checker

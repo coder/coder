@@ -782,6 +782,13 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	api.prometheusMetrics.workspaceTrafficRx.
+		WithLabelValues(workspace.ID.String(), workspace.Name).
+		Add(float64(req.RxBytes))
+	api.prometheusMetrics.workspaceTrafficTx.
+		WithLabelValues(workspace.ID.String(), workspace.Name).
+		Add(float64(req.TxBytes))
+
 	activityBumpWorkspace(api.Logger.Named("activity_bump"), api.Database, workspace.ID)
 
 	now := database.Now()
