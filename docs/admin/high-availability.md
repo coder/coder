@@ -57,12 +57,6 @@ env:
 
 Then, increase the number of pods.
 
-## Service Banners
-
-Support for Service Banners is licensed alongside High Availability. You may
-enable a Service Banner by navigating to `Deployment -> Service Banner` in
-the Coder dashboard.
-
 ## Up next
 
 - [Networking](../networking.md)
