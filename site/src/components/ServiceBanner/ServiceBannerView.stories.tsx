@@ -2,7 +2,7 @@ import { Story } from "@storybook/react"
 import { ServiceBannerView, ServiceBannerViewProps } from "./ServiceBannerView"
 
 export default {
-  title: "components/LicenseBannerView",
+  title: "components/ServiceBannerView",
   component: ServiceBannerView,
 }
 
@@ -10,8 +10,15 @@ const Template: Story<ServiceBannerViewProps> = (args) => (
   <ServiceBannerView {...args} />
 )
 
-export const GoodColor = Template.bind({})
-GoodColor.args = {
+export const Production = Template.bind({})
+Production.args = {
   message: "weeeee",
-  backgroundColor: "#00FF00",
+  backgroundColor: "#FFFFFF",
+}
+
+export const Preview = Template.bind({})
+Preview.args = {
+  message: "weeeee",
+  backgroundColor: "#000000",
+  preview: true,
 }

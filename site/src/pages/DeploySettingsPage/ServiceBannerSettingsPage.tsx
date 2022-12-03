@@ -23,7 +23,7 @@ import Switch from "@material-ui/core/Switch"
 import { BlockPicker } from "react-color"
 import { useTheme } from "@material-ui/core/styles"
 import FormHelperText from "@material-ui/core/FormHelperText"
-import { Button } from "@material-ui/core"
+import Button from "@material-ui/core/Button"
 
 export const Language = {
   messageLabel: "Message",
