@@ -70,7 +70,7 @@ func validateHexColor(color string) error {
 func (api *API) putServiceBanner(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	if !api.AGPL.Authorize(r, rbac.ActionUpdate, rbac.ResourceDeploymentConfig) {
+	if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Insufficient permissions to update service banner",
 		})
