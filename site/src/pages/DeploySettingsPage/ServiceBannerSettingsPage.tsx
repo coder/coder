@@ -23,6 +23,7 @@ import Switch from "@material-ui/core/Switch"
 import { BlockPicker } from "react-color"
 import { useTheme } from "@material-ui/core/styles"
 import FormHelperText from "@material-ui/core/FormHelperText"
+import { Button } from "@material-ui/core"
 
 export const Language = {
   messageLabel: "Message",
@@ -107,7 +108,7 @@ const ServiceBannerSettingsPage: React.FC = () => {
 
       <Header
         title="Service Banner"
-        description="Configure the Service Banner"
+        description="Configure a banner that displays a message to all users"
         docsHref="https://coder.com/docs/coder-oss/latest/admin/high-availability#service-banners"
       />
       <Badges>
@@ -115,97 +116,122 @@ const ServiceBannerSettingsPage: React.FC = () => {
         <EnterpriseBadge />
       </Badges>
 
-      <form className={styles.form} onSubmit={form.handleSubmit}>
-        <Stack>
-          <FormControlLabel
-            control={
-              <Switch
-                {...getFieldHelpers("enabled")}
-                color="primary"
-                checked={form.values.enabled}
-                onChange={() => {
-                  const newState = !form.values.enabled
-                  const newBanner = {
-                    ...form.values,
-                    enabled: newState,
-                  }
-                  setBanner(newBanner, false)
-                  form.setFieldValue("enabled", newState)
+      {isEntitled ? (
+        <form className={styles.form} onSubmit={form.handleSubmit}>
+          <Stack>
+            <FormControlLabel
+              control={
+                <Switch
+                  {...getFieldHelpers("enabled")}
+                  color="primary"
+                  checked={form.values.enabled}
+                  onChange={() => {
+                    const newState = !form.values.enabled
+                    const newBanner = {
+                      ...form.values,
+                      enabled: newState,
+                    }
+                    setBanner(newBanner, false)
+                    form.setFieldValue("enabled", newState)
+                  }}
+                />
+              }
+              label="Enabled"
+            />
+            <Stack spacing={0}>
+              <TextField
+                {...getFieldHelpers("message")}
+                fullWidth
+                label={Language.messageLabel}
+                variant="outlined"
+                multiline
+                onChange={(e) => {
+                  form.setFieldValue("message", e.target.value)
+                  setBanner(
+                    {
+                      ...form.values,
+                      message: e.target.value,
+                    },
+                    true,
+                  )
                 }}
               />
-            }
-            label="Enabled"
-          />
-          <Stack spacing={0}>
-            <TextField
-              {...getFieldHelpers("message")}
-              fullWidth
-              label={Language.messageLabel}
-              variant="outlined"
-              onChange={(e) => {
-                form.setFieldValue("message", e.target.value)
-                setBanner(
-                  {
-                    ...form.values,
-                    message: e.target.value,
-                  },
-                  true,
-                )
-              }}
-            />
-            <FormHelperText>
-              Markdown bold, italics, and links are supported.
-            </FormHelperText>
-          </Stack>
+              <FormHelperText>
+                Markdown bold, italics, and links are supported.
+              </FormHelperText>
+            </Stack>
 
-          <Stack spacing={0}>
-            <h3>Background Color</h3>
-            <BlockPicker
-              color={backgroundColor}
-              onChange={(color) => {
-                setBackgroundColor(color.hex)
-                form.setFieldValue("backgroundColor", color.hex)
-                setBanner(
-                  {
-                    ...form.values,
-                    backgroundColor: color.hex,
+            <Stack spacing={0}>
+              <h3>Background Color</h3>
+              <BlockPicker
+                color={backgroundColor}
+                onChange={(color) => {
+                  setBackgroundColor(color.hex)
+                  form.setFieldValue("backgroundColor", color.hex)
+                  setBanner(
+                    {
+                      ...form.values,
+                      backgroundColor: color.hex,
+                    },
+                    true,
+                  )
+                }}
+                triangle="hide"
+                colors={["#004852", "#D65D0F", "#4CD473", "#D94A5D", "#5A00CF"]}
+                styles={{
+                  default: {
+                    input: {
+                      color: "white",
+                      backgroundColor: theme.palette.background.default,
+                    },
+                    body: {
+                      backgroundColor: "black",
+                      color: "white",
+                    },
+                    card: {
+                      backgroundColor: "black",
+                    },
                   },
-                  true,
-                )
-              }}
-              triangle="hide"
-              colors={["#004852", "#D65D0F", "#4CD473", "#D94A5D", "#00BDD6"]}
-              styles={{
-                default: {
-                  input: {
-                    color: "white",
-                    backgroundColor: theme.palette.background.default,
-                  },
-                  body: {
-                    backgroundColor: "black",
-                    color: "white",
-                  },
-                  card: {
-                    backgroundColor: "black",
-                  },
+                }}
+              />
+            </Stack>
+
+            <Stack direction="row">
+              <LoadingButton
+                loading={false}
+                //   aria-disabled={!editable}
+                //   disabled={!editable}
+                type="submit"
+                variant="contained"
+              >
+                {Language.updateBanner}
+              </LoadingButton>
+            </Stack>
+          </Stack>
+        </form>
+      ) : (
+        <>
+          <p>
+            Your license does not include Service Banners.{" "}
+            <a href="mailto:sales@coder.com">Contact sales</a> to learn more.
+          </p>
+          <Button
+            onClick={() => {
+              setBanner(
+                {
+                  message:
+                    "👋 **This** is a service banner. The banner's color and text is editable.",
+                  backgroundColor: "#004852",
+                  enabled: true,
                 },
-              }}
-            />
-          </Stack>
-
-          <Stack direction="row">
-            <LoadingButton
-              loading={false}
-              //   aria-disabled={!editable}
-              //   disabled={!editable}
-              type="submit"
-              variant="contained"
-            >
-              {Language.updateBanner}
-            </LoadingButton>
-          </Stack>
-        </Stack>
-      </form>
+                true,
+              )
+            }}
+          >
+            Show Preview
+          </Button>
+        </>
+      )}
     </>
   )
 }
