@@ -3308,7 +3308,7 @@ func (q *fakeQuerier) GetServiceBanner(_ context.Context) (string, error) {
 		return "", sql.ErrNoRows
 	}
 
-	return string(q.lastUpdateCheck), nil
+	return string(q.serviceBanner), nil
 }
 
 func (q *fakeQuerier) InsertLicense(

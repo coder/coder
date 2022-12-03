@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -42,7 +43,9 @@ func (api *API) serviceBanner(rw http.ResponseWriter, r *http.Request) {
 	err = json.Unmarshal([]byte(serviceBannerJSON), &serviceBanner)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: fmt.Sprintf("unmarshal json: %+v", err),
+			Message: fmt.Sprintf(
+				"unmarshal json: %+v, raw: %s", err, serviceBannerJSON,
+			),
 		})
 		return
 	}
@@ -52,6 +55,13 @@ func (api *API) serviceBanner(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) putServiceBanner(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
+	if !api.AGPL.Authorize(r, rbac.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Insufficient permissions to update service banner",
+		})
+		return
+	}
 
 	var serviceBanner codersdk.ServiceBanner
 	if !httpapi.Read(ctx, rw, r, &serviceBanner) {
