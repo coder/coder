@@ -70,6 +70,9 @@ const useStyles = makeStyles((theme) => ({
     marginRight: "auto",
     marginLeft: "auto",
     fontWeight: 400,
+    "& a": {
+      color: "inherit",
+    },
   },
 }))
 

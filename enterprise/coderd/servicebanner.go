@@ -105,7 +105,5 @@ func (api *API) putServiceBanner(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
-		Message: "ok",
-	})
+	httpapi.Write(r.Context(), rw, http.StatusOK, serviceBanner)
 }

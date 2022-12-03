@@ -86,7 +86,8 @@ export const serviceBannerMachine = createMachine(
           id: "setBanner",
           src: "setBanner",
           onDone: {
-            target: "gettingBanner",
+            target: "idle",
+            actions: ["assignBanner"],
           },
           onError: {
             target: "idle",

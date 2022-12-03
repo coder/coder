@@ -34,7 +34,7 @@ export const Language = {
 export interface ServiceBannerFormValues {
   message?: string
   backgroundColor?: string
-  enabled?: boolean
+  enabled: boolean
 }
 
 // TODO:
@@ -63,7 +63,7 @@ const ServiceBannerSettingsPage: React.FC = () => {
   const setBanner = (values: ServiceBannerFormValues, preview: boolean) => {
     const newBanner = {
       message: values.message,
-      enabled: true,
+      enabled: values.enabled,
       background_color: values.backgroundColor,
     }
     if (preview) {
@@ -118,8 +118,22 @@ const ServiceBannerSettingsPage: React.FC = () => {
       <form className={styles.form} onSubmit={form.handleSubmit}>
         <Stack>
           <FormControlLabel
-            value="enabled"
-            control={<Switch {...getFieldHelpers("enabled")} color="primary" />}
+            control={
+              <Switch
+                {...getFieldHelpers("enabled")}
+                color="primary"
+                checked={form.values.enabled}
+                onChange={() => {
+                  const newState = !form.values.enabled
+                  const newBanner = {
+                    ...form.values,
+                    enabled: newState,
+                  }
+                  setBanner(newBanner, false)
+                  form.setFieldValue("enabled", newState)
+                }}
+              />
+            }
             label="Enabled"
           />
           <Stack spacing={0}>
