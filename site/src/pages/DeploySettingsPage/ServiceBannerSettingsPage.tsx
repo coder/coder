@@ -115,7 +115,7 @@ const ServiceBannerSettingsPage: React.FC = () => {
         <EnterpriseBadge />
       </Badges>
 
-      <form className={styles.form}>
+      <form className={styles.form} onSubmit={form.handleSubmit}>
         <Stack>
           <FormControlLabel
             value="enabled"
@@ -124,10 +124,20 @@ const ServiceBannerSettingsPage: React.FC = () => {
           />
           <Stack spacing={0}>
             <TextField
-              fullWidth
               {...getFieldHelpers("message")}
+              fullWidth
               label={Language.messageLabel}
               variant="outlined"
+              onChange={(e) => {
+                form.setFieldValue("message", e.target.value)
+                setBanner(
+                  {
+                    ...form.values,
+                    message: e.target.value,
+                  },
+                  true,
+                )
+              }}
             />
             <FormHelperText>
               Markdown bold, italics, and links are supported.
@@ -141,6 +151,13 @@ const ServiceBannerSettingsPage: React.FC = () => {
               onChange={(color) => {
                 setBackgroundColor(color.hex)
                 form.setFieldValue("backgroundColor", color.hex)
+                setBanner(
+                  {
+                    ...form.values,
+                    backgroundColor: color.hex,
+                  },
+                  true,
+                )
               }}
               triangle="hide"
               colors={["#004852", "#D65D0F", "#4CD473", "#D94A5D", "#00BDD6"]}
@@ -167,20 +184,7 @@ const ServiceBannerSettingsPage: React.FC = () => {
               loading={false}
               //   aria-disabled={!editable}
               //   disabled={!editable}
-              onClick={() => {
-                setBanner(form.values, true)
-              }}
-              variant="contained"
-            >
-              {Language.previewBanner}
-            </LoadingButton>
-            <LoadingButton
-              loading={false}
-              //   aria-disabled={!editable}
-              //   disabled={!editable}
-              onClick={() => {
-                setBanner(form.values, false)
-              }}
+              type="submit"
               variant="contained"
             >
               {Language.updateBanner}
