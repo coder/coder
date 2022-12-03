@@ -2,6 +2,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import { Pill } from "components/Pill/Pill"
 import ReactMarkdown from "react-markdown"
 import { colors } from "theme/colors"
+import { hex } from "color-convert"
 
 export interface ServiceBannerViewProps {
   message: string
@@ -15,21 +16,31 @@ export const ServiceBannerView: React.FC<ServiceBannerViewProps> = ({
   preview,
 }) => {
   const styles = useStyles()
+  // We don't want anything funky like an image or a heading in the service
+  // banner.
   const markdownElementsAllowed = [
     "text",
     "a",
+    "pre",
+    "ul",
     "strong",
-    "delete",
     "emphasis",
+    "italic",
     "link",
+    "em",
   ]
   return (
     <div
       className={`${styles.container}`}
       style={{ backgroundColor: backgroundColor }}
     >
-      {preview && <Pill text="Preview" type="primary" lightBorder />}
-      <div className={styles.centerContent}>
+      {preview && <Pill text="Preview" type="info" lightBorder />}
+      <div
+        className={styles.centerContent}
+        style={{
+          color: readableForegroundColor(backgroundColor),
+        }}
+      >
         <ReactMarkdown
           allowedElements={markdownElementsAllowed}
           linkTarget="_blank"
@@ -48,7 +59,6 @@ const useStyles = makeStyles((theme) => ({
     backgroundColor: theme.palette.warning.main,
     display: "flex",
     alignItems: "center",
-
     "&.error": {
       backgroundColor: colors.red[12],
     },
@@ -59,21 +69,14 @@ const useStyles = makeStyles((theme) => ({
   centerContent: {
     marginRight: "auto",
     marginLeft: "auto",
-    // Automatically pick high-contrast foreground text.
-    // "difference" is the most correct way of implementing this
-    // but "exclusion" looks prettier for most colors.
-    mixBlendMode: "exclusion",
-  },
-  link: {
-    color: "inherit",
-    textDecoration: "none",
-    fontWeight: "bold",
-  },
-  list: {
-    padding: theme.spacing(1),
-    margin: 0,
-  },
-  listItem: {
-    margin: theme.spacing(0.5),
+    fontWeight: 400,
   },
 }))
+
+const readableForegroundColor = (backgroundColor: string): string => {
+  const [_, __, lum] = hex.hsl(backgroundColor)
+  if (lum > 50) {
+    return "black"
+  }
+  return "white"
+}

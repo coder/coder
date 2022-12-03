@@ -22,8 +22,7 @@ import FormControlLabel from "@material-ui/core/FormControlLabel"
 import Switch from "@material-ui/core/Switch"
 import { BlockPicker } from "react-color"
 import { useTheme } from "@material-ui/core/styles"
-
-import { colors } from "theme/colors"
+import FormHelperText from "@material-ui/core/FormHelperText"
 
 export const Language = {
   messageLabel: "Message",
@@ -36,7 +35,6 @@ export interface ServiceBannerFormValues {
   message?: string
   backgroundColor?: string
   enabled?: boolean
-  preview: boolean
 }
 
 // TODO:
@@ -62,13 +60,13 @@ const ServiceBannerSettingsPage: React.FC = () => {
     entitlementsState.context.entitlements.features[FeatureNames.ServiceBanners]
       .entitlement !== "not_entitled"
 
-  const onSubmit = (values: ServiceBannerFormValues) => {
+  const setBanner = (values: ServiceBannerFormValues, preview: boolean) => {
     const newBanner = {
       message: values.message,
       enabled: true,
       background_color: values.backgroundColor,
     }
-    if (values.preview) {
+    if (preview) {
       serviceBannerSend({
         type: "SET_PREVIEW_BANNER",
         serviceBanner: newBanner,
@@ -85,14 +83,13 @@ const ServiceBannerSettingsPage: React.FC = () => {
     message: serviceBanner.message,
     enabled: serviceBanner.enabled,
     backgroundColor: serviceBanner.background_color,
-    preview: false,
   }
 
   const form: FormikContextType<ServiceBannerFormValues> =
     useFormik<ServiceBannerFormValues>({
       initialValues,
       validationSchema,
-      onSubmit,
+      onSubmit: (values) => setBanner(values, false),
     })
   const getFieldHelpers = getFormHelpers<ServiceBannerFormValues>(form)
 
@@ -125,14 +122,19 @@ const ServiceBannerSettingsPage: React.FC = () => {
             control={<Switch {...getFieldHelpers("enabled")} color="primary" />}
             label="Enabled"
           />
-          <TextField
-            fullWidth
-            {...getFieldHelpers("message")}
-            label={Language.messageLabel}
-            variant="outlined"
-          />
+          <Stack spacing={0}>
+            <TextField
+              fullWidth
+              {...getFieldHelpers("message")}
+              label={Language.messageLabel}
+              variant="outlined"
+            />
+            <FormHelperText>
+              Markdown bold, italics, and links are supported.
+            </FormHelperText>
+          </Stack>
 
-          <Stack>
+          <Stack spacing={0}>
             <h3>Background Color</h3>
             <BlockPicker
               color={backgroundColor}
@@ -141,6 +143,7 @@ const ServiceBannerSettingsPage: React.FC = () => {
                 form.setFieldValue("backgroundColor", color.hex)
               }}
               triangle="hide"
+              colors={["#004852", "#D65D0F", "#4CD473", "#D94A5D", "#00BDD6"]}
               styles={{
                 default: {
                   input: {
@@ -150,6 +153,9 @@ const ServiceBannerSettingsPage: React.FC = () => {
                   body: {
                     backgroundColor: "black",
                     color: "white",
+                  },
+                  card: {
+                    backgroundColor: "black",
                   },
                 },
               }}
@@ -162,8 +168,7 @@ const ServiceBannerSettingsPage: React.FC = () => {
               //   aria-disabled={!editable}
               //   disabled={!editable}
               onClick={() => {
-                form.setFieldValue("preview", true)
-                onSubmit(form.values)
+                setBanner(form.values, true)
               }}
               variant="contained"
             >
@@ -174,8 +179,7 @@ const ServiceBannerSettingsPage: React.FC = () => {
               //   aria-disabled={!editable}
               //   disabled={!editable}
               onClick={() => {
-                form.setFieldValue("preview", false)
-                onSubmit(form.values)
+                setBanner(form.values, false)
               }}
               variant="contained"
             >
@@ -187,6 +191,7 @@ const ServiceBannerSettingsPage: React.FC = () => {
     </>
   )
 }
+
 const useStyles = makeStyles(() => ({
   form: {
     maxWidth: "500px",

@@ -52,9 +52,15 @@ func TestServiceBanners(t *testing.T) {
 	wantBanner := sb
 	wantBanner.Enabled = true
 	wantBanner.Message = "Hey"
+	wantBanner.BackgroundColor = "#00FF00"
 	err = adminClient.SetServiceBanner(ctx, wantBanner)
 	require.NoError(t, err)
 	gotBanner, err := adminClient.ServiceBanner(ctx)
 	require.NoError(t, err)
 	require.Equal(t, wantBanner, gotBanner)
+
+	// But even an admin can't give a bad color
+	wantBanner.BackgroundColor = "#bad color"
+	err = adminClient.SetServiceBanner(ctx, wantBanner)
+	require.Error(t, err)
 }

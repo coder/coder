@@ -2,10 +2,13 @@ package coderd
 
 import (
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/rbac"
@@ -53,6 +56,17 @@ func (api *API) serviceBanner(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, serviceBanner)
 }
 
+func validateHexColor(color string) error {
+	if len(color) != 7 {
+		return xerrors.New("expected 7 characters")
+	}
+	if color[0] != '#' {
+		return xerrors.New("no # prefix")
+	}
+	_, err := hex.DecodeString(color[1:])
+	return err
+}
+
 func (api *API) putServiceBanner(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -65,6 +79,13 @@ func (api *API) putServiceBanner(rw http.ResponseWriter, r *http.Request) {
 
 	var serviceBanner codersdk.ServiceBanner
 	if !httpapi.Read(ctx, rw, r, &serviceBanner) {
+		return
+	}
+
+	if err := validateHexColor(serviceBanner.BackgroundColor); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("parse color: %+v", err),
+		})
 		return
 	}
 
