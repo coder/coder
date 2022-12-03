@@ -132,6 +132,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 				apiKeyMiddleware,
 			)
 			r.Get("/", api.serviceBanner)
+			r.Put("/", api.putServiceBanner)
 		})
 	})
 

@@ -23,4 +23,5 @@ export enum FeatureNames {
   SCIM = "scim",
   TemplateRBAC = "template_rbac",
   HighAvailability = "high_availability",
+  ServiceBanners = "service_banners",
 }

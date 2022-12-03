@@ -1,4 +1,3 @@
-import { makeStyles } from "@material-ui/core"
 import TextField from "@material-ui/core/TextField"
 import { useActor } from "@xstate/react"
 import { FeatureNames } from "api/types"
@@ -7,21 +6,21 @@ import {
   DisabledBadge,
   EnabledBadge,
   EnterpriseBadge,
+  EntitledBadge,
 } from "components/DeploySettingsLayout/Badges"
-import { useDeploySettings } from "components/DeploySettingsLayout/DeploySettingsLayout"
 import { Header } from "components/DeploySettingsLayout/Header"
-import OptionsTable from "components/DeploySettingsLayout/OptionsTable"
 import { LoadingButton } from "components/LoadingButton/LoadingButton"
-import { Section } from "components/Section/Section"
 import { Stack } from "components/Stack/Stack"
 import { FormikContextType, useFormik } from "formik"
-import React, { useContext, useEffect } from "react"
+import React, { useContext } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "util/page"
 import * as Yup from "yup"
 import { XServiceContext } from "xServices/StateContext"
-import { ServiceBanner } from "api/typesGenerated"
 import { getFormHelpers } from "util/formUtils"
+import makeStyles from "@material-ui/core/styles/makeStyles"
+import FormControlLabel from "@material-ui/core/FormControlLabel"
+import Switch from "@material-ui/core/Switch"
 
 export const Language = {
   messageLabel: "Message",
@@ -38,6 +37,10 @@ export interface ServiceBannerFormValues {
 // TODO:
 const validationSchema = Yup.object({})
 
+// ServiceBanner is unlike the other Deployment Settings pages because it
+// implements a form, whereas the others are read-only. We make this
+// exception because the Service Banner is visual, and configuring it from
+// the command line would be a significantly worse user experience.
 const ServiceBannerSettingsPage: React.FC = () => {
   const xServices = useContext(XServiceContext)
   const [serviceBannerState, serviceBannerSend] = useActor(
@@ -48,17 +51,11 @@ const ServiceBannerSettingsPage: React.FC = () => {
 
   const serviceBanner = serviceBannerState.context.serviceBanner
 
-  /** Gets license data on app mount because LicenseBanner is mounted in App */
-  useEffect(() => {
-    serviceBannerSend("GET_BANNER")
-  }, [serviceBannerSend])
-
   const styles = useStyles()
 
   const isEntitled =
-    entitlementsState.context.entitlements.features[
-      FeatureNames.HighAvailability
-    ].entitlement !== "not_entitled"
+    entitlementsState.context.entitlements.features[FeatureNames.ServiceBanners]
+      .entitlement !== "not_entitled"
 
   const onSubmit = (values: ServiceBannerFormValues) => {
     const newBanner = {
@@ -106,12 +103,21 @@ const ServiceBannerSettingsPage: React.FC = () => {
         docsHref="https://coder.com/docs/coder-oss/latest/admin/high-availability#service-banners"
       />
       <Badges>
-        {isEntitled ? <EnabledBadge /> : <DisabledBadge />}
+        {isEntitled ? <EntitledBadge /> : <DisabledBadge />}
         <EnterpriseBadge />
       </Badges>
 
-      <form className={styles.form} onSubmit={form.handleSubmit}>
+      <form
+        className={styles.form}
+        onSubmit={form.handleSubmit}
+        // onChange={form.handleSubmit}
+      >
         <Stack>
+          <FormControlLabel
+            value="enable"
+            control={<Switch {...getFieldHelpers("enabled")} color="primary" />}
+            label="Enable"
+          />
           <TextField
             fullWidth
             {...getFieldHelpers("message")}

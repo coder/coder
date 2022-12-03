@@ -9,6 +9,7 @@ export const Language = {
 export type ServiceBannerContext = {
   serviceBanner: ServiceBanner
   getServiceBannerError?: Error | unknown
+  preview: boolean
 }
 
 export type ServiceBannerEvent =
@@ -37,6 +38,7 @@ export const serviceBannerMachine = createMachine(
     },
     context: {
       serviceBanner: emptyBanner,
+      preview: false,
     },
     initial: "idle",
     states: {
@@ -73,6 +75,9 @@ export const serviceBannerMachine = createMachine(
     actions: {
       assignPreviewBanner: assign({
         serviceBanner: (_, event) => event.serviceBanner,
+        // The xState docs suggest that we can use a static value, but I failed
+        // to find a way to do that that doesn't generate type errors.
+        preview: (_, __) => true,
       }),
       assignBanner: assign({
         serviceBanner: (_, event) => event.data as ServiceBanner,

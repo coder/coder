@@ -1,15 +1,18 @@
 import { makeStyles } from "@material-ui/core/styles"
+import { Pill } from "components/Pill/Pill"
 import ReactMarkdown from "react-markdown"
 import { colors } from "theme/colors"
 
 export interface ServiceBannerViewProps {
   message: string
   backgroundColor: string
+  preview: boolean
 }
 
 export const ServiceBannerView: React.FC<ServiceBannerViewProps> = ({
   message,
   backgroundColor,
+  preview,
 }) => {
   const styles = useStyles()
   const markdownElementsAllowed = [
@@ -25,6 +28,7 @@ export const ServiceBannerView: React.FC<ServiceBannerViewProps> = ({
       className={`${styles.container}`}
       style={{ backgroundColor: backgroundColor }}
     >
+      {preview && <Pill text="Preview" type="primary" lightBorder />}
       <div className={styles.centerContent}>
         <ReactMarkdown
           allowedElements={markdownElementsAllowed}

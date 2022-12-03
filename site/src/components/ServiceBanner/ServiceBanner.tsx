@@ -21,9 +21,13 @@ export const ServiceBanner: React.FC = () => {
     return null
   }
 
-  if (enabled && message !== undefined && background_color !== undefined) {
+  if (message !== undefined && background_color !== undefined) {
     return (
-      <ServiceBannerView message={message} backgroundColor={background_color} />
+      <ServiceBannerView
+        message={message}
+        backgroundColor={background_color}
+        preview={serviceBannerState.context.preview}
+      />
     )
   } else {
     return null
