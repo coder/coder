@@ -4,7 +4,6 @@ import { FeatureNames } from "api/types"
 import {
   Badges,
   DisabledBadge,
-  EnabledBadge,
   EnterpriseBadge,
   EntitledBadge,
 } from "components/DeploySettingsLayout/Badges"
@@ -12,7 +11,7 @@ import { Header } from "components/DeploySettingsLayout/Header"
 import { LoadingButton } from "components/LoadingButton/LoadingButton"
 import { Stack } from "components/Stack/Stack"
 import { FormikContextType, useFormik } from "formik"
-import React, { useContext } from "react"
+import React, { useContext, useState } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "util/page"
 import * as Yup from "yup"
@@ -21,17 +20,23 @@ import { getFormHelpers } from "util/formUtils"
 import makeStyles from "@material-ui/core/styles/makeStyles"
 import FormControlLabel from "@material-ui/core/FormControlLabel"
 import Switch from "@material-ui/core/Switch"
+import { BlockPicker } from "react-color"
+import { useTheme } from "@material-ui/core/styles"
+
+import { colors } from "theme/colors"
 
 export const Language = {
   messageLabel: "Message",
   backgroundColorLabel: "Background Color",
   updateBanner: "Update",
+  previewBanner: "Preview",
 }
 
 export interface ServiceBannerFormValues {
   message?: string
   backgroundColor?: string
   enabled?: boolean
+  preview: boolean
 }
 
 // TODO:
@@ -59,20 +64,19 @@ const ServiceBannerSettingsPage: React.FC = () => {
 
   const onSubmit = (values: ServiceBannerFormValues) => {
     const newBanner = {
-      ...serviceBanner,
+      message: values.message,
+      enabled: true,
+      background_color: values.backgroundColor,
     }
-    if (values.message !== undefined) {
-      newBanner.message = values.message
+    if (values.preview) {
+      serviceBannerSend({
+        type: "SET_PREVIEW_BANNER",
+        serviceBanner: newBanner,
+      })
+      return
     }
-    if (values.enabled !== undefined) {
-      newBanner.enabled = values.enabled
-    }
-    if (values.backgroundColor !== undefined) {
-      newBanner.background_color = values.backgroundColor
-    }
-
     serviceBannerSend({
-      type: "SET_PREVIEW",
+      type: "SET_BANNER",
       serviceBanner: newBanner,
     })
   }
@@ -81,6 +85,7 @@ const ServiceBannerSettingsPage: React.FC = () => {
     message: serviceBanner.message,
     enabled: serviceBanner.enabled,
     backgroundColor: serviceBanner.background_color,
+    preview: false,
   }
 
   const form: FormikContextType<ServiceBannerFormValues> =
@@ -90,6 +95,12 @@ const ServiceBannerSettingsPage: React.FC = () => {
       onSubmit,
     })
   const getFieldHelpers = getFormHelpers<ServiceBannerFormValues>(form)
+
+  const [backgroundColor, setBackgroundColor] = useState(
+    form.values.backgroundColor,
+  )
+
+  const theme = useTheme()
 
   return (
     <>
@@ -107,16 +118,12 @@ const ServiceBannerSettingsPage: React.FC = () => {
         <EnterpriseBadge />
       </Badges>
 
-      <form
-        className={styles.form}
-        onSubmit={form.handleSubmit}
-        // onChange={form.handleSubmit}
-      >
+      <form className={styles.form}>
         <Stack>
           <FormControlLabel
-            value="enable"
+            value="enabled"
             control={<Switch {...getFieldHelpers("enabled")} color="primary" />}
-            label="Enable"
+            label="Enabled"
           />
           <TextField
             fullWidth
@@ -125,15 +132,56 @@ const ServiceBannerSettingsPage: React.FC = () => {
             variant="outlined"
           />
 
-          <LoadingButton
-            loading={false}
-            //   aria-disabled={!editable}
-            //   disabled={!editable}
-            type="submit"
-            variant="contained"
-          >
-            {Language.updateBanner}
-          </LoadingButton>
+          <Stack>
+            <h3>Background Color</h3>
+            <BlockPicker
+              color={backgroundColor}
+              onChange={(color) => {
+                setBackgroundColor(color.hex)
+                form.setFieldValue("backgroundColor", color.hex)
+              }}
+              triangle="hide"
+              styles={{
+                default: {
+                  input: {
+                    color: "white",
+                    backgroundColor: theme.palette.background.default,
+                  },
+                  body: {
+                    backgroundColor: "black",
+                    color: "white",
+                  },
+                },
+              }}
+            />
+          </Stack>
+
+          <Stack direction="row">
+            <LoadingButton
+              loading={false}
+              //   aria-disabled={!editable}
+              //   disabled={!editable}
+              onClick={() => {
+                form.setFieldValue("preview", true)
+                onSubmit(form.values)
+              }}
+              variant="contained"
+            >
+              {Language.previewBanner}
+            </LoadingButton>
+            <LoadingButton
+              loading={false}
+              //   aria-disabled={!editable}
+              //   disabled={!editable}
+              onClick={() => {
+                form.setFieldValue("preview", false)
+                onSubmit(form.values)
+              }}
+              variant="contained"
+            >
+              {Language.updateBanner}
+            </LoadingButton>
+          </Stack>
         </Stack>
       </form>
     </>

@@ -4,11 +4,13 @@ import { ServiceBanner } from "../../api/typesGenerated"
 
 export const Language = {
   getServiceBannerError: "Error getting service banner.",
+  setServiceBannerError: "Error setting service banner.",
 }
 
 export type ServiceBannerContext = {
   serviceBanner: ServiceBanner
   getServiceBannerError?: Error | unknown
+  setServiceBannerError?: Error | unknown
   preview: boolean
 }
 
@@ -16,7 +18,8 @@ export type ServiceBannerEvent =
   | {
       type: "GET_BANNER"
     }
-  | { type: "SET_PREVIEW"; serviceBanner: ServiceBanner }
+  | { type: "SET_PREVIEW_BANNER"; serviceBanner: ServiceBanner }
+  | { type: "SET_BANNER"; serviceBanner: ServiceBanner }
 
 const emptyBanner = {
   enabled: false,
@@ -34,6 +37,9 @@ export const serviceBannerMachine = createMachine(
         getServiceBanner: {
           data: {} as ServiceBanner,
         },
+        setServiceBanner: {
+          data: {},
+        },
       },
     },
     context: {
@@ -45,7 +51,8 @@ export const serviceBannerMachine = createMachine(
       idle: {
         on: {
           GET_BANNER: "gettingBanner",
-          SET_PREVIEW: "settingPreview",
+          SET_PREVIEW_BANNER: "settingPreviewBanner",
+          SET_BANNER: "settingBanner",
         },
       },
       gettingBanner: {
@@ -63,10 +70,28 @@ export const serviceBannerMachine = createMachine(
           },
         },
       },
-      settingPreview: {
-        entry: ["clearGetBannerError", "assignPreviewBanner"],
+      settingPreviewBanner: {
+        entry: [
+          "clearGetBannerError",
+          "clearSetBannerError",
+          "assignPreviewBanner",
+        ],
         always: {
           target: "idle",
+        },
+      },
+      settingBanner: {
+        entry: "clearSetBannerError",
+        invoke: {
+          id: "setBanner",
+          src: "setBanner",
+          onDone: {
+            target: "gettingBanner",
+          },
+          onError: {
+            target: "idle",
+            actions: ["assignSetBannerError"],
+          },
         },
       },
     },
@@ -81,6 +106,7 @@ export const serviceBannerMachine = createMachine(
       }),
       assignBanner: assign({
         serviceBanner: (_, event) => event.data as ServiceBanner,
+        preview: (_, __) => false,
       }),
       assignGetBannerError: assign({
         getServiceBannerError: (_, event) => event.data,
@@ -88,9 +114,16 @@ export const serviceBannerMachine = createMachine(
       clearGetBannerError: assign({
         getServiceBannerError: (_) => undefined,
       }),
+      assignSetBannerError: assign({
+        setServiceBannerError: (_, event) => event.data,
+      }),
+      clearSetBannerError: assign({
+        setServiceBannerError: (_) => undefined,
+      }),
     },
     services: {
       getBanner: API.getServiceBanner,
+      setBanner: (_, event) => API.setServiceBanner(event.serviceBanner),
     },
   },
 )
