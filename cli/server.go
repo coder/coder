@@ -112,6 +112,14 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			notifyCtx, notifyStop := signal.NotifyContext(ctx, InterruptSignals...)
 			defer notifyStop()
 
+			// Ensure we have a unique cache directory for this process.
+			cacheDir := filepath.Join(cfg.CacheDirectory.Value, uuid.NewString())
+			err = os.MkdirAll(cacheDir, 0o700)
+			if err != nil {
+				return xerrors.Errorf("create cache directory: %w", err)
+			}
+			defer os.RemoveAll(cacheDir)
+
 			// Clean up idle connections at the end, e.g.
 			// embedded-postgres can leave an idle connection
 			// which is caught by goleaks.
@@ -355,7 +363,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				Database:                    databasefake.New(),
 				DERPMap:                     derpMap,
 				Pubsub:                      database.NewPubsubInMemory(),
-				CacheDir:                    cfg.CacheDirectory.Value,
+				CacheDir:                    cacheDir,
 				GoogleTokenValidator:        googleTokenValidator,
 				GitAuthConfigs:              gitAuthConfigs,
 				RealIPConfig:                realIPConfig,
@@ -632,7 +640,8 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			}()
 			provisionerdMetrics := provisionerd.NewMetrics(options.PrometheusRegistry)
 			for i := 0; i < cfg.Provisioner.Daemons.Value; i++ {
-				daemon, err := newProvisionerDaemon(ctx, coderAPI, provisionerdMetrics, logger, cfg, errCh, false)
+				daemonCacheDir := filepath.Join(cacheDir, fmt.Sprintf("provisioner-%d", i))
+				daemon, err := newProvisionerDaemon(ctx, coderAPI, provisionerdMetrics, logger, cfg, daemonCacheDir, errCh, false)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
 				}
@@ -902,6 +911,7 @@ func newProvisionerDaemon(
 	metrics provisionerd.Metrics,
 	logger slog.Logger,
 	cfg *codersdk.DeploymentConfig,
+	cacheDir string,
 	errCh chan error,
 	dev bool,
 ) (srv *provisionerd.Server, err error) {
@@ -912,9 +922,9 @@ func newProvisionerDaemon(
 		}
 	}()
 
-	err = os.MkdirAll(cfg.CacheDirectory.Value, 0o700)
+	err = os.MkdirAll(cacheDir, 0o700)
 	if err != nil {
-		return nil, xerrors.Errorf("mkdir %q: %w", cfg.CacheDirectory.Value, err)
+		return nil, xerrors.Errorf("mkdir %q: %w", cacheDir, err)
 	}
 
 	terraformClient, terraformServer := provisionersdk.MemTransportPipe()
@@ -930,7 +940,7 @@ func newProvisionerDaemon(
 			ServeOptions: &provisionersdk.ServeOptions{
 				Listener: terraformServer,
 			},
-			CachePath: cfg.CacheDirectory.Value,
+			CachePath: cacheDir,
 			Logger:    logger,
 		})
 		if err != nil && !xerrors.Is(err, context.Canceled) {
