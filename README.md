@@ -83,6 +83,10 @@ Use `coder --help` to get a complete list of flags and environment variables. Us
 
 Visit our docs [here](https://coder.com/docs/coder-oss).
 
+## Templates
+
+Find our templates [here](./examples/templates).
+
 ## Comparison
 
 Please file [an issue](https://github.com/coder/coder/issues/new) if any information is out of date. Also refer to: [What Coder is not](https://coder.com/docs/coder-oss/latest/index#what-coder-is-not).
