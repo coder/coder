@@ -359,9 +359,9 @@ fmt/prettier:
 	cd site
 # Avoid writing files in CI to reduce file write activity
 ifdef CI
-	yarn run format:check
+	yarn run format:check . ../docs
 else
-	yarn run format:write
+	yarn run format:write . ../docs
 endif
 .PHONY: fmt/prettier
 
