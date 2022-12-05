@@ -123,7 +123,7 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           "coder",
 		SilenceErrors: true,
-		SilenceUsage:  true,
+		SilenceUsage:  false,
 		Long:          fmt.Sprintf(fmtLong, buildinfo.Version()),
 		Args: func(cmd *cobra.Command, args []string) error {
 			if gitauth.CheckCommand(args, os.Environ()) {
