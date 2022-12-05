@@ -452,7 +452,7 @@ site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find codersdk
 docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics
 	go run scripts/metricsdocgen/main.go
 	cd site
-	yarn run format:write docs/admin/prometheus.md
+	yarn run format:write ../docs/admin/prometheus.md
 
 update-golden-files: cli/testdata/.gen-golden
 .PHONY: update-golden-files
