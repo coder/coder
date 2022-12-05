@@ -251,8 +251,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 		a.closeMutex.Unlock()
 		return nil, xerrors.New("closed")
 	}
-	var network *tailnet.Conn
-	network, err = tailnet.NewConn(&tailnet.Options{
+	network, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:          []netip.Prefix{netip.PrefixFrom(codersdk.TailnetIP, 128)},
 		DERPMap:            derpMap,
 		Logger:             a.logger.Named("tailnet"),
