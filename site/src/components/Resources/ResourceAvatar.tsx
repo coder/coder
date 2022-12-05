@@ -3,11 +3,13 @@ import { makeStyles } from "@material-ui/core/styles"
 import React from "react"
 import { WorkspaceResource } from "../../api/typesGenerated"
 
+const FALLBACK_ICON = "/icon/widgets.svg"
+
 // NOTE @jsjoeio, @BrunoQuaresma
 // These resources (i.e. docker_image, kubernetes_deployment) map to Terraform
 // resource types. These are the most used ones and are based on user usage.
 // We may want to update from time-to-time.
-const DEFAULT_ICON_PATHS: {
+const BUILT_IN_ICON_PATHS: {
   [resourceType: WorkspaceResource["type"]]: string
 } = {
   docker_volume: "/icon/folder.svg",
@@ -19,15 +21,15 @@ const DEFAULT_ICON_PATHS: {
   google_compute_instance: "/icon/memory.svg",
   aws_instance: "/icon/memory.svg",
   kubernetes_deployment: "/icon/memory.svg",
-  null_resource: "/icon/widgets.svg",
+  null_resource: FALLBACK_ICON,
 }
 
 const getIconPathResource = (resourceType: string): string => {
-  if (resourceType in DEFAULT_ICON_PATHS) {
-    return DEFAULT_ICON_PATHS[resourceType]
+  if (resourceType in BUILT_IN_ICON_PATHS) {
+    return BUILT_IN_ICON_PATHS[resourceType]
   }
 
-  return DEFAULT_ICON_PATHS[resourceType]
+  return FALLBACK_ICON
 }
 
 export type ResourceAvatarProps = { resource: WorkspaceResource }
