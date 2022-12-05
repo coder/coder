@@ -264,11 +264,11 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (ne
 	defer func() {
 		// Apparently, it's possible to shut down network via agent.Close().
 		// The condition `network != nil` prevents panic in tests.
-		if err != nil && network != nil {
+		if err != nil {
 			network.Close()
 		}
 	}()
-	a.network = network
+	// a.network = network
 	a.closeMutex.Unlock()
 
 	sshListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetSSHPort))
