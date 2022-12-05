@@ -329,9 +329,7 @@ func (c *Client) ListenWorkspaceAgent(ctx context.Context) (net.Conn, error) {
 		Transport: c.HTTPClient.Transport,
 	}
 	// nolint:bodyclose
-	conn, res, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
-		HTTPClient: httpClient,
-	})
+	conn, res, err := websocket.Dial(ctx, coordinateURL.String(), websocketOptions(httpClient, 0))
 	if err != nil {
 		if res == nil {
 			return nil, err
@@ -403,11 +401,8 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 		for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
 			options.Logger.Debug(ctx, "connecting")
 			// nolint:bodyclose
-			ws, res, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
-				HTTPClient: httpClient,
-				// Need to disable compression to avoid a data-race.
-				CompressionMode: websocket.CompressionDisabled,
-			})
+			// Need to disable compression to avoid a data-race.
+			ws, res, err := websocket.Dial(ctx, coordinateURL.String(), websocketOptions(httpClient, websocket.CompressionDisabled))
 			if isFirst {
 				if res != nil && res.StatusCode == http.StatusConflict {
 					first <- readBodyAsError(res)
@@ -524,9 +519,7 @@ func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, agentID, rec
 	httpClient := &http.Client{
 		Jar: jar,
 	}
-	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
-		HTTPClient: httpClient,
-	})
+	conn, res, err := websocket.Dial(ctx, serverURL.String(), websocketOptions(httpClient, 0))
 	if err != nil {
 		if res == nil {
 			return nil, err

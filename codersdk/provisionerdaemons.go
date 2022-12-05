@@ -130,10 +130,7 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 	httpClient := &http.Client{
 		Jar: jar,
 	}
-	conn, res, err := websocket.Dial(ctx, followURL.String(), &websocket.DialOptions{
-		HTTPClient:      httpClient,
-		CompressionMode: websocket.CompressionDisabled,
-	})
+	conn, res, err := websocket.Dial(ctx, followURL.String(), websocketOptions(httpClient, 0))
 	if err != nil {
 		if res == nil {
 			return nil, nil, err
@@ -192,11 +189,7 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, organization uuid.U
 	httpClient := &http.Client{
 		Jar: jar,
 	}
-	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
-		HTTPClient: httpClient,
-		// Need to disable compression to avoid a data-race.
-		CompressionMode: websocket.CompressionDisabled,
-	})
+	conn, res, err := websocket.Dial(ctx, serverURL.String(), websocketOptions(httpClient, 0))
 	if err != nil {
 		if res == nil {
 			return nil, err
