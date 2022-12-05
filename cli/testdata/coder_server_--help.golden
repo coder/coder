@@ -128,6 +128,15 @@ Flags:
       --prometheus-enable                            Serve prometheus metrics on the address
                                                      defined by prometheus address.
                                                      Consumes $CODER_PROMETHEUS_ENABLE
+      --provisioner-daemon-poll-interval duration    Time to wait before polling for a new
+                                                     job.
+                                                     Consumes
+                                                     $CODER_PROVISIONER_DAEMON_POLL_INTERVAL
+                                                     (default 1s)
+      --provisioner-daemon-poll-jitter duration      Random jitter added to the poll interval.
+                                                     Consumes
+                                                     $CODER_PROVISIONER_DAEMON_POLL_JITTER
+                                                     (default 100ms)
       --provisioner-daemons int                      Number of provisioner daemons to create
                                                      on start. If builds are stuck in queued
                                                      state for a long time, consider
@@ -219,6 +228,10 @@ Flags:
                                                      verbose flag was supplied, debug-level
                                                      logs will be included.
                                                      Consumes $CODER_TRACE_CAPTURE_LOGS
+      --update-check                                 Periodically check for new releases of
+                                                     Coder and inform the owner. The check is
+                                                     performed once per day.
+                                                     Consumes $CODER_UPDATE_CHECK
       --wildcard-access-url string                   Specifies the wildcard hostname to use
                                                      for workspace applications in the form
                                                      "*.example.com".

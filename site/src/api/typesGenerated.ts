@@ -67,6 +67,8 @@ export interface AuditLog {
   readonly status_code: number
   readonly additional_fields: Record<string, string>
   readonly description: string
+  readonly resource_link: string
+  readonly is_deleted: boolean
   readonly user?: User
 }
 
@@ -299,6 +301,7 @@ export interface DeploymentConfig {
   readonly provisioner: ProvisionerConfig
   readonly api_rate_limit: DeploymentConfigField<number>
   readonly experimental: DeploymentConfigField<boolean>
+  readonly update_check: DeploymentConfigField<boolean>
 }
 
 // From codersdk/deploymentconfig.go
@@ -526,6 +529,8 @@ export interface PrometheusConfig {
 // From codersdk/deploymentconfig.go
 export interface ProvisionerConfig {
   readonly daemons: DeploymentConfigField<number>
+  readonly daemon_poll_interval: DeploymentConfigField<number>
+  readonly daemon_poll_jitter: DeploymentConfigField<number>
   readonly force_cancel_interval: DeploymentConfigField<number>
 }
 
@@ -700,6 +705,13 @@ export interface TransitionStats {
 // From codersdk/templates.go
 export interface UpdateActiveTemplateVersion {
   readonly id: string
+}
+
+// From codersdk/updatecheck.go
+export interface UpdateCheckResponse {
+  readonly current: boolean
+  readonly version: string
+  readonly url: string
 }
 
 // From codersdk/users.go

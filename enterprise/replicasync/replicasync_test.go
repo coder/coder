@@ -206,7 +206,12 @@ func TestReplica(t *testing.T) {
 				_ = server.Close()
 			})
 			done := false
+
+			var m sync.Mutex
 			server.SetCallback(func() {
+				m.Lock()
+				defer m.Unlock()
+
 				if len(server.All()) != count {
 					return
 				}

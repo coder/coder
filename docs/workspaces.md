@@ -92,5 +92,6 @@ Coder stores macOS and Linux logs at the following locations:
 ---
 
 ## Up next
+
 - Learn about how to personalize your workspace with [Dotfiles](./dotfiles.md)
 - Learn about using [IDEs](./ides.md)

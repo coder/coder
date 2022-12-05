@@ -2422,8 +2422,7 @@ WHERE
 			provisioner_jobs AS nested
 		WHERE
 			nested.started_at IS NULL
-			AND nested.canceled_at IS NULL
-			AND nested.completed_at IS NULL
+			-- Ensure the caller has the correct provisioner.
 			AND nested.provisioner = ANY($3 :: provisioner_type [ ])
 			-- Ensure the caller satisfies all job tags.
 			AND nested.tags <@ $4 :: jsonb 
@@ -2970,6 +2969,17 @@ func (q *sqlQuerier) GetDeploymentID(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getLastUpdateCheck = `-- name: GetLastUpdateCheck :one
+SELECT value FROM site_configs WHERE key = 'last_update_check'
+`
+
+func (q *sqlQuerier) GetLastUpdateCheck(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getLastUpdateCheck)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
 const insertDERPMeshKey = `-- name: InsertDERPMeshKey :exec
 INSERT INTO site_configs (key, value) VALUES ('derp_mesh_key', $1)
 `
@@ -2985,6 +2995,16 @@ INSERT INTO site_configs (key, value) VALUES ('deployment_id', $1)
 
 func (q *sqlQuerier) InsertDeploymentID(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, insertDeploymentID, value)
+	return err
+}
+
+const insertOrUpdateLastUpdateCheck = `-- name: InsertOrUpdateLastUpdateCheck :exec
+INSERT INTO site_configs (key, value) VALUES ('last_update_check', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'last_update_check'
+`
+
+func (q *sqlQuerier) InsertOrUpdateLastUpdateCheck(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, insertOrUpdateLastUpdateCheck, value)
 	return err
 }
 

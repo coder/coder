@@ -1,0 +1,1 @@
+DROP INDEX provisioner_jobs_started_at_idx;

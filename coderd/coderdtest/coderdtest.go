@@ -64,6 +64,7 @@ import (
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
+	"github.com/coder/coder/coderd/updatecheck"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
@@ -101,6 +102,9 @@ type Options struct {
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
 	DeploymentConfig            *codersdk.DeploymentConfig
+
+	// Set update check options to enable update check.
+	UpdateCheckOptions *updatecheck.Options
 
 	// Overriding the database is heavily discouraged.
 	// It should only be used in cases where multiple Coder
@@ -283,6 +287,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			MetricsCacheRefreshInterval: options.MetricsCacheRefreshInterval,
 			AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
 			DeploymentConfig:            options.DeploymentConfig,
+			UpdateCheckOptions:          options.UpdateCheckOptions,
 		}
 }
 
@@ -335,7 +340,7 @@ func NewProvisionerDaemon(t *testing.T, coderAPI *coderd.API) io.Closer {
 	}, &provisionerd.Options{
 		Filesystem:          fs,
 		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
-		PollInterval:        50 * time.Millisecond,
+		JobPollInterval:     50 * time.Millisecond,
 		UpdateInterval:      250 * time.Millisecond,
 		ForceCancelInterval: time.Second,
 		Provisioners: provisionerd.Provisioners{
@@ -370,7 +375,7 @@ func NewExternalProvisionerDaemon(t *testing.T, client *codersdk.Client, org uui
 	}, &provisionerd.Options{
 		Filesystem:          fs,
 		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
-		PollInterval:        50 * time.Millisecond,
+		JobPollInterval:     50 * time.Millisecond,
 		UpdateInterval:      250 * time.Millisecond,
 		ForceCancelInterval: time.Second,
 		Provisioners: provisionerd.Provisioners{

@@ -48,6 +48,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"GET:/healthz":                  {NoAuthorize: true},
 		"GET:/api/v2":                   {NoAuthorize: true},
 		"GET:/api/v2/buildinfo":         {NoAuthorize: true},
+		"GET:/api/v2/updatecheck":       {NoAuthorize: true},
 		"GET:/api/v2/users/first":       {NoAuthorize: true},
 		"POST:/api/v2/users/first":      {NoAuthorize: true},
 		"POST:/api/v2/users/login":      {NoAuthorize: true},

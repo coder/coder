@@ -96,7 +96,7 @@ jobs:
         with:
           go-version: "~1.19"
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3.3.0
+        uses: golangci/golangci-lint-action@v3.3.1
         with:
           version: v1.48.0
 
@@ -336,7 +336,7 @@ jobs:
             echo ::set-output name=cover::false
           fi
           set -x
-          gotestsum --junitfile="gotests.xml" --packages="./..." -- -parallel=8 -timeout=3m -short -failfast $COVERAGE_FLAGS
+          gotestsum --junitfile="gotests.xml" --packages="./..." --debug -- -parallel=8 -timeout=3m -short -failfast $COVERAGE_FLAGS
 
       - uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
@@ -428,7 +428,7 @@ jobs:
           fetch-depth: 0
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v0
+        uses: google-github-actions/auth@v1
         with:
           workload_identity_provider: projects/573722524737/locations/global/workloadIdentityPools/github/providers/github
           service_account: coder-ci@coder-dogfood.iam.gserviceaccount.com
