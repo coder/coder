@@ -153,12 +153,6 @@ RUN apt-get update --quiet && apt-get install --yes \
       docker-ce-cli \
       packer \
       terraform \
-      buildah \
-      conmon \
-      containernetworking-plugins \
-      crun \
-      podman \
-      skopeo \
       fish \
 			unzip \
       zstd && \
