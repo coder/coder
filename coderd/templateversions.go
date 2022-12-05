@@ -648,7 +648,7 @@ func (api *API) previousTemplateVersionByOrganizationAndName(rw http.ResponseWri
 		OrganizationID: organization.ID,
 		Name:           templateVersionName,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
+	if xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: fmt.Sprintf("No template version found by name %q.", templateVersionName),
 		})
