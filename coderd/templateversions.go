@@ -648,13 +648,14 @@ func (api *API) previousTemplateVersionByOrganizationAndName(rw http.ResponseWri
 		OrganizationID: organization.ID,
 		Name:           templateVersionName,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: fmt.Sprintf("No template version found by name %q.", templateVersionName),
-		})
-		return
-	}
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: fmt.Sprintf("No template version found by name %q.", templateVersionName),
+			})
+			return
+		}
+
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching template version.",
 			Detail:  err.Error(),
@@ -667,13 +668,15 @@ func (api *API) previousTemplateVersionByOrganizationAndName(rw http.ResponseWri
 		Name:           templateVersionName,
 		TemplateID:     templateVersion.TemplateID,
 	})
-	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: fmt.Sprintf("No previous template version found for %q.", templateVersionName),
-		})
-		return
-	}
+
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: fmt.Sprintf("No previous template version found for %q.", templateVersionName),
+			})
+			return
+		}
+
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching the previous template version.",
 			Detail:  err.Error(),
