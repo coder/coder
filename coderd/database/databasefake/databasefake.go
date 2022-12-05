@@ -1739,7 +1739,7 @@ func (q *fakeQuerier) GetPreviousTemplateVersion(_ context.Context, arg database
 
 	previousTemplateVersions := make([]database.TemplateVersion, 0)
 	for _, templateVersion := range q.templateVersions {
-		if templateVersion.ID == currentTemplateVersion.ID {
+		if templateVersion.ID == currentTemplateVersion.ID || templateVersion.OrganizationID != arg.OrganizationID || templateVersion.TemplateID != arg.TemplateID {
 			continue
 		}
 		if templateVersion.CreatedAt.Before(currentTemplateVersion.CreatedAt) {

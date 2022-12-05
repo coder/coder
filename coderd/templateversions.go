@@ -649,7 +649,7 @@ func (api *API) previousTemplateVersionByOrganizationAndName(rw http.ResponseWri
 		Name:           templateVersionName,
 	})
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if xerrors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: fmt.Sprintf("No template version found by name %q.", templateVersionName),
 			})
@@ -670,7 +670,7 @@ func (api *API) previousTemplateVersionByOrganizationAndName(rw http.ResponseWri
 	})
 
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if xerrors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: fmt.Sprintf("No previous template version found for %q.", templateVersionName),
 			})
