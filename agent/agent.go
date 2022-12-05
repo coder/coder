@@ -262,7 +262,9 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (ne
 		return nil, xerrors.Errorf("create tailnet: %w", err)
 	}
 	defer func() {
-		if err != nil {
+		// Apparently, it's possible to shut down network via agent.Close().
+		// The condition `network != nil` prevents panic in tests.
+		if err != nil && network != nil {
 			network.Close()
 		}
 	}()
