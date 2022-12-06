@@ -41,7 +41,7 @@ const MAX_DESCRIPTION_CHAR_LIMIT = 128
 const MAX_TTL_DAYS = 7
 const MS_HOUR_CONVERSION = 3600000
 
-export const validationSchema = Yup.object({
+export const getValidationSchema = (): Yup.AnyObjectSchema => Yup.object({
   name: nameValidator(i18next.t("nameLabel", { ns: "templateSettingsPage" })),
   display_name: templateDisplayNameValidator(
     i18next.t("displayNameLabel", {
@@ -81,6 +81,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   initialTouched,
 }) => {
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false)
+  const validationSchema = getValidationSchema()
   const form: FormikContextType<UpdateTemplateMeta> =
     useFormik<UpdateTemplateMeta>({
       initialValues: {
