@@ -11,6 +11,7 @@ import usersPage from "./usersPage.json"
 import templateVersionPage from "./templateVersionPage.json"
 import loginPage from "./loginPage.json"
 import workspaceChangeVersionPage from "./workspaceChangeVersionPage.json"
+import serviceBannerSettings from "./serviceBannerSettings.json"
 
 export const en = {
   common,
@@ -26,4 +27,5 @@ export const en = {
   templateVersionPage,
   loginPage,
   workspaceChangeVersionPage,
+  serviceBannerSettings,
 }

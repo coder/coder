@@ -11,7 +11,7 @@ import { Header } from "components/DeploySettingsLayout/Header"
 import { LoadingButton } from "components/LoadingButton/LoadingButton"
 import { Stack } from "components/Stack/Stack"
 import { FormikContextType, useFormik } from "formik"
-import React, { useContext, useState } from "react"
+import React, { useContext, useState, useTransition } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "util/page"
 import * as Yup from "yup"
@@ -24,6 +24,7 @@ import { BlockPicker } from "react-color"
 import { useTheme } from "@material-ui/core/styles"
 import FormHelperText from "@material-ui/core/FormHelperText"
 import Button from "@material-ui/core/Button"
+import { useTranslation } from "react-i18next"
 
 export interface ServiceBannerFormValues {
   message?: string
@@ -92,6 +93,7 @@ const ServiceBannerSettingsPage: React.FC = () => {
   )
 
   const theme = useTheme()
+  const [t] = useTranslation("serviceBannerSettings")
 
   return (
     <>
@@ -148,9 +150,7 @@ const ServiceBannerSettingsPage: React.FC = () => {
                   )
                 }}
               />
-              <FormHelperText>
-                Markdown bold, italics, and links are supported.
-              </FormHelperText>
+              <FormHelperText>{t("messageHelperText")}</FormHelperText>
             </Stack>
 
             <Stack spacing={0}>
@@ -190,7 +190,7 @@ const ServiceBannerSettingsPage: React.FC = () => {
 
             <Stack direction="row">
               <LoadingButton loading={false} type="submit" variant="contained">
-                {"Update"}
+                {t("updateLabel")}
               </LoadingButton>
             </Stack>
           </Stack>
@@ -214,7 +214,7 @@ const ServiceBannerSettingsPage: React.FC = () => {
               )
             }}
           >
-            Show Preview
+            {t("showPreviewLabel")}
           </Button>
         </>
       )}
