@@ -36,9 +36,17 @@ export const Language = {
     "Please enter a limit that is less than or equal to 168 hours (7 days).",
   descriptionMaxError:
     "Please enter a description that is less than or equal to 128 characters.",
-  ttlHelperText: (ttl: number): string =>
+  ttlHelperText: (ttl: number): string => ttl === 1 ?
+    `Workspaces created from this template will default to stopping after ${ttl} hour.` :
     `Workspaces created from this template will default to stopping after ${ttl} hours.`,
+  noTTL: "Workspaces created from this template will run until stopped manually."
 }
+
+const TTLHelperText = ({ ttl }: { ttl?: number }) => (
+  ttl !== undefined ? <span>
+    {ttl === 0 ? Language.noTTL : Language.ttlHelperText(ttl)}
+  </span> : null
+)
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128
 const MAX_TTL_DAYS = 7
@@ -111,6 +119,9 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   const emojiButtonRef = useRef<HTMLButtonElement>(null)
 
   const { t } = useTranslation("templatePage")
+
+  console.log(form)
+  console.log(getFieldHelpers("default_ttl_ms"))
 
   return (
     <form onSubmit={form.handleSubmit} aria-label={Language.formAriaLabel}>
@@ -204,7 +215,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         </div>
 
         <TextField
-          {...getFieldHelpers("default_ttl_ms")}
+          {...getFieldHelpers("default_ttl_ms", <TTLHelperText ttl={form.values.default_ttl_ms} />)}
           disabled={isSubmitting}
           fullWidth
           inputProps={{ min: 0, step: 1 }}
@@ -212,12 +223,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
           variant="outlined"
           type="number"
         />
-        {/* If a value for default_ttl_ms has been entered and
-        there are no validation errors for that field, display helper text.
-        We do not use the MUI helper-text prop because it overrides the validation error */}
-        {form.values.default_ttl_ms && !form.errors.default_ttl_ms && (
-          <span>{Language.ttlHelperText(form.values.default_ttl_ms)}</span>
-        )}
 
         <Box display="flex">
           <div>
