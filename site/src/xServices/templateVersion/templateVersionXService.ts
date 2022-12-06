@@ -8,6 +8,7 @@ import {
   TemplateVersionFiles,
 } from "util/templateVersion"
 import { assign, createMachine } from "xstate"
+
 export interface TemplateVersionMachineContext {
   orgId: string
   versionName: string
@@ -111,9 +112,18 @@ export const templateVersionMachine = createMachine(
           throw new Error("Previous version is not defined")
         }
         const allowedExtensions = ["tf", "md"]
+        const allowedFiles = ["Dockerfile"]
         const [currentFiles, previousFiles] = await Promise.all([
-          getTemplateVersionFiles(currentVersion, allowedExtensions),
-          getTemplateVersionFiles(previousVersion, allowedExtensions),
+          getTemplateVersionFiles(
+            currentVersion,
+            allowedExtensions,
+            allowedFiles,
+          ),
+          getTemplateVersionFiles(
+            previousVersion,
+            allowedExtensions,
+            allowedFiles,
+          ),
         ])
         return {
           currentFiles,

@@ -11,7 +11,6 @@ import {
 } from "components/PageHeader/PageHeader"
 import { Stack } from "components/Stack/Stack"
 import { Stats, StatsItem } from "components/Stats/Stats"
-import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter"
 import { UseTabResult } from "hooks/useTab"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
@@ -19,6 +18,52 @@ import { Link } from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
 import { createDayString } from "util/createDayString"
 import { TemplateVersionMachineContext } from "xServices/templateVersion/templateVersionXService"
+import { TemplateVersionFiles } from "util/templateVersion"
+import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter"
+
+const Files: FC<{
+  currentFiles: TemplateVersionFiles
+  previousFiles: TemplateVersionFiles
+  tab: UseTabResult
+}> = ({ currentFiles, previousFiles, tab }) => {
+  const styles = useStyles()
+  const filenames = Object.keys(currentFiles)
+  const selectedFilename = filenames[Number(tab.value)]
+  const currentFile = currentFiles[selectedFilename]
+  const previousFile = previousFiles[selectedFilename]
+
+  return (
+    <div className={styles.files}>
+      <div className={styles.tabs}>
+        {filenames.map((filename, index) => {
+          const tabValue = index.toString()
+
+          return (
+            <button
+              className={combineClasses({
+                [styles.tab]: true,
+                [styles.tabActive]: tabValue === tab.value,
+              })}
+              onClick={() => {
+                tab.set(tabValue)
+              }}
+              key={filename}
+            >
+              {filename.endsWith("tf") ? <TerraformIcon /> : <MarkdownIcon />}
+              {filename}
+            </button>
+          )
+        })}
+      </div>
+
+      <SyntaxHighlighter
+        value={currentFile}
+        compareWith={previousFile}
+        language={selectedFilename.endsWith("tf") ? "hcl" : "markdown"}
+      />
+    </div>
+  )
+}
 
 export interface TemplateVersionPageViewProps {
   /**
@@ -36,12 +81,8 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
   versionName,
   templateName,
 }) => {
-  const styles = useStyles()
-  const { currentFiles, error, currentVersion, diffByFile } = context
+  const { currentFiles, error, currentVersion, previousFiles } = context
   const { t } = useTranslation("templateVersionPage")
-
-  console.log(diffByFile)
-  console.log(currentFiles)
 
   return (
     <Margins>
@@ -50,11 +91,11 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
         <PageHeaderTitle>{versionName}</PageHeaderTitle>
       </PageHeader>
 
-      {!currentFiles && !error && <Loader />}
+      {(!currentFiles || !previousFiles) && !error && <Loader />}
 
       <Stack spacing={4}>
         {Boolean(error) && <AlertBanner severity="error" error={error} />}
-        {currentVersion && currentFiles && (
+        {currentVersion && currentFiles && previousFiles && (
           <>
             <Stats>
               <StatsItem
@@ -73,45 +114,11 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
               />
             </Stats>
 
-            <div className={styles.files}>
-              <div className={styles.tabs}>
-                {Object.keys(currentFiles).map((filename, index) => {
-                  const tabValue = index.toString()
-
-                  return (
-                    <button
-                      className={combineClasses({
-                        [styles.tab]: true,
-                        [styles.tabActive]: tabValue === tab.value,
-                      })}
-                      onClick={() => {
-                        tab.set(tabValue)
-                      }}
-                      key={filename}
-                    >
-                      {filename.endsWith("tf") ? (
-                        <TerraformIcon />
-                      ) : (
-                        <MarkdownIcon />
-                      )}
-                      {filename}
-                    </button>
-                  )
-                })}
-              </div>
-
-              <SyntaxHighlighter
-                showLineNumbers
-                className={styles.prism}
-                language={
-                  Object.keys(currentFiles)[Number(tab.value)].endsWith("tf")
-                    ? "hcl"
-                    : "markdown"
-                }
-              >
-                {Object.values(currentFiles)[Number(tab.value)]}
-              </SyntaxHighlighter>
-            </div>
+            <Files
+              tab={tab}
+              currentFiles={currentFiles}
+              previousFiles={previousFiles}
+            />
           </>
         )}
       </Stack>
