@@ -24,6 +24,12 @@ export const MockBuildInfo: TypesGen.BuildInfoResponse = {
   version: "v99.999.9999+c9cdf14",
 }
 
+export const MockUpdateCheck: TypesGen.UpdateCheckResponse = {
+  current: true,
+  url: "file:///mock-url",
+  version: "v99.999.9999+c9cdf14",
+}
+
 export const MockOwnerRole: TypesGen.Role = {
   name: "owner",
   display_name: "Owner",
@@ -181,6 +187,23 @@ You can add instructions here
   created_by: MockUser,
 }
 
+export const MockTemplateVersion2: TypesGen.TemplateVersion = {
+  id: "test-template-version-2",
+  created_at: "2022-05-17T17:39:01.382927298Z",
+  updated_at: "2022-05-17T17:39:01.382927298Z",
+  template_id: "test-template",
+  job: MockProvisionerJob,
+  name: "test-version-2",
+  readme: `---
+name:Template test 2
+---
+## Instructions
+You can add instructions here
+
+[Some link info](https://coder.com)`,
+  created_by: MockUser,
+}
+
 export const MockTemplate: TypesGen.Template = {
   id: "test-template",
   created_at: "2022-05-17T17:39:01.382927298Z",
@@ -211,6 +234,7 @@ export const MockTemplate: TypesGen.Template = {
   created_by_id: "test-creator-id",
   created_by_name: "test_creator",
   icon: "/icon/code.svg",
+  allow_user_cancel_workspace_jobs: true,
 }
 
 export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
@@ -382,7 +406,8 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   initiator_id: MockUser.id,
   initiator_name: MockUser.username,
   job: MockProvisionerJob,
-  template_version_id: "",
+  template_version_id: MockTemplateVersion.id,
+  template_version_name: MockTemplateVersion.name,
   transition: "start",
   updated_at: "2022-05-17T17:39:01.382927298Z",
   workspace_name: "test-workspace",
@@ -405,7 +430,8 @@ export const MockFailedWorkspaceBuild = (
   initiator_id: MockUser.id,
   initiator_name: MockUser.username,
   job: MockFailedProvisionerJob,
-  template_version_id: "",
+  template_version_id: MockTemplateVersion.id,
+  template_version_name: MockTemplateVersion.name,
   transition: transition,
   updated_at: "2022-05-17T17:39:01.382927298Z",
   workspace_name: "test-workspace",
@@ -446,6 +472,8 @@ export const MockWorkspace: TypesGen.Workspace = {
   template_name: MockTemplate.name,
   template_icon: MockTemplate.icon,
   template_display_name: MockTemplate.display_name,
+  template_allow_user_cancel_workspace_jobs:
+    MockTemplate.allow_user_cancel_workspace_jobs,
   outdated: false,
   owner_id: MockUser.id,
   owner_name: MockUser.username,
@@ -956,14 +984,18 @@ export const MockAuditLog: TypesGen.AuditLog = {
   },
   status_code: 200,
   additional_fields: {},
-  description: "{user} updated workspace {target}",
+  description: "{user} created workspace {target}",
   user: MockUser,
+  resource_link: "/@admin/bruno-dev",
+  is_deleted: false,
 }
 
 export const MockAuditLog2: TypesGen.AuditLog = {
   ...MockAuditLog,
   id: "53bded77-7b9d-4e82-8771-991a34d759f9",
   action: "write",
+  time: "2022-05-20T16:45:57.122Z",
+  description: "{user} updated workspace {target}",
   diff: {
     workspace_name: {
       old: "old-workspace-name",
@@ -994,10 +1026,15 @@ export const MockAuditLogWithWorkspaceBuild: TypesGen.AuditLog = {
   request_id: "61555889-2875-475c-8494-f7693dd5d75b",
   action: "stop",
   resource_type: "workspace_build",
-  description: "{user} stopped workspace build for {target}",
+  description: "{user} stopped build for workspace {target}",
   additional_fields: {
     workspaceName: "test2",
   },
+}
+
+export const MockAuditLogWithDeletedResource: TypesGen.AuditLog = {
+  ...MockAuditLog,
+  is_deleted: true,
 }
 
 export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {

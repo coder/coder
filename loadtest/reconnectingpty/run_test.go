@@ -23,8 +23,8 @@ import (
 
 func Test_Runner(t *testing.T) {
 	t.Parallel()
-	if runtime.GOOS == "windows" {
-		t.Skip("PTY is flakey on Windows")
+	if runtime.GOOS != "linux" {
+		t.Skip("PTY is flakey on non-Linux platforms")
 	}
 
 	t.Run("OK", func(t *testing.T) {
@@ -81,6 +81,7 @@ func Test_Runner(t *testing.T) {
 
 	t.Run("Timeout", func(t *testing.T) {
 		t.Parallel()
+		t.Skip("Flaky: https://github.com/coder/coder/issues/5187")
 
 		t.Run("NoTimeout", func(t *testing.T) {
 			t.Parallel()
@@ -189,6 +190,7 @@ func Test_Runner(t *testing.T) {
 
 	t.Run("ExpectOutput", func(t *testing.T) {
 		t.Parallel()
+		t.Skip("Flaky: https://github.com/coder/coder/issues/5187")
 
 		t.Run("Matches", func(t *testing.T) {
 			t.Parallel()

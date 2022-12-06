@@ -67,22 +67,15 @@ export interface AuditLog {
   readonly status_code: number
   readonly additional_fields: Record<string, string>
   readonly description: string
+  readonly resource_link: string
+  readonly is_deleted: boolean
   readonly user?: User
-}
-
-// From codersdk/audit.go
-export interface AuditLogCountRequest {
-  readonly q?: string
-}
-
-// From codersdk/audit.go
-export interface AuditLogCountResponse {
-  readonly count: number
 }
 
 // From codersdk/audit.go
 export interface AuditLogResponse {
   readonly audit_logs: AuditLog[]
+  readonly count: number
 }
 
 // From codersdk/audit.go
@@ -182,6 +175,7 @@ export interface CreateTemplateRequest {
   readonly template_version_id: string
   readonly parameter_values?: CreateParameterRequest[]
   readonly default_ttl_ms?: number
+  readonly allow_user_cancel_workspace_jobs?: boolean
 }
 
 // From codersdk/templateversions.go
@@ -307,6 +301,7 @@ export interface DeploymentConfig {
   readonly provisioner: ProvisionerConfig
   readonly api_rate_limit: DeploymentConfigField<number>
   readonly experimental: DeploymentConfigField<boolean>
+  readonly update_check: DeploymentConfigField<boolean>
 }
 
 // From codersdk/deploymentconfig.go
@@ -363,6 +358,7 @@ export interface GitAuthConfig {
   readonly client_id: string
   readonly auth_url: string
   readonly token_url: string
+  readonly validate_url: string
   readonly regex: string
   readonly no_refresh: boolean
   readonly scopes: string[]
@@ -446,9 +442,10 @@ export interface OIDCConfig {
   readonly allow_signups: DeploymentConfigField<boolean>
   readonly client_id: DeploymentConfigField<string>
   readonly client_secret: DeploymentConfigField<string>
-  readonly email_domain: DeploymentConfigField<string>
+  readonly email_domain: DeploymentConfigField<string[]>
   readonly issuer_url: DeploymentConfigField<string>
   readonly scopes: DeploymentConfigField<string[]>
+  readonly ignore_email_verified: DeploymentConfigField<boolean>
 }
 
 // From codersdk/organizations.go
@@ -532,6 +529,8 @@ export interface PrometheusConfig {
 // From codersdk/deploymentconfig.go
 export interface ProvisionerConfig {
   readonly daemons: DeploymentConfigField<number>
+  readonly daemon_poll_interval: DeploymentConfigField<number>
+  readonly daemon_poll_jitter: DeploymentConfigField<number>
   readonly force_cancel_interval: DeploymentConfigField<number>
 }
 
@@ -642,6 +641,7 @@ export interface Template {
   readonly default_ttl_ms: number
   readonly created_by_id: string
   readonly created_by_name: string
+  readonly allow_user_cancel_workspace_jobs: boolean
 }
 
 // From codersdk/templates.go
@@ -707,6 +707,13 @@ export interface UpdateActiveTemplateVersion {
   readonly id: string
 }
 
+// From codersdk/updatecheck.go
+export interface UpdateCheckResponse {
+  readonly current: boolean
+  readonly version: string
+  readonly url: string
+}
+
 // From codersdk/users.go
 export interface UpdateRoles {
   readonly roles: string[]
@@ -725,6 +732,7 @@ export interface UpdateTemplateMeta {
   readonly description?: string
   readonly icon?: string
   readonly default_ttl_ms?: number
+  readonly allow_user_cancel_workspace_jobs?: boolean
 }
 
 // From codersdk/users.go
@@ -799,6 +807,7 @@ export interface Workspace {
   readonly template_name: string
   readonly template_display_name: string
   readonly template_icon: string
+  readonly template_allow_user_cancel_workspace_jobs: boolean
   readonly latest_build: WorkspaceBuild
   readonly outdated: boolean
   readonly name: string
@@ -883,6 +892,7 @@ export interface WorkspaceBuild {
   readonly workspace_owner_id: string
   readonly workspace_owner_name: string
   readonly template_version_id: string
+  readonly template_version_name: string
   readonly build_number: number
   readonly transition: WorkspaceTransition
   readonly initiator_id: string

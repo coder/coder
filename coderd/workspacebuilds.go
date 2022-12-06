@@ -15,8 +15,6 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -53,6 +51,7 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		data.metadata,
 		data.agents,
 		data.apps,
+		data.templateVersions[0],
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -159,6 +158,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		data.metadata,
 		data.agents,
 		data.apps,
+		data.templateVersions,
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -241,6 +241,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		data.metadata,
 		data.agents,
 		data.apps,
+		data.templateVersions[0],
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -280,58 +281,8 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auditor := api.Auditor.Load()
-
-	// if user deletes a workspace, audit the workspace
-	if action == rbac.ActionDelete {
-		aReq, commitAudit := audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
-			Audit:   *auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionDelete,
-		})
-
-		defer commitAudit()
-		aReq.Old = workspace
-	}
-
-	latestBuild, latestBuildErr := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
-
-	// if a user starts/stops a workspace, audit the workspace build
-	if action == rbac.ActionUpdate {
-		var auditAction database.AuditAction
-		if createBuild.Transition == codersdk.WorkspaceTransitionStart {
-			auditAction = database.AuditActionStart
-		} else if createBuild.Transition == codersdk.WorkspaceTransitionStop {
-			auditAction = database.AuditActionStop
-		} else {
-			auditAction = database.AuditActionWrite
-		}
-
-		// We pass the workspace name to the Auditor so that it
-		// can form a friendly string for the user.
-		workspaceResourceInfo := map[string]string{
-			"workspaceName": workspace.Name,
-		}
-
-		wriBytes, err := json.Marshal(workspaceResourceInfo)
-		if err != nil {
-			api.Logger.Error(ctx, "could not marshal workspace name", slog.Error(err))
-		}
-
-		aReq, commitAudit := audit.InitRequest[database.WorkspaceBuild](rw, &audit.RequestParams{
-			Audit:            *auditor,
-			Log:              api.Logger,
-			Request:          r,
-			Action:           auditAction,
-			AdditionalFields: wriBytes,
-		})
-
-		defer commitAudit()
-		aReq.Old = latestBuild
-	}
-
 	if createBuild.TemplateVersionID == uuid.Nil {
+		latestBuild, latestBuildErr := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
 		if latestBuildErr != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching the latest workspace build.",
@@ -569,6 +520,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		[]database.WorkspaceResourceMetadatum{},
 		[]database.WorkspaceAgent{},
 		[]database.WorkspaceApp{},
+		database.TemplateVersion{},
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -596,6 +548,21 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 
 	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
 		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	valid, err := api.verifyUserCanCancelWorkspaceBuilds(ctx, httpmw.APIKey(r).UserID, workspace.TemplateID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error verifying permission to cancel workspace build.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !valid {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "User is not allowed to cancel workspace builds. Owner role is required.",
+		})
 		return
 	}
 
@@ -644,6 +611,23 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Job has been marked as canceled...",
 	})
+}
+
+func (api *API) verifyUserCanCancelWorkspaceBuilds(ctx context.Context, userID uuid.UUID, templateID uuid.UUID) (bool, error) {
+	template, err := api.Database.GetTemplateByID(ctx, templateID)
+	if err != nil {
+		return false, xerrors.New("no template exists for this workspace")
+	}
+
+	if template.AllowUserCancelWorkspaceJobs {
+		return true, nil // all users can cancel workspace builds
+	}
+
+	user, err := api.Database.GetUserByID(ctx, userID)
+	if err != nil {
+		return false, xerrors.New("user does not exist")
+	}
+	return slices.Contains(user.RBACRoles, rbac.RoleOwner()), nil // only user with "owner" role can cancel workspace builds
 }
 
 func (api *API) workspaceBuildResources(rw http.ResponseWriter, r *http.Request) {
@@ -722,12 +706,13 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 }
 
 type workspaceBuildsData struct {
-	users     []database.User
-	jobs      []database.ProvisionerJob
-	resources []database.WorkspaceResource
-	metadata  []database.WorkspaceResourceMetadatum
-	agents    []database.WorkspaceAgent
-	apps      []database.WorkspaceApp
+	users            []database.User
+	jobs             []database.ProvisionerJob
+	templateVersions []database.TemplateVersion
+	resources        []database.WorkspaceResource
+	metadata         []database.WorkspaceResourceMetadatum
+	agents           []database.WorkspaceAgent
+	apps             []database.WorkspaceApp
 }
 
 func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.Workspace, workspaceBuilds []database.WorkspaceBuild) (workspaceBuildsData, error) {
@@ -752,6 +737,15 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 		return workspaceBuildsData{}, xerrors.Errorf("get provisioner jobs: %w", err)
 	}
 
+	templateVersionIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
+	for _, build := range workspaceBuilds {
+		templateVersionIDs = append(templateVersionIDs, build.TemplateVersionID)
+	}
+	templateVersions, err := api.Database.GetTemplateVersionsByIDs(ctx, templateVersionIDs)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return workspaceBuildsData{}, xerrors.Errorf("get template versions: %w", err)
+	}
+
 	resources, err := api.Database.GetWorkspaceResourcesByJobIDs(ctx, jobIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("get workspace resources by job: %w", err)
@@ -759,8 +753,9 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 
 	if len(resources) == 0 {
 		return workspaceBuildsData{
-			users: users,
-			jobs:  jobs,
+			users:            users,
+			jobs:             jobs,
+			templateVersions: templateVersions,
 		}, nil
 	}
 
@@ -781,10 +776,11 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 
 	if len(resources) == 0 {
 		return workspaceBuildsData{
-			users:     users,
-			jobs:      jobs,
-			resources: resources,
-			metadata:  metadata,
+			users:            users,
+			jobs:             jobs,
+			templateVersions: templateVersions,
+			resources:        resources,
+			metadata:         metadata,
 		}, nil
 	}
 
@@ -799,12 +795,13 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 	}
 
 	return workspaceBuildsData{
-		users:     users,
-		jobs:      jobs,
-		resources: resources,
-		metadata:  metadata,
-		agents:    agents,
-		apps:      apps,
+		users:            users,
+		jobs:             jobs,
+		templateVersions: templateVersions,
+		resources:        resources,
+		metadata:         metadata,
+		agents:           agents,
+		apps:             apps,
 	}, nil
 }
 
@@ -817,6 +814,7 @@ func (api *API) convertWorkspaceBuilds(
 	resourceMetadata []database.WorkspaceResourceMetadatum,
 	resourceAgents []database.WorkspaceAgent,
 	agentApps []database.WorkspaceApp,
+	templateVersions []database.TemplateVersion,
 ) ([]codersdk.WorkspaceBuild, error) {
 	workspaceByID := map[uuid.UUID]database.Workspace{}
 	for _, workspace := range workspaces {
@@ -825,6 +823,10 @@ func (api *API) convertWorkspaceBuilds(
 	jobByID := map[uuid.UUID]database.ProvisionerJob{}
 	for _, job := range jobs {
 		jobByID[job.ID] = job
+	}
+	templateVersionByID := map[uuid.UUID]database.TemplateVersion{}
+	for _, templateVersion := range templateVersions {
+		templateVersionByID[templateVersion.ID] = templateVersion
 	}
 
 	var apiBuilds []codersdk.WorkspaceBuild
@@ -837,6 +839,10 @@ func (api *API) convertWorkspaceBuilds(
 		if !exists {
 			return nil, xerrors.New("workspace not found")
 		}
+		templateVersion, exists := templateVersionByID[build.TemplateVersionID]
+		if !exists {
+			return nil, xerrors.New("template version not found")
+		}
 
 		apiBuild, err := api.convertWorkspaceBuild(
 			build,
@@ -847,6 +853,7 @@ func (api *API) convertWorkspaceBuilds(
 			resourceMetadata,
 			resourceAgents,
 			agentApps,
+			templateVersion,
 		)
 		if err != nil {
 			return nil, xerrors.Errorf("converting workspace build: %w", err)
@@ -867,6 +874,7 @@ func (api *API) convertWorkspaceBuild(
 	resourceMetadata []database.WorkspaceResourceMetadatum,
 	resourceAgents []database.WorkspaceAgent,
 	agentApps []database.WorkspaceApp,
+	templateVersion database.TemplateVersion,
 ) (codersdk.WorkspaceBuild, error) {
 	userByID := map[uuid.UUID]database.User{}
 	for _, user := range users {
@@ -917,24 +925,25 @@ func (api *API) convertWorkspaceBuild(
 	apiJob := convertProvisionerJob(job)
 	transition := codersdk.WorkspaceTransition(build.Transition)
 	return codersdk.WorkspaceBuild{
-		ID:                 build.ID,
-		CreatedAt:          build.CreatedAt,
-		UpdatedAt:          build.UpdatedAt,
-		WorkspaceOwnerID:   workspace.OwnerID,
-		WorkspaceOwnerName: owner.Username,
-		WorkspaceID:        build.WorkspaceID,
-		WorkspaceName:      workspace.Name,
-		TemplateVersionID:  build.TemplateVersionID,
-		BuildNumber:        build.BuildNumber,
-		Transition:         transition,
-		InitiatorID:        build.InitiatorID,
-		InitiatorUsername:  initiator.Username,
-		Job:                apiJob,
-		Deadline:           codersdk.NewNullTime(build.Deadline, !build.Deadline.IsZero()),
-		Reason:             codersdk.BuildReason(build.Reason),
-		Resources:          apiResources,
-		Status:             convertWorkspaceStatus(apiJob.Status, transition),
-		DailyCost:          build.DailyCost,
+		ID:                  build.ID,
+		CreatedAt:           build.CreatedAt,
+		UpdatedAt:           build.UpdatedAt,
+		WorkspaceOwnerID:    workspace.OwnerID,
+		WorkspaceOwnerName:  owner.Username,
+		WorkspaceID:         build.WorkspaceID,
+		WorkspaceName:       workspace.Name,
+		TemplateVersionID:   build.TemplateVersionID,
+		TemplateVersionName: templateVersion.Name,
+		BuildNumber:         build.BuildNumber,
+		Transition:          transition,
+		InitiatorID:         build.InitiatorID,
+		InitiatorUsername:   initiator.Username,
+		Job:                 apiJob,
+		Deadline:            codersdk.NewNullTime(build.Deadline, !build.Deadline.IsZero()),
+		Reason:              codersdk.BuildReason(build.Reason),
+		Resources:           apiResources,
+		Status:              convertWorkspaceStatus(apiJob.Status, transition),
+		DailyCost:           build.DailyCost,
 	}, nil
 }
 

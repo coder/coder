@@ -1,8 +1,8 @@
 import { makeStyles } from "@material-ui/core/styles"
 import TableCell from "@material-ui/core/TableCell"
-import TableRow from "@material-ui/core/TableRow"
 import { TemplateVersion } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
+import { TimelineEntry } from "components/Timeline/TimelineEntry"
 import { UserAvatar } from "components/UserAvatar/UserAvatar"
 import { useClickable } from "hooks/useClickable"
 import { useTranslation } from "react-i18next"
@@ -21,11 +21,7 @@ export const VersionRow: React.FC<VersionRowProps> = ({ version }) => {
   })
 
   return (
-    <TableRow
-      className={styles.versionRow}
-      data-testid={`version-${version.id}`}
-      {...clickableProps}
-    >
+    <TimelineEntry data-testid={`version-${version.id}`} {...clickableProps}>
       <TableCell className={styles.versionCell}>
         <Stack
           direction="row"
@@ -55,30 +51,11 @@ export const VersionRow: React.FC<VersionRowProps> = ({ version }) => {
           </Stack>
         </Stack>
       </TableCell>
-    </TableRow>
+    </TimelineEntry>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
-  versionRow: {
-    cursor: "pointer",
-
-    "&:hover": {
-      backgroundColor: theme.palette.action.hover,
-    },
-
-    "&:not(:last-child) td:before": {
-      position: "absolute",
-      top: 20,
-      left: 50,
-      display: "block",
-      content: "''",
-      height: "100%",
-      width: 2,
-      background: theme.palette.divider,
-    },
-  },
-
   versionWrapper: {
     padding: theme.spacing(2, 4),
   },

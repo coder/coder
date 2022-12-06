@@ -473,9 +473,6 @@ export const workspaceMachine = createMachine(
                 template: (context: WorkspaceContext) => context.template,
               },
             },
-            on: {
-              REFRESH_WORKSPACE: { actions: "sendWorkspaceToSchedule" },
-            },
           },
         },
       },
@@ -594,13 +591,6 @@ export const workspaceMachine = createMachine(
         )
         displayError(message)
       },
-      sendWorkspaceToSchedule: send(
-        (context) => ({
-          type: "REFRESH_WORKSPACE",
-          workspace: context.workspace,
-        }),
-        { to: "scheduleBannerMachine" },
-      ),
       // Optimistically update. So when the user clicks on stop, we can show
       // the "pending" state right away without having to wait 0.5s ~ 2s to
       // display the visual feedback to the user.

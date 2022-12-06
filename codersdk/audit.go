@@ -38,7 +38,9 @@ func (r ResourceType) FriendlyString() string {
 	case ResourceTypeWorkspace:
 		return "workspace"
 	case ResourceTypeWorkspaceBuild:
-		return "workspace build"
+		// workspace builds have a unique friendly string
+		// see coderd/audit.go:298 for explanation
+		return "workspace"
 	case ResourceTypeGitSSHKey:
 		return "git ssh key"
 	case ResourceTypeAPIKey:
@@ -102,6 +104,8 @@ type AuditLog struct {
 	StatusCode       int32           `json:"status_code"`
 	AdditionalFields json.RawMessage `json:"additional_fields"`
 	Description      string          `json:"description"`
+	ResourceLink     string          `json:"resource_link"`
+	IsDeleted        bool            `json:"is_deleted"`
 
 	User *User `json:"user"`
 }
@@ -113,14 +117,7 @@ type AuditLogsRequest struct {
 
 type AuditLogResponse struct {
 	AuditLogs []AuditLog `json:"audit_logs"`
-}
-
-type AuditLogCountRequest struct {
-	SearchQuery string `json:"q,omitempty"`
-}
-
-type AuditLogCountResponse struct {
-	Count int64 `json:"count"`
+	Count     int64      `json:"count"`
 }
 
 type CreateTestAuditLogRequest struct {
@@ -154,35 +151,6 @@ func (c *Client) AuditLogs(ctx context.Context, req AuditLogsRequest) (AuditLogR
 	err = json.NewDecoder(res.Body).Decode(&logRes)
 	if err != nil {
 		return AuditLogResponse{}, err
-	}
-
-	return logRes, nil
-}
-
-// AuditLogCount returns the count of all audit logs in the product.
-func (c *Client) AuditLogCount(ctx context.Context, req AuditLogCountRequest) (AuditLogCountResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/audit/count", nil, func(r *http.Request) {
-		q := r.URL.Query()
-		var params []string
-		if req.SearchQuery != "" {
-			params = append(params, req.SearchQuery)
-		}
-		q.Set("q", strings.Join(params, " "))
-		r.URL.RawQuery = q.Encode()
-	})
-	if err != nil {
-		return AuditLogCountResponse{}, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return AuditLogCountResponse{}, readBodyAsError(res)
-	}
-
-	var logRes AuditLogCountResponse
-	err = json.NewDecoder(res.Body).Decode(&logRes)
-	if err != nil {
-		return AuditLogCountResponse{}, err
 	}
 
 	return logRes, nil

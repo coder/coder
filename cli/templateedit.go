@@ -13,11 +13,12 @@ import (
 
 func templateEdit() *cobra.Command {
 	var (
-		name        string
-		displayName string
-		description string
-		icon        string
-		defaultTTL  time.Duration
+		name                         string
+		displayName                  string
+		description                  string
+		icon                         string
+		defaultTTL                   time.Duration
+		allowUserCancelWorkspaceJobs bool
 	)
 
 	cmd := &cobra.Command{
@@ -40,11 +41,12 @@ func templateEdit() *cobra.Command {
 
 			// NOTE: coderd will ignore empty fields.
 			req := codersdk.UpdateTemplateMeta{
-				Name:             name,
-				DisplayName:      displayName,
-				Description:      description,
-				Icon:             icon,
-				DefaultTTLMillis: defaultTTL.Milliseconds(),
+				Name:                         name,
+				DisplayName:                  displayName,
+				Description:                  description,
+				Icon:                         icon,
+				DefaultTTLMillis:             defaultTTL.Milliseconds(),
+				AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
 			}
 
 			_, err = client.UpdateTemplateMeta(cmd.Context(), template.ID, req)
@@ -61,6 +63,7 @@ func templateEdit() *cobra.Command {
 	cmd.Flags().StringVarP(&description, "description", "", "", "Edit the template description")
 	cmd.Flags().StringVarP(&icon, "icon", "", "", "Edit the template icon path")
 	cmd.Flags().DurationVarP(&defaultTTL, "default-ttl", "", 0, "Edit the template default time before shutdown - workspaces created from this template to this value.")
+	cmd.Flags().BoolVarP(&allowUserCancelWorkspaceJobs, "allow-user-cancel-workspace-jobs", "", true, "Allow users to cancel in-progress workspace jobs.")
 	cliui.AllowSkipPrompt(cmd)
 
 	return cmd

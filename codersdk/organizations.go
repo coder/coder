@@ -72,6 +72,10 @@ type CreateTemplateRequest struct {
 	// DefaultTTLMillis allows optionally specifying the default TTL
 	// for all workspaces created from this template.
 	DefaultTTLMillis *int64 `json:"default_ttl_ms,omitempty"`
+
+	// Allow users to cancel in-progress workspace jobs.
+	// *bool as the default value is "true".
+	AllowUserCancelWorkspaceJobs *bool `json:"allow_user_cancel_workspace_jobs"`
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.

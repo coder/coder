@@ -63,6 +63,7 @@ import (
 	"github.com/coder/coder/coderd/prometheusmetrics"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
+	"github.com/coder/coder/coderd/updatecheck"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
@@ -169,8 +170,11 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				defer func() {
 					cmd.Printf("Stopping built-in PostgreSQL...\n")
 					// Gracefully shut PostgreSQL down!
-					_ = closeFunc()
-					cmd.Printf("Stopped built-in PostgreSQL\n")
+					if err := closeFunc(); err != nil {
+						cmd.Printf("Failed to stop built-in PostgreSQL: %v\n", err)
+					} else {
+						cmd.Printf("Stopped built-in PostgreSQL\n")
+					}
 				}()
 			}
 
@@ -370,6 +374,25 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				options.TLSCertificates = tlsConfig.Certificates
 			}
 
+			if cfg.UpdateCheck.Value {
+				options.UpdateCheckOptions = &updatecheck.Options{
+					// Avoid spamming GitHub API checking for updates.
+					Interval: 24 * time.Hour,
+					// Inform server admins of new versions.
+					Notify: func(r updatecheck.Result) {
+						if semver.Compare(r.Version, buildinfo.Version()) > 0 {
+							options.Logger.Info(
+								context.Background(),
+								"new version of coder available",
+								slog.F("new_version", r.Version),
+								slog.F("url", r.URL),
+								slog.F("upgrade_instructions", "https://coder.com/docs/coder-oss/latest/admin/upgrade"),
+							)
+						}
+					},
+				}
+			}
+
 			if cfg.OAuth2.Github.ClientSecret.Value != "" {
 				options.GithubOAuth2Config, err = configureGithubOAuth2(accessURLParsed,
 					cfg.OAuth2.Github.ClientID.Value,
@@ -396,6 +419,10 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				ctx, err := codersdk.HandleOauth2ClientCertificates(ctx, cfg.TLS)
 				if err != nil {
 					return xerrors.Errorf("configure oidc client certificates: %w", err)
+				}
+
+				if cfg.OIDC.IgnoreEmailVerified.Value {
+					logger.Warn(ctx, "coder will not check email_verified for OIDC logins")
 				}
 
 				oidcProvider, err := oidc.NewProvider(ctx, cfg.OIDC.IssuerURL.Value)
@@ -890,7 +917,7 @@ func newProvisionerDaemon(
 		return nil, xerrors.Errorf("mkdir %q: %w", cfg.CacheDirectory.Value, err)
 	}
 
-	terraformClient, terraformServer := provisionersdk.TransportPipe()
+	terraformClient, terraformServer := provisionersdk.MemTransportPipe()
 	go func() {
 		<-ctx.Done()
 		_ = terraformClient.Close()
@@ -920,11 +947,11 @@ func newProvisionerDaemon(
 	}
 
 	provisioners := provisionerd.Provisioners{
-		string(database.ProvisionerTypeTerraform): sdkproto.NewDRPCProvisionerClient(provisionersdk.Conn(terraformClient)),
+		string(database.ProvisionerTypeTerraform): sdkproto.NewDRPCProvisionerClient(terraformClient),
 	}
 	// include echo provisioner when in dev mode
 	if dev {
-		echoClient, echoServer := provisionersdk.TransportPipe()
+		echoClient, echoServer := provisionersdk.MemTransportPipe()
 		go func() {
 			<-ctx.Done()
 			_ = echoClient.Close()
@@ -941,15 +968,18 @@ func newProvisionerDaemon(
 				}
 			}
 		}()
-		provisioners[string(database.ProvisionerTypeEcho)] = sdkproto.NewDRPCProvisionerClient(provisionersdk.Conn(echoClient))
+		provisioners[string(database.ProvisionerTypeEcho)] = sdkproto.NewDRPCProvisionerClient(echoClient)
 	}
+	debounce := time.Second
 	return provisionerd.New(func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 		// This debounces calls to listen every second. Read the comment
 		// in provisionerdserver.go to learn more!
-		return coderAPI.CreateInMemoryProvisionerDaemon(ctx, time.Second)
+		return coderAPI.CreateInMemoryProvisionerDaemon(ctx, debounce)
 	}, &provisionerd.Options{
 		Logger:              logger,
-		PollInterval:        500 * time.Millisecond,
+		JobPollInterval:     cfg.Provisioner.DaemonPollInterval.Value,
+		JobPollJitter:       cfg.Provisioner.DaemonPollJitter.Value,
+		JobPollDebounce:     debounce,
 		UpdateInterval:      500 * time.Millisecond,
 		ForceCancelInterval: cfg.Provisioner.ForceCancelInterval.Value,
 		Provisioners:        provisioners,

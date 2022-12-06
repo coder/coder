@@ -1,9 +1,10 @@
 import { useActor, useSelector } from "@xstate/react"
 import { FeatureNames } from "api/types"
 import dayjs from "dayjs"
-import { useContext } from "react"
+import { useContext, useEffect } from "react"
 import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
+import { useNavigate } from "react-router-dom"
 import {
   getMaxDeadline,
   getMaxDeadlineChange,
@@ -63,6 +64,12 @@ export const WorkspaceReadyPage = ({
   const canUpdateWorkspace = Boolean(permissions?.updateWorkspace)
   const { t } = useTranslation("workspacePage")
   const favicon = getFaviconByStatus(workspace.latest_build)
+  const navigate = useNavigate()
+
+  // keep banner machine in sync with workspace
+  useEffect(() => {
+    bannerSend({ type: "REFRESH_WORKSPACE", workspace })
+  }, [bannerSend, workspace])
 
   return (
     <>
@@ -114,6 +121,7 @@ export const WorkspaceReadyPage = ({
         handleDelete={() => workspaceSend({ type: "ASK_DELETE" })}
         handleUpdate={() => workspaceSend({ type: "UPDATE" })}
         handleCancel={() => workspaceSend({ type: "CANCEL" })}
+        handleChangeVersion={() => navigate("change-version")}
         resources={workspace.latest_build.resources}
         builds={builds}
         canUpdateWorkspace={canUpdateWorkspace}

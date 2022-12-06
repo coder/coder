@@ -479,13 +479,14 @@ func TestUserOIDC(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
-		Name         string
-		Claims       jwt.MapClaims
-		AllowSignups bool
-		EmailDomain  string
-		Username     string
-		AvatarURL    string
-		StatusCode   int
+		Name                string
+		Claims              jwt.MapClaims
+		AllowSignups        bool
+		EmailDomain         []string
+		Username            string
+		AvatarURL           string
+		StatusCode          int
+		IgnoreEmailVerified bool
 	}{{
 		Name: "EmailOnly",
 		Claims: jwt.MapClaims{
@@ -503,14 +504,34 @@ func TestUserOIDC(t *testing.T) {
 		AllowSignups: true,
 		StatusCode:   http.StatusForbidden,
 	}, {
+		Name: "EmailNotAString",
+		Claims: jwt.MapClaims{
+			"email":          3.14159,
+			"email_verified": false,
+		},
+		AllowSignups: true,
+		StatusCode:   http.StatusBadRequest,
+	}, {
+		Name: "EmailNotVerifiedIgnored",
+		Claims: jwt.MapClaims{
+			"email":          "kyle@kwc.io",
+			"email_verified": false,
+		},
+		AllowSignups:        true,
+		StatusCode:          http.StatusTemporaryRedirect,
+		Username:            "kyle",
+		IgnoreEmailVerified: true,
+	}, {
 		Name: "NotInRequiredEmailDomain",
 		Claims: jwt.MapClaims{
 			"email":          "kyle@kwc.io",
 			"email_verified": true,
 		},
 		AllowSignups: true,
-		EmailDomain:  "coder.com",
-		StatusCode:   http.StatusForbidden,
+		EmailDomain: []string{
+			"coder.com",
+		},
+		StatusCode: http.StatusForbidden,
 	}, {
 		Name: "EmailDomainCaseInsensitive",
 		Claims: jwt.MapClaims{
@@ -518,8 +539,10 @@ func TestUserOIDC(t *testing.T) {
 			"email_verified": true,
 		},
 		AllowSignups: true,
-		EmailDomain:  "kwc.io",
-		StatusCode:   http.StatusTemporaryRedirect,
+		EmailDomain: []string{
+			"kwc.io",
+		},
+		StatusCode: http.StatusTemporaryRedirect,
 	}, {
 		Name:         "EmptyClaims",
 		Claims:       jwt.MapClaims{},
@@ -593,6 +616,7 @@ func TestUserOIDC(t *testing.T) {
 			config := conf.OIDCConfig()
 			config.AllowSignups = tc.AllowSignups
 			config.EmailDomain = tc.EmailDomain
+			config.IgnoreEmailVerified = tc.IgnoreEmailVerified
 
 			client := coderdtest.New(t, &coderdtest.Options{
 				OIDCConfig: config,

@@ -50,6 +50,9 @@ coder:
     - name: CODER_AUTO_IMPORT_TEMPLATES
       value: "kubernetes"
 
+    # This env enables the Prometheus metrics endpoint.
+    - name: CODER_PROMETHEUS_ADDRESS
+      value: "0.0.0.0:2112"
   tls:
     secretNames:
       - my-tls-secret-name

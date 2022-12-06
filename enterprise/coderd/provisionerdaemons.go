@@ -18,7 +18,6 @@ import (
 	"storj.io/drpc/drpcserver"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -206,6 +205,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		Pubsub:       api.Pubsub,
 		Provisioners: daemon.Provisioners,
 		Telemetry:    api.Telemetry,
+		Auditor:      &api.AGPL.Auditor,
 		Logger:       api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
 		Tags:         rawTags,
 	})

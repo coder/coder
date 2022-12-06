@@ -411,7 +411,7 @@ type AuditLog struct {
 	UserID           uuid.UUID       `db:"user_id" json:"user_id"`
 	OrganizationID   uuid.UUID       `db:"organization_id" json:"organization_id"`
 	Ip               pqtype.Inet     `db:"ip" json:"ip"`
-	UserAgent        string          `db:"user_agent" json:"user_agent"`
+	UserAgent        sql.NullString  `db:"user_agent" json:"user_agent"`
 	ResourceType     ResourceType    `db:"resource_type" json:"resource_type"`
 	ResourceID       uuid.UUID       `db:"resource_id" json:"resource_id"`
 	ResourceTarget   string          `db:"resource_target" json:"resource_target"`
@@ -596,6 +596,8 @@ type Template struct {
 	GroupACL   TemplateACL `db:"group_acl" json:"group_acl"`
 	// Display name is a custom, human-friendly template name that user can set.
 	DisplayName string `db:"display_name" json:"display_name"`
+	// Allow users to cancel in-progress workspace jobs.
+	AllowUserCancelWorkspaceJobs bool `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
 }
 
 type TemplateVersion struct {
@@ -673,6 +675,8 @@ type WorkspaceAgent struct {
 	ConnectionTimeoutSeconds int32 `db:"connection_timeout_seconds" json:"connection_timeout_seconds"`
 	// URL for troubleshooting the agent.
 	TroubleshootingURL string `db:"troubleshooting_url" json:"troubleshooting_url"`
+	// Path to file inside workspace containing the message of the day (MOTD) to show to the user when logging in via SSH.
+	MOTDFile string `db:"motd_file" json:"motd_file"`
 }
 
 type WorkspaceApp struct {

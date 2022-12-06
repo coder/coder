@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
@@ -136,7 +137,7 @@ func TestSearchWorkspace(t *testing.T) {
 		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
-			values, errs := workspaceSearchQuery(c.Query, codersdk.Pagination{})
+			values, errs := workspaceSearchQuery(c.Query, codersdk.Pagination{}, 0)
 			if c.ExpectedErrorContains != "" {
 				require.True(t, len(errs) > 0, "expect some errors")
 				var s strings.Builder
@@ -150,4 +151,13 @@ func TestSearchWorkspace(t *testing.T) {
 			}
 		})
 	}
+	t.Run("AgentInactiveDisconnectTimeout", func(t *testing.T) {
+		t.Parallel()
+
+		query := `foo:bar`
+		timeout := 1337 * time.Second
+		values, errs := workspaceSearchQuery(query, codersdk.Pagination{}, timeout)
+		require.Empty(t, errs)
+		require.Equal(t, int64(timeout.Seconds()), values.AgentInactiveDisconnectTimeoutSeconds)
+	})
 }

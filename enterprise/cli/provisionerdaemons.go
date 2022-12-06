@@ -7,6 +7,9 @@ import (
 	"os/signal"
 	"time"
 
+	"github.com/spf13/cobra"
+	"golang.org/x/xerrors"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	agpl "github.com/coder/coder/cli"
@@ -20,9 +23,6 @@ import (
 	provisionerdproto "github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
-
-	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 )
 
 func provisionerDaemons() *cobra.Command {
@@ -37,8 +37,10 @@ func provisionerDaemons() *cobra.Command {
 
 func provisionerDaemonStart() *cobra.Command {
 	var (
-		cacheDir string
-		rawTags  []string
+		cacheDir     string
+		rawTags      []string
+		pollInterval time.Duration
+		pollJitter   time.Duration
 	)
 	cmd := &cobra.Command{
 		Use:   "start",
@@ -69,7 +71,7 @@ func provisionerDaemonStart() *cobra.Command {
 				return xerrors.Errorf("mkdir %q: %w", cacheDir, err)
 			}
 
-			terraformClient, terraformServer := provisionersdk.TransportPipe()
+			terraformClient, terraformServer := provisionersdk.MemTransportPipe()
 			go func() {
 				<-ctx.Done()
 				_ = terraformClient.Close()
@@ -104,18 +106,19 @@ func provisionerDaemonStart() *cobra.Command {
 			logger.Info(ctx, "starting provisioner daemon", slog.F("tags", tags))
 
 			provisioners := provisionerd.Provisioners{
-				string(database.ProvisionerTypeTerraform): proto.NewDRPCProvisionerClient(provisionersdk.Conn(terraformClient)),
+				string(database.ProvisionerTypeTerraform): proto.NewDRPCProvisionerClient(terraformClient),
 			}
 			srv := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
 				return client.ServeProvisionerDaemon(ctx, org.ID, []codersdk.ProvisionerType{
 					codersdk.ProvisionerTypeTerraform,
 				}, tags)
 			}, &provisionerd.Options{
-				Logger:         logger,
-				PollInterval:   500 * time.Millisecond,
-				UpdateInterval: 500 * time.Millisecond,
-				Provisioners:   provisioners,
-				WorkDirectory:  tempDir,
+				Logger:          logger,
+				JobPollInterval: pollInterval,
+				JobPollJitter:   pollJitter,
+				UpdateInterval:  500 * time.Millisecond,
+				Provisioners:    provisioners,
+				WorkDirectory:   tempDir,
 			})
 
 			var exitErr error
@@ -150,6 +153,10 @@ func provisionerDaemonStart() *cobra.Command {
 		"Specify a directory to cache provisioner job files.")
 	cliflag.StringArrayVarP(cmd.Flags(), &rawTags, "tag", "t", "CODER_PROVISIONERD_TAGS", []string{},
 		"Specify a list of tags to target provisioner jobs.")
+	cliflag.DurationVarP(cmd.Flags(), &pollInterval, "poll-interval", "", "CODER_PROVISIONERD_POLL_INTERVAL", time.Second,
+		"Specify the interval for which the provisioner daemon should poll for jobs.")
+	cliflag.DurationVarP(cmd.Flags(), &pollJitter, "poll-jitter", "", "CODER_PROVISIONERD_POLL_JITTER", 100*time.Millisecond,
+		"Random jitter added to the poll interval.")
 
 	return cmd
 }

@@ -187,11 +187,15 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 		tmp.Inject(ctx, hc)
 	}
 
+	// We already capture most of this information in the span (minus
+	// the request body which we don't want to capture anyways).
 	ctx = slog.With(ctx,
 		slog.F("method", req.Method),
 		slog.F("url", req.URL.String()),
 	)
-	c.Logger.Debug(ctx, "sdk request", slog.F("body", string(reqBody)))
+	tracing.RunWithoutSpan(ctx, func(ctx context.Context) {
+		c.Logger.Debug(ctx, "sdk request", slog.F("body", string(reqBody)))
+	})
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
@@ -218,12 +222,15 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 		}
 	}
 
-	c.Logger.Debug(ctx, "sdk response",
-		slog.F("status", resp.StatusCode),
-		slog.F("body", string(respBody)),
-		slog.F("trace_id", resp.Header.Get("X-Trace-Id")),
-		slog.F("span_id", resp.Header.Get("X-Span-Id")),
-	)
+	// See above for why this is not logged to the span.
+	tracing.RunWithoutSpan(ctx, func(ctx context.Context) {
+		c.Logger.Debug(ctx, "sdk response",
+			slog.F("status", resp.StatusCode),
+			slog.F("body", string(respBody)),
+			slog.F("trace_id", resp.Header.Get("X-Trace-Id")),
+			slog.F("span_id", resp.Header.Get("X-Span-Id")),
+		)
+	})
 
 	return resp, err
 }

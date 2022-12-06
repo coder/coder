@@ -36,7 +36,7 @@ func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Cont
 		opts = &provisionerServeOptions{}
 	}
 	cachePath := t.TempDir()
-	client, server := provisionersdk.TransportPipe()
+	client, server := provisionersdk.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	serverErr := make(chan error, 1)
 	t.Cleanup(func() {
@@ -59,7 +59,7 @@ func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Cont
 			ExitTimeout: opts.exitTimeout,
 		})
 	}()
-	api := proto.NewDRPCProvisionerClient(provisionersdk.Conn(client))
+	api := proto.NewDRPCProvisionerClient(client)
 	return ctx, api
 }
 

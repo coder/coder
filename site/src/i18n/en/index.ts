@@ -9,6 +9,8 @@ import buildPage from "./buildPage.json"
 import workspacesPage from "./workspacesPage.json"
 import usersPage from "./usersPage.json"
 import templateVersionPage from "./templateVersionPage.json"
+import loginPage from "./loginPage.json"
+import workspaceChangeVersionPage from "./workspaceChangeVersionPage.json"
 
 export const en = {
   common,
@@ -22,4 +24,6 @@ export const en = {
   workspacesPage,
   usersPage,
   templateVersionPage,
+  loginPage,
+  workspaceChangeVersionPage,
 }

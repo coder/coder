@@ -3,7 +3,6 @@ import makeStyles from "@material-ui/core/styles/makeStyles"
 import { TransitionStats, Template, Workspace } from "api/typesGenerated"
 import dayjs, { Dayjs } from "dayjs"
 import { FC, useEffect, useState } from "react"
-import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 
 import duration from "dayjs/plugin/duration"
 
@@ -140,11 +139,10 @@ const useStyles = makeStyles((theme) => ({
   barHelpers: {
     display: "flex",
     justifyContent: "space-between",
+    marginTop: theme.spacing(0.5),
   },
   label: {
-    fontFamily: MONOSPACE_FONT_FAMILY,
     fontSize: 12,
-    textTransform: "uppercase",
     display: "block",
     fontWeight: 600,
     color: theme.palette.text.secondary,

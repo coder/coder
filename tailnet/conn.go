@@ -26,6 +26,7 @@ import (
 	"tailscale.com/types/ipproto"
 	"tailscale.com/types/key"
 	tslogger "tailscale.com/types/logger"
+	"tailscale.com/types/netlogtype"
 	"tailscale.com/types/netmap"
 	"tailscale.com/wgengine"
 	"tailscale.com/wgengine/filter"
@@ -35,15 +36,14 @@ import (
 	"tailscale.com/wgengine/router"
 	"tailscale.com/wgengine/wgcfg/nmcfg"
 
+	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/cryptorand"
-
-	"cdr.dev/slog"
 )
 
 func init() {
-	// Globally disable network namespacing.
-	// All networking happens in userspace.
+	// Globally disable network namespacing. All networking happens in
+	// userspace.
 	netns.SetEnabled(false)
 }
 
@@ -55,6 +55,11 @@ type Options struct {
 	// If so, only DERPs can establish connections.
 	BlockEndpoints bool
 	Logger         slog.Logger
+
+	// EnableTrafficStats enables per-connection traffic statistics.
+	// ExtractTrafficStats must be called to reset the counters and be
+	// periodically called while enabled to avoid unbounded memory use.
+	EnableTrafficStats bool
 }
 
 // NewConn constructs a new Wireguard server that will accept connections from the addresses provided.
@@ -143,8 +148,9 @@ func NewConn(options *Options) (*Conn, error) {
 	}
 	tunDevice, magicConn, dnsManager, ok := wireguardInternals.GetInternals()
 	if !ok {
-		return nil, xerrors.New("failed to get wireguard internals")
+		return nil, xerrors.New("get wireguard internals")
 	}
+	tunDevice.SetStatisticsEnabled(options.EnableTrafficStats)
 
 	// Update the keys for the magic connection!
 	err = magicConn.SetPrivateKey(nodePrivateKey)
@@ -647,6 +653,13 @@ func (c *Conn) forwardTCPToLocal(conn net.Conn, port uint16) {
 		c.logger.Debug(c.dialContext, "proxy connection closed with error", slog.Error(err))
 	}
 	c.logger.Debug(c.dialContext, "forwarded connection closed", slog.F("local_addr", dialAddrStr))
+}
+
+// ExtractTrafficStats extracts and resets the counters for all active
+// connections. It must be called periodically otherwise the memory used is
+// unbounded. EnableTrafficStats must be true when calling NewConn.
+func (c *Conn) ExtractTrafficStats() map[netlogtype.Connection]netlogtype.Counts {
+	return c.tunDevice.ExtractStatistics()
 }
 
 type listenKey struct {

@@ -220,6 +220,11 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	var allowUserCancelWorkspaceJobs bool
+	if createTemplate.AllowUserCancelWorkspaceJobs != nil {
+		allowUserCancelWorkspaceJobs = *createTemplate.AllowUserCancelWorkspaceJobs
+	}
+
 	var dbTemplate database.Template
 	var template codersdk.Template
 	err = api.Database.InTx(func(tx database.Store) error {
@@ -239,8 +244,9 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			GroupACL: database.TemplateACL{
 				organization.ID.String(): []rbac.Action{rbac.ActionRead},
 			},
-			DisplayName: createTemplate.DisplayName,
-			Icon:        createTemplate.Icon,
+			DisplayName:                  createTemplate.DisplayName,
+			Icon:                         createTemplate.Icon,
+			AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template: %s", err)
@@ -310,25 +316,27 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
-	templates, err := api.Database.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
-		OrganizationID: organization.ID,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
+
+	prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, rbac.ActionRead, rbac.ResourceTemplate.Type)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching templates in organization.",
+			Message: "Internal error preparing sql filter.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
 	// Filter templates based on rbac permissions
-	templates, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, templates)
+	templates, err := api.Database.GetAuthorizedTemplates(ctx, database.GetTemplatesWithFilterParams{
+		OrganizationID: organization.ID,
+	}, prepared)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching templates.",
+			Message: "Internal error fetching templates in organization.",
 			Detail:  err.Error(),
 		})
 		return
@@ -476,6 +484,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.Description == template.Description &&
 			req.DisplayName == template.DisplayName &&
 			req.Icon == template.Icon &&
+			req.AllowUserCancelWorkspaceJobs == template.AllowUserCancelWorkspaceJobs &&
 			req.DefaultTTLMillis == time.Duration(template.DefaultTTL).Milliseconds() {
 			return nil
 		}
@@ -488,6 +497,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		desc := req.Description
 		icon := req.Icon
 		maxTTL := time.Duration(req.DefaultTTLMillis) * time.Millisecond
+		allowUserCancelWorkspaceJobs := req.AllowUserCancelWorkspaceJobs
 
 		if name == "" {
 			name = template.Name
@@ -497,13 +507,14 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		updated, err = tx.UpdateTemplateMetaByID(ctx, database.UpdateTemplateMetaByIDParams{
-			ID:          template.ID,
-			UpdatedAt:   database.Now(),
-			Name:        name,
-			DisplayName: displayName,
-			Description: desc,
-			Icon:        icon,
-			DefaultTTL:  int64(maxTTL),
+			ID:                           template.ID,
+			UpdatedAt:                    database.Now(),
+			Name:                         name,
+			DisplayName:                  displayName,
+			Description:                  desc,
+			Icon:                         icon,
+			DefaultTTL:                   int64(maxTTL),
+			AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
 		})
 		if err != nil {
 			return err
@@ -740,21 +751,22 @@ func (api *API) convertTemplate(
 	buildTimeStats := api.metricsCache.TemplateBuildTimeStats(template.ID)
 
 	return codersdk.Template{
-		ID:                  template.ID,
-		CreatedAt:           template.CreatedAt,
-		UpdatedAt:           template.UpdatedAt,
-		OrganizationID:      template.OrganizationID,
-		Name:                template.Name,
-		DisplayName:         template.DisplayName,
-		Provisioner:         codersdk.ProvisionerType(template.Provisioner),
-		ActiveVersionID:     template.ActiveVersionID,
-		WorkspaceOwnerCount: workspaceOwnerCount,
-		ActiveUserCount:     activeCount,
-		BuildTimeStats:      buildTimeStats,
-		Description:         template.Description,
-		Icon:                template.Icon,
-		DefaultTTLMillis:    time.Duration(template.DefaultTTL).Milliseconds(),
-		CreatedByID:         template.CreatedBy,
-		CreatedByName:       createdByName,
+		ID:                           template.ID,
+		CreatedAt:                    template.CreatedAt,
+		UpdatedAt:                    template.UpdatedAt,
+		OrganizationID:               template.OrganizationID,
+		Name:                         template.Name,
+		DisplayName:                  template.DisplayName,
+		Provisioner:                  codersdk.ProvisionerType(template.Provisioner),
+		ActiveVersionID:              template.ActiveVersionID,
+		WorkspaceOwnerCount:          workspaceOwnerCount,
+		ActiveUserCount:              activeCount,
+		BuildTimeStats:               buildTimeStats,
+		Description:                  template.Description,
+		Icon:                         template.Icon,
+		DefaultTTLMillis:             time.Duration(template.DefaultTTL).Milliseconds(),
+		CreatedByID:                  template.CreatedBy,
+		CreatedByName:                createdByName,
+		AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 	}
 }

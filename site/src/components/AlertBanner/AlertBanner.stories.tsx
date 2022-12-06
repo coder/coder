@@ -3,6 +3,7 @@ import { AlertBanner } from "./AlertBanner"
 import Button from "@material-ui/core/Button"
 import { makeMockApiError } from "testHelpers/entities"
 import { AlertBannerProps } from "./alertTypes"
+import Link from "@material-ui/core/Link"
 
 export default {
   title: "components/AlertBanner",
@@ -105,4 +106,17 @@ export const ErrorAsWarning = Template.bind({})
 ErrorAsWarning.args = {
   error: mockError,
   severity: "warning",
+}
+
+const WithChildren: Story<AlertBannerProps> = (args) => (
+  <AlertBanner {...args}>
+    <div>
+      This is a message with a <Link href="#">link</Link>
+    </div>
+  </AlertBanner>
+)
+
+export const InfoWithChildContent = WithChildren.bind({})
+InfoWithChildContent.args = {
+  severity: "info",
 }
