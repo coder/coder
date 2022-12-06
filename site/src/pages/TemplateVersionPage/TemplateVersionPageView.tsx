@@ -56,6 +56,7 @@ const Files: FC<{
           const tabValue = index.toString()
           const extension = getExtension(filename)
           const icon = iconByExtension[extension]
+          const hasDiff = currentFiles[filename] !== previousFiles[filename]
 
           return (
             <button
@@ -70,6 +71,7 @@ const Files: FC<{
             >
               {icon}
               {filename}
+              {hasDiff && <div className={styles.tabDiff} />}
             </button>
           )
         })}
@@ -154,6 +156,7 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     alignItems: "baseline",
     borderBottom: `1px solid ${theme.palette.divider}`,
+    gap: 1,
   },
 
   tab: {
@@ -163,7 +166,7 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     alignItems: "center",
     height: theme.spacing(6),
-    opacity: 0.75,
+    opacity: 0.85,
     cursor: "pointer",
     gap: theme.spacing(0.5),
     position: "relative",
@@ -180,6 +183,7 @@ const useStyles = makeStyles((theme) => ({
 
   tabActive: {
     opacity: 1,
+    background: theme.palette.action.hover,
 
     "&:after": {
       content: '""',
@@ -191,6 +195,14 @@ const useStyles = makeStyles((theme) => ({
       backgroundColor: theme.palette.secondary.dark,
       position: "absolute",
     },
+  },
+
+  tabDiff: {
+    height: 6,
+    width: 6,
+    backgroundColor: theme.palette.warning.light,
+    borderRadius: "100%",
+    marginLeft: theme.spacing(0.5),
   },
 
   codeWrapper: {
