@@ -374,7 +374,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				DeploymentConfig:            cfg,
 				PrometheusRegistry:          prometheus.NewRegistry(),
 				APIRateLimit:                cfg.APIRateLimit.Value,
-				HttpClient:                  clientTLSHTTPClient,
+				HTTPClient:                  clientTLSHTTPClient,
 			}
 			if tlsConfig != nil {
 				options.TLSCertificates = tlsConfig.Certificates

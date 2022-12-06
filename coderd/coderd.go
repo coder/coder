@@ -107,7 +107,7 @@ type Options struct {
 	Experimental                bool
 	DeploymentConfig            *codersdk.DeploymentConfig
 	UpdateCheckOptions          *updatecheck.Options // Set non-nil to enable update checking.
-	HttpClient                  *http.Client
+	HTTPClient                  *http.Client
 }
 
 // New constructs a Coder API handler.
@@ -280,7 +280,7 @@ func New(options *Options) *API {
 		for _, gitAuthConfig := range options.GitAuthConfigs {
 			r.Route(fmt.Sprintf("/%s", gitAuthConfig.ID), func(r chi.Router) {
 				r.Use(
-					httpmw.ExtractOAuth2(gitAuthConfig, options.HttpClient),
+					httpmw.ExtractOAuth2(gitAuthConfig, options.HTTPClient),
 					apiKeyMiddleware,
 				)
 				r.Get("/callback", api.gitAuthCallback(gitAuthConfig))
@@ -427,12 +427,12 @@ func New(options *Options) *API {
 			r.Get("/authmethods", api.userAuthMethods)
 			r.Route("/oauth2", func(r chi.Router) {
 				r.Route("/github", func(r chi.Router) {
-					r.Use(httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HttpClient))
+					r.Use(httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient))
 					r.Get("/callback", api.userOAuth2Github)
 				})
 			})
 			r.Route("/oidc/callback", func(r chi.Router) {
-				r.Use(httpmw.ExtractOAuth2(options.OIDCConfig, options.HttpClient))
+				r.Use(httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient))
 				r.Get("/", api.userOIDC)
 			})
 			r.Group(func(r chi.Router) {
