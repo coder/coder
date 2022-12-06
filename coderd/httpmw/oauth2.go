@@ -44,9 +44,7 @@ func ExtractOAuth2(config OAuth2Config, client *http.Client) func(http.Handler) 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			if client != nil {
-				ctx = context.WithValue(ctx, oauth2.HTTPClient, client)
-			}
+			ctx = context.WithValue(ctx, oauth2.HTTPClient, client)
 
 			// Interfaces can hold a nil value
 			if config == nil || reflect.ValueOf(config).IsNil() {
