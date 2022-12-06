@@ -1,5 +1,6 @@
 import {
   getPreviousTemplateVersionByName,
+  GetPreviousTemplateVersionByNameResponse,
   getTemplateVersionByName,
 } from "api/api"
 import { TemplateVersion } from "api/typesGenerated"
@@ -29,8 +30,8 @@ export const templateVersionMachine = createMachine(
       services: {} as {
         loadVersions: {
           data: {
-            currentVersion: TemplateVersion
-            previousVersion: TemplateVersion
+            currentVersion: GetPreviousTemplateVersionByNameResponse
+            previousVersion: GetPreviousTemplateVersionByNameResponse
           }
         }
         loadFiles: {
@@ -108,23 +109,29 @@ export const templateVersionMachine = createMachine(
         if (!currentVersion) {
           throw new Error("Version is not defined")
         }
-        if (!previousVersion) {
-          throw new Error("Previous version is not defined")
-        }
+        const loadFilesPromises: ReturnType<typeof getTemplateVersionFiles>[] =
+          []
         const allowedExtensions = ["tf", "md"]
         const allowedFiles = ["Dockerfile"]
-        const [currentFiles, previousFiles] = await Promise.all([
+        loadFilesPromises.push(
           getTemplateVersionFiles(
             currentVersion,
             allowedExtensions,
             allowedFiles,
           ),
-          getTemplateVersionFiles(
-            previousVersion,
-            allowedExtensions,
-            allowedFiles,
-          ),
-        ])
+        )
+        if (previousVersion) {
+          loadFilesPromises.push(
+            getTemplateVersionFiles(
+              previousVersion,
+              allowedExtensions,
+              allowedFiles,
+            ),
+          )
+        }
+        const [currentFiles, previousFiles] = await Promise.all(
+          loadFilesPromises,
+        )
         return {
           currentFiles,
           previousFiles,

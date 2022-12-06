@@ -40,14 +40,14 @@ const getExtension = (filename: string) => {
 
 const Files: FC<{
   currentFiles: TemplateVersionFiles
-  previousFiles: TemplateVersionFiles
+  previousFiles?: TemplateVersionFiles
   tab: UseTabResult
 }> = ({ currentFiles, previousFiles, tab }) => {
   const styles = useStyles()
   const filenames = Object.keys(currentFiles)
   const selectedFilename = filenames[Number(tab.value)]
   const currentFile = currentFiles[selectedFilename]
-  const previousFile = previousFiles[selectedFilename]
+  const previousFile = previousFiles && previousFiles[selectedFilename]
 
   return (
     <div className={styles.files}>
@@ -56,7 +56,10 @@ const Files: FC<{
           const tabValue = index.toString()
           const extension = getExtension(filename)
           const icon = iconByExtension[extension]
-          const hasDiff = currentFiles[filename] !== previousFiles[filename]
+          const hasDiff =
+            previousFiles &&
+            previousFiles[filename] &&
+            currentFiles[filename] !== previousFiles[filename]
 
           return (
             <button
@@ -112,7 +115,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
         <PageHeaderTitle>{versionName}</PageHeaderTitle>
       </PageHeader>
 
-      {(!currentFiles || !previousFiles) && !error && <Loader />}
+      {!currentFiles && !error && <Loader />}
 
       <Stack spacing={4}>
         {Boolean(error) && <AlertBanner severity="error" error={error} />}

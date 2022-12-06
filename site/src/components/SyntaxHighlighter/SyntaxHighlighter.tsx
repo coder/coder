@@ -19,7 +19,7 @@ export const SyntaxHighlighter: FC<{
       minimap: {
         enabled: false,
       },
-      renderSideBySide: false,
+      renderSideBySide: true,
       readOnly: true,
     },
   }
@@ -31,7 +31,7 @@ export const SyntaxHighlighter: FC<{
   return (
     <div className={styles.wrapper}>
       {hasDiff ? (
-        <DiffEditor original={value} modified={compareWith} {...commonProps} />
+        <DiffEditor original={compareWith} modified={value} {...commonProps} />
       ) : (
         <Editor value={value} {...commonProps} />
       )}

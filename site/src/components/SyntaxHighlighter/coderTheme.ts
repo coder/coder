@@ -206,7 +206,7 @@ export const coderTheme = (theme: Theme): Record<string, any> => ({
     },
   ],
   colors: {
-    "editor.foreground": hslToHex(theme.palette.text.secondary),
+    "editor.foreground": hslToHex(theme.palette.text.primary),
     "editor.background": hslToHex(theme.palette.background.paper),
     "editor.selectionBackground": hslToHex(theme.palette.action.hover),
     "editor.lineHighlightBackground": hslToHex(
