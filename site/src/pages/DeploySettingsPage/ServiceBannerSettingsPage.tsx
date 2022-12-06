@@ -11,7 +11,7 @@ import { Header } from "components/DeploySettingsLayout/Header"
 import { LoadingButton } from "components/LoadingButton/LoadingButton"
 import { Stack } from "components/Stack/Stack"
 import { FormikContextType, useFormik } from "formik"
-import React, { useContext, useState, useTransition } from "react"
+import React, { useContext, useState } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "util/page"
 import * as Yup from "yup"
@@ -206,7 +206,7 @@ const ServiceBannerSettingsPage: React.FC = () => {
               setBanner(
                 {
                   message:
-                    "👋 **This** is a service banner. The banner's color and text is editable.",
+                    "👋 **This** is a service banner. The banner's color and text are editable.",
                   backgroundColor: "#004852",
                   enabled: true,
                 },
