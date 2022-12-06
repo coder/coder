@@ -349,6 +349,7 @@ func New(options *Options) *API {
 				r.Route("/templateversions", func(r chi.Router) {
 					r.Post("/", api.postTemplateVersionsByOrganization)
 					r.Get("/{templateversionname}", api.templateVersionByOrganizationAndName)
+					r.Get("/{templateversionname}/previous", api.previousTemplateVersionByOrganizationAndName)
 				})
 				r.Route("/templates", func(r chi.Router) {
 					r.Post("/", api.postTemplateByOrganization)
