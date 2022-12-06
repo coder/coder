@@ -120,6 +120,7 @@ func setupProxyTest(t *testing.T, customAppHost ...string) (*codersdk.Client, co
 			},
 		},
 	})
+
 	user := coderdtest.CreateFirstUser(t, client)
 
 	workspace := createWorkspaceWithApps(t, client, user.OrganizationID, appHost, uint16(tcpAddr.Port))
@@ -243,7 +244,7 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resp, err := client.Request(ctx, http.MethodGet, fmt.Sprintf("/@me/%s/apps/%s", workspace.Name, proxyTestAppNameOwner), nil)
+		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, fmt.Sprintf("/@me/%s/apps/%s", workspace.Name, proxyTestAppNameOwner), nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
@@ -264,7 +265,7 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resp, err := userClient.Request(ctx, http.MethodGet, fmt.Sprintf("/@me/%s/apps/%s", workspace.Name, proxyTestAppNameOwner), nil)
+		resp, err := requestWithRetries(ctx, t, userClient, http.MethodGet, fmt.Sprintf("/@me/%s/apps/%s", workspace.Name, proxyTestAppNameOwner), nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusNotFound, resp.StatusCode)
@@ -276,7 +277,7 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resp, err := client.Request(ctx, http.MethodGet, fmt.Sprintf("/@me/%s/apps/%s", workspace.Name, proxyTestAppNameOwner), nil)
+		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, fmt.Sprintf("/@me/%s/apps/%s", workspace.Name, proxyTestAppNameOwner), nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
@@ -288,7 +289,7 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resp, err := client.Request(ctx, http.MethodGet, fmt.Sprintf("/@me/%s/apps/%s/", workspace.Name, proxyTestAppNameOwner), nil)
+		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, fmt.Sprintf("/@me/%s/apps/%s/", workspace.Name, proxyTestAppNameOwner), nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
@@ -303,7 +304,7 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resp, err := client.Request(ctx, http.MethodGet, fmt.Sprintf("/@me/%s/apps/%s/?%s", workspace.Name, proxyTestAppNameOwner, proxyTestAppQuery), nil)
+		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, fmt.Sprintf("/@me/%s/apps/%s/?%s", workspace.Name, proxyTestAppNameOwner, proxyTestAppQuery), nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		body, err := io.ReadAll(resp.Body)
@@ -318,7 +319,7 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resp, err := client.Request(ctx, http.MethodGet, fmt.Sprintf("/@me/%s/apps/%s/?%s", workspace.Name, proxyTestAppNameOwner, proxyTestAppQuery), nil, func(r *http.Request) {
+		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, fmt.Sprintf("/@me/%s/apps/%s/?%s", workspace.Name, proxyTestAppNameOwner, proxyTestAppQuery), nil, func(r *http.Request) {
 			r.Header.Set("Cf-Connecting-IP", "1.1.1.1")
 		})
 		require.NoError(t, err)
@@ -367,7 +368,9 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		require.NoError(t, err)
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 		require.NoError(t, err)
-		resp, err := client.HTTPClient.Do(req)
+
+		var resp *http.Response
+		resp, err = doWithRetries(t, client, req)
 		require.NoError(t, err)
 		resp.Body.Close()
 
@@ -380,7 +383,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		require.Equal(t, u.String(), gotLocation.Query().Get("redirect_uri"))
 
 		// Load the application auth-redirect endpoint.
-		resp, err = client.Request(ctx, http.MethodGet, "/api/v2/applications/auth-redirect", nil, codersdk.WithQueryParam(
+		resp, err = requestWithRetries(ctx, t, client, http.MethodGet, "/api/v2/applications/auth-redirect", nil, codersdk.WithQueryParam(
 			"redirect_uri", u.String(),
 		))
 		require.NoError(t, err)
@@ -517,7 +520,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 				defer cancel()
 
-				resp, err := client.Request(ctx, http.MethodGet, "/api/v2/applications/auth-redirect", nil,
+				resp, err := requestWithRetries(ctx, t, client, http.MethodGet, "/api/v2/applications/auth-redirect", nil,
 					codersdk.WithQueryParam("redirect_uri", c.redirectURI),
 				)
 				require.NoError(t, err)
@@ -556,7 +559,7 @@ func TestWorkspaceAppsProxySubdomainPassthrough(t *testing.T) {
 	defer cancel()
 
 	uri := fmt.Sprintf("http://app--agent--workspace--username.%s/api/v2/users/me", proxyTestSubdomain)
-	resp, err := client.Request(ctx, http.MethodGet, uri, nil)
+	resp, err := requestWithRetries(ctx, t, client, http.MethodGet, uri, nil)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -605,7 +608,7 @@ func TestWorkspaceAppsProxySubdomainBlocked(t *testing.T) {
 		defer cancel()
 
 		uri := fmt.Sprintf("http://not-an-app-subdomain.%s/api/v2/users/me", proxyTestSubdomain)
-		resp, err := client.Request(ctx, http.MethodGet, uri, nil)
+		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, uri, nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
@@ -689,7 +692,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resp, err := userClient.Request(ctx, http.MethodGet, proxyURL(t, client, proxyTestAppNameOwner), nil)
+		resp, err := requestWithRetries(ctx, t, userClient, http.MethodGet, proxyURL(t, client, proxyTestAppNameOwner), nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusNotFound, resp.StatusCode)
@@ -702,7 +705,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		defer cancel()
 
 		slashlessURL := proxyURL(t, client, proxyTestAppNameOwner, "")
-		resp, err := client.Request(ctx, http.MethodGet, slashlessURL, nil)
+		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, slashlessURL, nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
@@ -719,7 +722,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		defer cancel()
 
 		querylessURL := proxyURL(t, client, proxyTestAppNameOwner, "/", "")
-		resp, err := client.Request(ctx, http.MethodGet, querylessURL, nil)
+		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, querylessURL, nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
@@ -735,7 +738,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resp, err := client.Request(ctx, http.MethodGet, proxyURL(t, client, proxyTestAppNameOwner, "/", proxyTestAppQuery), nil)
+		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, proxyURL(t, client, proxyTestAppNameOwner, "/", proxyTestAppQuery), nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		body, err := io.ReadAll(resp.Body)
@@ -750,7 +753,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resp, err := client.Request(ctx, http.MethodGet, proxyURL(t, client, port, "/", proxyTestAppQuery), nil)
+		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, proxyURL(t, client, port, "/", proxyTestAppQuery), nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		body, err := io.ReadAll(resp.Body)
@@ -778,7 +781,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		defer cancel()
 
 		port := uint16(codersdk.MinimumListeningPort - 1)
-		resp, err := client.Request(ctx, http.MethodGet, proxyURL(t, client, port, "/", proxyTestAppQuery), nil)
+		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, proxyURL(t, client, port, "/", proxyTestAppQuery), nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
@@ -801,7 +804,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		u := proxyURL(t, client, proxyTestAppNameOwner, "/", proxyTestAppQuery)
 		t.Logf("url: %s", u)
 
-		resp, err := client.Request(ctx, http.MethodGet, u, nil)
+		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, u, nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		body, err := io.ReadAll(resp.Body)
@@ -823,7 +826,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 			// Replace the -suffix with nothing.
 			u = strings.Replace(u, "-suffix", "", 1)
 
-			resp, err := client.Request(ctx, http.MethodGet, u, nil)
+			resp, err := requestWithRetries(ctx, t, client, http.MethodGet, u, nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			body, err := io.ReadAll(resp.Body)
@@ -844,7 +847,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 			// Replace the -suffix with something else.
 			u = strings.Replace(u, "-suffix", "-not-suffix", 1)
 
-			resp, err := client.Request(ctx, http.MethodGet, u, nil)
+			resp, err := requestWithRetries(ctx, t, client, http.MethodGet, u, nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			body, err := io.ReadAll(resp.Body)
@@ -947,7 +950,7 @@ func TestAppSharing(t *testing.T) {
 			msg := fmt.Sprintf("client %d", i)
 
 			appPath := fmt.Sprintf("/@%s/%s.%s/apps/%s/?%s", username, workspaceName, agentName, appName, proxyTestAppQuery)
-			res, err := client.Request(ctx, http.MethodGet, appPath, nil)
+			res, err := requestWithRetries(ctx, t, client, http.MethodGet, appPath, nil)
 			require.NoError(t, err, msg)
 
 			dump, err := httputil.DumpResponse(res, true)

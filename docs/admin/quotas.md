@@ -5,7 +5,7 @@ templates and assigning budgets to users. Users that exceed their budget will be
 blocked from launching more workspaces until they either delete their other workspaces
 or get their budget extended.
 
-For example: A template is configured with a cost of 5 credits per day, and the user is 
+For example: A template is configured with a cost of 5 credits per day, and the user is
 granted a budget of 15 credits per day. This budget limits the user to 3 concurrent workspaces.
 
 Quotas are licensed with [Groups](./groups.md).
@@ -48,18 +48,18 @@ resource "docker_container" "workspace" {
 }
 
 resource "coder_metadata" "workspace" {
-    count       = data.coder_workspace.me.start_count 
+    count       = data.coder_workspace.me.start_count
     resource_id = docker_container.workspace.id
     daily_cost  = 20
 }
 ```
 
-When the workspace above is shut down, the `docker_container` and 
+When the workspace above is shut down, the `docker_container` and
 `coder_metadata` both get deleted. This reduces the cost from 30 credits to
-10 credits. 
+10 credits.
 
-Resources without a `daily_cost` value are considered to cost 0. If the  cost 
-was removed on the `docker_volume` above, the template would consume 0 credits when 
+Resources without a `daily_cost` value are considered to cost 0. If the cost
+was removed on the `docker_volume` above, the template would consume 0 credits when
 it's offline. This technique is good for incentivizing users to shut down their
 unused workspaces and freeing up compute in the cluster.
 

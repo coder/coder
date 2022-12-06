@@ -168,7 +168,6 @@ resource "coder_app" "jupyter" {
 
 ![JupyterLab in Coder](../images/jupyter-on-docker.png)
 
-
 ### RStudio
 
 Configure your agent and `coder_app` like so to use RStudio. Notice the

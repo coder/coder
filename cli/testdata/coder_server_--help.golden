@@ -95,8 +95,8 @@ Flags:
                                                      Consumes $CODER_OIDC_CLIENT_ID
       --oidc-client-secret string                    Client secret to use for Login with OIDC.
                                                      Consumes $CODER_OIDC_CLIENT_SECRET
-      --oidc-email-domain string                     Email domain that clients logging in with
-                                                     OIDC must match.
+      --oidc-email-domain strings                    Email domains that clients logging in
+                                                     with OIDC must match.
                                                      Consumes $CODER_OIDC_EMAIL_DOMAIN
       --oidc-ignore-email-verified                   Ignore the email_verified claim from the
                                                      upstream provider.

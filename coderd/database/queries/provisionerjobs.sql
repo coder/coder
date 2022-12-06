@@ -19,8 +19,7 @@ WHERE
 			provisioner_jobs AS nested
 		WHERE
 			nested.started_at IS NULL
-			AND nested.canceled_at IS NULL
-			AND nested.completed_at IS NULL
+			-- Ensure the caller has the correct provisioner.
 			AND nested.provisioner = ANY(@types :: provisioner_type [ ])
 			-- Ensure the caller satisfies all job tags.
 			AND nested.tags <@ @tags :: jsonb 
