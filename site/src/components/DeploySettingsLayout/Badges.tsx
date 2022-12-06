@@ -12,6 +12,15 @@ export const EnabledBadge: React.FC = () => {
   )
 }
 
+export const EntitledBadge: React.FC = () => {
+  const styles = useStyles()
+  return (
+    <span className={combineClasses([styles.badge, styles.enabledBadge])}>
+      Entitled
+    </span>
+  )
+}
+
 export const DisabledBadge: React.FC = () => {
   const styles = useStyles()
   return (

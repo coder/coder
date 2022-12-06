@@ -13,6 +13,7 @@ Contact sales@coder.com to obtain a license.
 
 - [High Availability](./admin/high-availability.md)
 - [Browser Only Connections](./networking.md#browser-only-connections)
+- [Service Banners](./admin/service-banners.md)
 
 ### Other
 

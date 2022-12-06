@@ -27,6 +27,7 @@ func TestEntitlements(t *testing.T) {
 		codersdk.FeatureTemplateRBAC:               true,
 		codersdk.FeatureMultipleGitAuth:            true,
 		codersdk.FeatureExternalProvisionerDaemons: true,
+		codersdk.FeatureServiceBanners:             true,
 	}
 
 	t.Run("Defaults", func(t *testing.T) {
@@ -70,6 +71,7 @@ func TestEntitlements(t *testing.T) {
 				TemplateRBAC:               true,
 				MultipleGitAuth:            true,
 				ExternalProvisionerDaemons: true,
+				ServiceBanners:             true,
 			}),
 			Exp: time.Now().Add(time.Hour),
 		})
@@ -78,7 +80,7 @@ func TestEntitlements(t *testing.T) {
 		require.True(t, entitlements.HasLicense)
 		require.False(t, entitlements.Trial)
 		for _, featureName := range codersdk.FeatureNames {
-			require.Equal(t, codersdk.EntitlementEntitled, entitlements.Features[featureName].Entitlement)
+			require.Equal(t, codersdk.EntitlementEntitled, entitlements.Features[featureName].Entitlement, featureName)
 		}
 	})
 	t.Run("SingleLicenseGrace", func(t *testing.T) {
@@ -93,6 +95,7 @@ func TestEntitlements(t *testing.T) {
 				HighAvailability:           true,
 				TemplateRBAC:               true,
 				ExternalProvisionerDaemons: true,
+				ServiceBanners:             true,
 				GraceAt:                    time.Now().Add(-time.Hour),
 				ExpiresAt:                  time.Now().Add(time.Hour),
 			}),
