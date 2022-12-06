@@ -97,6 +97,7 @@ func Core() []*cobra.Command {
 		users(),
 		versionCmd(),
 		workspaceAgent(),
+		vscodeipcCmd(),
 	}
 }
 
