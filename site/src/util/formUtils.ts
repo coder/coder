@@ -39,11 +39,7 @@ interface FormHelpers {
 
 export const getFormHelpers =
   <T>(form: FormikContextType<T>, error?: Error | unknown) =>
-  (
-    name: keyof T,
-    HelperText: ReactNode = "",
-    friendlyLabel?: string,
-  ): FormHelpers => {
+  (name: keyof T, HelperText: ReactNode = ""): FormHelpers => {
     const apiValidationErrors =
       isApiError(error) && hasApiFieldErrors(error)
         ? (mapApiErrorToFieldErrors(error.response.data) as FormikErrors<T>)
@@ -60,15 +56,11 @@ export const getFormHelpers =
     const apiError = getIn(apiValidationErrors, name)
     const frontendError = getIn(form.errors, name)
     const returnError = apiError ?? frontendError
-    const friendlyError =
-      friendlyLabel && returnError
-        ? returnError.replace(name, friendlyLabel)
-        : returnError
     return {
       ...form.getFieldProps(name),
       id: name,
-      error: touched && Boolean(friendlyError),
-      helperText: touched ? friendlyError || HelperText : HelperText,
+      error: touched && Boolean(returnError),
+      helperText: touched ? returnError || HelperText : HelperText,
     }
   }
 
