@@ -20,6 +20,23 @@ import { createDayString } from "util/createDayString"
 import { TemplateVersionMachineContext } from "xServices/templateVersion/templateVersionXService"
 import { TemplateVersionFiles } from "util/templateVersion"
 import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter"
+import { DockerIcon } from "components/Icons/DockerIcon"
+
+const iconByExtension: Record<string, JSX.Element> = {
+  tf: <TerraformIcon />,
+  md: <MarkdownIcon />,
+  mkd: <MarkdownIcon />,
+  Dockerfile: <DockerIcon />,
+}
+
+const getExtension = (filename: string) => {
+  if (filename.includes(".")) {
+    const [_, extension] = filename.split(".")
+    return extension
+  }
+
+  return filename
+}
 
 const Files: FC<{
   currentFiles: TemplateVersionFiles
@@ -37,6 +54,8 @@ const Files: FC<{
       <div className={styles.tabs}>
         {filenames.map((filename, index) => {
           const tabValue = index.toString()
+          const extension = getExtension(filename)
+          const icon = iconByExtension[extension]
 
           return (
             <button
@@ -49,7 +68,7 @@ const Files: FC<{
               }}
               key={filename}
             >
-              {filename.endsWith("tf") ? <TerraformIcon /> : <MarkdownIcon />}
+              {icon}
               {filename}
             </button>
           )
@@ -161,7 +180,6 @@ const useStyles = makeStyles((theme) => ({
 
   tabActive: {
     opacity: 1,
-    fontWeight: 600,
 
     "&:after": {
       content: '""',
