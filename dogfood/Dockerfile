@@ -313,9 +313,9 @@ COPY --from=rust-utils /tmp/bin /usr/local/bin
 COPY --from=proto /tmp/bin /usr/local/bin
 
 # Configure Nix without sandboxing - https://github.com/NixOS/nix/issues/2636#issuecomment-455302745
-RUN mkdir -p /nix /etc/nix \
- && chmod a+rwx /nix \
- && echo 'sandbox = false' > /etc/nix/nix.conf
+RUN mkdir -p /nix /etc/nix && \
+    chmod a+rwx /nix && \
+    echo 'sandbox = false' > /etc/nix/nix.conf
 
 USER coder
 
