@@ -231,6 +231,16 @@ export const getTemplateVersionByName = async (
   return response.data
 }
 
+export const getPreviousTemplateVersionByName = async (
+  organizationId: string,
+  versionName: string,
+): Promise<TypesGen.TemplateVersion> => {
+  const response = await axios.get<TypesGen.TemplateVersion>(
+    `/api/v2/organizations/${organizationId}/templateversions/${versionName}/previous`,
+  )
+  return response.data
+}
+
 export const updateTemplateMeta = async (
   templateId: string,
   data: TypesGen.UpdateTemplateMeta,

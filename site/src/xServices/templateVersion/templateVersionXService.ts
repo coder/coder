@@ -1,17 +1,22 @@
-import { getTemplateVersionByName } from "api/api"
+import {
+  getPreviousTemplateVersionByName,
+  getTemplateVersionByName,
+} from "api/api"
 import { TemplateVersion } from "api/typesGenerated"
 import {
   getTemplateVersionFiles,
   TemplateVersionFiles,
 } from "util/templateVersion"
 import { assign, createMachine } from "xstate"
-
 export interface TemplateVersionMachineContext {
   orgId: string
   versionName: string
-  version?: TemplateVersion
-  files?: TemplateVersionFiles
+  currentVersion?: TemplateVersion
+  currentFiles?: TemplateVersionFiles
   error?: Error | unknown
+  // Get file diffs
+  previousVersion?: TemplateVersion
+  previousFiles?: TemplateVersionFiles
 }
 
 export const templateVersionMachine = createMachine(
@@ -21,23 +26,29 @@ export const templateVersionMachine = createMachine(
     schema: {
       context: {} as TemplateVersionMachineContext,
       services: {} as {
-        loadVersion: {
-          data: TemplateVersion
+        loadVersions: {
+          data: {
+            currentVersion: TemplateVersion
+            previousVersion: TemplateVersion
+          }
         }
         loadFiles: {
-          data: TemplateVersionFiles
+          data: {
+            currentFiles: TemplateVersionFiles
+            previousFiles: TemplateVersionFiles
+          }
         }
       },
     },
     tsTypes: {} as import("./templateVersionXService.typegen").Typegen0,
-    initial: "loadingVersion",
+    initial: "loadingVersions",
     states: {
-      loadingVersion: {
+      loadingVersions: {
         invoke: {
-          src: "loadVersion",
+          src: "loadVersions",
           onDone: {
             target: "loadingFiles",
-            actions: ["assignVersion"],
+            actions: ["assignVersions"],
           },
           onError: {
             target: "done.error",
@@ -71,21 +82,43 @@ export const templateVersionMachine = createMachine(
       assignError: assign({
         error: (_, { data }) => data,
       }),
-      assignVersion: assign({
-        version: (_, { data }) => data,
+      assignVersions: assign({
+        currentVersion: (_, { data }) => data.currentVersion,
+        previousVersion: (_, { data }) => data.previousVersion,
       }),
       assignFiles: assign({
-        files: (_, { data }) => data,
+        currentFiles: (_, { data }) => data.currentFiles,
+        previousFiles: (_, { data }) => data.previousFiles,
       }),
     },
     services: {
-      loadVersion: ({ orgId, versionName }) =>
-        getTemplateVersionByName(orgId, versionName),
-      loadFiles: async ({ version }) => {
-        if (!version) {
+      loadVersions: async ({ orgId, versionName }) => {
+        const [currentVersion, previousVersion] = await Promise.all([
+          getTemplateVersionByName(orgId, versionName),
+          getPreviousTemplateVersionByName(orgId, versionName),
+        ])
+
+        return {
+          currentVersion,
+          previousVersion,
+        }
+      },
+      loadFiles: async ({ currentVersion, previousVersion }) => {
+        if (!currentVersion) {
           throw new Error("Version is not defined")
         }
-        return getTemplateVersionFiles(version, ["tf", "md"])
+        if (!previousVersion) {
+          throw new Error("Previous version is not defined")
+        }
+        const allowedExtensions = ["tf", "md"]
+        const [currentFiles, previousFiles] = await Promise.all([
+          getTemplateVersionFiles(currentVersion, allowedExtensions),
+          getTemplateVersionFiles(previousVersion, allowedExtensions),
+        ])
+        return {
+          currentFiles,
+          previousFiles,
+        }
       },
     },
   },

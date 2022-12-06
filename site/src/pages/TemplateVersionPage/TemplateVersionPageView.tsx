@@ -37,8 +37,11 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
   templateName,
 }) => {
   const styles = useStyles()
-  const { files, error, version } = context
+  const { currentFiles, error, currentVersion, diffByFile } = context
   const { t } = useTranslation("templateVersionPage")
+
+  console.log(diffByFile)
+  console.log(currentFiles)
 
   return (
     <Margins>
@@ -47,11 +50,11 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
         <PageHeaderTitle>{versionName}</PageHeaderTitle>
       </PageHeader>
 
-      {!files && !error && <Loader />}
+      {!currentFiles && !error && <Loader />}
 
       <Stack spacing={4}>
         {Boolean(error) && <AlertBanner severity="error" error={error} />}
-        {version && files && (
+        {currentVersion && currentFiles && (
           <>
             <Stats>
               <StatsItem
@@ -62,17 +65,17 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
               />
               <StatsItem
                 label={t("stats.createdBy")}
-                value={version.created_by.username}
+                value={currentVersion.created_by.username}
               />
               <StatsItem
                 label={t("stats.created")}
-                value={createDayString(version.created_at)}
+                value={createDayString(currentVersion.created_at)}
               />
             </Stats>
 
             <div className={styles.files}>
               <div className={styles.tabs}>
-                {Object.keys(files).map((filename, index) => {
+                {Object.keys(currentFiles).map((filename, index) => {
                   const tabValue = index.toString()
 
                   return (
@@ -101,12 +104,12 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
                 showLineNumbers
                 className={styles.prism}
                 language={
-                  Object.keys(files)[Number(tab.value)].endsWith("tf")
+                  Object.keys(currentFiles)[Number(tab.value)].endsWith("tf")
                     ? "hcl"
                     : "markdown"
                 }
               >
-                {Object.values(files)[Number(tab.value)]}
+                {Object.values(currentFiles)[Number(tab.value)]}
               </SyntaxHighlighter>
             </div>
           </>
