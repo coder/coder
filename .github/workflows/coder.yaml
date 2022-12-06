@@ -34,7 +34,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: typos-action
-        uses: crate-ci/typos@v1.12.12
+        uses: crate-ci/typos@v1.13.3
         with:
           config: .github/workflows/typos.toml
       - name: Fix Helper
@@ -674,6 +674,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@master
-    - uses: gaurav-nelson/github-action-markdown-link-check@v1
+    # For the main branch:
+    - if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
+      uses: gaurav-nelson/github-action-markdown-link-check@v1
       with:
+          use-quiet-mode: yes
+          use-verbose-mode: yes
+          config-file: .github/workflows/mlc_config.json
+    # For pull requests:
+    - if: github.ref != 'refs/heads/main' || github.event.pull_request.head.repo.fork
+      uses: gaurav-nelson/github-action-markdown-link-check@v1
+      with:
+          use-quiet-mode: yes
+          use-verbose-mode: yes
+          check-modified-files-only: yes
+          base-branch: main
           config-file: .github/workflows/mlc_config.json

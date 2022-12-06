@@ -198,7 +198,6 @@ func (api *api) execute(w http.ResponseWriter, r *http.Request) {
 		api.sshClient, api.sshClientErr = api.agentConn.SSHClient(context.Background())
 	})
 	if api.sshClientErr != nil {
-		fmt.Printf("WE GOT TO BEGIN ERR! %s\n", api.sshClientErr)
 		httpapi.Write(r.Context(), w, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to create SSH client.",
 			Detail:  api.sshClientErr.Error(),
