@@ -10,7 +10,7 @@ const (
 	WaitShort     = 5 * time.Second
 	WaitMedium    = 10 * time.Second
 	WaitLong      = 15 * time.Second
-	WaitSuperLong = 30 * time.Second
+	WaitSuperLong = 60 * time.Second
 )
 
 // Constants for delaying repeated operations, e.g. in
