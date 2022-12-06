@@ -14,7 +14,7 @@ import * as Yup from "yup"
 
 export const Language = {
   nameRequired: (name: string): string => {
-    return `Please enter a ${name.toLowerCase()}.`
+    return name ? `Please enter a ${name.toLowerCase()}.` : "Required"
   },
   nameInvalidChars: (name: string): string => {
     return `${name} must start with a-Z or 0-9 and can contain a-Z, 0-9 or -`
