@@ -3,7 +3,6 @@ package reconnectingpty_test
 import (
 	"bytes"
 	"context"
-	"runtime"
 	"testing"
 	"time"
 
@@ -23,9 +22,6 @@ import (
 
 func Test_Runner(t *testing.T) {
 	t.Parallel()
-	if runtime.GOOS != "linux" {
-		t.Skip("PTY is flakey on non-Linux platforms")
-	}
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
@@ -81,7 +77,6 @@ func Test_Runner(t *testing.T) {
 
 	t.Run("Timeout", func(t *testing.T) {
 		t.Parallel()
-		t.Skip("Flaky: https://github.com/coder/coder/issues/5187")
 
 		t.Run("NoTimeout", func(t *testing.T) {
 			t.Parallel()
@@ -97,7 +92,7 @@ func Test_Runner(t *testing.T) {
 				LogOutput: true,
 			})
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
 			logs := bytes.NewBuffer(nil)
@@ -121,7 +116,7 @@ func Test_Runner(t *testing.T) {
 				LogOutput: true,
 			})
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
 			logs := bytes.NewBuffer(nil)
@@ -151,7 +146,7 @@ func Test_Runner(t *testing.T) {
 				LogOutput:     true,
 			})
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
 			logs := bytes.NewBuffer(nil)
@@ -176,7 +171,7 @@ func Test_Runner(t *testing.T) {
 				LogOutput:     true,
 			})
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
 			logs := bytes.NewBuffer(nil)
@@ -190,7 +185,6 @@ func Test_Runner(t *testing.T) {
 
 	t.Run("ExpectOutput", func(t *testing.T) {
 		t.Parallel()
-		t.Skip("Flaky: https://github.com/coder/coder/issues/5187")
 
 		t.Run("Matches", func(t *testing.T) {
 			t.Parallel()
@@ -206,7 +200,7 @@ func Test_Runner(t *testing.T) {
 				LogOutput:    false,
 			})
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
 			logs := bytes.NewBuffer(nil)
@@ -230,7 +224,7 @@ func Test_Runner(t *testing.T) {
 				LogOutput:    false,
 			})
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
 			logs := bytes.NewBuffer(nil)
