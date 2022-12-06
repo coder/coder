@@ -45,6 +45,7 @@ resource "coder_agent" "dev" {
     code-server --auth none --port 13337 &
     sudo service docker start
     coder dotfiles -y 2>&1 | tee  ~/.personalize.log
+    "if [ -n ${var.dotfiles_uri} ]; then coder dotfiles var.dotfiles_uri -y 2>&1 | tee  ~/.personalize.log; fi"
     EOF
 }
 
