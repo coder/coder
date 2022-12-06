@@ -289,7 +289,6 @@ export interface DeploymentConfig {
   readonly cache_directory: DeploymentConfigField<string>
   readonly in_memory_database: DeploymentConfigField<boolean>
   readonly pg_connection_url: DeploymentConfigField<string>
-  readonly password_auth_hidden: DeploymentConfigField<boolean>
   readonly oauth2: OAuth2Config
   readonly oidc: OIDCConfig
   readonly telemetry: TelemetryConfig
@@ -308,6 +307,7 @@ export interface DeploymentConfig {
   readonly api_rate_limit: DeploymentConfigField<number>
   readonly experimental: DeploymentConfigField<boolean>
   readonly update_check: DeploymentConfigField<boolean>
+  readonly password_auth_hidden: DeploymentConfigField<boolean>
 }
 
 // From codersdk/deploymentconfig.go

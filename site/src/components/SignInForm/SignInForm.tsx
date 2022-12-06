@@ -14,7 +14,6 @@ import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
 import { LoadingButton } from "./../LoadingButton/LoadingButton"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { useTranslation } from "react-i18next"
-import { ContactlessOutlined } from "@material-ui/icons"
 import { useSearchParams } from "react-router-dom"
 
 /**
