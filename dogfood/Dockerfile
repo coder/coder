@@ -322,6 +322,9 @@ USER coder
 # Install Nix
 RUN sh <(curl -L https://nixos.org/nix/install) --no-daemon
 
+RUN echo '. /home/coder/.nix-profile/etc/profile.d/nix.sh' >> /home/coder/.bashrc
+RUN mkdir -p /home/coder/.config/nixpkgs && echo '{ allowUnfree = true; }' >> /home/coder/.config/nixpkgs/config.nix
+
 # Ensure go bins are in the 'coder' user's path. Note that no go bins are
 # installed in this docker file, as they'd be mounted over by the persistent
 # home volume.
