@@ -46,7 +46,9 @@ func Test_Runner(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Contains(t, logStr, "Output:")
-		require.Contains(t, logStr, "\thello world")
+		// OSX: Output:\n\thello world\n
+		// Win: Output:\n\t\x1b[2J\x1b[m\x1b[H\x1b]0;Administrator: C:\\Program Files\\PowerShell\\7\\pwsh.exe\a\x1b[?25hhello world\n
+		require.Contains(t, logStr, "hello world\n")
 	})
 
 	t.Run("NoLogOutput", func(t *testing.T) {
@@ -72,7 +74,6 @@ func Test_Runner(t *testing.T) {
 		require.NoError(t, err)
 
 		require.NotContains(t, logStr, "Output:")
-		require.NotContains(t, logStr, "\thello world")
 	})
 
 	t.Run("Timeout", func(t *testing.T) {
@@ -88,7 +89,7 @@ func Test_Runner(t *testing.T) {
 				Init: codersdk.ReconnectingPTYInit{
 					Command: "echo 'hello world'",
 				},
-				Timeout:   httpapi.Duration(5 * time.Second),
+				Timeout:   httpapi.Duration(2 * testutil.WaitLong),
 				LogOutput: true,
 			})
 
@@ -166,7 +167,7 @@ func Test_Runner(t *testing.T) {
 				Init: codersdk.ReconnectingPTYInit{
 					Command: "echo 'hello world'",
 				},
-				Timeout:       httpapi.Duration(5 * time.Second),
+				Timeout:       httpapi.Duration(2 * testutil.WaitLong),
 				ExpectTimeout: true,
 				LogOutput:     true,
 			})
