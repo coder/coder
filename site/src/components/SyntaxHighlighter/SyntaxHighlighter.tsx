@@ -1,12 +1,14 @@
 import { FC } from "react"
 import Editor, { DiffEditor } from "@monaco-editor/react"
 import { useCoderTheme } from "./coderTheme"
+import { makeStyles } from "@material-ui/core/styles"
 
 export const SyntaxHighlighter: FC<{
   value: string
   language: string
   compareWith?: string
 }> = ({ value, compareWith, language }) => {
+  const styles = useStyles()
   const hasDiff = compareWith && value !== compareWith
   const coderTheme = useCoderTheme()
   const commonProps = {
@@ -26,11 +28,20 @@ export const SyntaxHighlighter: FC<{
     return null
   }
 
-  if (hasDiff) {
-    return (
-      <DiffEditor original={value} modified={compareWith} {...commonProps} />
-    )
-  }
-
-  return <Editor value={value} {...commonProps} />
+  return (
+    <div className={styles.wrapper}>
+      {hasDiff ? (
+        <DiffEditor original={value} modified={compareWith} {...commonProps} />
+      ) : (
+        <Editor value={value} {...commonProps} />
+      )}
+    </div>
+  )
 }
+
+const useStyles = makeStyles((theme) => ({
+  wrapper: {
+    padding: theme.spacing(1, 0),
+    background: theme.palette.background.paper,
+  },
+}))
