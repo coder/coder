@@ -438,7 +438,7 @@ func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Re
 	err = json.Unmarshal(job.Input, &input)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error unmarshaling job metadata.",
+			Message: "Internal error unmarshalling job metadata.",
 			Detail:  err.Error(),
 		})
 		return database.ProvisionerJob{}, false
