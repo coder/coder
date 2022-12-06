@@ -34,7 +34,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: typos-action
-        uses: crate-ci/typos@v1.12.12
+        uses: crate-ci/typos@v1.13.3
         with:
           config: .github/workflows/typos.toml
       - name: Fix Helper
@@ -676,4 +676,8 @@ jobs:
     - uses: actions/checkout@master
     - uses: gaurav-nelson/github-action-markdown-link-check@v1
       with:
+          use-quiet-mode: yes
+          use-verbose-mode: yes
+          check-modified-files-only: yes
+          base-branch: main
           config-file: .github/workflows/mlc_config.json
