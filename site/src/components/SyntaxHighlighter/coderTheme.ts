@@ -3,6 +3,7 @@ import { useMonaco } from "@monaco-editor/react"
 import { useEffect, useState } from "react"
 import { hslToHex } from "util/colors"
 
+// Theme based on https://github.com/brijeshb42/monaco-themes/blob/master/themes/Dracula.json
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- The theme is not typed
 export const coderTheme = (theme: Theme): Record<string, any> => ({
   base: "vs-dark",
