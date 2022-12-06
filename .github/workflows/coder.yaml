@@ -678,4 +678,6 @@ jobs:
       with:
           use-quiet-mode: yes
           use-verbose-mode: yes
+          check-modified-files-only: yes
+          base-branch: main
           config-file: .github/workflows/mlc_config.json
