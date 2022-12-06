@@ -317,7 +317,6 @@ RUN mkdir -p /nix /etc/nix \
  && chmod a+rwx /nix \
  && echo 'sandbox = false' > /etc/nix/nix.conf
 
-
 USER coder
 
 # Install Nix
