@@ -39,7 +39,11 @@ interface FormHelpers {
 
 export const getFormHelpers =
   <T>(form: FormikContextType<T>, error?: Error | unknown) =>
-  (name: keyof T, HelperText: ReactNode = ""): FormHelpers => {
+  (
+    name: keyof T,
+    HelperText: ReactNode = "",
+    backendErrorName?: string,
+  ): FormHelpers => {
     const apiValidationErrors =
       isApiError(error) && hasApiFieldErrors(error)
         ? (mapApiErrorToFieldErrors(error.response.data) as FormikErrors<T>)
@@ -50,10 +54,12 @@ export const getFormHelpers =
       )
     }
 
+    const apiErrorName = backendErrorName ?? name
+
     // getIn is a util function from Formik that gets at any depth of nesting
     // and is necessary for the types to work
     const touched = getIn(form.touched, name)
-    const apiError = getIn(apiValidationErrors, name)
+    const apiError = getIn(apiValidationErrors, apiErrorName)
     const frontendError = getIn(form.errors, name)
     const returnError = apiError ?? frontendError
     return {

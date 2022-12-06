@@ -5,9 +5,7 @@ import { UpdateTemplateMeta } from "api/typesGenerated"
 import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter"
 import { MockTemplate } from "../../testHelpers/entities"
 import { renderWithAuth } from "../../testHelpers/renderHelpers"
-import {
-  getValidationSchema,
-} from "./TemplateSettingsForm"
+import { getValidationSchema } from "./TemplateSettingsForm"
 import { TemplateSettingsPage } from "./TemplateSettingsPage"
 import i18next from "i18next"
 
@@ -53,9 +51,7 @@ const fillAndSubmitForm = async ({
   await userEvent.type(displayNameField, display_name)
 
   const descriptionLabel = t("descriptionLabel", { ns: "templateSettingsPage" })
-  const descriptionField = await screen.findByLabelText(
-    descriptionLabel,
-  )
+  const descriptionField = await screen.findByLabelText(descriptionLabel)
   await userEvent.clear(descriptionField)
   await userEvent.type(descriptionField, description)
 
@@ -161,7 +157,9 @@ describe("TemplateSettingsPage", () => {
       default_ttl_ms: 24 * 7 + 1,
     }
     const validate = () => getValidationSchema().validateSync(values)
-    expect(validate).toThrowError(t("ttlMaxError", { ns: "templateSettingsPage" }))
+    expect(validate).toThrowError(
+      t("ttlMaxError", { ns: "templateSettingsPage" }),
+    )
   })
 
   it("allows a description of 128 chars", () => {
@@ -181,6 +179,8 @@ describe("TemplateSettingsPage", () => {
         "Nam quis nulla. Integer malesuada. In in enim a arcu imperdiet malesuada. Sed vel lectus. Donec odio urna, tempus molestie, port a",
     }
     const validate = () => getValidationSchema().validateSync(values)
-    expect(validate).toThrowError(t("descriptionMaxError", { ns: "templateSettingsPage" }))
+    expect(validate).toThrowError(
+      t("descriptionMaxError", { ns: "templateSettingsPage" }),
+    )
   })
 })
