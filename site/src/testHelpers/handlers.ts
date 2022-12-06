@@ -15,6 +15,11 @@ export const handlers = [
     return res(ctx.status(200), ctx.json(M.MockBuildInfo))
   }),
 
+  // update check
+  rest.get("/api/v2/updatecheck", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockUpdateCheck))
+  }),
+
   // organizations
   rest.get("/api/v2/organizations/:organizationId", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockOrganization))
@@ -37,7 +42,10 @@ export const handlers = [
     return res(ctx.status(200), ctx.json(M.MockTemplate))
   }),
   rest.get("/api/v2/templates/:templateId/versions", async (req, res, ctx) => {
-    return res(ctx.status(200), ctx.json([M.MockTemplateVersion]))
+    return res(
+      ctx.status(200),
+      ctx.json([M.MockTemplateVersion2, M.MockTemplateVersion]),
+    )
   }),
   rest.patch("/api/v2/templates/:templateId", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockTemplate))
@@ -82,6 +90,9 @@ export const handlers = [
         count: 26,
       }),
     )
+  }),
+  rest.post("/api/v2/users", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockUser))
   }),
   rest.get("/api/v2/users/me/organizations", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json([M.MockOrganization]))
@@ -209,16 +220,18 @@ export const handlers = [
 
   // Audit
   rest.get("/api/v2/audit", (req, res, ctx) => {
+    const filter = req.url.searchParams.get("q") as string
+    const logs =
+      filter === "resource_type:workspace action:create"
+        ? [M.MockAuditLog]
+        : [M.MockAuditLog, M.MockAuditLog2]
     return res(
       ctx.status(200),
       ctx.json({
-        audit_logs: [M.MockAuditLog, M.MockAuditLog2],
+        audit_logs: logs,
+        count: logs.length,
       }),
     )
-  }),
-
-  rest.get("/api/v2/audit/count", (req, res, ctx) => {
-    return res(ctx.status(200), ctx.json({ count: 1000 }))
   }),
 
   // Applications host

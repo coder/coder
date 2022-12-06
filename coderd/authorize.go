@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -95,19 +94,14 @@ func (h *HTTPAuthorizer) Authorize(r *http.Request, action rbac.Action, object r
 // from postgres are already authorized, and the caller does not need to
 // call 'Authorize()' on the returned objects.
 // Note the authorization is only for the given action and object type.
-func (h *HTTPAuthorizer) AuthorizeSQLFilter(r *http.Request, action rbac.Action, objectType string) (rbac.AuthorizeFilter, error) {
+func (h *HTTPAuthorizer) AuthorizeSQLFilter(r *http.Request, action rbac.Action, objectType string) (rbac.PreparedAuthorized, error) {
 	roles := httpmw.UserAuthorization(r)
 	prepared, err := h.Authorizer.PrepareByRoleName(r.Context(), roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), roles.Groups, action, objectType)
 	if err != nil {
 		return nil, xerrors.Errorf("prepare filter: %w", err)
 	}
 
-	filter, err := prepared.Compile()
-	if err != nil {
-		return nil, xerrors.Errorf("compile filter: %w", err)
-	}
-
-	return filter, nil
+	return prepared, nil
 }
 
 // checkAuthorization returns if the current API key can use the given
@@ -198,9 +192,10 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 			case rbac.ResourceGroup.Type:
 				dbObj, dbErr = api.Database.GetGroupByID(ctx, id)
 			default:
+				msg := fmt.Sprintf("Object type %q does not support \"resource_id\" field.", v.Object.ResourceType)
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message:     fmt.Sprintf("Object type %q does not support \"resource_id\" field.", v.Object.ResourceType),
-					Validations: []codersdk.ValidationError{{Field: "resource_type", Detail: err.Error()}},
+					Message:     msg,
+					Validations: []codersdk.ValidationError{{Field: "resource_type", Detail: msg}},
 				})
 				return
 			}
@@ -212,7 +207,7 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 			obj = dbObj.RBACObject()
 		}
 
-		err := api.Authorizer.ByRoleName(r.Context(), auth.ID.String(), auth.Roles, auth.Scope.ToRBAC(), auth.Groups, rbac.Action(v.Action), obj)
+		err := api.Authorizer.ByRoleName(ctx, auth.ID.String(), auth.Roles, auth.Scope.ToRBAC(), auth.Groups, rbac.Action(v.Action), obj)
 		response[k] = err == nil
 	}
 

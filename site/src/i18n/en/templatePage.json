@@ -10,5 +10,7 @@
       "deleteCta": "Delete Template"
     }
   },
-  "displayNameLabel": "Display name"
+  "displayNameLabel": "Display name",
+  "allowUserCancelWorkspaceJobsLabel": "Allow users to cancel in-progress workspace jobs.",
+  "allowUserCancelWorkspaceJobsNotice": "Depending on your template, canceling builds may leave workspaces in an unhealthy state. This option isn't recommended for most use cases."
 }

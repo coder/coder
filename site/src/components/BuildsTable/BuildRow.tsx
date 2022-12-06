@@ -1,8 +1,8 @@
 import { makeStyles } from "@material-ui/core/styles"
 import TableCell from "@material-ui/core/TableCell"
-import TableRow from "@material-ui/core/TableRow"
 import { WorkspaceBuild } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
+import { TimelineEntry } from "components/Timeline/TimelineEntry"
 import { useClickable } from "hooks/useClickable"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
@@ -27,21 +27,25 @@ export const BuildRow: React.FC<BuildRowProps> = ({ build }) => {
   )
 
   return (
-    <TableRow
-      hover
-      data-testid={`build-${build.id}`}
-      className={styles.buildRow}
-      {...clickableProps}
-    >
+    <TimelineEntry hover data-testid={`build-${build.id}`} {...clickableProps}>
       <TableCell className={styles.buildCell}>
         <Stack
           direction="row"
           alignItems="center"
           className={styles.buildWrapper}
         >
-          <Stack direction="row" alignItems="center">
+          <Stack
+            direction="row"
+            alignItems="center"
+            className={styles.fullWidth}
+          >
             <BuildAvatar build={build} />
-            <div>
+            <Stack
+              direction="row"
+              justifyContent="space-between"
+              alignItems="center"
+              className={styles.fullWidth}
+            >
               <Stack
                 className={styles.buildSummary}
                 direction="row"
@@ -71,38 +75,21 @@ export const BuildRow: React.FC<BuildRowProps> = ({ build }) => {
                   {t("buildData.duration")}:{" "}
                   <strong>{displayWorkspaceBuildDuration(build)}</strong>
                 </span>
+
+                <span className={styles.buildInfo}>
+                  {t("buildData.version")}:{" "}
+                  <strong>{build.template_version_name}</strong>
+                </span>
               </Stack>
-            </div>
+            </Stack>
           </Stack>
         </Stack>
       </TableCell>
-    </TableRow>
+    </TimelineEntry>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
-  buildRow: {
-    cursor: "pointer",
-
-    "&:focus": {
-      outlineStyle: "solid",
-      outlineOffset: -1,
-      outlineWidth: 2,
-      outlineColor: theme.palette.secondary.dark,
-    },
-
-    "&:not(:last-child) td:before": {
-      position: "absolute",
-      top: 20,
-      left: 50,
-      display: "block",
-      content: "''",
-      height: "100%",
-      width: 2,
-      background: theme.palette.divider,
-    },
-  },
-
   buildWrapper: {
     padding: theme.spacing(2, 4),
   },
@@ -140,5 +127,9 @@ const useStyles = makeStyles((theme) => ({
     fontFamily: MONOSPACE_FONT_FAMILY,
     color: theme.palette.text.secondary,
     whiteSpace: "nowrap",
+  },
+
+  fullWidth: {
+    width: "100%",
   },
 }))

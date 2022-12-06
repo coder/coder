@@ -29,10 +29,17 @@ var endpoint = map[codersdk.GitProvider]oauth2.Endpoint{
 	codersdk.GitProviderGitHub: github.Endpoint,
 }
 
+// validateURL contains defaults for each provider.
+var validateURL = map[codersdk.GitProvider]string{
+	codersdk.GitProviderGitHub:    "https://api.github.com/user",
+	codersdk.GitProviderGitLab:    "https://gitlab.com/oauth/token/info",
+	codersdk.GitProviderBitBucket: "https://api.bitbucket.org/2.0/user",
+}
+
 // scope contains defaults for each Git provider.
 var scope = map[codersdk.GitProvider][]string{
 	codersdk.GitProviderAzureDevops: {"vso.code_write"},
-	codersdk.GitProviderBitBucket:   {"repository:write"},
+	codersdk.GitProviderBitBucket:   {"account", "repository:write"},
 	codersdk.GitProviderGitLab:      {"write_repository"},
 	codersdk.GitProviderGitHub:      {"repo"},
 }

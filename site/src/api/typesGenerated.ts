@@ -67,22 +67,15 @@ export interface AuditLog {
   readonly status_code: number
   readonly additional_fields: Record<string, string>
   readonly description: string
+  readonly resource_link: string
+  readonly is_deleted: boolean
   readonly user?: User
-}
-
-// From codersdk/audit.go
-export interface AuditLogCountRequest {
-  readonly q?: string
-}
-
-// From codersdk/audit.go
-export interface AuditLogCountResponse {
-  readonly count: number
 }
 
 // From codersdk/audit.go
 export interface AuditLogResponse {
   readonly audit_logs: AuditLog[]
+  readonly count: number
 }
 
 // From codersdk/audit.go
@@ -148,7 +141,7 @@ export interface CreateFirstUserRequest {
   readonly email: string
   readonly username: string
   readonly password: string
-  readonly organization: string
+  readonly trial: boolean
 }
 
 // From codersdk/users.go
@@ -187,6 +180,7 @@ export interface CreateTemplateRequest {
   readonly template_version_id: string
   readonly parameter_values?: CreateParameterRequest[]
   readonly default_ttl_ms?: number
+  readonly allow_user_cancel_workspace_jobs?: boolean
 }
 
 // From codersdk/templateversions.go
@@ -202,6 +196,7 @@ export interface CreateTemplateVersionRequest {
   readonly storage_method: ProvisionerStorageMethod
   readonly file_id: string
   readonly provisioner: ProvisionerType
+  readonly tags: Record<string, string>
   readonly parameter_values?: CreateParameterRequest[]
 }
 
@@ -305,12 +300,14 @@ export interface DeploymentConfig {
   readonly auto_import_templates: DeploymentConfigField<string[]>
   readonly metrics_cache_refresh_interval: DeploymentConfigField<number>
   readonly agent_stat_refresh_interval: DeploymentConfigField<number>
+  readonly agent_fallback_troubleshooting_url: DeploymentConfigField<string>
   readonly audit_logging: DeploymentConfigField<boolean>
   readonly browser_only: DeploymentConfigField<boolean>
   readonly scim_api_key: DeploymentConfigField<string>
   readonly provisioner: ProvisionerConfig
   readonly api_rate_limit: DeploymentConfigField<number>
   readonly experimental: DeploymentConfigField<boolean>
+  readonly update_check: DeploymentConfigField<boolean>
 }
 
 // From codersdk/deploymentconfig.go
@@ -367,6 +364,7 @@ export interface GitAuthConfig {
   readonly client_id: string
   readonly auth_url: string
   readonly token_url: string
+  readonly validate_url: string
   readonly regex: string
   readonly no_refresh: boolean
   readonly scopes: string[]
@@ -400,6 +398,7 @@ export interface Healthcheck {
 // From codersdk/licenses.go
 export interface License {
   readonly id: number
+  readonly uuid: string
   readonly uploaded_at: string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly claims: Record<string, any>
@@ -449,9 +448,10 @@ export interface OIDCConfig {
   readonly allow_signups: DeploymentConfigField<boolean>
   readonly client_id: DeploymentConfigField<string>
   readonly client_secret: DeploymentConfigField<string>
-  readonly email_domain: DeploymentConfigField<string>
+  readonly email_domain: DeploymentConfigField<string[]>
   readonly issuer_url: DeploymentConfigField<string>
   readonly scopes: DeploymentConfigField<string[]>
+  readonly ignore_email_verified: DeploymentConfigField<boolean>
   readonly sign_in_text: DeploymentConfigField<string>
   readonly icon_url: DeploymentConfigField<string>
 }
@@ -548,6 +548,8 @@ export interface PrometheusConfig {
 // From codersdk/deploymentconfig.go
 export interface ProvisionerConfig {
   readonly daemons: DeploymentConfigField<number>
+  readonly daemon_poll_interval: DeploymentConfigField<number>
+  readonly daemon_poll_jitter: DeploymentConfigField<number>
   readonly force_cancel_interval: DeploymentConfigField<number>
 }
 
@@ -558,6 +560,7 @@ export interface ProvisionerDaemon {
   readonly updated_at?: string
   readonly name: string
   readonly provisioners: ProvisionerType[]
+  readonly tags: Record<string, string>
 }
 
 // From codersdk/provisionerdaemons.go
@@ -571,6 +574,7 @@ export interface ProvisionerJob {
   readonly status: ProvisionerJobStatus
   readonly worker_id?: string
   readonly file_id: string
+  readonly tags: Record<string, string>
 }
 
 // From codersdk/provisionerdaemons.go
@@ -656,6 +660,7 @@ export interface Template {
   readonly default_ttl_ms: number
   readonly created_by_id: string
   readonly created_by_name: string
+  readonly allow_user_cancel_workspace_jobs: boolean
 }
 
 // From codersdk/templates.go
@@ -665,11 +670,10 @@ export interface TemplateACL {
 }
 
 // From codersdk/templates.go
-export interface TemplateBuildTimeStats {
-  readonly start_ms?: number
-  readonly stop_ms?: number
-  readonly delete_ms?: number
-}
+export type TemplateBuildTimeStats = Record<
+  WorkspaceTransition,
+  TransitionStats
+>
 
 // From codersdk/templates.go
 export interface TemplateDAUsResponse {
@@ -712,8 +716,21 @@ export interface TraceConfig {
 }
 
 // From codersdk/templates.go
+export interface TransitionStats {
+  readonly P50?: number
+  readonly P95?: number
+}
+
+// From codersdk/templates.go
 export interface UpdateActiveTemplateVersion {
   readonly id: string
+}
+
+// From codersdk/updatecheck.go
+export interface UpdateCheckResponse {
+  readonly current: boolean
+  readonly version: string
+  readonly url: string
 }
 
 // From codersdk/users.go
@@ -734,6 +751,7 @@ export interface UpdateTemplateMeta {
   readonly description?: string
   readonly icon?: string
   readonly default_ttl_ms?: number
+  readonly allow_user_cancel_workspace_jobs?: boolean
 }
 
 // From codersdk/users.go
@@ -806,7 +824,9 @@ export interface Workspace {
   readonly owner_name: string
   readonly template_id: string
   readonly template_name: string
+  readonly template_display_name: string
   readonly template_icon: string
+  readonly template_allow_user_cancel_workspace_jobs: boolean
   readonly latest_build: WorkspaceBuild
   readonly outdated: boolean
   readonly name: string
@@ -836,7 +856,7 @@ export interface WorkspaceAgent {
   readonly apps: WorkspaceApp[]
   readonly latency?: Record<string, DERPRegion>
   readonly connection_timeout_seconds: number
-  readonly troubleshooting_url?: string
+  readonly troubleshooting_url: string
 }
 
 // From codersdk/workspaceagents.go
@@ -891,6 +911,7 @@ export interface WorkspaceBuild {
   readonly workspace_owner_id: string
   readonly workspace_owner_name: string
   readonly template_version_id: string
+  readonly template_version_name: string
   readonly build_number: number
   readonly transition: WorkspaceTransition
   readonly initiator_id: string

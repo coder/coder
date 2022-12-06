@@ -1,8 +1,9 @@
 name: Submit Packages
 on:
-  release:
-    types: [published]
-
+  workflow_run:
+    workflows: [release]
+    types:
+      - completed
 env:
   CODER_VERSION: "${{ github.event.release.tag_name }}"
 

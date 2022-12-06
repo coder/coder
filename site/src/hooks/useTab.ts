@@ -1,13 +1,13 @@
 import { useSearchParams } from "react-router-dom"
 
 export interface UseTabResult {
-  value: string | null
+  value: string
   set: (value: string) => void
 }
 
-export const useTab = (tabKey: string): UseTabResult => {
+export const useTab = (tabKey: string, defaultValue: string): UseTabResult => {
   const [searchParams, setSearchParams] = useSearchParams()
-  const value = searchParams.get(tabKey)
+  const value = searchParams.get(tabKey) ?? defaultValue
 
   return {
     value,

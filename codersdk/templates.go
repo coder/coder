@@ -31,14 +31,16 @@ type Template struct {
 	DefaultTTLMillis int64                  `json:"default_ttl_ms"`
 	CreatedByID      uuid.UUID              `json:"created_by_id"`
 	CreatedByName    string                 `json:"created_by_name"`
+
+	AllowUserCancelWorkspaceJobs bool `json:"allow_user_cancel_workspace_jobs"`
 }
 
-type TemplateBuildTimeStats struct {
-	StartMillis  *int64 `json:"start_ms"`
-	StopMillis   *int64 `json:"stop_ms"`
-	DeleteMillis *int64 `json:"delete_ms"`
+type TransitionStats struct {
+	P50 *int64
+	P95 *int64
 }
 
+type TemplateBuildTimeStats map[WorkspaceTransition]TransitionStats
 type UpdateActiveTemplateVersion struct {
 	ID uuid.UUID `json:"id" validate:"required"`
 }
@@ -72,11 +74,12 @@ type UpdateTemplateACL struct {
 }
 
 type UpdateTemplateMeta struct {
-	Name             string `json:"name,omitempty" validate:"omitempty,template_name"`
-	DisplayName      string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
-	Description      string `json:"description,omitempty"`
-	Icon             string `json:"icon,omitempty"`
-	DefaultTTLMillis int64  `json:"default_ttl_ms,omitempty"`
+	Name                         string `json:"name,omitempty" validate:"omitempty,template_name"`
+	DisplayName                  string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
+	Description                  string `json:"description,omitempty"`
+	Icon                         string `json:"icon,omitempty"`
+	DefaultTTLMillis             int64  `json:"default_ttl_ms,omitempty"`
+	AllowUserCancelWorkspaceJobs bool   `json:"allow_user_cancel_workspace_jobs,omitempty"`
 }
 
 // Template returns a single template.
@@ -232,6 +235,6 @@ type AgentStatsReportResponse struct {
 	NumConns int64 `json:"num_comms"`
 	// RxBytes is the number of received bytes.
 	RxBytes int64 `json:"rx_bytes"`
-	// TxBytes is the number of received bytes.
+	// TxBytes is the number of transmitted bytes.
 	TxBytes int64 `json:"tx_bytes"`
 }

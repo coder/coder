@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/viper"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/codersdk"
@@ -143,7 +144,7 @@ func newConfig() *codersdk.DeploymentConfig {
 			Name:    "Cache Directory",
 			Usage:   "The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.",
 			Flag:    "cache-dir",
-			Default: defaultCacheDir(),
+			Default: DefaultCacheDir(),
 		},
 		InMemoryDatabase: &codersdk.DeploymentConfigField[bool]{
 			Name:   "In Memory Database",
@@ -220,9 +221,9 @@ func newConfig() *codersdk.DeploymentConfig {
 				Flag:   "oidc-client-secret",
 				Secret: true,
 			},
-			EmailDomain: &codersdk.DeploymentConfigField[string]{
+			EmailDomain: &codersdk.DeploymentConfigField[[]string]{
 				Name:  "OIDC Email Domain",
-				Usage: "Email domain that clients logging in with OIDC must match.",
+				Usage: "Email domains that clients logging in with OIDC must match.",
 				Flag:  "oidc-email-domain",
 			},
 			IssuerURL: &codersdk.DeploymentConfigField[string]{
@@ -235,6 +236,12 @@ func newConfig() *codersdk.DeploymentConfig {
 				Usage:   "Scopes to grant when authenticating with OIDC.",
 				Flag:    "oidc-scopes",
 				Default: []string{oidc.ScopeOpenID, "profile", "email"},
+			},
+			IgnoreEmailVerified: &codersdk.DeploymentConfigField[bool]{
+				Name:    "OIDC Ignore Email Verified",
+				Usage:   "Ignore the email_verified claim from the upstream provider.",
+				Flag:    "oidc-ignore-email-verified",
+				Default: false,
 			},
 			SignInText: &codersdk.DeploymentConfigField[string]{
 				Name:  "OpenID Connect sign in text",
@@ -362,6 +369,13 @@ func newConfig() *codersdk.DeploymentConfig {
 			Hidden:  true,
 			Default: 10 * time.Minute,
 		},
+		AgentFallbackTroubleshootingURL: &codersdk.DeploymentConfigField[string]{
+			Name:    "Agent Fallback Troubleshooting URL",
+			Usage:   "URL to use for agent troubleshooting when not set in the template",
+			Flag:    "agent-fallback-troubleshooting-url",
+			Hidden:  true,
+			Default: "https://coder.com/docs/coder-oss/latest/templates#troubleshooting-templates",
+		},
 		AuditLogging: &codersdk.DeploymentConfigField[bool]{
 			Name:       "Audit Logging",
 			Usage:      "Specifies whether audit logging is enabled.",
@@ -389,6 +403,18 @@ func newConfig() *codersdk.DeploymentConfig {
 				Flag:    "provisioner-daemons",
 				Default: 3,
 			},
+			DaemonPollInterval: &codersdk.DeploymentConfigField[time.Duration]{
+				Name:    "Poll Interval",
+				Usage:   "Time to wait before polling for a new job.",
+				Flag:    "provisioner-daemon-poll-interval",
+				Default: time.Second,
+			},
+			DaemonPollJitter: &codersdk.DeploymentConfigField[time.Duration]{
+				Name:    "Poll Jitter",
+				Usage:   "Random jitter added to the poll interval.",
+				Flag:    "provisioner-daemon-poll-jitter",
+				Default: 100 * time.Millisecond,
+			},
 			ForceCancelInterval: &codersdk.DeploymentConfigField[time.Duration]{
 				Name:    "Force Cancel Interval",
 				Usage:   "Time to force cancel provisioning tasks that are stuck.",
@@ -406,6 +432,12 @@ func newConfig() *codersdk.DeploymentConfig {
 			Name:  "Experimental",
 			Usage: "Enable experimental features. Experimental features are not ready for production.",
 			Flag:  "experimental",
+		},
+		UpdateCheck: &codersdk.DeploymentConfigField[bool]{
+			Name:    "Update Check",
+			Usage:   "Periodically check for new releases of Coder and inform the owner. The check is performed once per day.",
+			Flag:    "update-check",
+			Default: flag.Lookup("test.v") == nil && !buildinfo.IsDev(),
 		},
 	}
 }
@@ -537,9 +569,11 @@ func readSliceFromViper[T any](vip *viper.Viper, key string, value any) []T {
 				newType := reflect.Indirect(reflect.New(elementType))
 				instance = &newType
 			}
-			switch instance.Field(i).Type().String() {
+			switch v := instance.Field(i).Type().String(); v {
 			case "[]string":
 				value = vip.GetStringSlice(configKey)
+			case "bool":
+				value = vip.GetBool(configKey)
 			default:
 			}
 			instance.Field(i).Set(reflect.ValueOf(value))
@@ -680,7 +714,7 @@ func formatEnv(key string) string {
 	return "CODER_" + strings.ToUpper(strings.NewReplacer("-", "_", ".", "_").Replace(key))
 }
 
-func defaultCacheDir() string {
+func DefaultCacheDir() string {
 	defaultCacheDir, err := os.UserCacheDir()
 	if err != nil {
 		defaultCacheDir = os.TempDir()

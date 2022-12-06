@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
 	"tailscale.com/net/speedtest"
@@ -158,13 +159,13 @@ func (c *AgentConn) Close() error {
 
 // @typescript-ignore ReconnectingPTYInit
 type ReconnectingPTYInit struct {
-	ID      string
+	ID      uuid.UUID
 	Height  uint16
 	Width   uint16
 	Command string
 }
 
-func (c *AgentConn) ReconnectingPTY(ctx context.Context, id string, height, width uint16, command string) (net.Conn, error) {
+func (c *AgentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, height, width uint16, command string) (net.Conn, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 

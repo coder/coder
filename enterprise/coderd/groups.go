@@ -31,7 +31,7 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 	)
 	defer commitAudit()
 
-	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceGroup) {
+	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceGroup.InOrg(org.ID)) {
 		http.NotFound(rw, r)
 		return
 	}

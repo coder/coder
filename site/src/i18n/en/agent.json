@@ -15,8 +15,8 @@
   },
   "timeoutTooltip": {
     "title": "Agent is taking too long to connect",
-    "message": "We noticed this agent is taking longer than expected to connect. You can try troubleshooting the issue",
-    "link": "here"
+    "message": "We noticed this agent is taking longer than expected to connect.",
+    "link": "Troubleshoot"
   },
   "unableToConnect": "Unable to connect"
 }

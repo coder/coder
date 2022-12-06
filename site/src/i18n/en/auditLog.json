@@ -6,6 +6,13 @@
   },
   "table": {
     "emptyPage": "No audit logs available on this page",
-    "noLogs": "No audit logs available"
+    "noLogs": "No audit logs available",
+    "logRow": {
+      "deletedLabel": "(deleted)",
+      "ip": "IP: ",
+      "os": "OS: ",
+      "browser": "Browser: ",
+      "notAvailable": "Not available"
+    }
   }
 }

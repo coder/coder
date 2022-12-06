@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
@@ -31,6 +32,8 @@ func TestTemplateEdit(t *testing.T) {
 		desc := "lorem ipsum dolor sit amet et cetera"
 		icon := "/icons/new-icon.png"
 		defaultTTL := 12 * time.Hour
+		allowUserCancelWorkspaceJobs := false
+
 		cmdArgs := []string{
 			"templates",
 			"edit",
@@ -40,6 +43,7 @@ func TestTemplateEdit(t *testing.T) {
 			"--description", desc,
 			"--icon", icon,
 			"--default-ttl", defaultTTL.String(),
+			"--allow-user-cancel-workspace-jobs=" + strconv.FormatBool(allowUserCancelWorkspaceJobs),
 		}
 		cmd, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
@@ -57,6 +61,7 @@ func TestTemplateEdit(t *testing.T) {
 		assert.Equal(t, desc, updated.Description)
 		assert.Equal(t, icon, updated.Icon)
 		assert.Equal(t, defaultTTL.Milliseconds(), updated.DefaultTTLMillis)
+		assert.Equal(t, allowUserCancelWorkspaceJobs, updated.AllowUserCancelWorkspaceJobs)
 	})
 	t.Run("FirstEmptyThenNotModified", func(t *testing.T) {
 		t.Parallel()
@@ -75,6 +80,7 @@ func TestTemplateEdit(t *testing.T) {
 			"--description", template.Description,
 			"--icon", template.Icon,
 			"--default-ttl", (time.Duration(template.DefaultTTLMillis) * time.Millisecond).String(),
+			"--allow-user-cancel-workspace-jobs=" + strconv.FormatBool(template.AllowUserCancelWorkspaceJobs),
 		}
 		cmd, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
@@ -91,6 +97,7 @@ func TestTemplateEdit(t *testing.T) {
 		assert.Equal(t, template.Description, updated.Description)
 		assert.Equal(t, template.Icon, updated.Icon)
 		assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
+		assert.Equal(t, template.AllowUserCancelWorkspaceJobs, updated.AllowUserCancelWorkspaceJobs)
 	})
 	t.Run("InvalidDisplayName", func(t *testing.T) {
 		t.Parallel()

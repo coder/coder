@@ -26,7 +26,7 @@ func gitAskpass() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 
-			ctx, stop := signal.NotifyContext(ctx, interruptSignals...)
+			ctx, stop := signal.NotifyContext(ctx, InterruptSignals...)
 			defer stop()
 
 			user, host, err := gitauth.ParseAskpass(args[0])
@@ -62,7 +62,7 @@ func gitAskpass() *cobra.Command {
 					if err != nil {
 						continue
 					}
-					cmd.Printf("\nYou've been authenticated with Git!\n")
+					cmd.Printf("You've been authenticated with Git!\n")
 					break
 				}
 			}

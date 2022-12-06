@@ -26,6 +26,7 @@ import (
 )
 
 func TestLoadTest(t *testing.T) {
+	t.Skipf("This test is flakey. See https://github.com/coder/coder/issues/4942")
 	t.Parallel()
 
 	t.Run("PlaceboFromStdin", func(t *testing.T) {

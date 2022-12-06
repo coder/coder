@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/coder/coder/coderd/database/dbtype"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/tabbed/pqtype"
@@ -410,7 +411,7 @@ type AuditLog struct {
 	UserID           uuid.UUID       `db:"user_id" json:"user_id"`
 	OrganizationID   uuid.UUID       `db:"organization_id" json:"organization_id"`
 	Ip               pqtype.Inet     `db:"ip" json:"ip"`
-	UserAgent        string          `db:"user_agent" json:"user_agent"`
+	UserAgent        sql.NullString  `db:"user_agent" json:"user_agent"`
 	ResourceType     ResourceType    `db:"resource_type" json:"resource_type"`
 	ResourceID       uuid.UUID       `db:"resource_id" json:"resource_id"`
 	ResourceTarget   string          `db:"resource_target" json:"resource_target"`
@@ -467,7 +468,8 @@ type License struct {
 	UploadedAt time.Time `db:"uploaded_at" json:"uploaded_at"`
 	JWT        string    `db:"jwt" json:"jwt"`
 	// exp tracks the claim of the same name in the JWT, and we include it here so that we can easily query for licenses that have not yet expired.
-	Exp time.Time `db:"exp" json:"exp"`
+	Exp  time.Time     `db:"exp" json:"exp"`
+	Uuid uuid.NullUUID `db:"uuid" json:"uuid"`
 }
 
 type Organization struct {
@@ -525,6 +527,7 @@ type ProvisionerDaemon struct {
 	Name         string            `db:"name" json:"name"`
 	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
 	ReplicaID    uuid.NullUUID     `db:"replica_id" json:"replica_id"`
+	Tags         dbtype.StringMap  `db:"tags" json:"tags"`
 }
 
 type ProvisionerJob struct {
@@ -543,6 +546,7 @@ type ProvisionerJob struct {
 	Input          json.RawMessage          `db:"input" json:"input"`
 	WorkerID       uuid.NullUUID            `db:"worker_id" json:"worker_id"`
 	FileID         uuid.UUID                `db:"file_id" json:"file_id"`
+	Tags           dbtype.StringMap         `db:"tags" json:"tags"`
 }
 
 type ProvisionerJobLog struct {
@@ -592,6 +596,8 @@ type Template struct {
 	GroupACL   TemplateACL `db:"group_acl" json:"group_acl"`
 	// Display name is a custom, human-friendly template name that user can set.
 	DisplayName string `db:"display_name" json:"display_name"`
+	// Allow users to cancel in-progress workspace jobs.
+	AllowUserCancelWorkspaceJobs bool `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
 }
 
 type TemplateVersion struct {
@@ -669,6 +675,8 @@ type WorkspaceAgent struct {
 	ConnectionTimeoutSeconds int32 `db:"connection_timeout_seconds" json:"connection_timeout_seconds"`
 	// URL for troubleshooting the agent.
 	TroubleshootingURL string `db:"troubleshooting_url" json:"troubleshooting_url"`
+	// Path to file inside workspace containing the message of the day (MOTD) to show to the user when logging in via SSH.
+	MOTDFile string `db:"motd_file" json:"motd_file"`
 }
 
 type WorkspaceApp struct {

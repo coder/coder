@@ -11,36 +11,38 @@ import (
 
 // DeploymentConfig is the central configuration for the coder server.
 type DeploymentConfig struct {
-	AccessURL                   *DeploymentConfigField[string]          `json:"access_url" typescript:",notnull"`
-	WildcardAccessURL           *DeploymentConfigField[string]          `json:"wildcard_access_url" typescript:",notnull"`
-	Address                     *DeploymentConfigField[string]          `json:"address" typescript:",notnull"`
-	AutobuildPollInterval       *DeploymentConfigField[time.Duration]   `json:"autobuild_poll_interval" typescript:",notnull"`
-	DERP                        *DERP                                   `json:"derp" typescript:",notnull"`
-	GitAuth                     *DeploymentConfigField[[]GitAuthConfig] `json:"gitauth" typescript:",notnull"`
-	Prometheus                  *PrometheusConfig                       `json:"prometheus" typescript:",notnull"`
-	Pprof                       *PprofConfig                            `json:"pprof" typescript:",notnull"`
-	ProxyTrustedHeaders         *DeploymentConfigField[[]string]        `json:"proxy_trusted_headers" typescript:",notnull"`
-	ProxyTrustedOrigins         *DeploymentConfigField[[]string]        `json:"proxy_trusted_origins" typescript:",notnull"`
-	CacheDirectory              *DeploymentConfigField[string]          `json:"cache_directory" typescript:",notnull"`
-	InMemoryDatabase            *DeploymentConfigField[bool]            `json:"in_memory_database" typescript:",notnull"`
-	PostgresURL                 *DeploymentConfigField[string]          `json:"pg_connection_url" typescript:",notnull"`
-	PasswordAuthHidden          *DeploymentConfigField[bool]            `json:"password_auth_hidden" typescript:",notnull"`
-	OAuth2                      *OAuth2Config                           `json:"oauth2" typescript:",notnull"`
-	OIDC                        *OIDCConfig                             `json:"oidc" typescript:",notnull"`
-	Telemetry                   *TelemetryConfig                        `json:"telemetry" typescript:",notnull"`
-	TLS                         *TLSConfig                              `json:"tls" typescript:",notnull"`
-	Trace                       *TraceConfig                            `json:"trace" typescript:",notnull"`
-	SecureAuthCookie            *DeploymentConfigField[bool]            `json:"secure_auth_cookie" typescript:",notnull"`
-	SSHKeygenAlgorithm          *DeploymentConfigField[string]          `json:"ssh_keygen_algorithm" typescript:",notnull"`
-	AutoImportTemplates         *DeploymentConfigField[[]string]        `json:"auto_import_templates" typescript:",notnull"`
-	MetricsCacheRefreshInterval *DeploymentConfigField[time.Duration]   `json:"metrics_cache_refresh_interval" typescript:",notnull"`
-	AgentStatRefreshInterval    *DeploymentConfigField[time.Duration]   `json:"agent_stat_refresh_interval" typescript:",notnull"`
-	AuditLogging                *DeploymentConfigField[bool]            `json:"audit_logging" typescript:",notnull"`
-	BrowserOnly                 *DeploymentConfigField[bool]            `json:"browser_only" typescript:",notnull"`
-	SCIMAPIKey                  *DeploymentConfigField[string]          `json:"scim_api_key" typescript:",notnull"`
-	Provisioner                 *ProvisionerConfig                      `json:"provisioner" typescript:",notnull"`
-	APIRateLimit                *DeploymentConfigField[int]             `json:"api_rate_limit" typescript:",notnull"`
-	Experimental                *DeploymentConfigField[bool]            `json:"experimental" typescript:",notnull"`
+	AccessURL                       *DeploymentConfigField[string]          `json:"access_url" typescript:",notnull"`
+	WildcardAccessURL               *DeploymentConfigField[string]          `json:"wildcard_access_url" typescript:",notnull"`
+	Address                         *DeploymentConfigField[string]          `json:"address" typescript:",notnull"`
+	AutobuildPollInterval           *DeploymentConfigField[time.Duration]   `json:"autobuild_poll_interval" typescript:",notnull"`
+	DERP                            *DERP                                   `json:"derp" typescript:",notnull"`
+	GitAuth                         *DeploymentConfigField[[]GitAuthConfig] `json:"gitauth" typescript:",notnull"`
+	Prometheus                      *PrometheusConfig                       `json:"prometheus" typescript:",notnull"`
+	Pprof                           *PprofConfig                            `json:"pprof" typescript:",notnull"`
+	ProxyTrustedHeaders             *DeploymentConfigField[[]string]        `json:"proxy_trusted_headers" typescript:",notnull"`
+	ProxyTrustedOrigins             *DeploymentConfigField[[]string]        `json:"proxy_trusted_origins" typescript:",notnull"`
+	CacheDirectory                  *DeploymentConfigField[string]          `json:"cache_directory" typescript:",notnull"`
+	InMemoryDatabase                *DeploymentConfigField[bool]            `json:"in_memory_database" typescript:",notnull"`
+	PostgresURL                     *DeploymentConfigField[string]          `json:"pg_connection_url" typescript:",notnull"`
+	OAuth2                          *OAuth2Config                           `json:"oauth2" typescript:",notnull"`
+	OIDC                            *OIDCConfig                             `json:"oidc" typescript:",notnull"`
+	Telemetry                       *TelemetryConfig                        `json:"telemetry" typescript:",notnull"`
+	TLS                             *TLSConfig                              `json:"tls" typescript:",notnull"`
+	Trace                           *TraceConfig                            `json:"trace" typescript:",notnull"`
+	SecureAuthCookie                *DeploymentConfigField[bool]            `json:"secure_auth_cookie" typescript:",notnull"`
+	SSHKeygenAlgorithm              *DeploymentConfigField[string]          `json:"ssh_keygen_algorithm" typescript:",notnull"`
+	AutoImportTemplates             *DeploymentConfigField[[]string]        `json:"auto_import_templates" typescript:",notnull"`
+	MetricsCacheRefreshInterval     *DeploymentConfigField[time.Duration]   `json:"metrics_cache_refresh_interval" typescript:",notnull"`
+	AgentStatRefreshInterval        *DeploymentConfigField[time.Duration]   `json:"agent_stat_refresh_interval" typescript:",notnull"`
+	AgentFallbackTroubleshootingURL *DeploymentConfigField[string]          `json:"agent_fallback_troubleshooting_url" typescript:",notnull"`
+	AuditLogging                    *DeploymentConfigField[bool]            `json:"audit_logging" typescript:",notnull"`
+	BrowserOnly                     *DeploymentConfigField[bool]            `json:"browser_only" typescript:",notnull"`
+	SCIMAPIKey                      *DeploymentConfigField[string]          `json:"scim_api_key" typescript:",notnull"`
+	Provisioner                     *ProvisionerConfig                      `json:"provisioner" typescript:",notnull"`
+	APIRateLimit                    *DeploymentConfigField[int]             `json:"api_rate_limit" typescript:",notnull"`
+	Experimental                    *DeploymentConfigField[bool]            `json:"experimental" typescript:",notnull"`
+	UpdateCheck                     *DeploymentConfigField[bool]            `json:"update_check" typescript:",notnull"`
+	PasswordAuthHidden              *DeploymentConfigField[bool]            `json:"password_auth_hidden" typescript:",notnull"`
 }
 
 type DERP struct {
@@ -87,14 +89,15 @@ type OAuth2GithubConfig struct {
 }
 
 type OIDCConfig struct {
-	AllowSignups *DeploymentConfigField[bool]     `json:"allow_signups" typescript:",notnull"`
-	ClientID     *DeploymentConfigField[string]   `json:"client_id" typescript:",notnull"`
-	ClientSecret *DeploymentConfigField[string]   `json:"client_secret" typescript:",notnull"`
-	EmailDomain  *DeploymentConfigField[string]   `json:"email_domain" typescript:",notnull"`
-	IssuerURL    *DeploymentConfigField[string]   `json:"issuer_url" typescript:",notnull"`
-	Scopes       *DeploymentConfigField[[]string] `json:"scopes" typescript:",notnull"`
-	SignInText   *DeploymentConfigField[string]   `json:"sign_in_text" typescript:",notnull"`
-	IconURL      *DeploymentConfigField[string]   `json:"icon_url" typescript:",notnull"`
+	AllowSignups        *DeploymentConfigField[bool]     `json:"allow_signups" typescript:",notnull"`
+	ClientID            *DeploymentConfigField[string]   `json:"client_id" typescript:",notnull"`
+	ClientSecret        *DeploymentConfigField[string]   `json:"client_secret" typescript:",notnull"`
+	EmailDomain         *DeploymentConfigField[[]string] `json:"email_domain" typescript:",notnull"`
+	IssuerURL           *DeploymentConfigField[string]   `json:"issuer_url" typescript:",notnull"`
+	Scopes              *DeploymentConfigField[[]string] `json:"scopes" typescript:",notnull"`
+	IgnoreEmailVerified *DeploymentConfigField[bool]     `json:"ignore_email_verified" typescript:",notnull"`
+	SignInText          *DeploymentConfigField[string]   `json:"sign_in_text" typescript:",notnull"`
+	IconURL             *DeploymentConfigField[string]   `json:"icon_url" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -127,6 +130,7 @@ type GitAuthConfig struct {
 	ClientSecret string   `json:"-" yaml:"client_secret"`
 	AuthURL      string   `json:"auth_url"`
 	TokenURL     string   `json:"token_url"`
+	ValidateURL  string   `json:"validate_url"`
 	Regex        string   `json:"regex"`
 	NoRefresh    bool     `json:"no_refresh"`
 	Scopes       []string `json:"scopes"`
@@ -134,6 +138,8 @@ type GitAuthConfig struct {
 
 type ProvisionerConfig struct {
 	Daemons             *DeploymentConfigField[int]           `json:"daemons" typescript:",notnull"`
+	DaemonPollInterval  *DeploymentConfigField[time.Duration] `json:"daemon_poll_interval" typescript:",notnull"`
+	DaemonPollJitter    *DeploymentConfigField[time.Duration] `json:"daemon_poll_jitter" typescript:",notnull"`
 	ForceCancelInterval *DeploymentConfigField[time.Duration] `json:"force_cancel_interval" typescript:",notnull"`
 }
 

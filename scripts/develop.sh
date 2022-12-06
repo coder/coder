@@ -51,28 +51,55 @@ make -j "build/coder_${GOOS}_${GOARCH}"
 # Use the coder dev shim so we don't overwrite the user's existing Coder config.
 CODER_DEV_SHIM="${PROJECT_ROOT}/scripts/coder-dev.sh"
 
+# Stores the pid of the subshell that runs our main routine.
+ppid=0
+# Tracks pids of commands we've started.
 pids=()
 exit_cleanup() {
 	set +e
 	# Set empty interrupt handler so cleanup isn't interrupted.
-	trap '' INT
-	# Send interrupt to the entire process group to start shutdown procedures.
-	kill -INT -$$
+	trap '' INT TERM
 	# Remove exit trap to avoid infinite loop.
 	trap - EXIT
 
-	# Just in case, send interrupts to our children.
+	# Send interrupts to the processes we started. Note that we do not
+	# (yet) want to send a kill signal to the entire process group as
+	# this can halt processes started by graceful shutdown.
 	kill -INT "${pids[@]}" >/dev/null 2>&1
 	# Use the hammer if things take too long.
-	{ sleep 5 && kill -TERM -$$ >/dev/null 2>&1; } &
+	{ sleep 5 && kill -TERM "${pids[@]}" >/dev/null 2>&1; } &
 
 	# Wait for all children to exit (this can be aborted by hammer).
 	wait_cmds
+
+	# Just in case, send termination to the entire process group
+	# in case the children left something behind.
+	kill -TERM -"${ppid}" >/dev/null 2>&1
+
 	exit 1
 }
 start_cmd() {
+	name=$1
+	prefix=$2
+	shift 2
+
 	echo "== CMD: $*" >&2
-	"$@" 2>&1 || fatal "CMD: $*" &
+
+	FORCE_COLOR=1 "$@" > >(
+		# Ignore interrupt, read will keep reading until stdin is gone.
+		trap '' INT
+
+		while read -r line; do
+			if [[ $prefix == date ]]; then
+				echo "[$name] $(date '+%Y-%m-%d %H:%M:%S') $line"
+			else
+				echo "[$name] $line"
+			fi
+		done
+		echo "== CMD EXIT: $*" >&2
+		# Let parent know the command exited.
+		kill -INT $ppid >/dev/null 2>&1
+	) 2>&1 &
 	pids+=("$!")
 }
 wait_cmds() {
@@ -80,31 +107,35 @@ wait_cmds() {
 }
 fatal() {
 	echo "== FAIL: $*" >&2
-	exit_cleanup
+	kill -INT $ppid >/dev/null 2>&1
 }
 
 # This is a way to run multiple processes in parallel, and have Ctrl-C work correctly
 # to kill both at the same time. For more details, see:
 # https://stackoverflow.com/questions/3004811/how-do-you-run-multiple-programs-in-parallel-from-a-bash-script
 (
+	ppid=$BASHPID
 	# If something goes wrong, just bail and tear everything down
 	# rather than leaving things in an inconsistent state.
-	trap 'exit_cleanup' INT EXIT
+	trap 'exit_cleanup' INT TERM EXIT
 	trap 'fatal "Script encountered an error"' ERR
 
 	cdroot
-	start_cmd "${CODER_DEV_SHIM}" server --address 0.0.0.0:3000
+	start_cmd API "" "${CODER_DEV_SHIM}" server --address 0.0.0.0:3000
 
 	echo '== Waiting for Coder to become ready'
+	# Start the timeout in the background so interrupting this script
+	# doesn't hang for 60s.
 	timeout 60s bash -c 'until curl -s --fail http://localhost:3000/healthz > /dev/null 2>&1; do sleep 0.5; done' ||
-		fatal 'Coder did not become ready in time'
+		fatal 'Coder did not become ready in time' &
+	wait $!
 
 	# Check if credentials are already set up to avoid setting up again.
 	"${CODER_DEV_SHIM}" list >/dev/null 2>&1 && touch "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup"
 
 	if [ ! -f "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup" ]; then
 		# Try to create the initial admin user.
-		if "${CODER_DEV_SHIM}" login http://127.0.0.1:3000 --first-user-username=admin --first-user-email=admin@coder.com --first-user-password="${password}"; then
+		if "${CODER_DEV_SHIM}" login http://127.0.0.1:3000 --first-user-username=admin --first-user-email=admin@coder.com --first-user-password="${password}" --first-user-trial=true; then
 			# Only create this file if an admin user was successfully
 			# created, otherwise we won't retry on a later attempt.
 			touch "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup"
@@ -138,11 +169,7 @@ fatal() {
 	fi
 
 	# Start the frontend once we have a template up and running
-	CODER_HOST=http://127.0.0.1:3000 start_cmd yarn --cwd=./site dev --host > >(
-		while read -r line; do
-			echo "[SITE] $(date -Iseconds): $line"
-		done
-	)
+	CODER_HOST=http://127.0.0.1:3000 start_cmd SITE date yarn --cwd=./site dev --host
 
 	interfaces=(localhost)
 	if which ip >/dev/null 2>&1; then

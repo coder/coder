@@ -12,6 +12,6 @@ export class SignInPage extends BasePom {
   ): Promise<void> {
     await this.page.fill("text=Email", email)
     await this.page.fill("text=Password", password)
-    await this.page.click("text=Sign In")
+    await this.page.click('button:has-text("Sign In")')
   }
 }

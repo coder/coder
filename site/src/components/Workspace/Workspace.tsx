@@ -19,7 +19,7 @@ import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
 import { AlertBanner } from "../AlertBanner/AlertBanner"
 import { useTranslation } from "react-i18next"
 import {
-  EstimateTransitionTime,
+  ActiveTransition,
   WorkspaceBuildProgress,
 } from "components/WorkspaceBuildProgress/WorkspaceBuildProgress"
 import { AgentRow } from "components/Resources/AgentRow"
@@ -45,6 +45,7 @@ export interface WorkspaceProps {
   handleDelete: () => void
   handleUpdate: () => void
   handleCancel: () => void
+  handleChangeVersion: () => void
   isUpdating: boolean
   workspace: TypesGen.Workspace
   resources?: TypesGen.WorkspaceResource[]
@@ -68,6 +69,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   handleDelete,
   handleUpdate,
   handleCancel,
+  handleChangeVersion,
   workspace,
   isUpdating,
   resources,
@@ -115,13 +117,9 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
     />
   )
 
-  let buildTimeEstimate: number | undefined = undefined
-  let isTransitioning: boolean | undefined = undefined
+  let transitionStats: TypesGen.TransitionStats | undefined = undefined
   if (template !== undefined) {
-    ;[buildTimeEstimate, isTransitioning] = EstimateTransitionTime(
-      template,
-      workspace,
-    )
+    transitionStats = ActiveTransition(template, workspace)
   }
 
   return (
@@ -147,6 +145,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               handleDelete={handleDelete}
               handleUpdate={handleUpdate}
               handleCancel={handleCancel}
+              handleChangeVersion={handleChangeVersion}
               isUpdating={isUpdating}
             />
           </Stack>
@@ -195,10 +194,10 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           handleUpdate={handleUpdate}
         />
 
-        {isTransitioning !== undefined && isTransitioning && (
+        {transitionStats !== undefined && (
           <WorkspaceBuildProgress
             workspace={workspace}
-            buildEstimate={buildTimeEstimate}
+            transitionStats={transitionStats}
           />
         )}
 

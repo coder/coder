@@ -60,10 +60,9 @@ func TestResetPassword(t *testing.T) {
 	client := codersdk.New(accessURL)
 
 	_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
-		Email:            email,
-		Username:         username,
-		Password:         oldPassword,
-		OrganizationName: "example",
+		Email:    email,
+		Username: username,
+		Password: oldPassword,
 	})
 	require.NoError(t, err)
 

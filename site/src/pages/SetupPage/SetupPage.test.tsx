@@ -12,20 +12,14 @@ const fillForm = async ({
   username = "someuser",
   email = "someone@coder.com",
   password = "password",
-  organization = "Coder",
 }: {
   username?: string
   email?: string
   password?: string
-  organization?: string
 } = {}) => {
   const usernameField = screen.getByLabelText(PageViewLanguage.usernameLabel)
   const emailField = screen.getByLabelText(PageViewLanguage.emailLabel)
   const passwordField = screen.getByLabelText(PageViewLanguage.passwordLabel)
-  const organizationField = screen.getByLabelText(
-    PageViewLanguage.organizationLabel,
-  )
-  await userEvent.type(organizationField, organization)
   await userEvent.type(usernameField, username)
   await userEvent.type(emailField, email)
   await userEvent.type(passwordField, password)

@@ -77,6 +77,7 @@ func list() *cobra.Command {
 			if err != nil {
 				return err
 			}
+
 			filter := codersdk.WorkspaceFilter{
 				FilterQuery: searchQuery,
 			}
@@ -91,6 +92,7 @@ func list() *cobra.Command {
 				}
 				filter.Owner = myUser.Username
 			}
+
 			res, err := client.Workspaces(cmd.Context(), filter)
 			if err != nil {
 				return err
@@ -102,10 +104,12 @@ func list() *cobra.Command {
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 				return nil
 			}
+
 			userRes, err := client.Users(cmd.Context(), codersdk.UsersRequest{})
 			if err != nil {
 				return err
 			}
+
 			usersByID := map[uuid.UUID]codersdk.User{}
 			for _, user := range userRes.Users {
 				usersByID[user.ID] = user
@@ -137,6 +141,6 @@ func list() *cobra.Command {
 		"Specifies whether all workspaces will be listed or not.")
 	cmd.Flags().StringArrayVarP(&columns, "column", "c", nil,
 		fmt.Sprintf("Specify a column to filter in the table. Available columns are: %v", columnString))
-	cmd.Flags().StringVar(&searchQuery, "search", "", "Search for a workspace with a query.")
+	cmd.Flags().StringVar(&searchQuery, "search", defaultQuery, "Search for a workspace with a query.")
 	return cmd
 }

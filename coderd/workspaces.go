@@ -104,7 +104,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	queryStr := r.URL.Query().Get("q")
-	filter, errs := workspaceSearchQuery(queryStr, page)
+	filter, errs := workspaceSearchQuery(queryStr, page, api.AgentInactiveDisconnectTimeout)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid workspace search query.",
@@ -118,7 +118,8 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		filter.OwnerUsername = ""
 	}
 
-	sqlFilter, err := api.HTTPAuth.AuthorizeSQLFilter(r, rbac.ActionRead, rbac.ResourceWorkspace.Type)
+	// Workspaces do not have ACL columns.
+	prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, rbac.ActionRead, rbac.ResourceWorkspace.Type)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error preparing sql filter.",
@@ -127,27 +128,23 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workspaces, err := api.Database.GetAuthorizedWorkspaces(ctx, filter, sqlFilter)
+	workspaceRows, err := api.Database.GetAuthorizedWorkspaces(ctx, filter, prepared)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspaces.",
 			Detail:  err.Error(),
+		})
+		return
+	}
+	if len(workspaceRows) == 0 {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspacesResponse{
+			Workspaces: []codersdk.Workspace{},
+			Count:      0,
 		})
 		return
 	}
 
-	// run the query again to get the total count for frontend pagination
-	filter.Offset = 0
-	filter.Limit = 0
-	all, err := api.Database.GetAuthorizedWorkspaces(ctx, filter, sqlFilter)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspaces.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	count := len(all)
+	workspaces := database.ConvertWorkspaceRows(workspaceRows)
 
 	data, err := api.workspaceData(ctx, workspaces)
 	if err != nil {
@@ -169,7 +166,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspacesResponse{
 		Workspaces: wss,
-		Count:      count,
+		Count:      int(workspaceRows[0].Count),
 	})
 }
 
@@ -377,6 +374,8 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
+	tags := provisionerdserver.MutateTags(user.ID, templateVersionJob.Tags)
+
 	var (
 		provisionerJob database.ProvisionerJob
 		workspaceBuild database.WorkspaceBuild
@@ -439,6 +438,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			StorageMethod:  templateVersionJob.StorageMethod,
 			FileID:         templateVersionJob.FileID,
 			Input:          input,
+			Tags:           tags,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert provisioner job: %w", err)
@@ -493,6 +493,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		[]database.WorkspaceResourceMetadatum{},
 		[]database.WorkspaceAgent{},
 		[]database.WorkspaceApp{},
+		database.TemplateVersion{},
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -671,17 +672,11 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	var dbTTL sql.NullInt64
 
 	err := api.Database.InTx(func(s database.Store) error {
-		template, err := s.GetTemplateByID(ctx, workspace.TemplateID)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Error fetching workspace template!",
-			})
-			return xerrors.Errorf("fetch workspace template: %w", err)
-		}
-
-		dbTTL, err = validWorkspaceTTLMillis(req.TTLMillis, template.DefaultTTL)
-		if err != nil {
-			return codersdk.ValidationError{Field: "ttl_ms", Detail: err.Error()}
+		var validityErr error
+		// don't override 0 ttl with template default here because it indicates disabled auto-stop
+		dbTTL, validityErr = validWorkspaceTTLMillis(req.TTLMillis, 0)
+		if validityErr != nil {
+			return codersdk.ValidationError{Field: "ttl_ms", Detail: validityErr.Error()}
 		}
 		if err := s.UpdateWorkspaceTTL(ctx, database.UpdateWorkspaceTTLParams{
 			ID:  workspace.ID,
@@ -792,6 +787,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		api.Logger.Info(ctx, "extending workspace", slog.Error(err))
 	}
+	api.publishWorkspaceUpdate(ctx, workspace.ID)
 	httpapi.Write(ctx, rw, code, resp)
 }
 
@@ -938,6 +934,7 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 		data.metadata,
 		data.agents,
 		data.apps,
+		data.templateVersions,
 	)
 	if err != nil {
 		return workspaceData{}, xerrors.Errorf("convert workspace builds: %w", err)
@@ -1011,20 +1008,22 @@ func convertWorkspace(
 
 	ttlMillis := convertWorkspaceTTLMillis(workspace.Ttl)
 	return codersdk.Workspace{
-		ID:                workspace.ID,
-		CreatedAt:         workspace.CreatedAt,
-		UpdatedAt:         workspace.UpdatedAt,
-		OwnerID:           workspace.OwnerID,
-		OwnerName:         owner.Username,
-		TemplateID:        workspace.TemplateID,
-		LatestBuild:       workspaceBuild,
-		TemplateName:      template.Name,
-		TemplateIcon:      template.Icon,
-		Outdated:          workspaceBuild.TemplateVersionID.String() != template.ActiveVersionID.String(),
-		Name:              workspace.Name,
-		AutostartSchedule: autostartSchedule,
-		TTLMillis:         ttlMillis,
-		LastUsedAt:        workspace.LastUsedAt,
+		ID:                                   workspace.ID,
+		CreatedAt:                            workspace.CreatedAt,
+		UpdatedAt:                            workspace.UpdatedAt,
+		OwnerID:                              workspace.OwnerID,
+		OwnerName:                            owner.Username,
+		TemplateID:                           workspace.TemplateID,
+		LatestBuild:                          workspaceBuild,
+		TemplateName:                         template.Name,
+		TemplateIcon:                         template.Icon,
+		TemplateDisplayName:                  template.DisplayName,
+		TemplateAllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
+		Outdated:                             workspaceBuild.TemplateVersionID.String() != template.ActiveVersionID.String(),
+		Name:                                 workspace.Name,
+		AutostartSchedule:                    autostartSchedule,
+		TTLMillis:                            ttlMillis,
+		LastUsedAt:                           workspace.LastUsedAt,
 	}
 }
 
@@ -1097,8 +1096,10 @@ func validWorkspaceSchedule(s *string) (sql.NullString, error) {
 
 // workspaceSearchQuery takes a query string and returns the workspace filter.
 // It also can return the list of validation errors to return to the api.
-func workspaceSearchQuery(query string, page codersdk.Pagination) (database.GetWorkspacesParams, []codersdk.ValidationError) {
+func workspaceSearchQuery(query string, page codersdk.Pagination, agentInactiveDisconnectTimeout time.Duration) (database.GetWorkspacesParams, []codersdk.ValidationError) {
 	filter := database.GetWorkspacesParams{
+		AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
+
 		Offset: int32(page.Offset),
 		Limit:  int32(page.Limit),
 	}
@@ -1145,7 +1146,7 @@ func workspaceSearchQuery(query string, page codersdk.Pagination) (database.GetW
 	filter.TemplateName = parser.String(searchParams, "", "template")
 	filter.Name = parser.String(searchParams, "", "name")
 	filter.Status = parser.String(searchParams, "", "status")
-
+	filter.HasAgent = parser.String(searchParams, "", "has-agent")
 	return filter, parser.Errors
 }
 

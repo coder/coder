@@ -131,10 +131,10 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 		return
 	}
 
-	api.websocketWaitMutex.Lock()
-	api.websocketWaitGroup.Add(1)
-	api.websocketWaitMutex.Unlock()
-	defer api.websocketWaitGroup.Done()
+	api.WebsocketWaitMutex.Lock()
+	api.WebsocketWaitGroup.Add(1)
+	api.WebsocketWaitMutex.Unlock()
+	defer api.WebsocketWaitGroup.Done()
 	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -262,7 +262,7 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 				}
 			}
 
-			apiAgent, err := convertWorkspaceAgent(api.DERPMap, *api.TailnetCoordinator.Load(), agent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout)
+			apiAgent, err := convertWorkspaceAgent(api.DERPMap, *api.TailnetCoordinator.Load(), agent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout, api.DeploymentConfig.AgentFallbackTroubleshootingURL.Value)
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error reading job agent.",
@@ -312,6 +312,7 @@ func convertProvisionerJob(provisionerJob database.ProvisionerJob) codersdk.Prov
 		CreatedAt: provisionerJob.CreatedAt,
 		Error:     provisionerJob.Error.String,
 		FileID:    provisionerJob.FileID,
+		Tags:      provisionerJob.Tags,
 	}
 	// Applying values optional to the struct.
 	if provisionerJob.StartedAt.Valid {

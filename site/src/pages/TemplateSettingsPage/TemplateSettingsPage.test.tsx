@@ -28,6 +28,7 @@ const validFormValues = {
   description: "A description",
   icon: "A string",
   default_ttl_ms: 1,
+  allow_user_cancel_workspace_jobs: false,
 }
 
 const fillAndSubmitForm = async ({
@@ -36,15 +37,14 @@ const fillAndSubmitForm = async ({
   description,
   default_ttl_ms,
   icon,
+  allow_user_cancel_workspace_jobs,
 }: Required<UpdateTemplateMeta>) => {
   const nameField = await screen.findByLabelText(FormLanguage.nameLabel)
   await userEvent.clear(nameField)
   await userEvent.type(nameField, name)
 
   const { t } = i18next
-  const displayNameLabel = t("displayNameLabel", {
-    ns: "templatePage",
-  })
+  const displayNameLabel = t("displayNameLabel", { ns: "templatePage" })
 
   const displayNameField = await screen.findByLabelText(displayNameLabel)
   await userEvent.clear(displayNameField)
@@ -63,6 +63,12 @@ const fillAndSubmitForm = async ({
   const maxTtlField = await screen.findByLabelText(FormLanguage.defaultTtlLabel)
   await userEvent.clear(maxTtlField)
   await userEvent.type(maxTtlField, default_ttl_ms.toString())
+
+  const allowCancelJobsField = await screen.getByRole("checkbox")
+  // checkbox is checked by default, so it must be clicked to get unchecked
+  if (!allow_user_cancel_workspace_jobs) {
+    await userEvent.click(allowCancelJobsField)
+  }
 
   const submitButton = await screen.findByText(
     FooterFormLanguage.defaultSubmitLabel,

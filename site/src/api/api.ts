@@ -69,12 +69,14 @@ export const provisioners: TypesGen.ProvisionerDaemon[] = [
     name: "Terraform",
     created_at: "",
     provisioners: [],
+    tags: {},
   },
   {
     id: "cdr-basic",
     name: "Basic",
     created_at: "",
     provisioners: [],
+    tags: {},
   },
 ]
 
@@ -374,6 +376,12 @@ export const getBuildInfo = async (): Promise<TypesGen.BuildInfoResponse> => {
   return response.data
 }
 
+export const getUpdateCheck =
+  async (): Promise<TypesGen.UpdateCheckResponse> => {
+    const response = await axios.get("/api/v2/updatecheck")
+    return response.data
+  }
+
 export const putWorkspaceAutostart = async (
   workspaceID: string,
   autostart: TypesGen.UpdateWorkspaceAutostartRequest,
@@ -550,14 +558,6 @@ export const getAuditLogs = async (
   options: TypesGen.AuditLogsRequest,
 ): Promise<TypesGen.AuditLogResponse> => {
   const url = getURLWithSearchParams("/api/v2/audit", options)
-  const response = await axios.get(url)
-  return response.data
-}
-
-export const getAuditLogsCount = async (
-  options: TypesGen.AuditLogCountRequest = {},
-): Promise<TypesGen.AuditLogCountResponse> => {
-  const url = getURLWithSearchParams("/api/v2/audit/count", options)
   const response = await axios.get(url)
   return response.data
 }

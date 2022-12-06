@@ -36,11 +36,12 @@ type Organization struct {
 type CreateTemplateVersionRequest struct {
 	Name string `json:"name,omitempty" validate:"omitempty,template_name"`
 	// TemplateID optionally associates a version with a template.
-	TemplateID uuid.UUID `json:"template_id,omitempty"`
+	TemplateID      uuid.UUID                `json:"template_id,omitempty"`
+	StorageMethod   ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required"`
+	FileID          uuid.UUID                `json:"file_id" validate:"required"`
+	Provisioner     ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo,required"`
+	ProvisionerTags map[string]string        `json:"tags"`
 
-	StorageMethod ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required"`
-	FileID        uuid.UUID                `json:"file_id" validate:"required"`
-	Provisioner   ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo,required"`
 	// ParameterValues allows for additional parameters to be provided
 	// during the dry-run provision stage.
 	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
@@ -71,6 +72,10 @@ type CreateTemplateRequest struct {
 	// DefaultTTLMillis allows optionally specifying the default TTL
 	// for all workspaces created from this template.
 	DefaultTTLMillis *int64 `json:"default_ttl_ms,omitempty"`
+
+	// Allow users to cancel in-progress workspace jobs.
+	// *bool as the default value is "true".
+	AllowUserCancelWorkspaceJobs *bool `json:"allow_user_cancel_workspace_jobs"`
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.

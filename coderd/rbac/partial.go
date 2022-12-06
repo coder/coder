@@ -3,11 +3,11 @@ package rbac
 import (
 	"context"
 
-	"golang.org/x/xerrors"
-
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
+	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/rbac/regosql"
 	"github.com/coder/coder/coderd/tracing"
 )
 
@@ -28,12 +28,12 @@ type PartialAuthorizer struct {
 
 var _ PreparedAuthorized = (*PartialAuthorizer)(nil)
 
-func (pa *PartialAuthorizer) Compile() (AuthorizeFilter, error) {
-	filter, err := Compile(pa)
+func (pa *PartialAuthorizer) CompileToSQL(cfg regosql.ConvertConfig) (string, error) {
+	filter, err := Compile(cfg, pa)
 	if err != nil {
-		return nil, xerrors.Errorf("compile: %w", err)
+		return "", xerrors.Errorf("compile: %w", err)
 	}
-	return filter, nil
+	return filter.SQLString(), nil
 }
 
 func (pa *PartialAuthorizer) Authorize(ctx context.Context, object Object) error {

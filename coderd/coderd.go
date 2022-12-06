@@ -1,8 +1,10 @@
 package coderd
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,10 +20,13 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 	"github.com/klauspost/compress/zstd"
+	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
+	"storj.io/drpc/drpcmux"
+	"storj.io/drpc/drpcserver"
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
 	"tailscale.com/tailcfg"
@@ -32,17 +37,21 @@ import (
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbtype"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/metricscache"
+	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
+	"github.com/coder/coder/coderd/updatecheck"
 	"github.com/coder/coder/coderd/wsconncache"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionerd/proto"
+	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/site"
 	"github.com/coder/coder/tailnet"
 )
@@ -87,7 +96,7 @@ type Options struct {
 	AutoImportTemplates  []AutoImportTemplate
 	GitAuthConfigs       []*gitauth.Config
 	RealIPConfig         *httpmw.RealIPConfig
-
+	TrialGenerator       func(ctx context.Context, email string) error
 	// TLSCertificates is used to mesh DERP servers securely.
 	TLSCertificates    []tls.Certificate
 	TailnetCoordinator tailnet.Coordinator
@@ -98,6 +107,7 @@ type Options struct {
 	AgentStatsRefreshInterval   time.Duration
 	Experimental                bool
 	DeploymentConfig            *codersdk.DeploymentConfig
+	UpdateCheckOptions          *updatecheck.Options // Set non-nil to enable update checking.
 }
 
 // New constructs a Coder API handler.
@@ -116,19 +126,13 @@ func New(options *Options) *API {
 		options.AgentInactiveDisconnectTimeout = options.AgentConnectionUpdateFrequency * 2
 	}
 	if options.AgentStatsRefreshInterval == 0 {
-		options.AgentStatsRefreshInterval = 10 * time.Minute
+		options.AgentStatsRefreshInterval = 5 * time.Minute
 	}
 	if options.MetricsCacheRefreshInterval == 0 {
 		options.MetricsCacheRefreshInterval = time.Hour
 	}
 	if options.APIRateLimit == 0 {
 		options.APIRateLimit = 512
-	}
-	if options.AgentStatsRefreshInterval == 0 {
-		options.AgentStatsRefreshInterval = 10 * time.Minute
-	}
-	if options.MetricsCacheRefreshInterval == 0 {
-		options.MetricsCacheRefreshInterval = time.Hour
 	}
 	if options.Authorizer == nil {
 		options.Authorizer = rbac.NewAuthorizer()
@@ -174,6 +178,13 @@ func New(options *Options) *API {
 		metricsCache: metricsCache,
 		Auditor:      atomic.Pointer[audit.Auditor]{},
 	}
+	if options.UpdateCheckOptions != nil {
+		api.updateChecker = updatecheck.New(
+			options.Database,
+			options.Logger.Named("update_checker"),
+			*options.UpdateCheckOptions,
+		)
+	}
 	api.Auditor.Store(&options.Auditor)
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
@@ -197,8 +208,10 @@ func New(options *Options) *API {
 	})
 
 	r.Use(
-		httpmw.AttachRequestID,
 		httpmw.Recover(api.Logger),
+		tracing.StatusWriterMiddleware,
+		tracing.Middleware(api.TracerProvider),
+		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(api.RealIPConfig),
 		httpmw.Logger(api.Logger),
 		httpmw.Prometheus(options.PrometheusRegistry),
@@ -232,7 +245,6 @@ func New(options *Options) *API {
 
 	apps := func(r chi.Router) {
 		r.Use(
-			tracing.Middleware(api.TracerProvider),
 			httpmw.RateLimit(options.APIRateLimit, time.Minute),
 			httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
 				DB:            options.Database,
@@ -280,7 +292,6 @@ func New(options *Options) *API {
 
 		r.NotFound(func(rw http.ResponseWriter, r *http.Request) { httpapi.RouteNotFound(rw) })
 		r.Use(
-			tracing.Middleware(api.TracerProvider),
 			// Specific routes can specify smaller limits.
 			httpmw.RateLimit(options.APIRateLimit, time.Minute),
 		)
@@ -301,6 +312,9 @@ func New(options *Options) *API {
 				})
 			})
 		})
+		r.Route("/updatecheck", func(r chi.Router) {
+			r.Get("/", api.updateCheck)
+		})
 		r.Route("/config", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/deployment", api.deploymentConfig)
@@ -311,7 +325,6 @@ func New(options *Options) *API {
 			)
 
 			r.Get("/", api.auditLogs)
-			r.Get("/count", api.auditLogCount)
 			r.Post("/testgenerate", api.generateFakeAuditLog)
 		})
 		r.Route("/files", func(r chi.Router) {
@@ -323,13 +336,6 @@ func New(options *Options) *API {
 			)
 			r.Get("/{fileID}", api.fileByID)
 			r.Post("/", api.postFile)
-		})
-
-		r.Route("/provisionerdaemons", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-			)
-			r.Get("/", api.provisionerDaemons)
 		})
 		r.Route("/organizations", func(r chi.Router) {
 			r.Use(
@@ -493,7 +499,10 @@ func New(options *Options) *API {
 				r.Get("/gitauth", api.workspaceAgentsGitAuth)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Get("/coordinate", api.workspaceAgentCoordinate)
-				r.Get("/report-stats", api.workspaceAgentReportStats)
+				r.Post("/report-stats", api.workspaceAgentReportStats)
+				// DEPRECATED in favor of the POST endpoint above.
+				// TODO: remove in January 2023
+				r.Get("/report-stats", api.workspaceAgentReportStatsWebsocket)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
@@ -506,14 +515,6 @@ func New(options *Options) *API {
 				r.Get("/listening-ports", api.workspaceAgentListeningPorts)
 				r.Get("/connection", api.workspaceAgentConnection)
 				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
-				// TODO: This can be removed in October. It allows for a friendly
-				// error message when transitioning from WebRTC to Tailscale. See:
-				// https://github.com/coder/coder/issues/4126
-				r.Get("/dial", func(w http.ResponseWriter, r *http.Request) {
-					httpapi.Write(r.Context(), w, http.StatusGone, codersdk.Response{
-						Message: "Your Coder CLI is out of date, and requires v0.8.15+ to connect!",
-					})
-				})
 			})
 		})
 		r.Route("/workspaces", func(r chi.Router) {
@@ -596,20 +597,26 @@ type API struct {
 	// RootHandler serves "/"
 	RootHandler chi.Router
 
+	siteHandler http.Handler
+
+	WebsocketWaitMutex sync.Mutex
+	WebsocketWaitGroup sync.WaitGroup
+
 	metricsCache        *metricscache.Cache
-	siteHandler         http.Handler
-	websocketWaitMutex  sync.Mutex
-	websocketWaitGroup  sync.WaitGroup
 	workspaceAgentCache *wsconncache.Cache
+	updateChecker       *updatecheck.Checker
 }
 
 // Close waits for all WebSocket connections to drain before returning.
 func (api *API) Close() error {
-	api.websocketWaitMutex.Lock()
-	api.websocketWaitGroup.Wait()
-	api.websocketWaitMutex.Unlock()
+	api.WebsocketWaitMutex.Lock()
+	api.WebsocketWaitGroup.Wait()
+	api.WebsocketWaitMutex.Unlock()
 
 	api.metricsCache.Close()
+	if api.updateChecker != nil {
+		api.updateChecker.Close()
+	}
 	coordinator := api.TailnetCoordinator.Load()
 	if coordinator != nil {
 		_ = (*coordinator).Close()
@@ -635,4 +642,72 @@ func compressHandler(h http.Handler) http.Handler {
 	})
 
 	return cmp.Handler(h)
+}
+
+// CreateInMemoryProvisionerDaemon is an in-memory connection to a provisionerd.
+// Useful when starting coderd and provisionerd in the same process.
+func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce time.Duration) (client proto.DRPCProvisionerDaemonClient, err error) {
+	clientSession, serverSession := provisionersdk.MemTransportPipe()
+	defer func() {
+		if err != nil {
+			_ = clientSession.Close()
+			_ = serverSession.Close()
+		}
+	}()
+
+	name := namesgenerator.GetRandomName(1)
+	daemon, err := api.Database.InsertProvisionerDaemon(ctx, database.InsertProvisionerDaemonParams{
+		ID:           uuid.New(),
+		CreatedAt:    database.Now(),
+		Name:         name,
+		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform},
+		Tags: dbtype.StringMap{
+			provisionerdserver.TagScope: provisionerdserver.ScopeOrganization,
+		},
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("insert provisioner daemon %q: %w", name, err)
+	}
+
+	tags, err := json.Marshal(daemon.Tags)
+	if err != nil {
+		return nil, xerrors.Errorf("marshal tags: %w", err)
+	}
+
+	mux := drpcmux.New()
+	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdserver.Server{
+		AccessURL:          api.AccessURL,
+		ID:                 daemon.ID,
+		Database:           api.Database,
+		Pubsub:             api.Pubsub,
+		Provisioners:       daemon.Provisioners,
+		Telemetry:          api.Telemetry,
+		Tags:               tags,
+		QuotaCommitter:     &api.QuotaCommitter,
+		Auditor:            &api.Auditor,
+		AcquireJobDebounce: debounce,
+		Logger:             api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
+	})
+	if err != nil {
+		return nil, err
+	}
+	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
+		Log: func(err error) {
+			if xerrors.Is(err, io.EOF) {
+				return
+			}
+			api.Logger.Debug(ctx, "drpc server error", slog.Error(err))
+		},
+	})
+	go func() {
+		err := server.Serve(ctx, serverSession)
+		if err != nil && !xerrors.Is(err, io.EOF) {
+			api.Logger.Debug(ctx, "provisioner daemon disconnected", slog.Error(err))
+		}
+		// close the sessions so we don't leak goroutines serving them.
+		_ = clientSession.Close()
+		_ = serverSession.Close()
+	}()
+
+	return proto.NewDRPCProvisionerDaemonClient(clientSession), nil
 }

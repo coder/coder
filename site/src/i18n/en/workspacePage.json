@@ -27,7 +27,8 @@
     "updating": "Updating",
     "starting": "Starting...",
     "stopping": "Stopping...",
-    "deleting": "Deleting..."
+    "deleting": "Deleting...",
+    "changeVersion": "Change version"
   },
   "disabledButton": {
     "canceling": "Canceling",
@@ -49,6 +50,7 @@
   },
   "buildData": {
     "reason": "Reason",
-    "duration": "Duration"
+    "duration": "Duration",
+    "version": "Version"
   }
 }

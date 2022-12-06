@@ -2,6 +2,7 @@ package audit
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -30,6 +31,20 @@ type Request[T Auditable] struct {
 
 	Old T
 	New T
+}
+
+type BuildAuditParams[T Auditable] struct {
+	Audit Auditor
+	Log   slog.Logger
+
+	UserID           uuid.UUID
+	JobID            uuid.UUID
+	Status           int
+	Action           database.AuditAction
+	AdditionalFields json.RawMessage
+
+	New T
+	Old T
 }
 
 func ResourceTarget[T Auditable](tgt T) string {
@@ -147,7 +162,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			Time:             database.Now(),
 			UserID:           httpmw.APIKey(p.Request).UserID,
 			Ip:               ip,
-			UserAgent:        p.Request.UserAgent(),
+			UserAgent:        sql.NullString{String: p.Request.UserAgent(), Valid: true},
 			ResourceType:     either(req.Old, req.New, ResourceType[T]),
 			ResourceID:       either(req.Old, req.New, ResourceID[T]),
 			ResourceTarget:   either(req.Old, req.New, ResourceTarget[T]),
@@ -161,6 +176,40 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			p.Log.Error(logCtx, "export audit log", slog.Error(err))
 			return
 		}
+	}
+}
+
+// BuildAudit creates an audit log for a workspace build.
+// The audit log is committed upon invocation.
+func BuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T]) {
+	// As the audit request has not been initiated directly by a user, we omit
+	// certain user details.
+	ip := parseIP("")
+	// We do not show diffs for build audit logs
+	var diffRaw = []byte("{}")
+
+	if p.AdditionalFields == nil {
+		p.AdditionalFields = json.RawMessage("{}")
+	}
+
+	err := p.Audit.Export(ctx, database.AuditLog{
+		ID:               uuid.New(),
+		Time:             database.Now(),
+		UserID:           p.UserID,
+		Ip:               ip,
+		UserAgent:        sql.NullString{},
+		ResourceType:     either(p.Old, p.New, ResourceType[T]),
+		ResourceID:       either(p.Old, p.New, ResourceID[T]),
+		ResourceTarget:   either(p.Old, p.New, ResourceTarget[T]),
+		Action:           p.Action,
+		Diff:             diffRaw,
+		StatusCode:       int32(p.Status),
+		RequestID:        p.JobID,
+		AdditionalFields: p.AdditionalFields,
+	})
+	if err != nil {
+		p.Log.Error(ctx, "export audit log", slog.Error(err))
+		return
 	}
 }
 

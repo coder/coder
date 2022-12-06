@@ -11,9 +11,9 @@ import { FC } from "react"
 import * as Yup from "yup"
 import { AuthMethods } from "../../api/typesGenerated"
 import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
-import { Welcome } from "../Welcome/Welcome"
 import { LoadingButton } from "./../LoadingButton/LoadingButton"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { useTranslation } from "react-i18next"
 import { ContactlessOutlined } from "@material-ui/icons"
 import { useSearchParams } from "react-router-dom"
 
@@ -59,6 +59,20 @@ const validationSchema = Yup.object({
 })
 
 const useStyles = makeStyles((theme) => ({
+  root: {
+    width: "100%",
+  },
+  title: {
+    fontSize: theme.spacing(4),
+    fontWeight: 400,
+    margin: 0,
+    marginBottom: theme.spacing(4),
+    lineHeight: 1,
+
+    "& strong": {
+      fontWeight: 600,
+    },
+  },
   buttonIcon: {
     width: 14,
     height: 14,
@@ -89,13 +103,7 @@ export interface SignInFormProps {
   redirectTo: string
   loginErrors: Partial<Record<LoginErrors, Error | unknown>>
   authMethods?: AuthMethods
-  onSubmit: ({
-    email,
-    password,
-  }: {
-    email: string
-    password: string
-  }) => Promise<void>
+  onSubmit: (credentials: { email: string; password: string }) => void
   // initialTouched is only used for testing the error state of the form.
   initialTouched?: FormikTouched<BuiltInAuthFormValues>
 }
@@ -110,7 +118,6 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
 }) => {
   const styles = useStyles()
   const [searchParams] = useSearchParams()
-
   const form: FormikContextType<BuiltInAuthFormValues> =
     useFormik<BuiltInAuthFormValues>({
       initialValues: {
@@ -130,14 +137,19 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
     form,
     loginErrors.authError,
   )
+  const commonTranslation = useTranslation("common")
+  const loginPageTranslation = useTranslation("loginPage")
 
   const passwordHidden = authMethods?.password.hidden
   const urlParamOverride = searchParams.get("auth") === "password"
   const showPasswordLogin = !passwordHidden || urlParamOverride
 
   return (
-    <>
-      <Welcome />
+    <div className={styles.root}>
+      <h1 className={styles.title}>
+        {loginPageTranslation.t("signInTo")}{" "}
+        <strong>{commonTranslation.t("coder")}</strong>
+      </h1>
       {showPasswordLogin && (
         <form onSubmit={form.handleSubmit}>
           <Stack>
@@ -244,6 +256,6 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
           )}
         </Box>
       )}
-    </>
+    </div>
   )
 }

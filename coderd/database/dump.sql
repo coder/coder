@@ -143,8 +143,8 @@ CREATE TABLE audit_logs (
     "time" timestamp with time zone NOT NULL,
     user_id uuid NOT NULL,
     organization_id uuid NOT NULL,
-    ip inet NOT NULL,
-    user_agent character varying(256) NOT NULL,
+    ip inet,
+    user_agent character varying(256),
     resource_type resource_type NOT NULL,
     resource_id uuid NOT NULL,
     resource_target text NOT NULL,
@@ -200,7 +200,8 @@ CREATE TABLE licenses (
     id integer NOT NULL,
     uploaded_at timestamp with time zone NOT NULL,
     jwt text NOT NULL,
-    exp timestamp with time zone NOT NULL
+    exp timestamp with time zone NOT NULL,
+    uuid uuid
 );
 
 COMMENT ON COLUMN licenses.exp IS 'exp tracks the claim of the same name in the JWT, and we include it here so that we can easily query for licenses that have not yet expired.';
@@ -269,7 +270,8 @@ CREATE TABLE provisioner_daemons (
     updated_at timestamp with time zone,
     name character varying(64) NOT NULL,
     provisioners provisioner_type[] NOT NULL,
-    replica_id uuid
+    replica_id uuid,
+    tags jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 CREATE TABLE provisioner_job_logs (
@@ -306,7 +308,8 @@ CREATE TABLE provisioner_jobs (
     type provisioner_job_type NOT NULL,
     input jsonb NOT NULL,
     worker_id uuid,
-    file_id uuid NOT NULL
+    file_id uuid NOT NULL,
+    tags jsonb DEFAULT '{"scope": "organization"}'::jsonb NOT NULL
 );
 
 CREATE TABLE replicas (
@@ -355,12 +358,15 @@ CREATE TABLE templates (
     icon character varying(256) DEFAULT ''::character varying NOT NULL,
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
-    display_name character varying(64) DEFAULT ''::character varying NOT NULL
+    display_name character varying(64) DEFAULT ''::character varying NOT NULL,
+    allow_user_cancel_workspace_jobs boolean DEFAULT true NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for auto-stop for workspaces created from this template.';
 
 COMMENT ON COLUMN templates.display_name IS 'Display name is a custom, human-friendly template name that user can set.';
+
+COMMENT ON COLUMN templates.allow_user_cancel_workspace_jobs IS 'Allow users to cancel in-progress workspace jobs.';
 
 CREATE TABLE user_links (
     user_id uuid NOT NULL,
@@ -407,7 +413,8 @@ CREATE TABLE workspace_agents (
     version text DEFAULT ''::text NOT NULL,
     last_connected_replica_id uuid,
     connection_timeout_seconds integer DEFAULT 0 NOT NULL,
-    troubleshooting_url text DEFAULT ''::text NOT NULL
+    troubleshooting_url text DEFAULT ''::text NOT NULL,
+    motd_file text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON COLUMN workspace_agents.version IS 'Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.';
@@ -415,6 +422,8 @@ COMMENT ON COLUMN workspace_agents.version IS 'Version tracks the version of the
 COMMENT ON COLUMN workspace_agents.connection_timeout_seconds IS 'Connection timeout in seconds, 0 means disabled.';
 
 COMMENT ON COLUMN workspace_agents.troubleshooting_url IS 'URL for troubleshooting the agent.';
+
+COMMENT ON COLUMN workspace_agents.motd_file IS 'Path to file inside workspace containing the message of the day (MOTD) to show to the user when logging in via SSH.';
 
 CREATE TABLE workspace_apps (
     id uuid NOT NULL,
@@ -624,11 +633,19 @@ CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE (deleted 
 
 CREATE UNIQUE INDEX idx_users_username ON users USING btree (username) WHERE (deleted = false);
 
+CREATE INDEX provisioner_job_logs_id_job_id_idx ON provisioner_job_logs USING btree (job_id, id);
+
+CREATE INDEX provisioner_jobs_started_at_idx ON provisioner_jobs USING btree (started_at) WHERE (started_at IS NULL);
+
 CREATE UNIQUE INDEX templates_organization_id_name_idx ON templates USING btree (organization_id, lower((name)::text)) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username)) WHERE (deleted = false);
+
+CREATE INDEX workspace_agents_auth_token_idx ON workspace_agents USING btree (auth_token);
+
+CREATE INDEX workspace_agents_resource_id_idx ON workspace_agents USING btree (resource_id);
 
 CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (job_id);
 

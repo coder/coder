@@ -8,14 +8,44 @@ WHERE
 LIMIT
 	1;
 
+-- name: GetWorkspaceByAgentID :one
+SELECT
+	*
+FROM
+	workspaces
+WHERE
+	workspaces.id = (
+		SELECT
+			workspace_id
+		FROM
+			workspace_builds
+		WHERE
+			workspace_builds.job_id = (
+				SELECT
+					job_id
+				FROM
+					workspace_resources
+				WHERE
+					workspace_resources.id = (
+						SELECT
+							resource_id
+						FROM
+							workspace_agents
+						WHERE
+							workspace_agents.id = @agent_id
+					)
+			)
+	);
+
 -- name: GetWorkspaces :many
 SELECT
-	workspaces.*
+	workspaces.*, COUNT(*) OVER () as count
 FROM
 	workspaces
 LEFT JOIN LATERAL (
 	SELECT
 		workspace_builds.transition,
+		provisioner_jobs.id AS provisioner_job_id,
 		provisioner_jobs.started_at,
 		provisioner_jobs.updated_at,
 		provisioner_jobs.canceled_at,
@@ -117,7 +147,7 @@ WHERE
 	-- Use the organization filter to restrict to 1 org if needed.
 	AND CASE
 		WHEN @template_name :: text != '' THEN
-			template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower(@template_name)  AND deleted = false)
+			template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower(@template_name) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_ids
@@ -132,17 +162,54 @@ WHERE
 			name ILIKE '%' || @name || '%'
 		ELSE true
 	END
+	-- Filter by agent status
+	-- has-agent: is only applicable for workspaces in "start" transition. Stopped and deleted workspaces don't have agents.
+	AND CASE
+		WHEN @has_agent :: text != '' THEN
+			(
+				SELECT COUNT(*)
+				FROM
+					workspace_resources
+				JOIN
+					workspace_agents
+				ON
+					workspace_agents.resource_id = workspace_resources.id
+				WHERE
+					workspace_resources.job_id = latest_build.provisioner_job_id AND
+					latest_build.transition = 'start'::workspace_transition AND
+					@has_agent = (
+						CASE
+							WHEN workspace_agents.first_connected_at IS NULL THEN
+								CASE
+									WHEN workspace_agents.connection_timeout_seconds > 0 AND NOW() - workspace_agents.created_at > workspace_agents.connection_timeout_seconds * INTERVAL '1 second' THEN
+										'timeout'
+									ELSE
+										'connecting'
+								END
+							WHEN workspace_agents.disconnected_at > workspace_agents.last_connected_at THEN
+								'disconnected'
+							WHEN NOW() - workspace_agents.last_connected_at > INTERVAL '1 second' * @agent_inactive_disconnect_timeout_seconds :: bigint THEN
+								'disconnected'
+							WHEN workspace_agents.last_connected_at IS NOT NULL THEN
+								'connected'
+							ELSE
+								NULL
+						END
+					)
+			) > 0
+		ELSE true
+	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ORDER BY
-    last_used_at DESC
+	last_used_at DESC
 LIMIT
-    CASE
-        WHEN @limit_ :: integer > 0 THEN
-            @limit_
-    END
+	CASE
+		WHEN @limit_ :: integer > 0 THEN
+			@limit_
+	END
 OFFSET
-    @offset_
+	@offset_
 ;
 
 -- name: GetWorkspaceByOwnerIDAndName :one

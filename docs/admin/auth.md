@@ -50,6 +50,12 @@ CODER_OAUTH2_GITHUB_CLIENT_ID="8d1...e05"
 CODER_OAUTH2_GITHUB_CLIENT_SECRET="57ebc9...02c24c"
 ```
 
+**Note:** To allow everyone to signup using GitHub, set:
+
+```console
+CODER_OAUTH2_GITHUB_ALLOW_EVERYONE=true
+```
+
 Once complete, run `sudo service coder restart` to reboot Coder.
 
 ## OpenID Connect with Google
@@ -69,7 +75,7 @@ Navigate to your Coder host and run the following command to start up the Coder
 server:
 
 ```console
-coder server --oidc-issuer-url="https://accounts.google.com" --oidc-email-domain="your-domain" --oidc-client-id="533...ent.com" --oidc-client-secret="G0CSP...7qSM"
+coder server --oidc-issuer-url="https://accounts.google.com" --oidc-email-domain="your-domain-1,your-domain-2" --oidc-client-id="533...ent.com" --oidc-client-secret="G0CSP...7qSM"
 ```
 
 Alternatively, if you are running Coder as a system service, you can achieve the
@@ -78,7 +84,7 @@ to the `/etc/coder.d/coder.env` file:
 
 ```console
 CODER_OIDC_ISSUER_URL="https://accounts.google.com"
-CODER_OIDC_EMAIL_DOMAIN="your-domain"
+CODER_OIDC_EMAIL_DOMAIN="your-domain-1,your-domain-2"
 CODER_OIDC_CLIENT_ID="533...ent.com"
 CODER_OIDC_CLIENT_SECRET="G0CSP...7qSM"
 ```
@@ -93,6 +99,15 @@ If your OpenID Connect provider requires client TLS certificates for authenticat
 CODER_TLS_CLIENT_CERT_FILE=/path/to/cert.pem
 CODER_TLS_CLIENT_KEY_FILE=/path/to/key.pem
 ```
+
+Coder requires all OIDC email addresses to be verified by default. If the `email_verified` claim is present in the token response from the identity provider, Coder will validate that its value is `true`.
+If needed, you can disable this behavior with the following setting:
+
+```console
+CODER_OIDC_IGNORE_EMAIL_VERIFIED=true
+```
+
+> **Note:** This will cause Coder to implicitly treat all OIDC emails as "verified".
 
 If you'd like to change the OpenID Connect button text and/or icon, you can configure them like so:
 
