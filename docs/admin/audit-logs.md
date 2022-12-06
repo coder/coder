@@ -11,7 +11,7 @@ We track **create, update and delete** events for the following resources:
 - Template
 - TemplateVersion
 - Workspace
-- Workspace start/stop
+- WorkspaceBuild
 - User
 - Group
 
