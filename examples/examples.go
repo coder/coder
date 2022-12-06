@@ -12,6 +12,8 @@ import (
 	"github.com/gohugoio/hugo/parser/pageparser"
 	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/codersdk"
 )
 
 var (
@@ -19,23 +21,15 @@ var (
 	files embed.FS
 
 	exampleBasePath = "https://github.com/coder/coder/tree/main/examples/templates/"
-	examples        = make([]Example, 0)
+	examples        = make([]codersdk.TemplateExample, 0)
 	parseExamples   sync.Once
 	archives        = singleflight.Group{}
 )
 
-type Example struct {
-	ID          string `json:"id"`
-	URL         string `json:"url"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Markdown    string `json:"markdown"`
-}
-
 const rootDir = "templates"
 
 // List returns all embedded examples.
-func List() ([]Example, error) {
+func List() ([]codersdk.TemplateExample, error) {
 	var returnError error
 	parseExamples.Do(func() {
 		files, err := fs.Sub(files, rootDir)
@@ -92,7 +86,7 @@ func List() ([]Example, error) {
 				return
 			}
 
-			examples = append(examples, Example{
+			examples = append(examples, codersdk.TemplateExample{
 				ID:          exampleID,
 				URL:         exampleURL,
 				Name:        name,
@@ -112,7 +106,7 @@ func Archive(exampleID string) ([]byte, error) {
 			return nil, xerrors.Errorf("list: %w", err)
 		}
 
-		var selected Example
+		var selected codersdk.TemplateExample
 		for _, example := range examples {
 			if example.ID != exampleID {
 				continue

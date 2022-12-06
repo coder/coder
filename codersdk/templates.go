@@ -82,6 +82,14 @@ type UpdateTemplateMeta struct {
 	AllowUserCancelWorkspaceJobs bool   `json:"allow_user_cancel_workspace_jobs,omitempty"`
 }
 
+type TemplateExample struct {
+	ID          string `json:"id"`
+	URL         string `json:"url"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Markdown    string `json:"markdown"`
+}
+
 // Template returns a single template.
 func (c *Client) Template(ctx context.Context, template uuid.UUID) (Template, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s", template), nil)
