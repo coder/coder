@@ -674,7 +674,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@master
-    - uses: gaurav-nelson/github-action-markdown-link-check@v1
+    # For the main branch:
+    - if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
+      uses: gaurav-nelson/github-action-markdown-link-check@v1
+      with:
+          use-quiet-mode: yes
+          use-verbose-mode: yes
+          config-file: .github/workflows/mlc_config.json
+    # For pull requests:
+    - if: github.ref != 'refs/heads/main' || github.event.pull_request.head.repo.fork
+      uses: gaurav-nelson/github-action-markdown-link-check@v1
       with:
           use-quiet-mode: yes
           use-verbose-mode: yes
