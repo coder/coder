@@ -202,11 +202,7 @@ func logf(t *testing.T, name, format string, args ...interface{}) {
 func fatalf(t *testing.T, name, reason, format string, args ...interface{}) {
 	t.Helper()
 
-	// Ensure the message is part of the normal log stream before
-	// failing the test.
-	logf(t, name, "%s: %s", reason, fmt.Sprintf(format, args...))
-
-	require.FailNowf(t, reason, format, args...)
+	panic(fmt.Sprintf("%s: %s %s", name, reason, fmt.Sprintf(format, args...)))
 }
 
 // stdbuf is like a buffered stdout, it buffers writes until read.
