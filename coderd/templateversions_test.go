@@ -963,3 +963,37 @@ func TestTemplateVersionByOrganizationAndName(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
+
+func TestPreviousTemplateVersion(t *testing.T) {
+	t.Parallel()
+	t.Run("Previous version not found", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.PreviousTemplateVersion(ctx, user.OrganizationID, version.Name)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+	})
+
+	t.Run("Previous version found", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		previousVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, previousVersion.ID)
+		latestVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, nil, template.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		result, err := client.PreviousTemplateVersion(ctx, user.OrganizationID, latestVersion.Name)
+		require.NoError(t, err)
+		require.Equal(t, previousVersion.ID, result.ID)
+	})
+}
