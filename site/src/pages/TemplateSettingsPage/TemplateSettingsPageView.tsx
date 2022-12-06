@@ -86,9 +86,7 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
                 <p className={classes.deleteTemplateHeader}>
                   {t("dangerZone.deleteTemplateHeader")}
                 </p>
-                <span>
-                  {t("dangerZone.deleteTemplateCaption")}
-                </span>
+                <span>{t("dangerZone.deleteTemplateCaption")}</span>
               </Stack>
               <Button
                 className={classes.deleteButton}

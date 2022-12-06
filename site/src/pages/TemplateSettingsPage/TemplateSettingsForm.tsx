@@ -41,26 +41,27 @@ const MAX_DESCRIPTION_CHAR_LIMIT = 128
 const MAX_TTL_DAYS = 7
 const MS_HOUR_CONVERSION = 3600000
 
-export const getValidationSchema = (): Yup.AnyObjectSchema => Yup.object({
-  name: nameValidator(i18next.t("nameLabel", { ns: "templateSettingsPage" })),
-  display_name: templateDisplayNameValidator(
-    i18next.t("displayNameLabel", {
-      ns: "templateSettingsPage",
-    }),
-  ),
-  description: Yup.string().max(
-    MAX_DESCRIPTION_CHAR_LIMIT,
-    i18next.t("descriptionMaxError", { ns: "templateSettingsPage" }),
-  ),
-  default_ttl_ms: Yup.number()
-    .integer()
-    .min(0, i18next.t("ttlMinError", { ns: "templateSettingsPage" }))
-    .max(
-      24 * MAX_TTL_DAYS /* 7 days in hours */,
-      i18next.t("ttlMaxError", { ns: "templateSettingsPage" }),
+export const getValidationSchema = (): Yup.AnyObjectSchema =>
+  Yup.object({
+    name: nameValidator(i18next.t("nameLabel", { ns: "templateSettingsPage" })),
+    display_name: templateDisplayNameValidator(
+      i18next.t("displayNameLabel", {
+        ns: "templateSettingsPage",
+      }),
     ),
-  allow_user_cancel_workspace_jobs: Yup.boolean(),
-})
+    description: Yup.string().max(
+      MAX_DESCRIPTION_CHAR_LIMIT,
+      i18next.t("descriptionMaxError", { ns: "templateSettingsPage" }),
+    ),
+    default_ttl_ms: Yup.number()
+      .integer()
+      .min(0, i18next.t("ttlMinError", { ns: "templateSettingsPage" }))
+      .max(
+        24 * MAX_TTL_DAYS /* 7 days in hours */,
+        i18next.t("ttlMaxError", { ns: "templateSettingsPage" }),
+      ),
+    allow_user_cancel_workspace_jobs: Yup.boolean(),
+  })
 
 export interface TemplateSettingsForm {
   template: Template
