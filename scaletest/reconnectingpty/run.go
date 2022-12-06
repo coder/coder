@@ -15,8 +15,8 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/loadtest/harness"
-	"github.com/coder/coder/loadtest/loadtestutil"
+	"github.com/coder/coder/scaletest/harness"
+	"github.com/coder/coder/scaletest/loadtestutil"
 )
 
 type Runner struct {

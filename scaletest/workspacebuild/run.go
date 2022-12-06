@@ -15,13 +15,14 @@ import (
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/loadtest/harness"
-	"github.com/coder/coder/loadtest/loadtestutil"
+	"github.com/coder/coder/scaletest/harness"
+	"github.com/coder/coder/scaletest/loadtestutil"
 )
 
 type Runner struct {
-	client      *codersdk.Client
-	cfg         Config
+	client *codersdk.Client
+	cfg    Config
+
 	workspaceID uuid.UUID
 }
 
@@ -65,13 +66,25 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 		return xerrors.Errorf("wait for build: %w", err)
 	}
 
-	_, _ = fmt.Fprintln(logs, "")
-	err = waitForAgents(ctx, logs, r.client, workspace.ID)
-	if err != nil {
-		return xerrors.Errorf("wait for agent: %w", err)
+	if r.cfg.NoWaitForAgents {
+		_, _ = fmt.Fprintln(logs, "Skipping agent connectivity check.")
+	} else {
+		_, _ = fmt.Fprintln(logs, "")
+		err = waitForAgents(ctx, logs, r.client, workspace.ID)
+		if err != nil {
+			return xerrors.Errorf("wait for agent: %w", err)
+		}
 	}
 
 	return nil
+}
+
+func (r *Runner) WorkspaceID() (uuid.UUID, error) {
+	if r.workspaceID == uuid.Nil {
+		return uuid.Nil, xerrors.New("workspace ID not set")
+	}
+
+	return r.workspaceID, nil
 }
 
 // Cleanup implements Cleanable.

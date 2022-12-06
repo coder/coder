@@ -15,9 +15,9 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/loadtest/reconnectingpty"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/scaletest/reconnectingpty"
 	"github.com/coder/coder/testutil"
 )
 

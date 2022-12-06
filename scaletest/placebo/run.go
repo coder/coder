@@ -9,7 +9,7 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/loadtest/harness"
+	"github.com/coder/coder/scaletest/harness"
 )
 
 type Runner struct {

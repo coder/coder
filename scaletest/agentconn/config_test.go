@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/loadtest/agentconn"
+	"github.com/coder/coder/scaletest/agentconn"
 )
 
 func Test_Config(t *testing.T) {
