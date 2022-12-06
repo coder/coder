@@ -312,7 +312,16 @@ COPY --from=go /tmp/bin /usr/local/bin
 COPY --from=rust-utils /tmp/bin /usr/local/bin
 COPY --from=proto /tmp/bin /usr/local/bin
 
+# Configure Nix without sandboxing - https://github.com/NixOS/nix/issues/2636#issuecomment-455302745
+RUN mkdir -p /nix /etc/nix \
+ && chmod a+rwx /nix \
+ && echo 'sandbox = false' > /etc/nix/nix.conf
+
+
 USER coder
+
+# Install Nix
+RUN sh <(curl -L https://nixos.org/nix/install) --no-daemon
 
 # Ensure go bins are in the 'coder' user's path. Note that no go bins are
 # installed in this docker file, as they'd be mounted over by the persistent
