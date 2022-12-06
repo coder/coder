@@ -1,3 +1,4 @@
+import { displaySuccess } from "components/GlobalSnackbar/utils"
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
 import { ServiceBanner } from "../../api/typesGenerated"
@@ -87,7 +88,7 @@ export const serviceBannerMachine = createMachine(
           src: "setBanner",
           onDone: {
             target: "idle",
-            actions: ["assignBanner"],
+            actions: ["assignBanner", "notifyUpdateBannerSuccess"],
           },
           onError: {
             target: "idle",
@@ -105,6 +106,9 @@ export const serviceBannerMachine = createMachine(
         // to find a way to do that that doesn't generate type errors.
         preview: (_, __) => true,
       }),
+      notifyUpdateBannerSuccess: () => {
+        displaySuccess("Successfully updated Service Banner!")
+      },
       assignBanner: assign({
         serviceBanner: (_, event) => event.data as ServiceBanner,
         preview: (_, __) => false,

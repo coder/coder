@@ -25,13 +25,6 @@ import { useTheme } from "@material-ui/core/styles"
 import FormHelperText from "@material-ui/core/FormHelperText"
 import Button from "@material-ui/core/Button"
 
-export const Language = {
-  messageLabel: "Message",
-  backgroundColorLabel: "Background Color",
-  updateBanner: "Update",
-  previewBanner: "Preview",
-}
-
 export interface ServiceBannerFormValues {
   message?: string
   backgroundColor?: string
@@ -109,7 +102,7 @@ const ServiceBannerSettingsPage: React.FC = () => {
       <Header
         title="Service Banner"
         description="Configure a banner that displays a message to all users"
-        docsHref="https://coder.com/docs/coder-oss/latest/admin/high-availability#service-banners"
+        docsHref="https://coder.com/docs/coder-oss/latest/admin/service-banners"
       />
       <Badges>
         {isEntitled ? <EntitledBadge /> : <DisabledBadge />}
@@ -122,7 +115,6 @@ const ServiceBannerSettingsPage: React.FC = () => {
             <FormControlLabel
               control={
                 <Switch
-                  {...getFieldHelpers("enabled")}
                   color="primary"
                   checked={form.values.enabled}
                   onChange={() => {
@@ -142,7 +134,7 @@ const ServiceBannerSettingsPage: React.FC = () => {
               <TextField
                 {...getFieldHelpers("message")}
                 fullWidth
-                label={Language.messageLabel}
+                label="Message"
                 variant="outlined"
                 multiline
                 onChange={(e) => {
@@ -162,7 +154,7 @@ const ServiceBannerSettingsPage: React.FC = () => {
             </Stack>
 
             <Stack spacing={0}>
-              <h3>Background Color</h3>
+              <h3>{"Background Color"}</h3>
               <BlockPicker
                 color={backgroundColor}
                 onChange={(color) => {
@@ -197,14 +189,8 @@ const ServiceBannerSettingsPage: React.FC = () => {
             </Stack>
 
             <Stack direction="row">
-              <LoadingButton
-                loading={false}
-                //   aria-disabled={!editable}
-                //   disabled={!editable}
-                type="submit"
-                variant="contained"
-              >
-                {Language.updateBanner}
+              <LoadingButton loading={false} type="submit" variant="contained">
+                {"Update"}
               </LoadingButton>
             </Stack>
           </Stack>

@@ -77,9 +77,11 @@ const useStyles = makeStyles((theme) => ({
 }))
 
 const readableForegroundColor = (backgroundColor: string): string => {
-  const [_, __, lum] = hex.hsl(backgroundColor)
-  if (lum > 50) {
-    return "black"
-  }
-  return "white"
+  const rgb = hex.rgb(backgroundColor)
+
+  // Logic taken from here:
+  // https://github.com/casesandberg/react-color/blob/bc9a0e1dc5d11b06c511a8e02a95bd85c7129f4b/src/helpers/color.js#L56
+  // to be consistent with the color-picker label.
+  const yiq = (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000
+  return yiq >= 128 ? "#000" : "#fff"
 }
