@@ -3,7 +3,6 @@ package reconnectingpty_test
 import (
 	"bytes"
 	"context"
-	"runtime"
 	"testing"
 	"time"
 
@@ -23,9 +22,6 @@ import (
 
 func Test_Runner(t *testing.T) {
 	t.Parallel()
-	if runtime.GOOS != "linux" {
-		t.Skip("PTY is flakey on non-Linux platforms")
-	}
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
@@ -40,7 +36,7 @@ func Test_Runner(t *testing.T) {
 			LogOutput: true,
 		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 		defer cancel()
 
 		logs := bytes.NewBuffer(nil)
@@ -68,7 +64,7 @@ func Test_Runner(t *testing.T) {
 			LogOutput: false,
 		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 		defer cancel()
 
 		logs := bytes.NewBuffer(nil)
@@ -93,11 +89,11 @@ func Test_Runner(t *testing.T) {
 				Init: codersdk.ReconnectingPTYInit{
 					Command: "echo 'hello world'",
 				},
-				Timeout:   httpapi.Duration(2 * testutil.WaitLong),
+				Timeout:   httpapi.Duration(2 * testutil.WaitSuperLong),
 				LogOutput: true,
 			})
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 			defer cancel()
 
 			logs := bytes.NewBuffer(nil)
@@ -121,7 +117,7 @@ func Test_Runner(t *testing.T) {
 				LogOutput: true,
 			})
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 			defer cancel()
 
 			logs := bytes.NewBuffer(nil)
@@ -151,7 +147,7 @@ func Test_Runner(t *testing.T) {
 				LogOutput:     true,
 			})
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 			defer cancel()
 
 			logs := bytes.NewBuffer(nil)
@@ -171,12 +167,12 @@ func Test_Runner(t *testing.T) {
 				Init: codersdk.ReconnectingPTYInit{
 					Command: "echo 'hello world'",
 				},
-				Timeout:       httpapi.Duration(2 * testutil.WaitLong),
+				Timeout:       httpapi.Duration(2 * testutil.WaitSuperLong),
 				ExpectTimeout: true,
 				LogOutput:     true,
 			})
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 			defer cancel()
 
 			logs := bytes.NewBuffer(nil)
@@ -205,7 +201,7 @@ func Test_Runner(t *testing.T) {
 				LogOutput:    false,
 			})
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 			defer cancel()
 
 			logs := bytes.NewBuffer(nil)
@@ -229,7 +225,7 @@ func Test_Runner(t *testing.T) {
 				LogOutput:    false,
 			})
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 			defer cancel()
 
 			logs := bytes.NewBuffer(nil)
