@@ -118,14 +118,6 @@ func ExtractOAuth2(config OAuth2Config, client *http.Client) func(http.Handler) 
 				redirect = stateRedirect.Value
 			}
 
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error reading client certificates.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-
 			oauthToken, err := config.Exchange(ctx, code)
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
