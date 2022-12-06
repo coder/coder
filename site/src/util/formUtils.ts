@@ -60,7 +60,10 @@ export const getFormHelpers =
     const apiError = getIn(apiValidationErrors, name)
     const frontendError = getIn(form.errors, name)
     const returnError = apiError ?? frontendError
-    const friendlyError = friendlyLabel && returnError ? returnError.replace(name, friendlyLabel) : returnError
+    const friendlyError =
+      friendlyLabel && returnError
+        ? returnError.replace(name, friendlyLabel)
+        : returnError
     return {
       ...form.getFieldProps(name),
       id: name,
