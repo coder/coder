@@ -111,7 +111,7 @@ func Test_Runner(t *testing.T) {
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
 				Init: codersdk.ReconnectingPTYInit{
-					Command: "sleep 5",
+					Command: "sleep 120",
 				},
 				Timeout:   httpapi.Duration(2 * time.Second),
 				LogOutput: true,
@@ -140,7 +140,7 @@ func Test_Runner(t *testing.T) {
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
 				Init: codersdk.ReconnectingPTYInit{
-					Command: "sleep 5",
+					Command: "sleep 120",
 				},
 				Timeout:       httpapi.Duration(2 * time.Second),
 				ExpectTimeout: true,
