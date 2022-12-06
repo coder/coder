@@ -11,6 +11,17 @@ terraform {
   }
 }
 
+# User parameters
+
+variable "dotfiles_uri" {
+  description = <<-EOF
+  Dotfiles repo URI (optional)
+
+  see https://dotfiles.github.io
+  EOF
+  default     = ""
+}
+
 # Admin parameters
 
 provider "docker" {
