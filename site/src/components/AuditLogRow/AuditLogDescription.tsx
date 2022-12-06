@@ -14,10 +14,7 @@ export const AuditLogDescription: FC<{ auditLog: AuditLog }> = ({
   let target = auditLog.resource_target.trim()
 
   // audit logs with a resource_type of workspace build use workspace name as a target
-  if (
-    auditLog.resource_type === "workspace_build" &&
-    auditLog.additional_fields.workspaceName
-  ) {
+  if (auditLog.resource_type === "workspace_build") {
     target = auditLog.additional_fields.workspaceName.trim()
   }
 

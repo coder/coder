@@ -197,6 +197,12 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 	)
 	if err != nil {
 		api.Logger.Error(ctx, "unmarshal additional fields", slog.Error(err))
+		resourceInfo := map[string]string{
+			"workspaceName": "unknown",
+			"buildNumber":   "unknown",
+		}
+		dblog.AdditionalFields, err = json.Marshal(resourceInfo)
+		api.Logger.Error(ctx, "marshal additional fields", slog.Error(err))
 	}
 
 	var (
