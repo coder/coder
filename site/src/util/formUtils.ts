@@ -37,13 +37,12 @@ interface FormHelpers {
   helperText?: ReactNode
 }
 
-// backendErrorName can be used if the backend names a field differently than the frontend does
 export const getFormHelpers =
   <T>(form: FormikContextType<T>, error?: Error | unknown) =>
   (
     name: keyof T,
     HelperText: ReactNode = "",
-    backendErrorName?: string,
+    friendlyLabel?: string,
   ): FormHelpers => {
     const apiValidationErrors =
       isApiError(error) && hasApiFieldErrors(error)
@@ -54,19 +53,19 @@ export const getFormHelpers =
         `name must be type of string, instead received '${typeof name}'`,
       )
     }
-    const apiErrorName = backendErrorName ?? name
 
     // getIn is a util function from Formik that gets at any depth of nesting
     // and is necessary for the types to work
     const touched = getIn(form.touched, name)
-    const apiError = getIn(apiValidationErrors, apiErrorName)
+    const apiError = getIn(apiValidationErrors, name)
     const frontendError = getIn(form.errors, name)
     const returnError = apiError ?? frontendError
+    const friendlyError = friendlyLabel && returnError ? returnError.replace(name, friendlyLabel) : returnError
     return {
       ...form.getFieldProps(name),
       id: name,
-      error: touched && Boolean(returnError),
-      helperText: touched ? returnError || HelperText : HelperText,
+      error: touched && Boolean(friendlyError),
+      helperText: touched ? friendlyError || HelperText : HelperText,
     }
   }
 

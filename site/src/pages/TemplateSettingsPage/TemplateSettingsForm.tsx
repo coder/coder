@@ -215,7 +215,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         </div>
 
         <TextField
-          {...getFieldHelpers("default_ttl_ms", <TTLHelperText ttl={form.values.default_ttl_ms} />)}
+          {...getFieldHelpers("default_ttl_ms", <TTLHelperText ttl={form.values.default_ttl_ms} />, "Time until auto-stop")}
           disabled={isSubmitting}
           fullWidth
           inputProps={{ min: 0, step: 1 }}
