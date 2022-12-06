@@ -3,6 +3,7 @@ package reconnectingpty_test
 import (
 	"bytes"
 	"context"
+	"runtime"
 	"testing"
 	"time"
 
@@ -22,6 +23,9 @@ import (
 
 func Test_Runner(t *testing.T) {
 	t.Parallel()
+	if runtime.GOOS != "linux" {
+		t.Skip("PTY is flakey on non-Linux platforms")
+	}
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
