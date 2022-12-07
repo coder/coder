@@ -152,7 +152,7 @@ func (p *PTY) ExpectMatch(str string) string {
 		p.logf("matched %q = %q", str, buffer.String())
 		return buffer.String()
 	case <-timeout.Done():
-		// Ensure gorouine is cleaned up before test exit.
+		// Ensure goroutine is cleaned up before test exit.
 		_ = p.out.closeErr(p.Close())
 		<-match
 
@@ -202,7 +202,7 @@ func logf(t *testing.T, name, format string, args ...interface{}) {
 func fatalf(t *testing.T, name, reason, format string, args ...interface{}) {
 	t.Helper()
 
-	panic(fmt.Sprintf("%s: %s %s", name, reason, fmt.Sprintf(format, args...)))
+	t.Fatal(fmt.Sprintf("%s: %s %s", name, reason, fmt.Sprintf(format, args...)))
 }
 
 // stdbuf is like a buffered stdout, it buffers writes until read.
