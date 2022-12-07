@@ -42,7 +42,7 @@ const languageByExtension: Record<string, string> = {
   tf: "hcl",
   md: "markdown",
   mkd: "markdown",
-  Docker: "dockerfile",
+  Dockerfile: "dockerfile",
 }
 
 const Files: FC<{
@@ -95,7 +95,6 @@ const Files: FC<{
     </div>
   )
 }
-
 export interface TemplateVersionPageViewProps {
   /**
    * Used to display the version name before loading the version in the API
@@ -126,7 +125,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
 
       <Stack spacing={4}>
         {Boolean(error) && <AlertBanner severity="error" error={error} />}
-        {currentVersion && currentFiles && previousFiles && (
+        {currentVersion && currentFiles && (
           <>
             <Stats>
               <StatsItem
