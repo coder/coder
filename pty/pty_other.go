@@ -114,16 +114,8 @@ func (p *otherPty) Resize(height uint16, width uint16) error {
 }
 
 func (p *otherPty) Close() error {
-	if p.opts.logger != nil {
-		p.opts.logger.Println("Will close...")
-	}
-
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
-
-	if p.opts.logger != nil {
-		p.opts.logger.Println("Closing...")
-	}
 
 	if p.closed {
 		return p.err

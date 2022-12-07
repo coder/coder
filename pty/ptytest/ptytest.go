@@ -47,11 +47,17 @@ func create(t *testing.T, ptty pty.PTY, name string) *PTY {
 	logDone := make(chan struct{})
 	logr, logw := io.Pipe()
 	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
+		logf(t, name, "close logw on cleanup")
 		_ = logw.Close()
+
+		logf(t, name, "close logr on cleanup")
 		_ = logr.Close()
+
+		logf(t, name, "logr and logw closed")
+
 		select {
 		case <-ctx.Done():
 			fatalf(t, name, "cleanup", "log pipe did not close in time")
@@ -69,11 +75,12 @@ func create(t *testing.T, ptty pty.PTY, name string) *PTY {
 		_ = out.closeErr(err)
 	}()
 	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
 		// Close pty only so that the copy goroutine can consume the
 		// remainder of it's buffer and then exit.
+		logf(t, name, "close pty on cleanup")
 		err := ptty.Close()
 		// Pty may already be closed, so don't fail the test, but log
 		// the error in case it's significant.
@@ -119,7 +126,7 @@ type PTY struct {
 func (p *PTY) ExpectMatch(str string) string {
 	p.t.Helper()
 
-	timeout, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	timeout, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 
 	var buffer bytes.Buffer

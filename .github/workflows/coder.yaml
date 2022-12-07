@@ -339,6 +339,7 @@ jobs:
           gotestsum --junitfile="gotests.xml" --jsonfile="gotestsum.json" --packages="./..." --debug -- -parallel=8 -timeout=3m -short -failfast $COVERAGE_FLAGS
 
       - uses: actions/upload-artifact@v3
+        if: success() || failure()
         with:
           name: gotestsum-debug-${{ matrix.os }}.json
           path: ./gotestsum.json
@@ -406,6 +407,7 @@ jobs:
         run: make test-postgres
 
       - uses: actions/upload-artifact@v3
+        if: success() || failure()
         with:
           name: gotestsum-debug-postgres.json
           path: ./gotestsum.json
