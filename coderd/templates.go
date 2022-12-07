@@ -565,8 +565,16 @@ func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-func (*API) templateExamples(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+func (api *API) templateExamples(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx          = r.Context()
+		organization = httpmw.OrganizationParam(r)
+	)
+
+	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceTemplate.InOrg(organization.ID)) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 
 	ex, err := examples.List()
 	if err != nil {
