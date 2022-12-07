@@ -70,7 +70,6 @@ coder:
     #   cpu: 100m
     #   memory: 128Mi
 
-<<<<<<< HEAD
   # coder.certs -- CA bundles to mount inside the Coder pod.
   certs:
     # coder.certs.secrets -- A list of CA bundle secrets to mount into the Coder
@@ -82,7 +81,7 @@ coder:
     secrets: []
       # - name: "my-ca-bundle"
       #   key: "ca-bundle.crt"
-=======
+
   # coder.affinity -- Allows specifying an affinity rule for the `coder` deployment.
   # The default rule prefers to schedule coder pods on different
   # nodes, which is only applicable if coder.replicaCount is greater than 1.
@@ -111,7 +110,6 @@ coder:
   # See: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
   nodeSelector: {}
   #  kubernetes.io/os: linux
->>>>>>> main
 
   # coder.service -- The Service object to expose for Coder.
   service:
