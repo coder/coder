@@ -48,6 +48,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"GET:/healthz":                  {NoAuthorize: true},
 		"GET:/api/v2":                   {NoAuthorize: true},
 		"GET:/api/v2/buildinfo":         {NoAuthorize: true},
+		"GET:/api/v2/updatecheck":       {NoAuthorize: true},
 		"GET:/api/v2/users/first":       {NoAuthorize: true},
 		"POST:/api/v2/users/first":      {NoAuthorize: true},
 		"POST:/api/v2/users/login":      {NoAuthorize: true},
@@ -235,11 +236,12 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"GET:/api/v2/applications/auth-redirect": {AssertAction: rbac.ActionCreate, AssertObject: rbac.ResourceAPIKey},
 
 		// These endpoints need payloads to get to the auth part. Payloads will be required
-		"PUT:/api/v2/users/{user}/roles":                                                  {StatusCode: http.StatusBadRequest, NoAuthorize: true},
-		"PUT:/api/v2/organizations/{organization}/members/{user}/roles":                   {NoAuthorize: true},
-		"POST:/api/v2/workspaces/{workspace}/builds":                                      {StatusCode: http.StatusBadRequest, NoAuthorize: true},
-		"POST:/api/v2/organizations/{organization}/templateversions":                      {StatusCode: http.StatusBadRequest, NoAuthorize: true},
-		"GET:/api/v2/organizations/{organization}/templateversions/{templateversionname}": {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+		"PUT:/api/v2/users/{user}/roles":                                                           {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+		"PUT:/api/v2/organizations/{organization}/members/{user}/roles":                            {NoAuthorize: true},
+		"POST:/api/v2/workspaces/{workspace}/builds":                                               {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+		"POST:/api/v2/organizations/{organization}/templateversions":                               {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+		"GET:/api/v2/organizations/{organization}/templateversions/{templateversionname}":          {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+		"GET:/api/v2/organizations/{organization}/templateversions/{templateversionname}/previous": {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 
 		// Endpoints that use the SQLQuery filter.
 		"GET:/api/v2/workspaces/": {

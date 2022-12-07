@@ -153,12 +153,6 @@ RUN apt-get update --quiet && apt-get install --yes \
       docker-ce-cli \
       packer \
       terraform \
-      buildah \
-      conmon \
-      containernetworking-plugins \
-      crun \
-      podman \
-      skopeo \
       fish \
 			unzip \
       zstd && \
@@ -171,6 +165,12 @@ RUN apt-get update --quiet && apt-get install --yes \
 # the apt repository is unreliable
 RUN curl -L https://github.com/cli/cli/releases/download/v2.14.7/gh_2.14.7_linux_amd64.deb -o gh.deb && \
     dpkg -i gh.deb
+
+# Install Lazygit
+# See https://github.com/jesseduffield/lazygit#ubuntu
+RUN LAZYGIT_VERSION=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | grep '"tag_name":' |  sed -E 's/.*"v*([^"]+)".*/\1/') && \
+  curl -Lo lazygit.tar.gz "https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${LAZYGIT_VERSION}_Linux_x86_64.tar.gz" && \
+  tar xf lazygit.tar.gz -C /usr/local/bin lazygit
 
 # Install frontend utilities
 RUN apt-get update && \

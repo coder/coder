@@ -2,6 +2,7 @@ package audit
 
 import (
 	"context"
+	"sync"
 
 	"github.com/coder/coder/coderd/database"
 )
@@ -30,10 +31,13 @@ func NewMock() *MockAuditor {
 }
 
 type MockAuditor struct {
+	mutex     sync.Mutex
 	AuditLogs []database.AuditLog
 }
 
 func (a *MockAuditor) Export(_ context.Context, alog database.AuditLog) error {
+	a.mutex.Lock()
+	defer a.mutex.Unlock()
 	a.AuditLogs = append(a.AuditLogs, alog)
 	return nil
 }

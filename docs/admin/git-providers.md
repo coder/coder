@@ -4,7 +4,7 @@ Coder integrates with git providers so developers can authenticate with reposito
 
 ## How it works
 
-When developers use `git` inside their workspace, they are first prompted to authenticate. After that, Coder will store/refresh tokens for future operations. 
+When developers use `git` inside their workspace, they are first prompted to authenticate. After that, Coder will store/refresh tokens for future operations.
 
 <video autoplay playsinline loop>
   <source src="https://github.com/coder/coder/blob/main/site/static/gitauth.mp4?raw=true" type="video/mp4">

@@ -39,6 +39,7 @@ direnv: export +AR +AS +CC +CONFIG_SHELL +CXX +HOST_PATH +IN_NIX_SHELL +LD +NIX_
 ```
 
 Alternatively if you do not want to use nix then you'll need to install the need the following tools by hand:
+
 - Go 1.18+
   - on macOS, run `brew install go`
 - Node 14+
@@ -62,7 +63,6 @@ Alternatively if you do not want to use nix then you'll need to install the need
   - on macOS, run `brew install pango`
 - [`pandoc`]()
   - on macOS, run `brew install pandocomatic`
-
 
 ### Development workflow
 
@@ -142,7 +142,6 @@ $ git ls-files v0.12.2 -- coderd/database/migrations/*.up.sql
 ```
 
 This helps in naming the dump (e.g. `000069` above).
-
 
 ## Styling
 

@@ -359,9 +359,9 @@ fmt/prettier:
 	cd site
 # Avoid writing files in CI to reduce file write activity
 ifdef CI
-	yarn run format:check
+	yarn run format:check . ../*.md ../docs
 else
-	yarn run format:write
+	yarn run format:write . ../*.md ../docs
 endif
 .PHONY: fmt/prettier
 
@@ -399,13 +399,14 @@ gen: \
 	coderd/database/querier.go \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
-	site/src/api/typesGenerated.ts
+	site/src/api/typesGenerated.ts \
+	docs/admin/prometheus.md
 .PHONY: gen
 
 # Mark all generated files as fresh so make thinks they're up-to-date. This is
 # used during releases so we don't run generation scripts.
 gen/mark-fresh:
-	files="coderd/database/dump.sql coderd/database/querier.go provisionersdk/proto/provisioner.pb.go provisionerd/proto/provisionerd.pb.go site/src/api/typesGenerated.ts"
+	files="coderd/database/dump.sql coderd/database/querier.go provisionersdk/proto/provisioner.pb.go provisionerd/proto/provisionerd.pb.go site/src/api/typesGenerated.ts docs/admin/prometheus.md"
 	for file in $$files; do
 		echo "$$file"
 		if [ ! -f "$$file" ]; then
@@ -448,6 +449,11 @@ site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find codersdk
 	cd site
 	yarn run format:types
 
+docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics
+	go run scripts/metricsdocgen/main.go
+	cd site
+	yarn run format:write ../docs/admin/prometheus.md
+
 update-golden-files: cli/testdata/.gen-golden
 .PHONY: update-golden-files
 
@@ -457,7 +463,7 @@ cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(GO_SRC_FILES)
 	touch "$@"
 
 test: test-clean
-	gotestsum -- -v -short ./...
+	gotestsum --debug -- -v -short ./...
 .PHONY: test
 
 # When updating -timeout for this test, keep in sync with
@@ -465,7 +471,10 @@ test: test-clean
 test-postgres: test-clean test-postgres-docker
 	# The postgres test is prone to failure, so we limit parallelism for
 	# more consistent execution.
-	DB=ci DB_FROM=$(shell go run scripts/migrate-ci/main.go) gotestsum --junitfile="gotests.xml" --packages="./..." -- \
+	DB=ci DB_FROM=$(shell go run scripts/migrate-ci/main.go) gotestsum \
+		--junitfile="gotests.xml" \
+		--jsonfile="gotestsum.json" \
+		--packages="./..." -- \
 		-covermode=atomic -coverprofile="gotests.coverage" -timeout=20m \
 		-parallel=4 \
 		-coverpkg=./... \

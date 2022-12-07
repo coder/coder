@@ -1,10 +1,12 @@
 # Dotfiles
 
 <!-- markdown-link-check-disable -->
+
 Coder offers the `coder dotfiles <repo>` command which simplifies workspace
 personalization. Our behavior is consistent with Codespaces, so
 [their documentation](https://docs.github.com/en/codespaces/customizing-your-codespace/personalizing-codespaces-for-your-account#dotfiles)
 explains how it loads your repo.
+
 <!-- markdown-link-check-enable -->
 
 You can read more on dotfiles best practices [here](https://dotfiles.github.io).

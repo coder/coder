@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -933,6 +934,77 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 		// Callback again to simulate updating the token.
 		resp = gitAuthCallback(t, "github", client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+	})
+	t.Run("ValidateURL", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancelFunc := testutil.Context(t)
+		defer cancelFunc()
+
+		srv := httptest.NewServer(nil)
+		defer srv.Close()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			GitAuthConfigs: []*gitauth.Config{{
+				ValidateURL:  srv.URL,
+				OAuth2Config: &oauth2Config{},
+				ID:           "github",
+				Regex:        regexp.MustCompile(`github\.com`),
+				Type:         codersdk.GitProviderGitHub,
+			}},
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		authToken := uuid.NewString()
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:         echo.ParseComplete,
+			ProvisionPlan: echo.ProvisionComplete,
+			ProvisionApply: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.Resource{{
+							Name: "example",
+							Type: "aws_instance",
+							Agents: []*proto.Agent{{
+								Id: uuid.NewString(),
+								Auth: &proto.Agent_Token{
+									Token: authToken,
+								},
+							}},
+						}},
+					},
+				},
+			}},
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		agentClient := codersdk.New(client.URL)
+		agentClient.SetSessionToken(authToken)
+
+		resp := gitAuthCallback(t, "github", client)
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+
+		// If the validation URL says unauthorized, the callback
+		// URL to re-authenticate should be returned.
+		srv.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+		})
+		res, err := agentClient.WorkspaceAgentGitAuth(ctx, "github.com/asd/asd", false)
+		require.NoError(t, err)
+		require.NotEmpty(t, res.URL)
+
+		// If the validation URL gives a non-OK status code, this
+		// should be treated as an internal server error.
+		srv.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+			w.Write([]byte("Something went wrong!"))
+		})
+		_, err = agentClient.WorkspaceAgentGitAuth(ctx, "github.com/asd/asd", false)
+		var apiError *codersdk.Error
+		require.ErrorAs(t, err, &apiError)
+		require.Equal(t, http.StatusInternalServerError, apiError.StatusCode())
+		require.Equal(t, "git token validation failed: status 403: body: Something went wrong!", apiError.Detail)
 	})
 
 	t.Run("ExpiredNoRefresh", func(t *testing.T) {

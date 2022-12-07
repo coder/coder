@@ -17,8 +17,6 @@ jobs:
         with:
           stale-issue-label: 'stale'
           stale-pr-label: 'stale'
-          exempt-issue-labels: 'never stale'
-          exempt-pr-labels: 'never stale'
           # Pull Requests become stale more quickly due to merge conflicts.
           # Also, we promote minimizing WIP.
           days-before-pr-stale: 7

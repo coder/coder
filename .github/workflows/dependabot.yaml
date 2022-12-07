@@ -9,5 +9,5 @@ jobs:
     permissions:
       pull-requests: write
     steps:
-      - uses: hmarr/auto-approve-action@v2
+      - uses: hmarr/auto-approve-action@v3
         if: github.actor == 'dependabot[bot]'

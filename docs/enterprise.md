@@ -4,15 +4,19 @@ Coder is free to use and includes some features that are only accessible with a 
 Contact sales@coder.com to obtain a license.
 
 ### User Management
+
 - [Groups](./admin/groups.md)
 - [Template RBAC](./admin/rbac.md)
 - [SCIM](./admin/auth.md#scim)
 
 ### Networking & Deployment
+
 - [High Availability](./admin/high-availability.md)
 - [Browser Only Connections](./networking.md#browser-only-connections)
+- [Service Banners](./admin/service-banners.md)
 
 ### Other
+
 - [Audit Logging](./admin/audit-logs.md)
 - [Quotas](./admin/quotas.md)
 

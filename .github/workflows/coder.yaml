@@ -34,7 +34,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: typos-action
-        uses: crate-ci/typos@v1.12.12
+        uses: crate-ci/typos@v1.13.3
         with:
           config: .github/workflows/typos.toml
       - name: Fix Helper
@@ -96,7 +96,7 @@ jobs:
         with:
           go-version: "~1.19"
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3.3.0
+        uses: golangci/golangci-lint-action@v3.3.1
         with:
           version: v1.48.0
 
@@ -336,7 +336,14 @@ jobs:
             echo ::set-output name=cover::false
           fi
           set -x
-          gotestsum --junitfile="gotests.xml" --packages="./..." -- -parallel=8 -timeout=3m -short -failfast $COVERAGE_FLAGS
+          gotestsum --junitfile="gotests.xml" --jsonfile="gotestsum.json" --packages="./..." --debug -- -parallel=8 -timeout=3m -short -failfast $COVERAGE_FLAGS
+
+      - uses: actions/upload-artifact@v3
+        if: success() || failure()
+        with:
+          name: gotestsum-debug-${{ matrix.os }}.json
+          path: ./gotestsum.json
+          retention-days: 7
 
       - uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
@@ -399,6 +406,13 @@ jobs:
       - name: Test with PostgreSQL Database
         run: make test-postgres
 
+      - uses: actions/upload-artifact@v3
+        if: success() || failure()
+        with:
+          name: gotestsum-debug-postgres.json
+          path: ./gotestsum.json
+          retention-days: 7
+
       - uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
         # the `fail_ci_if_error` option that defaults to `false`, but
@@ -428,7 +442,7 @@ jobs:
           fetch-depth: 0
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v0
+        uses: google-github-actions/auth@v1
         with:
           workload_identity_provider: projects/573722524737/locations/global/workloadIdentityPools/github/providers/github
           service_account: coder-ci@coder-dogfood.iam.gserviceaccount.com
@@ -674,6 +688,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@master
-    - uses: gaurav-nelson/github-action-markdown-link-check@v1
+    # For the main branch:
+    - if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
+      uses: gaurav-nelson/github-action-markdown-link-check@v1
       with:
+          use-quiet-mode: yes
+          use-verbose-mode: yes
+          config-file: .github/workflows/mlc_config.json
+    # For pull requests:
+    - if: github.ref != 'refs/heads/main' || github.event.pull_request.head.repo.fork
+      uses: gaurav-nelson/github-action-markdown-link-check@v1
+      with:
+          use-quiet-mode: yes
+          use-verbose-mode: yes
+          check-modified-files-only: yes
+          base-branch: main
           config-file: .github/workflows/mlc_config.json

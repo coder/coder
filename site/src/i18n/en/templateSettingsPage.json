@@ -1,0 +1,24 @@
+{
+  "title": "Template settings",
+  "nameLabel": "Name",
+  "displayNameLabel": "Display name",
+  "descriptionLabel": "Description",
+  "descriptionMaxError": "Please enter a description that is less than or equal to 128 characters.",
+  "defaultTtlLabel": "Auto-stop default",
+  "iconLabel": "Icon",
+  "formAriaLabel": "Template settings form",
+  "selectEmoji": "Select emoji",
+  "ttlMaxError": "Please enter a limit that is less than or equal to 168 hours (7 days).",
+  "ttlMinError": "Default time until auto-stop must not be less than 0.",
+  "ttlHelperText_zero": "Workspaces created from this template will run until stopped manually.",
+  "ttlHelperText_one": "Workspaces created from this template will default to stopping after {{count}} hour.",
+  "ttlHelperText_other": "Workspaces created from this template will default to stopping after {{count}} hours.",
+  "allowUserCancelWorkspaceJobsLabel": "Allow users to cancel in-progress workspace jobs.",
+  "allowUserCancelWorkspaceJobsNotice": "Depending on your template, canceling builds may leave workspaces in an unhealthy state. This option isn't recommended for most use cases.",
+  "dangerZone": {
+    "dangerZoneHeader": "Danger Zone",
+    "deleteTemplateHeader": "Delete this template",
+    "deleteTemplateCaption": "Do you want to permanently delete this template?",
+    "deleteCta": "Delete Template"
+  }
+}

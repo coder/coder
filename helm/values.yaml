@@ -49,6 +49,7 @@ coder:
   # - CODER_TLS_ENABLE: set if tls.secretName is not empty.
   # - CODER_TLS_CERT_FILE: set if tls.secretName is not empty.
   # - CODER_TLS_KEY_FILE: set if tls.secretName is not empty.
+  # - CODER_PROMETHEUS_ENABLE: set if CODER_PROMETHEUS_ADDRESS is not empty.
   env: []
 
   # coder.tls -- The TLS configuration for Coder.

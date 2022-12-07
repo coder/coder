@@ -63,6 +63,7 @@ import (
 	"github.com/coder/coder/coderd/prometheusmetrics"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
+	"github.com/coder/coder/coderd/updatecheck"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
@@ -110,6 +111,14 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			// SIGQUIT with ctrl+\ or SIGKILL with `kill -9`.
 			notifyCtx, notifyStop := signal.NotifyContext(ctx, InterruptSignals...)
 			defer notifyStop()
+
+			// Ensure we have a unique cache directory for this process.
+			cacheDir := filepath.Join(cfg.CacheDirectory.Value, uuid.NewString())
+			err = os.MkdirAll(cacheDir, 0o700)
+			if err != nil {
+				return xerrors.Errorf("create cache directory: %w", err)
+			}
+			defer os.RemoveAll(cacheDir)
 
 			// Clean up idle connections at the end, e.g.
 			// embedded-postgres can leave an idle connection
@@ -354,7 +363,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				Database:                    databasefake.New(),
 				DERPMap:                     derpMap,
 				Pubsub:                      database.NewPubsubInMemory(),
-				CacheDir:                    cfg.CacheDirectory.Value,
+				CacheDir:                    cacheDir,
 				GoogleTokenValidator:        googleTokenValidator,
 				GitAuthConfigs:              gitAuthConfigs,
 				RealIPConfig:                realIPConfig,
@@ -371,6 +380,25 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			}
 			if tlsConfig != nil {
 				options.TLSCertificates = tlsConfig.Certificates
+			}
+
+			if cfg.UpdateCheck.Value {
+				options.UpdateCheckOptions = &updatecheck.Options{
+					// Avoid spamming GitHub API checking for updates.
+					Interval: 24 * time.Hour,
+					// Inform server admins of new versions.
+					Notify: func(r updatecheck.Result) {
+						if semver.Compare(r.Version, buildinfo.Version()) > 0 {
+							options.Logger.Info(
+								context.Background(),
+								"new version of coder available",
+								slog.F("new_version", r.Version),
+								slog.F("url", r.URL),
+								slog.F("upgrade_instructions", "https://coder.com/docs/coder-oss/latest/admin/upgrade"),
+							)
+						}
+					},
+				}
 			}
 
 			if cfg.OAuth2.Github.ClientSecret.Value != "" {
@@ -612,7 +640,8 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			}()
 			provisionerdMetrics := provisionerd.NewMetrics(options.PrometheusRegistry)
 			for i := 0; i < cfg.Provisioner.Daemons.Value; i++ {
-				daemon, err := newProvisionerDaemon(ctx, coderAPI, provisionerdMetrics, logger, cfg, errCh, false)
+				daemonCacheDir := filepath.Join(cacheDir, fmt.Sprintf("provisioner-%d", i))
+				daemon, err := newProvisionerDaemon(ctx, coderAPI, provisionerdMetrics, logger, cfg, daemonCacheDir, errCh, false)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
 				}
@@ -882,6 +911,7 @@ func newProvisionerDaemon(
 	metrics provisionerd.Metrics,
 	logger slog.Logger,
 	cfg *codersdk.DeploymentConfig,
+	cacheDir string,
 	errCh chan error,
 	dev bool,
 ) (srv *provisionerd.Server, err error) {
@@ -892,9 +922,9 @@ func newProvisionerDaemon(
 		}
 	}()
 
-	err = os.MkdirAll(cfg.CacheDirectory.Value, 0o700)
+	err = os.MkdirAll(cacheDir, 0o700)
 	if err != nil {
-		return nil, xerrors.Errorf("mkdir %q: %w", cfg.CacheDirectory.Value, err)
+		return nil, xerrors.Errorf("mkdir %q: %w", cacheDir, err)
 	}
 
 	terraformClient, terraformServer := provisionersdk.MemTransportPipe()
@@ -910,7 +940,7 @@ func newProvisionerDaemon(
 			ServeOptions: &provisionersdk.ServeOptions{
 				Listener: terraformServer,
 			},
-			CachePath: cfg.CacheDirectory.Value,
+			CachePath: cacheDir,
 			Logger:    logger,
 		})
 		if err != nil && !xerrors.Is(err, context.Canceled) {
@@ -950,13 +980,16 @@ func newProvisionerDaemon(
 		}()
 		provisioners[string(database.ProvisionerTypeEcho)] = sdkproto.NewDRPCProvisionerClient(echoClient)
 	}
+	debounce := time.Second
 	return provisionerd.New(func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 		// This debounces calls to listen every second. Read the comment
 		// in provisionerdserver.go to learn more!
-		return coderAPI.CreateInMemoryProvisionerDaemon(ctx, time.Second)
+		return coderAPI.CreateInMemoryProvisionerDaemon(ctx, debounce)
 	}, &provisionerd.Options{
 		Logger:              logger,
-		PollInterval:        500 * time.Millisecond,
+		JobPollInterval:     cfg.Provisioner.DaemonPollInterval.Value,
+		JobPollJitter:       cfg.Provisioner.DaemonPollJitter.Value,
+		JobPollDebounce:     debounce,
 		UpdateInterval:      500 * time.Millisecond,
 		ForceCancelInterval: cfg.Provisioner.ForceCancelInterval.Value,
 		Provisioners:        provisioners,

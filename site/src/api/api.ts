@@ -376,6 +376,12 @@ export const getBuildInfo = async (): Promise<TypesGen.BuildInfoResponse> => {
   return response.data
 }
 
+export const getUpdateCheck =
+  async (): Promise<TypesGen.UpdateCheckResponse> => {
+    const response = await axios.get("/api/v2/updatecheck")
+    return response.data
+  }
+
 export const putWorkspaceAutostart = async (
   workspaceID: string,
   autostart: TypesGen.UpdateWorkspaceAutostartRequest,
@@ -655,5 +661,17 @@ export const getFile = async (fileId: string): Promise<ArrayBuffer> => {
   const response = await axios.get<ArrayBuffer>(`/api/v2/files/${fileId}`, {
     responseType: "arraybuffer",
   })
+  return response.data
+}
+
+export const getServiceBanner = async (): Promise<TypesGen.ServiceBanner> => {
+  const response = await axios.get(`/api/v2/service-banner`)
+  return response.data
+}
+
+export const setServiceBanner = async (
+  b: TypesGen.ServiceBanner,
+): Promise<TypesGen.ServiceBanner> => {
+  const response = await axios.put(`/api/v2/service-banner`, b)
   return response.data
 }

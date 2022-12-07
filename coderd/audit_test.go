@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
@@ -20,9 +19,11 @@ func TestAuditLogs(t *testing.T) {
 
 		ctx := context.Background()
 		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
+		user := coderdtest.CreateFirstUser(t, client)
 
-		err := client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{})
+		err := client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
+			ResourceID: user.UserID,
+		})
 		require.NoError(t, err)
 
 		alogs, err := client.AuditLogs(ctx, codersdk.AuditLogsRequest{
@@ -43,22 +44,26 @@ func TestAuditLogsFilter(t *testing.T) {
 	t.Run("Filter", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-		userResourceID := uuid.New()
+		var (
+			ctx      = context.Background()
+			client   = coderdtest.New(t, nil)
+			user     = coderdtest.CreateFirstUser(t, client)
+			version  = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			template = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		)
 
 		// Create two logs with "Create"
 		err := client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
 			Action:       codersdk.AuditActionCreate,
 			ResourceType: codersdk.ResourceTypeTemplate,
+			ResourceID:   template.ID,
 			Time:         time.Date(2022, 8, 15, 14, 30, 45, 100, time.UTC), // 2022-8-15 14:30:45
 		})
 		require.NoError(t, err)
 		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
 			Action:       codersdk.AuditActionCreate,
 			ResourceType: codersdk.ResourceTypeUser,
-			ResourceID:   userResourceID,
+			ResourceID:   user.UserID,
 			Time:         time.Date(2022, 8, 16, 14, 30, 45, 100, time.UTC), // 2022-8-16 14:30:45
 		})
 		require.NoError(t, err)
@@ -67,7 +72,7 @@ func TestAuditLogsFilter(t *testing.T) {
 		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
 			Action:       codersdk.AuditActionDelete,
 			ResourceType: codersdk.ResourceTypeUser,
-			ResourceID:   userResourceID,
+			ResourceID:   user.UserID,
 			Time:         time.Date(2022, 8, 15, 14, 30, 45, 100, time.UTC), // 2022-8-15 14:30:45
 		})
 		require.NoError(t, err)
@@ -110,7 +115,7 @@ func TestAuditLogsFilter(t *testing.T) {
 			},
 			{
 				Name:           "FilterByResourceID",
-				SearchQuery:    "resource_id:" + userResourceID.String(),
+				SearchQuery:    "resource_id:" + user.UserID.String(),
 				ExpectedResult: 2,
 			},
 			{

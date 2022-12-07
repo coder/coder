@@ -113,6 +113,7 @@ type LicenseOptions struct {
 	HighAvailability           bool
 	MultipleGitAuth            bool
 	ExternalProvisionerDaemons bool
+	ServiceBanners             bool
 }
 
 // AddLicense generates a new license with the options provided and inserts it.
@@ -164,6 +165,11 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		externalProvisionerDaemons = 1
 	}
 
+	serviceBanners := int64(0)
+	if options.ServiceBanners {
+		serviceBanners = 1
+	}
+
 	c := &license.Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    "test@testing.test",
@@ -186,6 +192,7 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 			TemplateRBAC:               rbacEnabled,
 			MultipleGitAuth:            multipleGitAuth,
 			ExternalProvisionerDaemons: externalProvisionerDaemons,
+			ServiceBanners:             serviceBanners,
 		},
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodEdDSA, c)

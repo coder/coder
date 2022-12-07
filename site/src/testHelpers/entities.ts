@@ -24,6 +24,12 @@ export const MockBuildInfo: TypesGen.BuildInfoResponse = {
   version: "v99.999.9999+c9cdf14",
 }
 
+export const MockUpdateCheck: TypesGen.UpdateCheckResponse = {
+  current: true,
+  url: "file:///mock-url",
+  version: "v99.999.9999+c9cdf14",
+}
+
 export const MockOwnerRole: TypesGen.Role = {
   name: "owner",
   display_name: "Owner",
@@ -980,6 +986,8 @@ export const MockAuditLog: TypesGen.AuditLog = {
   additional_fields: {},
   description: "{user} created workspace {target}",
   user: MockUser,
+  resource_link: "/@admin/bruno-dev",
+  is_deleted: false,
 }
 
 export const MockAuditLog2: TypesGen.AuditLog = {
@@ -1018,10 +1026,15 @@ export const MockAuditLogWithWorkspaceBuild: TypesGen.AuditLog = {
   request_id: "61555889-2875-475c-8494-f7693dd5d75b",
   action: "stop",
   resource_type: "workspace_build",
-  description: "{user} stopped workspace build for {target}",
+  description: "{user} stopped build for workspace {target}",
   additional_fields: {
     workspaceName: "test2",
   },
+}
+
+export const MockAuditLogWithDeletedResource: TypesGen.AuditLog = {
+  ...MockAuditLog,
+  is_deleted: true,
 }
 
 export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
