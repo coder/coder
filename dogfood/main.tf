@@ -11,6 +11,12 @@ terraform {
   }
 }
 
+variable "datocms_api_token" {
+  type = string
+  description = "An API token from DATOCMS for usage with building our website."
+  default = ""
+}
+
 # Admin parameters
 
 provider "docker" {
@@ -118,7 +124,10 @@ resource "docker_container" "workspace" {
   # CPU limits are unnecessary since Docker will load balance automatically
   memory  = 32768
   runtime = "sysbox-runc"
-  env     = ["CODER_AGENT_TOKEN=${coder_agent.dev.token}"]
+  env     = [
+    "CODER_AGENT_TOKEN=${coder_agent.dev.token}",
+    "DATOCMS_API_TOKEN=${var.datocms_api_token}",
+  ]
   host {
     host = "host.docker.internal"
     ip   = "host-gateway"
