@@ -53,6 +53,7 @@ SHELL_SRC_FILES = $(shell find . -not \( -path './.git/*' -o -path './build/*' -
 OS_ARCHES := \
 	linux_amd64 linux_arm64 linux_armv7 \
 	darwin_amd64 darwin_arm64 \
+	freebsd_amd64 freebsd_arm64 \
 	windows_amd64.exe windows_arm64.exe
 
 # Archive formats and their corresponding ${OS}_${ARCH} combos.

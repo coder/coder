@@ -1,0 +1,62 @@
+name: coder (FreeBSD)
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+
+  workflow_dispatch:
+
+permissions:
+  actions: none
+  checks: none
+  contents: read
+  deployments: none
+  issues: none
+  packages: none
+  pull-requests: none
+  repository-projects: none
+  security-events: none
+  statuses: none
+
+# Cancel in-progress runs for pull requests when developers push
+# additional changes
+# concurrency:
+#   group: ${{ github.workflow }}-${{ github.ref }}
+#   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test-go:
+    name: "test/go"
+    runs-on: macos-12
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v2
+      - name: test/go (FreeBSD)
+        id: test
+        uses: vmactions/freebsd-vm@v0
+        with:
+          envs: 'MYTOKEN MYTOKEN2'
+          usesh: true
+          prepare: |
+            pkg install -y terraform go119
+
+          run: |
+            pwd
+            whoami
+            env
+            freebsd-version
+
+            ln -s /usr/local/bin/go119 /usr/local/bin/go
+            export PATH="${PATH}:/root/go/bin"
+
+            go version
+            terraform -version
+
+            go install gotest.tools/gotestsum@latest
+            gotestsum --version
+
+            export COVERAGE_FLAGS='-covermode=atomic -coverprofile="gotests.coverage" -coverpkg=./...'
+            gotestsum --junitfile="gotests.xml" --jsonfile="gotestsum.json" --packages="./..." --debug -- -parallel=8 -timeout=3m -short -failfast $COVERAGE_FLAGS
