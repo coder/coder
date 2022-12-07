@@ -50,8 +50,14 @@ func create(t *testing.T, ptty pty.PTY, name string) *PTY {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
+		logf(t, name, "close logw on cleanup")
 		_ = logw.Close()
+
+		logf(t, name, "close logr on cleanup")
 		_ = logr.Close()
+
+		logf(t, name, "logr and logw closed")
+
 		select {
 		case <-ctx.Done():
 			fatalf(t, name, "cleanup", "log pipe did not close in time")
@@ -74,6 +80,7 @@ func create(t *testing.T, ptty pty.PTY, name string) *PTY {
 
 		// Close pty only so that the copy goroutine can consume the
 		// remainder of it's buffer and then exit.
+		logf(t, name, "close pty on cleanup")
 		err := ptty.Close()
 		// Pty may already be closed, so don't fail the test, but log
 		// the error in case it's significant.
@@ -152,7 +159,7 @@ func (p *PTY) ExpectMatch(str string) string {
 		p.logf("matched %q = %q", str, buffer.String())
 		return buffer.String()
 	case <-timeout.Done():
-		// Ensure gorouine is cleaned up before test exit.
+		// Ensure goroutine is cleaned up before test exit.
 		_ = p.out.closeErr(p.Close())
 		<-match
 

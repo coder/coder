@@ -2980,6 +2980,17 @@ func (q *sqlQuerier) GetLastUpdateCheck(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getServiceBanner = `-- name: GetServiceBanner :one
+SELECT value FROM site_configs WHERE key = 'service_banner'
+`
+
+func (q *sqlQuerier) GetServiceBanner(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getServiceBanner)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
 const insertDERPMeshKey = `-- name: InsertDERPMeshKey :exec
 INSERT INTO site_configs (key, value) VALUES ('derp_mesh_key', $1)
 `
@@ -3005,6 +3016,16 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'last_update
 
 func (q *sqlQuerier) InsertOrUpdateLastUpdateCheck(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, insertOrUpdateLastUpdateCheck, value)
+	return err
+}
+
+const insertOrUpdateServiceBanner = `-- name: InsertOrUpdateServiceBanner :exec
+INSERT INTO site_configs (key, value) VALUES ('service_banner', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'service_banner'
+`
+
+func (q *sqlQuerier) InsertOrUpdateServiceBanner(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, insertOrUpdateServiceBanner, value)
 	return err
 }
 

@@ -57,7 +57,8 @@ type Options struct {
 	JobPollJitter       time.Duration
 	JobPollDebounce     time.Duration
 	Provisioners        Provisioners
-	WorkDirectory       string
+	// WorkDirectory must not be used by multiple processes at once.
+	WorkDirectory string
 }
 
 // New creates and starts a provisioner daemon.

@@ -277,6 +277,13 @@
           "path": "./admin/prometheus.md"
         },
         {
+          "title": "Service Banners",
+          "description": "Learn how to configure Service Banners",
+          "icon_path": "./images/icons/info.svg",
+          "path": "./admin/service-banners.md",
+          "state": "enterprise"
+        },
+        {
           "title": "Telemetry",
           "description": "Learn what usage telemetry Coder collects",
           "icon_path": "./images/icons/science.svg",

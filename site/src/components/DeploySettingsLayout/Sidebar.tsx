@@ -3,6 +3,7 @@ import LaunchOutlined from "@material-ui/icons/LaunchOutlined"
 import LockRounded from "@material-ui/icons/LockRounded"
 import Globe from "@material-ui/icons/Public"
 import VpnKeyOutlined from "@material-ui/icons/VpnKeyOutlined"
+import Info from "@material-ui/icons/Info"
 import { useSelector } from "@xstate/react"
 import { GitIcon } from "components/Icons/GitIcon"
 import { Stack } from "components/Stack/Stack"
@@ -86,6 +87,12 @@ export const Sidebar: React.FC = () => {
         icon={<SidebarNavItemIcon icon={LockRounded} />}
       >
         Security
+      </SidebarNavItem>
+      <SidebarNavItem
+        href="../service-banner"
+        icon={<SidebarNavItemIcon icon={Info} />}
+      >
+        Service Banner
       </SidebarNavItem>
     </nav>
   )

@@ -691,3 +691,15 @@ export const getFile = async (fileId: string): Promise<ArrayBuffer> => {
   })
   return response.data
 }
+
+export const getServiceBanner = async (): Promise<TypesGen.ServiceBanner> => {
+  const response = await axios.get(`/api/v2/service-banner`)
+  return response.data
+}
+
+export const setServiceBanner = async (
+  b: TypesGen.ServiceBanner,
+): Promise<TypesGen.ServiceBanner> => {
+  const response = await axios.put(`/api/v2/service-banner`, b)
+  return response.data
+}
