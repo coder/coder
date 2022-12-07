@@ -39,6 +39,23 @@ const (
 	redirectURIQueryParam     = "redirect_uri"
 )
 
+// nonCanonicalHeaders is a map from "canonical" headers to the actual header we
+// should send to the app in the workspace. Some headers (such as the websocket
+// upgrade headers from RFC 6455) are not canonical according to the HTTP/1
+// spec. Golang has said that they will not add custom cases for these headers,
+// so we need to do it ourselves.
+//
+// Some apps our customers use are sensitive to the case of these headers.
+//
+// https://github.com/golang/go/issues/18495
+var nonCanonicalHeaders = map[string]string{
+	"Sec-Websocket-Accept":     "Sec-WebSocket-Accept",
+	"Sec-Websocket-Extensions": "Sec-WebSocket-Extensions",
+	"Sec-Websocket-Key":        "Sec-WebSocket-Key",
+	"Sec-Websocket-Protocol":   "Sec-WebSocket-Protocol",
+	"Sec-Websocket-Version":    "Sec-WebSocket-Version",
+}
+
 func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
 	host := api.AppHostname
 	if api.AccessURL.Port() != "" {
@@ -708,6 +725,7 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 		return
 	}
 	defer release()
+	proxy.Transport = conn.HTTPTransport()
 
 	// This strips the session token from a workspace app request.
 	cookieHeaders := r.Header.Values("Cookie")[:]
@@ -715,7 +733,16 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 	for _, cookieHeader := range cookieHeaders {
 		r.Header.Add("Cookie", httpapi.StripCoderCookies(cookieHeader))
 	}
-	proxy.Transport = conn.HTTPTransport()
+
+	// Convert canonicalized headers to their non-canonicalized counterparts.
+	// See the comment on `nonCanonicalHeaders` for more information on why this
+	// is necessary.
+	for k, v := range r.Header {
+		if n, ok := nonCanonicalHeaders[k]; ok {
+			r.Header.Del(k)
+			r.Header[n] = v
+		}
+	}
 
 	// end span so we don't get long lived trace data
 	tracing.EndHTTPSpan(r, http.StatusOK, trace.SpanFromContext(ctx))
