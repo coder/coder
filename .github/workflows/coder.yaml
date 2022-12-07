@@ -340,7 +340,7 @@ jobs:
 
       - uses: actions/upload-artifact@v3
         with:
-          name: gotestsum debug (TestEvents)
+          name: gotestsum-debug-${{ matrix.os }}.json
           path: ./gotestsum.json
           retention-days: 7
 
@@ -407,7 +407,7 @@ jobs:
 
       - uses: actions/upload-artifact@v3
         with:
-          name: gotestsum debug (TestEvents)
+          name: gotestsum-debug-${{ matrix.os }}.json
           path: ./gotestsum.json
           retention-days: 7
 
