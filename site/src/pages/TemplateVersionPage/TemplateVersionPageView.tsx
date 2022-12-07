@@ -38,6 +38,13 @@ const getExtension = (filename: string) => {
   return filename
 }
 
+const languageByExtension: Record<string, string> = {
+  tf: "hcl",
+  md: "markdown",
+  mkd: "markdown",
+  Docker: "dockerfile",
+}
+
 const Files: FC<{
   currentFiles: TemplateVersionFiles
   previousFiles?: TemplateVersionFiles
@@ -83,7 +90,7 @@ const Files: FC<{
       <SyntaxHighlighter
         value={currentFile}
         compareWith={previousFile}
-        language={selectedFilename.endsWith("tf") ? "hcl" : "markdown"}
+        language={languageByExtension[getExtension(selectedFilename)]}
       />
     </div>
   )
