@@ -51,14 +51,6 @@ func create(t *testing.T, ptty pty.PTY, name string) *PTY {
 	copyDone := make(chan struct{})
 	out := newStdbuf()
 	w := io.MultiWriter(logw, out)
-	go func() {
-		defer close(copyDone)
-		_, err := io.Copy(w, ptty.Output())
-		logf(t, name, "copy done: %v", err)
-		logf(t, name, "closing out")
-		err = out.closeErr(err)
-		logf(t, name, "closed out: %v", err)
-	}()
 
 	tpty := &PTY{
 		t:    t,
@@ -90,7 +82,7 @@ func create(t *testing.T, ptty pty.PTY, name string) *PTY {
 		logClose("pty", ptty)
 		select {
 		case <-ctx.Done():
-			fatalf(t, name, "close", "copy did not close in time")
+			tpty.fatalf("close", "copy did not close in time")
 		case <-copyDone:
 		}
 
@@ -98,7 +90,7 @@ func create(t *testing.T, ptty pty.PTY, name string) *PTY {
 		logClose("logr", logr)
 		select {
 		case <-ctx.Done():
-			fatalf(t, name, "close", "log pipe did not close in time")
+			tpty.fatalf("close", "log pipe did not close in time")
 		case <-logDone:
 		}
 
@@ -106,6 +98,15 @@ func create(t *testing.T, ptty pty.PTY, name string) *PTY {
 
 		return nil
 	}
+
+	go func() {
+		defer close(copyDone)
+		_, err := io.Copy(w, ptty.Output())
+		tpty.logf("copy done: %v", err)
+		tpty.logf("closing out")
+		err = out.closeErr(err)
+		tpty.logf("closed out: %v", err)
+	}()
 
 	// Log all output as part of test for easier debugging on errors.
 	go func() {
@@ -203,30 +204,20 @@ func (p *PTY) WriteLine(str string) {
 
 func (p *PTY) logf(format string, args ...interface{}) {
 	p.t.Helper()
-	logf(p.t, p.name, format, args...)
+
+	// Match regular logger timestamp format, we seem to be logging in
+	// UTC in other places as well, so match here.
+	p.t.Logf("%s: %s: %s", time.Now().UTC().Format("2006-01-02 15:04:05.000"), p.name, fmt.Sprintf(format, args...))
 }
 
 func (p *PTY) fatalf(reason string, format string, args ...interface{}) {
 	p.t.Helper()
-	fatalf(p.t, p.name, reason, format, args...)
-}
-
-func logf(t *testing.T, name, format string, args ...interface{}) {
-	t.Helper()
-
-	// Match regular logger timestamp format, we seem to be logging in
-	// UTC in other places as well, so match here.
-	t.Logf("%s: %s: %s", time.Now().UTC().Format("2006-01-02 15:04:05.000"), name, fmt.Sprintf(format, args...))
-}
-
-func fatalf(t *testing.T, name, reason, format string, args ...interface{}) {
-	t.Helper()
 
 	// Ensure the message is part of the normal log stream before
 	// failing the test.
-	logf(t, name, "%s: %s", reason, fmt.Sprintf(format, args...))
+	p.logf("%s: %s", reason, fmt.Sprintf(format, args...))
 
-	require.FailNowf(t, reason, format, args...)
+	require.FailNowf(p.t, reason, format, args...)
 }
 
 // stdbuf is like a buffered stdout, it buffers writes until read.
