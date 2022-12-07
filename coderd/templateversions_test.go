@@ -140,13 +140,27 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		ls, err := examples.List()
 		require.NoError(t, err)
 
+		// try a bad example ID
 		tv, err := client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
+			Name:          "my-example",
+			StorageMethod: codersdk.ProvisionerStorageMethodFile,
+			ExampleID:     "not a real ID",
+			Provisioner:   codersdk.ProvisionerTypeEcho,
+		})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "not found")
+
+		// try a good example ID
+		tv, err = client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 			Name:          "my-example",
 			StorageMethod: codersdk.ProvisionerStorageMethodFile,
 			ExampleID:     ls[0].ID,
 			Provisioner:   codersdk.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
+		require.Equal(t, "my-example", tv.Name)
+
+		// ensure the template tar was uploaded correctly
 		fl, ct, err := client.Download(ctx, tv.Job.FileID)
 		require.NoError(t, err)
 		require.Equal(t, "application/x-tar", ct)
