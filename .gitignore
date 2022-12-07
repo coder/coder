@@ -15,7 +15,6 @@ vendor
 yarn-error.log
 gotests.coverage
 gotests.xml
-gotestsum.json
 .idea
 .gitpod.yml
 .DS_Store
