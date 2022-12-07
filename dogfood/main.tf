@@ -14,6 +14,7 @@ terraform {
 variable "datocms_api_token" {
   type = string
   description = "An API token from DATOCMS for usage with building our website."
+  default = ""
 }
 
 # Admin parameters
