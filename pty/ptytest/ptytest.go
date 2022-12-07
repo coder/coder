@@ -46,24 +46,6 @@ func create(t *testing.T, ptty pty.PTY, name string) *PTY {
 	// Use pipe for logging.
 	logDone := make(chan struct{})
 	logr, logw := io.Pipe()
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
-
-		logf(t, name, "close logw on cleanup")
-		_ = logw.Close()
-
-		logf(t, name, "close logr on cleanup")
-		_ = logr.Close()
-
-		logf(t, name, "logr and logw closed")
-
-		select {
-		case <-ctx.Done():
-			fatalf(t, name, "cleanup", "log pipe did not close in time")
-		case <-logDone: // Guard against logging after test.
-		}
-	})
 
 	// Write to log and output buffer.
 	copyDone := make(chan struct{})
@@ -72,26 +54,11 @@ func create(t *testing.T, ptty pty.PTY, name string) *PTY {
 	go func() {
 		defer close(copyDone)
 		_, err := io.Copy(w, ptty.Output())
-		_ = out.closeErr(err)
+		logf(t, name, "copy done: %v", err)
+		logf(t, name, "closing out")
+		err = out.closeErr(err)
+		logf(t, name, "closed out: %v", err)
 	}()
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
-
-		// Close pty only so that the copy goroutine can consume the
-		// remainder of it's buffer and then exit.
-		logf(t, name, "close pty on cleanup")
-		err := ptty.Close()
-		// Pty may already be closed, so don't fail the test, but log
-		// the error in case it's significant.
-		logf(t, name, "closed pty: %v", err)
-
-		select {
-		case <-ctx.Done():
-			fatalf(t, name, "cleanup", "copy did not close in time")
-		case <-copyDone:
-		}
-	})
 
 	tpty := &PTY{
 		t:    t,
@@ -101,7 +68,46 @@ func create(t *testing.T, ptty pty.PTY, name string) *PTY {
 
 		runeReader: bufio.NewReaderSize(out, utf8.UTFMax),
 	}
+	// Ensure pty is cleaned up at the end of test.
+	t.Cleanup(func() {
+		_ = tpty.Close()
+	})
 
+	logClose := func(name string, c io.Closer) {
+		tpty.logf("closing %s", name)
+		err := c.Close()
+		tpty.logf("closed %s: %v", name, err)
+	}
+	// Set the actual close function for the tpty.
+	tpty.close = func(reason string) error {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		defer cancel()
+
+		tpty.logf("closing tpty: %s", reason)
+
+		// Close pty only so that the copy goroutine can consume the
+		// remainder of it's buffer and then exit.
+		logClose("pty", ptty)
+		select {
+		case <-ctx.Done():
+			fatalf(t, name, "close", "copy did not close in time")
+		case <-copyDone:
+		}
+
+		logClose("logw", logw)
+		logClose("logr", logr)
+		select {
+		case <-ctx.Done():
+			fatalf(t, name, "close", "log pipe did not close in time")
+		case <-logDone:
+		}
+
+		tpty.logf("closed tpty")
+
+		return nil
+	}
+
+	// Log all output as part of test for easier debugging on errors.
 	go func() {
 		defer close(logDone)
 		s := bufio.NewScanner(logr)
@@ -116,11 +122,18 @@ func create(t *testing.T, ptty pty.PTY, name string) *PTY {
 
 type PTY struct {
 	pty.PTY
-	t    *testing.T
-	out  *stdbuf
-	name string
+	t     *testing.T
+	close func(reason string) error
+	out   *stdbuf
+	name  string
 
 	runeReader *bufio.Reader
+}
+
+func (p *PTY) Close() error {
+	p.t.Helper()
+
+	return p.close("close")
 }
 
 func (p *PTY) ExpectMatch(str string) string {
@@ -160,7 +173,7 @@ func (p *PTY) ExpectMatch(str string) string {
 		return buffer.String()
 	case <-timeout.Done():
 		// Ensure goroutine is cleaned up before test exit.
-		_ = p.out.closeErr(p.Close())
+		_ = p.close("expect match timeout")
 		<-match
 
 		p.fatalf("match exceeded deadline", "wanted %q; got %q", str, buffer.String())
