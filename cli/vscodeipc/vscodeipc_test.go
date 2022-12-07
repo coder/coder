@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/spf13/afero"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"nhooyr.io/websocket"
@@ -42,31 +43,37 @@ func TestVSCodeIPC(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case fmt.Sprintf("/api/v2/workspaceagents/%s/connection", id):
+			assert.Equal(t, r.Method, http.MethodGet)
 			httpapi.Write(ctx, w, http.StatusOK, codersdk.WorkspaceAgentConnectionInfo{
 				DERPMap: derpMap,
 			})
 			return
 		case fmt.Sprintf("/api/v2/workspaceagents/%s/coordinate", id):
+			assert.Equal(t, r.Method, http.MethodGet)
 			ws, err := websocket.Accept(w, r, nil)
 			require.NoError(t, err)
 			conn := websocket.NetConn(ctx, ws, websocket.MessageBinary)
 			_ = coordinator.ServeClient(conn, uuid.New(), id)
 			return
 		case "/api/v2/workspaceagents/me/version":
+			assert.Equal(t, r.Method, http.MethodPost)
 			w.WriteHeader(http.StatusOK)
 			return
 		case "/api/v2/workspaceagents/me/metadata":
+			assert.Equal(t, r.Method, http.MethodGet)
 			httpapi.Write(ctx, w, http.StatusOK, codersdk.WorkspaceAgentMetadata{
 				DERPMap: derpMap,
 			})
 			return
 		case "/api/v2/workspaceagents/me/coordinate":
+			assert.Equal(t, r.Method, http.MethodGet)
 			ws, err := websocket.Accept(w, r, nil)
 			require.NoError(t, err)
 			conn := websocket.NetConn(ctx, ws, websocket.MessageBinary)
 			_ = coordinator.ServeAgent(conn, id)
 			return
 		case "/api/v2/workspaceagents/me/report-stats":
+			assert.Equal(t, r.Method, http.MethodPost)
 			w.WriteHeader(http.StatusOK)
 			return
 		case "/":
@@ -80,6 +87,8 @@ func TestVSCodeIPC(t *testing.T) {
 	srvURL, _ := url.Parse(srv.URL)
 
 	client := codersdk.New(srvURL)
+	token := uuid.New().String()
+	client.SetSessionToken(token)
 	agentConn := agent.New(agent.Options{
 		Client:     client,
 		Filesystem: afero.NewMemMapFs(),
@@ -99,6 +108,7 @@ func TestVSCodeIPC(t *testing.T) {
 	require.Eventually(t, func() bool {
 		res := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/network", nil)
+		req.Header.Set("Coder-Session-Token", token)
 		handler.ServeHTTP(res, req)
 		network := &vscodeipc.NetworkResponse{}
 		err = json.NewDecoder(res.Body).Decode(&network)
@@ -109,6 +119,23 @@ func TestVSCodeIPC(t *testing.T) {
 	_, port, err := net.SplitHostPort(srvURL.Host)
 	require.NoError(t, err)
 
+	t.Run("NoSessionToken", func(t *testing.T) {
+		t.Parallel()
+		res := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/port/%s", port), nil)
+		handler.ServeHTTP(res, req)
+		require.Equal(t, http.StatusUnauthorized, res.Code)
+	})
+
+	t.Run("MismatchedSessionToken", func(t *testing.T) {
+		t.Parallel()
+		res := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/port/%s", port), nil)
+		req.Header.Set("Coder-Session-Token", uuid.NewString())
+		handler.ServeHTTP(res, req)
+		require.Equal(t, http.StatusUnauthorized, res.Code)
+	})
+
 	t.Run("Port", func(t *testing.T) {
 		// Tests that the port endpoint can be used for forward traffic.
 		// For this test, we simply use the already listening httptest server.
@@ -118,6 +145,7 @@ func TestVSCodeIPC(t *testing.T) {
 		defer output.Close()
 		res := &hijackable{httptest.NewRecorder(), output}
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/port/%s", port), nil)
+		req.Header.Set("Coder-Session-Token", token)
 		go handler.ServeHTTP(res, req)
 
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1/", nil)
@@ -147,6 +175,7 @@ func TestVSCodeIPC(t *testing.T) {
 			Command: "echo test",
 		})
 		req := httptest.NewRequest(http.MethodPost, "/execute", bytes.NewReader(data))
+		req.Header.Set("Coder-Session-Token", token)
 		handler.ServeHTTP(res, req)
 
 		decoder := json.NewDecoder(res.Body)

@@ -408,6 +408,7 @@ func (c *Conn) Status() *ipnstate.Status {
 }
 
 // Ping sends a Disco ping to the Wireguard engine.
+// The bool returned is true if the ping was performed P2P.
 func (c *Conn) Ping(ctx context.Context, ip netip.Addr) (time.Duration, bool, error) {
 	errCh := make(chan error, 1)
 	prChan := make(chan *ipnstate.PingResult, 1)

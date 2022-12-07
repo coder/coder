@@ -32,6 +32,11 @@ import (
 //
 // This persists a single workspace connection, and lets you execute commands, check
 // for network information, and forward ports.
+//
+// The VS Code extension is located at https://github.com/coder/vscode-coder. The
+// extension downloads the slim binary from `/bin/*` and executes `coder vscodeipc`
+// which calls this function. This API must maintain backawards compatibility with
+// the extension to support prior versions of Coder.
 func New(ctx context.Context, client *codersdk.Client, agentID uuid.UUID, options *codersdk.DialWorkspaceAgentOptions) (http.Handler, io.Closer, error) {
 	if options == nil {
 		options = &codersdk.DialWorkspaceAgentOptions{}
@@ -47,6 +52,27 @@ func New(ctx context.Context, client *codersdk.Client, agentID uuid.UUID, option
 		agentConn: agentConn,
 	}
 	r := chi.NewRouter()
+	// This is to prevent unauthorized clients on the same machine from executing
+	// requests on behalf of the workspace.
+	r.Use(func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			token := r.Header.Get("Coder-Session-Token")
+			if token == "" {
+				httpapi.Write(r.Context(), w, http.StatusUnauthorized, codersdk.Response{
+					Message: "A session token must be provided in the `Coder-Session-Token` header.",
+				})
+				return
+			}
+			if token != client.SessionToken() {
+				httpapi.Write(r.Context(), w, http.StatusUnauthorized, codersdk.Response{
+					Message: "The session token provided doesn't match the one used to create the client.",
+				})
+				return
+			}
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			h.ServeHTTP(w, r)
+		})
+	})
 	r.Get("/port/{port}", api.port)
 	r.Get("/network", api.network)
 	r.Post("/execute", api.execute)
@@ -160,8 +186,9 @@ func (api *api) network(w http.ResponseWriter, r *http.Request) {
 		totalRx += stat.RxBytes
 		totalTx += stat.TxBytes
 	}
+	// Tracking the time since last request is required because
+	// ExtractTrafficStats() resets its counters after each call.
 	dur := time.Since(api.lastNetwork)
-
 	uploadSecs := float64(totalTx) / dur.Seconds()
 	downloadSecs := float64(totalRx) / dur.Seconds()
 
@@ -198,7 +225,6 @@ func (api *api) execute(w http.ResponseWriter, r *http.Request) {
 		api.sshClient, api.sshClientErr = api.agentConn.SSHClient(context.Background())
 	})
 	if api.sshClientErr != nil {
-		fmt.Printf("WE GOT TO BEGIN ERR! %s\n", api.sshClientErr)
 		httpapi.Write(r.Context(), w, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to create SSH client.",
 			Detail:  api.sshClientErr.Error(),
@@ -216,7 +242,10 @@ func (api *api) execute(w http.ResponseWriter, r *http.Request) {
 	defer session.Close()
 	f, ok := w.(http.Flusher)
 	if !ok {
-		panic("http.ResponseWriter is not http.Flusher")
+		httpapi.Write(r.Context(), w, http.StatusInternalServerError, codersdk.Response{
+			Message: fmt.Sprintf("http.ResponseWriter is not http.Flusher: %T", w),
+		})
+		return
 	}
 
 	execWriter := &execWriter{w, f}
