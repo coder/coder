@@ -47,7 +47,7 @@ func create(t *testing.T, ptty pty.PTY, name string) *PTY {
 	logDone := make(chan struct{})
 	logr, logw := io.Pipe()
 	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 		defer cancel()
 
 		_ = logw.Close()
@@ -69,7 +69,7 @@ func create(t *testing.T, ptty pty.PTY, name string) *PTY {
 		_ = out.closeErr(err)
 	}()
 	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 		defer cancel()
 
 		// Close pty only so that the copy goroutine can consume the
@@ -202,7 +202,7 @@ func logf(t *testing.T, name, format string, args ...interface{}) {
 func fatalf(t *testing.T, name, reason, format string, args ...interface{}) {
 	t.Helper()
 
-	t.Fatal(fmt.Sprintf("%s: %s %s", name, reason, fmt.Sprintf(format, args...)))
+	t.Fatalf("%s: %s %s", name, reason, fmt.Sprintf(format, args...))
 }
 
 // stdbuf is like a buffered stdout, it buffers writes until read.

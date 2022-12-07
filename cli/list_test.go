@@ -41,5 +41,8 @@ func TestList(t *testing.T) {
 		pty.ExpectMatch("Started")
 		cancelFunc()
 		<-done
+		t.Cleanup(func() {
+			t.Fatalf("XYZ")
+		})
 	})
 }
