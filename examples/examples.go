@@ -24,6 +24,7 @@ var (
 	examples        = make([]codersdk.TemplateExample, 0)
 	parseExamples   sync.Once
 	archives        = singleflight.Group{}
+	ErrNotFound     = xerrors.New("example not found")
 )
 
 const rootDir = "templates"
@@ -116,7 +117,7 @@ func Archive(exampleID string) ([]byte, error) {
 		}
 
 		if selected.ID == "" {
-			return nil, xerrors.Errorf("example with id %q not found", exampleID)
+			return nil, xerrors.Errorf("example with id %q not found: %w", exampleID, ErrNotFound)
 		}
 
 		exampleFiles, err := fs.Sub(files, path.Join(rootDir, exampleID))
