@@ -336,14 +336,7 @@ jobs:
             echo ::set-output name=cover::false
           fi
           set -x
-          gotestsum --junitfile="gotests.xml" --jsonfile="gotestsum.json" --packages="./..." --debug -- -parallel=8 -timeout=3m -short -failfast $COVERAGE_FLAGS
-
-      - uses: actions/upload-artifact@v3
-        if: success() || failure()
-        with:
-          name: gotestsum-debug-${{ matrix.os }}.json
-          path: ./gotestsum.json
-          retention-days: 7
+          gotestsum --junitfile="gotests.xml" --packages="./..." --debug -- -parallel=8 -timeout=3m -short -failfast $COVERAGE_FLAGS
 
       - uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
@@ -405,13 +398,6 @@ jobs:
 
       - name: Test with PostgreSQL Database
         run: make test-postgres
-
-      - uses: actions/upload-artifact@v3
-        if: success() || failure()
-        with:
-          name: gotestsum-debug-postgres.json
-          path: ./gotestsum.json
-          retention-days: 7
 
       - uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
