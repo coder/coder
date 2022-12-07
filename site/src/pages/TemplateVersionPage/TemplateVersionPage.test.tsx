@@ -20,7 +20,7 @@ const TEMPLATE_VERSION_FILES = {
 const setup = async () => {
   jest
     .spyOn(templateVersionUtils, "getTemplateVersionFiles")
-    .mockResolvedValueOnce(TEMPLATE_VERSION_FILES)
+    .mockResolvedValue(TEMPLATE_VERSION_FILES)
 
   jest
     .spyOn(CreateDayString, "createDayString")
@@ -39,12 +39,5 @@ describe("TemplateVersionPage", () => {
   it("shows files", () => {
     expect(screen.queryByText(TERRAFORM_FILENAME)).toBeInTheDocument()
     expect(screen.queryByText(README_FILENAME)).toBeInTheDocument()
-  })
-
-  it("shows the right content when click on the file name", async () => {
-    await userEvent.click(screen.getByText(README_FILENAME))
-    expect(
-      screen.queryByText(TEMPLATE_VERSION_FILES[README_FILENAME]),
-    ).toBeInTheDocument()
   })
 })
