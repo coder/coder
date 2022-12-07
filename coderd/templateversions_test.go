@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/examples"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/testutil"
@@ -127,6 +128,31 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 
 		require.Len(t, auditor.AuditLogs, 1)
 		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[0].Action)
+	})
+	t.Run("Example", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		ls, err := examples.List()
+		require.NoError(t, err)
+
+		tv, err := client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
+			Name:          "my-example",
+			StorageMethod: codersdk.ProvisionerStorageMethodFile,
+			ExampleID:     ls[0].ID,
+			Provisioner:   codersdk.ProvisionerTypeEcho,
+		})
+		require.NoError(t, err)
+		fl, ct, err := client.Download(ctx, tv.Job.FileID)
+		require.NoError(t, err)
+		require.Equal(t, "application/x-tar", ct)
+		tar, err := examples.Archive(ls[0].ID)
+		require.NoError(t, err)
+		require.EqualValues(t, tar, fl)
 	})
 }
 
@@ -995,5 +1021,25 @@ func TestPreviousTemplateVersion(t *testing.T) {
 		result, err := client.PreviousTemplateVersion(ctx, user.OrganizationID, latestVersion.Name)
 		require.NoError(t, err)
 		require.Equal(t, previousVersion.ID, result.ID)
+	})
+}
+
+func TestTemplateExamples(t *testing.T) {
+	t.Parallel()
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		ex, err := client.TemplateExamples(ctx, user.OrganizationID)
+		require.NoError(t, err)
+		ls, err := examples.List()
+		require.NoError(t, err)
+		require.EqualValues(t, ls, ex)
 	})
 }

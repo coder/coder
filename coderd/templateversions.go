@@ -883,7 +883,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			Hash:      hash,
 			CreatedBy: apiKey.UserID,
 			CreatedAt: database.Now(),
-			Mimetype:  uploadFileContentTypeHeader,
+			Mimetype:  tarMimeType,
 			Data:      tar,
 		})
 		if err != nil {

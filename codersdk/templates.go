@@ -246,3 +246,17 @@ type AgentStatsReportResponse struct {
 	// TxBytes is the number of transmitted bytes.
 	TxBytes int64 `json:"tx_bytes"`
 }
+
+// TemplateExamples lists example templates embedded in coder.
+func (c *Client) TemplateExamples(ctx context.Context, organizationID uuid.UUID) ([]TemplateExample, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/templates/examples", organizationID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+	var templateExamples []TemplateExample
+	return templateExamples, json.NewDecoder(res.Body).Decode(&templateExamples)
+}
