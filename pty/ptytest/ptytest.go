@@ -72,7 +72,7 @@ func create(t *testing.T, ptty pty.PTY, name string) *PTY {
 	}
 	// Set the actual close function for the tpty.
 	tpty.close = func(reason string) error {
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
 		tpty.logf("closing tpty: %s", reason)
