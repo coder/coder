@@ -6,7 +6,6 @@ import TemplateVersionPage from "./TemplateVersionPage"
 import * as templateVersionUtils from "util/templateVersion"
 import { screen } from "@testing-library/react"
 import * as CreateDayString from "util/createDayString"
-import userEvent from "@testing-library/user-event"
 
 const TEMPLATE_NAME = "coder-ts"
 const VERSION_NAME = "12345"
