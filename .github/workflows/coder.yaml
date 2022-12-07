@@ -407,7 +407,7 @@ jobs:
 
       - uses: actions/upload-artifact@v3
         with:
-          name: gotestsum-debug-${{ matrix.os }}.json
+          name: gotestsum-debug-postgres.json
           path: ./gotestsum.json
           retention-days: 7
 
