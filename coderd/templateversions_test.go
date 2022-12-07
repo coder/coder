@@ -141,7 +141,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		require.NoError(t, err)
 
 		// try a bad example ID
-		tv, err := client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
+		_, err = client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 			Name:          "my-example",
 			StorageMethod: codersdk.ProvisionerStorageMethodFile,
 			ExampleID:     "not a real ID",
@@ -150,8 +150,20 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorContains(t, err, "not found")
 
+		// try file and example IDs
+		_, err = client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
+			Name:          "my-example",
+			StorageMethod: codersdk.ProvisionerStorageMethodFile,
+			ExampleID:     ls[0].ID,
+			FileID:        uuid.New(),
+			Provisioner:   codersdk.ProvisionerTypeEcho,
+		})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "example_id")
+		require.ErrorContains(t, err, "file_id")
+
 		// try a good example ID
-		tv, err = client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
+		tv, err := client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 			Name:          "my-example",
 			StorageMethod: codersdk.ProvisionerStorageMethodFile,
 			ExampleID:     ls[0].ID,
