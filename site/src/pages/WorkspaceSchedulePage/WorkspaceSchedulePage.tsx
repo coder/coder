@@ -1,5 +1,6 @@
 import { useMachine } from "@xstate/react"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { scheduleToAutoStart } from "pages/WorkspaceSchedulePage/schedule"
 import { ttlMsToAutoStop } from "pages/WorkspaceSchedulePage/ttl"
 import React, { useEffect, useState } from "react"
@@ -20,6 +21,11 @@ const Language = {
     "You don't have permissions to update the schedule for this workspace.",
   getWorkspaceError: "Failed to fetch workspace.",
   checkPermissionsError: "Failed to fetch permissions.",
+  dialogTitle: "Restart workspace?",
+  dialogDescription: `Would you like to restart your workspace now to apply your new auto-stop setting,
+  or let it apply after your next workspace start?`,
+  restart: "Restart workspace now",
+  applyLater: "Apply update later",
 }
 
 export const WorkspaceSchedulePage: React.FC = () => {
@@ -35,6 +41,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
     getWorkspaceError,
     permissions,
     workspace,
+    shouldRestartWorkspace,
   } = scheduleState.context
 
   // Get workspace on mount and whenever the args for getting a workspace change.
@@ -119,8 +126,32 @@ export const WorkspaceSchedulePage: React.FC = () => {
     )
   }
 
-  if (scheduleState.matches("submitSuccess")) {
-    return <Navigate to={`/@${username}/${workspaceName}`} />
+  if (scheduleState.matches("showingRestartDialog")) {
+    return (
+      <ConfirmDialog
+        open
+        title={Language.dialogTitle}
+        description={Language.dialogDescription}
+        confirmText={Language.restart}
+        cancelText={Language.applyLater}
+        hideCancel={false}
+        onConfirm={() => {
+          scheduleSend("RESTART_WORKSPACE")
+        }}
+        onClose={() => {
+          scheduleSend("APPLY_LATER")
+        }}
+      />
+    )
+  }
+
+  if (scheduleState.matches("done")) {
+    return (
+      <Navigate
+        to={`/@${username}/${workspaceName}`}
+        state={{ shouldRestartWorkspace }}
+      />
+    )
   }
 
   // Theoretically impossible - log and bail
