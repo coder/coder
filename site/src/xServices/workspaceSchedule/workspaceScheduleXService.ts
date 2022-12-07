@@ -55,171 +55,180 @@ export type WorkspaceScheduleEvent =
   | { type: "APPLY_LATER" }
 
 export const workspaceSchedule =
-/** @xstate-layout N4IgpgJg5mDOIC5QHcD2AnA1rADgQwGMwBlAgC0gFcAbEgFzzrAGIBxAUQBUB9AdQHkASgGliABQCCAYXYBtAAwBdRKBypYASzobUAOxUgAHogCMAJgB0AVgAcAThsAWeXZMA2O2YDsdq1YA0IACeiGbyFl428o4AzFYmMT4xbl5mAL5pgWhYuIQk5FS0xAxMFjB02rpQvBjY+ETMEHpgFhq6AG6omC3lNTn1YArKSCBqmtp6BsYI7tbybmZ+9mYO8u6OgSEIMY6OFo5eC34mdqkLNhlZtblEpBQQNPSMPWAVbdXXA8xg6OgYFjhqIwAGYYAC2ZVefTqeSGBjGWh0+hG02SNmsXhMVhWdkcbkcNm8Xk2oRcFgW7hi8h8djcVkuIGyMNuBQeRRKLzeVTEPzBGlgmj0sEazVaHS6LQKBEwPPQfIFSNgcJGCImyNA0wAtOEYrjsa4vD5bMkEiSEG44uTFosCa41lY3AymTd8vdHsVnpCuVBZfLBbphT8-ugAUC6KC5RYpTLefz-UqlPD1IjJijEMkrBE3G4bO5cfN5GYzGadnsDgt5rmnFZHL4nZ88ndCk9Sjh0HAwLo6AAxcHMYgAVQAQgBZACSPGIUgAEuwACIDgAyckTKuTaqmiEzqTMdOzJixJi82OLwUQNic5MxrjxusS5nr-UbrPdHIssEoACM+d6m2yWE0ugtG0nTdO+X4-n+jzKqo65IpuMx7CYF7ZjYMSJLihpeBsZ4zO4Jj7HahomPINaEo4j7Mq6zYeqUH7flolRQFBtAikBYqgS09GQS+tCyCYwyweM8Fpggjg1hYu5UrqZiOCsjjmGaB5uARtYkfq7jUjYjqZIyDYsm67KetxjHvCxLBBv8gIguC4EMXQ5kwaMcGphq6YpBEB4JFYuqxN4Jhmq4bj7CkiReNEpykSYlEuuZtFcWQqDIO8ghwAw6B0HOGh4NQqBQMwgjsMQnASIIPACCI4jSCugnOcJrlGOeMT7LYyExMhClybESmJMFrU2OFDo+OYOlXE+Bk0W+sCJclVSpbA6WZdluX5RIYhiIuACa3CLhInDsIITmqiJbnbG4Oq1gpaxOHmMRKWY2kWPYObnehOwxDFAxxW+lnoGwXB8EIoiSDIR0ueqjXbFYdgWKcVZmCN5x+EpBJPa4ngmLE8jtV4GS6boqAQHABjOl9vEtmASb1RDWqo75GmGr4aFuGampYpYTgI-IUS+Nzhy47ppPPoZFOtBAtBUymNOmOEUQ1nidJWMe1IPazdIWDsXMHseXgxFEAtjVR32euUTHQi6ksbqJXgWPI8y1rJix23ESso3sdvRLrKxmDEjvpIL+nUf+8VekxvpxoqlsnZD6K5nYLhHnJNjYmsZoEjbuu+ASJqdbrn3C5Nnpth2Xa9nKUcNdMuxPdjaFOFS2ErGakTNQjDu3qkJF2PnE3B1NEGmVU5kV9LMzhNDSvzBa1IqZ4OFbLSMMWj7OZoXrhIfQH41B6+xkzSlaV4BlWU5XlI8ISReyYbJ5h2A4cnI7hI2ZtmcSRNpOZxP7huxeTIe-efUSthMyyU8PHO+R4LRKQks4HMmMDhfzWNFLeRs-5vkApTNc1MEK6hAe4c6pE6QDTCCzJ+tZY4nD1qkdCqQBYZCAA */
-createMachine(
-  {
-    id: "workspaceScheduleState",
-    predictableActionArguments: true,
-    tsTypes: {} as import("./workspaceScheduleXService.typegen").Typegen0,
-    schema: {
-      context: {} as WorkspaceScheduleContext,
-      events: {} as WorkspaceScheduleEvent,
-      services: {} as {
-        getWorkspace: {
-          data: TypesGen.Workspace
-        }
-      },
-    },
-    initial: "idle",
-    on: {
-      GET_WORKSPACE: "gettingWorkspace",
-    },
-    states: {
-      idle: {
-        tags: "loading",
-      },
-      gettingWorkspace: {
-        entry: ["clearGetWorkspaceError", "clearContext"],
-        invoke: {
-          src: "getWorkspace",
-          id: "getWorkspace",
-          onDone: {
-            target: "gettingPermissions",
-            actions: ["assignWorkspace"],
-          },
-          onError: {
-            target: "error",
-            actions: ["assignGetWorkspaceError"],
-          },
+  /** @xstate-layout N4IgpgJg5mDOIC5QHcD2AnA1rADgQwGMwBlAgC0gFcAbEgFzzrAGIBxAUQBUB9AdQHkASgGliABQCCAYXYBtAAwBdRKBypYASzobUAOxUgAHogCMAJgB0AVgAcAThsAWeXZMA2O2YDsdq1YA0IACeiGbyFl428o4AzFYmMT4xbl5mAL5pgWhYuIQk5FS0xAxMFjB02rpQvBjY+ETMEHpgFhq6AG6omC3lNTn1YArKSCBqmtp6BsYI7tbybmZ+9mYO8u6OgSEIMY6OFo5eC34mdqkLNhlZtblEpBQQNPSMPWAVbdXXA8xg6OgYFjhqIwAGYYAC2ZVefTqeSGBjGWh0+hG02SNmsXhMVhWdkcbkcNm8Xk2oRcFgW7hi8h8djcVkuIGyMNuBQeRRKLzeVTEPzBGlgmj0sEazVaHS6LQKBEwPPQfIFSNgcJGCImyNA0wAtOEYrjsa4vD5bMkEiSEG44uTFosCa41lY3AymTd8vdHsVnpCuVBZfLBbphT8-ugAUC6KC5RYpTLefz-UqlPD1IjJijEMkrBE3G4bO5cfN5GYzGadnsDgt5rmnFZHL4nZ88ndCk9Sjh0HAwLo6AAxcHMYgAVQAQgBZACSPGIUgAEuwACIDgAyckTKuTaqmiEzqTMdOzJixJi82OLwUQNic5MxrjxusS5nr-UbrPdHIssEoACM+d6m2yWE0ugtG0nTdO+X4-n+jzKqo65IpuMx7CYF7ZjYMSJLihpeBsZ4zO4Jj7HahomPINaEo4j7Mq6zYeqUH7flolRQFBtAikBYqgS09GQS+tCyCYwyweM8Fpggjg1hYu5UrqZiOCsjjmGaB5uARtYkfq7jUjYjqZIyDYsm67KetxjHvCxLBBv8gIguC4EMXQ5kwaMcGphq6YpBEB4JFYuqxN4Jhmq4bj7CkiReNEpykSYlEuuZtFcWQqDIO8ghwAw6B0HOGh4NQqBQMwgjsMQnASIIPACCI4jSCugnOcJrlGOeMT7LYyExMhClybESmJMFrU2OFDo+OYOlXE+Bk0W+sCJclVSpbA6WZdluX5RIYhiIuACa3CLhInDsIITmqiJbnbG4Oq1gpaxOHmMRKWY2kWPYObnehOwxDFAxxW+lnoGwXB8EIoiSDIR0ueqjXbFYdgWKcVZmCN5x+EpBJPa4ngmLE8jtV4GS6boqAQHABjOl9vEtmASb1RDWqo75GmGr4aFuGampYpYTgI-IUS+Nzhy47ppPPoZFOtBAtBUymNOmOEUQ1nidJWMe1IPazdIWDsXMHseXgxFEAtjVR32euUTHQi6ksbqJXgWPI8y1rJix23ESso3sdvRLrKxmDEjvpIL+nUf+8VekxvpxoqlsnZD6K5nYLhHnJNjYmsZoEjbuu+ASJqdbrn3C5Nnpth2Xa9nKUcNdMuxPdjaFOFS2ErGakTNQjDu3qkJF2PnE3B1NEGmVU5kV9LMzhNDSvzBa1IqZ4OFbLSMMWj7OZoXrhIfQH41B6+xkzSlaV4BlWU5XlI8ISReyYbJ5h2A4cnI7hI2ZtmcSRNpOZxP7huxeTIe-efUSthMyyU8PHO+R4LRKQks4HMmMDhfzWNFLeRs-5vkApTNc1MEK6hAe4c6pE6QDTCCzJ+tZY4nD1qkdCqQBYZCAA */
+  createMachine(
+    {
+      id: "workspaceScheduleState",
+      predictableActionArguments: true,
+      tsTypes: {} as import("./workspaceScheduleXService.typegen").Typegen0,
+      schema: {
+        context: {} as WorkspaceScheduleContext,
+        events: {} as WorkspaceScheduleEvent,
+        services: {} as {
+          getWorkspace: {
+            data: TypesGen.Workspace
+          }
         },
-        tags: "loading",
       },
-      gettingPermissions: {
-        entry: "clearGetPermissionsError",
-        invoke: {
-          src: "checkPermissions",
-          id: "checkPermissions",
-          onDone: [
-            {
-              actions: ["assignPermissions"],
-              target: "presentForm",
+      initial: "idle",
+      on: {
+        GET_WORKSPACE: "gettingWorkspace",
+      },
+      states: {
+        idle: {
+          tags: "loading",
+        },
+        gettingWorkspace: {
+          entry: ["clearGetWorkspaceError", "clearContext"],
+          invoke: {
+            src: "getWorkspace",
+            id: "getWorkspace",
+            onDone: {
+              target: "gettingPermissions",
+              actions: ["assignWorkspace"],
             },
-          ],
-          onError: [
-            {
-              actions: "assignGetPermissionsError",
+            onError: {
               target: "error",
+              actions: ["assignGetWorkspaceError"],
             },
-          ],
+          },
+          tags: "loading",
         },
-      },
-      presentForm: {
-        on: {
-          SUBMIT_SCHEDULE: { target: "submittingSchedule", actions: "assignAutoStopChanged" },
-        },
-      },
-      submittingSchedule: {
-        invoke: {
-          src: "submitSchedule",
-          id: "submitSchedule",
-          onDone: [
-            {
-              cond: "autoStartChanged",
-              target: "showingRestartDialog",
-            },
-            { target: "done" }
-          ],
-          onError: {
-            target: "presentForm",
-            actions: ["assignSubmissionError"],
+        gettingPermissions: {
+          entry: "clearGetPermissionsError",
+          invoke: {
+            src: "checkPermissions",
+            id: "checkPermissions",
+            onDone: [
+              {
+                actions: ["assignPermissions"],
+                target: "presentForm",
+              },
+            ],
+            onError: [
+              {
+                actions: "assignGetPermissionsError",
+                target: "error",
+              },
+            ],
           },
         },
-        tags: "loading",
+        presentForm: {
+          on: {
+            SUBMIT_SCHEDULE: {
+              target: "submittingSchedule",
+              actions: "assignAutoStopChanged",
+            },
+          },
+        },
+        submittingSchedule: {
+          invoke: {
+            src: "submitSchedule",
+            id: "submitSchedule",
+            onDone: [
+              {
+                cond: "autoStartChanged",
+                target: "showingRestartDialog",
+              },
+              { target: "done" },
+            ],
+            onError: {
+              target: "presentForm",
+              actions: ["assignSubmissionError"],
+            },
+          },
+          tags: "loading",
+        },
+        showingRestartDialog: {
+          on: {
+            RESTART_WORKSPACE: {
+              target: "done",
+              actions: "assignRestartWorkspace",
+            },
+            APPLY_LATER: "done",
+          },
+        },
+        error: {
+          on: {
+            GET_WORKSPACE: "gettingWorkspace",
+          },
+        },
+        done: {},
       },
-      showingRestartDialog: {
-        on: {
-          RESTART_WORKSPACE: { target: "done", actions: "assignRestartWorkspace" },
-          APPLY_LATER: "done"
+    },
+    {
+      guards: {
+        autoStartChanged: (context) => Boolean(context.autoStopChanged),
+      },
+      actions: {
+        assignSubmissionError: assign({
+          submitScheduleError: (_, event) => event.data,
+        }),
+        assignWorkspace: assign({
+          workspace: (_, event) => event.data,
+        }),
+        assignGetWorkspaceError: assign({
+          getWorkspaceError: (_, event) => event.data,
+        }),
+        assignPermissions: assign({
+          // Setting event.data as Permissions to be more stricted. So we know
+          // what permissions we asked for.
+          permissions: (_, event) => event.data as Permissions,
+        }),
+        assignGetPermissionsError: assign({
+          checkPermissionsError: (_, event) => event.data,
+        }),
+        assignAutoStopChanged: assign({
+          autoStopChanged: (_, event) => event.autoStopChanged,
+        }),
+        assignRestartWorkspace: assign({
+          shouldRestartWorkspace: (_) => true,
+        }),
+        clearGetPermissionsError: assign({
+          checkPermissionsError: (_) => undefined,
+        }),
+        clearContext: () => {
+          assign({ workspace: undefined, permissions: undefined })
+        },
+        clearGetWorkspaceError: (context) => {
+          assign({ ...context, getWorkspaceError: undefined })
         },
       },
-      error: {
-        on: {
-          GET_WORKSPACE: "gettingWorkspace",
-        },
-      },
-      done: {}
-    },
-  },
-  {
-    guards: {
-      autoStartChanged: (context) => Boolean(context.autoStopChanged)
-    },
-    actions: {
-      assignSubmissionError: assign({
-        submitScheduleError: (_, event) => event.data,
-      }),
-      assignWorkspace: assign({
-        workspace: (_, event) => event.data,
-      }),
-      assignGetWorkspaceError: assign({
-        getWorkspaceError: (_, event) => event.data,
-      }),
-      assignPermissions: assign({
-        // Setting event.data as Permissions to be more stricted. So we know
-        // what permissions we asked for.
-        permissions: (_, event) => event.data as Permissions,
-      }),
-      assignGetPermissionsError: assign({
-        checkPermissionsError: (_, event) => event.data,
-      }),
-      assignAutoStopChanged: assign({
-        autoStopChanged: (_) => true
-      }),
-      assignRestartWorkspace: assign({
-        shouldRestartWorkspace: (_) => true
-      }),
-      clearGetPermissionsError: assign({
-        checkPermissionsError: (_) => undefined,
-      }),
-      clearContext: () => {
-        assign({ workspace: undefined, permissions: undefined })
-      },
-      clearGetWorkspaceError: (context) => {
-        assign({ ...context, getWorkspaceError: undefined })
-      },
-    },
 
-    services: {
-      getWorkspace: async (_, event) => {
-        return await API.getWorkspaceByOwnerAndName(
-          event.username,
-          event.workspaceName,
-        )
-      },
-      checkPermissions: async (context) => {
-        if (context.workspace) {
-          return await API.checkAuthorization({
-            checks: permissionsToCheck(context.workspace),
-          })
-        } else {
-          throw Error(
-            "Cannot check permissions without both workspace and user id",
+      services: {
+        getWorkspace: async (_, event) => {
+          return await API.getWorkspaceByOwnerAndName(
+            event.username,
+            event.workspaceName,
           )
-        }
-      },
-      submitSchedule: async (context, event) => {
-        if (!context.workspace?.id) {
-          // This state is theoretically impossible, but helps TS
-          throw new Error("Failed to load workspace.")
-        }
+        },
+        checkPermissions: async (context) => {
+          if (context.workspace) {
+            return await API.checkAuthorization({
+              checks: permissionsToCheck(context.workspace),
+            })
+          } else {
+            throw Error(
+              "Cannot check permissions without both workspace and user id",
+            )
+          }
+        },
+        submitSchedule: async (context, event) => {
+          if (!context.workspace?.id) {
+            // This state is theoretically impossible, but helps TS
+            throw new Error("Failed to load workspace.")
+          }
 
-        if (event.autoStartChanged) {
-          await API.putWorkspaceAutostart(context.workspace.id, event.autoStart)
-        }
-        if (event.autoStopChanged) {
-          await API.putWorkspaceAutostop(context.workspace.id, event.ttl)
-        }
+          if (event.autoStartChanged) {
+            await API.putWorkspaceAutostart(
+              context.workspace.id,
+              event.autoStart,
+            )
+          }
+          if (event.autoStopChanged) {
+            await API.putWorkspaceAutostop(context.workspace.id, event.ttl)
+          }
+        },
       },
     },
-  },
-)
+  )
