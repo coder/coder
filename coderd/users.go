@@ -825,21 +825,6 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, convertUser(updatedUser, organizationIDs))
 }
 
-func (_ *API) templateExamples(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	ex, err := examples.List()
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching examples.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, ex)
-}
-
 // updateSiteUserRoles will ensure only site wide roles are passed in as arguments.
 // If an organization role is included, an error is returned.
 func (api *API) updateSiteUserRoles(ctx context.Context, args database.UpdateUserRolesParams) (database.User, error) {
