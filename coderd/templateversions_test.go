@@ -968,9 +968,10 @@ func TestPreviousTemplateVersion(t *testing.T) {
 	t.Parallel()
 	t.Run("Previous version not found", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -983,11 +984,13 @@ func TestPreviousTemplateVersion(t *testing.T) {
 
 	t.Run("Previous version found", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		previousVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, previousVersion.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, previousVersion.ID)
 		latestVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, nil, template.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, latestVersion.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
