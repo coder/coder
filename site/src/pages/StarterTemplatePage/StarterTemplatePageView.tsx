@@ -13,6 +13,7 @@ import { StarterTemplateContext } from "xServices/starterTemplates/starterTempla
 import EyeIcon from "@material-ui/icons/VisibilityOutlined"
 import PlusIcon from "@material-ui/icons/AddOutlined"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { useTranslation } from "react-i18next"
 
 export interface StarterTemplatePageViewProps {
   context: StarterTemplateContext
@@ -23,6 +24,7 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
 }) => {
   const styles = useStyles()
   const { starterTemplate } = context
+  const { t } = useTranslation("starterTemplatePage")
 
   if (context.error) {
     return (
@@ -48,9 +50,9 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
               rel="noreferrer"
               startIcon={<EyeIcon />}
             >
-              View source code
+              {t("actions.viewSourceCode")}
             </Button>
-            <Button startIcon={<PlusIcon />}>Use template</Button>
+            <Button startIcon={<PlusIcon />}>{t("actions.useTemplate")}</Button>
           </>
         }
       >
