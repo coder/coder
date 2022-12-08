@@ -266,4 +266,14 @@ export const handlers = [
   rest.get("/api/v2/workspace-quota/:userId", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(MockWorkspaceQuota))
   }),
+
+  rest.get(
+    "api/v2/organizations/:organizationId/templates/examples",
+    (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json([M.MockTemplateExample, M.MockTemplateExample2]),
+      )
+    },
+  ),
 ]
