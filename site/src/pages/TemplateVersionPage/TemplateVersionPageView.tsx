@@ -11,7 +11,6 @@ import {
 } from "components/PageHeader/PageHeader"
 import { Stack } from "components/Stack/Stack"
 import { Stats, StatsItem } from "components/Stats/Stats"
-import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter"
 import { UseTabResult } from "hooks/useTab"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
@@ -19,7 +18,83 @@ import { Link } from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
 import { createDayString } from "util/createDayString"
 import { TemplateVersionMachineContext } from "xServices/templateVersion/templateVersionXService"
+import { TemplateVersionFiles } from "util/templateVersion"
+import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter"
+import { DockerIcon } from "components/Icons/DockerIcon"
 
+const iconByExtension: Record<string, JSX.Element> = {
+  tf: <TerraformIcon />,
+  md: <MarkdownIcon />,
+  mkd: <MarkdownIcon />,
+  Dockerfile: <DockerIcon />,
+}
+
+const getExtension = (filename: string) => {
+  if (filename.includes(".")) {
+    const [_, extension] = filename.split(".")
+    return extension
+  }
+
+  return filename
+}
+
+const languageByExtension: Record<string, string> = {
+  tf: "hcl",
+  md: "markdown",
+  mkd: "markdown",
+  Dockerfile: "dockerfile",
+}
+
+const Files: FC<{
+  currentFiles: TemplateVersionFiles
+  previousFiles?: TemplateVersionFiles
+  tab: UseTabResult
+}> = ({ currentFiles, previousFiles, tab }) => {
+  const styles = useStyles()
+  const filenames = Object.keys(currentFiles)
+  const selectedFilename = filenames[Number(tab.value)]
+  const currentFile = currentFiles[selectedFilename]
+  const previousFile = previousFiles && previousFiles[selectedFilename]
+
+  return (
+    <div className={styles.files}>
+      <div className={styles.tabs}>
+        {filenames.map((filename, index) => {
+          const tabValue = index.toString()
+          const extension = getExtension(filename)
+          const icon = iconByExtension[extension]
+          const hasDiff =
+            previousFiles &&
+            previousFiles[filename] &&
+            currentFiles[filename] !== previousFiles[filename]
+
+          return (
+            <button
+              className={combineClasses({
+                [styles.tab]: true,
+                [styles.tabActive]: tabValue === tab.value,
+              })}
+              onClick={() => {
+                tab.set(tabValue)
+              }}
+              key={filename}
+            >
+              {icon}
+              {filename}
+              {hasDiff && <div className={styles.tabDiff} />}
+            </button>
+          )
+        })}
+      </div>
+
+      <SyntaxHighlighter
+        value={currentFile}
+        compareWith={previousFile}
+        language={languageByExtension[getExtension(selectedFilename)]}
+      />
+    </div>
+  )
+}
 export interface TemplateVersionPageViewProps {
   /**
    * Used to display the version name before loading the version in the API
@@ -36,8 +111,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
   versionName,
   templateName,
 }) => {
-  const styles = useStyles()
-  const { files, error, version } = context
+  const { currentFiles, error, currentVersion, previousFiles } = context
   const { t } = useTranslation("templateVersionPage")
 
   return (
@@ -47,11 +121,11 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
         <PageHeaderTitle>{versionName}</PageHeaderTitle>
       </PageHeader>
 
-      {!files && !error && <Loader />}
+      {!currentFiles && !error && <Loader />}
 
       <Stack spacing={4}>
         {Boolean(error) && <AlertBanner severity="error" error={error} />}
-        {version && files && (
+        {currentVersion && currentFiles && (
           <>
             <Stats>
               <StatsItem
@@ -62,53 +136,19 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
               />
               <StatsItem
                 label={t("stats.createdBy")}
-                value={version.created_by.username}
+                value={currentVersion.created_by.username}
               />
               <StatsItem
                 label={t("stats.created")}
-                value={createDayString(version.created_at)}
+                value={createDayString(currentVersion.created_at)}
               />
             </Stats>
 
-            <div className={styles.files}>
-              <div className={styles.tabs}>
-                {Object.keys(files).map((filename, index) => {
-                  const tabValue = index.toString()
-
-                  return (
-                    <button
-                      className={combineClasses({
-                        [styles.tab]: true,
-                        [styles.tabActive]: tabValue === tab.value,
-                      })}
-                      onClick={() => {
-                        tab.set(tabValue)
-                      }}
-                      key={filename}
-                    >
-                      {filename.endsWith("tf") ? (
-                        <TerraformIcon />
-                      ) : (
-                        <MarkdownIcon />
-                      )}
-                      {filename}
-                    </button>
-                  )
-                })}
-              </div>
-
-              <SyntaxHighlighter
-                showLineNumbers
-                className={styles.prism}
-                language={
-                  Object.keys(files)[Number(tab.value)].endsWith("tf")
-                    ? "hcl"
-                    : "markdown"
-                }
-              >
-                {Object.values(files)[Number(tab.value)]}
-              </SyntaxHighlighter>
-            </div>
+            <Files
+              tab={tab}
+              currentFiles={currentFiles}
+              previousFiles={previousFiles}
+            />
           </>
         )}
       </Stack>
@@ -125,6 +165,7 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     alignItems: "baseline",
     borderBottom: `1px solid ${theme.palette.divider}`,
+    gap: 1,
   },
 
   tab: {
@@ -134,7 +175,7 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     alignItems: "center",
     height: theme.spacing(6),
-    opacity: 0.75,
+    opacity: 0.85,
     cursor: "pointer",
     gap: theme.spacing(0.5),
     position: "relative",
@@ -151,7 +192,7 @@ const useStyles = makeStyles((theme) => ({
 
   tabActive: {
     opacity: 1,
-    fontWeight: 600,
+    background: theme.palette.action.hover,
 
     "&:after": {
       content: '""',
@@ -163,6 +204,14 @@ const useStyles = makeStyles((theme) => ({
       backgroundColor: theme.palette.secondary.dark,
       position: "absolute",
     },
+  },
+
+  tabDiff: {
+    height: 6,
+    width: 6,
+    backgroundColor: theme.palette.warning.light,
+    borderRadius: "100%",
+    marginLeft: theme.spacing(0.5),
   },
 
   codeWrapper: {
