@@ -17,7 +17,7 @@ export const Language = {
     return name ? `Please enter a ${name.toLowerCase()}.` : "Required"
   },
   nameInvalidChars: (name: string): string => {
-    return `${name} must start with a-Z or 0-9 and can contain a-Z, 0-9 or -`
+    return `${name} must start with a-Z or 0-9 and can contain a-Z, 0-9, . or -`
   },
   nameTooLong: (name: string, len: number): string => {
     return `${name} cannot be longer than ${len} characters`
@@ -80,7 +80,7 @@ export const onChangeTrimmed =
 // REMARK: Keep these consts in sync with coderd/httpapi/httpapi.go
 const maxLenName = 32
 const templateDisplayNameMaxLength = 64
-const usernameRE = /^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*$/
+const usernameRE = /^[a-zA-Z0-9._]+(?:-[a-zA-Z0-9._]+)*$/
 const templateDisplayNameRE = /^[^\s](.*[^\s])?$/
 
 // REMARK: see #1756 for name/username semantics
