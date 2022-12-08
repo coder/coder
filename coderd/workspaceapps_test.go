@@ -414,7 +414,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		t.Log("navigating to: ", gotLocation.String())
 		req, err = http.NewRequestWithContext(ctx, "GET", gotLocation.String(), nil)
 		require.NoError(t, err)
-		resp, err = client.HTTPClient.Do(req)
+		resp, err = doWithRetries(t, client, req)
 		require.NoError(t, err)
 		resp.Body.Close()
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
@@ -471,7 +471,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		req, err = http.NewRequestWithContext(ctx, "GET", gotLocation.String(), nil)
 		require.NoError(t, err)
 		req.Header.Set(codersdk.SessionCustomHeader, apiKey)
-		resp, err = client.HTTPClient.Do(req)
+		resp, err = doWithRetries(t, client, req)
 		require.NoError(t, err)
 		resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -1153,7 +1153,7 @@ func TestWorkspaceAppsNonCanonicalHeaders(t *testing.T) {
 		req.Header["Sec-WebSocket-Key"] = []string{secWebSocketKey}
 
 		req.Header.Set(codersdk.SessionCustomHeader, client.SessionToken())
-		resp, err := client.HTTPClient.Do(req)
+		resp, err := doWithRetries(t, client, req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
@@ -1205,7 +1205,7 @@ func TestWorkspaceAppsNonCanonicalHeaders(t *testing.T) {
 		req.Header["Sec-WebSocket-Key"] = []string{secWebSocketKey}
 
 		req.Header.Set(codersdk.SessionCustomHeader, client.SessionToken())
-		resp, err := client.HTTPClient.Do(req)
+		resp, err := doWithRetries(t, client, req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
