@@ -312,7 +312,9 @@ COPY --from=go /tmp/bin /usr/local/bin
 COPY --from=rust-utils /tmp/bin /usr/local/bin
 COPY --from=proto /tmp/bin /usr/local/bin
 
-# Configure Nix without sandboxing - https://github.com/NixOS/nix/issues/2636#issuecomment-455302745
+# Configure Nix without sandboxing
+# - https://github.com/NixOS/nix/issues/2636#issuecomment-455302745
+# - https://nixos.org/manual/nix/stable/installation/multi-user.html#setting-up-the-build-users
 RUN addgroup --system nixbld \
   && adduser coder nixbld \
   && for i in $(seq 1 30); do useradd -ms /bin/bash nixbld$i &&  adduser nixbld$i nixbld; done \
