@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/util/slice"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -72,26 +74,49 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 
 func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx               = r.Context()
-		group             = httpmw.GroupParam(r)
-		auditor           = api.AGPL.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.Group](rw, &audit.RequestParams{
-			Audit:   *auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionWrite,
-		})
+		ctx     = r.Context()
+		group   = httpmw.GroupParam(r)
+		auditor = api.AGPL.Auditor.Load()
 	)
+
+	var req codersdk.PatchGroupRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	var (
+		groupResourceInfo    = make(map[string][]string)
+		hasGroupMemberChange = len(req.AddUsers) != 0 || len(req.RemoveUsers) != 0
+	)
+
+	if hasGroupMemberChange {
+		currentMembers, currentMembersErr := api.Database.GetGroupMembers(ctx, group.ID)
+		if currentMembersErr != nil {
+			httpapi.InternalServerError(rw, currentMembersErr)
+			return
+		}
+
+		groupResourceInfo = createMemberMap(req, groupResourceInfo, currentMembers)
+	}
+
+	wriBytes, marshalErr := json.Marshal(groupResourceInfo)
+	if marshalErr != nil {
+		httpapi.InternalServerError(rw, marshalErr)
+	}
+	aReq, commitAudit := audit.InitRequest[database.Group](rw, &audit.RequestParams{
+		Audit:                *auditor,
+		Log:                  api.Logger,
+		Request:              r,
+		Action:               database.AuditActionWrite,
+		HasGroupMemberChange: hasGroupMemberChange,
+		GroupMemberLists:     wriBytes,
+	})
+
 	defer commitAudit()
 	aReq.Old = group
 
 	if !api.Authorize(r, rbac.ActionUpdate, group) {
 		http.NotFound(rw, r)
-		return
-	}
-
-	var req codersdk.PatchGroupRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
@@ -374,4 +399,29 @@ func convertRole(role rbac.Role) codersdk.Role {
 		DisplayName: role.DisplayName,
 		Name:        role.Name,
 	}
+}
+
+// Creates a list of current group member IDs
+// as well as a list of the patched group member IDs
+// in order to form a diff for the group resource audit log entry
+func createMemberMap(req codersdk.PatchGroupRequest, groupMemberMap map[string][]string, currentMembers []database.User) map[string][]string {
+	var oldMemberIds []string
+	for _, x := range currentMembers {
+		oldMemberIds = append(oldMemberIds, x.ID.String())
+	}
+
+	var newMemberIds []string
+	// Although we favor adding users over deleting them,
+	// users are added and deleted in separate requests on the FE,
+	// so we won't see duplicate IDs.
+	newMemberIds = append(newMemberIds, req.AddUsers...)
+	for _, x := range currentMembers {
+		if !slice.Contains(newMemberIds, x.ID.String()) && !slice.Contains(req.RemoveUsers, x.ID.String()) {
+			newMemberIds = append(newMemberIds, x.ID.String())
+		}
+	}
+
+	groupMemberMap["oldGroupMembers"] = oldMemberIds
+	groupMemberMap["newGroupMembers"] = newMemberIds
+	return groupMemberMap
 }

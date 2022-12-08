@@ -24,6 +24,10 @@ type RequestParams struct {
 	Request          *http.Request
 	Action           database.AuditAction
 	AdditionalFields json.RawMessage
+
+	// specific to Group resource patch requests
+	HasGroupMemberChange bool
+	GroupMemberLists     json.RawMessage
 }
 
 type Request[T Auditable] struct {
@@ -144,6 +148,12 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 		if sw.Status < 400 {
 			diff := Diff(p.Audit, req.Old, req.New)
 
+			// Group resource types maybe have group member changes.
+			// We track diffs of this nature differently as GroupMember is a distinct table.
+			if p.HasGroupMemberChange {
+				diff = addGroupMemberDiff(logCtx, diff, p.GroupMemberLists, p.Log)
+			}
+
 			var err error
 			diffRaw, err = json.Marshal(diff)
 			if err != nil {
@@ -237,4 +247,31 @@ func parseIP(ipStr string) pqtype.Inet {
 		IPNet: ipNet,
 		Valid: ip != nil,
 	}
+}
+
+type GroupMemberLists struct {
+	OldGroupMembers []string
+	NewGroupMembers []string
+}
+
+// Adds a 'members' key to Group resource diffs
+// in order to capture the addition or removal of group members
+func addGroupMemberDiff(logCtx context.Context, diff Map, groupMemberLists json.RawMessage, logger slog.Logger) Map {
+	var (
+		groupMemberBytes = []byte(groupMemberLists)
+		members          GroupMemberLists
+		err              = json.Unmarshal(groupMemberBytes, &members)
+	)
+
+	if err == nil {
+		diff["members"] = OldNew{
+			Old:    members.OldGroupMembers,
+			New:    members.NewGroupMembers,
+			Secret: false,
+		}
+	} else {
+		logger.Warn(logCtx, "marshal group member diff", slog.Error(err))
+	}
+
+	return diff
 }
