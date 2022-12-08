@@ -37,7 +37,7 @@ export const WorkspaceReadyPage = ({
   workspaceState,
   quotaState,
   workspaceSend,
-  shouldRestartWorkspace
+  shouldRestartWorkspace,
 }: WorkspaceReadyPageProps): JSX.Element => {
   const [bannerState, bannerSend] = useActor(
     workspaceState.children["scheduleBannerMachine"],
@@ -76,8 +76,6 @@ export const WorkspaceReadyPage = ({
   useEffect(() => {
     // workspaces can be started without being stopped first
     shouldRestartWorkspace && workspaceSend({ type: "START" })
-    // clear location state
-    window.history.replaceState({}, document.title)
   }, [shouldRestartWorkspace, workspaceSend])
 
   return (
