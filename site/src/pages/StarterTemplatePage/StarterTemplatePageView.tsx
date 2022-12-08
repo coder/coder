@@ -12,6 +12,7 @@ import { FC } from "react"
 import { StarterTemplateContext } from "xServices/starterTemplates/starterTemplateXService"
 import EyeIcon from "@material-ui/icons/VisibilityOutlined"
 import PlusIcon from "@material-ui/icons/AddOutlined"
+import { AlertBanner } from "components/AlertBanner/AlertBanner"
 
 export interface StarterTemplatePageViewProps {
   context: StarterTemplateContext
@@ -22,6 +23,14 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
 }) => {
   const styles = useStyles()
   const { starterTemplate } = context
+
+  if (context.error) {
+    return (
+      <Margins>
+        <AlertBanner error={context.error} severity="error" />
+      </Margins>
+    )
+  }
 
   if (!starterTemplate) {
     return <Loader />
