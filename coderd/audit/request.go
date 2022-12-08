@@ -148,7 +148,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 		if sw.Status < 400 {
 			diff := Diff(p.Audit, req.Old, req.New)
 
-			// Group resource types maybe have group member changes.
+			// Group resource types may have group member changes.
 			// We track diffs of this nature differently as GroupMember is a distinct table.
 			if p.HasGroupMemberChange {
 				diff = addGroupMemberDiff(logCtx, diff, p.GroupMemberLists, p.Log)
