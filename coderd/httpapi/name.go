@@ -47,7 +47,7 @@ func NameValid(str string) error {
 	}
 	matched := UsernameValidRegex.MatchString(str)
 	if !matched {
-		return xerrors.New("must be alphanumeric with hyphens")
+		return xerrors.New("must be alphanumeric with hyphens, underscores or periods")
 	}
 	return nil
 }
