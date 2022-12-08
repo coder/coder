@@ -52,6 +52,12 @@ terraform {
   }
 }
 
+variable "workspaces_namespace" {
+  default = "coder-namespace"
+}
+
+data "coder_workspace" "me" {}
+
 resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"
@@ -153,6 +159,12 @@ terraform {
     }
   }
 }
+
+variable "workspaces_namespace" {
+  default = "coder-namespace"
+}
+
+data "coder_workspace" "me" {}
 
 resource "coder_agent" "main" {
   os             = "linux"
@@ -257,6 +269,12 @@ terraform {
     }
   }
 }
+
+variable "workspaces_namespace" {
+  default = "coder-namespace"
+}
+
+data "coder_workspace" "me" {}
 
 resource "coder_agent" "main" {
   os   = "linux"
