@@ -1,3 +1,4 @@
+import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
 import { Loader } from "components/Loader/Loader"
 import { Margins } from "components/Margins/Margins"
@@ -9,6 +10,8 @@ import {
 } from "components/PageHeader/PageHeader"
 import { FC } from "react"
 import { StarterTemplateContext } from "xServices/starterTemplates/starterTemplateXService"
+import EyeIcon from "@material-ui/icons/VisibilityOutlined"
+import PlusIcon from "@material-ui/icons/AddOutlined"
 
 export interface StarterTemplatePageViewProps {
   context: StarterTemplateContext
@@ -26,7 +29,22 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
 
   return (
     <Margins>
-      <PageHeader>
+      <PageHeader
+        actions={
+          <>
+            <Button
+              component="a"
+              target="_blank"
+              href={starterTemplate.url}
+              rel="noreferrer"
+              startIcon={<EyeIcon />}
+            >
+              View source code
+            </Button>
+            <Button startIcon={<PlusIcon />}>Use template</Button>
+          </>
+        }
+      >
         <PageHeaderTitle>{starterTemplate.name}</PageHeaderTitle>
         <PageHeaderSubtitle>{starterTemplate.description}</PageHeaderSubtitle>
       </PageHeader>
