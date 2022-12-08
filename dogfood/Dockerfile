@@ -316,7 +316,7 @@ COPY --from=proto /tmp/bin /usr/local/bin
 RUN addgroup --system nixbld \
   && adduser coder nixbld \
   && for i in $(seq 1 30); do useradd -ms /bin/bash nixbld$i &&  adduser nixbld$i nixbld; done \
-  && mkdir -m 0755 /nix && chown coder /nix \
+  && mkdir -m 0755 /nix && chown coder:coder /nix \
   && mkdir -p /etc/nix && echo 'sandbox = false' > /etc/nix/nix.conf
 
 USER coder
