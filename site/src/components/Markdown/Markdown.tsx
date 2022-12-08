@@ -146,7 +146,7 @@ const useStyles = makeStyles((theme) => ({
   },
 
   codeWithoutLanguage: {
-    padding: theme.spacing(0.5, 1),
+    padding: theme.spacing(0.125, 0.5),
     background: theme.palette.divider,
     borderRadius: 4,
     color: theme.palette.text.primary,

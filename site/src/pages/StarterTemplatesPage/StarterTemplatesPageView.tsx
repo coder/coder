@@ -10,6 +10,7 @@ import {
 } from "components/PageHeader/PageHeader"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
+import { Link } from "react-router-dom"
 import { StarterTemplatesContext } from "xServices/starterTemplates/starterTemplatesXService"
 
 export interface StarterTemplatesPageViewProps {
@@ -40,12 +41,12 @@ export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
       <div className={styles.templates}>
         {context.starterTemplates &&
           context.starterTemplates.map((example) => (
-            <div className={styles.template} key={example.id}>
+            <Link to={example.id} className={styles.template} key={example.id}>
               <span className={styles.templateName}>{example.name}</span>
               <span className={styles.templateDescription}>
                 {example.description}
               </span>
-            </div>
+            </Link>
           ))}
       </div>
     </Margins>
@@ -58,6 +59,7 @@ const useStyles = makeStyles((theme) => ({
     gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
     gap: theme.spacing(2),
   },
+
   template: {
     padding: theme.spacing(2),
     border: `1px solid ${theme.palette.divider}`,
@@ -66,6 +68,12 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     flexDirection: "column",
     gap: theme.spacing(0.5),
+    textDecoration: "none",
+    color: "inherit",
+
+    "&:hover": {
+      backgroundColor: theme.palette.background.paperLight,
+    },
   },
 
   templateName: {

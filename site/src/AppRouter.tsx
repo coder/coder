@@ -22,6 +22,7 @@ import { AuthAndFrame } from "./components/AuthAndFrame/AuthAndFrame"
 import { RequireAuth } from "./components/RequireAuth/RequireAuth"
 import { SettingsLayout } from "./components/SettingsLayout/SettingsLayout"
 import { DeploySettingsLayout } from "components/DeploySettingsLayout/DeploySettingsLayout"
+import StarterTemplatePage from "pages/StarterTemplatePage/StarterTemplatePage"
 
 // Lazy load pages
 // - Pages that are secondary, not in the main navigation or not usually accessed
@@ -153,6 +154,15 @@ export const AppRouter: FC = () => {
               </AuthAndFrame>
             }
           />
+
+          <Route
+            path=":exampleId"
+            element={
+              <AuthAndFrame>
+                <StarterTemplatePage />
+              </AuthAndFrame>
+            }
+          ></Route>
         </Route>
 
         <Route path="templates">
