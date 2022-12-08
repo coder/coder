@@ -269,9 +269,9 @@ func cspHeaders(next http.Handler) http.Handler {
 			// https://cdn.jsdelivr.net is used by monaco editor on FE for Syntax Highlight
 			// https://github.com/suren-atoyan/monaco-react/issues/168
 			CSPDirectiveScriptSrc: {"'self' https://cdn.jsdelivr.net"},
+			CSPDirectiveStyleSrc:  {"'self' 'unsafe-inline' https://cdn.jsdelivr.net"},
 			// data: is used by monaco editor on FE for Syntax Highlight
-			CSPDirectiveFontSrc:  {"'self' data:"},
-			CSPDirectiveStyleSrc: {"'self' 'unsafe-inline'"},
+			CSPDirectiveFontSrc: {"'self' data:"},
 			// object-src is needed to support code-server
 			CSPDirectiveObjectSrc: {"'self'"},
 			// blob: for loading the pwa manifest for code-server
