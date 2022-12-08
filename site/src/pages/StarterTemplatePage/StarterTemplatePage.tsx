@@ -20,7 +20,9 @@ const StarterTemplatePage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle(exampleId)}</title>
+        <title>
+          {pageTitle(state.context.starterTemplate?.name ?? exampleId)}
+        </title>
       </Helmet>
 
       <StarterTemplatePageView context={state.context} />
