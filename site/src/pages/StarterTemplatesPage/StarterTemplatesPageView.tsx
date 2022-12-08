@@ -1,6 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Maybe } from "components/Conditionals/Maybe"
+import { Loader } from "components/Loader/Loader"
 import { Margins } from "components/Margins/Margins"
 import {
   PageHeader,
@@ -30,6 +31,10 @@ export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
 
       <Maybe condition={Boolean(context.error)}>
         <AlertBanner error={context.error} severity="error" />
+      </Maybe>
+
+      <Maybe condition={Boolean(!context.starterTemplates)}>
+        <Loader />
       </Maybe>
 
       <div className={styles.templates}>
