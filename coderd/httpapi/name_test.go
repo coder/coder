@@ -30,6 +30,10 @@ func TestUsernameValid(t *testing.T) {
 		{"abcdefghijklmnopqrst", true},
 		{"abcdefghijklmnopqrstu", true},
 		{"wow-test", true},
+		{"_domain-user-convention", true},
+		{"bananas_wow", true},
+		{"firstname.surname", true},
+		{"firstname.surname1", true},
 
 		{"", false},
 		{" ", false},
@@ -48,7 +52,6 @@ func TestUsernameValid(t *testing.T) {
 		{" 123456789012345678901", false},
 		{" a1b2c3d4e5f6g7h8i9j0k", false},
 		{"a1b2c3d4e5f6g7h8i9j0k ", false},
-		{"bananas_wow", false},
 		{"test--now", false},
 
 		{"123456789012345678901234567890123", false},
