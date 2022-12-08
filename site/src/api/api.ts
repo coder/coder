@@ -675,3 +675,12 @@ export const setServiceBanner = async (
   const response = await axios.put(`/api/v2/service-banner`, b)
   return response.data
 }
+
+export const getTemplateExamples = async (
+  organizationId: string,
+): Promise<TypesGen.TemplateExample[]> => {
+  const response = await axios.get(
+    `/api/v2/organizations/${organizationId}/templates/examples`,
+  )
+  return response.data
+}
