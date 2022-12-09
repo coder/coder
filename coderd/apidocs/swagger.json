@@ -1,7 +1,21 @@
 {
     "swagger": "2.0",
     "info": {
-        "contact": {}
+        "description": "Coderd API",
+        "title": "Coder API",
+        "termsOfService": "https://coder.com/legal/terms-of-service",
+        "contact": {
+            "name": "API Support",
+            "url": "http://coder.com",
+            "email": "support@coder.com"
+        },
+        "license": {
+            "name": "AGPL-3.0",
+            "url": "https://github.com/coder/coder/blob/main/LICENSE"
+        },
+        "version": "1.0"
     },
+    "host": "dev.coder.com",
+    "basePath": "/v2",
     "paths": {}
 }

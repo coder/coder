@@ -401,7 +401,7 @@ gen: \
 	provisionerd/proto/provisionerd.pb.go \
 	site/src/api/typesGenerated.ts \
 	docs/admin/prometheus.md \
-	$(wildcard coderd/apidocgen/*)
+	coderd/apidocs $(wildcard coderd/apidocgen/*)
 .PHONY: gen
 
 # Mark all generated files as fresh so make thinks they're up-to-date. This is

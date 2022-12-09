@@ -10,7 +10,16 @@ const docTemplate = `{
     "info": {
         "description": "{{escape .Description}}",
         "title": "{{.Title}}",
-        "contact": {},
+        "termsOfService": "https://coder.com/legal/terms-of-service",
+        "contact": {
+            "name": "API Support",
+            "url": "http://coder.com",
+            "email": "support@coder.com"
+        },
+        "license": {
+            "name": "AGPL-3.0",
+            "url": "https://github.com/coder/coder/blob/main/LICENSE"
+        },
         "version": "{{.Version}}"
     },
     "host": "{{.Host}}",
@@ -20,12 +29,12 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "",
-	Host:             "",
-	BasePath:         "",
+	Version:          "1.0",
+	Host:             "dev.coder.com",
+	BasePath:         "/v2",
 	Schemes:          []string{},
-	Title:            "",
-	Description:      "",
+	Title:            "Coder API",
+	Description:      "Coderd API",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 }
