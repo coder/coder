@@ -8,7 +8,11 @@ set -euo pipefail
 SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 
 (
-	cd "$SCRIPT_DIR"
+	cd "$SCRIPT_DIR/../.."
 
-	go run github.com/swaggo/swag/cmd/swag@v1.8.8 init --help
+	go run github.com/swaggo/swag/cmd/swag@v1.8.8 init \
+		--generalInfo="coderd.go" \
+		--dir="./coderd" \
+		--output="./coderd/apidocs" \
+		--outputTypes="go,json"
 )
