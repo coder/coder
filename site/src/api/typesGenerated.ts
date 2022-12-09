@@ -675,6 +675,8 @@ export interface TemplateExample {
   readonly url: string
   readonly name: string
   readonly description: string
+  readonly icon: string
+  readonly tags: string[]
   readonly markdown: string
 }
 
