@@ -189,7 +189,8 @@ export interface CreateTemplateVersionRequest {
   readonly name?: string
   readonly template_id?: string
   readonly storage_method: ProvisionerStorageMethod
-  readonly file_id: string
+  readonly file_id?: string
+  readonly example_id?: string
   readonly provisioner: ProvisionerType
   readonly tags: Record<string, string>
   readonly parameter_values?: CreateParameterRequest[]
@@ -666,6 +667,17 @@ export type TemplateBuildTimeStats = Record<
 // From codersdk/templates.go
 export interface TemplateDAUsResponse {
   readonly entries: DAUEntry[]
+}
+
+// From codersdk/templates.go
+export interface TemplateExample {
+  readonly id: string
+  readonly url: string
+  readonly name: string
+  readonly description: string
+  readonly icon: string
+  readonly tags: string[]
+  readonly markdown: string
 }
 
 // From codersdk/templates.go
