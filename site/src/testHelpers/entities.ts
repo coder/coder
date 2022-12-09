@@ -1020,6 +1020,13 @@ export const MockAuditLog2: TypesGen.AuditLog = {
   },
 }
 
+export const MockWorkspaceCreateAuditLogForDifferentOwner = {
+  ...MockAuditLog,
+  additional_fields: {
+    workspaceOwner: "Member",
+  },
+}
+
 export const MockAuditLogWithWorkspaceBuild: TypesGen.AuditLog = {
   ...MockAuditLog,
   id: "f90995bf-4a2b-4089-b597-e66e025e523e",
