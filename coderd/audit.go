@@ -333,8 +333,12 @@ func auditLogResourceLink(alog database.GetAuditLogsOffsetRow, additionalFields 
 		return fmt.Sprintf("/users?filter=%s",
 			alog.ResourceTarget)
 	case database.ResourceTypeWorkspace:
+		workspaceOwner := alog.UserUsername.String
+		if len(additionalFields.WorkspaceOwner) != 0 && additionalFields.WorkspaceOwner != "unknown" {
+			workspaceOwner = additionalFields.WorkspaceOwner
+		}
 		return fmt.Sprintf("/@%s/%s",
-			alog.UserUsername.String, alog.ResourceTarget)
+			workspaceOwner, alog.ResourceTarget)
 	case database.ResourceTypeWorkspaceBuild:
 		if len(additionalFields.WorkspaceName) == 0 || len(additionalFields.BuildNumber) == 0 {
 			return ""
