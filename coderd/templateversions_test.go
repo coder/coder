@@ -1020,14 +1020,26 @@ func TestPreviousTemplateVersion(t *testing.T) {
 	t.Parallel()
 	t.Run("Previous version not found", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+		// Create two templates to be sure it is not returning a previous version
+		// from another template
+		templateAVersion1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, templateAVersion1.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, templateAVersion1.ID)
+		// Create two versions for the template B to be sure if we try to get the
+		// previous version of the first version it will returns a 404
+		templateBVersion1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		templateB := coderdtest.CreateTemplate(t, client, user.OrganizationID, templateBVersion1.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, templateBVersion1.ID)
+		templateBVersion2 := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, nil, templateB.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, templateBVersion2.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.PreviousTemplateVersion(ctx, user.OrganizationID, version.Name)
+		_, err := client.PreviousTemplateVersion(ctx, user.OrganizationID, templateBVersion1.Name)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
@@ -1035,18 +1047,28 @@ func TestPreviousTemplateVersion(t *testing.T) {
 
 	t.Run("Previous version found", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		previousVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, previousVersion.ID)
-		latestVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, nil, template.ID)
+
+		// Create two templates to be sure it is not returning a previous version
+		// from another template
+		templateAVersion1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, templateAVersion1.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, templateAVersion1.ID)
+		// Create two versions for the template B so we can try to get the previous
+		// version of version 2
+		templateBVersion1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		templateB := coderdtest.CreateTemplate(t, client, user.OrganizationID, templateBVersion1.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, templateBVersion1.ID)
+		templateBVersion2 := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, nil, templateB.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, templateBVersion2.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		result, err := client.PreviousTemplateVersion(ctx, user.OrganizationID, latestVersion.Name)
+		result, err := client.PreviousTemplateVersion(ctx, user.OrganizationID, templateBVersion2.Name)
 		require.NoError(t, err)
-		require.Equal(t, previousVersion.ID, result.ID)
+		require.Equal(t, templateBVersion1.ID, result.ID)
 	})
 }
 

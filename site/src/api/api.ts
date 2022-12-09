@@ -231,6 +231,34 @@ export const getTemplateVersionByName = async (
   return response.data
 }
 
+export type GetPreviousTemplateVersionByNameResponse =
+  | TypesGen.TemplateVersion
+  | undefined
+
+export const getPreviousTemplateVersionByName = async (
+  organizationId: string,
+  versionName: string,
+): Promise<GetPreviousTemplateVersionByNameResponse> => {
+  try {
+    const response = await axios.get<TypesGen.TemplateVersion>(
+      `/api/v2/organizations/${organizationId}/templateversions/${versionName}/previous`,
+    )
+    return response.data
+  } catch (error) {
+    // When there is no previous version, like the first version of a template,
+    // the API returns 404 so in this case we can safely return undefined
+    if (
+      axios.isAxiosError(error) &&
+      error.response &&
+      error.response.status === 404
+    ) {
+      return undefined
+    }
+
+    throw error
+  }
+}
+
 export const updateTemplateMeta = async (
   templateId: string,
   data: TypesGen.UpdateTemplateMeta,

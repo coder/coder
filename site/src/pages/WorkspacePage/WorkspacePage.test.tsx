@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react"
+import { screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import EventSourceMock from "eventsourcemock"
 import i18next from "i18next"
@@ -48,9 +48,11 @@ const renderWorkspacePage = async () => {
  * workspaceStatus was calculated correctly.
  */
 const testButton = async (label: string, actionMock: jest.SpyInstance) => {
+  const user = userEvent.setup()
+
   await renderWorkspacePage()
   const button = await screen.findByRole("button", { name: label })
-  fireEvent.click(button)
+  await user.click(button)
   expect(actionMock).toBeCalled()
 }
 
@@ -65,7 +67,7 @@ const testStatus = async (ws: Workspace, label: string) => {
   )
   await renderWorkspacePage()
   const header = screen.getByTestId("header")
-  const status = await within(header).findByRole("status")
+  const status = within(header).getByRole("status")
   expect(status).toHaveTextContent(label)
 }
 
@@ -88,6 +90,7 @@ afterAll(() => {
 describe("WorkspacePage", () => {
   it("requests a delete job when the user presses Delete and confirms", async () => {
     const user = userEvent.setup()
+
     const deleteWorkspaceMock = jest
       .spyOn(api, "deleteWorkspace")
       .mockResolvedValueOnce(MockWorkspaceBuild)
@@ -160,7 +163,7 @@ describe("WorkspacePage", () => {
       name: "cancel action",
     })
 
-    fireEvent.click(cancelButton)
+    await userEvent.setup().click(cancelButton)
 
     expect(cancelWorkspaceMock).toBeCalled()
   })
@@ -180,7 +183,7 @@ describe("WorkspacePage", () => {
     await renderWorkspacePage()
     const buttonText = t("actionButton.update", { ns: "workspacePage" })
     const button = await screen.findByText(buttonText, { exact: true })
-    fireEvent.click(button)
+    await userEvent.setup().click(button)
 
     // getTemplate is called twice: once when the machine starts, and once after the user requests to update
     expect(getTemplateMock).toBeCalledTimes(2)
@@ -202,7 +205,7 @@ describe("WorkspacePage", () => {
     await renderWorkspacePage()
     const buttonText = t("actionButton.update", { ns: "workspacePage" })
     const button = await screen.findByText(buttonText, { exact: true })
-    fireEvent.click(button)
+    await userEvent.setup().click(button)
 
     await waitFor(() =>
       expect(api.startWorkspace).toBeCalledWith(
@@ -211,6 +214,7 @@ describe("WorkspacePage", () => {
       ),
     )
   })
+
   it("shows the Stopping status when the workspace is stopping", async () => {
     await testStatus(
       MockStoppingWorkspace,

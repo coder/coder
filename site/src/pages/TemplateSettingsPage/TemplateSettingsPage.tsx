@@ -2,17 +2,15 @@ import { useMachine } from "@xstate/react"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
+import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
 import { pageTitle } from "util/page"
 import { templateSettingsMachine } from "xServices/templateSettings/templateSettingsXService"
 import { TemplateSettingsPageView } from "./TemplateSettingsPageView"
 
-const Language = {
-  title: "Template Settings",
-}
-
 export const TemplateSettingsPage: FC = () => {
   const { template: templateName } = useParams() as { template: string }
+  const { t } = useTranslation("templateSettingsPage")
   const navigate = useNavigate()
   const organizationId = useOrganizationId()
   const [state, send] = useMachine(templateSettingsMachine, {
@@ -34,7 +32,7 @@ export const TemplateSettingsPage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle(Language.title)}</title>
+        <title>{pageTitle(t("title"))}</title>
       </Helmet>
       <TemplateSettingsPageView
         isSubmitting={state.hasTag("submitting")}

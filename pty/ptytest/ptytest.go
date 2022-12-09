@@ -46,45 +46,11 @@ func create(t *testing.T, ptty pty.PTY, name string) *PTY {
 	// Use pipe for logging.
 	logDone := make(chan struct{})
 	logr, logw := io.Pipe()
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
-
-		_ = logw.Close()
-		_ = logr.Close()
-		select {
-		case <-ctx.Done():
-			fatalf(t, name, "cleanup", "log pipe did not close in time")
-		case <-logDone: // Guard against logging after test.
-		}
-	})
 
 	// Write to log and output buffer.
 	copyDone := make(chan struct{})
 	out := newStdbuf()
 	w := io.MultiWriter(logw, out)
-	go func() {
-		defer close(copyDone)
-		_, err := io.Copy(w, ptty.Output())
-		_ = out.closeErr(err)
-	}()
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
-
-		// Close pty only so that the copy goroutine can consume the
-		// remainder of it's buffer and then exit.
-		err := ptty.Close()
-		// Pty may already be closed, so don't fail the test, but log
-		// the error in case it's significant.
-		logf(t, name, "closed pty: %v", err)
-
-		select {
-		case <-ctx.Done():
-			fatalf(t, name, "cleanup", "copy did not close in time")
-		case <-copyDone:
-		}
-	})
 
 	tpty := &PTY{
 		t:    t,
@@ -94,7 +60,55 @@ func create(t *testing.T, ptty pty.PTY, name string) *PTY {
 
 		runeReader: bufio.NewReaderSize(out, utf8.UTFMax),
 	}
+	// Ensure pty is cleaned up at the end of test.
+	t.Cleanup(func() {
+		_ = tpty.Close()
+	})
 
+	logClose := func(name string, c io.Closer) {
+		tpty.logf("closing %s", name)
+		err := c.Close()
+		tpty.logf("closed %s: %v", name, err)
+	}
+	// Set the actual close function for the tpty.
+	tpty.close = func(reason string) error {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		tpty.logf("closing tpty: %s", reason)
+
+		// Close pty only so that the copy goroutine can consume the
+		// remainder of it's buffer and then exit.
+		logClose("pty", ptty)
+		select {
+		case <-ctx.Done():
+			tpty.fatalf("close", "copy did not close in time")
+		case <-copyDone:
+		}
+
+		logClose("logw", logw)
+		logClose("logr", logr)
+		select {
+		case <-ctx.Done():
+			tpty.fatalf("close", "log pipe did not close in time")
+		case <-logDone:
+		}
+
+		tpty.logf("closed tpty")
+
+		return nil
+	}
+
+	go func() {
+		defer close(copyDone)
+		_, err := io.Copy(w, ptty.Output())
+		tpty.logf("copy done: %v", err)
+		tpty.logf("closing out")
+		err = out.closeErr(err)
+		tpty.logf("closed out: %v", err)
+	}()
+
+	// Log all output as part of test for easier debugging on errors.
 	go func() {
 		defer close(logDone)
 		s := bufio.NewScanner(logr)
@@ -109,11 +123,18 @@ func create(t *testing.T, ptty pty.PTY, name string) *PTY {
 
 type PTY struct {
 	pty.PTY
-	t    *testing.T
-	out  *stdbuf
-	name string
+	t     *testing.T
+	close func(reason string) error
+	out   *stdbuf
+	name  string
 
 	runeReader *bufio.Reader
+}
+
+func (p *PTY) Close() error {
+	p.t.Helper()
+
+	return p.close("close")
 }
 
 func (p *PTY) ExpectMatch(str string) string {
@@ -152,8 +173,8 @@ func (p *PTY) ExpectMatch(str string) string {
 		p.logf("matched %q = %q", str, buffer.String())
 		return buffer.String()
 	case <-timeout.Done():
-		// Ensure gorouine is cleaned up before test exit.
-		_ = p.out.closeErr(p.Close())
+		// Ensure goroutine is cleaned up before test exit.
+		_ = p.close("expect match timeout")
 		<-match
 
 		p.fatalf("match exceeded deadline", "wanted %q; got %q", str, buffer.String())
@@ -183,30 +204,20 @@ func (p *PTY) WriteLine(str string) {
 
 func (p *PTY) logf(format string, args ...interface{}) {
 	p.t.Helper()
-	logf(p.t, p.name, format, args...)
+
+	// Match regular logger timestamp format, we seem to be logging in
+	// UTC in other places as well, so match here.
+	p.t.Logf("%s: %s: %s", time.Now().UTC().Format("2006-01-02 15:04:05.000"), p.name, fmt.Sprintf(format, args...))
 }
 
 func (p *PTY) fatalf(reason string, format string, args ...interface{}) {
 	p.t.Helper()
-	fatalf(p.t, p.name, reason, format, args...)
-}
-
-func logf(t *testing.T, name, format string, args ...interface{}) {
-	t.Helper()
-
-	// Match regular logger timestamp format, we seem to be logging in
-	// UTC in other places as well, so match here.
-	t.Logf("%s: %s: %s", time.Now().UTC().Format("2006-01-02 15:04:05.000"), name, fmt.Sprintf(format, args...))
-}
-
-func fatalf(t *testing.T, name, reason, format string, args ...interface{}) {
-	t.Helper()
 
 	// Ensure the message is part of the normal log stream before
 	// failing the test.
-	logf(t, name, "%s: %s", reason, fmt.Sprintf(format, args...))
+	p.logf("%s: %s", reason, fmt.Sprintf(format, args...))
 
-	require.FailNowf(t, reason, format, args...)
+	require.FailNowf(p.t, reason, format, args...)
 }
 
 // stdbuf is like a buffered stdout, it buffers writes until read.

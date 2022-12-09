@@ -153,7 +153,6 @@ func TestAgent(t *testing.T) {
 		err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
 		require.NoError(t, err)
 		ptty := ptytest.New(t)
-		require.NoError(t, err)
 		session.Stdout = ptty.Output()
 		session.Stderr = ptty.Output()
 		session.Stdin = ptty.Input()
@@ -178,7 +177,6 @@ func TestAgent(t *testing.T) {
 		err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
 		require.NoError(t, err)
 		ptty := ptytest.New(t)
-		require.NoError(t, err)
 		session.Stdout = ptty.Output()
 		session.Stderr = ptty.Output()
 		session.Stdin = ptty.Input()
@@ -280,8 +278,8 @@ func TestAgent(t *testing.T) {
 		require.NotContains(t, stdout.String(), wantNotMOTD, "should not show motd")
 	})
 
+	//nolint:paralleltest // This test reserves a port.
 	t.Run("LocalForwarding", func(t *testing.T) {
-		t.Parallel()
 		random, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
 		_ = random.Close()
@@ -330,6 +328,7 @@ func TestAgent(t *testing.T) {
 		defer sshClient.Close()
 		client, err := sftp.NewClient(sshClient)
 		require.NoError(t, err)
+		defer client.Close()
 		wd, err := client.Getwd()
 		require.NoError(t, err, "get working directory")
 		require.Equal(t, home, wd, "working directory should be home user home")
@@ -360,6 +359,7 @@ func TestAgent(t *testing.T) {
 		defer sshClient.Close()
 		scpClient, err := scp.NewClientBySSH(sshClient)
 		require.NoError(t, err)
+		defer scpClient.Close()
 		tempFile := filepath.Join(t.TempDir(), "scp")
 		content := "hello world"
 		err = scpClient.CopyFile(context.Background(), strings.NewReader(content), tempFile, "0755")
@@ -501,6 +501,8 @@ func TestAgent(t *testing.T) {
 		id := uuid.New()
 		netConn, err := conn.ReconnectingPTY(ctx, id, 100, 100, "/bin/bash")
 		require.NoError(t, err)
+		defer netConn.Close()
+
 		bufRead := bufio.NewReader(netConn)
 
 		// Brief pause to reduce the likelihood that we send keystrokes while
@@ -539,6 +541,8 @@ func TestAgent(t *testing.T) {
 		_ = netConn.Close()
 		netConn, err = conn.ReconnectingPTY(ctx, id, 100, 100, "/bin/bash")
 		require.NoError(t, err)
+		defer netConn.Close()
+
 		bufRead = bufio.NewReader(netConn)
 
 		// Same output again!
@@ -629,6 +633,8 @@ func TestAgent(t *testing.T) {
 		// After the agent is disconnected from a coordinator, it's supposed
 		// to reconnect!
 		coordinator := tailnet.NewCoordinator()
+		defer coordinator.Close()
+
 		agentID := uuid.New()
 		statsCh := make(chan *codersdk.AgentStats)
 		derpMap := tailnettest.RunDERPAndSTUN(t)
@@ -650,9 +656,7 @@ func TestAgent(t *testing.T) {
 			Client: client,
 			Logger: slogtest.Make(t, nil).Leveled(slog.LevelInfo),
 		})
-		t.Cleanup(func() {
-			_ = closer.Close()
-		})
+		defer closer.Close()
 
 		require.Eventually(t, func() bool {
 			return coordinator.Node(agentID) != nil
@@ -665,6 +669,10 @@ func TestAgent(t *testing.T) {
 
 	t.Run("WriteVSCodeConfigs", func(t *testing.T) {
 		t.Parallel()
+
+		coordinator := tailnet.NewCoordinator()
+		defer coordinator.Close()
+
 		client := &client{
 			t:       t,
 			agentID: uuid.New(),
@@ -673,7 +681,7 @@ func TestAgent(t *testing.T) {
 				DERPMap:        &tailcfg.DERPMap{},
 			},
 			statsChan:   make(chan *codersdk.AgentStats),
-			coordinator: tailnet.NewCoordinator(),
+			coordinator: coordinator,
 		}
 		filesystem := afero.NewMemMapFs()
 		closer := agent.New(agent.Options{
@@ -684,9 +692,8 @@ func TestAgent(t *testing.T) {
 			Logger:     slogtest.Make(t, nil).Leveled(slog.LevelInfo),
 			Filesystem: filesystem,
 		})
-		t.Cleanup(func() {
-			_ = closer.Close()
-		})
+		defer closer.Close()
+
 		home, err := os.UserHomeDir()
 		require.NoError(t, err)
 		path := filepath.Join(home, ".vscode-server", "data", "Machine", "settings.json")
@@ -749,6 +756,9 @@ func setupSSHSession(t *testing.T, options codersdk.WorkspaceAgentMetadata) *ssh
 	})
 	session, err := sshClient.NewSession()
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = session.Close()
+	})
 	return session
 }
 
@@ -767,6 +777,9 @@ func setupAgent(t *testing.T, metadata codersdk.WorkspaceAgentMetadata, ptyTimeo
 		metadata.DERPMap = tailnettest.RunDERPAndSTUN(t)
 	}
 	coordinator := tailnet.NewCoordinator()
+	t.Cleanup(func() {
+		_ = coordinator.Close()
+	})
 	agentID := uuid.New()
 	statsCh := make(chan *codersdk.AgentStats, 50)
 	fs := afero.NewMemMapFs()
