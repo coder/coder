@@ -24,7 +24,7 @@ func TestVSCodeIPC(t *testing.T) {
 		cmd.SetOut(&buf)
 		ctx, cancelFunc := testutil.Context(t)
 		defer cancelFunc()
-		done := make(chan error)
+		done := make(chan error, 1)
 		go func() {
 			err := cmd.ExecuteContext(ctx)
 			done <- err
