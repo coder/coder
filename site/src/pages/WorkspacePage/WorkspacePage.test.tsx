@@ -163,9 +163,7 @@ describe("WorkspacePage", () => {
       name: "cancel action",
     })
 
-    await userEvent
-      .setup()
-      .click(cancelButton)
+    await userEvent.setup().click(cancelButton)
 
     expect(cancelWorkspaceMock).toBeCalled()
   })
@@ -185,9 +183,7 @@ describe("WorkspacePage", () => {
     await renderWorkspacePage()
     const buttonText = t("actionButton.update", { ns: "workspacePage" })
     const button = await screen.findByText(buttonText, { exact: true })
-    await userEvent
-      .setup()
-      .click(button)
+    await userEvent.setup().click(button)
 
     // getTemplate is called twice: once when the machine starts, and once after the user requests to update
     expect(getTemplateMock).toBeCalledTimes(2)
@@ -209,9 +205,7 @@ describe("WorkspacePage", () => {
     await renderWorkspacePage()
     const buttonText = t("actionButton.update", { ns: "workspacePage" })
     const button = await screen.findByText(buttonText, { exact: true })
-    await userEvent
-      .setup()
-      .click(button)
+    await userEvent.setup().click(button)
 
     await waitFor(() =>
       expect(api.startWorkspace).toBeCalledWith(
