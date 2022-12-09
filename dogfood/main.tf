@@ -36,7 +36,7 @@ resource "coder_agent" "dev" {
     #!/bin/sh
     set -x
     # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh
+    curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3
     code-server --auth none --port 13337 &
     sudo service docker start
     coder dotfiles -y 2>&1 | tee  ~/.personalize.log
