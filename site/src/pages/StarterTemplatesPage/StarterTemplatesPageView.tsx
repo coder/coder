@@ -42,10 +42,15 @@ export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
         {context.starterTemplates &&
           context.starterTemplates.map((example) => (
             <Link to={example.id} className={styles.template} key={example.id}>
-              <span className={styles.templateName}>{example.name}</span>
-              <span className={styles.templateDescription}>
-                {example.description}
-              </span>
+              <div className={styles.templateIcon}>
+                <img src={example.icon} alt="" />
+              </div>
+              <div className={styles.templateInfo}>
+                <span className={styles.templateName}>{example.name}</span>
+                <span className={styles.templateDescription}>
+                  {example.description}
+                </span>
+              </div>
             </Link>
           ))}
       </div>
@@ -61,19 +66,36 @@ const useStyles = makeStyles((theme) => ({
   },
 
   template: {
-    padding: theme.spacing(2),
     border: `1px solid ${theme.palette.divider}`,
     borderRadius: theme.shape.borderRadius,
     background: theme.palette.background.paper,
-    display: "flex",
-    flexDirection: "column",
-    gap: theme.spacing(0.5),
     textDecoration: "none",
     color: "inherit",
+    display: "flex",
+    alignItems: "center",
 
     "&:hover": {
       backgroundColor: theme.palette.background.paperLight,
     },
+  },
+
+  templateIcon: {
+    width: theme.spacing(12),
+    height: theme.spacing(12),
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+
+    "& img": {
+      height: theme.spacing(4),
+    },
+  },
+
+  templateInfo: {
+    padding: theme.spacing(2, 2, 2, 0),
+    display: "flex",
+    flexDirection: "column",
+    gap: theme.spacing(0.5),
   },
 
   templateName: {

@@ -14,6 +14,7 @@ import EyeIcon from "@material-ui/icons/VisibilityOutlined"
 import PlusIcon from "@material-ui/icons/AddOutlined"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { useTranslation } from "react-i18next"
+import { Stack } from "components/Stack/Stack"
 
 export interface StarterTemplatePageViewProps {
   context: StarterTemplateContext
@@ -56,8 +57,17 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
           </>
         }
       >
-        <PageHeaderTitle>{starterTemplate.name}</PageHeaderTitle>
-        <PageHeaderSubtitle>{starterTemplate.description}</PageHeaderSubtitle>
+        <Stack direction="row" spacing={3} alignItems="center">
+          <div className={styles.icon}>
+            <img src={starterTemplate.icon} alt="" />
+          </div>
+          <div>
+            <PageHeaderTitle>{starterTemplate.name}</PageHeaderTitle>
+            <PageHeaderSubtitle condensed>
+              {starterTemplate.description}
+            </PageHeaderSubtitle>
+          </div>
+        </Stack>
       </PageHeader>
 
       <div className={styles.markdownSection} id="readme">
@@ -71,6 +81,18 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
 
 export const useStyles = makeStyles((theme) => {
   return {
+    icon: {
+      height: theme.spacing(6),
+      width: theme.spacing(6),
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+
+      "& img": {
+        width: "100%",
+      },
+    },
+
     markdownSection: {
       background: theme.palette.background.paper,
       border: `1px solid ${theme.palette.divider}`,
