@@ -45,7 +45,17 @@ export const AuditLogDescription: FC<{ auditLog: AuditLog }> = ({
       )}
       {auditLog.is_deleted && (
         <span className={classes.deletedLabel}>
-          <> {t("auditLog:table.logRow.deletedLabel")}</>
+          <>{t("auditLog:table.logRow.deletedLabel")}</>
+        </span>
+      )}
+      {/* logs for workspaces created on behalf of other users indicate ownership in the description */}
+      {auditLog.additional_fields.workspaceOwner && (
+        <span>
+          <>
+            {t("auditLog:table.logRow.onBehalfOf", {
+              owner: auditLog.additional_fields.workspaceOwner,
+            })}
+          </>
         </span>
       )}
     </span>
