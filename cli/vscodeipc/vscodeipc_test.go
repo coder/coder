@@ -40,6 +40,9 @@ func TestVSCodeIPC(t *testing.T) {
 	id := uuid.New()
 	derpMap := tailnettest.RunDERPAndSTUN(t)
 	coordinator := tailnet.NewCoordinator()
+	t.Cleanup(func() {
+		_ = coordinator.Close()
+	})
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case fmt.Sprintf("/api/v2/workspaceagents/%s/connection", id):
