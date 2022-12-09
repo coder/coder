@@ -21,6 +21,17 @@ func TestPtytest(t *testing.T) {
 		pty.WriteLine("read")
 	})
 
+	t.Run("ReadLine", func(t *testing.T) {
+		t.Parallel()
+		pty := ptytest.New(t)
+		pty.Output().Write([]byte("line 1\rline 2\r\nline 3\r\r\n\nline 4\n\r\nline 5"))
+		require.Equal(t, "line 1", pty.ReadLine())
+		require.Equal(t, "line 2", pty.ReadLine())
+		require.Equal(t, "line 3", pty.ReadLine())
+		require.Equal(t, "line 4", pty.ReadLine())
+		require.Equal(t, "line 5", pty.ExpectMatch("5"))
+	})
+
 	// See https://github.com/coder/coder/issues/2122 for the motivation
 	// behind this test.
 	t.Run("Cobra ptytest should not hang when output is not consumed", func(t *testing.T) {

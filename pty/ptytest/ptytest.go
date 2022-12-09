@@ -182,6 +182,76 @@ func (p *PTY) ExpectMatch(str string) string {
 	}
 }
 
+func (p *PTY) ReadLine() string {
+	p.t.Helper()
+
+	timeout, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
+
+	var buffer bytes.Buffer
+	match := make(chan error, 1)
+	go func() {
+		defer close(match)
+		match <- func() error {
+			for {
+				r, _, err := p.runeReader.ReadRune()
+				if err != nil {
+					return err
+				}
+				if r == '\r' || r == '\n' {
+					// Peek the next runes to see if it's a CR or LF and then
+					// consume it.
+					for {
+						if p.runeReader.Buffered() == 0 {
+							break
+						}
+						// Unicode code points can be up to 4 bytes, but the
+						// ones we're looking for are only 1 byte.
+						b, _ := p.runeReader.Peek(1)
+						if len(b) == 0 {
+							return nil
+						}
+
+						r, _ = utf8.DecodeRune(b)
+						if r == '\r' || r == '\n' {
+							_, _, err = p.runeReader.ReadRune()
+							if err != nil {
+								return err
+							}
+						} else {
+							break
+						}
+					}
+
+					return nil
+				}
+
+				_, err = buffer.WriteRune(r)
+				if err != nil {
+					return err
+				}
+			}
+		}()
+	}()
+
+	select {
+	case err := <-match:
+		if err != nil {
+			p.fatalf("read error", "%v (wanted newline; got %q)", err, buffer.String())
+			return ""
+		}
+		p.logf("matched newline = %q", buffer.String())
+		return buffer.String()
+	case <-timeout.Done():
+		// Ensure goroutine is cleaned up before test exit.
+		_ = p.close("expect match timeout")
+		<-match
+
+		p.fatalf("match exceeded deadline", "wanted newline; got %q", buffer.String())
+		return ""
+	}
+}
+
 func (p *PTY) Write(r rune) {
 	p.t.Helper()
 

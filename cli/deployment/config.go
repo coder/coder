@@ -32,12 +32,22 @@ func newConfig() *codersdk.DeploymentConfig {
 			Usage: "Specifies the wildcard hostname to use for workspace applications in the form \"*.example.com\".",
 			Flag:  "wildcard-access-url",
 		},
+		// DEPRECATED: Use HTTPAddress or TLS.Address instead.
 		Address: &codersdk.DeploymentConfigField[string]{
 			Name:      "Address",
-			Usage:     "Bind address of the server.",
+			Usage:     "HTTP bind address of the server. Unset to disable the HTTP endpoint.",
 			Flag:      "address",
 			Shorthand: "a",
-			Default:   "127.0.0.1:3000",
+			// Deprecated, so we don't have a default. If set, it will overwrite
+			// HTTPAddress and TLS.Address and print a warning.
+			Hidden:  true,
+			Default: "",
+		},
+		HTTPAddress: &codersdk.DeploymentConfigField[string]{
+			Name:    "Address",
+			Usage:   "HTTP bind address of the server. Unset to disable the HTTP endpoint.",
+			Flag:    "http-address",
+			Default: "127.0.0.1:3000",
 		},
 		AutobuildPollInterval: &codersdk.DeploymentConfigField[time.Duration]{
 			Name:    "Autobuild Poll Interval",
@@ -266,6 +276,12 @@ func newConfig() *codersdk.DeploymentConfig {
 				Name:  "TLS Enable",
 				Usage: "Whether TLS will be enabled.",
 				Flag:  "tls-enable",
+			},
+			Address: &codersdk.DeploymentConfigField[string]{
+				Name:    "TLS Address",
+				Usage:   "HTTPS bind address of the server.",
+				Flag:    "tls-address",
+				Default: "127.0.0.1:3443",
 			},
 			CertFiles: &codersdk.DeploymentConfigField[[]string]{
 				Name:  "TLS Certificate Files",

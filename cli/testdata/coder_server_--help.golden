@@ -14,9 +14,6 @@ Flags:
                                                      This must be accessible by all
                                                      provisioned workspaces.
                                                      Consumes $CODER_ACCESS_URL
-  -a, --address string                               Bind address of the server.
-                                                     Consumes $CODER_ADDRESS (default
-                                                     "127.0.0.1:3000")
       --api-rate-limit int                           Maximum number of requests per minute
                                                      allowed to the API per user, or per IP
                                                      address for unauthenticated users.
@@ -65,6 +62,10 @@ Flags:
                                                      production.
                                                      Consumes $CODER_EXPERIMENTAL
   -h, --help                                         help for server
+      --http-address string                          HTTP bind address of the server. Unset to
+                                                     disable the HTTP endpoint.
+                                                     Consumes $CODER_HTTP_ADDRESS (default
+                                                     "127.0.0.1:3000")
       --oauth2-github-allow-everyone                 Allow all logins, setting this option
                                                      means allowed orgs and teams must be
                                                      empty.
@@ -174,6 +175,9 @@ Flags:
                                                      product. Disabling telemetry also
                                                      disables this option.
                                                      Consumes $CODER_TELEMETRY_TRACE
+      --tls-address string                           HTTPS bind address of the server.
+                                                     Consumes $CODER_TLS_ADDRESS (default
+                                                     "127.0.0.1:3443")
       --tls-cert-file strings                        Path to each certificate for TLS. It
                                                      requires a PEM-encoded file. To configure
                                                      the listener to use a CA certificate,
