@@ -590,6 +590,9 @@ func New(options *Options) *API {
 			})
 		})
 	})
+	// Swagger UI requires the URL trailing slash. Otherwise, the browser tries to load /assets
+	// from http://localhost:8080/assets instead of http://localhost:8080/swagger/assets.
+	r.Get("/swagger", http.RedirectHandler("/swagger/", http.StatusSeeOther).ServeHTTP)
 	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json")))
 
 	r.NotFound(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP)).ServeHTTP)
