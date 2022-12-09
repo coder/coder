@@ -87,11 +87,41 @@ func List() ([]codersdk.TemplateExample, error) {
 				return
 			}
 
+			tags := []string{}
+			tagsRaw, exists := frontMatter.FrontMatter["tags"]
+			if exists {
+				tagsI, valid := tagsRaw.([]interface{})
+				if !valid {
+					returnError = xerrors.Errorf("example %q tags isn't a slice: type %T", exampleID, tagsRaw)
+					return
+				}
+				for _, tagI := range tagsI {
+					tag, valid := tagI.(string)
+					if !valid {
+						returnError = xerrors.Errorf("example %q tag isn't a string: type %T", exampleID, tagI)
+						return
+					}
+					tags = append(tags, tag)
+				}
+			}
+
+			var icon string
+			iconRaw, exists := frontMatter.FrontMatter["icon"]
+			if exists {
+				icon, valid = iconRaw.(string)
+				if !valid {
+					returnError = xerrors.Errorf("example %q icon isn't a string", exampleID)
+					return
+				}
+			}
+
 			examples = append(examples, codersdk.TemplateExample{
 				ID:          exampleID,
 				URL:         exampleURL,
 				Name:        name,
 				Description: description,
+				Icon:        icon,
+				Tags:        tags,
 				Markdown:    string(frontMatter.Content),
 			})
 		}

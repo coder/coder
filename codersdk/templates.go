@@ -83,11 +83,13 @@ type UpdateTemplateMeta struct {
 }
 
 type TemplateExample struct {
-	ID          string `json:"id"`
-	URL         string `json:"url"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Markdown    string `json:"markdown"`
+	ID          string   `json:"id"`
+	URL         string   `json:"url"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Icon        string   `json:"icon"`
+	Tags        []string `json:"tags"`
+	Markdown    string   `json:"markdown"`
 }
 
 // Template returns a single template.
