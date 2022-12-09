@@ -29,12 +29,12 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.0",
-	Host:             "dev.coder.com",
-	BasePath:         "/v2",
+	Version:          "2.0",
+	Host:             "",
+	BasePath:         "",
 	Schemes:          []string{},
-	Title:            "Coder API",
-	Description:      "Coderd API",
+	Title:            "Coderd API",
+	Description:      "Coderd is the service created by running coder server. It is a thin API that connects workspaces, provisioners and users. coderd stores its state in Postgres and is the only service that communicates with Postgres.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 }

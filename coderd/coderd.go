@@ -111,9 +111,9 @@ type Options struct {
 	UpdateCheckOptions          *updatecheck.Options // Set non-nil to enable update checking.
 }
 
-// @title Coder API
-// @version 1.0
-// @description Coderd API
+// @title Coderd API
+// @version 2.0
+// @description Coderd is the service created by running coder server. It is a thin API that connects workspaces, provisioners and users. coderd stores its state in Postgres and is the only service that communicates with Postgres.
 // @termsOfService https://coder.com/legal/terms-of-service
 
 // @contact.name API Support
@@ -122,9 +122,6 @@ type Options struct {
 
 // @license.name AGPL-3.0
 // @license.url https://github.com/coder/coder/blob/main/LICENSE
-
-// @host dev.coder.com
-// @BasePath /v2
 // New constructs a Coder API handler.
 func New(options *Options) *API {
 	if options == nil {
