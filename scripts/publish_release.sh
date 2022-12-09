@@ -101,23 +101,16 @@ old_tag="$(git describe --abbrev=0 HEAD^1)"
 
 # For dry-run builds we want to use the SHA instead of the tag, because the new
 # tag probably doesn't exist.
-changelog_range="$old_tag..$new_tag"
+new_ref="$new_tag"
 if [[ "$dry_run" == 1 ]]; then
-	changelog_range="$old_tag..$(git rev-parse --short HEAD)"
+	new_ref="$(git rev-parse --short HEAD)"
 fi
 
+# shellcheck source=scripts/check_commit_metadata.sh
+source "$SCRIPT_DIR/check_commit_metadata.sh" "$old_tag..$new_ref"
+
 # Craft the release notes.
-changelog="$(git log --no-merges --pretty=format:"- %h %s" "$changelog_range")"
-image_tag="$(execrelative ./image_tag.sh --version "$version")"
-release_notes="
-## Changelog
-
-$changelog
-
-## Container Image
-- \`docker pull $image_tag\`
-
-"
+release_notes="$(execrelative ./generate_release_notes.sh --old-version "$old_tag" --new-version "$new_tag" --ref "$new_ref")"
 
 release_notes_file="$(mktemp)"
 echo "$release_notes" >"$release_notes_file"

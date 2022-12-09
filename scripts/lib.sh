@@ -123,12 +123,21 @@ log() {
 # error prints an error message and returns an error exit code.
 error() {
 	log "ERROR: $*"
+	if issourced; then
+		return 1
+	fi
 	exit 1
 }
 
 # isdarwin returns an error if the current platform is not darwin.
 isdarwin() {
 	[[ "${OSTYPE:-darwin}" == *darwin* ]]
+}
+
+# issourced returns true if the script that sourced this script is being
+# sourced by another.
+issourced() {
+	[[ "${BASH_SOURCE[1]}" != "$0" ]]
 }
 
 # We don't need to check dependencies more than once per script, but some
