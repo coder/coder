@@ -32,7 +32,7 @@ func TestVSCodeIPC(t *testing.T) {
 
 		var line string
 		require.Eventually(t, func() bool {
-			fmt.Printf("Looking for port!\n")
+			t.Log("Looking for port!")
 			var err error
 			line, err = buf.ReadString('\n')
 			return err == nil
