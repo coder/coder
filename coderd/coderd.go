@@ -22,6 +22,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/prometheus/client_golang/prometheus"
+	httpSwagger "github.com/swaggo/http-swagger"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
@@ -34,6 +35,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/buildinfo"
+	_ "github.com/coder/coder/coderd/apidocs"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
@@ -109,6 +111,20 @@ type Options struct {
 	UpdateCheckOptions          *updatecheck.Options // Set non-nil to enable update checking.
 }
 
+// @title Coder API
+// @version 1.0
+// @description Coderd API
+// @termsOfService https://coder.com/legal/terms-of-service
+
+// @contact.name API Support
+// @contact.url http://coder.com
+// @contact.email support@coder.com
+
+// @license.name AGPL-3.0
+// @license.url https://github.com/coder/coder/blob/main/LICENSE
+
+// @host dev.coder.com
+// @BasePath /v2
 // New constructs a Coder API handler.
 func New(options *Options) *API {
 	if options == nil {
@@ -574,6 +590,7 @@ func New(options *Options) *API {
 			})
 		})
 	})
+	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json")))
 
 	r.NotFound(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP)).ServeHTTP)
 	return api
