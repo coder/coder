@@ -49,15 +49,16 @@ export const AuditLogDescription: FC<{ auditLog: AuditLog }> = ({
         </span>
       )}
       {/* logs for workspaces created on behalf of other users indicate ownership in the description */}
-      {auditLog.additional_fields.workspaceOwner && (
-        <span>
-          <>
-            {t("auditLog:table.logRow.onBehalfOf", {
-              owner: auditLog.additional_fields.workspaceOwner,
-            })}
-          </>
-        </span>
-      )}
+      {auditLog.additional_fields.workspaceOwner &&
+        auditLog.additional_fields.workspaceOwner !== "unknown" && (
+          <span>
+            <>
+              {t("auditLog:table.logRow.onBehalfOf", {
+                owner: auditLog.additional_fields.workspaceOwner,
+              })}
+            </>
+          </span>
+        )}
     </span>
   )
 }

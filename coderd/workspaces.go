@@ -236,28 +236,28 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 
 // Create a new workspace for the currently authenticated user.
 func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
-	workspaceResourceInfo := map[string]string{
-		"workspaceOwner": httpmw.UserParam(r).Username,
-	}
+	var (
+		ctx                   = r.Context()
+		organization          = httpmw.OrganizationParam(r)
+		apiKey                = httpmw.APIKey(r)
+		auditor               = api.Auditor.Load()
+		user                  = httpmw.UserParam(r)
+		workspaceResourceInfo = map[string]string{
+			"workspaceOwner": user.Username,
+		}
+	)
 	wriBytes, err := json.Marshal(workspaceResourceInfo)
 	if err != nil {
-		// log something
+		api.Logger.Warn(ctx, "marshal workspace owner name")
 	}
 
-	var (
-		ctx               = r.Context()
-		organization      = httpmw.OrganizationParam(r)
-		apiKey            = httpmw.APIKey(r)
-		auditor           = api.Auditor.Load()
-		user              = httpmw.UserParam(r)
-		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
-			Audit:            *auditor,
-			Log:              api.Logger,
-			Request:          r,
-			Action:           database.AuditActionCreate,
-			AdditionalFields: wriBytes,
-		})
-	)
+	aReq, commitAudit := audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
+		Audit:            *auditor,
+		Log:              api.Logger,
+		Request:          r,
+		Action:           database.AuditActionCreate,
+		AdditionalFields: wriBytes,
+	})
 	defer commitAudit()
 
 	if !api.Authorize(r, rbac.ActionCreate,
