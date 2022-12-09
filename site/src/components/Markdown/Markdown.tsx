@@ -44,17 +44,21 @@ export const Markdown: FC<{ children: string }> = ({ children }) => {
         code: ({ node, inline, className, children, ...props }) => {
           const match = /language-(\w+)/.exec(className || "")
 
+          if (match) {
+            console.log(match[1])
+          }
+
           return !inline && match ? (
             <SyntaxHighlighter
               style={darcula}
-              language={match[1]}
+              language={match[1].toLowerCase()}
               useInlineStyles={false}
               // Use inline styles does not work correctly
               // https://github.com/react-syntax-highlighter/react-syntax-highlighter/issues/329
               codeTagProps={{ style: {} }}
               {...props}
             >
-              {String(children).replace(/\n$/, "")}
+              {String(children)}
             </SyntaxHighlighter>
           ) : (
             <code className={styles.codeWithoutLanguage} {...props}>
@@ -134,13 +138,18 @@ const useStyles = makeStyles((theme) => ({
       background: theme.palette.background.paperLight,
       borderRadius: theme.shape.borderRadius,
       padding: theme.spacing(2, 3),
+      overflowX: "auto",
 
       "& code": {
         color: theme.palette.text.secondary,
       },
 
-      "& .key, & .property": {
+      "& .key, & .property, & .inserted, .keyword": {
         color: colors.turquoise[7],
+      },
+
+      "& .deleted": {
+        color: theme.palette.error.light,
       },
     },
   },
