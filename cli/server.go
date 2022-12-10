@@ -199,6 +199,16 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				listener = tls.NewListener(listener, tlsConfig)
 			}
 
+			ctx, httpClient, err := configureHTTPClient(
+				ctx,
+				cfg.TLS.ClientCertFile.Value,
+				cfg.TLS.ClientKeyFile.Value,
+				cfg.TLS.ClientCAFile.Value,
+			)
+			if err != nil {
+				return xerrors.Errorf("configure http client: %w", err)
+			}
+
 			tcpAddr, valid := listener.Addr().(*net.TCPAddr)
 			if !valid {
 				return xerrors.New("must be listening on tcp")
@@ -347,11 +357,6 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				return xerrors.Errorf("parse real ip config: %w", err)
 			}
 
-			clientTLSHTTPClient, err := clientTLSHTTPClient(cfg.TLS)
-			if err != nil {
-				return xerrors.Errorf("configure http client certificates: %w", err)
-			}
-
 			options := &coderd.Options{
 				AccessURL:                   accessURLParsed,
 				AppHostname:                 appHostname,
@@ -374,7 +379,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				DeploymentConfig:            cfg,
 				PrometheusRegistry:          prometheus.NewRegistry(),
 				APIRateLimit:                cfg.APIRateLimit.Value,
-				HTTPClient:                  clientTLSHTTPClient,
+				HTTPClient:                  httpClient,
 			}
 			if tlsConfig != nil {
 				options.TLSCertificates = tlsConfig.Certificates
@@ -1079,19 +1084,27 @@ func configureTLS(tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles
 		return nil, nil //nolint:nilnil
 	}
 
+	err = configureCAPool(tlsClientCAFile, tlsConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	return tlsConfig, nil
+}
+
+func configureCAPool(tlsClientCAFile string, tlsConfig *tls.Config) error {
 	if tlsClientCAFile != "" {
 		caPool := x509.NewCertPool()
 		data, err := os.ReadFile(tlsClientCAFile)
 		if err != nil {
-			return nil, xerrors.Errorf("read %q: %w", tlsClientCAFile, err)
+			return xerrors.Errorf("read %q: %w", tlsClientCAFile, err)
 		}
 		if !caPool.AppendCertsFromPEM(data) {
-			return nil, xerrors.Errorf("failed to parse CA certificate in tls-client-ca-file")
+			return xerrors.Errorf("failed to parse CA certificate in tls-client-ca-file")
 		}
 		tlsConfig.ClientCAs = caPool
 	}
-
-	return tlsConfig, nil
+	return nil
 }
 
 //nolint:revive // Ignore flag-parameter: parameter 'allowEveryone' seems to be a control flag, avoid control coupling (revive)
@@ -1310,21 +1323,27 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	return connectionURL, ep.Stop, nil
 }
 
-// clientTLSHTTPClient creates a http client that will use the configured client certs hwne making HTTP calls
-func clientTLSHTTPClient(cfg *codersdk.TLSConfig) (*http.Client, error) {
-	if cfg != nil && cfg.ClientCertFile.Value != "" && cfg.ClientKeyFile.Value != "" {
-		certificates, err := loadCertificates([]string{cfg.ClientCertFile.Value}, []string{cfg.ClientKeyFile.Value})
+func configureHTTPClient(ctx context.Context, clientCertFile, clientKeyFile string, tlsClientCAFile string) (context.Context, *http.Client, error) {
+	if clientCertFile != "" && clientKeyFile != "" {
+		certificates, err := loadCertificates([]string{clientCertFile}, []string{clientKeyFile})
 		if err != nil {
-			return nil, err
+			return ctx, nil, err
 		}
 
-		return &http.Client{
+		tlsClientConfig := &tls.Config{ //nolint:gosec
+			Certificates: certificates,
+		}
+		err = configureCAPool(tlsClientCAFile, tlsClientConfig)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		httpClient := &http.Client{
 			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{ //nolint:gosec
-					Certificates: certificates,
-				},
+				TLSClientConfig: tlsClientConfig,
 			},
-		}, nil
+		}
+		return context.WithValue(ctx, oauth2.HTTPClient, httpClient), httpClient, nil
 	}
-	return &http.Client{}, nil
+	return ctx, &http.Client{}, nil
 }
