@@ -2,6 +2,7 @@
 name: Develop in Docker with custom image builds
 description: Build images and run workspaces on the Docker host with no image registry required
 tags: [local, docker]
+icon: /icon/docker.png
 ---
 
 # docker-image-builds

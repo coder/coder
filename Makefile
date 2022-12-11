@@ -359,9 +359,9 @@ fmt/prettier:
 	cd site
 # Avoid writing files in CI to reduce file write activity
 ifdef CI
-	yarn run format:check
+	yarn run format:check . ../*.md ../docs
 else
-	yarn run format:write
+	yarn run format:write . ../*.md ../docs
 endif
 .PHONY: fmt/prettier
 
@@ -452,11 +452,7 @@ site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find codersdk
 docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics
 	go run scripts/metricsdocgen/main.go
 	cd site
-ifdef CI
-	yarn run format:check
-else
-	yarn run format:write
-endif
+	yarn run format:write ../docs/admin/prometheus.md
 
 update-golden-files: cli/testdata/.gen-golden
 .PHONY: update-golden-files
@@ -475,7 +471,10 @@ test: test-clean
 test-postgres: test-clean test-postgres-docker
 	# The postgres test is prone to failure, so we limit parallelism for
 	# more consistent execution.
-	DB=ci DB_FROM=$(shell go run scripts/migrate-ci/main.go) gotestsum --junitfile="gotests.xml" --packages="./..." -- \
+	DB=ci DB_FROM=$(shell go run scripts/migrate-ci/main.go) gotestsum \
+		--junitfile="gotests.xml" \
+		--jsonfile="gotestsum.json" \
+		--packages="./..." -- \
 		-covermode=atomic -coverprofile="gotests.coverage" -timeout=20m \
 		-parallel=4 \
 		-coverpkg=./... \

@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
@@ -412,7 +414,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		t.Log("navigating to: ", gotLocation.String())
 		req, err = http.NewRequestWithContext(ctx, "GET", gotLocation.String(), nil)
 		require.NoError(t, err)
-		resp, err = client.HTTPClient.Do(req)
+		resp, err = doWithRetries(t, client, req)
 		require.NoError(t, err)
 		resp.Body.Close()
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
@@ -469,7 +471,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		req, err = http.NewRequestWithContext(ctx, "GET", gotLocation.String(), nil)
 		require.NoError(t, err)
 		req.Header.Set(codersdk.SessionCustomHeader, apiKey)
-		resp, err = client.HTTPClient.Do(req)
+		resp, err = doWithRetries(t, client, req)
 		require.NoError(t, err)
 		resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -1022,5 +1024,197 @@ func TestAppSharing(t *testing.T) {
 			// Unauthenticated user should be able to access the workspace.
 			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNamePublic, clientWithNoAuth, true, false)
 		})
+	})
+}
+
+func TestWorkspaceAppsNonCanonicalHeaders(t *testing.T) {
+	t.Parallel()
+
+	setupNonCanonicalHeadersTest := func(t *testing.T, customAppHost ...string) (*codersdk.Client, codersdk.CreateFirstUserResponse, codersdk.Workspace, uint16) {
+		// Start a TCP server that manually parses the request. Golang's HTTP
+		// server canonicalizes all HTTP request headers it receives, so we
+		// can't use it to test that we forward non-canonical headers.
+		// #nosec
+		ln, err := net.Listen("tcp", ":0")
+		require.NoError(t, err)
+		go func() {
+			for {
+				c, err := ln.Accept()
+				if xerrors.Is(err, net.ErrClosed) {
+					return
+				}
+				require.NoError(t, err)
+
+				go func() {
+					s := bufio.NewScanner(c)
+
+					// Read request line.
+					assert.True(t, s.Scan())
+					reqLine := s.Text()
+					assert.True(t, strings.HasPrefix(reqLine, fmt.Sprintf("GET /?%s HTTP/1.1", proxyTestAppQuery)))
+
+					// Read headers and discard them. We collect the
+					// Sec-WebSocket-Key header (with a capital S) to respond
+					// with.
+					secWebSocketKey := "(none found)"
+					for s.Scan() {
+						if s.Text() == "" {
+							break
+						}
+
+						line := strings.TrimSpace(s.Text())
+						if strings.HasPrefix(line, "Sec-WebSocket-Key: ") {
+							secWebSocketKey = strings.TrimPrefix(line, "Sec-WebSocket-Key: ")
+						}
+					}
+
+					// Write response containing text/plain with the
+					// Sec-WebSocket-Key header.
+					res := fmt.Sprintf("HTTP/1.1 204 No Content\r\nSec-WebSocket-Key: %s\r\nConnection: close\r\n\r\n", secWebSocketKey)
+					_, err = c.Write([]byte(res))
+					assert.NoError(t, err)
+					err = c.Close()
+					assert.NoError(t, err)
+				}()
+			}
+		}()
+		t.Cleanup(func() {
+			_ = ln.Close()
+		})
+		tcpAddr, ok := ln.Addr().(*net.TCPAddr)
+		require.True(t, ok)
+
+		appHost := proxyTestSubdomainRaw
+		if len(customAppHost) > 0 {
+			appHost = customAppHost[0]
+		}
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			AppHostname:                 appHost,
+			IncludeProvisionerDaemon:    true,
+			AgentStatsRefreshInterval:   time.Millisecond * 100,
+			MetricsCacheRefreshInterval: time.Millisecond * 100,
+			RealIPConfig: &httpmw.RealIPConfig{
+				TrustedOrigins: []*net.IPNet{{
+					IP:   net.ParseIP("127.0.0.1"),
+					Mask: net.CIDRMask(8, 32),
+				}},
+				TrustedHeaders: []string{
+					"CF-Connecting-IP",
+				},
+			},
+		})
+
+		user := coderdtest.CreateFirstUser(t, client)
+
+		workspace := createWorkspaceWithApps(t, client, user.OrganizationID, appHost, uint16(tcpAddr.Port))
+
+		// Configure the HTTP client to not follow redirects and to route all
+		// requests regardless of hostname to the coderd test server.
+		client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+		defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+		require.True(t, ok)
+		transport := defaultTransport.Clone()
+		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return (&net.Dialer{}).DialContext(ctx, network, client.URL.Host)
+		}
+		client.HTTPClient.Transport = transport
+		t.Cleanup(func() {
+			transport.CloseIdleConnections()
+		})
+
+		return client, user, workspace, uint16(tcpAddr.Port)
+	}
+
+	t.Run("ProxyPath", func(t *testing.T) {
+		t.Parallel()
+
+		client, _, workspace, _ := setupNonCanonicalHeadersTest(t)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		u, err := client.URL.Parse(fmt.Sprintf("/@me/%s/apps/%s/?%s", workspace.Name, proxyTestAppNameOwner, proxyTestAppQuery))
+		require.NoError(t, err)
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+		require.NoError(t, err)
+
+		// Use a non-canonical header name. The S in Sec-WebSocket-Key should be
+		// capitalized according to the websocket spec, but Golang will
+		// lowercase it to match the HTTP/1 spec.
+		//
+		// Setting the header on the map directly will force the header to not
+		// be canonicalized on the client, but it will be canonicalized on the
+		// server.
+		secWebSocketKey := "test-dean-was-here"
+		req.Header["Sec-WebSocket-Key"] = []string{secWebSocketKey}
+
+		req.Header.Set(codersdk.SessionCustomHeader, client.SessionToken())
+		resp, err := doWithRetries(t, client, req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		// The response should be a 204 No Content with the Sec-WebSocket-Key
+		// header set to the value we sent.
+		res, err := httputil.DumpResponse(resp, true)
+		require.NoError(t, err)
+		t.Log(string(res))
+		require.Equal(t, http.StatusNoContent, resp.StatusCode)
+		require.Equal(t, secWebSocketKey, resp.Header.Get("Sec-WebSocket-Key"))
+	})
+
+	t.Run("Subdomain", func(t *testing.T) {
+		t.Parallel()
+
+		appHost := proxyTestSubdomainRaw
+		client, _, workspace, _ := setupNonCanonicalHeadersTest(t, appHost)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		user, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+
+		u := fmt.Sprintf(
+			"http://%s--%s--%s--%s%s?%s",
+			proxyTestAppNameOwner,
+			proxyTestAgentName,
+			workspace.Name,
+			user.Username,
+			strings.ReplaceAll(appHost, "*", ""),
+			proxyTestAppQuery,
+		)
+
+		// Re-enable the default redirect behavior.
+		client.HTTPClient.CheckRedirect = nil
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+		require.NoError(t, err)
+
+		// Use a non-canonical header name. The S in Sec-WebSocket-Key should be
+		// capitalized according to the websocket spec, but Golang will
+		// lowercase it to match the HTTP/1 spec.
+		//
+		// Setting the header on the map directly will force the header to not
+		// be canonicalized on the client, but it will be canonicalized on the
+		// server.
+		secWebSocketKey := "test-dean-was-here"
+		req.Header["Sec-WebSocket-Key"] = []string{secWebSocketKey}
+
+		req.Header.Set(codersdk.SessionCustomHeader, client.SessionToken())
+		resp, err := doWithRetries(t, client, req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		// The response should be a 204 No Content with the Sec-WebSocket-Key
+		// header set to the value we sent.
+		res, err := httputil.DumpResponse(resp, true)
+		require.NoError(t, err)
+		t.Log(string(res))
+		require.Equal(t, http.StatusNoContent, resp.StatusCode)
+		require.Equal(t, secWebSocketKey, resp.Header.Get("Sec-WebSocket-Key"))
 	})
 }

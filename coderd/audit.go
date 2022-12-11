@@ -160,6 +160,12 @@ func (api *API) convertAuditLogs(ctx context.Context, dblogs []database.GetAudit
 	return alogs
 }
 
+type AdditionalFields struct {
+	WorkspaceName  string
+	BuildNumber    string
+	WorkspaceOwner string
+}
+
 func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
 	ip, _ := netip.AddrFromSlice(dblog.Ip.IPNet.IP)
 
@@ -185,12 +191,30 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 		}
 	}
 
-	isDeleted := api.auditLogIsResourceDeleted(ctx, dblog)
-	var resourceLink string
+	var (
+		additionalFieldsBytes = []byte(dblog.AdditionalFields)
+		additionalFields      AdditionalFields
+		err                   = json.Unmarshal(additionalFieldsBytes, &additionalFields)
+	)
+	if err != nil {
+		api.Logger.Error(ctx, "unmarshal additional fields", slog.Error(err))
+		resourceInfo := map[string]string{
+			"workspaceName":  "unknown",
+			"buildNumber":    "unknown",
+			"workspaceOwner": "unknown",
+		}
+		dblog.AdditionalFields, err = json.Marshal(resourceInfo)
+		api.Logger.Error(ctx, "marshal additional fields", slog.Error(err))
+	}
+
+	var (
+		isDeleted    = api.auditLogIsResourceDeleted(ctx, dblog)
+		resourceLink string
+	)
 	if isDeleted {
 		resourceLink = ""
 	} else {
-		resourceLink = api.auditLogResourceLink(ctx, dblog)
+		resourceLink = auditLogResourceLink(dblog, additionalFields)
 	}
 
 	return codersdk.AuditLog{
@@ -209,23 +233,28 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 		StatusCode:       dblog.StatusCode,
 		AdditionalFields: dblog.AdditionalFields,
 		User:             user,
-		Description:      auditLogDescription(dblog),
+		Description:      auditLogDescription(dblog, additionalFields),
 		ResourceLink:     resourceLink,
 		IsDeleted:        isDeleted,
 	}
 }
 
-func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
+func auditLogDescription(alog database.GetAuditLogsOffsetRow, additionalFields AdditionalFields) string {
 	str := fmt.Sprintf("{user} %s",
 		codersdk.AuditAction(alog.Action).FriendlyString(),
 	)
 
 	// Strings for starting/stopping workspace builds follow the below format:
-	// "{user} started build for workspace {target}"
+	// "{user} started build #{build_number} for workspace {target}"
 	// where target is a workspace instead of a workspace build
 	// passed in on the FE via AuditLog.AdditionalFields rather than derived in request.go:35
 	if alog.ResourceType == database.ResourceTypeWorkspaceBuild && alog.Action != database.AuditActionDelete {
-		str += " build for"
+		if len(additionalFields.BuildNumber) == 0 {
+			str += " build for"
+		} else {
+			str += fmt.Sprintf(" build #%s for",
+				additionalFields.BuildNumber)
+		}
 	}
 
 	// We don't display the name (target) for git ssh keys. It's fairly long and doesn't
@@ -295,12 +324,7 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 	}
 }
 
-type AdditionalFields struct {
-	WorkspaceName string
-	BuildNumber   string
-}
-
-func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAuditLogsOffsetRow) string {
+func auditLogResourceLink(alog database.GetAuditLogsOffsetRow, additionalFields AdditionalFields) string {
 	switch alog.ResourceType {
 	case database.ResourceTypeTemplate:
 		return fmt.Sprintf("/templates/%s",
@@ -309,14 +333,15 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 		return fmt.Sprintf("/users?filter=%s",
 			alog.ResourceTarget)
 	case database.ResourceTypeWorkspace:
+		workspaceOwner := alog.UserUsername.String
+		if len(additionalFields.WorkspaceOwner) != 0 && additionalFields.WorkspaceOwner != "unknown" {
+			workspaceOwner = additionalFields.WorkspaceOwner
+		}
 		return fmt.Sprintf("/@%s/%s",
-			alog.UserUsername.String, alog.ResourceTarget)
+			workspaceOwner, alog.ResourceTarget)
 	case database.ResourceTypeWorkspaceBuild:
-		additionalFieldsBytes := []byte(alog.AdditionalFields)
-		var additionalFields AdditionalFields
-		err := json.Unmarshal(additionalFieldsBytes, &additionalFields)
-		if err != nil {
-			api.Logger.Error(ctx, "unmarshal workspace name", slog.Error(err))
+		if len(additionalFields.WorkspaceName) == 0 || len(additionalFields.BuildNumber) == 0 {
+			return ""
 		}
 		return fmt.Sprintf("/@%s/%s/builds/%s",
 			alog.UserUsername.String, additionalFields.WorkspaceName, additionalFields.BuildNumber)

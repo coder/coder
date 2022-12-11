@@ -189,7 +189,8 @@ export interface CreateTemplateVersionRequest {
   readonly name?: string
   readonly template_id?: string
   readonly storage_method: ProvisionerStorageMethod
-  readonly file_id: string
+  readonly file_id?: string
+  readonly example_id?: string
   readonly provisioner: ProvisionerType
   readonly tags: Record<string, string>
   readonly parameter_values?: CreateParameterRequest[]
@@ -442,7 +443,7 @@ export interface OIDCConfig {
   readonly allow_signups: DeploymentConfigField<boolean>
   readonly client_id: DeploymentConfigField<string>
   readonly client_secret: DeploymentConfigField<string>
-  readonly email_domain: DeploymentConfigField<string>
+  readonly email_domain: DeploymentConfigField<string[]>
   readonly issuer_url: DeploymentConfigField<string>
   readonly scopes: DeploymentConfigField<string[]>
   readonly ignore_email_verified: DeploymentConfigField<boolean>
@@ -604,6 +605,13 @@ export interface ServerSentEvent {
   readonly data: any
 }
 
+// From codersdk/servicebanner.go
+export interface ServiceBanner {
+  readonly enabled: boolean
+  readonly message?: string
+  readonly background_color?: string
+}
+
 // From codersdk/deploymentconfig.go
 export interface TLSConfig {
   readonly enable: DeploymentConfigField<boolean>
@@ -659,6 +667,17 @@ export type TemplateBuildTimeStats = Record<
 // From codersdk/templates.go
 export interface TemplateDAUsResponse {
   readonly entries: DAUEntry[]
+}
+
+// From codersdk/templates.go
+export interface TemplateExample {
+  readonly id: string
+  readonly url: string
+  readonly name: string
+  readonly description: string
+  readonly icon: string
+  readonly tags: string[]
+  readonly markdown: string
 }
 
 // From codersdk/templates.go

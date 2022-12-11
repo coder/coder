@@ -102,6 +102,11 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
     setTimeout(updateProgress, 5)
   }, [progressValue, job, transitionStats])
 
+  // HACK: the codersdk type generator doesn't support null values, but this
+  // can be null when the template is new.
+  if ((transitionStats.P50 as number | null) === null) {
+    return <></>
+  }
   return (
     <div className={styles.stack}>
       <LinearProgress

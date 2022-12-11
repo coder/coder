@@ -343,7 +343,7 @@ Template permissions can be used to give users and groups access to specific tem
 
 ## Community Templates
 
-You can see a list of community templates by our users [here](../examples/templates/community-templates.md). 
+You can see a list of community templates by our users [here](https://github.com/coder/coder/blob/main/examples/templates/community-templates.md).
 
 ## Next Steps
 

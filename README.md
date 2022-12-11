@@ -11,7 +11,6 @@ Software development on your infrastructure. Offload your team's development fro
 
 > "By leveraging Terraform, Coder lets developers run any IDE on any compute platform including on-prem, AWS, Azure, GCP, DigitalOcean, Kubernetes, Docker, and more, with workspaces running on Linux, Windows, or Mac." - **Kevin Fishner Chief of Staff at [HashiCorp](https://hashicorp.com/)**
 
-
 <p align="center">
   <img src="./docs/images/hero-image.png">
 </p>
@@ -83,6 +82,10 @@ Use `coder --help` to get a complete list of flags and environment variables. Us
 
 Visit our docs [here](https://coder.com/docs/coder-oss).
 
+## Templates
+
+Find our templates [here](./examples/templates).
+
 ## Comparison
 
 Please file [an issue](https://github.com/coder/coder/issues/new) if any information is out of date. Also refer to: [What Coder is not](https://coder.com/docs/coder-oss/latest/index#what-coder-is-not).
@@ -92,7 +95,7 @@ Please file [an issue](https://github.com/coder/coder/issues/new) if any informa
 | [Coder](https://github.com/coder/coder)                     | Platform | OSS + Self-Managed | Pay your cloud                | All [Terraform](https://www.terraform.io/registry/providers) resources, all clouds, multi-architecture: Linux, Mac, Windows, containers, VMs, amd64, arm64 |
 | [code-server](https://github.com/cdr/code-server)           | Web IDE  | OSS + Self-Managed | Pay your cloud                | Linux, Mac, Windows, containers, VMs, amd64, arm64                                                                                                         |
 | [Coder (Classic)](https://coder.com/docs)                   | Platform | Self-Managed       | Pay your cloud + license fees | Kubernetes Linux Containers                                                                                                                                |
-| [GitHub Codespaces](https://github.com/features/codespaces) | Platform | SaaS               | 2x Azure Compute              | Linux Virtual Machines                                                                                                                                           |
+| [GitHub Codespaces](https://github.com/features/codespaces) | Platform | SaaS               | 2x Azure Compute              | Linux Virtual Machines                                                                                                                                     |
 
 ---
 

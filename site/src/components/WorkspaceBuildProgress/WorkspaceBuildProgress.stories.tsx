@@ -39,10 +39,21 @@ Starting.args = {
   },
 }
 
+// When the transition stats are returning null, the progress bar should not be
+// displayed
 export const StartingUnknown = Template.bind({})
 StartingUnknown.args = {
   ...Starting.args,
-  transitionStats: undefined,
+  transitionStats: {
+    // HACK: the codersdk type generator doesn't support null values, but this
+    // can be null when the template is new.
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment -- Read comment above
+    // @ts-ignore-error
+    P50: null,
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment -- Read comment above
+    // @ts-ignore-error
+    P95: null,
+  },
 }
 
 export const StartingPassedEstimate = Template.bind({})

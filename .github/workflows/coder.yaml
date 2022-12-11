@@ -34,7 +34,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: typos-action
-        uses: crate-ci/typos@v1.12.12
+        uses: crate-ci/typos@v1.13.3
         with:
           config: .github/workflows/typos.toml
       - name: Fix Helper
@@ -274,6 +274,9 @@ jobs:
           export PATH=${PATH}:$(go env GOPATH)/bin
           make --output-sync -j -B fmt
 
+      - name: Check for unstaged files
+        run: ./scripts/check_unstaged.sh
+
   test-go:
     name: "test/go"
     runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' ||  matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'windows-latest-8-cores'|| matrix.os }}
@@ -336,7 +339,14 @@ jobs:
             echo ::set-output name=cover::false
           fi
           set -x
-          gotestsum --junitfile="gotests.xml" --packages="./..." --debug -- -parallel=8 -timeout=3m -short -failfast $COVERAGE_FLAGS
+          gotestsum --junitfile="gotests.xml" --jsonfile="gotestsum.json" --packages="./..." --debug -- -parallel=8 -timeout=3m -short -failfast $COVERAGE_FLAGS
+
+      - uses: actions/upload-artifact@v3
+        if: success() || failure()
+        with:
+          name: gotestsum-debug-${{ matrix.os }}.json
+          path: ./gotestsum.json
+          retention-days: 7
 
       - uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
@@ -398,6 +408,13 @@ jobs:
 
       - name: Test with PostgreSQL Database
         run: make test-postgres
+
+      - uses: actions/upload-artifact@v3
+        if: success() || failure()
+        with:
+          name: gotestsum-debug-postgres.json
+          path: ./gotestsum.json
+          retention-days: 7
 
       - uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
@@ -674,6 +691,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@master
-    - uses: gaurav-nelson/github-action-markdown-link-check@v1
+    # For the main branch:
+    - if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
+      uses: gaurav-nelson/github-action-markdown-link-check@v1
       with:
+          use-quiet-mode: yes
+          use-verbose-mode: yes
+          config-file: .github/workflows/mlc_config.json
+    # For pull requests:
+    - if: github.ref != 'refs/heads/main' || github.event.pull_request.head.repo.fork
+      uses: gaurav-nelson/github-action-markdown-link-check@v1
+      with:
+          use-quiet-mode: yes
+          use-verbose-mode: yes
+          check-modified-files-only: yes
+          base-branch: main
           config-file: .github/workflows/mlc_config.json
