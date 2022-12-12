@@ -44,10 +44,6 @@ export const Markdown: FC<{ children: string }> = ({ children }) => {
         code: ({ node, inline, className, children, ...props }) => {
           const match = /language-(\w+)/.exec(className || "")
 
-          if (match) {
-            console.log(match[1])
-          }
-
           return !inline && match ? (
             <SyntaxHighlighter
               style={darcula}

@@ -3,6 +3,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
 import { TemplateExample } from "api/typesGenerated"
 import { FormFooter } from "components/FormFooter/FormFooter"
+import { IconField } from "components/IconField/IconField"
 import { Stack } from "components/Stack/Stack"
 import { useFormik } from "formik"
 import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate"
@@ -138,13 +139,14 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
               variant="outlined"
             />
 
-            <TextField
+            <IconField
               {...getFieldHelpers("icon")}
               disabled={isSubmitting}
               onChange={onChangeTrimmed(form)}
               fullWidth
               label={t("form.fields.icon")}
               variant="outlined"
+              onPickEmoji={(value) => form.setFieldValue("icon", value)}
             />
           </Stack>
         </div>
