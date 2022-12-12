@@ -44,7 +44,7 @@ returning an API Key.
 > sessions.
 
 ```sh
-coder --token <your API Key> login <your deployment Access URL> 
+coder --token <your API Key> login <your deployment Access URL>
 ```
 
 ## Add a template
@@ -397,7 +397,7 @@ practices:
 - Ensure the resource can `curl` your Coder [access
   URL](./admin/configure.md#access-url)
 - Manually connect to the resource and check the agent logs (e.g., `kubectl
-  exec`, `docker exec` or AWS console)
+exec`, `docker exec` or AWS console)
   - The Coder agent logs are typically stored in `/var/log/coder-agent.log`
   - The Coder agent startup script logs are typically stored in
     `/var/log/coder-startup-script.log`
