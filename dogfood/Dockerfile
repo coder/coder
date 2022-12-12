@@ -324,7 +324,7 @@ RUN addgroup --system nixbld \
 USER coder
 
 # Install Nix
-export NIX_VERSION=2.3.15
+ARG NIX_VERSION=2.3.15
 RUN curl --silent --show-error --location \
   "https://releases.nixos.org/nix/nix-${NIX_VERSION}/nix-${NIX_VERSION}-x86_64-linux.tar.xz" \
   -o "nix-${NIX_VERSION}-x86_64-linux.tar.xz"
