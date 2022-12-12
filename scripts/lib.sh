@@ -123,9 +123,6 @@ log() {
 # error prints an error message and returns an error exit code.
 error() {
 	log "ERROR: $*"
-	if issourced; then
-		return 1
-	fi
 	exit 1
 }
 
