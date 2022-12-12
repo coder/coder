@@ -206,6 +206,8 @@ export interface CreateTestAuditLogRequest {
 
 // From codersdk/apikey.go
 export interface CreateTokenRequest {
+  // This is likely an enum in an external package ("time.Duration")
+  readonly lifetime: number
   readonly scope: APIKeyScope
 }
 
