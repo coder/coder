@@ -283,7 +283,7 @@ owners](./admin/users.md) can edit a template.
 Using the CLI, login to Coder and run the following command to edit a single
 template:
 
-```sh
+```console
 coder templates edit <template-name> --description "This is my template"
 ```
 
