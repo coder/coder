@@ -17,3 +17,19 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 		--outputTypes="go,json" \
 		--parseDependency=true
 )
+
+(
+	cd "$SCRIPT_DIR"
+	npm ci
+
+	# Make sure that widdershins is installed correctly.
+	node ./node_modules/widdershins/widdershins.js --version
+
+	#
+	node ./node_modules/widdershins/widdershins.js \
+		--search false \
+		--language_tabs 'shell:curl' \
+		--summary "../../coderd/apidocs/swagger.json" \
+		--outfile "../../docs/api.md"
+)
+
