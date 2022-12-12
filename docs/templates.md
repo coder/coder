@@ -43,7 +43,7 @@ returning an API Key.
 > sessions.
 
 ```console
-coder --token <your API Key> login <your deployment Access URL>
+coder --token <your-api-key> login https://coder.example.com/ # aka the URL to your coder instance
 ```
 
 ## Add a template
