@@ -407,7 +407,14 @@ export const getBuildInfo = async (): Promise<TypesGen.BuildInfoResponse> => {
 export const getUpdateCheck =
   async (): Promise<TypesGen.UpdateCheckResponse> => {
     const response = await axios.get("/api/v2/updatecheck")
+    // return {
+    //   current: true,
+    //   url: "https://github.com/coder/coder/releases/tag/v0.13.1",
+    //   version: "v0.13.1"
+    // }
+    console.log('response.data', response.data)
     return response.data
+    return { current: false, version: 'v0.13.1', url: 'https://github.com/coder/coder/releases/tag/v0.13.1' }
   }
 
 export const putWorkspaceAutostart = async (
