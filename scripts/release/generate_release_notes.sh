@@ -109,13 +109,13 @@ changelog="$(
 
 image_tag="$(execrelative ./image_tag.sh --version "$new_version")"
 
-echo -e "## Changelog:
+echo -e "## Changelog
 
 $changelog
 
 [\`${old_version}...${new_version}\`](https://github.com/coder/coder/compare/${old_version}...${new_version})
 
-## Container image:
+## Container image
 
 - \`docker pull $image_tag\`
 "
