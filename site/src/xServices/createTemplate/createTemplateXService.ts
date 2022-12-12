@@ -19,7 +19,7 @@ export const createTemplateMachine = createMachine(
       context: {} as CreateTemplateContext,
       events: {} as { type: "CREATE"; data: any },
       services: {} as {
-        loadingStarterTemplate: {
+        loadStarterTemplate: {
           data: TemplateExample
         }
         createTemplate: {
@@ -95,8 +95,8 @@ export const createTemplateMachine = createMachine(
       },
     },
     actions: {
-      assignError: (_, { data }) => assign({ error: data }),
-      assignStarterTemplate: (_, { data }) => assign({ starterTemplate: data }),
+      assignError: assign({ error: (_, { data }) => data }),
+      assignStarterTemplate: assign({ starterTemplate: (_, { data }) => data }),
     },
     guards: {
       isExampleProvided: ({ exampleId }) => Boolean(exampleId),

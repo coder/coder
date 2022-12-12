@@ -39,15 +39,27 @@ const defaultInitialValues: FormValues = {
 }
 
 interface CreateTemplateFormProps {
-  initialValues?: typeof defaultInitialValues
   starterTemplate?: TemplateExample
   errors?: unknown
   isSubmitting: boolean
   onCancel: () => void
 }
 
+const getInitialValues = (starterTemplate?: TemplateExample) => {
+  if (!starterTemplate) {
+    return defaultInitialValues
+  }
+
+  return {
+    ...defaultInitialValues,
+    name: starterTemplate.id,
+    display_name: starterTemplate.name,
+    icon: starterTemplate.icon,
+    description: starterTemplate.description,
+  }
+}
+
 export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
-  initialValues = defaultInitialValues,
   starterTemplate,
   errors,
   isSubmitting,
@@ -55,8 +67,8 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
 }) => {
   const styles = useStyles()
   const formFooterStyles = useFormFooterStyles()
-  const form = useFormik({
-    initialValues,
+  const form = useFormik<FormValues>({
+    initialValues: getInitialValues(starterTemplate),
     validationSchema,
     onSubmit: () => {
       console.log("Submit")
@@ -79,11 +91,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
             </p>
           </div>
 
-          <Stack
-            direction="column"
-            spacing={1}
-            className={styles.formSectionFields}
-          >
+          <Stack direction="column" className={styles.formSectionFields}>
             {starterTemplate && <SelectedTemplate template={starterTemplate} />}
 
             <TextField

@@ -26,6 +26,7 @@ const CreateTemplatePage: FC = () => {
       },
     },
   })
+  const { starterTemplate } = state.context
 
   const onCancel = () => {
     navigate(-1)
@@ -40,7 +41,11 @@ const CreateTemplatePage: FC = () => {
       <FullPageHorizontalForm title={t("title")} onCancel={onCancel}>
         {state.hasTag("loading") && <Loader />}
         {state.matches("idle") && (
-          <CreateTemplateForm isSubmitting={false} onCancel={onCancel} />
+          <CreateTemplateForm
+            starterTemplate={starterTemplate}
+            isSubmitting={false}
+            onCancel={onCancel}
+          />
         )}
       </FullPageHorizontalForm>
     </>

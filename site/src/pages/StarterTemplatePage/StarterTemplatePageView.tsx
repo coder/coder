@@ -15,6 +15,7 @@ import PlusIcon from "@material-ui/icons/AddOutlined"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { useTranslation } from "react-i18next"
 import { Stack } from "components/Stack/Stack"
+import { Link } from "react-router-dom"
 
 export interface StarterTemplatePageViewProps {
   context: StarterTemplateContext
@@ -53,7 +54,13 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
             >
               {t("actions.viewSourceCode")}
             </Button>
-            <Button startIcon={<PlusIcon />}>{t("actions.useTemplate")}</Button>
+            <Button
+              component={Link}
+              to={`/templates/new?exampleId=${starterTemplate.id}`}
+              startIcon={<PlusIcon />}
+            >
+              {t("actions.useTemplate")}
+            </Button>
           </>
         }
       >
