@@ -113,7 +113,7 @@ echo -e "## Changelog
 
 $changelog
 
-[\`${old_version}...${new_version}\`](https://github.com/coder/coder/compare/${old_version}...${new_version})
+Compare: [\`${old_version}...${new_version}\`](https://github.com/coder/coder/compare/${old_version}...${new_version})
 
 ## Container image
 
