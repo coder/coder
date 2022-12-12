@@ -34,7 +34,7 @@ Before you can create templates, you must first login to your Coder deployment
 with the CLI.
 
 ```console
-coder login <your deployment Access URL>
+coder login https://coder.example.com # aka the URL to your coder instance
 ```
 
 This will open a browser and ask you to authenticate to your Coder deployment,
