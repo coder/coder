@@ -8,7 +8,7 @@
 # When sourced, this script will populate the COMMIT_METADATA_* variables
 # with the commit metadata for each commit in the revision range.
 #
-# Because this script does some expensive lookups via the GitHub API, it's
+# Because this script does some expensive lookups via the GitHub API, its
 # results will be cached in the environment and restored if this script is
 # sourced a second time with the same arguments.
 
