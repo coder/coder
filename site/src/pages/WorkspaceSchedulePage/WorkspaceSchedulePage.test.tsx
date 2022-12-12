@@ -1,4 +1,8 @@
-import { MockUser, MockWorkspace, renderWithAuth } from "testHelpers/renderHelpers"
+import {
+  MockUser,
+  MockWorkspace,
+  renderWithAuth,
+} from "testHelpers/renderHelpers"
 import userEvent from "@testing-library/user-event"
 import { screen } from "@testing-library/react"
 import {
@@ -256,14 +260,16 @@ describe("WorkspaceSchedulePage", () => {
     it("shows if autoStop is changed", async () => {
       renderWithAuth(<WorkspaceSchedulePage />, {
         route: `/@${MockUser.username}/${MockWorkspace.name}/schedule`,
-        path: "/@:username/:workspace/schedule"
+        path: "/@:username/:workspace/schedule",
       })
       const user = userEvent.setup()
       const autoStopToggle = await screen.findByLabelText(
         FormLanguage.stopSwitch,
       )
       await user.click(autoStopToggle)
-      const submitButton = await screen.findByRole("button", { name: /submit/i })
+      const submitButton = await screen.findByRole("button", {
+        name: /submit/i,
+      })
       await user.click(submitButton)
       const dialog = await screen.findByText(PageLanguage.dialogTitle)
       expect(dialog).toBeInTheDocument()
@@ -272,14 +278,16 @@ describe("WorkspaceSchedulePage", () => {
     it("doesn't show if autoStop is not changed", async () => {
       renderWithAuth(<WorkspaceSchedulePage />, {
         route: `/@${MockUser.username}/${MockWorkspace.name}/schedule`,
-        path: "/@:username/:workspace/schedule"
+        path: "/@:username/:workspace/schedule",
       })
       const user = userEvent.setup()
       const autoStartToggle = await screen.findByLabelText(
         FormLanguage.startSwitch,
       )
       await user.click(autoStartToggle)
-      const submitButton = await screen.findByRole("button", { name: /submit/i })
+      const submitButton = await screen.findByRole("button", {
+        name: /submit/i,
+      })
       await user.click(submitButton)
       const dialog = screen.queryByText(PageLanguage.dialogTitle)
       expect(dialog).not.toBeInTheDocument()

@@ -100,7 +100,10 @@ export const WorkspaceSchedulePage: React.FC = () => {
     return (
       <WorkspaceScheduleForm
         submitScheduleError={submitScheduleError}
-        initialValues={{ ...getAutoStart(workspace), ...getAutoStop(workspace) }}
+        initialValues={{
+          ...getAutoStart(workspace),
+          ...getAutoStop(workspace),
+        }}
         isLoading={scheduleState.tags.has("loading")}
         onCancel={() => {
           navigate(`/@${username}/${workspaceName}`)
