@@ -1,3 +1,6 @@
+import { MockUser, MockWorkspace, renderWithAuth } from "testHelpers/renderHelpers"
+import userEvent from "@testing-library/user-event"
+import { screen } from "@testing-library/react"
 import {
   formValuesToAutoStartRequest,
   formValuesToTTLRequest,
@@ -240,5 +243,25 @@ describe("WorkspaceSchedulePage", () => {
     ])(`ttlMsToAutoStop(%p) returns %p`, (ttlMs, autoStop) => {
       expect(ttlMsToAutoStop(ttlMs)).toEqual(autoStop)
     })
+  })
+
+  describe("autoStop change dialog", () => {
+    it("shows if autoStop is changed", async () => {
+      renderWithAuth(<WorkspaceSchedulePage />, {
+        route: `/@${MockUser.username}/${MockWorkspace.name}/schedule`,
+        path: "/@:username/:workspace/schedule"
+      })
+      const user = userEvent.setup()
+      const autoStopToggle = await screen.findByLabelText(
+        FormLanguage.stopSwitch,
+      )
+      await user.click(autoStopToggle)
+      const submitButton = await screen.findByRole("button", { name: /submit/i })
+      await user.click(submitButton)
+      const dialog = await screen.findByText(PageLanguage.dialogTitle)
+      expect(dialog).toBeInTheDocument()
+    })
+
+
   })
 })

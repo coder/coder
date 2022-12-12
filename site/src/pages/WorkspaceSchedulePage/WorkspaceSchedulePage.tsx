@@ -16,7 +16,7 @@ import {
   formValuesToTTLRequest,
 } from "./formToRequest"
 
-const Language = {
+export const Language = {
   forbiddenError:
     "You don't have permissions to update the schedule for this workspace.",
   getWorkspaceError: "Failed to fetch workspace.",

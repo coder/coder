@@ -15,7 +15,8 @@ export const WorkspacePage: FC = () => {
     useParams()
   const username = firstOrItem(usernameQueryParam, null)
   const workspaceName = firstOrItem(workspaceQueryParam, null)
-  const shouldRestartWorkspace = useLocation().state?.shouldRestartWorkspace ?? false
+  const shouldRestartWorkspace =
+    useLocation().state?.shouldRestartWorkspace ?? false
   const [workspaceState, workspaceSend] = useMachine(workspaceMachine)
   const {
     workspace,
