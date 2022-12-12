@@ -15,6 +15,7 @@ terraform {
 
 variable "dotfiles_uri" {
   description = <<-EOF
+  default     = ""
   Dotfiles repo URI (optional)
 
   see https://dotfiles.github.io
