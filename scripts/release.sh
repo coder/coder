@@ -72,8 +72,8 @@ mapfile -t versions < <(gh api -H "Accept: application/vnd.github+json" /repos/c
 old_version=${versions[0]}
 
 log "Checking commit metadata for changes since $old_version..."
-# shellcheck source=scripts/check_commit_metadata.sh
-source "$SCRIPT_DIR/check_commit_metadata.sh" "$old_version..$ref"
+# shellcheck source=scripts/release/check_commit_metadata.sh
+source "$SCRIPT_DIR/release/check_commit_metadata.sh" "$old_version..$ref"
 
 mapfile -d . -t version_parts <<<"$old_version"
 if [[ $minor == 1 ]] || [[ $COMMIT_METADATA_BREAKING == 1 ]]; then
@@ -93,7 +93,7 @@ new_version="${version_parts[0]}.${version_parts[1]}.${version_parts[2]}"
 log "Old version: ${old_version}"
 log "New version: ${new_version}"
 
-release_notes="$(execrelative ./generate_release_notes.sh --old-version "$old_version" --new-version "$new_version" --ref "$ref")"
+release_notes="$(execrelative ./release/generate_release_notes.sh --old-version "$old_version" --new-version "$new_version" --ref "$ref")"
 
 echo
 read -p "Preview release notes? (y/n) " -n 1 -r show_reply

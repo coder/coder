@@ -13,7 +13,7 @@
 
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 
 old_version=
 new_version=
@@ -58,8 +58,8 @@ if [[ -z $ref ]]; then
 	error "No ref specified"
 fi
 
-# shellcheck source=scripts/check_commit_metadata.sh
-source "$SCRIPT_DIR/check_commit_metadata.sh" "${old_version}..${ref}"
+# shellcheck source=scripts/release/check_commit_metadata.sh
+source "$SCRIPT_DIR/release/check_commit_metadata.sh" "${old_version}..${ref}"
 
 # Sort commits by title prefix, then by date, only return sha at the end.
 mapfile -t commits < <(git log --no-merges --pretty=format:"%ct %h %s" "${old_version}..${ref}" | sort -k3,3 -k1,1n | cut -d' ' -f2)

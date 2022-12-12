@@ -7,7 +7,7 @@
 # pipeline to do the final publish step. If you want to create a release use:
 #   git tag -a -m "$ver" "$ver" && git push origin "$ver"
 #
-# Usage: ./publish_release.sh [--version 1.2.3] [--dry-run] path/to/asset1 path/to/asset2 ...
+# Usage: ./publish.sh [--version 1.2.3] [--dry-run] path/to/asset1 path/to/asset2 ...
 #
 # The supplied images must already be pushed to the registry or this will fail.
 # Also, the source images cannot be in a different registry than the target
@@ -27,7 +27,7 @@
 
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 
 if [[ "${CI:-}" == "" ]]; then
 	error "This script must be run in CI"
@@ -106,8 +106,8 @@ if [[ "$dry_run" == 1 ]]; then
 	new_ref="$(git rev-parse --short HEAD)"
 fi
 
-# shellcheck source=scripts/check_commit_metadata.sh
-source "$SCRIPT_DIR/check_commit_metadata.sh" "$old_tag..$new_ref"
+# shellcheck source=scripts/release/check_commit_metadata.sh
+source "$SCRIPT_DIR/release/check_commit_metadata.sh" "$old_tag..$new_ref"
 
 # Craft the release notes.
 release_notes="$(execrelative ./generate_release_notes.sh --old-version "$old_tag" --new-version "$new_tag" --ref "$new_ref")"
