@@ -22,4 +22,6 @@ export enum FeatureNames {
   BrowserOnly = "browser_only",
   SCIM = "scim",
   TemplateRBAC = "template_rbac",
+  HighAvailability = "high_availability",
+  ServiceBanners = "service_banners",
 }

@@ -82,6 +82,16 @@ type UpdateTemplateMeta struct {
 	AllowUserCancelWorkspaceJobs bool   `json:"allow_user_cancel_workspace_jobs,omitempty"`
 }
 
+type TemplateExample struct {
+	ID          string   `json:"id"`
+	URL         string   `json:"url"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Icon        string   `json:"icon"`
+	Tags        []string `json:"tags"`
+	Markdown    string   `json:"markdown"`
+}
+
 // Template returns a single template.
 func (c *Client) Template(ctx context.Context, template uuid.UUID) (Template, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s", template), nil)
@@ -237,4 +247,18 @@ type AgentStatsReportResponse struct {
 	RxBytes int64 `json:"rx_bytes"`
 	// TxBytes is the number of transmitted bytes.
 	TxBytes int64 `json:"tx_bytes"`
+}
+
+// TemplateExamples lists example templates embedded in coder.
+func (c *Client) TemplateExamples(ctx context.Context, organizationID uuid.UUID) ([]TemplateExample, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/templates/examples", organizationID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+	var templateExamples []TemplateExample
+	return templateExamples, json.NewDecoder(res.Body).Decode(&templateExamples)
 }

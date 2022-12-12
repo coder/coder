@@ -2,7 +2,9 @@ package coderd
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,6 +25,7 @@ import (
 	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/examples"
 )
 
 func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
@@ -438,7 +441,7 @@ func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Re
 	err = json.Unmarshal(job.Input, &input)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error unmarshaling job metadata.",
+			Message: "Internal error unmarshalling job metadata.",
 			Detail:  err.Error(),
 		})
 		return database.ProvisionerJob{}, false
@@ -640,6 +643,71 @@ func (api *API) templateVersionByOrganizationAndName(rw http.ResponseWriter, r *
 	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user))
 }
 
+func (api *API) previousTemplateVersionByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	organization := httpmw.OrganizationParam(r)
+	templateVersionName := chi.URLParam(r, "templateversionname")
+	templateVersion, err := api.Database.GetTemplateVersionByOrganizationAndName(ctx, database.GetTemplateVersionByOrganizationAndNameParams{
+		OrganizationID: organization.ID,
+		Name:           templateVersionName,
+	})
+	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: fmt.Sprintf("No template version found by name %q.", templateVersionName),
+			})
+			return
+		}
+
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template version.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	previousTemplateVersion, err := api.Database.GetPreviousTemplateVersion(ctx, database.GetPreviousTemplateVersionParams{
+		OrganizationID: organization.ID,
+		Name:           templateVersionName,
+		TemplateID:     templateVersion.TemplateID,
+	})
+
+	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: fmt.Sprintf("No previous template version found for %q.", templateVersionName),
+			})
+			return
+		}
+
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching the previous template version.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	job, err := api.Database.GetProvisionerJobByID(ctx, previousTemplateVersion.JobID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner job.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	user, err := api.Database.GetUserByID(ctx, templateVersion.CreatedBy)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error on fetching user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(previousTemplateVersion, convertProvisionerJob(job), user))
+}
+
 func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -769,19 +837,79 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 	// Ensures the "owner" is properly applied.
 	tags := provisionerdserver.MutateTags(apiKey.UserID, req.ProvisionerTags)
 
-	file, err := api.Database.GetFileByID(ctx, req.FileID)
-	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: "File not found.",
+	if req.ExampleID != "" && req.FileID != uuid.Nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "You cannot specify both an example_id and a file_id.",
 		})
 		return
 	}
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching file.",
-			Detail:  err.Error(),
+
+	var file database.File
+	var err error
+	// if example id is specified we need to copy the embedded tar into a new file in the database
+	if req.ExampleID != "" {
+		if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceFile.WithOwner(apiKey.UserID.String())) {
+			httpapi.Forbidden(rw)
+			return
+		}
+		// ensure we can read the file that either already exists or will be created
+		if !api.Authorize(r, rbac.ActionRead, rbac.ResourceFile.WithOwner(apiKey.UserID.String())) {
+			httpapi.Forbidden(rw)
+			return
+		}
+
+		// lookup template tar from embedded examples
+		tar, err := examples.Archive(req.ExampleID)
+		if err != nil {
+			if xerrors.Is(err, examples.ErrNotFound) {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Example not found.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching example.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		// upload a copy of the template tar as a file in the database
+		hashBytes := sha256.Sum256(tar)
+		hash := hex.EncodeToString(hashBytes[:])
+		file, err = api.Database.InsertFile(ctx, database.InsertFileParams{
+			ID:        uuid.New(),
+			Hash:      hash,
+			CreatedBy: apiKey.UserID,
+			CreatedAt: database.Now(),
+			Mimetype:  tarMimeType,
+			Data:      tar,
 		})
-		return
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error creating file.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	if req.FileID != uuid.Nil {
+		file, err = api.Database.GetFileByID(ctx, req.FileID)
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: "File not found.",
+			})
+			return
+		}
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching file.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 	}
 
 	if !api.Authorize(r, rbac.ActionRead, file) {

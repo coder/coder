@@ -986,6 +986,8 @@ export const MockAuditLog: TypesGen.AuditLog = {
   additional_fields: {},
   description: "{user} created workspace {target}",
   user: MockUser,
+  resource_link: "/@admin/bruno-dev",
+  is_deleted: false,
 }
 
 export const MockAuditLog2: TypesGen.AuditLog = {
@@ -1018,16 +1020,28 @@ export const MockAuditLog2: TypesGen.AuditLog = {
   },
 }
 
+export const MockWorkspaceCreateAuditLogForDifferentOwner = {
+  ...MockAuditLog,
+  additional_fields: {
+    workspaceOwner: "Member",
+  },
+}
+
 export const MockAuditLogWithWorkspaceBuild: TypesGen.AuditLog = {
   ...MockAuditLog,
   id: "f90995bf-4a2b-4089-b597-e66e025e523e",
   request_id: "61555889-2875-475c-8494-f7693dd5d75b",
   action: "stop",
   resource_type: "workspace_build",
-  description: "{user} stopped workspace build for {target}",
+  description: "{user} stopped build for workspace {target}",
   additional_fields: {
     workspaceName: "test2",
   },
+}
+
+export const MockAuditLogWithDeletedResource: TypesGen.AuditLog = {
+  ...MockAuditLog,
+  is_deleted: true,
 }
 
 export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {

@@ -122,6 +122,7 @@ type data struct {
 	deploymentID    string
 	derpMeshKey     string
 	lastUpdateCheck []byte
+	serviceBanner   []byte
 	lastLicenseID   int32
 }
 
@@ -1718,6 +1719,53 @@ func (q *fakeQuerier) GetTemplateVersionByJobID(_ context.Context, jobID uuid.UU
 	return database.TemplateVersion{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetPreviousTemplateVersion(_ context.Context, arg database.GetPreviousTemplateVersionParams) (database.TemplateVersion, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	var currentTemplateVersion database.TemplateVersion
+	for _, templateVersion := range q.templateVersions {
+		if templateVersion.TemplateID != arg.TemplateID {
+			continue
+		}
+		if templateVersion.Name != arg.Name {
+			continue
+		}
+		if templateVersion.OrganizationID != arg.OrganizationID {
+			continue
+		}
+		currentTemplateVersion = templateVersion
+		break
+	}
+
+	previousTemplateVersions := make([]database.TemplateVersion, 0)
+	for _, templateVersion := range q.templateVersions {
+		if templateVersion.ID == currentTemplateVersion.ID {
+			continue
+		}
+		if templateVersion.OrganizationID != arg.OrganizationID {
+			continue
+		}
+		if templateVersion.TemplateID != currentTemplateVersion.TemplateID {
+			continue
+		}
+
+		if templateVersion.CreatedAt.Before(currentTemplateVersion.CreatedAt) {
+			previousTemplateVersions = append(previousTemplateVersions, templateVersion)
+		}
+	}
+
+	if len(previousTemplateVersions) == 0 {
+		return database.TemplateVersion{}, sql.ErrNoRows
+	}
+
+	sort.Slice(previousTemplateVersions, func(i, j int) bool {
+		return previousTemplateVersions[i].CreatedAt.After(previousTemplateVersions[j].CreatedAt)
+	})
+
+	return previousTemplateVersions[0], nil
+}
+
 func (q *fakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.UUID) ([]database.ParameterSchema, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -3289,6 +3337,25 @@ func (q *fakeQuerier) GetLastUpdateCheck(_ context.Context) (string, error) {
 		return "", sql.ErrNoRows
 	}
 	return string(q.lastUpdateCheck), nil
+}
+
+func (q *fakeQuerier) InsertOrUpdateServiceBanner(_ context.Context, data string) error {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	q.serviceBanner = []byte(data)
+	return nil
+}
+
+func (q *fakeQuerier) GetServiceBanner(_ context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if q.serviceBanner == nil {
+		return "", sql.ErrNoRows
+	}
+
+	return string(q.serviceBanner), nil
 }
 
 func (q *fakeQuerier) InsertLicense(

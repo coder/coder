@@ -14,6 +14,7 @@ import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { makeStyles } from "@material-ui/core/styles"
 import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm"
 import { FullScreenLoader } from "components/Loader/FullScreenLoader"
+import { SelectedTemplate } from "./SelectedTemplate"
 
 export enum CreateWorkspaceErrors {
   GET_TEMPLATES_ERROR = "getTemplatesError",
@@ -171,28 +172,7 @@ export const CreateWorkspacePageView: FC<
               className={styles.formSectionFields}
             >
               {props.selectedTemplate && (
-                <Stack
-                  direction="row"
-                  spacing={2}
-                  className={styles.template}
-                  alignItems="center"
-                >
-                  <div className={styles.templateIcon}>
-                    <img src={props.selectedTemplate.icon} alt="" />
-                  </div>
-                  <Stack direction="column" spacing={0.5}>
-                    <span className={styles.templateName}>
-                      {props.selectedTemplate.display_name.length > 0
-                        ? props.selectedTemplate.display_name
-                        : props.selectedTemplate.name}
-                    </span>
-                    {props.selectedTemplate.description && (
-                      <span className={styles.templateDescription}>
-                        {props.selectedTemplate.description}
-                      </span>
-                    )}
-                  </Stack>
-                </Stack>
+                <SelectedTemplate template={props.selectedTemplate} />
               )}
 
               <TextField
@@ -326,31 +306,6 @@ const useStyles = makeStyles((theme) => ({
 
   formSectionFields: {
     width: "100%",
-  },
-
-  template: {
-    padding: theme.spacing(2.5, 3),
-    borderRadius: theme.shape.borderRadius,
-    backgroundColor: theme.palette.background.paper,
-    border: `1px solid ${theme.palette.divider}`,
-  },
-
-  templateName: {
-    fontSize: 16,
-  },
-
-  templateDescription: {
-    fontSize: 14,
-    color: theme.palette.text.secondary,
-  },
-
-  templateIcon: {
-    width: theme.spacing(5),
-    lineHeight: 1,
-
-    "& img": {
-      width: "100%",
-    },
   },
 }))
 

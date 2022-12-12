@@ -23,6 +23,7 @@ const (
 	FeatureHighAvailability           = "high_availability"
 	FeatureMultipleGitAuth            = "multiple_git_auth"
 	FeatureExternalProvisionerDaemons = "external_provisioner_daemons"
+	FeatureServiceBanners             = "service_banners"
 )
 
 var FeatureNames = []string{
@@ -34,6 +35,7 @@ var FeatureNames = []string{
 	FeatureHighAvailability,
 	FeatureMultipleGitAuth,
 	FeatureExternalProvisionerDaemons,
+	FeatureServiceBanners,
 }
 
 type Feature struct {

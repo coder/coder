@@ -91,7 +91,7 @@ type OIDCConfig struct {
 	AllowSignups        *DeploymentConfigField[bool]     `json:"allow_signups" typescript:",notnull"`
 	ClientID            *DeploymentConfigField[string]   `json:"client_id" typescript:",notnull"`
 	ClientSecret        *DeploymentConfigField[string]   `json:"client_secret" typescript:",notnull"`
-	EmailDomain         *DeploymentConfigField[string]   `json:"email_domain" typescript:",notnull"`
+	EmailDomain         *DeploymentConfigField[[]string] `json:"email_domain" typescript:",notnull"`
 	IssuerURL           *DeploymentConfigField[string]   `json:"issuer_url" typescript:",notnull"`
 	Scopes              *DeploymentConfigField[[]string] `json:"scopes" typescript:",notnull"`
 	IgnoreEmailVerified *DeploymentConfigField[bool]     `json:"ignore_email_verified" typescript:",notnull"`

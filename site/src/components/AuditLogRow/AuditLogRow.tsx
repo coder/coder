@@ -14,22 +14,8 @@ import { useState } from "react"
 import { PaletteIndex } from "theme/palettes"
 import userAgentParser from "ua-parser-js"
 import { AuditLogDiff } from "./AuditLogDiff"
-
-export const readableActionMessage = (auditLog: AuditLog): string => {
-  let target = auditLog.resource_target.trim()
-
-  // audit logs with a resource_type of workspace build use workspace name as a target
-  if (
-    auditLog.resource_type === "workspace_build" &&
-    auditLog.additional_fields.workspaceName
-  ) {
-    target = auditLog.additional_fields.workspaceName.trim()
-  }
-
-  return auditLog.description
-    .replace("{user}", `<strong>${auditLog.user?.username.trim()}</strong>`)
-    .replace("{target}", `<strong>${target}</strong>`)
-}
+import i18next from "i18next"
+import { AuditLogDescription } from "./AuditLogDescription"
 
 const httpStatusColor = (httpStatus: number): PaletteIndex => {
   if (httpStatus >= 300 && httpStatus < 500) {
@@ -54,14 +40,14 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
   defaultIsDiffOpen = false,
 }) => {
   const styles = useStyles()
+  const { t } = i18next
   const [isDiffOpen, setIsDiffOpen] = useState(defaultIsDiffOpen)
   const diffs = Object.entries(auditLog.diff)
   const shouldDisplayDiff = diffs.length > 0
   const { os, browser } = userAgentParser(auditLog.user_agent)
-  const notAvailableLabel = "Not available"
   const displayBrowserInfo = browser.name
     ? `${browser.name} ${browser.version}`
-    : notAvailableLabel
+    : t("auditLog:table.logRow.notAvailable")
 
   const toggle = () => {
     if (shouldDisplayDiff) {
@@ -115,11 +101,7 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
                   alignItems="baseline"
                   spacing={1}
                 >
-                  <span
-                    dangerouslySetInnerHTML={{
-                      __html: readableActionMessage(auditLog),
-                    }}
-                  />
+                  <AuditLogDescription auditLog={auditLog} />
                   <span className={styles.auditLogTime}>
                     {new Date(auditLog.time).toLocaleTimeString()}
                   </span>
@@ -128,15 +110,27 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
                 <Stack direction="row" alignItems="center">
                   <Stack direction="row" spacing={1} alignItems="baseline">
                     <span className={styles.auditLogInfo}>
-                      IP: <strong>{auditLog.ip ?? notAvailableLabel}</strong>
+                      <>{t("auditLog:table.logRow.ip")}</>
+                      <strong>
+                        {auditLog.ip
+                          ? auditLog.ip
+                          : t("auditLog:table.logRow.notAvailable")}
+                      </strong>
                     </span>
 
                     <span className={styles.auditLogInfo}>
-                      OS: <strong>{os.name ?? notAvailableLabel}</strong>
+                      <>{t("auditLog:table.logRow.os")}</>
+                      <strong>
+                        {os.name
+                          ? os.name
+                          : // https://github.com/i18next/next-i18next/issues/1795
+                            t<string>("auditLog:table.logRow.notAvailable")}
+                      </strong>
                     </span>
 
                     <span className={styles.auditLogInfo}>
-                      Browser: <strong>{displayBrowserInfo}</strong>
+                      <>{t("auditLog:table.logRow.browser")}</>
+                      <strong>{displayBrowserInfo}</strong>
                     </span>
                   </Stack>
 

@@ -38,7 +38,8 @@ type CreateTemplateVersionRequest struct {
 	// TemplateID optionally associates a version with a template.
 	TemplateID      uuid.UUID                `json:"template_id,omitempty"`
 	StorageMethod   ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required"`
-	FileID          uuid.UUID                `json:"file_id" validate:"required"`
+	FileID          uuid.UUID                `json:"file_id,omitempty" validate:"required_without=ExampleID"`
+	ExampleID       string                   `json:"example_id,omitempty" validate:"required_without=FileID"`
 	Provisioner     ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo,required"`
 	ProvisionerTags map[string]string        `json:"tags"`
 

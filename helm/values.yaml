@@ -17,7 +17,7 @@ coder:
     # coder.image.pullPolicy -- The pull policy to use for the image. See:
     # https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy
     pullPolicy: IfNotPresent
-    # coder.image.pullSecret -- The secret used for pulling the Coder image from
+    # coder.image.pullSecrets -- The secrets used for pulling the Coder image from
     # a private registry.
     pullSecrets: []
     #  - name: "pull-secret"
@@ -60,9 +60,6 @@ coder:
     # will be automatically mounted into the pod if specified, and the correct
     # "CODER_TLS_*" environment variables will be set for you.
     secretNames: []
-    # coder.tls.secretName -- Deprecated. Use `coder.tls.secretNames` instead.
-    # This will be removed in a future release.
-    # secretName: ""
 
   # coder.resources -- The resources to request for Coder. These are optional
   # and are not set by default.
@@ -73,6 +70,18 @@ coder:
     # requests:
     #   cpu: 100m
     #   memory: 128Mi
+
+  # coder.certs -- CA bundles to mount inside the Coder pod.
+  certs:
+    # coder.certs.secrets -- A list of CA bundle secrets to mount into the Coder
+    # pod. The secrets should exist in the same namespace as the Helm
+    # deployment.
+    #
+    # The given key in each secret is mounted at
+    # `/etc/ssl/certs/{secret_name}.crt`.
+    secrets: []
+      # - name: "my-ca-bundle"
+      #   key: "ca-bundle.crt"
 
   # coder.affinity -- Allows specifying an affinity rule for the `coder` deployment.
   # The default rule prefers to schedule coder pods on different
