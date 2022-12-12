@@ -43,6 +43,14 @@ var (
 	errDeadlineBeforeStart = xerrors.New("new deadline must be before workspace start time")
 )
 
+// @Summary Get workspace metadata.
+// @ID get-workspace
+// @Security APIKey
+// @Produce json
+// @Tags Workspaces
+// @Param id path string true "Workspace ID"
+// @Success 200 {object} codersdk.Workspace
+// @Router /workspaces/{id} [get]
 func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)

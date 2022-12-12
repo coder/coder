@@ -10,9 +10,10 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 (
 	cd "$SCRIPT_DIR/../.."
 
-	go run github.com/swaggo/swag/cmd/swag@v1.8.8 init \
+	go run github.com/swaggo/swag/cmd/swag@v1.8.6 init \
 		--generalInfo="coderd.go" \
-		--dir="./coderd" \
+		--dir="./coderd,./codersdk" \
 		--output="./coderd/apidocs" \
-		--outputTypes="go,json"
+		--outputTypes="go,json" \
+		--parseDependency=true
 )

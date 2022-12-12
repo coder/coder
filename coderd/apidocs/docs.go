@@ -24,14 +24,417 @@ const docTemplate = `{
     },
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
-    "paths": {}
+    "paths": {
+        "/workspaces/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "APIKey": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Get workspace metadata.",
+                "operationId": "get-workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workspace ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Workspace"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "codersdk.DERPRegion": {
+            "type": "object",
+            "properties": {
+                "latency_ms": {
+                    "type": "number"
+                },
+                "preferred": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.Healthcheck": {
+            "type": "object",
+            "properties": {
+                "interval": {
+                    "description": "Interval specifies the seconds between each health check.",
+                    "type": "integer"
+                },
+                "threshold": {
+                    "description": "Threshold specifies the number of consecutive failed health checks before returning \"unhealthy\".",
+                    "type": "integer"
+                },
+                "url": {
+                    "description": "URL specifies the url to check for the app health.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.NullTime": {
+            "type": "object",
+            "properties": {
+                "time": {
+                    "type": "string"
+                },
+                "valid": {
+                    "description": "Valid is true if Time is not NULL",
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.ProvisionerJob": {
+            "type": "object",
+            "properties": {
+                "canceled_at": {
+                    "type": "string"
+                },
+                "completed_at": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "file_id": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "tags": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "worker_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.Workspace": {
+            "type": "object",
+            "properties": {
+                "autostart_schedule": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "last_used_at": {
+                    "type": "string"
+                },
+                "latest_build": {
+                    "$ref": "#/definitions/codersdk.WorkspaceBuild"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "outdated": {
+                    "type": "boolean"
+                },
+                "owner_id": {
+                    "type": "string"
+                },
+                "owner_name": {
+                    "type": "string"
+                },
+                "template_allow_user_cancel_workspace_jobs": {
+                    "type": "boolean"
+                },
+                "template_display_name": {
+                    "type": "string"
+                },
+                "template_icon": {
+                    "type": "string"
+                },
+                "template_id": {
+                    "type": "string"
+                },
+                "template_name": {
+                    "type": "string"
+                },
+                "ttl_ms": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceAgent": {
+            "type": "object",
+            "properties": {
+                "apps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceApp"
+                    }
+                },
+                "architecture": {
+                    "type": "string"
+                },
+                "connection_timeout_seconds": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "directory": {
+                    "type": "string"
+                },
+                "disconnected_at": {
+                    "type": "string"
+                },
+                "environment_variables": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "first_connected_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "instance_id": {
+                    "type": "string"
+                },
+                "last_connected_at": {
+                    "type": "string"
+                },
+                "latency": {
+                    "description": "DERPLatency is mapped by region name (e.g. \"New York City\", \"Seattle\").",
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.DERPRegion"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "operating_system": {
+                    "type": "string"
+                },
+                "resource_id": {
+                    "type": "string"
+                },
+                "startup_script": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "troubleshooting_url": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceApp": {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "description": "DisplayName is a friendly name for the app.",
+                    "type": "string"
+                },
+                "health": {
+                    "type": "string"
+                },
+                "healthcheck": {
+                    "description": "Healthcheck specifies the configuration for checking app health.",
+                    "$ref": "#/definitions/codersdk.Healthcheck"
+                },
+                "icon": {
+                    "description": "Icon is a relative path or external URL that specifies\nan icon to be displayed in the dashboard.",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "sharing_level": {
+                    "type": "string"
+                },
+                "slug": {
+                    "description": "Slug is a unique identifier within the agent.",
+                    "type": "string"
+                },
+                "subdomain": {
+                    "description": "Subdomain denotes whether the app should be accessed via a path on the\n` + "`" + `coder server` + "`" + ` or via a hostname-based dev URL. If this is set to true\nand there is no app wildcard configured on the server, the app will not\nbe accessible in the UI.",
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.WorkspaceBuild": {
+            "type": "object",
+            "properties": {
+                "build_number": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "daily_cost": {
+                    "type": "integer"
+                },
+                "deadline": {
+                    "$ref": "#/definitions/codersdk.NullTime"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "initiator_id": {
+                    "type": "string"
+                },
+                "initiator_name": {
+                    "type": "string"
+                },
+                "job": {
+                    "$ref": "#/definitions/codersdk.ProvisionerJob"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "resources": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceResource"
+                    }
+                },
+                "status": {
+                    "type": "string"
+                },
+                "template_version_id": {
+                    "type": "string"
+                },
+                "template_version_name": {
+                    "type": "string"
+                },
+                "transition": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "workspace_id": {
+                    "type": "string"
+                },
+                "workspace_name": {
+                    "type": "string"
+                },
+                "workspace_owner_id": {
+                    "type": "string"
+                },
+                "workspace_owner_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceResource": {
+            "type": "object",
+            "properties": {
+                "agents": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceAgent"
+                    }
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "daily_cost": {
+                    "type": "integer"
+                },
+                "hide": {
+                    "type": "boolean"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "job_id": {
+                    "type": "string"
+                },
+                "metadata": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceResourceMetadata"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "workspace_transition": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceResourceMetadata": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string"
+                },
+                "sensitive": {
+                    "type": "boolean"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        }
+    }
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
 	Version:          "2.0",
 	Host:             "",
-	BasePath:         "",
+	BasePath:         "/api/v2",
 	Schemes:          []string{},
 	Title:            "Coderd API",
 	Description:      "Coderd is the service created by running coder server. It is a thin API that connects workspaces, provisioners and users. coderd stores its state in Postgres and is the only service that communicates with Postgres.",

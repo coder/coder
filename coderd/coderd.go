@@ -122,6 +122,8 @@ type Options struct {
 
 // @license.name AGPL-3.0
 // @license.url https://github.com/coder/coder/blob/main/LICENSE
+
+// @BasePath /api/v2
 // New constructs a Coder API handler.
 func New(options *Options) *API {
 	if options == nil {
