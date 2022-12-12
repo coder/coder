@@ -82,28 +82,22 @@ Refer to the following resources to build your own templates:
 
 - Terraform: [Documentation](https://developer.hashicorp.com/terraform/docs) and
   [Registry](https://registry.terraform.io)
-- Common [concepts in templates](#concepts-in-templates) and [Coder Terraform
-  provider](https://registry.terraform.io/providers/coder/coder/latest/docs)
-- [Coder example
-  templates](https://github.com/coder/coder/tree/main/examples/templates) code
+- Common [concepts in templates](#concepts-in-templates) and [Coder Terraform provider](https://registry.terraform.io/providers/coder/coder/latest/docs)
+- [Coder example templates](https://github.com/coder/coder/tree/main/examples/templates) code
 
 ## Concepts in templates
 
-While templates are written with standard Terraform, the [Coder Terraform
-Provider](https://registry.terraform.io/providers/coder/coder/latest/docs) is
-used to define the workspace lifecycle and establish a connection from resources
+While templates are written with standard Terraform, the [Coder Terraform Provider](https://registry.terraform.io/providers/coder/coder/latest/docs) is used to define the workspace lifecycle and establish a connection from resources
 to Coder.
 
 Below is an overview of some key concepts in templates (and workspaces). For all
-template options, reference [Coder Terraform provider
-docs](https://registry.terraform.io/providers/coder/coder/latest/docs).
+template options, reference [Coder Terraform provider docs](https://registry.terraform.io/providers/coder/coder/latest/docs).
 
 ### Resource
 
-Resources in Coder are simply [Terraform
-resources](https://www.terraform.io/language/resources). If a Coder agent is
-attached to a resource, users can connect directly to the resource over SSH or
-web apps.
+Resources in Coder are simply [Terraform resources](https://www.terraform.io/language/resources).
+If a Coder agent is attached to a resource, users can connect directly to the
+resource over SSH or web apps.
 
 ### Coder agent
 
@@ -140,11 +134,11 @@ resource "kubernetes_pod" "pod1" {
 }
 ```
 
-The `coder_agent` resource can be configured as described in the [documentation
-for the `coder` Terraform
-provider.](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent)
-For example, you can use the `env` property to set environment variables that
-will be inherited by all child processes of the agent, including SSH sessions.
+The `coder_agent` resource can be configured with additional arguments. For example,
+you can use the `env` property to set environment variables that will be inherited
+by all child processes of the agent, including SSH sessions. See the
+[Coder Terraform Provider documentation](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent)
+for the full list of supported arguments for the `coder_agent`.
 
 #### startup_script
 
@@ -222,9 +216,8 @@ resource "docker_image" "workspace" {
 
 Coder workspaces can be started/stopped. This is often used to save on cloud
 costs or enforce ephemeral workflows. When a workspace is started or stopped,
-the Coder server runs an additional [terraform
-apply](https://www.terraform.io/cli/commands/apply), informing the Coder
-provider that the workspace has a new transition state.
+the Coder server runs an additional [terraform apply](https://www.terraform.io/cli/commands/apply),
+informing the Coder provider that the workspace has a new transition state.
 
 This template sample has one persistent resource (docker volume) and one
 ephemeral resource (docker image).
@@ -351,13 +344,9 @@ users access to additional web applications.
 ### Data source
 
 When a workspace is being started or stopped, the `coder_workspace` data source
-provides some useful parameters. See the [documentation for the `coder`
-Terraform
-provider](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace)
-for more information.
+provides some useful parameters. See the [Coder Terraform provider](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace) for more information.
 
-For example, the [Docker quick-start
-template](https://github.com/coder/coder/tree/main/examples/templates/docker)
+For example, the [Docker quick-start template](https://github.com/coder/coder/tree/main/examples/templates/docker)
 sets a few environment variables based on the username and email address of the
 workspace's owner, so that you can make Git commits immediately without any
 manual configuration:
@@ -380,9 +369,8 @@ customize them however you like.
 ## Troubleshooting templates
 
 Occasionally, you may run into scenarios where a workspace is created, but the
-agent is not connected. This means the agent or [init
-script](https://github.com/coder/coder/tree/main/provisionersdk/scripts) has
-failed on the resource.
+agent is not connected. This means the agent or [init script](https://github.com/coder/coder/tree/main/provisionersdk/scripts)
+has failed on the resource.
 
 ```console
 $ coder ssh myworkspace
