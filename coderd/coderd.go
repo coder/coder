@@ -35,6 +35,8 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/buildinfo"
+
+	// Used to serve the Swagger endpoint
 	_ "github.com/coder/coder/coderd/apidocs"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"
