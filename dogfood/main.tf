@@ -49,7 +49,10 @@ resource "coder_agent" "dev" {
     curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3
     code-server --auth none --port 13337 &
     sudo service docker start
-    "if [ -n ${var.dotfiles_uri} ]; then coder dotfiles var.dotfiles_uri -y 2>&1 | tee  ~/.personalize.log; fi"
+    DOTFILES_URI=${var.dotfiles_uri}
+    if [ -n "$DOTFILES_URI" ]; then
+      coder dotfiles var.dotfiles_uri -y 2>&1 | tee  ~/.personalize.log
+    fi
     EOF
 }
 
