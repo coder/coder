@@ -43,7 +43,7 @@ returning an API Key.
 > Make a note of the API Key. You can re-use the API Key in future CLI logins or
 > sessions.
 
-```sh
+```console
 coder --token <your API Key> login <your deployment Access URL>
 ```
 
