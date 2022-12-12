@@ -384,7 +384,7 @@ agent is not connected. This means the agent or [init
 script](https://github.com/coder/coder/tree/main/provisionersdk/scripts) has
 failed on the resource.
 
-```sh
+```console
 $ coder ssh myworkspace
 Waiting for [agent] to connect...
 ```
