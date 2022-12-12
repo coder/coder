@@ -96,6 +96,9 @@ const TemplateVersionPage = lazy(
 const StarterTemplatesPage = lazy(
   () => import("./pages/StarterTemplatesPage/StarterTemplatesPage"),
 )
+const CreateTemplatePage = lazy(
+  () => import("./pages/CreateTemplatePage/CreateTemplatePage"),
+)
 
 export const AppRouter: FC = () => {
   const xServices = useContext(XServiceContext)
@@ -172,6 +175,15 @@ export const AppRouter: FC = () => {
               <AuthAndFrame>
                 <TemplatesPage />
               </AuthAndFrame>
+            }
+          />
+
+          <Route
+            path="new"
+            element={
+              <RequireAuth>
+                <CreateTemplatePage />
+              </RequireAuth>
             }
           />
 
