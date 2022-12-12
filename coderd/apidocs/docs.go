@@ -29,7 +29,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "APIKey": []
+                        "CoderSessionToken": []
                     }
                 ],
                 "produces": [
@@ -426,6 +426,13 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        }
+    },
+    "securityDefinitions": {
+        "CoderSessionToken": {
+            "type": "apiKey",
+            "name": "Coder-Session-Token",
+            "in": "header"
         }
     }
 }`

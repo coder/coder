@@ -45,7 +45,7 @@ var (
 
 // @Summary Get workspace metadata.
 // @ID get-workspace
-// @Security APIKey
+// @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
 // @Param id path string true "Workspace ID"

@@ -124,6 +124,10 @@ type Options struct {
 // @license.url https://github.com/coder/coder/blob/main/LICENSE
 
 // @BasePath /api/v2
+
+// @securitydefinitions.apiKey CoderSessionToken
+// @in header
+// @name Coder-Session-Token
 // New constructs a Coder API handler.
 func New(options *Options) *API {
 	if options == nil {
