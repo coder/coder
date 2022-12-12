@@ -19,7 +19,6 @@ From your local machine, download the CLI for your operating system from the
 
 ```console
 curl -fsSL https://coder.com/install.sh | sh
-
 ```
 
 To see the sub-commands for managing templates, run:
