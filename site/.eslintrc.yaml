@@ -30,7 +30,6 @@ plugins:
   - import
   - react-hooks
   - jest
-  - no-storage
   - unicorn
 root: true
 rules:
