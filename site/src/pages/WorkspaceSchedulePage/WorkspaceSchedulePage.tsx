@@ -3,7 +3,7 @@ import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { scheduleToAutoStart } from "pages/WorkspaceSchedulePage/schedule"
 import { ttlMsToAutoStop } from "pages/WorkspaceSchedulePage/ttl"
-import React, { useEffect, useState } from "react"
+import React, { useEffect } from "react"
 import { Navigate, useNavigate, useParams } from "react-router-dom"
 import { scheduleChanged } from "util/schedule"
 import * as TypesGen from "../../api/typesGenerated"
@@ -28,6 +28,11 @@ export const Language = {
   applyLater: "Apply update later",
 }
 
+const getAutoStart = (workspace?: TypesGen.Workspace) =>
+  scheduleToAutoStart(workspace?.autostart_schedule)
+const getAutoStop = (workspace?: TypesGen.Workspace) =>
+  ttlMsToAutoStop(workspace?.ttl_ms)
+
 export const WorkspaceSchedulePage: React.FC = () => {
   const { username: usernameQueryParam, workspace: workspaceQueryParam } =
     useParams()
@@ -51,19 +56,6 @@ export const WorkspaceSchedulePage: React.FC = () => {
       workspaceName &&
       scheduleSend({ type: "GET_WORKSPACE", username, workspaceName })
   }, [username, workspaceName, scheduleSend])
-
-  const getAutoStart = (workspace?: TypesGen.Workspace) =>
-    scheduleToAutoStart(workspace?.autostart_schedule)
-  const getAutoStop = (workspace?: TypesGen.Workspace) =>
-    ttlMsToAutoStop(workspace?.ttl_ms)
-
-  const [autoStart, setAutoStart] = useState(getAutoStart(workspace))
-  const [autoStop, setAutoStop] = useState(getAutoStop(workspace))
-
-  useEffect(() => {
-    setAutoStart(getAutoStart(workspace))
-    setAutoStop(getAutoStop(workspace))
-  }, [workspace])
 
   if (!username || !workspaceName) {
     return <Navigate to="/workspaces" />
@@ -108,7 +100,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
     return (
       <WorkspaceScheduleForm
         submitScheduleError={submitScheduleError}
-        initialValues={{ ...autoStart, ...autoStop }}
+        initialValues={{ ...getAutoStart(workspace), ...getAutoStop(workspace) }}
         isLoading={scheduleState.tags.has("loading")}
         onCancel={() => {
           navigate(`/@${username}/${workspaceName}`)
@@ -118,8 +110,8 @@ export const WorkspaceSchedulePage: React.FC = () => {
             type: "SUBMIT_SCHEDULE",
             autoStart: formValuesToAutoStartRequest(values),
             ttl: formValuesToTTLRequest(values),
-            autoStartChanged: scheduleChanged(autoStart, values),
-            autoStopChanged: scheduleChanged(autoStop, values),
+            autoStartChanged: scheduleChanged(getAutoStart(workspace), values),
+            autoStopChanged: scheduleChanged(getAutoStop(workspace), values),
           })
         }}
       />

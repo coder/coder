@@ -214,6 +214,7 @@ export const workspaceSchedule =
           }
         },
         submitSchedule: async (context, event) => {
+          console.log(event)
           if (!context.workspace?.id) {
             // This state is theoretically impossible, but helps TS
             throw new Error("Failed to load workspace.")

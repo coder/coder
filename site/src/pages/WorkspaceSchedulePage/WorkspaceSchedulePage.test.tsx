@@ -11,7 +11,14 @@ import {
 } from "pages/WorkspaceSchedulePage/schedule"
 import { AutoStop, ttlMsToAutoStop } from "pages/WorkspaceSchedulePage/ttl"
 import * as TypesGen from "../../api/typesGenerated"
-import { WorkspaceScheduleFormValues } from "../../components/WorkspaceScheduleForm/WorkspaceScheduleForm"
+import {
+  WorkspaceScheduleFormValues,
+  Language as FormLanguage,
+} from "../../components/WorkspaceScheduleForm/WorkspaceScheduleForm"
+import {
+  WorkspaceSchedulePage,
+  Language as PageLanguage,
+} from "./WorkspaceSchedulePage"
 
 const validValues: WorkspaceScheduleFormValues = {
   autoStartEnabled: true,
@@ -262,6 +269,20 @@ describe("WorkspaceSchedulePage", () => {
       expect(dialog).toBeInTheDocument()
     })
 
-
+    it("doesn't show if autoStop is not changed", async () => {
+      renderWithAuth(<WorkspaceSchedulePage />, {
+        route: `/@${MockUser.username}/${MockWorkspace.name}/schedule`,
+        path: "/@:username/:workspace/schedule"
+      })
+      const user = userEvent.setup()
+      const autoStartToggle = await screen.findByLabelText(
+        FormLanguage.startSwitch,
+      )
+      await user.click(autoStartToggle)
+      const submitButton = await screen.findByRole("button", { name: /submit/i })
+      await user.click(submitButton)
+      const dialog = screen.queryByText(PageLanguage.dialogTitle)
+      expect(dialog).not.toBeInTheDocument()
+    })
   })
 })
