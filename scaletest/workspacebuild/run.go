@@ -87,8 +87,23 @@ func (r *Runner) WorkspaceID() (uuid.UUID, error) {
 	return r.workspaceID, nil
 }
 
-// Cleanup implements Cleanable.
-func (r *Runner) Cleanup(ctx context.Context, _ string) error {
+// CleanupRunner is a runner that deletes a workspace in the Run phase.
+type CleanupRunner struct {
+	client      *codersdk.Client
+	workspaceID uuid.UUID
+}
+
+var _ harness.Runnable = &CleanupRunner{}
+
+func NewCleanupRunner(client *codersdk.Client, workspaceID uuid.UUID) *CleanupRunner {
+	return &CleanupRunner{
+		client:      client,
+		workspaceID: workspaceID,
+	}
+}
+
+// Run implements Runnable.
+func (r *CleanupRunner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	if r.workspaceID == uuid.Nil {
 		return nil
 	}
@@ -102,14 +117,21 @@ func (r *Runner) Cleanup(ctx context.Context, _ string) error {
 		return xerrors.Errorf("delete workspace: %w", err)
 	}
 
-	// TODO: capture these logs
-	logs := io.Discard
 	err = waitForBuild(ctx, logs, r.client, build.ID)
 	if err != nil {
 		return xerrors.Errorf("wait for build: %w", err)
 	}
 
 	return nil
+}
+
+// Cleanup implements Cleanable by wrapping CleanupRunner.
+func (r *Runner) Cleanup(ctx context.Context, id string) error {
+	// TODO: capture these logs
+	return (&CleanupRunner{
+		client:      r.client,
+		workspaceID: r.workspaceID,
+	}).Run(ctx, id, io.Discard)
 }
 
 func waitForBuild(ctx context.Context, w io.Writer, client *codersdk.Client, buildID uuid.UUID) error {

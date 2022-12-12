@@ -136,6 +136,14 @@ func (s *scaletestStrategyFlags) toStrategy() harness.ExecutionStrategy {
 	return strategy
 }
 
+func (s *scaletestStrategyFlags) toContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if s.timeout > 0 {
+		return context.WithTimeout(ctx, s.timeout)
+	}
+
+	return context.WithCancel(ctx)
+}
+
 type scaleTestOutputFormat string
 
 const (
@@ -272,11 +280,39 @@ func requireAdmin(ctx context.Context, client *codersdk.Client) (codersdk.User, 
 	return me, nil
 }
 
+// userCleanupRunner is a runner that deletes a user in the Run phase.
+type userCleanupRunner struct {
+	client *codersdk.Client
+	userID uuid.UUID
+}
+
+var _ harness.Runnable = &userCleanupRunner{}
+
+// Run implements Runnable.
+func (r *userCleanupRunner) Run(ctx context.Context, _ string, _ io.Writer) error {
+	if r.userID == uuid.Nil {
+		return nil
+	}
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	err := r.client.DeleteUser(ctx, r.userID)
+	if err != nil {
+		return xerrors.Errorf("delete user %q: %w", r.userID, err)
+	}
+
+	return nil
+}
+
 func scaletestCleanup() *cobra.Command {
+	var (
+		cleanupStrategy = &scaletestStrategyFlags{cleanup: true}
+	)
+
 	cmd := &cobra.Command{
 		Use:   "cleanup",
 		Short: "Cleanup any orphaned scaletest resources",
-		Long:  "Cleanup scaletest workspaces.",
+		Long:  "Cleanup scaletest workspaces, then cleanup scaletest users. The strategy flags will apply to each stage of the cleanup process.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			client, err := CreateClient(cmd)
@@ -291,16 +327,126 @@ func scaletestCleanup() *cobra.Command {
 
 			client.BypassRatelimits = true
 
-			// TODO: cleanup workspaces
-			_ = isScaleTestWorkspace
+			cmd.PrintErrln("Fetching scaletest workspaces...")
+			var (
+				pageNumber = 0
+				limit      = 100
+				workspaces []codersdk.Workspace
+			)
+			for {
+				page, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+					Name:   "scaletest-",
+					Offset: pageNumber * limit,
+					Limit:  limit,
+				})
+				if err != nil {
+					return xerrors.Errorf("fetch scaletest workspaces page %d: %w", pageNumber, err)
+				}
 
-			// TODO: cleanup users
-			_ = isScaleTestUser
+				if len(page.Workspaces) == 0 {
+					break
+				}
+
+				pageWorkspaces := make([]codersdk.Workspace, 0, len(page.Workspaces))
+				for _, w := range page.Workspaces {
+					if isScaleTestWorkspace(w) {
+						pageWorkspaces = append(pageWorkspaces, w)
+					}
+				}
+				workspaces = append(workspaces, pageWorkspaces...)
+			}
+
+			cmd.PrintErrf("Found %d scaletest workspaces\n", len(workspaces))
+			if len(workspaces) != 0 {
+				cmd.Println("Deleting scaletest workspaces...")
+				harness := harness.NewTestHarness(cleanupStrategy.toStrategy(), harness.ConcurrentExecutionStrategy{})
+
+				for i, w := range workspaces {
+					const testName = "cleanup-workspace"
+					r := workspacebuild.NewCleanupRunner(client, w.ID)
+					harness.AddRun(testName, strconv.Itoa(i), r)
+				}
+
+				ctx, cancel := cleanupStrategy.toContext(ctx)
+				defer cancel()
+				err := harness.Run(ctx)
+				if err != nil {
+					return xerrors.Errorf("run test harness to delete workspaces (harness failure, not a test failure): %w", err)
+				}
+
+				cmd.Println("Done deleting scaletest workspaces:")
+				res := harness.Results()
+				res.PrintText(cmd.ErrOrStderr())
+
+				if res.TotalFail > 0 {
+					return xerrors.Errorf("failed to delete scaletest workspaces")
+				}
+			}
+
+			cmd.PrintErrln("Fetching scaletest users...")
+			pageNumber = 0
+			limit = 100
+			var users []codersdk.User
+			for {
+				page, err := client.Users(ctx, codersdk.UsersRequest{
+					Search: "scaletest-",
+					Pagination: codersdk.Pagination{
+						Offset: pageNumber * limit,
+						Limit:  limit,
+					},
+				})
+				if err != nil {
+					return xerrors.Errorf("fetch scaletest users page %d: %w", pageNumber, err)
+				}
+
+				if len(page.Users) == 0 {
+					break
+				}
+
+				pageUsers := make([]codersdk.User, 0, len(page.Users))
+				for _, u := range page.Users {
+					if isScaleTestUser(u) {
+						pageUsers = append(pageUsers, u)
+					}
+				}
+				users = append(users, pageUsers...)
+			}
+
+			cmd.PrintErrf("Found %d scaletest users\n", len(users))
+			if len(workspaces) != 0 {
+				cmd.Println("Deleting scaletest users...")
+				harness := harness.NewTestHarness(cleanupStrategy.toStrategy(), harness.ConcurrentExecutionStrategy{})
+
+				for i, u := range users {
+					const testName = "cleanup-users"
+					r := &userCleanupRunner{
+						client: client,
+						userID: u.ID,
+					}
+					harness.AddRun(testName, strconv.Itoa(i), r)
+				}
+
+				ctx, cancel := cleanupStrategy.toContext(ctx)
+				defer cancel()
+				err := harness.Run(ctx)
+				if err != nil {
+					return xerrors.Errorf("run test harness to delete users (harness failure, not a test failure): %w", err)
+				}
+
+				cmd.Println("Done deleting scaletest users:")
+				res := harness.Results()
+				res.PrintText(cmd.ErrOrStderr())
+
+				if res.TotalFail > 0 {
+					return xerrors.Errorf("failed to delete scaletest users")
+				}
+			}
 
 			return nil
 		},
 	}
 
+	cleanupStrategy.attach(cmd)
 	return cmd
 }
 
@@ -494,7 +640,7 @@ func scaletestCreateWorkspaces() *cobra.Command {
 
 				config := createworkspaces.Config{
 					User: createworkspaces.UserConfig{
-						// TODO: configuration org
+						// TODO: configurable org
 						OrganizationID: me.OrganizationIDs[0],
 						Username:       username,
 						Email:          email,
@@ -563,12 +709,8 @@ func scaletestCreateWorkspaces() *cobra.Command {
 
 			// TODO: live progress output
 			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Running load test...")
-			testCtx := ctx
-			if strategy.timeout > 0 {
-				var testCancel func()
-				testCtx, testCancel = context.WithTimeout(testCtx, strategy.timeout)
-				defer testCancel()
-			}
+			testCtx, testCancel := strategy.toContext(ctx)
+			defer testCancel()
 			err = th.Run(testCtx)
 			if err != nil {
 				return xerrors.Errorf("run test harness (harness failure, not a test failure): %w", err)
@@ -583,12 +725,8 @@ func scaletestCreateWorkspaces() *cobra.Command {
 			}
 
 			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "\nCleaning up...")
-			cleanupCtx := ctx
-			if cleanupStrategy.timeout > 0 {
-				var cleanupCancel context.CancelFunc
-				cleanupCtx, cleanupCancel = context.WithTimeout(ctx, cleanupStrategy.timeout)
-				defer cleanupCancel()
-			}
+			cleanupCtx, cleanupCancel := cleanupStrategy.toContext(ctx)
+			defer cleanupCancel()
 			err = th.Cleanup(cleanupCtx)
 			if err != nil {
 				return xerrors.Errorf("cleanup tests: %w", err)
