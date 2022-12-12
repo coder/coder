@@ -21,7 +21,7 @@ License: <a href="https://github.com/coder/coder/blob/main/LICENSE">AGPL-3.0</a>
 
 <h1 id="coderd-api-workspaces">Workspaces</h1>
 
-## List workspaces.
+## List workspaces
 
 <a id="opIdget-workspaces"></a>
 
@@ -37,7 +37,7 @@ curl -X GET /api/v2/workspaces \
 
 `GET /workspaces`
 
-<h3 id="list-workspaces.-parameters">Parameters</h3>
+<h3 id="list-workspaces-parameters">Parameters</h3>
 
 |Name|In|Type|Required|Description|
 |---|---|---|---|---|
@@ -182,7 +182,7 @@ curl -X GET /api/v2/workspaces \
 }
 ```
 
-<h3 id="list-workspaces.-responses">Responses</h3>
+<h3 id="list-workspaces-responses">Responses</h3>
 
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
@@ -195,7 +195,7 @@ To perform this operation, you must be authenticated by means of one of the foll
 CoderSessionToken
 </aside>
 
-## Get workspace metadata.
+## Get workspace metadata
 
 <a id="opIdget-workspace"></a>
 
@@ -211,7 +211,7 @@ curl -X GET /api/v2/workspaces/{id} \
 
 `GET /workspaces/{id}`
 
-<h3 id="get-workspace-metadata.-parameters">Parameters</h3>
+<h3 id="get-workspace-metadata-parameters">Parameters</h3>
 
 |Name|In|Type|Required|Description|
 |---|---|---|---|---|
@@ -351,7 +351,7 @@ curl -X GET /api/v2/workspaces/{id} \
 }
 ```
 
-<h3 id="get-workspace-metadata.-responses">Responses</h3>
+<h3 id="get-workspace-metadata-responses">Responses</h3>
 
 |Status|Meaning|Description|Schema|
 |---|---|---|---|

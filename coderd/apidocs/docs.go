@@ -38,7 +38,7 @@ const docTemplate = `{
                 "tags": [
                     "Workspaces"
                 ],
-                "summary": "List workspaces.",
+                "summary": "List workspaces",
                 "operationId": "get-workspaces",
                 "parameters": [
                     {
@@ -113,7 +113,7 @@ const docTemplate = `{
                 "tags": [
                     "Workspaces"
                 ],
-                "summary": "Get workspace metadata.",
+                "summary": "Get workspace metadata",
                 "operationId": "get-workspace",
                 "parameters": [
                     {
