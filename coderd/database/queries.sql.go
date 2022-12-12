@@ -3532,6 +3532,8 @@ WHERE
 		FROM template_versions AS tv
 		WHERE tv.organization_id = $1 AND tv.name = $2 AND tv.template_id = $3
 	)
+	AND organization_id = $1
+	AND template_id = $3
 ORDER BY created_at DESC
 LIMIT 1
 `

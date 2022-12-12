@@ -2,6 +2,7 @@
 name: Develop in Linux on a Digital Ocean Droplet
 description: Get started with Linux development on a Digital Ocean Droplet.
 tags: [cloud, digitalocean]
+icon: /icon/do.png
 ---
 
 # do-linux

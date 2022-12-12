@@ -19,6 +19,11 @@ variable "dotfiles_uri" {
 
   see https://dotfiles.github.io
   EOF
+}  
+  
+variable "datocms_api_token" {
+  type        = string
+  description = "An API token from DATOCMS for usage with building our website."
   default     = ""
 }
 
@@ -41,7 +46,7 @@ resource "coder_agent" "dev" {
     #!/bin/sh
     set -x
     # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh
+    curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3
     code-server --auth none --port 13337 &
     sudo service docker start
     "if [ -n ${var.dotfiles_uri} ]; then coder dotfiles var.dotfiles_uri -y 2>&1 | tee  ~/.personalize.log; fi"
@@ -129,7 +134,10 @@ resource "docker_container" "workspace" {
   # CPU limits are unnecessary since Docker will load balance automatically
   memory  = 32768
   runtime = "sysbox-runc"
-  env     = ["CODER_AGENT_TOKEN=${coder_agent.dev.token}"]
+  env = [
+    "CODER_AGENT_TOKEN=${coder_agent.dev.token}",
+    "DATOCMS_API_TOKEN=${var.datocms_api_token}",
+  ]
   host {
     host = "host.docker.internal"
     ip   = "host-gateway"

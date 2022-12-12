@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/examples"
 )
 
 // Auto-importable templates. These can be auto-imported after the first user
@@ -562,6 +563,29 @@ func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+func (api *API) templateExamples(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx          = r.Context()
+		organization = httpmw.OrganizationParam(r)
+	)
+
+	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceTemplate.InOrg(organization.ID)) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	ex, err := examples.List()
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching examples.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, ex)
 }
 
 type autoImportTemplateOpts struct {
