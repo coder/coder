@@ -333,9 +333,6 @@ RUN tar -xf "nix-${NIX_VERSION}-x86_64-linux.tar.xz" \
   && bash "nix-${NIX_VERSION}-x86_64-linux/install" "--no-daemon" \
   && rm -rf "nix-${NIX_VERSION}-x86_64-linux.tar.xz"
 
-# Install Nix into our bash profile so `nix-shell`, `nix-build, and `nix` are available
-RUN echo '. /home/coder/.nix-profile/etc/profile.d/nix.sh' >> /home/coder/.bashrc
-
 # Enable installation of unfree software - https://nixos.wiki/wiki/FAQ/How_can_I_install_a_proprietary_or_unfree_package
 RUN mkdir -p /home/coder/.config/nixpkgs && echo '{ allowUnfree = true; }' >> /home/coder/.config/nixpkgs/config.nix
 
