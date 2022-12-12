@@ -292,7 +292,7 @@ Review editable template properties by running `coder templates edit -h`.
 Alternatively, you can pull down the template as a tape archive (`.tar`) to your
 current directory:
 
-```sh
+```console
 coder templates pull <template-name> file.tar
 ```
 
