@@ -8,7 +8,7 @@ Coderd is the service created by running coder server. It is a thin API that con
 
 Base URLs:
 
-* <a href="//localhost:8080/api/v2">//localhost:8080/api/v2</a>
+* <a href="/api/v2">/api/v2</a>
 
 <a href="https://coder.com/legal/terms-of-service">Terms of service</a>
 Email: <a href="mailto:support@coder.com">API Support</a> Web: <a href="http://coder.com">API Support</a> 
@@ -29,7 +29,7 @@ License: <a href="https://github.com/coder/coder/blob/main/LICENSE">AGPL-3.0</a>
 
 ```shell
 # You can also use wget
-curl -X GET /localhost:8080/api/v2/workspaces \
+curl -X GET /api/v2/workspaces \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 
@@ -203,7 +203,7 @@ CoderSessionToken
 
 ```shell
 # You can also use wget
-curl -X GET /localhost:8080/api/v2/workspaces/{id} \
+curl -X GET /api/v2/workspaces/{id} \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 

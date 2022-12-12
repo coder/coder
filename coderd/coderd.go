@@ -123,7 +123,6 @@ type Options struct {
 // @license.name AGPL-3.0
 // @license.url https://github.com/coder/coder/blob/main/LICENSE
 
-// @host localhost:8080
 // @BasePath /api/v2
 
 // @securitydefinitions.apiKey CoderSessionToken
