@@ -806,12 +806,17 @@ func setupAgent(t *testing.T, metadata codersdk.WorkspaceAgentMetadata, ptyTimeo
 	})
 	require.NoError(t, err)
 	clientConn, serverConn := net.Pipe()
+	serveClientDone := make(chan struct{})
 	t.Cleanup(func() {
 		_ = clientConn.Close()
 		_ = serverConn.Close()
 		_ = conn.Close()
+		<-serveClientDone
 	})
-	go coordinator.ServeClient(serverConn, uuid.New(), agentID)
+	go func() {
+		defer close(serveClientDone)
+		coordinator.ServeClient(serverConn, uuid.New(), agentID)
+	}()
 	sendNode, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
 		return conn.UpdateNodes(node)
 	})
