@@ -27,7 +27,7 @@ export const AuthAndFrame: FC<AuthAndFrameProps> = ({ children }) => {
 
   useEffect(() => {
     if (authState.matches("signedIn")) {
-      updateCheckSend("CHECK") // this calls getUpdateCheck which returns the latest version
+      updateCheckSend("CHECK")
     } else {
       updateCheckSend("CLEAR")
     }
