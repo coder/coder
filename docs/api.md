@@ -1,8 +1,7 @@
-<!-- Generator: Widdershins v4.0.1 -->
 
 <h1 id="coderd-api">Coderd API v2.0</h1>
 
-> Scroll down for code samples, example requests and responses. Select a language for code samples from the tabs above or the mobile navigation menu.
+> XScroll down for code samples, example requests and responses. Select a language for code samples from the tabs above or the mobile navigation menu.
 
 Coderd is the service created by running coder server. It is a thin API that connects workspaces, provisioners and users. coderd stores its state in Postgres and is the only service that communicates with Postgres.
 
@@ -369,7 +368,7 @@ CoderSessionToken
 # Schemas
 
 <h2 id="tocS_codersdk.DERPRegion">codersdk.DERPRegion</h2>
-<!-- backwards compatibility -->
+
 <a id="schemacodersdk.derpregion"></a>
 <a id="schema_codersdk.DERPRegion"></a>
 <a id="tocScodersdk.derpregion"></a>
@@ -391,7 +390,7 @@ CoderSessionToken
 |preferred|boolean|false|none|none|
 
 <h2 id="tocS_codersdk.Healthcheck">codersdk.Healthcheck</h2>
-<!-- backwards compatibility -->
+
 <a id="schemacodersdk.healthcheck"></a>
 <a id="schema_codersdk.Healthcheck"></a>
 <a id="tocScodersdk.healthcheck"></a>
@@ -415,7 +414,7 @@ CoderSessionToken
 |url|string|false|none|URL specifies the url to check for the app health.|
 
 <h2 id="tocS_codersdk.NullTime">codersdk.NullTime</h2>
-<!-- backwards compatibility -->
+
 <a id="schemacodersdk.nulltime"></a>
 <a id="schema_codersdk.NullTime"></a>
 <a id="tocScodersdk.nulltime"></a>
@@ -437,7 +436,7 @@ CoderSessionToken
 |valid|boolean|false|none|Valid is true if Time is not NULL|
 
 <h2 id="tocS_codersdk.ProvisionerJob">codersdk.ProvisionerJob</h2>
-<!-- backwards compatibility -->
+
 <a id="schemacodersdk.provisionerjob"></a>
 <a id="schema_codersdk.ProvisionerJob"></a>
 <a id="tocScodersdk.provisionerjob"></a>
@@ -479,7 +478,7 @@ CoderSessionToken
 |worker_id|string|false|none|none|
 
 <h2 id="tocS_codersdk.Response">codersdk.Response</h2>
-<!-- backwards compatibility -->
+
 <a id="schemacodersdk.response"></a>
 <a id="schema_codersdk.Response"></a>
 <a id="tocScodersdk.response"></a>
@@ -508,7 +507,7 @@ CoderSessionToken
 |validations|[[codersdk.ValidationError](#schemacodersdk.validationerror)]|false|none|Validations are form field-specific friendly error messages. They will be<br>shown on a form field in the UI. These can also be used to add additional<br>context if there is a set of errors in the primary 'Message'.|
 
 <h2 id="tocS_codersdk.ValidationError">codersdk.ValidationError</h2>
-<!-- backwards compatibility -->
+
 <a id="schemacodersdk.validationerror"></a>
 <a id="schema_codersdk.ValidationError"></a>
 <a id="tocScodersdk.validationerror"></a>
@@ -530,7 +529,7 @@ CoderSessionToken
 |field|string|true|none|none|
 
 <h2 id="tocS_codersdk.Workspace">codersdk.Workspace</h2>
-<!-- backwards compatibility -->
+
 <a id="schemacodersdk.workspace"></a>
 <a id="schema_codersdk.Workspace"></a>
 <a id="tocScodersdk.workspace"></a>
@@ -688,7 +687,7 @@ CoderSessionToken
 |updated_at|string|false|none|none|
 
 <h2 id="tocS_codersdk.WorkspaceAgent">codersdk.WorkspaceAgent</h2>
-<!-- backwards compatibility -->
+
 <a id="schemacodersdk.workspaceagent"></a>
 <a id="schema_codersdk.WorkspaceAgent"></a>
 <a id="tocScodersdk.workspaceagent"></a>
@@ -776,7 +775,7 @@ CoderSessionToken
 |version|string|false|none|none|
 
 <h2 id="tocS_codersdk.WorkspaceApp">codersdk.WorkspaceApp</h2>
-<!-- backwards compatibility -->
+
 <a id="schemacodersdk.workspaceapp"></a>
 <a id="schema_codersdk.WorkspaceApp"></a>
 <a id="tocScodersdk.workspaceapp"></a>
@@ -816,7 +815,7 @@ CoderSessionToken
 |subdomain|boolean|false|none|Subdomain denotes whether the app should be accessed via a path on the<br>`coder server` or via a hostname-based dev URL. If this is set to true<br>and there is no app wildcard configured on the server, the app will not<br>be accessible in the UI.|
 
 <h2 id="tocS_codersdk.WorkspaceBuild">codersdk.WorkspaceBuild</h2>
-<!-- backwards compatibility -->
+
 <a id="schemacodersdk.workspacebuild"></a>
 <a id="schema_codersdk.WorkspaceBuild"></a>
 <a id="tocScodersdk.workspacebuild"></a>
@@ -960,7 +959,7 @@ CoderSessionToken
 |workspace_owner_name|string|false|none|none|
 
 <h2 id="tocS_codersdk.WorkspaceResource">codersdk.WorkspaceResource</h2>
-<!-- backwards compatibility -->
+
 <a id="schemacodersdk.workspaceresource"></a>
 <a id="schema_codersdk.WorkspaceResource"></a>
 <a id="tocScodersdk.workspaceresource"></a>
@@ -1057,7 +1056,7 @@ CoderSessionToken
 |workspace_transition|string|false|none|none|
 
 <h2 id="tocS_codersdk.WorkspaceResourceMetadata">codersdk.WorkspaceResourceMetadata</h2>
-<!-- backwards compatibility -->
+
 <a id="schemacodersdk.workspaceresourcemetadata"></a>
 <a id="schema_codersdk.WorkspaceResourceMetadata"></a>
 <a id="tocScodersdk.workspaceresourcemetadata"></a>
@@ -1081,7 +1080,7 @@ CoderSessionToken
 |value|string|false|none|none|
 
 <h2 id="tocS_codersdk.WorkspacesResponse">codersdk.WorkspacesResponse</h2>
-<!-- backwards compatibility -->
+
 <a id="schemacodersdk.workspacesresponse"></a>
 <a id="schema_codersdk.WorkspacesResponse"></a>
 <a id="tocScodersdk.workspacesresponse"></a>

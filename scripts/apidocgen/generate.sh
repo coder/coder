@@ -25,8 +25,9 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 	# Make sure that widdershins is installed correctly.
 	node ./node_modules/widdershins/widdershins.js --version
 
-	#
+	# Render the Markdown file.
 	node ./node_modules/widdershins/widdershins.js \
+		--user_templates "./markdown-template" \
 		--search false \
 		--omitHeader true \
 		--language_tabs "shell:curl" \
