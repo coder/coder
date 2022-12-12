@@ -324,7 +324,14 @@ RUN addgroup --system nixbld \
 USER coder
 
 # Install Nix
-RUN sh <(curl -L https://nixos.org/nix/install) --no-daemon
+export NIX_VERSION=2.3.15
+RUN curl --silent --show-error --location \
+  "https://releases.nixos.org/nix/nix-${NIX_VERSION}/nix-${NIX_VERSION}-x86_64-linux.tar.xz" \
+  -o "nix-${NIX_VERSION}-x86_64-linux.tar.xz"
+
+RUN tar -xf "nix-${NIX_VERSION}-x86_64-linux.tar.xz" \
+  && bash "nix-${NIX_VERSION}-x86_64-linux/install" "--no-daemon" \
+  && rm -rf "nix-${NIX_VERSION}-x86_64-linux.tar.xz"
 
 # Install Nix into our bash profile so `nix-shell`, `nix-build, and `nix` are available
 RUN echo '. /home/coder/.nix-profile/etc/profile.d/nix.sh' >> /home/coder/.bashrc
