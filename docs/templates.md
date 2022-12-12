@@ -33,7 +33,7 @@ coder templates --help
 Before you can create templates, you must first login to your Coder deployment
 with the CLI.
 
-```sh
+```console
 coder login <your deployment Access URL>
 ```
 
