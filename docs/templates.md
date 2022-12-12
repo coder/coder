@@ -305,7 +305,7 @@ tar -xf file.tar
 Make the changes to your template then run this command from the root of the
 template folder:
 
-```sh
+```console
 coder templates push <template-name>
 ```
 
