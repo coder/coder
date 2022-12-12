@@ -34,4 +34,4 @@ curl 'https://dev.coder.com/api/v2/workspaces' \
 
 ## Golang SDK
 
-Coder publishes a public [Golang SDK](https://pkg.go.dev/github.com/coder/coder@main/codersdk) for Coder. This is consumed by the [CLI package](https://github.com/coder/coder/tree/main/cli).
+Coder publishes a public [Golang SDK](https://pkg.go.dev/github.com/coder/coder/codersdk) for Coder. This is consumed by the [CLI package](https://github.com/coder/coder/tree/main/cli).
