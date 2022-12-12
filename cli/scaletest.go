@@ -343,6 +343,7 @@ func scaletestCleanup() *cobra.Command {
 					return xerrors.Errorf("fetch scaletest workspaces page %d: %w", pageNumber, err)
 				}
 
+				pageNumber++
 				if len(page.Workspaces) == 0 {
 					break
 				}
@@ -399,6 +400,7 @@ func scaletestCleanup() *cobra.Command {
 					return xerrors.Errorf("fetch scaletest users page %d: %w", pageNumber, err)
 				}
 
+				pageNumber++
 				if len(page.Users) == 0 {
 					break
 				}
@@ -513,7 +515,7 @@ func scaletestCreateWorkspaces() *cobra.Command {
 			if template == "" {
 				return xerrors.Errorf("--template is required")
 			}
-			if id, err := uuid.Parse(template); err != nil {
+			if id, err := uuid.Parse(template); err == nil && id != uuid.Nil {
 				tpl, err = client.Template(ctx, id)
 				if err != nil {
 					return xerrors.Errorf("get template by ID %q: %w", template, err)
@@ -754,7 +756,7 @@ func scaletestCreateWorkspaces() *cobra.Command {
 	cliflag.IntVarP(cmd.Flags(), &count, "count", "c", "CODER_LOADTEST_COUNT", 1, "Required: Number of workspaces to create.")
 	cliflag.StringVarP(cmd.Flags(), &template, "template", "t", "CODER_LOADTEST_TEMPLATE", "", "Required: Name or ID of the template to use for workspaces.")
 	cliflag.StringVarP(cmd.Flags(), &parametersFile, "parameters-file", "", "CODER_LOADTEST_PARAMETERS_FILE", "", "Path to a YAML file containing the parameters to use for each workspace.")
-	cliflag.StringArrayVarP(cmd.Flags(), &parameters, "parameters", "", "CODER_LOADTEST_PARAMETERS", []string{}, "Parameters to use for each workspace. Can be specified multiple times. Overrides any existing parameters with the same name from --parameters-file. Format: key=value")
+	cliflag.StringArrayVarP(cmd.Flags(), &parameters, "parameter", "", "CODER_LOADTEST_PARAMETERS", []string{}, "Parameters to use for each workspace. Can be specified multiple times. Overrides any existing parameters with the same name from --parameters-file. Format: key=value")
 
 	cliflag.BoolVarP(cmd.Flags(), &noPlan, "no-plan", "", "CODER_LOADTEST_NO_PLAN", false, "Skip the dry-run step to plan the workspace creation. This step ensures that the given parameters are valid for the given template.")
 	cliflag.BoolVarP(cmd.Flags(), &noCleanup, "no-cleanup", "", "CODER_LOADTEST_NO_CLEANUP", false, "Do not clean up resources after the test completes. You can cleanup manually using `coder scaletest cleanup`.")
@@ -768,7 +770,7 @@ func scaletestCreateWorkspaces() *cobra.Command {
 	cliflag.BoolVarP(cmd.Flags(), &runLogOutput, "run-log-output", "", "CODER_LOADTEST_RUN_LOG_OUTPUT", false, "Log the output of the command to the test logs. This should be left off unless you expect small amounts of output. Large amounts of output will cause high memory usage.")
 
 	cliflag.StringVarP(cmd.Flags(), &connectURL, "connect-url", "", "CODER_LOADTEST_CONNECT_URL", "", "URL to connect to inside the the workspace over WireGuard. If not specified, no connections will be made over WireGuard.")
-	cliflag.StringVarP(cmd.Flags(), &connectMode, "connect-mode", "derp", "CODER_LOADTEST_CONNECT_MODE", "derp", "Mode to use for connecting to the workspace. Can be 'derp' or 'direct'.")
+	cliflag.StringVarP(cmd.Flags(), &connectMode, "connect-mode", "", "CODER_LOADTEST_CONNECT_MODE", "derp", "Mode to use for connecting to the workspace. Can be 'derp' or 'direct'.")
 	cliflag.DurationVarP(cmd.Flags(), &connectHold, "connect-hold", "", "CODER_LOADTEST_CONNECT_HOLD", 30*time.Second, "How long to hold the WireGuard connection open for.")
 	cliflag.DurationVarP(cmd.Flags(), &connectInterval, "connect-interval", "", "CODER_LOADTEST_CONNECT_INTERVAL", time.Second, "How long to wait between making requests to the --connect-url once the connection is established.")
 	cliflag.DurationVarP(cmd.Flags(), &connectTimeout, "connect-timeout", "", "CODER_LOADTEST_CONNECT_TIMEOUT", 5*time.Second, "Timeout for each request to the --connect-url.")

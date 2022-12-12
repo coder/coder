@@ -4,6 +4,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/scaletest/agentconn"
 	"github.com/coder/coder/scaletest/reconnectingpty"
 	"github.com/coder/coder/scaletest/workspacebuild"
@@ -64,16 +65,20 @@ func (c Config) Validate() error {
 		return xerrors.Errorf("validate user: %w", err)
 	}
 	c.Workspace.OrganizationID = c.User.OrganizationID
+	// This value will be overwritten during the test.
+	c.Workspace.UserID = codersdk.Me
 	if err := c.Workspace.Validate(); err != nil {
 		return xerrors.Errorf("validate workspace: %w", err)
 	}
 	if c.ReconnectingPTY != nil {
+		// This value will be overwritten during the test.
 		c.ReconnectingPTY.AgentID = uuid.New()
 		if err := c.ReconnectingPTY.Validate(); err != nil {
 			return xerrors.Errorf("validate reconnecting pty: %w", err)
 		}
 	}
 	if c.AgentConn != nil {
+		// This value will be overwritten during the test.
 		c.AgentConn.AgentID = uuid.New()
 		if err := c.AgentConn.Validate(); err != nil {
 			return xerrors.Errorf("validate agent conn: %w", err)

@@ -72,10 +72,15 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	_, _ = fmt.Fprintln(logs, "\nCreating workspace...")
 	workspaceBuildConfig := r.cfg.Workspace
 	workspaceBuildConfig.OrganizationID = r.cfg.User.OrganizationID
+	workspaceBuildConfig.UserID = user.ID.String()
 	r.workspacebuildRunner = workspacebuild.NewRunner(userClient, workspaceBuildConfig)
 	err = r.workspacebuildRunner.Run(ctx, id, logs)
 	if err != nil {
 		return xerrors.Errorf("create workspace: %w", err)
+	}
+
+	if r.cfg.Workspace.NoWaitForAgents {
+		return nil
 	}
 
 	// Get the workspace.
