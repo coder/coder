@@ -24,7 +24,7 @@ curl -fsSL https://coder.com/install.sh | sh
 
 To see the sub-commands for managing templates, run:
 
-```sh
+```console
 coder templates --help
 ```
 
