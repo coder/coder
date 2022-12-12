@@ -34,8 +34,9 @@ func TestTokens(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, len(keys), 1)
 		require.Contains(t, res.Key, keys[0].ID)
-		// expires_at must be greater than 50 years
-		require.Greater(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*438300))
+		// expires_at should default to 30 days
+		require.Greater(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*29*24))
+		require.Less(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*31*24))
 		require.Equal(t, codersdk.APIKeyScopeAll, keys[0].Scope)
 
 		// no update
@@ -65,9 +66,43 @@ func TestTokens(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, len(keys), 1)
 		require.Contains(t, res.Key, keys[0].ID)
-		// expires_at must be greater than 50 years
-		require.Greater(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*438300))
 		require.Equal(t, keys[0].Scope, codersdk.APIKeyScopeApplicationConnect)
+	})
+
+	t.Run("Duration", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		_, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+			Lifetime: time.Hour * 24 * 7,
+		})
+		require.NoError(t, err)
+		keys, err := client.GetTokens(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Greater(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*6*24))
+		require.Less(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*8*24))
+	})
+
+	t.Run("MaxLifetime", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		_, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+			Lifetime: time.Hour * 24 * 7,
+		})
+		require.NoError(t, err)
+		keys, err := client.GetTokens(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Greater(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*6*24))
+		require.Less(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*8*24))
 	})
 }
 

@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
@@ -46,6 +47,9 @@ func tokens() *cobra.Command {
 }
 
 func createToken() *cobra.Command {
+	var (
+		tokenLifetime time.Duration
+	)
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create a tokens",
@@ -55,7 +59,9 @@ func createToken() *cobra.Command {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}
 
-			res, err := client.CreateToken(cmd.Context(), codersdk.Me, codersdk.CreateTokenRequest{})
+			res, err := client.CreateToken(cmd.Context(), codersdk.Me, codersdk.CreateTokenRequest{
+				Lifetime: tokenLifetime,
+			})
 			if err != nil {
 				return xerrors.Errorf("create tokens: %w", err)
 			}
@@ -73,6 +79,8 @@ func createToken() *cobra.Command {
 			return nil
 		},
 	}
+
+	cliflag.DurationVarP(cmd.Flags(), &tokenLifetime, "lifetime", "", "CODER_TOKEN_LIFETIME", 30*24*time.Hour, "Specify a duration for the lifetime of the token.")
 
 	return cmd
 }

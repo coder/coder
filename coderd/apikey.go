@@ -44,8 +44,12 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		scope = database.APIKeyScope(createToken.Scope)
 	}
 
-	// tokens last 100 years
-	lifeTime := time.Hour * 876000
+	// default lifetime is 30 days
+	lifeTime := 30 * 24 * time.Hour
+	if createToken.Lifetime != 0 {
+		lifeTime = createToken.Lifetime
+	}
+
 	cookie, err := api.createAPIKey(ctx, createAPIKeyParams{
 		UserID:          user.ID,
 		LoginType:       database.LoginTypeToken,
