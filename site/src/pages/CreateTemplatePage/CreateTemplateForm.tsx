@@ -7,6 +7,7 @@ import { Stack } from "components/Stack/Stack"
 import { useFormik } from "formik"
 import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate"
 import { FC } from "react"
+import { useTranslation } from "react-i18next"
 import { nameValidator, getFormHelpers, onChangeTrimmed } from "util/formUtils"
 import * as Yup from "yup"
 
@@ -62,6 +63,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
     },
   })
   const getFieldHelpers = getFormHelpers<FormValues>(form, errors)
+  const { t } = useTranslation("createTemplatePage")
 
   return (
     <form onSubmit={form.handleSubmit}>
@@ -69,10 +71,11 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
         {/* General info */}
         <div className={styles.formSection}>
           <div className={styles.formSectionInfo}>
-            <h2 className={styles.formSectionInfoTitle}>General info</h2>
+            <h2 className={styles.formSectionInfoTitle}>
+              {t("form.generalInfo.title")}
+            </h2>
             <p className={styles.formSectionInfoDescription}>
-              The name is used to identify the template on the URL and also API.
-              It has to be unique across your organization.
+              {t("form.generalInfo.description")}
             </p>
           </div>
 
@@ -89,7 +92,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
               onChange={onChangeTrimmed(form)}
               autoFocus
               fullWidth
-              label="Name"
+              label={t("form.fields.name")}
               variant="outlined"
             />
           </Stack>
@@ -98,10 +101,11 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
         {/* Display info  */}
         <div className={styles.formSection}>
           <div className={styles.formSectionInfo}>
-            <h2 className={styles.formSectionInfoTitle}>Display info</h2>
+            <h2 className={styles.formSectionInfoTitle}>
+              {t("form.displayInfo.title")}
+            </h2>
             <p className={styles.formSectionInfoDescription}>
-              Set the name that you want to use to display your template, a
-              helpful description and icon.
+              {t("form.displayInfo.description")}
             </p>
           </div>
 
@@ -111,7 +115,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
               disabled={isSubmitting}
               onChange={onChangeTrimmed(form)}
               fullWidth
-              label="Display name"
+              label={t("form.fields.displayName")}
               variant="outlined"
             />
 
@@ -122,7 +126,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
               rows={5}
               multiline
               fullWidth
-              label="Description"
+              label={t("form.fields.description")}
               variant="outlined"
             />
 
@@ -131,7 +135,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
               disabled={isSubmitting}
               onChange={onChangeTrimmed(form)}
               fullWidth
-              label="Icon"
+              label={t("form.fields.icon")}
               variant="outlined"
             />
           </Stack>
@@ -140,10 +144,11 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
         {/* Schedule */}
         <div className={styles.formSection}>
           <div className={styles.formSectionInfo}>
-            <h2 className={styles.formSectionInfoTitle}>Schedule</h2>
+            <h2 className={styles.formSectionInfoTitle}>
+              {t("form.schedule.title")}
+            </h2>
             <p className={styles.formSectionInfoDescription}>
-              Define when a workspace create from this template is going to
-              stop.
+              {t("form.schedule.description")}
             </p>
           </div>
 
@@ -153,10 +158,10 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
               disabled={isSubmitting}
               onChange={onChangeTrimmed(form)}
               fullWidth
-              label="Auto-stop default"
+              label={t("form.fields.autoStop")}
               variant="outlined"
               type="number"
-              helperText="Time in hours"
+              helperText={t("form.helperText.autoStop")}
             />
           </Stack>
         </div>
@@ -164,9 +169,11 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
         {/* Operations */}
         <div className={styles.formSection}>
           <div className={styles.formSectionInfo}>
-            <h2 className={styles.formSectionInfoTitle}>Operations</h2>
+            <h2 className={styles.formSectionInfoTitle}>
+              {t("form.operations.title")}
+            </h2>
             <p className={styles.formSectionInfoDescription}>
-              Allow or not users to run specific actions on the workspace.
+              {t("form.operations.description")}
             </p>
           </div>
 
@@ -184,10 +191,10 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
 
                 <Stack direction="column" spacing={0.5}>
                   <span className={styles.optionText}>
-                    Allow users to cancel in-progress workspace jobs.
+                    {t("form.fields.allowUsersToCancel")}
                   </span>
                   <span className={styles.optionHelperText}>
-                    Not recommended
+                    {t("form.helperText.allowUsersToCancel")}
                   </span>
                 </Stack>
               </Stack>

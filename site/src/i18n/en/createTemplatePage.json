@@ -1,3 +1,33 @@
 {
-  "title": "Create Template"
+  "title": "Create Template",
+  "form": {
+    "generalInfo": {
+      "title": "General info",
+      "description": "The name is used to identify the template on the URL and also API. It has to be unique across your organization."
+    },
+    "displayInfo": {
+      "title": "Display info",
+      "description": "Set the name that you want to use to display your template, a helpful description and icon."
+    },
+    "schedule": {
+      "title": "Schedule",
+      "description": "Define when a workspace create from this template is going to stop."
+    },
+    "operations": {
+      "title": "Operations",
+      "description": "Allow or not users to run specific actions on the workspace."
+    },
+    "fields": {
+      "name": "Name",
+      "displayName": "Display name",
+      "description": "Description",
+      "icon": "Icon",
+      "autoStop": "Auto-stop default",
+      "allowUsersToCancel": "Allow users to cancel in-progress workspace jobs"
+    },
+    "helperText": {
+      "autoStop": "Time in hours",
+      "allowUsersToCancel": "Not recommended"
+    }
+  }
 }
