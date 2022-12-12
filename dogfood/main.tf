@@ -12,9 +12,9 @@ terraform {
 }
 
 variable "datocms_api_token" {
-  type = string
+  type        = string
   description = "An API token from DATOCMS for usage with building our website."
-  default = ""
+  default     = ""
 }
 
 # Admin parameters
@@ -36,7 +36,7 @@ resource "coder_agent" "dev" {
     #!/bin/sh
     set -x
     # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh
+    curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3
     code-server --auth none --port 13337 &
     sudo service docker start
     coder dotfiles -y 2>&1 | tee  ~/.personalize.log
@@ -124,7 +124,7 @@ resource "docker_container" "workspace" {
   # CPU limits are unnecessary since Docker will load balance automatically
   memory  = 32768
   runtime = "sysbox-runc"
-  env     = [
+  env = [
     "CODER_AGENT_TOKEN=${coder_agent.dev.token}",
     "DATOCMS_API_TOKEN=${var.datocms_api_token}",
   ]

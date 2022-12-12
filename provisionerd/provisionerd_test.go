@@ -324,11 +324,12 @@ func TestProvisionerd(t *testing.T) {
 				},
 			}),
 		})
+
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
-		require.True(t, didLog.Load())
-		require.True(t, didComplete.Load())
-		require.True(t, didDryRun.Load())
 		require.NoError(t, closer.Close())
+		assert.True(t, didLog.Load(), "should log some updates")
+		assert.True(t, didComplete.Load(), "should complete the job")
+		assert.True(t, didDryRun.Load(), "should be a dry run")
 	})
 
 	t.Run("TemplateDryRun", func(t *testing.T) {
@@ -378,8 +379,14 @@ func TestProvisionerd(t *testing.T) {
 					}, nil
 				},
 				updateJob: func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
-					if len(update.Logs) != 0 {
-						didLog.Store(true)
+					if len(update.Logs) == 0 {
+						t.Log("provisionerDaemonTestServer: no log messages")
+						return &proto.UpdateJobResponse{}, nil
+					}
+
+					didLog.Store(true)
+					for _, msg := range update.Logs {
+						t.Log("provisionerDaemonTestServer", "msg:", msg)
 					}
 					return &proto.UpdateJobResponse{}, nil
 				},
@@ -405,9 +412,9 @@ func TestProvisionerd(t *testing.T) {
 		})
 
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
-		require.True(t, didLog.Load())
-		require.True(t, didComplete.Load())
 		require.NoError(t, closer.Close())
+		assert.True(t, didLog.Load(), "should log some updates")
+		assert.True(t, didComplete.Load(), "should complete the job")
 	})
 
 	t.Run("WorkspaceBuild", func(t *testing.T) {
@@ -476,9 +483,9 @@ func TestProvisionerd(t *testing.T) {
 			}),
 		})
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
-		require.True(t, didLog.Load())
-		require.True(t, didComplete.Load())
 		require.NoError(t, closer.Close())
+		assert.True(t, didLog.Load(), "should log some updates")
+		assert.True(t, didComplete.Load(), "should complete the job")
 	})
 
 	t.Run("WorkspaceBuildQuotaExceeded", func(t *testing.T) {
@@ -566,10 +573,10 @@ func TestProvisionerd(t *testing.T) {
 			}),
 		})
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
-		require.True(t, didLog.Load())
-		require.True(t, didFail.Load())
-		require.False(t, didComplete.Load())
 		require.NoError(t, closer.Close())
+		assert.True(t, didLog.Load(), "should log some updates")
+		assert.False(t, didComplete.Load(), "should complete the job")
+		assert.True(t, didFail.Load(), "should fail the job")
 	})
 
 	t.Run("WorkspaceBuildFailComplete", func(t *testing.T) {
@@ -622,8 +629,8 @@ func TestProvisionerd(t *testing.T) {
 			}),
 		})
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
-		require.True(t, didFail.Load())
 		require.NoError(t, closer.Close())
+		assert.True(t, didFail.Load(), "should fail the job")
 	})
 
 	t.Run("Shutdown", func(t *testing.T) {
@@ -1022,11 +1029,9 @@ func TestProvisionerd(t *testing.T) {
 			}),
 		})
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
-		m.Lock()
-		defer m.Unlock()
-		require.Equal(t, ops[len(ops)-1], "CompleteJob")
-		require.Contains(t, ops[0:len(ops)-1], "Log: Cleaning Up | ")
 		require.NoError(t, server.Close())
+		assert.Equal(t, ops[len(ops)-1], "CompleteJob")
+		assert.Contains(t, ops[0:len(ops)-1], "Log: Cleaning Up | ")
 	})
 }
 
