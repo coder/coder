@@ -142,7 +142,9 @@ export const updateCheckMachine = createMachine(
         permissions: (_, event) => event.data as Permissions,
       }),
       assignShow: assign((context) => ({
-        show: localStorage.getItem("dismissedVersion") !== context.updateCheck?.version,
+        show:
+          localStorage.getItem("dismissedVersion") !==
+          context.updateCheck?.version,
       })),
       assignHide: assign({
         show: false,
