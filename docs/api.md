@@ -1,4 +1,3 @@
-
 <h1 id="coderd-api">Coderd API v2.0</h1>
 
 > XScroll down for code samples, example requests and responses. Select a language for code samples from the tabs above or the mobile navigation menu.
@@ -7,16 +6,16 @@ Coderd is the service created by running coder server. It is a thin API that con
 
 Base URLs:
 
-* <a href="/api/v2">/api/v2</a>
+- <a href="/api/v2">/api/v2</a>
 
 <a href="https://coder.com/legal/terms-of-service">Terms of service</a>
-Email: <a href="mailto:support@coder.com">API Support</a> Web: <a href="http://coder.com">API Support</a> 
+Email: <a href="mailto:support@coder.com">API Support</a> Web: <a href="http://coder.com">API Support</a>
 License: <a href="https://github.com/coder/coder/blob/main/LICENSE">AGPL-3.0</a>
 
 # Authentication
 
-* API Key (CoderSessionToken)
-    - Parameter Name: **Coder-Session-Token**, in: header. 
+- API Key (CoderSessionToken)
+  - Parameter Name: **Coder-Session-Token**, in: header.
 
 <h1 id="coderd-api-workspaces">Workspaces</h1>
 
@@ -38,14 +37,14 @@ curl -X GET /api/v2/workspaces \
 
 <h3 id="list-workspaces-parameters">Parameters</h3>
 
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|owner|query|string|false|Owner username|
-|template|query|string|false|Template name|
-|name|query|string|false|Workspace name|
-|status|query|string|false|Workspace status|
-|deleted|query|boolean|false|Deleted workspaces|
-|has_agent|query|boolean|false|Has agent|
+| Name      | In    | Type    | Required | Description        |
+| --------- | ----- | ------- | -------- | ------------------ |
+| owner     | query | string  | false    | Owner username     |
+| template  | query | string  | false    | Template name      |
+| name      | query | string  | false    | Workspace name     |
+| status    | query | string  | false    | Workspace status   |
+| deleted   | query | boolean | false    | Deleted workspaces |
+| has_agent | query | boolean | false    | Has agent          |
 
 > Example responses
 
@@ -183,11 +182,11 @@ curl -X GET /api/v2/workspaces \
 
 <h3 id="list-workspaces-responses">Responses</h3>
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.WorkspacesResponse](#schemacodersdk.workspacesresponse)|
-|400|[Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)|Bad Request|[codersdk.Response](#schemacodersdk.response)|
-|500|[Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1)|Internal Server Error|[codersdk.Response](#schemacodersdk.response)|
+| Status | Meaning                                                                    | Description           | Schema                                                            |
+| ------ | -------------------------------------------------------------------------- | --------------------- | ----------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                    | OK                    | [codersdk.WorkspacesResponse](#schemacodersdk.workspacesresponse) |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)           | Bad Request           | [codersdk.Response](#schemacodersdk.response)                     |
+| 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | Internal Server Error | [codersdk.Response](#schemacodersdk.response)                     |
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -212,10 +211,10 @@ curl -X GET /api/v2/workspaces/{id} \
 
 <h3 id="get-workspace-metadata-parameters">Parameters</h3>
 
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|id|path|string|true|Workspace ID|
-|include_deleted|query|string|false|Include deleted|
+| Name            | In    | Type   | Required | Description     |
+| --------------- | ----- | ------ | -------- | --------------- |
+| id              | path  | string | true     | Workspace ID    |
+| include_deleted | query | string | false    | Include deleted |
 
 > Example responses
 
@@ -352,13 +351,13 @@ curl -X GET /api/v2/workspaces/{id} \
 
 <h3 id="get-workspace-metadata-responses">Responses</h3>
 
-|Status|Meaning|Description|Schema|
-|---|---|---|---|
-|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.Workspace](#schemacodersdk.workspace)|
-|400|[Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)|Bad Request|[codersdk.Response](#schemacodersdk.response)|
-|404|[Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)|Not Found|[codersdk.Response](#schemacodersdk.response)|
-|410|[Gone](https://tools.ietf.org/html/rfc7231#section-6.5.9)|Gone|[codersdk.Response](#schemacodersdk.response)|
-|500|[Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1)|Internal Server Error|[codersdk.Response](#schemacodersdk.response)|
+| Status | Meaning                                                                    | Description           | Schema                                          |
+| ------ | -------------------------------------------------------------------------- | --------------------- | ----------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                    | OK                    | [codersdk.Workspace](#schemacodersdk.workspace) |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)           | Bad Request           | [codersdk.Response](#schemacodersdk.response)   |
+| 404    | [Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)             | Not Found             | [codersdk.Response](#schemacodersdk.response)   |
+| 410    | [Gone](https://tools.ietf.org/html/rfc7231#section-6.5.9)                  | Gone                  | [codersdk.Response](#schemacodersdk.response)   |
+| 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | Internal Server Error | [codersdk.Response](#schemacodersdk.response)   |
 
 <aside class="warning">
 To perform this operation, you must be authenticated by means of one of the following methods:
@@ -379,15 +378,14 @@ CoderSessionToken
   "latency_ms": 0,
   "preferred": true
 }
-
 ```
 
 ### Properties
 
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|latency_ms|number|false|none|none|
-|preferred|boolean|false|none|none|
+| Name       | Type    | Required | Restrictions | Description |
+| ---------- | ------- | -------- | ------------ | ----------- |
+| latency_ms | number  | false    | none         | none        |
+| preferred  | boolean | false    | none         | none        |
 
 <h2 id="tocS_codersdk.Healthcheck">codersdk.Healthcheck</h2>
 
@@ -402,16 +400,15 @@ CoderSessionToken
   "threshold": 0,
   "url": "string"
 }
-
 ```
 
 ### Properties
 
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|interval|integer|false|none|Interval specifies the seconds between each health check.|
-|threshold|integer|false|none|Threshold specifies the number of consecutive failed health checks before returning "unhealthy".|
-|url|string|false|none|URL specifies the url to check for the app health.|
+| Name      | Type    | Required | Restrictions | Description                                                                                      |
+| --------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------ |
+| interval  | integer | false    | none         | Interval specifies the seconds between each health check.                                        |
+| threshold | integer | false    | none         | Threshold specifies the number of consecutive failed health checks before returning "unhealthy". |
+| url       | string  | false    | none         | URL specifies the url to check for the app health.                                               |
 
 <h2 id="tocS_codersdk.NullTime">codersdk.NullTime</h2>
 
@@ -425,15 +422,14 @@ CoderSessionToken
   "time": "string",
   "valid": true
 }
-
 ```
 
 ### Properties
 
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|time|string|false|none|none|
-|valid|boolean|false|none|Valid is true if Time is not NULL|
+| Name  | Type    | Required | Restrictions | Description                       |
+| ----- | ------- | -------- | ------------ | --------------------------------- |
+| time  | string  | false    | none         | none                              |
+| valid | boolean | false    | none         | Valid is true if Time is not NULL |
 
 <h2 id="tocS_codersdk.ProvisionerJob">codersdk.ProvisionerJob</h2>
 
@@ -458,24 +454,23 @@ CoderSessionToken
   },
   "worker_id": "string"
 }
-
 ```
 
 ### Properties
 
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|canceled_at|string|false|none|none|
-|completed_at|string|false|none|none|
-|created_at|string|false|none|none|
-|error|string|false|none|none|
-|file_id|string|false|none|none|
-|id|string|false|none|none|
-|started_at|string|false|none|none|
-|status|string|false|none|none|
-|tags|object|false|none|none|
-|» **additionalProperties**|string|false|none|none|
-|worker_id|string|false|none|none|
+| Name                       | Type   | Required | Restrictions | Description |
+| -------------------------- | ------ | -------- | ------------ | ----------- |
+| canceled_at                | string | false    | none         | none        |
+| completed_at               | string | false    | none         | none        |
+| created_at                 | string | false    | none         | none        |
+| error                      | string | false    | none         | none        |
+| file_id                    | string | false    | none         | none        |
+| id                         | string | false    | none         | none        |
+| started_at                 | string | false    | none         | none        |
+| status                     | string | false    | none         | none        |
+| tags                       | object | false    | none         | none        |
+| » **additionalProperties** | string | false    | none         | none        |
+| worker_id                  | string | false    | none         | none        |
 
 <h2 id="tocS_codersdk.Response">codersdk.Response</h2>
 
@@ -495,16 +490,15 @@ CoderSessionToken
     }
   ]
 }
-
 ```
 
 ### Properties
 
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|detail|string|false|none|Detail is a debug message that provides further insight into why the<br>action failed. This information can be technical and a regular golang<br>err.Error() text.<br>- "database: too many open connections"<br>- "stat: too many open files"|
-|message|string|false|none|Message is an actionable message that depicts actions the request took.<br>These messages should be fully formed sentences with proper punctuation.<br>Examples:<br>- "A user has been created."<br>- "Failed to create a user."|
-|validations|[[codersdk.ValidationError](#schemacodersdk.validationerror)]|false|none|Validations are form field-specific friendly error messages. They will be<br>shown on a form field in the UI. These can also be used to add additional<br>context if there is a set of errors in the primary 'Message'.|
+| Name        | Type                                                          | Required | Restrictions | Description                                                                                                                                                                                                                                    |
+| ----------- | ------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| detail      | string                                                        | false    | none         | Detail is a debug message that provides further insight into why the<br>action failed. This information can be technical and a regular golang<br>err.Error() text.<br>- "database: too many open connections"<br>- "stat: too many open files" |
+| message     | string                                                        | false    | none         | Message is an actionable message that depicts actions the request took.<br>These messages should be fully formed sentences with proper punctuation.<br>Examples:<br>- "A user has been created."<br>- "Failed to create a user."               |
+| validations | [[codersdk.ValidationError](#schemacodersdk.validationerror)] | false    | none         | Validations are form field-specific friendly error messages. They will be<br>shown on a form field in the UI. These can also be used to add additional<br>context if there is a set of errors in the primary 'Message'.                        |
 
 <h2 id="tocS_codersdk.ValidationError">codersdk.ValidationError</h2>
 
@@ -518,15 +512,14 @@ CoderSessionToken
   "detail": "string",
   "field": "string"
 }
-
 ```
 
 ### Properties
 
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|detail|string|true|none|none|
-|field|string|true|none|none|
+| Name   | Type   | Required | Restrictions | Description |
+| ------ | ------ | -------- | ------------ | ----------- |
+| detail | string | true     | none         | none        |
+| field  | string | true     | none         | none        |
 
 <h2 id="tocS_codersdk.Workspace">codersdk.Workspace</h2>
 
@@ -662,29 +655,28 @@ CoderSessionToken
   "ttl_ms": 0,
   "updated_at": "string"
 }
-
 ```
 
 ### Properties
 
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|autostart_schedule|string|false|none|none|
-|created_at|string|false|none|none|
-|id|string|false|none|none|
-|last_used_at|string|false|none|none|
-|latest_build|[codersdk.WorkspaceBuild](#schemacodersdk.workspacebuild)|false|none|none|
-|name|string|false|none|none|
-|outdated|boolean|false|none|none|
-|owner_id|string|false|none|none|
-|owner_name|string|false|none|none|
-|template_allow_user_cancel_workspace_jobs|boolean|false|none|none|
-|template_display_name|string|false|none|none|
-|template_icon|string|false|none|none|
-|template_id|string|false|none|none|
-|template_name|string|false|none|none|
-|ttl_ms|integer|false|none|none|
-|updated_at|string|false|none|none|
+| Name                                      | Type                                                      | Required | Restrictions | Description |
+| ----------------------------------------- | --------------------------------------------------------- | -------- | ------------ | ----------- |
+| autostart_schedule                        | string                                                    | false    | none         | none        |
+| created_at                                | string                                                    | false    | none         | none        |
+| id                                        | string                                                    | false    | none         | none        |
+| last_used_at                              | string                                                    | false    | none         | none        |
+| latest_build                              | [codersdk.WorkspaceBuild](#schemacodersdk.workspacebuild) | false    | none         | none        |
+| name                                      | string                                                    | false    | none         | none        |
+| outdated                                  | boolean                                                   | false    | none         | none        |
+| owner_id                                  | string                                                    | false    | none         | none        |
+| owner_name                                | string                                                    | false    | none         | none        |
+| template_allow_user_cancel_workspace_jobs | boolean                                                   | false    | none         | none        |
+| template_display_name                     | string                                                    | false    | none         | none        |
+| template_icon                             | string                                                    | false    | none         | none        |
+| template_id                               | string                                                    | false    | none         | none        |
+| template_name                             | string                                                    | false    | none         | none        |
+| ttl_ms                                    | integer                                                   | false    | none         | none        |
+| updated_at                                | string                                                    | false    | none         | none        |
 
 <h2 id="tocS_codersdk.WorkspaceAgent">codersdk.WorkspaceAgent</h2>
 
@@ -744,35 +736,34 @@ CoderSessionToken
   "updated_at": "string",
   "version": "string"
 }
-
 ```
 
 ### Properties
 
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|apps|[[codersdk.WorkspaceApp](#schemacodersdk.workspaceapp)]|false|none|none|
-|architecture|string|false|none|none|
-|connection_timeout_seconds|integer|false|none|none|
-|created_at|string|false|none|none|
-|directory|string|false|none|none|
-|disconnected_at|string|false|none|none|
-|environment_variables|object|false|none|none|
-|» **additionalProperties**|string|false|none|none|
-|first_connected_at|string|false|none|none|
-|id|string|false|none|none|
-|instance_id|string|false|none|none|
-|last_connected_at|string|false|none|none|
-|latency|object|false|none|DERPLatency is mapped by region name (e.g. "New York City", "Seattle").|
-|» **additionalProperties**|[codersdk.DERPRegion](#schemacodersdk.derpregion)|false|none|none|
-|name|string|false|none|none|
-|operating_system|string|false|none|none|
-|resource_id|string|false|none|none|
-|startup_script|string|false|none|none|
-|status|string|false|none|none|
-|troubleshooting_url|string|false|none|none|
-|updated_at|string|false|none|none|
-|version|string|false|none|none|
+| Name                       | Type                                                    | Required | Restrictions | Description                                                             |
+| -------------------------- | ------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------- |
+| apps                       | [[codersdk.WorkspaceApp](#schemacodersdk.workspaceapp)] | false    | none         | none                                                                    |
+| architecture               | string                                                  | false    | none         | none                                                                    |
+| connection_timeout_seconds | integer                                                 | false    | none         | none                                                                    |
+| created_at                 | string                                                  | false    | none         | none                                                                    |
+| directory                  | string                                                  | false    | none         | none                                                                    |
+| disconnected_at            | string                                                  | false    | none         | none                                                                    |
+| environment_variables      | object                                                  | false    | none         | none                                                                    |
+| » **additionalProperties** | string                                                  | false    | none         | none                                                                    |
+| first_connected_at         | string                                                  | false    | none         | none                                                                    |
+| id                         | string                                                  | false    | none         | none                                                                    |
+| instance_id                | string                                                  | false    | none         | none                                                                    |
+| last_connected_at          | string                                                  | false    | none         | none                                                                    |
+| latency                    | object                                                  | false    | none         | DERPLatency is mapped by region name (e.g. "New York City", "Seattle"). |
+| » **additionalProperties** | [codersdk.DERPRegion](#schemacodersdk.derpregion)       | false    | none         | none                                                                    |
+| name                       | string                                                  | false    | none         | none                                                                    |
+| operating_system           | string                                                  | false    | none         | none                                                                    |
+| resource_id                | string                                                  | false    | none         | none                                                                    |
+| startup_script             | string                                                  | false    | none         | none                                                                    |
+| status                     | string                                                  | false    | none         | none                                                                    |
+| troubleshooting_url        | string                                                  | false    | none         | none                                                                    |
+| updated_at                 | string                                                  | false    | none         | none                                                                    |
+| version                    | string                                                  | false    | none         | none                                                                    |
 
 <h2 id="tocS_codersdk.WorkspaceApp">codersdk.WorkspaceApp</h2>
 
@@ -797,22 +788,21 @@ CoderSessionToken
   "slug": "string",
   "subdomain": true
 }
-
 ```
 
 ### Properties
 
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|command|string|false|none|none|
-|display_name|string|false|none|DisplayName is a friendly name for the app.|
-|health|string|false|none|none|
-|healthcheck|[codersdk.Healthcheck](#schemacodersdk.healthcheck)|false|none|none|
-|icon|string|false|none|Icon is a relative path or external URL that specifies<br>an icon to be displayed in the dashboard.|
-|id|string|false|none|none|
-|sharing_level|string|false|none|none|
-|slug|string|false|none|Slug is a unique identifier within the agent.|
-|subdomain|boolean|false|none|Subdomain denotes whether the app should be accessed via a path on the<br>`coder server` or via a hostname-based dev URL. If this is set to true<br>and there is no app wildcard configured on the server, the app will not<br>be accessible in the UI.|
+| Name          | Type                                                | Required | Restrictions | Description                                                                                                                                                                                                                                             |
+| ------------- | --------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| command       | string                                              | false    | none         | none                                                                                                                                                                                                                                                    |
+| display_name  | string                                              | false    | none         | DisplayName is a friendly name for the app.                                                                                                                                                                                                             |
+| health        | string                                              | false    | none         | none                                                                                                                                                                                                                                                    |
+| healthcheck   | [codersdk.Healthcheck](#schemacodersdk.healthcheck) | false    | none         | none                                                                                                                                                                                                                                                    |
+| icon          | string                                              | false    | none         | Icon is a relative path or external URL that specifies<br>an icon to be displayed in the dashboard.                                                                                                                                                     |
+| id            | string                                              | false    | none         | none                                                                                                                                                                                                                                                    |
+| sharing_level | string                                              | false    | none         | none                                                                                                                                                                                                                                                    |
+| slug          | string                                              | false    | none         | Slug is a unique identifier within the agent.                                                                                                                                                                                                           |
+| subdomain     | boolean                                             | false    | none         | Subdomain denotes whether the app should be accessed via a path on the<br>`coder server` or via a hostname-based dev URL. If this is set to true<br>and there is no app wildcard configured on the server, the app will not<br>be accessible in the UI. |
 
 <h2 id="tocS_codersdk.WorkspaceBuild">codersdk.WorkspaceBuild</h2>
 
@@ -931,32 +921,31 @@ CoderSessionToken
   "workspace_owner_id": "string",
   "workspace_owner_name": "string"
 }
-
 ```
 
 ### Properties
 
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|build_number|integer|false|none|none|
-|created_at|string|false|none|none|
-|daily_cost|integer|false|none|none|
-|deadline|[codersdk.NullTime](#schemacodersdk.nulltime)|false|none|none|
-|id|string|false|none|none|
-|initiator_id|string|false|none|none|
-|initiator_name|string|false|none|none|
-|job|[codersdk.ProvisionerJob](#schemacodersdk.provisionerjob)|false|none|none|
-|reason|string|false|none|none|
-|resources|[[codersdk.WorkspaceResource](#schemacodersdk.workspaceresource)]|false|none|none|
-|status|string|false|none|none|
-|template_version_id|string|false|none|none|
-|template_version_name|string|false|none|none|
-|transition|string|false|none|none|
-|updated_at|string|false|none|none|
-|workspace_id|string|false|none|none|
-|workspace_name|string|false|none|none|
-|workspace_owner_id|string|false|none|none|
-|workspace_owner_name|string|false|none|none|
+| Name                  | Type                                                              | Required | Restrictions | Description |
+| --------------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
+| build_number          | integer                                                           | false    | none         | none        |
+| created_at            | string                                                            | false    | none         | none        |
+| daily_cost            | integer                                                           | false    | none         | none        |
+| deadline              | [codersdk.NullTime](#schemacodersdk.nulltime)                     | false    | none         | none        |
+| id                    | string                                                            | false    | none         | none        |
+| initiator_id          | string                                                            | false    | none         | none        |
+| initiator_name        | string                                                            | false    | none         | none        |
+| job                   | [codersdk.ProvisionerJob](#schemacodersdk.provisionerjob)         | false    | none         | none        |
+| reason                | string                                                            | false    | none         | none        |
+| resources             | [[codersdk.WorkspaceResource](#schemacodersdk.workspaceresource)] | false    | none         | none        |
+| status                | string                                                            | false    | none         | none        |
+| template_version_id   | string                                                            | false    | none         | none        |
+| template_version_name | string                                                            | false    | none         | none        |
+| transition            | string                                                            | false    | none         | none        |
+| updated_at            | string                                                            | false    | none         | none        |
+| workspace_id          | string                                                            | false    | none         | none        |
+| workspace_name        | string                                                            | false    | none         | none        |
+| workspace_owner_id    | string                                                            | false    | none         | none        |
+| workspace_owner_name  | string                                                            | false    | none         | none        |
 
 <h2 id="tocS_codersdk.WorkspaceResource">codersdk.WorkspaceResource</h2>
 
@@ -1036,24 +1025,23 @@ CoderSessionToken
   "type": "string",
   "workspace_transition": "string"
 }
-
 ```
 
 ### Properties
 
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|agents|[[codersdk.WorkspaceAgent](#schemacodersdk.workspaceagent)]|false|none|none|
-|created_at|string|false|none|none|
-|daily_cost|integer|false|none|none|
-|hide|boolean|false|none|none|
-|icon|string|false|none|none|
-|id|string|false|none|none|
-|job_id|string|false|none|none|
-|metadata|[[codersdk.WorkspaceResourceMetadata](#schemacodersdk.workspaceresourcemetadata)]|false|none|none|
-|name|string|false|none|none|
-|type|string|false|none|none|
-|workspace_transition|string|false|none|none|
+| Name                 | Type                                                                              | Required | Restrictions | Description |
+| -------------------- | --------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| agents               | [[codersdk.WorkspaceAgent](#schemacodersdk.workspaceagent)]                       | false    | none         | none        |
+| created_at           | string                                                                            | false    | none         | none        |
+| daily_cost           | integer                                                                           | false    | none         | none        |
+| hide                 | boolean                                                                           | false    | none         | none        |
+| icon                 | string                                                                            | false    | none         | none        |
+| id                   | string                                                                            | false    | none         | none        |
+| job_id               | string                                                                            | false    | none         | none        |
+| metadata             | [[codersdk.WorkspaceResourceMetadata](#schemacodersdk.workspaceresourcemetadata)] | false    | none         | none        |
+| name                 | string                                                                            | false    | none         | none        |
+| type                 | string                                                                            | false    | none         | none        |
+| workspace_transition | string                                                                            | false    | none         | none        |
 
 <h2 id="tocS_codersdk.WorkspaceResourceMetadata">codersdk.WorkspaceResourceMetadata</h2>
 
@@ -1068,16 +1056,15 @@ CoderSessionToken
   "sensitive": true,
   "value": "string"
 }
-
 ```
 
 ### Properties
 
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|key|string|false|none|none|
-|sensitive|boolean|false|none|none|
-|value|string|false|none|none|
+| Name      | Type    | Required | Restrictions | Description |
+| --------- | ------- | -------- | ------------ | ----------- |
+| key       | string  | false    | none         | none        |
+| sensitive | boolean | false    | none         | none        |
+| value     | string  | false    | none         | none        |
 
 <h2 id="tocS_codersdk.WorkspacesResponse">codersdk.WorkspacesResponse</h2>
 
@@ -1214,13 +1201,11 @@ CoderSessionToken
     }
   ]
 }
-
 ```
 
 ### Properties
 
-|Name|Type|Required|Restrictions|Description|
-|---|---|---|---|---|
-|count|integer|false|none|none|
-|workspaces|[[codersdk.Workspace](#schemacodersdk.workspace)]|false|none|none|
-
+| Name       | Type                                              | Required | Restrictions | Description |
+| ---------- | ------------------------------------------------- | -------- | ------------ | ----------- |
+| count      | integer                                           | false    | none         | none        |
+| workspaces | [[codersdk.Workspace](#schemacodersdk.workspace)] | false    | none         | none        |

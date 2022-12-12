@@ -34,4 +34,3 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 		--summary "../../coderd/apidocs/swagger.json" \
 		--outfile "../../docs/api.md"
 )
-
