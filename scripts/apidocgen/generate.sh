@@ -28,7 +28,8 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 	#
 	node ./node_modules/widdershins/widdershins.js \
 		--search false \
-		--language_tabs 'shell:curl' \
+		--omitHeader true \
+		--language_tabs "shell:curl" \
 		--summary "../../coderd/apidocs/swagger.json" \
 		--outfile "../../docs/api.md"
 )
