@@ -424,6 +424,12 @@ func newConfig() *codersdk.DeploymentConfig {
 			Flag:    "update-check",
 			Default: flag.Lookup("test.v") == nil && !buildinfo.IsDev(),
 		},
+		MaxTokenLifetime: &codersdk.DeploymentConfigField[time.Duration]{
+			Name:    "Max Token Lifetime",
+			Usage:   "The maximum lifetime duration for any user creating a token.",
+			Flag:    "max-token-lifetime",
+			Default: 24 * 30 * time.Hour,
+		},
 	}
 }
 
