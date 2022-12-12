@@ -106,7 +106,7 @@ read -p "Create release? (y/n) " -n 1 -r create
 echo
 if [[ $create =~ ^[Yy]$ ]]; then
 	log "Tagging commit $ref as $new_version..."
-	echo git tag -a "$new_version" -m "$new_version" "$ref"
+	git tag -a "$new_version" -m "$new_version" "$ref"
 	log "Pushing tag to origin..."
-	echo git push -u origin "$new_version"
+	git push -u origin "$new_version"
 fi
