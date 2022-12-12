@@ -165,7 +165,7 @@ export const updateCheckMachine = createMachine(
       })),
       setDismissedVersion: (context) => {
         if (context.updateCheck?.version) {
-          // We use localStorage to ensure users who have dimissed the UpdateCheckBanner are not plagued by it on page reload
+          // We use localStorage to ensure users who have dismissed the UpdateCheckBanner are not plagued by its reappearance on page reload
           localStorage.setItem("dismissedVersion", context.updateCheck.version)
         }
       },
