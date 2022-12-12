@@ -690,9 +690,9 @@ func TestAgent_WriteVSCodeConfigs(t *testing.T) {
 
 	home, err := os.UserHomeDir()
 	require.NoError(t, err)
-	path := filepath.Join(home, ".vscode-server", "data", "Machine", "settings.json")
+	name := filepath.Join(home, ".vscode-server", "data", "Machine", "settings.json")
 	require.Eventually(t, func() bool {
-		_, err := filesystem.Stat(path)
+		_, err := filesystem.Stat(name)
 		return err == nil
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
