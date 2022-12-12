@@ -1,10 +1,11 @@
 import { getTemplateExamples } from "api/api"
 import { TemplateExample } from "api/typesGenerated"
+import { getTemplatesByTag, StarterTemplatesByTag } from "util/starterTemplates"
 import { assign, createMachine } from "xstate"
 
 export interface StarterTemplatesContext {
   organizationId: string
-  starterTemplates?: TemplateExample[]
+  starterTemplatesByTag?: StarterTemplatesByTag
   error?: unknown
 }
 
@@ -55,7 +56,7 @@ export const starterTemplatesMachine = createMachine(
         error: (_, { data }) => data,
       }),
       assignStarterTemplates: assign({
-        starterTemplates: (_, { data }) => data,
+        starterTemplatesByTag: (_, { data }) => getTemplatesByTag(data),
       }),
     },
   },

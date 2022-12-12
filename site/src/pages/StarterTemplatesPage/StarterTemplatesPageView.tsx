@@ -1,5 +1,4 @@
 import { makeStyles } from "@material-ui/core/styles"
-import { TemplateExample } from "api/typesGenerated"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Maybe } from "components/Conditionals/Maybe"
 import { Loader } from "components/Loader/Loader"
@@ -12,39 +11,26 @@ import {
 import { Stack } from "components/Stack/Stack"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
-import { Link } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
+import { combineClasses } from "util/combineClasses"
 import { StarterTemplatesContext } from "xServices/starterTemplates/starterTemplatesXService"
 
-const getTagLabel = (tag: string) => {
+const getTagLabel = (tag: string, t: (key: string) => string) => {
   const labelByTag: Record<string, string> = {
-    digitalocean: "Digital Ocean",
-    aws: "AWS",
-    google: "Google Cloud",
+    all: t("tags.all"),
+    digitalocean: t("tags.digitalocean"),
+    aws: t("tags.aws"),
+    google: t("tags.google"),
   }
-
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- this can be undefined
   return labelByTag[tag] ?? tag
 }
 
-const getTemplatesByTag = (starterTemplates: TemplateExample[] | undefined) => {
-  if (!starterTemplates) {
-    return
-  }
-
-  const tags: Record<string, TemplateExample[]> = {}
-  starterTemplates.forEach((template) => {
-    template.tags.forEach((tag) => {
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- this can be undefined
-      if (tags[tag]) {
-        tags[tag].push(template)
-      } else {
-        tags[tag] = [template]
-      }
-    })
-  })
-  return tags
+const selectTags = ({ starterTemplatesByTag }: StarterTemplatesContext) => {
+  return starterTemplatesByTag
+    ? Object.keys(starterTemplatesByTag).sort((a, b) => a.localeCompare(b))
+    : undefined
 }
-
 export interface StarterTemplatesPageViewProps {
   context: StarterTemplatesContext
 }
@@ -53,10 +39,13 @@ export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
   context,
 }) => {
   const { t } = useTranslation("starterTemplatesPage")
+  const [urlParams] = useSearchParams()
   const styles = useStyles()
-  const templatesByTag = getTemplatesByTag(context.starterTemplates)
-  const tags = templatesByTag
-    ? Object.keys(templatesByTag).sort((a, b) => a.localeCompare(b))
+  const { starterTemplatesByTag } = context
+  const tags = selectTags(context)
+  const activeTag = urlParams.get("tag") ?? "all"
+  const visibleTemplates = starterTemplatesByTag
+    ? starterTemplatesByTag[activeTag]
     : undefined
 
   return (
@@ -70,28 +59,32 @@ export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
         <AlertBanner error={context.error} severity="error" />
       </Maybe>
 
-      <Maybe condition={Boolean(!context.starterTemplates)}>
+      <Maybe condition={Boolean(!starterTemplatesByTag)}>
         <Loader />
       </Maybe>
 
       <Stack direction="row" spacing={4}>
-        {templatesByTag && tags && (
+        {starterTemplatesByTag && tags && (
           <Stack className={styles.filter}>
-            <span className={styles.filterCaption}>Filter</span>
-            <Link to="" className={styles.tagLink}>
-              All templates ({context.starterTemplates?.length})
-            </Link>
+            <span className={styles.filterCaption}>{t("filterCaption")}</span>
             {tags.map((tag) => (
-              <Link key={tag} to={`?tag=${tag}`} className={styles.tagLink}>
-                {getTagLabel(tag)} ({templatesByTag[tag].length})
+              <Link
+                key={tag}
+                to={`?tag=${tag}`}
+                className={combineClasses({
+                  [styles.tagLink]: true,
+                  [styles.tagLinkActive]: tag === activeTag,
+                })}
+              >
+                {getTagLabel(tag, t)} ({starterTemplatesByTag[tag].length})
               </Link>
             ))}
           </Stack>
         )}
 
         <div className={styles.templates}>
-          {context.starterTemplates &&
-            context.starterTemplates.map((example) => (
+          {visibleTemplates &&
+            visibleTemplates.map((example) => (
               <Link
                 to={example.id}
                 className={styles.template}
@@ -117,6 +110,7 @@ export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
 const useStyles = makeStyles((theme) => ({
   filter: {
     width: theme.spacing(26),
+    flexShrink: 0,
   },
 
   filterCaption: {
@@ -138,10 +132,17 @@ const useStyles = makeStyles((theme) => ({
     },
   },
 
+  tagLinkActive: {
+    color: theme.palette.text.primary,
+    fontWeight: 600,
+  },
+
   templates: {
+    flex: "1",
     display: "grid",
     gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
     gap: theme.spacing(2),
+    gridAutoRows: "min-content",
   },
 
   template: {
@@ -152,6 +153,7 @@ const useStyles = makeStyles((theme) => ({
     color: "inherit",
     display: "flex",
     alignItems: "center",
+    height: "fit-content",
 
     "&:hover": {
       backgroundColor: theme.palette.background.paperLight,

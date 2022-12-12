@@ -5,6 +5,7 @@ import {
   MockTemplateExample,
   MockTemplateExample2,
 } from "testHelpers/entities"
+import { getTemplatesByTag } from "util/starterTemplates"
 import {
   StarterTemplatesPageView,
   StarterTemplatesPageViewProps,
@@ -24,7 +25,10 @@ Default.args = {
   context: {
     organizationId: MockOrganization.id,
     error: undefined,
-    starterTemplates: [MockTemplateExample, MockTemplateExample2],
+    starterTemplatesByTag: getTemplatesByTag([
+      MockTemplateExample,
+      MockTemplateExample2,
+    ]),
   },
 }
 
@@ -35,6 +39,6 @@ Error.args = {
     error: makeMockApiError({
       message: "Error on loading the template examples",
     }),
-    starterTemplates: undefined,
+    starterTemplatesByTag: undefined,
   },
 }
