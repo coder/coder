@@ -25,6 +25,81 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/workspaces": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "List workspaces.",
+                "operationId": "get-workspaces",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Owner username",
+                        "name": "owner",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Template name",
+                        "name": "template",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Workspace name",
+                        "name": "name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Workspace status",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Deleted workspaces",
+                        "name": "deleted",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Has agent",
+                        "name": "has_agent",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspacesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaces/{id}": {
             "get": {
                 "security": [
@@ -47,6 +122,12 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Include deleted",
+                        "name": "include_deleted",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -54,6 +135,30 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Workspace"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "410": {
+                        "description": "Gone",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 }
@@ -135,6 +240,41 @@ const docTemplate = `{
                     }
                 },
                 "worker_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.Response": {
+            "type": "object",
+            "properties": {
+                "detail": {
+                    "description": "Detail is a debug message that provides further insight into why the\naction failed. This information can be technical and a regular golang\nerr.Error() text.\n- \"database: too many open connections\"\n- \"stat: too many open files\"",
+                    "type": "string"
+                },
+                "message": {
+                    "description": "Message is an actionable message that depicts actions the request took.\nThese messages should be fully formed sentences with proper punctuation.\nExamples:\n- \"A user has been created.\"\n- \"Failed to create a user.\"",
+                    "type": "string"
+                },
+                "validations": {
+                    "description": "Validations are form field-specific friendly error messages. They will be\nshown on a form field in the UI. These can also be used to add additional\ncontext if there is a set of errors in the primary 'Message'.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ValidationError"
+                    }
+                }
+            }
+        },
+        "codersdk.ValidationError": {
+            "type": "object",
+            "required": [
+                "detail",
+                "field"
+            ],
+            "properties": {
+                "detail": {
+                    "type": "string"
+                },
+                "field": {
                     "type": "string"
                 }
             }
@@ -424,6 +564,20 @@ const docTemplate = `{
                 },
                 "value": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspacesResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "workspaces": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Workspace"
+                    }
                 }
             }
         }

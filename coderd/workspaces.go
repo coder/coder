@@ -49,7 +49,12 @@ var (
 // @Produce json
 // @Tags Workspaces
 // @Param id path string true "Workspace ID"
+// @Param include_deleted query string false "Include deleted"
 // @Success 200 {object} codersdk.Workspace
+// @Failure 400 {object} codersdk.Response
+// @Failure 404 {object} codersdk.Response
+// @Failure 410 {object} codersdk.Response
+// @Failure 500 {object} codersdk.Response
 // @Router /workspaces/{id} [get]
 func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -100,6 +105,22 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	))
 }
 
+// @Summary List workspaces.
+// @ID get-workspaces
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Workspaces
+// @Param owner query string false "Owner username"
+// @Param template query string false "Template name"
+// @Param name query string false "Workspace name"
+// @Param status query string false "Workspace status"
+// @Param deleted query bool false "Deleted workspaces"
+// @Param has_agent query bool false "Has agent"
+// @Success 200 {object} codersdk.WorkspacesResponse
+// @Failure 400 {object} codersdk.Response
+// @Failure 500 {object} codersdk.Response
+// @Router /workspaces [get]
+//
 // workspaces returns all workspaces a user can read.
 // Optional filters with query params
 func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
