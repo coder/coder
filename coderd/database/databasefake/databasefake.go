@@ -1743,6 +1743,13 @@ func (q *fakeQuerier) GetPreviousTemplateVersion(_ context.Context, arg database
 		if templateVersion.ID == currentTemplateVersion.ID {
 			continue
 		}
+		if templateVersion.OrganizationID != arg.OrganizationID {
+			continue
+		}
+		if templateVersion.TemplateID != currentTemplateVersion.TemplateID {
+			continue
+		}
+
 		if templateVersion.CreatedAt.Before(currentTemplateVersion.CreatedAt) {
 			previousTemplateVersions = append(previousTemplateVersions, templateVersion)
 		}

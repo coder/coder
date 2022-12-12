@@ -161,8 +161,9 @@ func (api *API) convertAuditLogs(ctx context.Context, dblogs []database.GetAudit
 }
 
 type AdditionalFields struct {
-	WorkspaceName string
-	BuildNumber   string
+	WorkspaceName  string
+	BuildNumber    string
+	WorkspaceOwner string
 }
 
 func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
@@ -198,8 +199,9 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 	if err != nil {
 		api.Logger.Error(ctx, "unmarshal additional fields", slog.Error(err))
 		resourceInfo := map[string]string{
-			"workspaceName": "unknown",
-			"buildNumber":   "unknown",
+			"workspaceName":  "unknown",
+			"buildNumber":    "unknown",
+			"workspaceOwner": "unknown",
 		}
 		dblog.AdditionalFields, err = json.Marshal(resourceInfo)
 		api.Logger.Error(ctx, "marshal additional fields", slog.Error(err))
@@ -331,8 +333,12 @@ func auditLogResourceLink(alog database.GetAuditLogsOffsetRow, additionalFields 
 		return fmt.Sprintf("/users?filter=%s",
 			alog.ResourceTarget)
 	case database.ResourceTypeWorkspace:
+		workspaceOwner := alog.UserUsername.String
+		if len(additionalFields.WorkspaceOwner) != 0 && additionalFields.WorkspaceOwner != "unknown" {
+			workspaceOwner = additionalFields.WorkspaceOwner
+		}
 		return fmt.Sprintf("/@%s/%s",
-			alog.UserUsername.String, alog.ResourceTarget)
+			workspaceOwner, alog.ResourceTarget)
 	case database.ResourceTypeWorkspaceBuild:
 		if len(additionalFields.WorkspaceName) == 0 || len(additionalFields.BuildNumber) == 0 {
 			return ""

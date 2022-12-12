@@ -148,6 +148,9 @@ func setupAgent(t *testing.T, metadata codersdk.WorkspaceAgentMetadata, ptyTimeo
 	metadata.DERPMap = tailnettest.RunDERPAndSTUN(t)
 
 	coordinator := tailnet.NewCoordinator()
+	t.Cleanup(func() {
+		_ = coordinator.Close()
+	})
 	agentID := uuid.New()
 	closer := agent.New(agent.Options{
 		Client: &client{

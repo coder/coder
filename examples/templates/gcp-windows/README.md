@@ -2,6 +2,7 @@
 name: Develop in Windows on Google Cloud
 description: Get started with Windows development on Google Cloud.
 tags: [cloud, google]
+icon: /icon/gcp.png
 ---
 
 # gcp-windows
@@ -13,7 +14,7 @@ and follow the on-screen instructions to proceed.
 
 This template assumes that coderd is run in an environment that is authenticated
 with Google Cloud. For example, run `gcloud auth application-default login` to
-import credentials on the system and user running coderd.  For other ways to
+import credentials on the system and user running coderd. For other ways to
 authenticate [consult the Terraform
 docs](https://registry.terraform.io/providers/hashicorp/google/latest/docs/guides/getting_started#adding-credentials).
 
@@ -32,6 +33,7 @@ a service account:
 
 1. Click **Create and continue**, and choose the following IAM roles to grant to
    the service account:
+
    - Compute Admin
    - Service Account User
 
