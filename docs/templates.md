@@ -17,7 +17,7 @@ individuals can start their own Coder deployments.
 From your local machine, download the CLI for your operating system from the
 [releases](https://github.com/coder/coder/releases) or run:
 
-```sh
+```console
 curl -fsSL https://coder.com/install.sh | sh
 
 ```
