@@ -252,17 +252,27 @@ func TestCreate(t *testing.T) {
 			err := cmd.Execute()
 			assert.NoError(t, err)
 		}()
-
-		matches := []string{
-			"Specify a name", "my-workspace",
-			fmt.Sprintf("Enter a value (default: %q):", defaultValue), "bingo",
-			"Confirm create?", "yes",
+		matches := []struct {
+			match string
+			write string
+		}{
+			{
+				match: "Specify a name",
+				write: "my-workspace",
+			},
+			{
+				match: fmt.Sprintf("Enter a value (default: %q):", defaultValue),
+				write: "bingo",
+			},
+			{
+				match: "Confirm create?",
+				write: "yes",
+			},
 		}
-		for i := 0; i < len(matches); i += 2 {
-			match := matches[i]
-			value := matches[i+1]
-			pty.ExpectMatch(match)
-			pty.WriteLine(value)
+
+		for _, m := range matches {
+			pty.ExpectMatch(m.match)
+			pty.WriteLine(m.write)
 		}
 		<-doneChan
 	})
