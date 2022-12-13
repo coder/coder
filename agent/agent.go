@@ -925,6 +925,11 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 	rpty.circularBufferMutex.RLock()
 	prevBuf := slices.Clone(rpty.circularBuffer.Bytes())
 	rpty.circularBufferMutex.RUnlock()
+	// Note that there is a small race here between writing buffered
+	// data and storing conn in activeConns. This is likely a very minor
+	// edge case, but we should look into ways to avoid it. Holding
+	// activeConnsMutex would be one option, but holding this mutex
+	// while also holding circularBufferMutex seems dangerous.
 	_, err = conn.Write(prevBuf)
 	if err != nil {
 		return xerrors.Errorf("write buffer to conn: %w", err)
