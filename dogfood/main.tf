@@ -22,8 +22,8 @@ variable "dotfiles_uri" {
   see https://dotfiles.github.io
   EOF
   default     = ""
-}  
-  
+}
+
 variable "datocms_api_token" {
   type        = string
   description = "An API token from DATOCMS for usage with building our website."
