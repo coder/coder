@@ -1,7 +1,7 @@
 # Authentication
 
 - API Key (CoderSessionToken)
-    - Parameter Name: **Coder-Session-Token**, in: header. 
+  - Parameter Name: **Coder-Session-Token**, in: header. 
 
 # Workspaces
 
@@ -349,7 +349,6 @@ To perform this operation, you must be authenticated by means of one of the foll
   "latency_ms": 0,
   "preferred": true
 }
-
 ```
 
 ### Properties
@@ -367,7 +366,6 @@ To perform this operation, you must be authenticated by means of one of the foll
   "threshold": 0,
   "url": "string"
 }
-
 ```
 
 ### Properties
@@ -385,7 +383,6 @@ To perform this operation, you must be authenticated by means of one of the foll
   "time": "string",
   "valid": true
 }
-
 ```
 
 ### Properties
@@ -413,7 +410,6 @@ To perform this operation, you must be authenticated by means of one of the foll
   },
   "worker_id": "string"
 }
-
 ```
 
 ### Properties
@@ -445,7 +441,6 @@ To perform this operation, you must be authenticated by means of one of the foll
     }
   ]
 }
-
 ```
 
 ### Properties
@@ -463,7 +458,6 @@ To perform this operation, you must be authenticated by means of one of the foll
   "detail": "string",
   "field": "string"
 }
-
 ```
 
 ### Properties
@@ -602,7 +596,6 @@ To perform this operation, you must be authenticated by means of one of the foll
   "ttl_ms": 0,
   "updated_at": "string"
 }
-
 ```
 
 ### Properties
@@ -679,7 +672,6 @@ To perform this operation, you must be authenticated by means of one of the foll
   "updated_at": "string",
   "version": "string"
 }
-
 ```
 
 ### Properties
@@ -727,7 +719,6 @@ To perform this operation, you must be authenticated by means of one of the foll
   "slug": "string",
   "subdomain": true
 }
-
 ```
 
 ### Properties
@@ -856,7 +847,6 @@ To perform this operation, you must be authenticated by means of one of the foll
   "workspace_owner_id": "string",
   "workspace_owner_name": "string"
 }
-
 ```
 
 ### Properties
@@ -956,7 +946,6 @@ To perform this operation, you must be authenticated by means of one of the foll
   "type": "string",
   "workspace_transition": "string"
 }
-
 ```
 
 ### Properties
@@ -983,7 +972,6 @@ To perform this operation, you must be authenticated by means of one of the foll
   "sensitive": true,
   "value": "string"
 }
-
 ```
 
 ### Properties
@@ -1124,7 +1112,6 @@ To perform this operation, you must be authenticated by means of one of the foll
     }
   ]
 }
-
 ```
 
 ### Properties

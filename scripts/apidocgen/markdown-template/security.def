@@ -3,7 +3,7 @@
 {{ var sd = data.api.components.securitySchemes[s]; }}
 {{? sd.type == 'apiKey' }}
 - API Key ({{=s}})
-    - Parameter Name: **{{=sd.name}}**, in: {{=sd.in}}. {{=sd.description || ''}}
+  - Parameter Name: **{{=sd.name}}**, in: {{=sd.in}}. {{=sd.description || ''}}
 {{?}}
 {{? sd.type == 'http'}}
 - HTTP Authentication, scheme: {{=sd.scheme}}{{? sd.description }}<br/>{{=sd.description}}{{?}}
