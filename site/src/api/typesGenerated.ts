@@ -206,6 +206,8 @@ export interface CreateTestAuditLogRequest {
 
 // From codersdk/apikey.go
 export interface CreateTokenRequest {
+  // This is likely an enum in an external package ("time.Duration")
+  readonly lifetime: number
   readonly scope: APIKeyScope
 }
 
@@ -303,6 +305,7 @@ export interface DeploymentConfig {
   readonly api_rate_limit: DeploymentConfigField<number>
   readonly experimental: DeploymentConfigField<boolean>
   readonly update_check: DeploymentConfigField<boolean>
+  readonly max_token_lifetime: DeploymentConfigField<number>
 }
 
 // From codersdk/deploymentconfig.go

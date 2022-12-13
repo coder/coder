@@ -52,656 +52,649 @@ func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
 }
 
-func TestAgent(t *testing.T) {
+func TestAgent_Stats_SSH(t *testing.T) {
 	t.Parallel()
-	t.Run("Stats", func(t *testing.T) {
-		t.Parallel()
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
 
-		t.Run("SSH", func(t *testing.T) {
+	conn, stats, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
+
+	sshClient, err := conn.SSHClient(ctx)
+	require.NoError(t, err)
+	defer sshClient.Close()
+	session, err := sshClient.NewSession()
+	require.NoError(t, err)
+	defer session.Close()
+	require.NoError(t, session.Run("echo test"))
+
+	var s *codersdk.AgentStats
+	require.Eventuallyf(t, func() bool {
+		var ok bool
+		s, ok = <-stats
+		return ok && s.NumConns > 0 && s.RxBytes > 0 && s.TxBytes > 0
+	}, testutil.WaitLong, testutil.IntervalFast,
+		"never saw stats: %+v", s,
+	)
+}
+
+func TestAgent_Stats_ReconnectingPTY(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	conn, stats, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
+
+	ptyConn, err := conn.ReconnectingPTY(ctx, uuid.New(), 128, 128, "/bin/bash")
+	require.NoError(t, err)
+	defer ptyConn.Close()
+
+	data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
+		Data: "echo test\r\n",
+	})
+	require.NoError(t, err)
+	_, err = ptyConn.Write(data)
+	require.NoError(t, err)
+
+	var s *codersdk.AgentStats
+	require.Eventuallyf(t, func() bool {
+		var ok bool
+		s, ok = <-stats
+		return ok && s.NumConns > 0 && s.RxBytes > 0 && s.TxBytes > 0
+	}, testutil.WaitLong, testutil.IntervalFast,
+		"never saw stats: %+v", s,
+	)
+}
+
+func TestAgent_SessionExec(t *testing.T) {
+	t.Parallel()
+	session := setupSSHSession(t, codersdk.WorkspaceAgentMetadata{})
+
+	command := "echo test"
+	if runtime.GOOS == "windows" {
+		command = "cmd.exe /c echo test"
+	}
+	output, err := session.Output(command)
+	require.NoError(t, err)
+	require.Equal(t, "test", strings.TrimSpace(string(output)))
+}
+
+func TestAgent_GitSSH(t *testing.T) {
+	t.Parallel()
+	session := setupSSHSession(t, codersdk.WorkspaceAgentMetadata{})
+	command := "sh -c 'echo $GIT_SSH_COMMAND'"
+	if runtime.GOOS == "windows" {
+		command = "cmd.exe /c echo %GIT_SSH_COMMAND%"
+	}
+	output, err := session.Output(command)
+	require.NoError(t, err)
+	require.True(t, strings.HasSuffix(strings.TrimSpace(string(output)), "gitssh --"))
+}
+
+func TestAgent_SessionTTYShell(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		// This might be our implementation, or ConPTY itself.
+		// It's difficult to find extensive tests for it, so
+		// it seems like it could be either.
+		t.Skip("ConPTY appears to be inconsistent on Windows.")
+	}
+	session := setupSSHSession(t, codersdk.WorkspaceAgentMetadata{})
+	command := "bash"
+	if runtime.GOOS == "windows" {
+		command = "cmd.exe"
+	}
+	err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
+	require.NoError(t, err)
+	ptty := ptytest.New(t)
+	session.Stdout = ptty.Output()
+	session.Stderr = ptty.Output()
+	session.Stdin = ptty.Input()
+	err = session.Start(command)
+	require.NoError(t, err)
+	caret := "$"
+	if runtime.GOOS == "windows" {
+		caret = ">"
+	}
+	ptty.ExpectMatch(caret)
+	ptty.WriteLine("echo test")
+	ptty.ExpectMatch("test")
+	ptty.WriteLine("exit")
+	err = session.Wait()
+	require.NoError(t, err)
+}
+
+func TestAgent_SessionTTYExitCode(t *testing.T) {
+	t.Parallel()
+	session := setupSSHSession(t, codersdk.WorkspaceAgentMetadata{})
+	command := "areallynotrealcommand"
+	err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
+	require.NoError(t, err)
+	ptty := ptytest.New(t)
+	session.Stdout = ptty.Output()
+	session.Stderr = ptty.Output()
+	session.Stdin = ptty.Input()
+	err = session.Start(command)
+	require.NoError(t, err)
+	err = session.Wait()
+	exitErr := &ssh.ExitError{}
+	require.True(t, xerrors.As(err, &exitErr))
+	if runtime.GOOS == "windows" {
+		assert.Equal(t, 1, exitErr.ExitStatus())
+	} else {
+		assert.Equal(t, 127, exitErr.ExitStatus())
+	}
+}
+
+//nolint:paralleltest // This test sets an environment variable.
+func TestAgent_Session_TTY_MOTD(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// This might be our implementation, or ConPTY itself.
+		// It's difficult to find extensive tests for it, so
+		// it seems like it could be either.
+		t.Skip("ConPTY appears to be inconsistent on Windows.")
+	}
+
+	wantMOTD := "Welcome to your Coder workspace!"
+
+	tmpdir := t.TempDir()
+	name := filepath.Join(tmpdir, "motd")
+	err := os.WriteFile(name, []byte(wantMOTD), 0o600)
+	require.NoError(t, err, "write motd file")
+
+	// Set HOME so we can ensure no ~/.hushlogin is present.
+	t.Setenv("HOME", tmpdir)
+
+	session := setupSSHSession(t, codersdk.WorkspaceAgentMetadata{
+		MOTDFile: name,
+	})
+	err = session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
+	require.NoError(t, err)
+
+	ptty := ptytest.New(t)
+	var stdout bytes.Buffer
+	session.Stdout = &stdout
+	session.Stderr = ptty.Output()
+	session.Stdin = ptty.Input()
+	err = session.Shell()
+	require.NoError(t, err)
+
+	ptty.WriteLine("exit 0")
+	err = session.Wait()
+	require.NoError(t, err)
+
+	require.Contains(t, stdout.String(), wantMOTD, "should show motd")
+}
+
+//nolint:paralleltest // This test sets an environment variable.
+func TestAgent_Session_TTY_Hushlogin(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// This might be our implementation, or ConPTY itself.
+		// It's difficult to find extensive tests for it, so
+		// it seems like it could be either.
+		t.Skip("ConPTY appears to be inconsistent on Windows.")
+	}
+
+	wantNotMOTD := "Welcome to your Coder workspace!"
+
+	tmpdir := t.TempDir()
+	name := filepath.Join(tmpdir, "motd")
+	err := os.WriteFile(name, []byte(wantNotMOTD), 0o600)
+	require.NoError(t, err, "write motd file")
+
+	// Create hushlogin to silence motd.
+	f, err := os.Create(filepath.Join(tmpdir, ".hushlogin"))
+	require.NoError(t, err, "create .hushlogin file")
+	err = f.Close()
+	require.NoError(t, err, "close .hushlogin file")
+
+	// Set HOME so we can ensure ~/.hushlogin is present.
+	t.Setenv("HOME", tmpdir)
+
+	session := setupSSHSession(t, codersdk.WorkspaceAgentMetadata{
+		MOTDFile: name,
+	})
+	err = session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
+	require.NoError(t, err)
+
+	ptty := ptytest.New(t)
+	var stdout bytes.Buffer
+	session.Stdout = &stdout
+	session.Stderr = ptty.Output()
+	session.Stdin = ptty.Input()
+	err = session.Shell()
+	require.NoError(t, err)
+
+	ptty.WriteLine("exit 0")
+	err = session.Wait()
+	require.NoError(t, err)
+
+	require.NotContains(t, stdout.String(), wantNotMOTD, "should not show motd")
+}
+
+//nolint:paralleltest // This test reserves a port.
+func TestAgent_LocalForwarding(t *testing.T) {
+	random, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	_ = random.Close()
+	tcpAddr, valid := random.Addr().(*net.TCPAddr)
+	require.True(t, valid)
+	randomPort := tcpAddr.Port
+
+	local, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer local.Close()
+	tcpAddr, valid = local.Addr().(*net.TCPAddr)
+	require.True(t, valid)
+	localPort := tcpAddr.Port
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		conn, err := local.Accept()
+		if !assert.NoError(t, err) {
+			return
+		}
+		_ = conn.Close()
+	}()
+
+	err = setupSSHCommand(t, []string{"-L", fmt.Sprintf("%d:127.0.0.1:%d", randomPort, localPort)}, []string{"echo", "test"}).Start()
+	require.NoError(t, err)
+
+	conn, err := net.Dial("tcp", "127.0.0.1:"+strconv.Itoa(localPort))
+	require.NoError(t, err)
+	conn.Close()
+	<-done
+}
+
+func TestAgent_SFTP(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	u, err := user.Current()
+	require.NoError(t, err, "get current user")
+	home := u.HomeDir
+	if runtime.GOOS == "windows" {
+		home = "/" + strings.ReplaceAll(home, "\\", "/")
+	}
+	conn, _, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
+	sshClient, err := conn.SSHClient(ctx)
+	require.NoError(t, err)
+	defer sshClient.Close()
+	client, err := sftp.NewClient(sshClient)
+	require.NoError(t, err)
+	defer client.Close()
+	wd, err := client.Getwd()
+	require.NoError(t, err, "get working directory")
+	require.Equal(t, home, wd, "working directory should be home user home")
+	tempFile := filepath.Join(t.TempDir(), "sftp")
+	// SFTP only accepts unix-y paths.
+	remoteFile := filepath.ToSlash(tempFile)
+	if !path.IsAbs(remoteFile) {
+		// On Windows, e.g. "/C:/Users/...".
+		remoteFile = path.Join("/", remoteFile)
+	}
+	file, err := client.Create(remoteFile)
+	require.NoError(t, err)
+	err = file.Close()
+	require.NoError(t, err)
+	_, err = os.Stat(tempFile)
+	require.NoError(t, err)
+}
+
+func TestAgent_SCP(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	conn, _, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
+	sshClient, err := conn.SSHClient(ctx)
+	require.NoError(t, err)
+	defer sshClient.Close()
+	scpClient, err := scp.NewClientBySSH(sshClient)
+	require.NoError(t, err)
+	defer scpClient.Close()
+	tempFile := filepath.Join(t.TempDir(), "scp")
+	content := "hello world"
+	err = scpClient.CopyFile(context.Background(), strings.NewReader(content), tempFile, "0755")
+	require.NoError(t, err)
+	_, err = os.Stat(tempFile)
+	require.NoError(t, err)
+}
+
+func TestAgent_EnvironmentVariables(t *testing.T) {
+	t.Parallel()
+	key := "EXAMPLE"
+	value := "value"
+	session := setupSSHSession(t, codersdk.WorkspaceAgentMetadata{
+		EnvironmentVariables: map[string]string{
+			key: value,
+		},
+	})
+	command := "sh -c 'echo $" + key + "'"
+	if runtime.GOOS == "windows" {
+		command = "cmd.exe /c echo %" + key + "%"
+	}
+	output, err := session.Output(command)
+	require.NoError(t, err)
+	require.Equal(t, value, strings.TrimSpace(string(output)))
+}
+
+func TestAgent_EnvironmentVariableExpansion(t *testing.T) {
+	t.Parallel()
+	key := "EXAMPLE"
+	session := setupSSHSession(t, codersdk.WorkspaceAgentMetadata{
+		EnvironmentVariables: map[string]string{
+			key: "$SOMETHINGNOTSET",
+		},
+	})
+	command := "sh -c 'echo $" + key + "'"
+	if runtime.GOOS == "windows" {
+		command = "cmd.exe /c echo %" + key + "%"
+	}
+	output, err := session.Output(command)
+	require.NoError(t, err)
+	expect := ""
+	if runtime.GOOS == "windows" {
+		expect = "%EXAMPLE%"
+	}
+	// Output should be empty, because the variable is not set!
+	require.Equal(t, expect, strings.TrimSpace(string(output)))
+}
+
+func TestAgent_CoderEnvVars(t *testing.T) {
+	t.Parallel()
+
+	for _, key := range []string{"CODER"} {
+		key := key
+		t.Run(key, func(t *testing.T) {
 			t.Parallel()
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
 
-			conn, stats, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
-
-			sshClient, err := conn.SSHClient(ctx)
-			require.NoError(t, err)
-			defer sshClient.Close()
-			session, err := sshClient.NewSession()
-			require.NoError(t, err)
-			defer session.Close()
-			require.NoError(t, session.Run("echo test"))
-
-			var s *codersdk.AgentStats
-			require.Eventuallyf(t, func() bool {
-				var ok bool
-				s, ok = <-stats
-				return ok && s.NumConns > 0 && s.RxBytes > 0 && s.TxBytes > 0
-			}, testutil.WaitLong, testutil.IntervalFast,
-				"never saw stats: %+v", s,
-			)
-		})
-
-		t.Run("ReconnectingPTY", func(t *testing.T) {
-			t.Parallel()
-
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
-
-			conn, stats, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
-
-			ptyConn, err := conn.ReconnectingPTY(ctx, uuid.New(), 128, 128, "/bin/bash")
-			require.NoError(t, err)
-			defer ptyConn.Close()
-
-			data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
-				Data: "echo test\r\n",
-			})
-			require.NoError(t, err)
-			_, err = ptyConn.Write(data)
-			require.NoError(t, err)
-
-			var s *codersdk.AgentStats
-			require.Eventuallyf(t, func() bool {
-				var ok bool
-				s, ok = <-stats
-				return ok && s.NumConns > 0 && s.RxBytes > 0 && s.TxBytes > 0
-			}, testutil.WaitLong, testutil.IntervalFast,
-				"never saw stats: %+v", s,
-			)
-		})
-	})
-
-	t.Run("SessionExec", func(t *testing.T) {
-		t.Parallel()
-		session := setupSSHSession(t, codersdk.WorkspaceAgentMetadata{})
-
-		command := "echo test"
-		if runtime.GOOS == "windows" {
-			command = "cmd.exe /c echo test"
-		}
-		output, err := session.Output(command)
-		require.NoError(t, err)
-		require.Equal(t, "test", strings.TrimSpace(string(output)))
-	})
-
-	t.Run("GitSSH", func(t *testing.T) {
-		t.Parallel()
-		session := setupSSHSession(t, codersdk.WorkspaceAgentMetadata{})
-		command := "sh -c 'echo $GIT_SSH_COMMAND'"
-		if runtime.GOOS == "windows" {
-			command = "cmd.exe /c echo %GIT_SSH_COMMAND%"
-		}
-		output, err := session.Output(command)
-		require.NoError(t, err)
-		require.True(t, strings.HasSuffix(strings.TrimSpace(string(output)), "gitssh --"))
-	})
-
-	t.Run("SessionTTYShell", func(t *testing.T) {
-		t.Parallel()
-		if runtime.GOOS == "windows" {
-			// This might be our implementation, or ConPTY itself.
-			// It's difficult to find extensive tests for it, so
-			// it seems like it could be either.
-			t.Skip("ConPTY appears to be inconsistent on Windows.")
-		}
-		session := setupSSHSession(t, codersdk.WorkspaceAgentMetadata{})
-		command := "bash"
-		if runtime.GOOS == "windows" {
-			command = "cmd.exe"
-		}
-		err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
-		require.NoError(t, err)
-		ptty := ptytest.New(t)
-		session.Stdout = ptty.Output()
-		session.Stderr = ptty.Output()
-		session.Stdin = ptty.Input()
-		err = session.Start(command)
-		require.NoError(t, err)
-		caret := "$"
-		if runtime.GOOS == "windows" {
-			caret = ">"
-		}
-		ptty.ExpectMatch(caret)
-		ptty.WriteLine("echo test")
-		ptty.ExpectMatch("test")
-		ptty.WriteLine("exit")
-		err = session.Wait()
-		require.NoError(t, err)
-	})
-
-	t.Run("SessionTTYExitCode", func(t *testing.T) {
-		t.Parallel()
-		session := setupSSHSession(t, codersdk.WorkspaceAgentMetadata{})
-		command := "areallynotrealcommand"
-		err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
-		require.NoError(t, err)
-		ptty := ptytest.New(t)
-		session.Stdout = ptty.Output()
-		session.Stderr = ptty.Output()
-		session.Stdin = ptty.Input()
-		err = session.Start(command)
-		require.NoError(t, err)
-		err = session.Wait()
-		exitErr := &ssh.ExitError{}
-		require.True(t, xerrors.As(err, &exitErr))
-		if runtime.GOOS == "windows" {
-			assert.Equal(t, 1, exitErr.ExitStatus())
-		} else {
-			assert.Equal(t, 127, exitErr.ExitStatus())
-		}
-	})
-
-	//nolint:paralleltest // This test sets an environment variable.
-	t.Run("Session TTY MOTD", func(t *testing.T) {
-		if runtime.GOOS == "windows" {
-			// This might be our implementation, or ConPTY itself.
-			// It's difficult to find extensive tests for it, so
-			// it seems like it could be either.
-			t.Skip("ConPTY appears to be inconsistent on Windows.")
-		}
-
-		wantMOTD := "Welcome to your Coder workspace!"
-
-		tmpdir := t.TempDir()
-		name := filepath.Join(tmpdir, "motd")
-		err := os.WriteFile(name, []byte(wantMOTD), 0o600)
-		require.NoError(t, err, "write motd file")
-
-		// Set HOME so we can ensure no ~/.hushlogin is present.
-		t.Setenv("HOME", tmpdir)
-
-		session := setupSSHSession(t, codersdk.WorkspaceAgentMetadata{
-			MOTDFile: name,
-		})
-		err = session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
-		require.NoError(t, err)
-
-		ptty := ptytest.New(t)
-		var stdout bytes.Buffer
-		session.Stdout = &stdout
-		session.Stderr = ptty.Output()
-		session.Stdin = ptty.Input()
-		err = session.Shell()
-		require.NoError(t, err)
-
-		ptty.WriteLine("exit 0")
-		err = session.Wait()
-		require.NoError(t, err)
-
-		require.Contains(t, stdout.String(), wantMOTD, "should show motd")
-	})
-
-	//nolint:paralleltest // This test sets an environment variable.
-	t.Run("Session TTY Hushlogin", func(t *testing.T) {
-		if runtime.GOOS == "windows" {
-			// This might be our implementation, or ConPTY itself.
-			// It's difficult to find extensive tests for it, so
-			// it seems like it could be either.
-			t.Skip("ConPTY appears to be inconsistent on Windows.")
-		}
-
-		wantNotMOTD := "Welcome to your Coder workspace!"
-
-		tmpdir := t.TempDir()
-		name := filepath.Join(tmpdir, "motd")
-		err := os.WriteFile(name, []byte(wantNotMOTD), 0o600)
-		require.NoError(t, err, "write motd file")
-
-		// Create hushlogin to silence motd.
-		f, err := os.Create(filepath.Join(tmpdir, ".hushlogin"))
-		require.NoError(t, err, "create .hushlogin file")
-		err = f.Close()
-		require.NoError(t, err, "close .hushlogin file")
-
-		// Set HOME so we can ensure ~/.hushlogin is present.
-		t.Setenv("HOME", tmpdir)
-
-		session := setupSSHSession(t, codersdk.WorkspaceAgentMetadata{
-			MOTDFile: name,
-		})
-		err = session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
-		require.NoError(t, err)
-
-		ptty := ptytest.New(t)
-		var stdout bytes.Buffer
-		session.Stdout = &stdout
-		session.Stderr = ptty.Output()
-		session.Stdin = ptty.Input()
-		err = session.Shell()
-		require.NoError(t, err)
-
-		ptty.WriteLine("exit 0")
-		err = session.Wait()
-		require.NoError(t, err)
-
-		require.NotContains(t, stdout.String(), wantNotMOTD, "should not show motd")
-	})
-
-	//nolint:paralleltest // This test reserves a port.
-	t.Run("LocalForwarding", func(t *testing.T) {
-		random, err := net.Listen("tcp", "127.0.0.1:0")
-		require.NoError(t, err)
-		_ = random.Close()
-		tcpAddr, valid := random.Addr().(*net.TCPAddr)
-		require.True(t, valid)
-		randomPort := tcpAddr.Port
-
-		local, err := net.Listen("tcp", "127.0.0.1:0")
-		require.NoError(t, err)
-		defer local.Close()
-		tcpAddr, valid = local.Addr().(*net.TCPAddr)
-		require.True(t, valid)
-		localPort := tcpAddr.Port
-		done := make(chan struct{})
-		go func() {
-			defer close(done)
-			conn, err := local.Accept()
-			if !assert.NoError(t, err) {
-				return
-			}
-			_ = conn.Close()
-		}()
-
-		err = setupSSHCommand(t, []string{"-L", fmt.Sprintf("%d:127.0.0.1:%d", randomPort, localPort)}, []string{"echo", "test"}).Start()
-		require.NoError(t, err)
-
-		conn, err := net.Dial("tcp", "127.0.0.1:"+strconv.Itoa(localPort))
-		require.NoError(t, err)
-		conn.Close()
-		<-done
-	})
-
-	t.Run("SFTP", func(t *testing.T) {
-		t.Parallel()
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-		u, err := user.Current()
-		require.NoError(t, err, "get current user")
-		home := u.HomeDir
-		if runtime.GOOS == "windows" {
-			home = "/" + strings.ReplaceAll(home, "\\", "/")
-		}
-		conn, _, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
-		sshClient, err := conn.SSHClient(ctx)
-		require.NoError(t, err)
-		defer sshClient.Close()
-		client, err := sftp.NewClient(sshClient)
-		require.NoError(t, err)
-		defer client.Close()
-		wd, err := client.Getwd()
-		require.NoError(t, err, "get working directory")
-		require.Equal(t, home, wd, "working directory should be home user home")
-		tempFile := filepath.Join(t.TempDir(), "sftp")
-		// SFTP only accepts unix-y paths.
-		remoteFile := filepath.ToSlash(tempFile)
-		if !path.IsAbs(remoteFile) {
-			// On Windows, e.g. "/C:/Users/...".
-			remoteFile = path.Join("/", remoteFile)
-		}
-		file, err := client.Create(remoteFile)
-		require.NoError(t, err)
-		err = file.Close()
-		require.NoError(t, err)
-		_, err = os.Stat(tempFile)
-		require.NoError(t, err)
-	})
-
-	t.Run("SCP", func(t *testing.T) {
-		t.Parallel()
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		conn, _, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
-		sshClient, err := conn.SSHClient(ctx)
-		require.NoError(t, err)
-		defer sshClient.Close()
-		scpClient, err := scp.NewClientBySSH(sshClient)
-		require.NoError(t, err)
-		defer scpClient.Close()
-		tempFile := filepath.Join(t.TempDir(), "scp")
-		content := "hello world"
-		err = scpClient.CopyFile(context.Background(), strings.NewReader(content), tempFile, "0755")
-		require.NoError(t, err)
-		_, err = os.Stat(tempFile)
-		require.NoError(t, err)
-	})
-
-	t.Run("EnvironmentVariables", func(t *testing.T) {
-		t.Parallel()
-		key := "EXAMPLE"
-		value := "value"
-		session := setupSSHSession(t, codersdk.WorkspaceAgentMetadata{
-			EnvironmentVariables: map[string]string{
-				key: value,
-			},
-		})
-		command := "sh -c 'echo $" + key + "'"
-		if runtime.GOOS == "windows" {
-			command = "cmd.exe /c echo %" + key + "%"
-		}
-		output, err := session.Output(command)
-		require.NoError(t, err)
-		require.Equal(t, value, strings.TrimSpace(string(output)))
-	})
-
-	t.Run("EnvironmentVariableExpansion", func(t *testing.T) {
-		t.Parallel()
-		key := "EXAMPLE"
-		session := setupSSHSession(t, codersdk.WorkspaceAgentMetadata{
-			EnvironmentVariables: map[string]string{
-				key: "$SOMETHINGNOTSET",
-			},
-		})
-		command := "sh -c 'echo $" + key + "'"
-		if runtime.GOOS == "windows" {
-			command = "cmd.exe /c echo %" + key + "%"
-		}
-		output, err := session.Output(command)
-		require.NoError(t, err)
-		expect := ""
-		if runtime.GOOS == "windows" {
-			expect = "%EXAMPLE%"
-		}
-		// Output should be empty, because the variable is not set!
-		require.Equal(t, expect, strings.TrimSpace(string(output)))
-	})
-
-	t.Run("Coder env vars", func(t *testing.T) {
-		t.Parallel()
-
-		for _, key := range []string{"CODER"} {
-			key := key
-			t.Run(key, func(t *testing.T) {
-				t.Parallel()
-
-				session := setupSSHSession(t, codersdk.WorkspaceAgentMetadata{})
-				command := "sh -c 'echo $" + key + "'"
-				if runtime.GOOS == "windows" {
-					command = "cmd.exe /c echo %" + key + "%"
-				}
-				output, err := session.Output(command)
-				require.NoError(t, err)
-				require.NotEmpty(t, strings.TrimSpace(string(output)))
-			})
-		}
-	})
-
-	t.Run("SSH connection env vars", func(t *testing.T) {
-		t.Parallel()
-
-		// Note: the SSH_TTY environment variable should only be set for TTYs.
-		// For some reason this test produces a TTY locally and a non-TTY in CI
-		// so we don't test for the absence of SSH_TTY.
-		for _, key := range []string{"SSH_CONNECTION", "SSH_CLIENT"} {
-			key := key
-			t.Run(key, func(t *testing.T) {
-				t.Parallel()
-
-				session := setupSSHSession(t, codersdk.WorkspaceAgentMetadata{})
-				command := "sh -c 'echo $" + key + "'"
-				if runtime.GOOS == "windows" {
-					command = "cmd.exe /c echo %" + key + "%"
-				}
-				output, err := session.Output(command)
-				require.NoError(t, err)
-				require.NotEmpty(t, strings.TrimSpace(string(output)))
-			})
-		}
-	})
-
-	t.Run("StartupScript", func(t *testing.T) {
-		t.Parallel()
-		if runtime.GOOS == "windows" {
-			t.Skip("This test doesn't work on Windows for some reason...")
-		}
-		content := "output"
-		_, _, fs := setupAgent(t, codersdk.WorkspaceAgentMetadata{
-			StartupScript: "echo " + content,
-		}, 0)
-		var gotContent string
-		require.Eventually(t, func() bool {
-			outputPath := filepath.Join(os.TempDir(), "coder-startup-script.log")
-			content, err := afero.ReadFile(fs, outputPath)
-			if err != nil {
-				t.Logf("read file %q: %s", outputPath, err)
-				return false
-			}
-			if len(content) == 0 {
-				t.Logf("no content in %q", outputPath)
-				return false
-			}
+			session := setupSSHSession(t, codersdk.WorkspaceAgentMetadata{})
+			command := "sh -c 'echo $" + key + "'"
 			if runtime.GOOS == "windows" {
-				// Windows uses UTF16! 🪟🪟🪟
-				content, _, err = transform.Bytes(unicode.UTF16(unicode.LittleEndian, unicode.UseBOM).NewDecoder(), content)
-				if !assert.NoError(t, err) {
-					return false
-				}
+				command = "cmd.exe /c echo %" + key + "%"
 			}
-			gotContent = string(content)
-			return true
-		}, testutil.WaitShort, testutil.IntervalMedium)
-		require.Equal(t, content, strings.TrimSpace(gotContent))
-	})
+			output, err := session.Output(command)
+			require.NoError(t, err)
+			require.NotEmpty(t, strings.TrimSpace(string(output)))
+		})
+	}
+}
 
-	t.Run("ReconnectingPTY", func(t *testing.T) {
-		t.Parallel()
+func TestAgent_SSHConnectionEnvVars(t *testing.T) {
+	t.Parallel()
+
+	// Note: the SSH_TTY environment variable should only be set for TTYs.
+	// For some reason this test produces a TTY locally and a non-TTY in CI
+	// so we don't test for the absence of SSH_TTY.
+	for _, key := range []string{"SSH_CONNECTION", "SSH_CLIENT"} {
+		key := key
+		t.Run(key, func(t *testing.T) {
+			t.Parallel()
+
+			session := setupSSHSession(t, codersdk.WorkspaceAgentMetadata{})
+			command := "sh -c 'echo $" + key + "'"
+			if runtime.GOOS == "windows" {
+				command = "cmd.exe /c echo %" + key + "%"
+			}
+			output, err := session.Output(command)
+			require.NoError(t, err)
+			require.NotEmpty(t, strings.TrimSpace(string(output)))
+		})
+	}
+}
+
+func TestAgent_StartupScript(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("This test doesn't work on Windows for some reason...")
+	}
+	content := "output"
+	_, _, fs := setupAgent(t, codersdk.WorkspaceAgentMetadata{
+		StartupScript: "echo " + content,
+	}, 0)
+	var gotContent string
+	require.Eventually(t, func() bool {
+		outputPath := filepath.Join(os.TempDir(), "coder-startup-script.log")
+		content, err := afero.ReadFile(fs, outputPath)
+		if err != nil {
+			t.Logf("read file %q: %s", outputPath, err)
+			return false
+		}
+		if len(content) == 0 {
+			t.Logf("no content in %q", outputPath)
+			return false
+		}
 		if runtime.GOOS == "windows" {
-			// This might be our implementation, or ConPTY itself.
-			// It's difficult to find extensive tests for it, so
-			// it seems like it could be either.
-			t.Skip("ConPTY appears to be inconsistent on Windows.")
-		}
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		conn, _, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
-		id := uuid.New()
-		netConn, err := conn.ReconnectingPTY(ctx, id, 100, 100, "/bin/bash")
-		require.NoError(t, err)
-		defer netConn.Close()
-
-		bufRead := bufio.NewReader(netConn)
-
-		// Brief pause to reduce the likelihood that we send keystrokes while
-		// the shell is simultaneously sending a prompt.
-		time.Sleep(100 * time.Millisecond)
-
-		data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
-			Data: "echo test\r\n",
-		})
-		require.NoError(t, err)
-		_, err = netConn.Write(data)
-		require.NoError(t, err)
-
-		expectLine := func(matcher func(string) bool) {
-			for {
-				line, err := bufRead.ReadString('\n')
-				require.NoError(t, err)
-				if matcher(line) {
-					break
-				}
+			// Windows uses UTF16! 🪟🪟🪟
+			content, _, err = transform.Bytes(unicode.UTF16(unicode.LittleEndian, unicode.UseBOM).NewDecoder(), content)
+			if !assert.NoError(t, err) {
+				return false
 			}
 		}
+		gotContent = string(content)
+		return true
+	}, testutil.WaitShort, testutil.IntervalMedium)
+	require.Equal(t, content, strings.TrimSpace(gotContent))
+}
 
-		matchEchoCommand := func(line string) bool {
-			return strings.Contains(line, "echo test")
-		}
-		matchEchoOutput := func(line string) bool {
-			return strings.Contains(line, "test") && !strings.Contains(line, "echo")
-		}
+func TestAgent_ReconnectingPTY(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		// This might be our implementation, or ConPTY itself.
+		// It's difficult to find extensive tests for it, so
+		// it seems like it could be either.
+		t.Skip("ConPTY appears to be inconsistent on Windows.")
+	}
 
-		// Once for typing the command...
-		expectLine(matchEchoCommand)
-		// And another time for the actual output.
-		expectLine(matchEchoOutput)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
 
-		_ = netConn.Close()
-		netConn, err = conn.ReconnectingPTY(ctx, id, 100, 100, "/bin/bash")
-		require.NoError(t, err)
-		defer netConn.Close()
+	conn, _, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
+	id := uuid.New()
+	netConn, err := conn.ReconnectingPTY(ctx, id, 100, 100, "/bin/bash")
+	require.NoError(t, err)
+	defer netConn.Close()
 
-		bufRead = bufio.NewReader(netConn)
+	bufRead := bufio.NewReader(netConn)
 
-		// Same output again!
-		expectLine(matchEchoCommand)
-		expectLine(matchEchoOutput)
+	// Brief pause to reduce the likelihood that we send keystrokes while
+	// the shell is simultaneously sending a prompt.
+	time.Sleep(100 * time.Millisecond)
+
+	data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
+		Data: "echo test\r\n",
 	})
+	require.NoError(t, err)
+	_, err = netConn.Write(data)
+	require.NoError(t, err)
 
-	t.Run("Dial", func(t *testing.T) {
-		t.Parallel()
-
-		cases := []struct {
-			name  string
-			setup func(t *testing.T) net.Listener
-		}{
-			{
-				name: "TCP",
-				setup: func(t *testing.T) net.Listener {
-					l, err := net.Listen("tcp", "127.0.0.1:0")
-					require.NoError(t, err, "create TCP listener")
-					return l
-				},
-			},
-			{
-				name: "UDP",
-				setup: func(t *testing.T) net.Listener {
-					addr := net.UDPAddr{
-						IP:   net.ParseIP("127.0.0.1"),
-						Port: 0,
-					}
-					l, err := udp.Listen("udp", &addr)
-					require.NoError(t, err, "create UDP listener")
-					return l
-				},
-			},
+	expectLine := func(matcher func(string) bool) {
+		for {
+			line, err := bufRead.ReadString('\n')
+			require.NoError(t, err)
+			if matcher(line) {
+				break
+			}
 		}
+	}
 
-		for _, c := range cases {
-			c := c
-			t.Run(c.name, func(t *testing.T) {
-				t.Parallel()
+	matchEchoCommand := func(line string) bool {
+		return strings.Contains(line, "echo test")
+	}
+	matchEchoOutput := func(line string) bool {
+		return strings.Contains(line, "test") && !strings.Contains(line, "echo")
+	}
 
-				// Setup listener
-				l := c.setup(t)
-				defer l.Close()
-				go func() {
-					for {
-						c, err := l.Accept()
-						if err != nil {
-							return
-						}
+	// Once for typing the command...
+	expectLine(matchEchoCommand)
+	// And another time for the actual output.
+	expectLine(matchEchoOutput)
 
-						go testAccept(t, c)
+	_ = netConn.Close()
+	netConn, err = conn.ReconnectingPTY(ctx, id, 100, 100, "/bin/bash")
+	require.NoError(t, err)
+	defer netConn.Close()
+
+	bufRead = bufio.NewReader(netConn)
+
+	// Same output again!
+	expectLine(matchEchoCommand)
+	expectLine(matchEchoOutput)
+}
+
+func TestAgent_Dial(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		setup func(t *testing.T) net.Listener
+	}{
+		{
+			name: "TCP",
+			setup: func(t *testing.T) net.Listener {
+				l, err := net.Listen("tcp", "127.0.0.1:0")
+				require.NoError(t, err, "create TCP listener")
+				return l
+			},
+		},
+		{
+			name: "UDP",
+			setup: func(t *testing.T) net.Listener {
+				addr := net.UDPAddr{
+					IP:   net.ParseIP("127.0.0.1"),
+					Port: 0,
+				}
+				l, err := udp.Listen("udp", &addr)
+				require.NoError(t, err, "create UDP listener")
+				return l
+			},
+		},
+	}
+
+	for _, c := range cases {
+		c := c
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Setup listener
+			l := c.setup(t)
+			defer l.Close()
+			go func() {
+				for {
+					c, err := l.Accept()
+					if err != nil {
+						return
 					}
-				}()
 
-				conn, _, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
-				require.True(t, conn.AwaitReachable(context.Background()))
-				conn1, err := conn.DialContext(context.Background(), l.Addr().Network(), l.Addr().String())
-				require.NoError(t, err)
-				defer conn1.Close()
-				conn2, err := conn.DialContext(context.Background(), l.Addr().Network(), l.Addr().String())
-				require.NoError(t, err)
-				defer conn2.Close()
-				testDial(t, conn2)
-				testDial(t, conn1)
-				time.Sleep(150 * time.Millisecond)
-			})
-		}
-	})
+					go testAccept(t, c)
+				}
+			}()
 
-	t.Run("Speedtest", func(t *testing.T) {
-		t.Parallel()
-		t.Skip("This test is relatively flakey because of Tailscale's speedtest code...")
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-		derpMap := tailnettest.RunDERPAndSTUN(t)
-		conn, _, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{
+			conn, _, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
+			require.True(t, conn.AwaitReachable(context.Background()))
+			conn1, err := conn.DialContext(context.Background(), l.Addr().Network(), l.Addr().String())
+			require.NoError(t, err)
+			defer conn1.Close()
+			conn2, err := conn.DialContext(context.Background(), l.Addr().Network(), l.Addr().String())
+			require.NoError(t, err)
+			defer conn2.Close()
+			testDial(t, conn2)
+			testDial(t, conn1)
+			time.Sleep(150 * time.Millisecond)
+		})
+	}
+}
+
+func TestAgent_Speedtest(t *testing.T) {
+	t.Parallel()
+	t.Skip("This test is relatively flakey because of Tailscale's speedtest code...")
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	derpMap := tailnettest.RunDERPAndSTUN(t)
+	conn, _, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{
+		DERPMap: derpMap,
+	}, 0)
+	defer conn.Close()
+	res, err := conn.Speedtest(ctx, speedtest.Upload, 250*time.Millisecond)
+	require.NoError(t, err)
+	t.Logf("%.2f MBits/s", res[len(res)-1].MBitsPerSecond())
+}
+
+func TestAgent_Reconnect(t *testing.T) {
+	t.Parallel()
+	// After the agent is disconnected from a coordinator, it's supposed
+	// to reconnect!
+	coordinator := tailnet.NewCoordinator()
+	defer coordinator.Close()
+
+	agentID := uuid.New()
+	statsCh := make(chan *codersdk.AgentStats)
+	derpMap := tailnettest.RunDERPAndSTUN(t)
+	client := &client{
+		t:       t,
+		agentID: agentID,
+		metadata: codersdk.WorkspaceAgentMetadata{
 			DERPMap: derpMap,
-		}, 0)
-		defer conn.Close()
-		res, err := conn.Speedtest(ctx, speedtest.Upload, 250*time.Millisecond)
-		require.NoError(t, err)
-		t.Logf("%.2f MBits/s", res[len(res)-1].MBitsPerSecond())
+		},
+		statsChan:   statsCh,
+		coordinator: coordinator,
+	}
+	initialized := atomic.Int32{}
+	closer := agent.New(agent.Options{
+		ExchangeToken: func(ctx context.Context) (string, error) {
+			initialized.Add(1)
+			return "", nil
+		},
+		Client: client,
+		Logger: slogtest.Make(t, nil).Leveled(slog.LevelInfo),
 	})
+	defer closer.Close()
 
-	t.Run("Reconnect", func(t *testing.T) {
-		t.Parallel()
-		// After the agent is disconnected from a coordinator, it's supposed
-		// to reconnect!
-		coordinator := tailnet.NewCoordinator()
-		defer coordinator.Close()
+	require.Eventually(t, func() bool {
+		return coordinator.Node(agentID) != nil
+	}, testutil.WaitShort, testutil.IntervalFast)
+	client.lastWorkspaceAgent()
+	require.Eventually(t, func() bool {
+		return initialized.Load() == 2
+	}, testutil.WaitShort, testutil.IntervalFast)
+}
 
-		agentID := uuid.New()
-		statsCh := make(chan *codersdk.AgentStats)
-		derpMap := tailnettest.RunDERPAndSTUN(t)
-		client := &client{
-			t:       t,
-			agentID: agentID,
-			metadata: codersdk.WorkspaceAgentMetadata{
-				DERPMap: derpMap,
-			},
-			statsChan:   statsCh,
-			coordinator: coordinator,
-		}
-		initialized := atomic.Int32{}
-		closer := agent.New(agent.Options{
-			ExchangeToken: func(ctx context.Context) (string, error) {
-				initialized.Add(1)
-				return "", nil
-			},
-			Client: client,
-			Logger: slogtest.Make(t, nil).Leveled(slog.LevelInfo),
-		})
-		defer closer.Close()
+func TestAgent_WriteVSCodeConfigs(t *testing.T) {
+	t.Parallel()
 
-		require.Eventually(t, func() bool {
-			return coordinator.Node(agentID) != nil
-		}, testutil.WaitShort, testutil.IntervalFast)
-		client.lastWorkspaceAgent()
-		require.Eventually(t, func() bool {
-			return initialized.Load() == 2
-		}, testutil.WaitShort, testutil.IntervalFast)
+	coordinator := tailnet.NewCoordinator()
+	defer coordinator.Close()
+
+	client := &client{
+		t:       t,
+		agentID: uuid.New(),
+		metadata: codersdk.WorkspaceAgentMetadata{
+			GitAuthConfigs: 1,
+			DERPMap:        &tailcfg.DERPMap{},
+		},
+		statsChan:   make(chan *codersdk.AgentStats),
+		coordinator: coordinator,
+	}
+	filesystem := afero.NewMemMapFs()
+	closer := agent.New(agent.Options{
+		ExchangeToken: func(ctx context.Context) (string, error) {
+			return "", nil
+		},
+		Client:     client,
+		Logger:     slogtest.Make(t, nil).Leveled(slog.LevelInfo),
+		Filesystem: filesystem,
 	})
+	defer closer.Close()
 
-	t.Run("WriteVSCodeConfigs", func(t *testing.T) {
-		t.Parallel()
-
-		coordinator := tailnet.NewCoordinator()
-		defer coordinator.Close()
-
-		client := &client{
-			t:       t,
-			agentID: uuid.New(),
-			metadata: codersdk.WorkspaceAgentMetadata{
-				GitAuthConfigs: 1,
-				DERPMap:        &tailcfg.DERPMap{},
-			},
-			statsChan:   make(chan *codersdk.AgentStats),
-			coordinator: coordinator,
-		}
-		filesystem := afero.NewMemMapFs()
-		closer := agent.New(agent.Options{
-			ExchangeToken: func(ctx context.Context) (string, error) {
-				return "", nil
-			},
-			Client:     client,
-			Logger:     slogtest.Make(t, nil).Leveled(slog.LevelInfo),
-			Filesystem: filesystem,
-		})
-		defer closer.Close()
-
-		home, err := os.UserHomeDir()
-		require.NoError(t, err)
-		path := filepath.Join(home, ".vscode-server", "data", "Machine", "settings.json")
-		require.Eventually(t, func() bool {
-			_, err := filesystem.Stat(path)
-			return err == nil
-		}, testutil.WaitShort, testutil.IntervalFast)
-	})
+	home, err := os.UserHomeDir()
+	require.NoError(t, err)
+	name := filepath.Join(home, ".vscode-server", "data", "Machine", "settings.json")
+	require.Eventually(t, func() bool {
+		_, err := filesystem.Stat(name)
+		return err == nil
+	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
 func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exec.Cmd {
