@@ -39,8 +39,6 @@
 
 {{#def.responses}}
 
-{{#def.callbacks}}
-
 {{ data.security = data.operation.security ? data.operation.security : data.api.security; }}
 {{? data.security && data.security.length }}
 {{#def.authentication}}

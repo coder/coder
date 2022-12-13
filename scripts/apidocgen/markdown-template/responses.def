@@ -67,7 +67,6 @@ Status Code **{{=response.status}}**
 {{?}}
 
 {{ data.response = response; }}
-{{#def.links}}
 
 {{?}}
 {{~}}
