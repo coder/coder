@@ -14,11 +14,13 @@ terraform {
 # User parameters
 
 variable "dotfiles_uri" {
+  type        = string
   description = <<-EOF
   Dotfiles repo URI (optional)
 
   see https://dotfiles.github.io
   EOF
+  default     = ""
 }  
   
 variable "datocms_api_token" {
