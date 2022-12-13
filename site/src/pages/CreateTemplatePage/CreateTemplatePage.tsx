@@ -15,18 +15,22 @@ const CreateTemplatePage: FC = () => {
   const navigate = useNavigate()
   const organizationId = useOrganizationId()
   const [searchParams] = useSearchParams()
-  const [state] = useMachine(createTemplateMachine, {
+  const [state, send] = useMachine(createTemplateMachine, {
     context: {
       organizationId,
       exampleId: searchParams.get("exampleId"),
     },
     actions: {
-      onCreate: () => {
-        console.log("CREATE!")
+      onCreate: (_, { data }) => {
+        navigate(`/templates/${data.name}`)
       },
     },
   })
   const { starterTemplate } = state.context
+  const shouldDisplayForm =
+    state.matches("idle") ||
+    state.matches("creating") ||
+    state.matches("created")
 
   const onCancel = () => {
     navigate(-1)
@@ -40,11 +44,17 @@ const CreateTemplatePage: FC = () => {
 
       <FullPageHorizontalForm title={t("title")} onCancel={onCancel}>
         {state.hasTag("loading") && <Loader />}
-        {state.matches("idle") && (
+        {shouldDisplayForm && (
           <CreateTemplateForm
             starterTemplate={starterTemplate}
-            isSubmitting={false}
+            isSubmitting={state.matches("creating")}
             onCancel={onCancel}
+            onSubmit={(data) => {
+              send({
+                type: "CREATE",
+                data,
+              })
+            }}
           />
         )}
       </FullPageHorizontalForm>

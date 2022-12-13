@@ -10,6 +10,7 @@ import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import { nameValidator, getFormHelpers, onChangeTrimmed } from "util/formUtils"
+import { CreateTemplateData } from "xServices/createTemplate/createTemplateXService"
 import * as Yup from "yup"
 
 const validationSchema = Yup.object({
@@ -21,29 +22,13 @@ const validationSchema = Yup.object({
   allow_user_cancel_workspace_jobs: Yup.boolean(),
 })
 
-interface FormValues {
-  name: string
-  display_name: string
-  description: string
-  icon: string
-  default_ttl_hours: number
-  allow_user_cancel_workspace_jobs: boolean
-}
-
-const defaultInitialValues: FormValues = {
+const defaultInitialValues: CreateTemplateData = {
   name: "",
   display_name: "",
   description: "",
   icon: "",
   default_ttl_hours: 24,
   allow_user_cancel_workspace_jobs: false,
-}
-
-interface CreateTemplateFormProps {
-  starterTemplate?: TemplateExample
-  errors?: unknown
-  isSubmitting: boolean
-  onCancel: () => void
 }
 
 const getInitialValues = (starterTemplate?: TemplateExample) => {
@@ -60,22 +45,29 @@ const getInitialValues = (starterTemplate?: TemplateExample) => {
   }
 }
 
+interface CreateTemplateFormProps {
+  starterTemplate?: TemplateExample
+  errors?: unknown
+  isSubmitting: boolean
+  onCancel: () => void
+  onSubmit: (data: CreateTemplateData) => void
+}
+
 export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
   starterTemplate,
   errors,
   isSubmitting,
   onCancel,
+  onSubmit,
 }) => {
   const styles = useStyles()
   const formFooterStyles = useFormFooterStyles()
-  const form = useFormik<FormValues>({
+  const form = useFormik<CreateTemplateData>({
     initialValues: getInitialValues(starterTemplate),
     validationSchema,
-    onSubmit: () => {
-      console.log("Submit")
-    },
+    onSubmit,
   })
-  const getFieldHelpers = getFormHelpers<FormValues>(form, errors)
+  const getFieldHelpers = getFormHelpers<CreateTemplateData>(form, errors)
   const { t } = useTranslation("createTemplatePage")
 
   return (

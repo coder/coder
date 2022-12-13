@@ -1,6 +1,5 @@
-import { getTemplateExamples } from "api/api"
+import { createValidTemplate, getTemplateExamples } from "api/api"
 import { Template, TemplateExample } from "api/typesGenerated"
-import { MockTemplate } from "testHelpers/entities"
 import { assign, createMachine } from "xstate"
 
 interface CreateTemplateContext {
@@ -11,13 +10,22 @@ interface CreateTemplateContext {
   starterTemplate?: TemplateExample
 }
 
+export interface CreateTemplateData {
+  name: string
+  display_name: string
+  description: string
+  icon: string
+  default_ttl_hours: number
+  allow_user_cancel_workspace_jobs: boolean
+}
+
 export const createTemplateMachine = createMachine(
   {
     id: "createTemplate",
     predictableActionArguments: true,
     schema: {
       context: {} as CreateTemplateContext,
-      events: {} as { type: "CREATE"; data: any },
+      events: {} as { type: "CREATE"; data: CreateTemplateData },
       services: {} as {
         loadStarterTemplate: {
           data: TemplateExample
@@ -89,9 +97,15 @@ export const createTemplateMachine = createMachine(
         }
         return starterTemplate
       },
-      createTemplate: async () => {
-        console.log("CALL CREATE TEMPLATE!")
-        return MockTemplate
+      createTemplate: async ({ organizationId, exampleId }, { data }) => {
+        if (!exampleId) {
+          throw new Error("Example ID not provided")
+        }
+        return createValidTemplate(organizationId, exampleId, {
+          ...data,
+          // hours to milliseconds
+          default_ttl_ms: data.default_ttl_hours * 60 * 60 * 100,
+        })
       },
     },
     actions: {
