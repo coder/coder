@@ -127,17 +127,19 @@ const TerminalPage: FC<
   // the reconnection token and workspace name found
   // from the router.
   useEffect(() => {
-    const search = new URLSearchParams(location.search)
-    search.set("reconnect", reconnectionToken)
+    if (searchParams.get("reconnect") === reconnectionToken) {
+      return
+    }
+    searchParams.set("reconnect", reconnectionToken)
     navigate(
       {
-        search: search.toString(),
+        search: searchParams.toString(),
       },
       {
         replace: true,
       },
     )
-  }, [location.search, navigate, reconnectionToken])
+  }, [searchParams, navigate, reconnectionToken])
 
   // Apply terminal options based on connection state.
   useEffect(() => {
