@@ -61,6 +61,7 @@ type Options struct {
 	AccessURL *url.URL
 	// AppHostname should be the wildcard hostname to use for workspace
 	// applications INCLUDING the asterisk, (optional) suffix and leading dot.
+	// It will use the same scheme and port number as the access URL.
 	// E.g. "*.apps.coder.com" or "*-apps.coder.com".
 	AppHostname string
 	// AppHostnameRegex contains the regex version of options.AppHostname as

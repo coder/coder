@@ -47,17 +47,48 @@ const (
 func TestGetAppHost(t *testing.T) {
 	t.Parallel()
 
-	cases := []string{"", proxyTestSubdomainRaw}
+	cases := []struct {
+		name        string
+		accessURL   string
+		appHostname string
+		expected    string
+	}{
+		{
+			name:        "OK",
+			accessURL:   "https://test.coder.com",
+			appHostname: "*.test.coder.com",
+			expected:    "*.test.coder.com",
+		},
+		{
+			name:        "None",
+			accessURL:   "https://test.coder.com",
+			appHostname: "",
+			expected:    "",
+		},
+		{
+			name:        "OKWithPort",
+			accessURL:   "https://test.coder.com:8443",
+			appHostname: "*.test.coder.com",
+			expected:    "*.test.coder.com:8443",
+		},
+		{
+			name:        "OKWithSuffix",
+			accessURL:   "https://test.coder.com:8443",
+			appHostname: "*--suffix.test.coder.com",
+			expected:    "*--suffix.test.coder.com:8443",
+		},
+	}
 	for _, c := range cases {
 		c := c
-		name := c
-		if name == "" {
-			name = "Empty"
-		}
-		t.Run(name, func(t *testing.T) {
+		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
+
+			accessURL, err := url.Parse(c.accessURL)
+			require.NoError(t, err)
+
 			client := coderdtest.New(t, &coderdtest.Options{
-				AppHostname: c,
+				AccessURL:   accessURL,
+				AppHostname: c.appHostname,
 			})
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -71,8 +102,7 @@ func TestGetAppHost(t *testing.T) {
 			_ = coderdtest.CreateFirstUser(t, client)
 			host, err = client.GetAppHost(ctx)
 			require.NoError(t, err)
-			domain := strings.Split(host.Host, ":")[0]
-			require.Equal(t, c, domain)
+			require.Equal(t, c.expected, host.Host)
 		})
 	}
 }
