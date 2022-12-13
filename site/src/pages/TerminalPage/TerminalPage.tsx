@@ -2,12 +2,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import { useMachine } from "@xstate/react"
 import { FC, useEffect, useRef, useState } from "react"
 import { Helmet } from "react-helmet-async"
-import {
-  useLocation,
-  useNavigate,
-  useParams,
-  useSearchParams,
-} from "react-router-dom"
+import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { colors } from "theme/colors"
 import { v4 as uuidv4 } from "uuid"
 import * as XTerm from "xterm"
@@ -29,7 +24,6 @@ const TerminalPage: FC<
     readonly renderer?: XTerm.RendererType
   }>
 > = ({ renderer }) => {
-  const location = useLocation()
   const navigate = useNavigate()
   const styles = useStyles()
   const { username, workspace } = useParams()
