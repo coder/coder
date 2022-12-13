@@ -1,5 +1,6 @@
 import { createValidTemplate, getTemplateExamples } from "api/api"
 import { Template, TemplateExample } from "api/typesGenerated"
+import { displayError } from "components/GlobalSnackbar/utils"
 import { assign, createMachine } from "xstate"
 
 interface CreateTemplateContext {
@@ -73,7 +74,7 @@ export const createTemplateMachine = createMachine(
           },
           onError: {
             target: "idle",
-            actions: ["assignError"],
+            actions: ["displayError"],
           },
         },
       },
@@ -111,6 +112,13 @@ export const createTemplateMachine = createMachine(
     actions: {
       assignError: assign({ error: (_, { data }) => data }),
       assignStarterTemplate: assign({ starterTemplate: (_, { data }) => data }),
+      displayError: (_, { data }) => {
+        if (data instanceof Error) {
+          displayError(data.message)
+          return
+        }
+        console.warn(`data is not an Error`)
+      },
     },
     guards: {
       isExampleProvided: ({ exampleId }) => Boolean(exampleId),

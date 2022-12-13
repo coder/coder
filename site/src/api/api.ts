@@ -744,7 +744,15 @@ export const getTemplateExamples = async (
   return response.data
 }
 
-// This function mocks what the CLI is doing
+// for creating a new template:
+// 1. upload template tar or use the example ID
+// 2. create template version
+// 3. wait for it to complete
+// 4. if the job failed with the missing parameter error then:
+//    a. prompt for params
+//    b. create template version again with the same file hash
+//    c. wait for it to complete
+// 5.create template with the successful template version ID
 // https://github.com/coder/coder/blob/b6703b11c6578b2f91a310d28b6a7e57f0069be6/cli/templatecreate.go#L169-L170
 export const createValidTemplate = async (
   organizationId: string,
@@ -752,47 +760,41 @@ export const createValidTemplate = async (
   // The template_version_id is calculated in the function
   data: Omit<TypesGen.CreateTemplateRequest, "template_version_id">,
 ): Promise<TypesGen.Template> => {
-  // First template version is used to generate the parameters and default values
+  // Step 2.
   let version = await createTemplateVersion(organizationId, {
     storage_method: "file",
     example_id: exampleId,
     provisioner: "terraform",
     tags: {},
   })
-  console.log("Create version")
 
-  // Wait the version job to be completed
-  const waitForJobToBeCompleted = async (
-    templateVersion: TypesGen.TemplateVersion,
-  ) => {
-    const version = await getTemplateVersion(templateVersion.id)
-    if (["pending", "running"].includes(version.job.status)) {
-      await waitForJobToBeCompleted(version)
-    }
-    return version
+  // Step 3.
+  let status = version.job.status
+  while (["pending", "running"].includes(status)) {
+    version = await getTemplateVersion(version.id)
+    status = version.job.status
   }
-  version = await waitForJobToBeCompleted(version)
-  if (version.job.status === "failed") {
-    throw new Error("Version failed to be created")
+  if (status === "failed") {
+    console.error(version.job.error)
+    throw new Error(version.job.error)
   }
 
-  console.log("Completed")
-  // Get schema and create a new template version with the parameters
-  const schema = await getTemplateVersionSchema(version.id)
-  version = await createTemplateVersion(organizationId, {
-    storage_method: "file",
-    example_id: exampleId,
-    provisioner: "terraform",
-    tags: {},
-    parameter_values: schema.map((parameter) => ({
-      name: parameter.name,
-      source_scheme: parameter.default_source_scheme,
-      destination_scheme: parameter.default_destination_scheme,
-      source_value: parameter.default_source_value,
-    })),
-  })
+  // // Get schema and create a new template version with the parameters
+  // const schema = await getTemplateVersionSchema(version.id)
+  // version = await createTemplateVersion(organizationId, {
+  //   storage_method: "file",
+  //   example_id: exampleId,
+  //   provisioner: "terraform",
+  //   tags: {},
+  //   parameter_values: schema.map((parameter) => ({
+  //     name: parameter.name,
+  //     source_scheme: parameter.default_source_scheme,
+  //     destination_scheme: parameter.default_destination_scheme,
+  //     source_value: parameter.default_source_value,
+  //   })),
+  // })
 
-  // Create template
+  // Step 5.
   const template = await createTemplate(organizationId, {
     ...data,
     template_version_id: version.id,
