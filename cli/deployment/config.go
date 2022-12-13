@@ -334,12 +334,6 @@ func newConfig() *codersdk.DeploymentConfig {
 			Flag:    "ssh-keygen-algorithm",
 			Default: "ed25519",
 		},
-		AutoImportTemplates: &codersdk.DeploymentConfigField[[]string]{
-			Name:   "Auto Import Templates",
-			Usage:  "Templates to auto-import. Available auto-importable templates are: kubernetes",
-			Flag:   "auto-import-template",
-			Hidden: true,
-		},
 		MetricsCacheRefreshInterval: &codersdk.DeploymentConfigField[time.Duration]{
 			Name:    "Metrics Cache Refresh Interval",
 			Usage:   "How frequently metrics are refreshed",
