@@ -306,6 +306,7 @@ export interface DeploymentConfig {
   readonly experimental: DeploymentConfigField<boolean>
   readonly update_check: DeploymentConfigField<boolean>
   readonly max_token_lifetime: DeploymentConfigField<number>
+  readonly swagger: SwaggerConfig
 }
 
 // From codersdk/deploymentconfig.go
@@ -613,6 +614,11 @@ export interface ServiceBanner {
   readonly enabled: boolean
   readonly message?: string
   readonly background_color?: string
+}
+
+// From codersdk/deploymentconfig.go
+export interface SwaggerConfig {
+  readonly enabled?: DeploymentConfigField<boolean>
 }
 
 // From codersdk/deploymentconfig.go
