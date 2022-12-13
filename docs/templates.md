@@ -75,8 +75,7 @@ coder templates create <template-name>
 Example templates are not designed to support every use (e.g
 [examples/aws-linux](https://github.com/coder/coder/tree/main/examples/templates/aws-linux)
 does not support custom VPCs). You can add these features by editing the
-Terraform code once you run `coder templates init` (new) or `coder templates
-pull` (existing).
+Terraform code once you run `coder templates init` (new) or `coder templates pull` (existing).
 
 Refer to the following resources to build your own templates:
 
@@ -383,8 +382,7 @@ practices:
 - Ensure the resource has `curl` installed
 - Ensure the resource can `curl` your Coder [access
   URL](./admin/configure.md#access-url)
-- Manually connect to the resource and check the agent logs (e.g., `kubectl
-exec`, `docker exec` or AWS console)
+- Manually connect to the resource and check the agent logs (e.g., `kubectl exec`, `docker exec` or AWS console)
   - The Coder agent logs are typically stored in `/var/log/coder-agent.log`
   - The Coder agent startup script logs are typically stored in
     `/var/log/coder-startup-script.log`
