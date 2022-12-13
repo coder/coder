@@ -92,9 +92,3 @@
 {{ } /* of schemas */ }}
 
 {{?}}
-
-{{#def.footer}}
-
-{{? data.options.discovery}}
-{{#def.discovery}}
-{{?}}

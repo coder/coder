@@ -15,7 +15,7 @@
 
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
-{{~ data.responses :r}}|{{=r.status}}|{{=r.meaning}}|{{=r.description || 'none'}}|{{=r.schema}}|
+{{~ data.responses :r}}|{{=r.status}}|{{=r.meaning}}|{{=r.description || 'none'}}|`{{=r.content['application/json'].schema['x-widdershins-oldRef'].substring(21)}}`|
 {{~}}
 
 {{ data.responseSchemas = false; }}

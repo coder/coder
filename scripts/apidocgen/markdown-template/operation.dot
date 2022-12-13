@@ -12,9 +12,9 @@
 {{ data.utils.getParameters(data); }}
 
 {{? data.options.codeSamples || data.operation["x-code-samples"] }}
-> Code samples
+### Code samples
 
-{{= data.utils.getCodeSamples(data) }}
+{{= data.utils.getCodeSamples(data)}}
 {{?}}
 
 `{{= data.methodUpper}} {{=data.method.path}}`
