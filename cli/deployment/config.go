@@ -435,7 +435,7 @@ func newConfig() *codersdk.DeploymentConfig {
 				Name:    "Enable swagger endpoint",
 				Usage:   "Expose the swagger endpoint via /swagger.",
 				Flag:    "swagger-enabled",
-				Default: flag.Lookup("test.v") == nil && !buildinfo.IsDev(),
+				Default: false,
 			},
 		},
 	}
