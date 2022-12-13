@@ -21,8 +21,10 @@ import {
 } from "../../components/WorkspaceScheduleForm/WorkspaceScheduleForm"
 import {
   WorkspaceSchedulePage,
-  Language as PageLanguage,
 } from "./WorkspaceSchedulePage"
+import i18next from "i18next"
+
+const { t } = i18next
 
 const validValues: WorkspaceScheduleFormValues = {
   autoStartEnabled: true,
@@ -271,7 +273,8 @@ describe("WorkspaceSchedulePage", () => {
         name: /submit/i,
       })
       await user.click(submitButton)
-      const dialog = await screen.findByText(PageLanguage.dialogTitle)
+      const title = t("dialogTitle", { ns: "workspaceSchedulePage" })
+      const dialog = await screen.findByText(title)
       expect(dialog).toBeInTheDocument()
     })
 
@@ -289,7 +292,8 @@ describe("WorkspaceSchedulePage", () => {
         name: /submit/i,
       })
       await user.click(submitButton)
-      const dialog = screen.queryByText(PageLanguage.dialogTitle)
+      const title = t("dialogTitle", { ns: "workspaceSchedulePage" })
+      const dialog = screen.queryByText(title)
       expect(dialog).not.toBeInTheDocument()
     })
   })

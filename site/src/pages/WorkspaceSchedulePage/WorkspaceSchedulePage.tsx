@@ -4,6 +4,7 @@ import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { scheduleToAutoStart } from "pages/WorkspaceSchedulePage/schedule"
 import { ttlMsToAutoStop } from "pages/WorkspaceSchedulePage/ttl"
 import React, { useEffect } from "react"
+import { useTranslation } from "react-i18next"
 import { Navigate, useNavigate, useParams } from "react-router-dom"
 import { scheduleChanged } from "util/schedule"
 import * as TypesGen from "../../api/typesGenerated"
@@ -16,24 +17,13 @@ import {
   formValuesToTTLRequest,
 } from "./formToRequest"
 
-export const Language = {
-  forbiddenError:
-    "You don't have permissions to update the schedule for this workspace.",
-  getWorkspaceError: "Failed to fetch workspace.",
-  checkPermissionsError: "Failed to fetch permissions.",
-  dialogTitle: "Restart workspace?",
-  dialogDescription: `Would you like to restart your workspace now to apply your new auto-stop setting,
-  or let it apply after your next workspace start?`,
-  restart: "Restart workspace now",
-  applyLater: "Apply update later",
-}
-
 const getAutoStart = (workspace?: TypesGen.Workspace) =>
   scheduleToAutoStart(workspace?.autostart_schedule)
 const getAutoStop = (workspace?: TypesGen.Workspace) =>
   ttlMsToAutoStop(workspace?.ttl_ms)
 
 export const WorkspaceSchedulePage: React.FC = () => {
+  const { t } = useTranslation("workspaceSchedulePage")
   const { username: usernameQueryParam, workspace: workspaceQueryParam } =
     useParams()
   const navigate = useNavigate()
@@ -77,8 +67,8 @@ export const WorkspaceSchedulePage: React.FC = () => {
         error={getWorkspaceError || checkPermissionsError}
         text={
           getWorkspaceError
-            ? Language.getWorkspaceError
-            : Language.checkPermissionsError
+            ? t("getWorkspaceError")
+            : t("checkPermissionsError")
         }
         retry={() =>
           scheduleSend({ type: "GET_WORKSPACE", username, workspaceName })
@@ -88,9 +78,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
   }
 
   if (!permissions?.updateWorkspace) {
-    return (
-      <AlertBanner severity="error" error={Error(Language.forbiddenError)} />
-    )
+    return <AlertBanner severity="error" error={Error(t("forbiddenError"))} />
   }
 
   if (
@@ -125,10 +113,10 @@ export const WorkspaceSchedulePage: React.FC = () => {
     return (
       <ConfirmDialog
         open
-        title={Language.dialogTitle}
-        description={Language.dialogDescription}
-        confirmText={Language.restart}
-        cancelText={Language.applyLater}
+        title={t("dialogTitle")}
+        description={t("dialogDescription")}
+        confirmText={t("restart")}
+        cancelText={t("applyLater")}
         hideCancel={false}
         onConfirm={() => {
           scheduleSend("RESTART_WORKSPACE")
