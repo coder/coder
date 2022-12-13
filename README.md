@@ -66,7 +66,7 @@ curl -L https://coder.com/install.sh | sh -s -- --help
 
 Once installed, you can start a production deployment<sup>1</sup> with a single command:
 
-```sh
+```console
 # Automatically sets up an external access URL on *.try.coder.app
 coder server
 

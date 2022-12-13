@@ -2,7 +2,7 @@
 
 We recommend source controlling your templates as you would other code. [Install Coder](../install/) in CI/CD pipelines to push new template versions.
 
-```sh
+```console
 # Install the Coder CLI
 curl -L https://coder.com/install.sh | sh
 # curl -L https://coder.com/install.sh | sh -s -- --version=0.x
