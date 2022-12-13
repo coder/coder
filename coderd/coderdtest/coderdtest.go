@@ -111,6 +111,8 @@ type Options struct {
 	// test instances are running against the same database.
 	Database database.Store
 	Pubsub   database.Pubsub
+
+	SwaggerEndpointEnabled bool
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -288,6 +290,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
 			DeploymentConfig:            options.DeploymentConfig,
 			UpdateCheckOptions:          options.UpdateCheckOptions,
+			SwaggerEndpointEnabled:      options.SwaggerEndpointEnabled,
 		}
 }
 
