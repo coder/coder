@@ -5,13 +5,13 @@
 {{~}}
 
 {{? data.responseSchemas }}
-> Example responses
+### Example responses
 
 {{= data.utils.getResponseExamples(data) }}
 {{?}}
 
 {{= data.tags.section }}
-<h3 id="{{=data.operationUniqueSlug}}-responses">Responses</h3>
+### Responses
 
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
