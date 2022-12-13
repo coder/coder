@@ -782,7 +782,20 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	api.Logger.Debug(ctx, "read stats report",
+		slog.F("interval", api.AgentStatsRefreshInterval),
+		slog.F("agent", workspaceAgent.ID),
+		slog.F("workspace", workspace.ID),
+		slog.F("payload", req),
+	)
+
 	activityBumpWorkspace(api.Logger.Named("activity_bump"), api.Database, workspace.ID)
+
+	payload, err := json.Marshal(req)
+	if err != nil {
+		api.Logger.Error(ctx, "marshal agent stats report", slog.Error(err))
+		payload = json.RawMessage("{}")
+	}
 
 	now := database.Now()
 	_, err = api.Database.InsertAgentStat(ctx, database.InsertAgentStatParams{
@@ -792,7 +805,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		WorkspaceID: workspace.ID,
 		UserID:      workspace.OwnerID,
 		TemplateID:  workspace.TemplateID,
-		Payload:     json.RawMessage("{}"),
+		Payload:     payload,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
