@@ -143,7 +143,7 @@ type ProvisionerConfig struct {
 }
 
 type SwaggerConfig struct {
-	Enabled *DeploymentConfigField[bool] `json:"enabled",typescript:",notnull"`
+	Enabled *DeploymentConfigField[bool] `json:"enabled" typescript:",notnull"`
 }
 
 type Flaggable interface {
