@@ -171,6 +171,7 @@ export const workspaceScheduleBannerMachine = createMachine(
           proposedDeadline,
           getMaxDeadline(context.workspace, context.template),
         )
+        console.log(getMaxDeadline(context.workspace, context.template), proposedDeadline, newDeadline)
         await API.putWorkspaceExtension(context.workspace.id, newDeadline)
       },
       decreaseDeadline: async (context, event) => {

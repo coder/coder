@@ -143,11 +143,17 @@ export function getMaxDeadline(
     throw Error("Cannot calculate max deadline because workspace is undefined")
   }
   const startedAt = dayjs(ws.latest_build.updated_at)
-  const maxTemplateDeadline = startedAt.add(
-    dayjs.duration(tpl.default_ttl_ms, "milliseconds"),
-  )
   const maxGlobalDeadline = startedAt.add(deadlineExtensionMax)
-  return dayjs.min(maxTemplateDeadline, maxGlobalDeadline)
+  // only consider template default if it is defined and > 0, because undefined or 0
+  // means stop never, not stop immediately
+  if (tpl.default_ttl_ms) {
+    const maxTemplateDeadline = startedAt.add(
+      dayjs.duration(tpl.default_ttl_ms, "milliseconds"),
+    )
+    return dayjs.min(maxTemplateDeadline, maxGlobalDeadline)
+  } else {
+    return maxGlobalDeadline
+  }
 }
 
 /**
