@@ -429,7 +429,7 @@ jobs:
         with:
             api-key: ${{ secrets.DD_API_KEY }}
             service: "coder-gotests"
-            tags: "test_suite:${{ matrix.os }},github_ref:${{github.ref}}"
+            tags: "test_suite:postgres,github_ref:${{github.ref}}"
             files: ./gotests.xml
 
       - uses: codecov/codecov-action@v3
