@@ -1,9 +1,8 @@
-package workspacebuild_test
+package createworkspaces_test
 
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -15,9 +14,13 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/scaletest/agentconn"
+	"github.com/coder/coder/scaletest/createworkspaces"
+	"github.com/coder/coder/scaletest/reconnectingpty"
 	"github.com/coder/coder/scaletest/workspacebuild"
 	"github.com/coder/coder/testutil"
 )
@@ -37,9 +40,7 @@ func Test_Runner(t *testing.T) {
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 
-		authToken1 := uuid.NewString()
-		authToken2 := uuid.NewString()
-		authToken3 := uuid.NewString()
+		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:         echo.ParseComplete,
 			ProvisionPlan: echo.ProvisionComplete,
@@ -57,36 +58,14 @@ func Test_Runner(t *testing.T) {
 						Complete: &proto.Provision_Complete{
 							Resources: []*proto.Resource{
 								{
-									Name: "example1",
+									Name: "example",
 									Type: "aws_instance",
 									Agents: []*proto.Agent{
 										{
 											Id:   uuid.NewString(),
-											Name: "agent1",
+											Name: "agent",
 											Auth: &proto.Agent_Token{
-												Token: authToken1,
-											},
-											Apps: []*proto.App{},
-										},
-										{
-											Id:   uuid.NewString(),
-											Name: "agent2",
-											Auth: &proto.Agent_Token{
-												Token: authToken2,
-											},
-											Apps: []*proto.App{},
-										},
-									},
-								},
-								{
-									Name: "example2",
-									Type: "aws_instance",
-									Agents: []*proto.Agent{
-										{
-											Id:   uuid.NewString(),
-											Name: "agent3",
-											Auth: &proto.Agent_Token{
-												Token: authToken3,
+												Token: authToken,
 											},
 											Apps: []*proto.App{},
 										},
@@ -108,9 +87,7 @@ func Test_Runner(t *testing.T) {
 		go func() {
 			var workspace codersdk.Workspace
 			for {
-				res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-					Owner: codersdk.Me,
-				})
+				res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 				if !assert.NoError(t, err) {
 					return
 				}
@@ -126,31 +103,46 @@ func Test_Runner(t *testing.T) {
 
 			coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-			// Start the three agents.
-			for i, authToken := range []string{authToken1, authToken2, authToken3} {
-				i := i + 1
-
-				agentClient := codersdk.New(client.URL)
-				agentClient.SetSessionToken(authToken)
-				agentCloser := agent.New(agent.Options{
-					Client: agentClient,
-					Logger: slogtest.Make(t, nil).
-						Named(fmt.Sprintf("agent%d", i)).
-						Leveled(slog.LevelWarn),
-				})
-				t.Cleanup(func() {
-					_ = agentCloser.Close()
-				})
-			}
+			agentClient := codersdk.New(client.URL)
+			agentClient.SetSessionToken(authToken)
+			agentCloser := agent.New(agent.Options{
+				Client: agentClient,
+				Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelWarn),
+			})
+			t.Cleanup(func() {
+				_ = agentCloser.Close()
+			})
 
 			coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 		}()
 
-		runner := workspacebuild.NewRunner(client, workspacebuild.Config{
-			OrganizationID: user.OrganizationID,
-			UserID:         codersdk.Me,
-			Request: codersdk.CreateWorkspaceRequest{
-				TemplateID: template.ID,
+		const (
+			username = "scaletest-user"
+			email    = "scaletest@test.coder.com"
+		)
+		runner := createworkspaces.NewRunner(client, createworkspaces.Config{
+			User: createworkspaces.UserConfig{
+				OrganizationID: user.OrganizationID,
+				Username:       username,
+				Email:          email,
+			},
+			Workspace: workspacebuild.Config{
+				OrganizationID: user.OrganizationID,
+				Request: codersdk.CreateWorkspaceRequest{
+					TemplateID: template.ID,
+				},
+			},
+			ReconnectingPTY: &reconnectingpty.Config{
+				Init: codersdk.ReconnectingPTYInit{
+					Height:  24,
+					Width:   80,
+					Command: "echo hello",
+				},
+				Timeout: httpapi.Duration(testutil.WaitLong),
+			},
+			AgentConn: &agentconn.Config{
+				ConnectionMode: agentconn.ConnectionModeDerp,
+				HoldDuration:   0,
 			},
 		})
 
@@ -160,25 +152,36 @@ func Test_Runner(t *testing.T) {
 		t.Log("Runner logs:\n\n" + logsStr)
 		require.NoError(t, err)
 
-		// Look for strings in the logs.
-		require.Contains(t, logsStr, "hello from logs")
-		require.Contains(t, logsStr, `"agent1" is connected`)
-		require.Contains(t, logsStr, `"agent2" is connected`)
-		require.Contains(t, logsStr, `"agent3" is connected`)
-
-		// Find the workspace.
-		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			Owner: codersdk.Me,
-		})
+		// Ensure a user and workspace were created.
+		users, err := client.Users(ctx, codersdk.UsersRequest{})
 		require.NoError(t, err)
-		workspaces := res.Workspaces
-		require.Len(t, workspaces, 1)
+		require.Len(t, users.Users, 2) // 1 user already exists
+		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+		require.NoError(t, err)
+		require.Len(t, workspaces.Workspaces, 1)
 
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspaces[0].LatestBuild.ID)
-		coderdtest.AwaitWorkspaceAgents(t, client, workspaces[0].ID)
+		// Look for strings in the logs.
+		require.Contains(t, logsStr, "Generating user password...")
+		require.Contains(t, logsStr, "Creating user:")
+		require.Contains(t, logsStr, "Org ID:   "+user.OrganizationID.String())
+		require.Contains(t, logsStr, "Username: "+username)
+		require.Contains(t, logsStr, "Email:    "+email)
+		require.Contains(t, logsStr, "Logging in as new user...")
+		require.Contains(t, logsStr, "Creating workspace...")
+		require.Contains(t, logsStr, `"agent" is connected`)
+		require.Contains(t, logsStr, "Opening reconnecting PTY connection to agent")
+		require.Contains(t, logsStr, "Opening connection to workspace agent")
 
 		err = runner.Cleanup(ctx, "1")
 		require.NoError(t, err)
+
+		// Ensure the user and workspace were deleted.
+		users, err = client.Users(ctx, codersdk.UsersRequest{})
+		require.NoError(t, err)
+		require.Len(t, users.Users, 1) // 1 user already exists
+		workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+		require.NoError(t, err)
+		require.Len(t, workspaces.Workspaces, 0)
 	})
 
 	t.Run("FailedBuild", func(t *testing.T) {
@@ -209,11 +212,17 @@ func Test_Runner(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
-		runner := workspacebuild.NewRunner(client, workspacebuild.Config{
-			OrganizationID: user.OrganizationID,
-			UserID:         codersdk.Me,
-			Request: codersdk.CreateWorkspaceRequest{
-				TemplateID: template.ID,
+		runner := createworkspaces.NewRunner(client, createworkspaces.Config{
+			User: createworkspaces.UserConfig{
+				OrganizationID: user.OrganizationID,
+				Username:       "scaletest-user",
+				Email:          "scaletest@test.coder.com",
+			},
+			Workspace: workspacebuild.Config{
+				OrganizationID: user.OrganizationID,
+				Request: codersdk.CreateWorkspaceRequest{
+					TemplateID: template.ID,
+				},
 			},
 		})
 

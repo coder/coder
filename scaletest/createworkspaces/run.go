@@ -9,10 +9,15 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
+
+	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/scaletest/agentconn"
 	"github.com/coder/coder/scaletest/harness"
+	"github.com/coder/coder/scaletest/loadtestutil"
 	"github.com/coder/coder/scaletest/reconnectingpty"
 	"github.com/coder/coder/scaletest/workspacebuild"
 )
@@ -37,6 +42,14 @@ func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 
 // Run implements Runnable.
 func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	logs = loadtestutil.NewSyncWriter(logs)
+	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug)
+	r.client.Logger = logger
+	r.client.LogBodies = true
+
 	_, _ = fmt.Fprintln(logs, "Generating user password...")
 	password, err := cryptorand.HexString(16)
 	if err != nil {
@@ -44,6 +57,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	}
 
 	_, _ = fmt.Fprintln(logs, "Creating user:")
+	_, _ = fmt.Fprintf(logs, "\tOrg ID:   %s\n", r.cfg.User.OrganizationID.String())
 	_, _ = fmt.Fprintf(logs, "\tUsername: %s\n", r.cfg.User.Username)
 	_, _ = fmt.Fprintf(logs, "\tEmail:    %s\n", r.cfg.User.Email)
 	_, _ = fmt.Fprintf(logs, "\tPassword: ****************\n")
