@@ -50,7 +50,7 @@ Status Code **{{=response.status}}**
 {{?}}
 |Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|
-{{~block.rows :p}}|{{=p.displayName}}|{{=p.safeType}}|{{=p.required}}|{{=p.restrictions||'none'}}|{{=p.description||'none'}}|
+{{~block.rows :p}}|{{=p.displayName}}|{{? p.$ref}}`{{=p.$ref}}`{{?}}{{? !p.$ref}}{{=p.type}}{{?}}|{{=p.required}}|{{=p.restrictions||'none'}}|{{=p.description||'none'}}|
 {{~}}
 {{~}}
 {{?}}
