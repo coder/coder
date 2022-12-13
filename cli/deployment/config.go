@@ -430,6 +430,14 @@ func newConfig() *codersdk.DeploymentConfig {
 			Flag:    "max-token-lifetime",
 			Default: 24 * 30 * time.Hour,
 		},
+		Swagger: &codersdk.SwaggerConfig{
+			Enabled: &codersdk.DeploymentConfigField[bool]{
+				Name:    "Enable swagger endpoint",
+				Usage:   "Expose the swagger endpoint via /swagger.",
+				Flag:    "swagger-enabled",
+				Default: flag.Lookup("test.v") == nil && !buildinfo.IsDev(),
+			},
+		},
 	}
 }
 

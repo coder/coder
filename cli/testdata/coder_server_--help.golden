@@ -168,6 +168,8 @@ Flags:
                                                      "ecdsa", or "rsa4096".
                                                      Consumes $CODER_SSH_KEYGEN_ALGORITHM
                                                      (default "ed25519")
+      --swagger-enabled                              Expose the swagger endpoint via /swagger.
+                                                     Consumes $CODER_SWAGGER_ENABLED
       --telemetry                                    Whether telemetry is enabled or not.
                                                      Coder collects anonymized usage data to
                                                      help improve our product.

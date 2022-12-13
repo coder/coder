@@ -111,6 +111,8 @@ type Options struct {
 	Experimental                bool
 	DeploymentConfig            *codersdk.DeploymentConfig
 	UpdateCheckOptions          *updatecheck.Options // Set non-nil to enable update checking.
+
+	SwaggerEndpointEnabled bool
 }
 
 // @title Coderd API
@@ -596,10 +598,13 @@ func New(options *Options) *API {
 			})
 		})
 	})
-	// Swagger UI requires the URL trailing slash. Otherwise, the browser tries to load /assets
-	// from http://localhost:8080/assets instead of http://localhost:8080/swagger/assets.
-	r.Get("/swagger", http.RedirectHandler("/swagger/", http.StatusSeeOther).ServeHTTP)
-	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json")))
+
+	if options.SwaggerEndpointEnabled {
+		// Swagger UI requires the URL trailing slash. Otherwise, the browser tries to load /assets
+		// from http://localhost:8080/assets instead of http://localhost:8080/swagger/assets.
+		r.Get("/swagger", http.RedirectHandler("/swagger/", http.StatusSeeOther).ServeHTTP)
+		r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json")))
+	}
 
 	r.NotFound(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP)).ServeHTTP)
 	return api
