@@ -113,8 +113,8 @@ type Options struct {
 	UpdateCheckOptions          *updatecheck.Options // Set non-nil to enable update checking.
 
 	SwaggerEndpointEnabled bool
-	
-	HTTPClient                  *http.Client
+
+	HTTPClient *http.Client
 }
 
 // @title Coderd API
