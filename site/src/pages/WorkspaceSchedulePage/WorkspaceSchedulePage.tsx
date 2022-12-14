@@ -60,9 +60,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
     return <Navigate to="/workspaces" />
   }
 
-  if (
-    scheduleState.hasTag("loading")
-  ) {
+  if (scheduleState.hasTag("loading")) {
     return <FullScreenLoader />
   }
 
