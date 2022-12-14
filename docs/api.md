@@ -3,6 +3,163 @@
 - API Key (CoderSessionToken)
   - Parameter Name: **Coder-Session-Token**, in: header.
 
+# Templates
+
+## Create template by organization
+
+### Code samples
+
+```shell
+# You can also use wget
+curl -X POST http://coder-server:8080/api/v2/organizations/{organization-id}/templates/ \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+
+```
+
+`POST /organizations/{organization-id}/templates/`
+
+> Body parameter
+
+```json
+{
+  "allow_user_cancel_workspace_jobs": true,
+  "default_ttl_ms": 0,
+  "description": "string",
+  "display_name": "string",
+  "icon": "string",
+  "name": "string",
+  "parameter_values": [
+    {
+      "copy_from_parameter": "string",
+      "destination_scheme": "environment_variable",
+      "name": "string",
+      "source_scheme": "data",
+      "source_value": "string"
+    }
+  ],
+  "template_version_id": "string"
+}
+```
+
+### Parameters
+
+| Name            | In   | Type                             | Required | Description     |
+| --------------- | ---- | -------------------------------- | -------- | --------------- |
+| organization-id | path | string                           | true     | Organization ID |
+| body            | body | `codersdk.CreateTemplateRequest` | true     | Request body    |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "active_user_count": 0,
+  "active_version_id": "string",
+  "allow_user_cancel_workspace_jobs": true,
+  "build_time_stats": {
+    "property1": {
+      "p50": 0,
+      "p95": 0
+    },
+    "property2": {
+      "p50": 0,
+      "p95": 0
+    }
+  },
+  "created_at": "string",
+  "created_by_id": "string",
+  "created_by_name": "string",
+  "default_ttl_ms": 0,
+  "description": "string",
+  "display_name": "string",
+  "icon": "string",
+  "id": "string",
+  "name": "string",
+  "organization_id": "string",
+  "provisioner": "string",
+  "updated_at": "string",
+  "workspace_owner_count": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                                    | Description           | Schema              |
+| ------ | -------------------------------------------------------------------------- | --------------------- | ------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                    | OK                    | `codersdk.Template` |
+| 404    | [Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)             | Not Found             | `codersdk.Response` |
+| 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | Internal Server Error | `codersdk.Response` |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Get template metadata
+
+### Code samples
+
+```shell
+# You can also use wget
+curl -X GET http://coder-server:8080/api/v2/templates/{id} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+
+```
+
+`GET /templates/{id}`
+
+### Parameters
+
+| Name | In   | Type   | Required | Description |
+| ---- | ---- | ------ | -------- | ----------- |
+| id   | path | string | true     | Template ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "active_user_count": 0,
+  "active_version_id": "string",
+  "allow_user_cancel_workspace_jobs": true,
+  "build_time_stats": {
+    "property1": {
+      "p50": 0,
+      "p95": 0
+    },
+    "property2": {
+      "p50": 0,
+      "p95": 0
+    }
+  },
+  "created_at": "string",
+  "created_by_id": "string",
+  "created_by_name": "string",
+  "default_ttl_ms": 0,
+  "description": "string",
+  "display_name": "string",
+  "icon": "string",
+  "id": "string",
+  "name": "string",
+  "organization_id": "string",
+  "provisioner": "string",
+  "updated_at": "string",
+  "workspace_owner_count": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                                    | Description           | Schema              |
+| ------ | -------------------------------------------------------------------------- | --------------------- | ------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                    | OK                    | `codersdk.Template` |
+| 404    | [Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)             | Not Found             | `codersdk.Response` |
+| 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | Internal Server Error | `codersdk.Response` |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
 # Workspaces
 
 ## List workspaces
@@ -342,6 +499,72 @@ To perform this operation, you must be authenticated by means of one of the foll
 
 # Schemas
 
+## codersdk.CreateParameterRequest
+
+```json
+{
+  "copy_from_parameter": "string",
+  "destination_scheme": "environment_variable",
+  "name": "string",
+  "source_scheme": "data",
+  "source_value": "string"
+}
+```
+
+### Properties
+
+| Name                | Type   | Required | Restrictions | Description                                                                                                                                                                                                                                        |
+| ------------------- | ------ | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| copy_from_parameter | string | false    | none         | CloneID allows copying the value of another parameter.<br>The other param must be related to the same template_id for this to<br>succeed.<br>No other fields are required if using this, as all fields will be copied<br>from the other parameter. |
+| destination_scheme  | string | true     | none         | none                                                                                                                                                                                                                                               |
+| name                | string | true     | none         | none                                                                                                                                                                                                                                               |
+| source_scheme       | string | true     | none         | none                                                                                                                                                                                                                                               |
+| source_value        | string | true     | none         | none                                                                                                                                                                                                                                               |
+
+#### Enumerated Values
+
+| Property           | Value                |
+| ------------------ | -------------------- |
+| destination_scheme | environment_variable |
+| destination_scheme | provisioner_variable |
+| source_scheme      | data                 |
+
+## codersdk.CreateTemplateRequest
+
+```json
+{
+  "allow_user_cancel_workspace_jobs": true,
+  "default_ttl_ms": 0,
+  "description": "string",
+  "display_name": "string",
+  "icon": "string",
+  "name": "string",
+  "parameter_values": [
+    {
+      "copy_from_parameter": "string",
+      "destination_scheme": "environment_variable",
+      "name": "string",
+      "source_scheme": "data",
+      "source_value": "string"
+    }
+  ],
+  "template_version_id": "string"
+}
+```
+
+### Properties
+
+| Name                             | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                                          |
+| -------------------------------- | ------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| allow_user_cancel_workspace_jobs | boolean | false    | none         | Allow users to cancel in-progress workspace jobs.<br>\*bool as the default value is "true".                                                                                                                                                                                                          |
+| default_ttl_ms                   | integer | false    | none         | DefaultTTLMillis allows optionally specifying the default TTL<br>for all workspaces created from this template.                                                                                                                                                                                      |
+| description                      | string  | false    | none         | Description is a description of what the template contains. It must be<br>less than 128 bytes.                                                                                                                                                                                                       |
+| display_name                     | string  | false    | none         | DisplayName is the displayed name of the template.                                                                                                                                                                                                                                                   |
+| icon                             | string  | false    | none         | Icon is a relative path or external URL that specifies<br>an icon to be displayed in the dashboard.                                                                                                                                                                                                  |
+| name                             | string  | true     | none         | Name is the name of the template.                                                                                                                                                                                                                                                                    |
+| parameter_values                 | array   | false    | none         | none                                                                                                                                                                                                                                                                                                 |
+| template_version_id              | string  | true     | none         | VersionID is an in-progress or completed job to use as an initial version<br>of the template.<br><br>This is required on creation to enable a user-flow of validating a<br>template works. There is no reason the data-model cannot support empty<br>templates, but it doesn't make sense for users. |
+
 ## codersdk.DERPRegion
 
 ```json
@@ -450,6 +673,98 @@ To perform this operation, you must be authenticated by means of one of the foll
 | detail      | string | false    | none         | Detail is a debug message that provides further insight into why the<br>action failed. This information can be technical and a regular golang<br>err.Error() text.<br>- "database: too many open connections"<br>- "stat: too many open files" |
 | message     | string | false    | none         | Message is an actionable message that depicts actions the request took.<br>These messages should be fully formed sentences with proper punctuation.<br>Examples:<br>- "A user has been created."<br>- "Failed to create a user."               |
 | validations | array  | false    | none         | Validations are form field-specific friendly error messages. They will be<br>shown on a form field in the UI. These can also be used to add additional<br>context if there is a set of errors in the primary 'Message'.                        |
+
+## codersdk.Template
+
+```json
+{
+  "active_user_count": 0,
+  "active_version_id": "string",
+  "allow_user_cancel_workspace_jobs": true,
+  "build_time_stats": {
+    "property1": {
+      "p50": 0,
+      "p95": 0
+    },
+    "property2": {
+      "p50": 0,
+      "p95": 0
+    }
+  },
+  "created_at": "string",
+  "created_by_id": "string",
+  "created_by_name": "string",
+  "default_ttl_ms": 0,
+  "description": "string",
+  "display_name": "string",
+  "icon": "string",
+  "id": "string",
+  "name": "string",
+  "organization_id": "string",
+  "provisioner": "string",
+  "updated_at": "string",
+  "workspace_owner_count": 0
+}
+```
+
+### Properties
+
+| Name                             | Type                              | Required | Restrictions | Description                                |
+| -------------------------------- | --------------------------------- | -------- | ------------ | ------------------------------------------ |
+| active_user_count                | integer                           | false    | none         | ActiveUserCount is set to -1 when loading. |
+| active_version_id                | string                            | false    | none         | none                                       |
+| allow_user_cancel_workspace_jobs | boolean                           | false    | none         | none                                       |
+| build_time_stats                 | `codersdk.TemplateBuildTimeStats` | false    | none         | none                                       |
+| created_at                       | string                            | false    | none         | none                                       |
+| created_by_id                    | string                            | false    | none         | none                                       |
+| created_by_name                  | string                            | false    | none         | none                                       |
+| default_ttl_ms                   | integer                           | false    | none         | none                                       |
+| description                      | string                            | false    | none         | none                                       |
+| display_name                     | string                            | false    | none         | none                                       |
+| icon                             | string                            | false    | none         | none                                       |
+| id                               | string                            | false    | none         | none                                       |
+| name                             | string                            | false    | none         | none                                       |
+| organization_id                  | string                            | false    | none         | none                                       |
+| provisioner                      | string                            | false    | none         | none                                       |
+| updated_at                       | string                            | false    | none         | none                                       |
+| workspace_owner_count            | integer                           | false    | none         | none                                       |
+
+## codersdk.TemplateBuildTimeStats
+
+```json
+{
+  "property1": {
+    "p50": 0,
+    "p95": 0
+  },
+  "property2": {
+    "p50": 0,
+    "p95": 0
+  }
+}
+```
+
+### Properties
+
+| Name                     | Type                       | Required | Restrictions | Description |
+| ------------------------ | -------------------------- | -------- | ------------ | ----------- |
+| **additionalProperties** | `codersdk.TransitionStats` | false    | none         | none        |
+
+## codersdk.TransitionStats
+
+```json
+{
+  "p50": 0,
+  "p95": 0
+}
+```
+
+### Properties
+
+| Name | Type    | Required | Restrictions | Description |
+| ---- | ------- | -------- | ------------ | ----------- |
+| p50  | integer | false    | none         | none        |
+| p95  | integer | false    | none         | none        |
 
 ## codersdk.ValidationError
 

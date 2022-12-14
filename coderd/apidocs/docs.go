@@ -25,6 +25,107 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/organizations/{organization-id}/templates/": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Create template by organization",
+                "operationId": "create-template-by-organization",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateTemplateRequest"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization-id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Template"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/templates/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get template metadata",
+                "operationId": "get-template",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Template ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Template"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaces": {
             "get": {
                 "security": [
@@ -166,6 +267,83 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "codersdk.CreateParameterRequest": {
+            "type": "object",
+            "required": [
+                "destination_scheme",
+                "name",
+                "source_scheme",
+                "source_value"
+            ],
+            "properties": {
+                "copy_from_parameter": {
+                    "description": "CloneID allows copying the value of another parameter.\nThe other param must be related to the same template_id for this to\nsucceed.\nNo other fields are required if using this, as all fields will be copied\nfrom the other parameter.",
+                    "type": "string"
+                },
+                "destination_scheme": {
+                    "type": "string",
+                    "enum": [
+                        "environment_variable",
+                        "provisioner_variable"
+                    ]
+                },
+                "name": {
+                    "type": "string"
+                },
+                "source_scheme": {
+                    "type": "string",
+                    "enum": [
+                        "data"
+                    ]
+                },
+                "source_value": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.CreateTemplateRequest": {
+            "type": "object",
+            "required": [
+                "name",
+                "template_version_id"
+            ],
+            "properties": {
+                "allow_user_cancel_workspace_jobs": {
+                    "description": "Allow users to cancel in-progress workspace jobs.\n*bool as the default value is \"true\".",
+                    "type": "boolean"
+                },
+                "default_ttl_ms": {
+                    "description": "DefaultTTLMillis allows optionally specifying the default TTL\nfor all workspaces created from this template.",
+                    "type": "integer"
+                },
+                "description": {
+                    "description": "Description is a description of what the template contains. It must be\nless than 128 bytes.",
+                    "type": "string"
+                },
+                "display_name": {
+                    "description": "DisplayName is the displayed name of the template.",
+                    "type": "string"
+                },
+                "icon": {
+                    "description": "Icon is a relative path or external URL that specifies\nan icon to be displayed in the dashboard.",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Name is the name of the template.",
+                    "type": "string"
+                },
+                "parameter_values": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.CreateParameterRequest"
+                    }
+                },
+                "template_version_id": {
+                    "description": "VersionID is an in-progress or completed job to use as an initial version\nof the template.\n\nThis is required on creation to enable a user-flow of validating a\ntemplate works. There is no reason the data-model cannot support empty\ntemplates, but it doesn't make sense for users.",
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.DERPRegion": {
             "type": "object",
             "properties": {
@@ -261,6 +439,80 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ValidationError"
                     }
+                }
+            }
+        },
+        "codersdk.Template": {
+            "type": "object",
+            "properties": {
+                "active_user_count": {
+                    "description": "ActiveUserCount is set to -1 when loading.",
+                    "type": "integer"
+                },
+                "active_version_id": {
+                    "type": "string"
+                },
+                "allow_user_cancel_workspace_jobs": {
+                    "type": "boolean"
+                },
+                "build_time_stats": {
+                    "$ref": "#/definitions/codersdk.TemplateBuildTimeStats"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by_id": {
+                    "type": "string"
+                },
+                "created_by_name": {
+                    "type": "string"
+                },
+                "default_ttl_ms": {
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string"
+                },
+                "provisioner": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "workspace_owner_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.TemplateBuildTimeStats": {
+            "type": "object",
+            "additionalProperties": {
+                "$ref": "#/definitions/codersdk.TransitionStats"
+            }
+        },
+        "codersdk.TransitionStats": {
+            "type": "object",
+            "properties": {
+                "p50": {
+                    "type": "integer"
+                },
+                "p95": {
+                    "type": "integer"
                 }
             }
         },

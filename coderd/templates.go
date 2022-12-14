@@ -34,6 +34,16 @@ const (
 	AutoImportTemplateKubernetes AutoImportTemplate = "kubernetes"
 )
 
+// @Summary Get template metadata
+// @ID get-template
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Param id path string true "Template ID"
+// @Success 200 {object} codersdk.Template
+// @Failure 404 {object} codersdk.Response
+// @Failure 500 {object} codersdk.Response
+// @Router /templates/{id} [get]
 // Returns a single template.
 func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -126,6 +136,19 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary Create template by organization
+// @ID create-template-by-organization
+// @Security CoderSessionToken
+// @Consume json
+// @Produce json
+// @Tags Templates
+// @Param request body codersdk.CreateTemplateRequest true "Request body"
+// @Param organization-id path string true "Organization ID"
+// @Success 200 {object} codersdk.Template
+// @Failure 404 {object} codersdk.Response
+// @Failure 500 {object} codersdk.Response
+// @Router /organizations/{organization-id}/templates/ [post]
+// Returns a single template.
 // Create a new template in an organization.
 func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
