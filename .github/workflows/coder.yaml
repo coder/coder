@@ -356,6 +356,13 @@ jobs:
           path: ./gotestsum.json
           retention-days: 7
 
+      - uses: actions/upload-artifact@v3
+        if: success() || failure()
+        with:
+          name: gotests-${{ matrix.os }}.xml
+          path: ./gotests.xml
+          retention-days: 30
+
       - uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
         # the `fail_ci_if_error` option that defaults to `false`, but
@@ -433,6 +440,13 @@ jobs:
           name: gotestsum-debug-postgres.json
           path: ./gotestsum.json
           retention-days: 7
+
+      - uses: actions/upload-artifact@v3
+        if: success() || failure()
+        with:
+          name: gotests-postgres.xml
+          path: ./gotests.xml
+          retention-days: 30
 
       - uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
