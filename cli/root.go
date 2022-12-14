@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"runtime"
 	"strings"
 	"text/template"
 	"time"
@@ -583,12 +584,17 @@ func checkVersions(cmd *cobra.Command, client *codersdk.Client) error {
 	}
 
 	fmtWarningText := `version mismatch: client %s, server %s
-download the server version with: 'curl -L https://coder.com/install.sh | sh -s -- --version %s'
 `
+	// Our installation script doesn't work on Windows, so instead we direct the user
+	// to the GitHub release page to download the latest installer.
+	if runtime.GOOS == "windows" {
+		fmtWarningText += `download the server version from: https://github.com/coder/coder/releases/v%s`
+	} else {
+		fmtWarningText += `download the server version with: 'curl -L https://coder.com/install.sh | sh -s -- --version %s'`
+	}
 
 	if !buildinfo.VersionsMatch(clientVersion, info.Version) {
 		warn := cliui.Styles.Warn.Copy().Align(lipgloss.Left)
-		// Trim the leading 'v', our install.sh script does not handle this case well.
 		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), warn.Render(fmtWarningText), clientVersion, info.Version, strings.TrimPrefix(info.CanonicalVersion(), "v"))
 		_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 	}
