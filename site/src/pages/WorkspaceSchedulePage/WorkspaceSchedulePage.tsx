@@ -1,6 +1,8 @@
+import { makeStyles } from "@material-ui/core/styles"
 import { useMachine } from "@xstate/react"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
+import { Margins } from "components/Margins/Margins"
 import { scheduleToAutoStart } from "pages/WorkspaceSchedulePage/schedule"
 import { ttlMsToAutoStop } from "pages/WorkspaceSchedulePage/ttl"
 import React, { useEffect } from "react"
@@ -22,8 +24,15 @@ const getAutoStart = (workspace?: TypesGen.Workspace) =>
 const getAutoStop = (workspace?: TypesGen.Workspace) =>
   ttlMsToAutoStop(workspace?.ttl_ms)
 
+const useStyles = makeStyles((theme) => ({
+  topMargin: {
+    marginTop: `${theme.spacing(3)}px`,
+  },
+}))
+
 export const WorkspaceSchedulePage: React.FC = () => {
   const { t } = useTranslation("workspaceSchedulePage")
+  const styles = useStyles()
   const { username: usernameQueryParam, workspace: workspaceQueryParam } =
     useParams()
   const navigate = useNavigate()
@@ -34,6 +43,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
     checkPermissionsError,
     submitScheduleError,
     getWorkspaceError,
+    getTemplateError,
     permissions,
     workspace,
   } = scheduleState.context
@@ -51,34 +61,37 @@ export const WorkspaceSchedulePage: React.FC = () => {
   }
 
   if (
-    scheduleState.matches("idle") ||
-    scheduleState.matches("gettingWorkspace") ||
-    scheduleState.matches("gettingPermissions") ||
-    scheduleState.matches("gettingTemplate") ||
-    !workspace
+    scheduleState.hasTag("loading")
   ) {
     return <FullScreenLoader />
   }
 
   if (scheduleState.matches("error")) {
     return (
-      <AlertBanner
-        severity="error"
-        error={getWorkspaceError || checkPermissionsError}
-        text={
-          getWorkspaceError
-            ? t("getWorkspaceError")
-            : t("checkPermissionsError")
-        }
-        retry={() =>
-          scheduleSend({ type: "GET_WORKSPACE", username, workspaceName })
-        }
-      />
+      <Margins>
+        <div className={styles.topMargin}>
+          <AlertBanner
+            severity="error"
+            error={
+              getWorkspaceError || checkPermissionsError || getTemplateError
+            }
+            retry={() =>
+              scheduleSend({ type: "GET_WORKSPACE", username, workspaceName })
+            }
+          />
+        </div>
+      </Margins>
     )
   }
 
   if (!permissions?.updateWorkspace) {
-    return <AlertBanner severity="error" error={Error(t("forbiddenError"))} />
+    return (
+      <Margins>
+        <div className={styles.topMargin}>
+          <AlertBanner severity="error" error={Error(t("forbiddenError"))} />
+        </div>
+      </Margins>
+    )
   }
 
   if (
@@ -129,11 +142,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
   }
 
   if (scheduleState.matches("done")) {
-    return (
-      <Navigate
-        to={`/@${username}/${workspaceName}`}
-      />
-    )
+    return <Navigate to={`/@${username}/${workspaceName}`} />
   }
 
   // Theoretically impossible - log and bail

@@ -69,7 +69,7 @@ export const workspaceSchedule =
         services: {} as {
           getWorkspace: {
             data: TypesGen.Workspace
-          },
+          }
           getTemplate: {
             data: TypesGen.Template
           }
@@ -117,6 +117,7 @@ export const workspaceSchedule =
               },
             ],
           },
+          tags: "loading"
         },
         gettingTemplate: {
           entry: "clearGetTemplateError",
@@ -200,13 +201,13 @@ export const workspaceSchedule =
           checkPermissionsError: (_, event) => event.data,
         }),
         assignTemplate: assign({
-          template: (_, event) => event.data
+          template: (_, event) => event.data,
         }),
         assignGetTemplateError: assign({
-          getTemplateError: (_, event) => event.data
+          getTemplateError: (_, event) => event.data,
         }),
         clearGetTemplateError: assign({
-          getTemplateError: (_) => undefined
+          getTemplateError: (_) => undefined,
         }),
         assignAutoStopChanged: assign({
           autoStopChanged: (_, event) => event.autoStopChanged,
@@ -224,9 +225,12 @@ export const workspaceSchedule =
         // user can return to the workspace page to see the restart
         restartWorkspace: (context) => {
           if (context.workspace && context.template) {
-            return API.startWorkspace(context.workspace.id, context.template.active_version_id)
+            return API.startWorkspace(
+              context.workspace.id,
+              context.template.active_version_id,
+            )
           }
-        }
+        },
       },
 
       services: {

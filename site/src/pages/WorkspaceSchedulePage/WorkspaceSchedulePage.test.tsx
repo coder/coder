@@ -19,9 +19,7 @@ import {
   WorkspaceScheduleFormValues,
   Language as FormLanguage,
 } from "../../components/WorkspaceScheduleForm/WorkspaceScheduleForm"
-import {
-  WorkspaceSchedulePage,
-} from "./WorkspaceSchedulePage"
+import { WorkspaceSchedulePage } from "./WorkspaceSchedulePage"
 import i18next from "i18next"
 
 const { t } = i18next
