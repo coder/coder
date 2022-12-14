@@ -3,7 +3,7 @@
 {{ for (var r in data.resources) { }}
 {{ data.resource = data.resources[r]; }}
 
-<!-- BEGIN SECTION -->
+<!-- APIDOCGEN: BEGIN SECTION -->
 {{= data.tags.section }}# {{= r}}
 
 {{? data.resource.description }}{{= data.resource.description}}{{?}}
@@ -17,13 +17,12 @@
 {{ } /* of methods */ }}
 
 {{= data.tags.endSection }}
-<!-- END SECTION -->
 {{ } /* of resources */ }}
 
 {{? data.api.components && data.api.components.schemas }}
 {{= data.tags.section }}
 
-<!-- BEGIN SECTION -->
+<!-- APIDOCGEN: BEGIN SECTION -->
 # Schemas
 
 {{ for (var s in data.components.schemas) { }}
@@ -93,4 +92,3 @@
 {{ } /* of schemas */ }}
 
 {{?}}
-<!-- END SECTION -->

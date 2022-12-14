@@ -6,6 +6,14 @@
 set -euo pipefail
 
 SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
+API_MD_TMP_FILE=$(mktemp /tmp/coder-apidocgen.XXXXXX)
+
+cleanup () {
+    rm -f "${API_MD_TMP_FILE}"
+}
+trap cleanup EXIT
+
+echo "Use temporary file: ${API_MD_TMP_FILE}"
 
 (
 	cd "$SCRIPT_DIR/../.."
@@ -32,5 +40,10 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 		--omitHeader true \
 		--language_tabs "shell:curl" \
 		--summary "../../coderd/apidocs/swagger.json" \
-		--outfile "../../docs/api.md"
+		--outfile "${API_MD_TMP_FILE}"
+) || exit $?
+
+(
+	cd "$SCRIPT_DIR"
+	go run postprocess/main.go -in-md-file-single "${API_MD_TMP_FILE}"
 ) || exit $?

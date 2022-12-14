@@ -1,4 +1,4 @@
-<!-- BEGIN SECTION -->
+<!-- APIDOCGEN: BEGIN SECTION -->
 {{= data.tags.section }}# Authentication
 {{ for (var s in data.api.components.securitySchemes) { }}
 {{ var sd = data.api.components.securitySchemes[s]; }}
@@ -25,4 +25,3 @@
 {{ } /* of flows */ }}
 {{?}}
 {{ } /* of securitySchemes */ }}
-{{= data.tags.endSection }}<!-- END SECTION -->
