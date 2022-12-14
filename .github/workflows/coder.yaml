@@ -345,8 +345,11 @@ jobs:
             # Eternalize test timeout logs because "re-run failed" erases
             # artifacts and gotestsum doesn't always capture it:
             # https://github.com/gotestyourself/gotestsum/issues/292
-            echo "Checking gotestsum.json for panic trace:"
-            grep -A 999999 'panic: test timed out' gotestsum.json
+            testWithStack=$(grep 'panic: test timed out' gotestsum.json | grep -E -o '("Test":[^,}]*)')
+            if [ -n "$testWithStack" ] && grep -q "${testWithStack}.*PASS" gotestsum.json; then
+              echo "Conditions met for gotestsum stack trace missing bug, outputting panic trace:"
+              grep -A 999999 "${testWithStack}.*panic: test timed out" gotestsum.json
+            fi
           fi
           exit $ret
 
@@ -431,8 +434,11 @@ jobs:
             # Eternalize test timeout logs because "re-run failed" erases
             # artifacts and gotestsum doesn't always capture it:
             # https://github.com/gotestyourself/gotestsum/issues/292
-            echo "Checking gotestsum.json for panic trace:"
-            grep -A 999999 'panic: test timed out' gotestsum.json
+            testWithStack=$(grep 'panic: test timed out' gotestsum.json | grep -E -o '("Test":[^,}]*)')
+            if [ -n "$testWithStack" ] && grep -q "${testWithStack}.*PASS" gotestsum.json; then
+              echo "Conditions met for gotestsum stack trace missing bug, outputting panic trace:"
+              grep -A 999999 "${testWithStack}.*panic: test timed out" gotestsum.json
+            fi
           fi
           exit $ret
 
