@@ -241,7 +241,7 @@ func (a *agent) run(ctx context.Context) error {
 				<-a.closed
 				_ = cl.Close()
 			}); err != nil {
-				a.logger.Error(ctx, "report stats goroutine", slog.Error(err))
+				a.logger.Debug(ctx, "report stats goroutine", slog.Error(err))
 				_ = cl.Close()
 			}
 		}
