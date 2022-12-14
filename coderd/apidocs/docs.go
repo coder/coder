@@ -214,7 +214,7 @@ const docTemplate = `{
                 "tags": [
                     "Workspaces"
                 ],
-                "summary": "Get workspace metadata 2",
+                "summary": "Get workspace metadata",
                 "operationId": "get-workspace",
                 "parameters": [
                     {
