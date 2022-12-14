@@ -967,22 +967,23 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		}
 	}
 
+	arg := database.InsertWorkspaceResourceMetadataParams{
+		WorkspaceResourceID: resource.ID,
+		Key:                 []string{},
+		Value:               []string{},
+		Sensitive:           []bool{},
+	}
 	for _, metadatum := range protoResource.Metadata {
-		var value sql.NullString
-		if !metadatum.IsNull {
-			value.String = metadatum.Value
-			value.Valid = true
+		if metadatum.IsNull {
+			continue
 		}
-
-		_, err := db.InsertWorkspaceResourceMetadata(ctx, database.InsertWorkspaceResourceMetadataParams{
-			WorkspaceResourceID: resource.ID,
-			Key:                 metadatum.Key,
-			Value:               value,
-			Sensitive:           metadatum.Sensitive,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert metadata: %w", err)
-		}
+		arg.Key = append(arg.Key, metadatum.Key)
+		arg.Value = append(arg.Value, metadatum.Value)
+		arg.Sensitive = append(arg.Sensitive, metadatum.Sensitive)
+	}
+	_, err = db.InsertWorkspaceResourceMetadata(ctx, arg)
+	if err != nil {
+		return xerrors.Errorf("insert workspace resource metadata: %w", err)
 	}
 
 	return nil
