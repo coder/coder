@@ -35,6 +35,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
     getWorkspaceError,
     permissions,
     workspace,
+    template
   } = scheduleState.context
 
   // Get workspace on mount and whenever the args for getting a workspace change.
@@ -103,6 +104,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
         submitScheduleError={submitScheduleError}
         initialValues={{ ...autoStart, ...autoStop }}
         isLoading={scheduleState.tags.has("loading")}
+        defaultTTL={template.default_ttl_ms}
         onCancel={() => {
           navigate(`/@${username}/${workspaceName}`)
         }}
