@@ -7,7 +7,7 @@ import {
   uploadTemplateFile,
 } from "api/api"
 import {
-  CreateTemplateRequest,
+  CreateTemplateVersionRequest,
   ParameterSchema,
   Template,
   TemplateExample,
@@ -53,7 +53,7 @@ interface CreateTemplateContext {
 }
 
 export const createTemplateMachine =
-  /** @xstate-layout N4IgpgJg5mDOIC5QGMBOYCGAXMAVMAtgA4A22YAdLFhqlgJYB2UAxANoAMAuoqEQPax6Dfo14gAHogCMAVgDMFDgA5ZATnkKALADY9AdgA0IAJ6I1AJmkVlyi-tk79F2bI4c1AX0-G0mHPjEZDhUNHRMrGzSPEggAkIiYrFSCHKKKuqa8roGxmYI+u4UWgoq0lpqOvJO0t6+6OSBpOQUJPwYEBEAymE4qE3BYCwQopRMAG78ANaUfo2EzSFtHd29YP0LgwgT-MjY9KKcXEfi8cIHSaApOhaK+vrZ8mocOnLK+mp5iMrSyhRqpWUHC0Wh++mUdRAcwCmxay06zB6tD6A3ILHWqH4qAoiwAZliCBRoXhYUt2gioEi6OtUThtoxJntEkcTrEzolxNdbhR7o9nq9ZO9PqZzNILMUXtI1NKAfYtPpIcTaWMICQhgBhABKAFEAIK4bWsviCc6iTmIWQWL4IWT3YoKMWuCzuLQWCE+KENGFBFrQiJEr0RABi9FQ1AAaushKJhqMKDsZgH-CSfSE-cwk-tmCGw1hI2GLvTGftDtwjXETRzkog3X8bm5neplBo3EYRalnBR5PoKs8OBYdGoHLJFV6U4tZoGM+moDmI1GLujUJjsXiCZnvRON-6Z3O8wvREXdiXGCzuKdKxdzalbTp-g7dBxpA9KsL8q6tP99DpZFp5FYOEcCxR2TZVtwzAB3DBzmzLEACl+AAI1wfgACEwHVfggjAHAIFjRgxgZaZJ1A0kSKzKAKCgmDZ3gpCUPQzDsNwo8mQuM8YmNBIr2rAp5GsNQSjleQRMAnRlGtOQOH+GUHAsUEQWkV4QPmVNyIYSDoI02jUAQ5C0IwrDSBwyB8MIyZEyVMjwMo6jtKDOj9MYoy1RYnY2NLY5ogvbizV4h4BKEnsRPkMSJPbexrB7aVlEeQppHkd16lItSbKorTg0chjDOY0yMSxHFgnxVBCSs1KZ3SmiHN0+iDKY4y3KIjzTzLc82UvPyrhkW9734x9nyeQdrRE6xLREywNGbHQOAVD0yq3CqiExYgsAABVoDACBMsMWHVAB5AA5XAAEkDoAVUNNquNNS5JBkKw1AoX4e37Ac3VuSTO3lH9bVcD4LFuJLPRShap0omdlTM+MiMsscwIqiGyNYk8OJ8m7rzkb9evKaaBtfa1lDvWx+wSwmny0GbZuS1TQf8Hcwch-LVyK9d5sGNLEbU5HmVaziK1826Ukxu8AT63GXyG9tfmkkKQop5xu1cbwPUYfgIDgcQ2fINGqy6hAAFo30QfXuRlM3zbUIGtZCahkQiHWeL111rTUBKeSUlRvw0AE9BUzd2fhVZkRpMiHc6u6EGqfQno+Qdm2+qoQQJyoKCqexZGkFQnmBP3x3Z+hVTAMPBZkYKKHsbJpsE1xnyNm07VF6RM8xj4c7muHrJnYvryea0qmKc3ynUTOn1z+GwZsvd82jW72UdiP3kk1QnqfVxAPBH43CtjvyonuzMpqpycoayBu94kFHoUzRf3439LB0T7pNUOQ3EqWOXh0MfO4npajLWjatp9HgO1AWGN+x-A3hoMUdhYryU+uKIcP1hz-UBl-XedNpwM1DiA9GvEEqvC7JoWwLhoH6ClJJHQn5XCWx7C4P8P55BoNpuQCAZ89bPkzjYGBVgLBDlihweQkkZqpxeLyX8Vhmy1GVkAA */
+  /** @xstate-layout N4IgpgJg5mDOIC5QGMBOYCGAXMAVMAtgA4A22YAdLFhqlgJYB2UAxANoAMAuoqEQPax6Dfo14gAHogCMAVgDMFDgA5ZATlkAWaR1kA2TcukAaEAE9E8jgCYKa62r0B2Wao7zlatQF9vptJg4+MRkOFQ0dEysbNI8SCACQiJi8VIIcooq6lo6+oYm5ohGFJpeXk7W1h5O8nK+-ujkwaTkFCT8GBBRAMoROKjNoWAsEKKUTABu-ADWlAFNhC1h7Z09fWADi0MIk-zI2PSinFzH4onChymgaXpVFE41mq6aHJpO5aYW6V52ZWo10mssmkymUTnqIHmQS2rRWXWYvVo-UG5BYG1Q-FQFCWADNMQQKFC8DDlh14VBEXQNiicDtGFN9sljqd4udkuIbncHvInsoXm8PoUEA5FE9arprAZHHplBCiTTxhASMMAMIAJQAogBBXAall8QQXUQcxCyayfGRmtQlDg6TR6eRS+SVOWNaEhVr0JXDACqAAUADIAeS1ABEAPoAMQAkgG9dwzob2alENZtPcefI1PInG8OI5zUKPHo7Bxbgp3qCVKpXYFiR6wl7lSxNQBZIMANQ1Udj8biBqSlxNCHkOc0SmzaiMwOkTnzFvSmh5FCs7w4lb0OgetYWDcoAFdSGSoiMxhRdrNCW760sD0fVsw6QyDkduPqEkmhynhenHlmx3OBYLoYijyOoHjSGoKgvPmO7ureFCHnCJ7opi2KhHiqAEvKJJ3shj67IylzMgmrKfsa35AtY0glAoVSAtIjGzgushOCWRhpp4yh6NBoJwTeQxXoEURCQczCRvQqDUB2GxCKIp6MOM9IzHM14KqJDDMBpUQSVJWAyVJlxPnsL6MCR-YfoOFHXIg7yKA61jKB4CjSKOzoLnaJbUU81gqOuHg5vx6lQiJIXiZJ0myZcaKoBiWK4viGkCa0YVQNp4V6QZcmMMZRGvicpEDkaVySKmZo0WK9HUUxTgeTytilKUjG3I5VFBbh6VpQA7hgFziZiABS-AAEa4PwABCYAqvwIRgDgEAKUpUyXjhe6dRQPV9VAkaDSNY2TdNs3zblpnmYmVklWk0gvA1bGuNYgGuTmHm6CWThGCCDjQfmsp+JCakdalG29Zp227aNE1TTNpBzZAi3nspK0A2tQObaDO2oENEMHdDyrHYRp1vrE53FcOQK1LRzq1NVjG1UKa4UM4IIKDyLxyLI7Uo26Ilozp4P7VDR1w6MikI8tql1sF3Nabz-WY3tkOHTD+PKXlZlvtYFlsl+NmLjYJR3coD35k9dNfI4oGOeupSyOoLWcwhqMg3z8vY4Lytw6h8UYYlq2O9L3XO3LWMC0reOQCdTJvoVlmk5R5WU1VTHMUKoLjoCpSbg4BgOpoDuCUD+FQK29CwEIzB+rQGAELDUnwxeEu7v7wlaUXJdl1EleoNXtewJHxHR1r5GXTIm4lhwE8SvYVggvIdWuIzuaaNRViaE14J-X7BcB20x7MO35dQF3Pf9LAMVxeh2CYdhyPN2JaVt6Xh-HzXp-9-l77a9ZpXCgnlXU8nM2MglyyDsIYW0GgXAPXkPnFKO8iAYmIFgF+vcWDqm1LqT+w8yZGxXFOJcLxQR6FkNBBc2YnBKEYoQkC2gniwLCEDVKWVLgAHVhAAAsUGn3rojRu8Ft4tzSkwqKog2FYE4VXV+sl37qwKkPC6w47KM2dE5VQtQ3KFnNmae4m5tCOS0NmVw9C+GhQDsw0RHCuGyXPmhBKWEkpS0EZ1cxjAxESO7lIqSMizpkQUfHdM-8GI1QXHof4FBqJgjFGoOQzgN4NEloDHeqUFQ8PFg4xJTjkm4W8YPEmyZdYr3HhPaQPFHKGD5EAhATlQFgTkHIB6kowQc03rfAR99OopK9pfLA190lc0yQHBUOS5F5J1j-KiFU6IAOCUKf4FDWLKDLPYQw0TXK+D+owfgEA4DiC3uQUZ380gAFo1ALiOaAv4ly-gGGafEpuglqBIiiAckeCBl4LgcOONiVhbTODBCU66xjd4PgpOsTYe4XnDkdBQ2c-x8wTx5PmN4HyHiL0cC4Kw913hAqbGASFlEvDjloQ9KC3FPD2g8goUBbEdCOnzPoMoQKkJ7ygPi3W7yhQChXGBbMD05Dri8DAlpCT+n3zZT-LMC5cwUNUBkVw7hZxgSBYwgOulIqGW-l-V5tsODhOIQYJF3FIKaJkLPcJmY1CGGBHyewyqd6yzBq7UOuNYYQHFVdLIFASnaEYloMsQIXoOEZuuRZVqpxODqMK+5cCnGPw7hXSRvd3UyG4uOfBS5JTaA8K8Oq6YqhLgqDYR09ohV3P4TG9pCDobIMTafZNVTKmuRcEoWJVLNysVtnagZgiXFuKsVJet4ClBzlqFBEhHg3iaDIY6OwYIpyOHArcOJ-0RV31Bh03C9aQT2AoKo5wy9OIRrIZuXdrwc66Dck5Lt7SiRut8XHApiL7gKoeLcRZjEFyqHHu9fMAUYK1HWd4IAA */
   createMachine(
     {
       id: "createTemplate",
@@ -72,6 +72,9 @@ export const createTemplateMachine =
             data: TemplateExample
           }
           createFirstVersion: {
+            data: TemplateVersion
+          }
+          createVersionWithParameters: {
             data: TemplateVersion
           }
           waitForJobToBeCompleted: {
@@ -118,9 +121,11 @@ export const createTemplateMachine =
             UPLOAD_FILE: {
               actions: ["assignFile"],
               target: "uploading",
+              cond: "isFromScratch",
             },
             REMOVE_FILE: {
               actions: ["removeFile"],
+              cond: "hasFile",
             },
           },
         },
@@ -194,10 +199,24 @@ export const createTemplateMachine =
             promptParameters: {
               on: {
                 CREATE: {
-                  target: "creatingTemplate",
+                  target: "creatingVersionWithParameters",
                   actions: ["assignTemplateData"],
                 },
               },
+            },
+            creatingVersionWithParameters: {
+              invoke: {
+                src: "createVersionWithParameters",
+                onDone: {
+                  target: "waitingForJobToBeCompleted",
+                  actions: ["assignVersion"],
+                },
+                onError: {
+                  actions: ["assignError"],
+                  target: "promptParameters",
+                },
+              },
+              tags: ["submitting"],
             },
             creatingTemplate: {
               invoke: {
@@ -236,15 +255,65 @@ export const createTemplateMachine =
           }
           return starterTemplate
         },
-        createFirstVersion: async ({ organizationId, exampleId }) => {
-          if (!exampleId) {
-            throw new Error("No example ID provided")
+        createFirstVersion: async ({
+          organizationId,
+          exampleId,
+          uploadResponse,
+        }) => {
+          if (exampleId) {
+            return createTemplateVersion(organizationId, {
+              storage_method: "file",
+              example_id: exampleId,
+              provisioner: "terraform",
+              tags: {},
+            })
+          }
+
+          if (uploadResponse) {
+            return createTemplateVersion(organizationId, {
+              storage_method: "file",
+              file_id: uploadResponse.hash,
+              provisioner: "terraform",
+              tags: {},
+            })
+          }
+
+          throw new Error("No file or example provided")
+        },
+        createVersionWithParameters: async ({
+          organizationId,
+          parameters,
+          templateData,
+          version,
+        }) => {
+          if (!version) {
+            throw new Error("No previous version found")
+          }
+          if (!templateData) {
+            throw new Error("No template data defined")
+          }
+
+          const { parameter_values_by_name } = templateData
+          // Get parameter values if they are needed/present
+          const parameterValues: CreateTemplateVersionRequest["parameter_values"] =
+            []
+          if (parameters) {
+            parameters.forEach((schema) => {
+              const value = parameter_values_by_name?.[schema.name]
+              parameterValues.push({
+                name: schema.name,
+                source_value: value ?? schema.default_source_value,
+                destination_scheme: schema.default_destination_scheme,
+                source_scheme: schema.default_source_scheme,
+              })
+            })
           }
 
           return createTemplateVersion(organizationId, {
             storage_method: "file",
-            example_id: exampleId,
+            file_id: version.job.file_id,
             provisioner: "terraform",
+            parameter_values: parameterValues,
             tags: {},
           })
         },
@@ -267,12 +336,7 @@ export const createTemplateMachine =
 
           return getTemplateVersionSchema(version.id)
         },
-        createTemplate: async ({
-          organizationId,
-          version,
-          templateData,
-          parameters,
-        }) => {
+        createTemplate: async ({ organizationId, version, templateData }) => {
           if (!version) {
             throw new Error("Version not defined")
           }
@@ -287,25 +351,10 @@ export const createTemplateMachine =
             ...safeTemplateData
           } = templateData
 
-          // Get parameter values if they are needed/present
-          const parameterValues: CreateTemplateRequest["parameter_values"] = []
-          if (parameters) {
-            parameters.forEach((schema) => {
-              const value = parameter_values_by_name?.[schema.name]
-              parameterValues.push({
-                name: schema.name,
-                source_value: value ?? schema.default_source_value,
-                destination_scheme: schema.default_destination_scheme,
-                source_scheme: schema.default_source_scheme,
-              })
-            })
-          }
-
           return createTemplate(organizationId, {
             ...safeTemplateData,
             default_ttl_ms: templateData.default_ttl_hours * 60 * 60 * 1000, // Convert hours to ms
             template_version_id: version.id,
-            parameter_values: parameterValues,
           })
         },
       },
@@ -331,7 +380,9 @@ export const createTemplateMachine =
         }),
       },
       guards: {
-        isExampleProvided: ({ exampleId }) => Boolean(exampleId),
+        isExampleProvided: ({ exampleId }) => exampleId !== undefined,
+        isFromScratch: ({ exampleId }) => exampleId === undefined,
+        hasFile: ({ file }) => file !== undefined,
         hasFailed: (_, { data }) => data.job.status === "failed",
         hasMissingParameters: (_, { data }) =>
           Boolean(
