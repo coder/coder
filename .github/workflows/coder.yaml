@@ -348,13 +348,12 @@ jobs:
           path: ./gotestsum.json
           retention-days: 7
 
-      - uses: datadog/junit-upload-github-action@v1
+      - uses: actions/upload-artifact@v3
         if: success() || failure()
         with:
-            api-key: ${{ secrets.DD_API_KEY }}
-            service: "coder-gotests"
-            tags: "test_suite:${{ matrix.os }},github_ref:${{github.ref}}"
-            files: ./gotests.xml
+          name: gotests-${{ matrix.os }}.xml
+          path: ./gotests.xml
+          retention-days: 30
 
       - uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
@@ -424,13 +423,12 @@ jobs:
           path: ./gotestsum.json
           retention-days: 7
 
-      - uses: datadog/junit-upload-github-action@v1
+      - uses: actions/upload-artifact@v3
         if: success() || failure()
         with:
-            api-key: ${{ secrets.DD_API_KEY }}
-            service: "coder-gotests"
-            tags: "test_suite:postgres,github_ref:${{github.ref}}"
-            files: ./gotests.xml
+          name: gotests-postgres.xml
+          path: ./gotests.xml
+          retention-days: 30
 
       - uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
