@@ -36,7 +36,6 @@ export const WorkspaceSchedulePage: React.FC = () => {
     getWorkspaceError,
     permissions,
     workspace,
-    shouldRestartWorkspace,
   } = scheduleState.context
 
   // Get workspace on mount and whenever the args for getting a workspace change.
@@ -55,6 +54,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
     scheduleState.matches("idle") ||
     scheduleState.matches("gettingWorkspace") ||
     scheduleState.matches("gettingPermissions") ||
+    scheduleState.matches("gettingTemplate") ||
     !workspace
   ) {
     return <FullScreenLoader />
@@ -132,7 +132,6 @@ export const WorkspaceSchedulePage: React.FC = () => {
     return (
       <Navigate
         to={`/@${username}/${workspaceName}`}
-        state={{ shouldRestartWorkspace }}
       />
     )
   }

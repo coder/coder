@@ -3,7 +3,7 @@ import { useMachine } from "@xstate/react"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { FC, useEffect } from "react"
-import { useLocation, useParams } from "react-router-dom"
+import { useParams } from "react-router-dom"
 import { Loader } from "components/Loader/Loader"
 import { firstOrItem } from "util/array"
 import { workspaceMachine } from "xServices/workspace/workspaceXService"
@@ -15,8 +15,6 @@ export const WorkspacePage: FC = () => {
     useParams()
   const username = firstOrItem(usernameQueryParam, null)
   const workspaceName = firstOrItem(workspaceQueryParam, null)
-  const shouldRestartWorkspace =
-    useLocation().state?.shouldRestartWorkspace ?? false
   const [workspaceState, workspaceSend] = useMachine(workspaceMachine)
   const {
     workspace,
@@ -71,7 +69,6 @@ export const WorkspacePage: FC = () => {
           workspaceState={workspaceState}
           quotaState={quotaState}
           workspaceSend={workspaceSend}
-          shouldRestartWorkspace={shouldRestartWorkspace}
         />
       </Cond>
       <Cond>

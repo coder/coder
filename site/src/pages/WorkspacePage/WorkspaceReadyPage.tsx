@@ -30,14 +30,12 @@ interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>
   quotaState: StateFrom<typeof quotaMachine>
   workspaceSend: (event: WorkspaceEvent) => void
-  shouldRestartWorkspace: boolean
 }
 
 export const WorkspaceReadyPage = ({
   workspaceState,
   quotaState,
   workspaceSend,
-  shouldRestartWorkspace,
 }: WorkspaceReadyPageProps): JSX.Element => {
   const [bannerState, bannerSend] = useActor(
     workspaceState.children["scheduleBannerMachine"],
@@ -72,11 +70,6 @@ export const WorkspaceReadyPage = ({
   useEffect(() => {
     bannerSend({ type: "REFRESH_WORKSPACE", workspace })
   }, [bannerSend, workspace])
-
-  useEffect(() => {
-    // workspaces can be started without being stopped first
-    shouldRestartWorkspace && workspaceSend({ type: "START" })
-  }, [shouldRestartWorkspace, workspaceSend])
 
   return (
     <>

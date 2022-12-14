@@ -20,6 +20,8 @@ export interface WorkspaceScheduleContext {
    * machine is partially influenced by workspaceXService.
    */
   workspace?: TypesGen.Workspace
+  template?: TypesGen.Template
+  getTemplateError?: Error | unknown
   permissions?: Permissions
   checkPermissionsError?: Error | unknown
   submitScheduleError?: Error | unknown
@@ -67,6 +69,9 @@ export const workspaceSchedule =
         services: {} as {
           getWorkspace: {
             data: TypesGen.Workspace
+          },
+          getTemplate: {
+            data: TypesGen.Template
           }
         },
       },
@@ -102,7 +107,7 @@ export const workspaceSchedule =
             onDone: [
               {
                 actions: ["assignPermissions"],
-                target: "presentForm",
+                target: "gettingTemplate",
               },
             ],
             onError: [
@@ -112,6 +117,22 @@ export const workspaceSchedule =
               },
             ],
           },
+        },
+        gettingTemplate: {
+          entry: "clearGetTemplateError",
+          invoke: {
+            src: "getTemplate",
+            id: "getTemplate",
+            onDone: {
+              target: "presentForm",
+              actions: ["assignTemplate"],
+            },
+            onError: {
+              target: "error",
+              actions: ["assignGetTemplateError"],
+            },
+          },
+          tags: "loading",
         },
         presentForm: {
           on: {
@@ -143,7 +164,7 @@ export const workspaceSchedule =
           on: {
             RESTART_WORKSPACE: {
               target: "done",
-              actions: "assignRestartWorkspace",
+              actions: "restartWorkspace",
             },
             APPLY_LATER: "done",
           },
@@ -178,11 +199,17 @@ export const workspaceSchedule =
         assignGetPermissionsError: assign({
           checkPermissionsError: (_, event) => event.data,
         }),
+        assignTemplate: assign({
+          template: (_, event) => event.data
+        }),
+        assignGetTemplateError: assign({
+          getTemplateError: (_, event) => event.data
+        }),
+        clearGetTemplateError: assign({
+          getTemplateError: (_) => undefined
+        }),
         assignAutoStopChanged: assign({
           autoStopChanged: (_, event) => event.autoStopChanged,
-        }),
-        assignRestartWorkspace: assign({
-          shouldRestartWorkspace: (_) => true,
         }),
         clearGetPermissionsError: assign({
           checkPermissionsError: (_) => undefined,
@@ -193,6 +220,13 @@ export const workspaceSchedule =
         clearGetWorkspaceError: (context) => {
           assign({ ...context, getWorkspaceError: undefined })
         },
+        // action instead of service because we fire and forget so that the
+        // user can return to the workspace page to see the restart
+        restartWorkspace: (context) => {
+          if (context.workspace && context.template) {
+            return API.startWorkspace(context.workspace.id, context.template.active_version_id)
+          }
+        }
       },
 
       services: {
@@ -201,6 +235,13 @@ export const workspaceSchedule =
             event.username,
             event.workspaceName,
           )
+        },
+        getTemplate: async (context) => {
+          if (context.workspace) {
+            return await API.getTemplate(context.workspace.template_id)
+          } else {
+            throw Error("Can't fetch template without workspace.")
+          }
         },
         checkPermissions: async (context) => {
           if (context.workspace) {
