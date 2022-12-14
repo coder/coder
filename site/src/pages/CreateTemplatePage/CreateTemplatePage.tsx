@@ -27,7 +27,7 @@ const CreateTemplatePage: FC = () => {
       },
     },
   })
-  const { starterTemplate, parameters, error } = state.context
+  const { starterTemplate, parameters, error, file } = state.context
   const shouldDisplayForm = !state.hasTag("loading")
 
   const onCancel = () => {
@@ -57,6 +57,16 @@ const CreateTemplatePage: FC = () => {
                 type: "CREATE",
                 data,
               })
+            }}
+            upload={{
+              file,
+              isUploading: state.matches("uploading"),
+              onRemove: () => {
+                send("REMOVE_FILE")
+              },
+              onUpload: (file) => {
+                send({ type: "UPLOAD_FILE", file })
+              },
             }}
           />
         )}

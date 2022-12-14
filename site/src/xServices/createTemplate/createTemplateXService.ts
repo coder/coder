@@ -4,6 +4,7 @@ import {
   getTemplateVersion,
   createTemplate,
   getTemplateVersionSchema,
+  uploadTemplateFile,
 } from "api/api"
 import {
   CreateTemplateRequest,
@@ -11,9 +12,21 @@ import {
   Template,
   TemplateExample,
   TemplateVersion,
+  UploadResponse,
 } from "api/typesGenerated"
 import { displayError } from "components/GlobalSnackbar/utils"
 import { assign, createMachine } from "xstate"
+
+// for creating a new template:
+// 1. upload template tar or use the example ID
+// 2. create template version
+// 3. wait for it to complete
+// 4. if the job failed with the missing parameter error then:
+//    a. prompt for params
+//    b. create template version again with the same file hash
+//    c. wait for it to complete
+// 5.create template with the successful template version ID
+// https://github.com/coder/coder/blob/b6703b11c6578b2f91a310d28b6a7e57f0069be6/cli/templatecreate.go#L169-L170
 
 export interface CreateTemplateData {
   name: string
@@ -33,6 +46,10 @@ interface CreateTemplateContext {
   version?: TemplateVersion
   templateData?: CreateTemplateData
   parameters?: ParameterSchema[]
+  // file is used in the FE to show the filename and some other visual stuff
+  // uploadedFile is the response from the server to use in the API
+  file?: File
+  uploadResponse?: UploadResponse
 }
 
 export const createTemplateMachine =
@@ -43,8 +60,14 @@ export const createTemplateMachine =
       predictableActionArguments: true,
       schema: {
         context: {} as CreateTemplateContext,
-        events: {} as { type: "CREATE"; data: CreateTemplateData },
+        events: {} as
+          | { type: "CREATE"; data: CreateTemplateData }
+          | { type: "UPLOAD_FILE"; file: File }
+          | { type: "REMOVE_FILE" },
         services: {} as {
+          uploadFile: {
+            data: UploadResponse
+          }
           loadStarterTemplate: {
             data: TemplateExample
           }
@@ -91,6 +114,26 @@ export const createTemplateMachine =
             CREATE: {
               target: "creating",
               actions: ["assignTemplateData"],
+            },
+            UPLOAD_FILE: {
+              actions: ["assignFile"],
+              target: "uploading",
+            },
+            REMOVE_FILE: {
+              actions: ["removeFile"],
+            },
+          },
+        },
+        uploading: {
+          invoke: {
+            src: "uploadFile",
+            onDone: {
+              target: "idle",
+              actions: ["assignUploadResponse"],
+            },
+            onError: {
+              target: "idle",
+              actions: ["displayUploadError", "removeFile"],
             },
           },
         },
@@ -179,6 +222,7 @@ export const createTemplateMachine =
     },
     {
       services: {
+        uploadFile: (_, { file }) => uploadTemplateFile(file),
         loadStarterTemplate: async ({ organizationId, exampleId }) => {
           if (!exampleId) {
             throw new Error(`Example ID is not defined.`)
@@ -270,12 +314,21 @@ export const createTemplateMachine =
         displayJobError: (_, { data }) => {
           displayError("Provisioner job failed.", data.job.error)
         },
+        displayUploadError: () => {
+          displayError("Error on upload the file.")
+        },
         assignStarterTemplate: assign({
           starterTemplate: (_, { data }) => data,
         }),
         assignVersion: assign({ version: (_, { data }) => data }),
         assignTemplateData: assign({ templateData: (_, { data }) => data }),
         assignParameters: assign({ parameters: (_, { data }) => data }),
+        assignFile: assign({ file: (_, { file }) => file }),
+        assignUploadResponse: assign({ uploadResponse: (_, { data }) => data }),
+        removeFile: assign({
+          file: (_) => undefined,
+          uploadResponse: (_) => undefined,
+        }),
       },
       guards: {
         isExampleProvided: ({ exampleId }) => Boolean(exampleId),

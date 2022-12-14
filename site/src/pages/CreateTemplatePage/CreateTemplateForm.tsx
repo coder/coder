@@ -6,6 +6,10 @@ import { FormFooter } from "components/FormFooter/FormFooter"
 import { IconField } from "components/IconField/IconField"
 import { ParameterInput } from "components/ParameterInput/ParameterInput"
 import { Stack } from "components/Stack/Stack"
+import {
+  TemplateUpload,
+  TemplateUploadProps,
+} from "pages/CreateTemplatePage/TemplateUpload"
 import { useFormik } from "formik"
 import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate"
 import { FC } from "react"
@@ -55,6 +59,7 @@ interface CreateTemplateFormProps {
   isSubmitting: boolean
   onCancel: () => void
   onSubmit: (data: CreateTemplateData) => void
+  upload: TemplateUploadProps
 }
 
 export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
@@ -64,6 +69,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
   isSubmitting,
   onCancel,
   onSubmit,
+  upload,
 }) => {
   const styles = useStyles()
   const formFooterStyles = useFormFooterStyles()
@@ -90,7 +96,11 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
           </div>
 
           <Stack direction="column" className={styles.formSectionFields}>
-            {starterTemplate && <SelectedTemplate template={starterTemplate} />}
+            {starterTemplate ? (
+              <SelectedTemplate template={starterTemplate} />
+            ) : (
+              <TemplateUpload {...upload} />
+            )}
 
             <TextField
               {...getFieldHelpers("name")}
