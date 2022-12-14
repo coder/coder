@@ -226,6 +226,25 @@ func (a *agent) run(ctx context.Context) error {
 			_ = network.Close()
 			return xerrors.New("agent is closed")
 		}
+
+		// Report statistics from the created network.
+		cl, err := a.client.AgentReportStats(ctx, a.logger, func() *codersdk.AgentStats {
+			stats := network.ExtractTrafficStats()
+			return convertAgentStats(stats)
+		})
+		if err != nil {
+			a.logger.Error(ctx, "report stats", slog.Error(err))
+		} else {
+			if err = a.trackConnGoroutine(func() {
+				// This is OK because the agent never re-creates the tailnet
+				// and the only shutdown indicator is agent.Close().
+				<-a.closed
+				_ = cl.Close()
+			}); err != nil {
+				a.logger.Error(ctx, "report stats goroutine", slog.Error(err))
+				_ = cl.Close()
+			}
+		}
 	} else {
 		// Update the DERP map!
 		network.SetDERPMap(metadata.DERPMap)
@@ -561,28 +580,6 @@ func (a *agent) init(ctx context.Context) {
 	}
 
 	go a.runLoop(ctx)
-	cl, err := a.client.AgentReportStats(ctx, a.logger, func() *codersdk.AgentStats {
-		stats := map[netlogtype.Connection]netlogtype.Counts{}
-		a.closeMutex.Lock()
-		if a.network != nil {
-			stats = a.network.ExtractTrafficStats()
-		}
-		a.closeMutex.Unlock()
-		return convertAgentStats(stats)
-	})
-	if err != nil {
-		a.logger.Error(ctx, "report stats", slog.Error(err))
-		return
-	}
-
-	if err = a.trackConnGoroutine(func() {
-		<-a.closed
-		_ = cl.Close()
-	}); err != nil {
-		a.logger.Error(ctx, "report stats goroutine", slog.Error(err))
-		_ = cl.Close()
-		return
-	}
 }
 
 func convertAgentStats(counts map[netlogtype.Connection]netlogtype.Counts) *codersdk.AgentStats {
