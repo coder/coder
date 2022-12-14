@@ -338,8 +338,16 @@ jobs:
           else
             echo ::set-output name=cover::false
           fi
-          set -x
-          gotestsum --junitfile="gotests.xml" --jsonfile="gotestsum.json" --packages="./..." --debug -- -parallel=8 -timeout=3m -short -failfast $COVERAGE_FLAGS
+          gotestsum --junitfile="gotests.xml" --jsonfile="gotestsum.json" --packages="./..." --debug -- -parallel=8 -timeout=5m -short -failfast $COVERAGE_FLAGS
+          ret=$?
+          if ((ret)); then
+            # Eternalize test timeout logs because "re-run failed" erases
+            # artifacts and gotestsum doesn't always capture it:
+            # https://github.com/gotestyourself/gotestsum/issues/292
+            echo "Checking gotestsum.json for panic trace:"
+            grep -A 999999 'panic: test timed out' gotestsum.json
+          fi
+          exit $ret
 
       - uses: actions/upload-artifact@v3
         if: success() || failure()
@@ -347,6 +355,13 @@ jobs:
           name: gotestsum-debug-${{ matrix.os }}.json
           path: ./gotestsum.json
           retention-days: 7
+
+      - uses: actions/upload-artifact@v3
+        if: success() || failure()
+        with:
+          name: gotests-${{ matrix.os }}.xml
+          path: ./gotests.xml
+          retention-days: 30
 
       - uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
@@ -407,7 +422,17 @@ jobs:
           terraform_wrapper: false
 
       - name: Test with PostgreSQL Database
-        run: make test-postgres
+        run: |
+          make test-postgres
+          ret=$?
+          if ((ret)); then
+            # Eternalize test timeout logs because "re-run failed" erases
+            # artifacts and gotestsum doesn't always capture it:
+            # https://github.com/gotestyourself/gotestsum/issues/292
+            echo "Checking gotestsum.json for panic trace:"
+            grep -A 999999 'panic: test timed out' gotestsum.json
+          fi
+          exit $ret
 
       - uses: actions/upload-artifact@v3
         if: success() || failure()
@@ -415,6 +440,13 @@ jobs:
           name: gotestsum-debug-postgres.json
           path: ./gotestsum.json
           retention-days: 7
+
+      - uses: actions/upload-artifact@v3
+        if: success() || failure()
+        with:
+          name: gotests-postgres.xml
+          path: ./gotests.xml
+          retention-days: 30
 
       - uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has

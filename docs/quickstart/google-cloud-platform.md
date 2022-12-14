@@ -36,7 +36,7 @@ This will give you a terminal into the VM that we will use to install Coder.
 
 In the terminal, run the following command
 
-```sh
+```console
 curl -fsSL https://coder.com/install.sh | sh
 ```
 
@@ -46,7 +46,7 @@ For this tutorial, we will run Coder as a `systemd` service. You can run Coder i
 
 First, edit the `coder.env` file to enable `CODER_TUNNEL` by setting the value to true with the following command:
 
-```sh
+```console
 sudo vim /etc/coder.d/coder.env
 ```
 
@@ -54,13 +54,13 @@ sudo vim /etc/coder.d/coder.env
 
 Exit vim and run the following command to start Coder as a system service:
 
-```sh
+```console
 sudo systemctl enable --now coder
 ```
 
 The following command shows the Coder service's logs, including the Access URL. The Access URL will be used to access the Coder control plane.
 
-```sh
+```console
 journalctl -u coder.service -b
 ```
 
@@ -70,7 +70,7 @@ In this instance, Coder can be accessed at the URL `https://fcca2f3bfc9d2e3bf1b9
 
 Copy the URL and run the following command to create the workspace admin:
 
-```sh
+```console
 coder login <url***.try.coder.app>
 ```
 
@@ -86,7 +86,7 @@ Select the `Develop in Linux on Google Cloud`, then `cd ./gcp-linux`.
 
 Run the following command:
 
-```sh
+```console
 coder templates create
 ```
 

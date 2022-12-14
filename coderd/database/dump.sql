@@ -462,8 +462,18 @@ CREATE TABLE workspace_resource_metadata (
     workspace_resource_id uuid NOT NULL,
     key character varying(1024) NOT NULL,
     value character varying(65536),
-    sensitive boolean NOT NULL
+    sensitive boolean NOT NULL,
+    id bigint NOT NULL
 );
+
+CREATE SEQUENCE workspace_resource_metadata_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER SEQUENCE workspace_resource_metadata_id_seq OWNED BY workspace_resource_metadata.id;
 
 CREATE TABLE workspace_resources (
     id uuid NOT NULL,
@@ -495,6 +505,8 @@ CREATE TABLE workspaces (
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq'::regclass);
 
 ALTER TABLE ONLY provisioner_job_logs ALTER COLUMN id SET DEFAULT nextval('provisioner_job_logs_id_seq'::regclass);
+
+ALTER TABLE ONLY workspace_resource_metadata ALTER COLUMN id SET DEFAULT nextval('workspace_resource_metadata_id_seq'::regclass);
 
 ALTER TABLE ONLY agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
@@ -599,7 +611,10 @@ ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_workspace_id_build_number_key UNIQUE (workspace_id, build_number);
 
 ALTER TABLE ONLY workspace_resource_metadata
-    ADD CONSTRAINT workspace_resource_metadata_pkey PRIMARY KEY (workspace_resource_id, key);
+    ADD CONSTRAINT workspace_resource_metadata_name UNIQUE (workspace_resource_id, key);
+
+ALTER TABLE ONLY workspace_resource_metadata
+    ADD CONSTRAINT workspace_resource_metadata_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY workspace_resources
     ADD CONSTRAINT workspace_resources_pkey PRIMARY KEY (id);
