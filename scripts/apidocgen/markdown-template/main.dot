@@ -3,8 +3,8 @@
 {{ for (var r in data.resources) { }}
 {{ data.resource = data.resources[r]; }}
 
-{{= data.tags.section }}
-# {{= r}}
+<!-- BEGIN SECTION -->
+{{= data.tags.section }}# {{= r}}
 
 {{? data.resource.description }}{{= data.resource.description}}{{?}}
 
@@ -17,11 +17,13 @@
 {{ } /* of methods */ }}
 
 {{= data.tags.endSection }}
+<!-- END SECTION -->
 {{ } /* of resources */ }}
 
 {{? data.api.components && data.api.components.schemas }}
 {{= data.tags.section }}
 
+<!-- BEGIN SECTION -->
 # Schemas
 
 {{ for (var s in data.components.schemas) { }}
@@ -88,7 +90,7 @@
 
 {{= data.tags.endSection }}
 {{= data.tags.endSection }}
-
 {{ } /* of schemas */ }}
 
 {{?}}
+<!-- END SECTION -->

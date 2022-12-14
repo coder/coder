@@ -1,7 +1,13 @@
+<!-- BEGIN SECTION -->
+
 # Authentication
 
 - API Key (CoderSessionToken)
   - Parameter Name: **Coder-Session-Token**, in: header.
+
+<!-- END SECTION -->
+
+<!-- BEGIN SECTION -->
 
 # Templates
 
@@ -159,6 +165,10 @@ curl -X GET http://coder-server:8080/api/v2/templates/{id} \
 | 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | Internal Server Error | `codersdk.Response` |
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+<!-- END SECTION -->
+
+<!-- BEGIN SECTION -->
 
 # Workspaces
 
@@ -496,6 +506,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{id} \
 | 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | Internal Server Error | `codersdk.Response`  |
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+<!-- END SECTION -->
+
+<!-- BEGIN SECTION -->
 
 # Schemas
 
@@ -1435,3 +1449,5 @@ To perform this operation, you must be authenticated by means of one of the foll
 | ---------- | ------- | -------- | ------------ | ----------- |
 | count      | integer | false    | none         | none        |
 | workspaces | array   | false    | none         | none        |
+
+<!-- END SECTION -->
