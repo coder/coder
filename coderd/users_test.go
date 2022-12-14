@@ -921,7 +921,7 @@ func TestInitialRoles(t *testing.T) {
 	}, "should be a member and admin")
 
 	require.ElementsMatch(t, roles.OrganizationRoles[first.OrganizationID], []string{
-		rbac.RoleOrgAdmin(first.OrganizationID),
+		rbac.RoleOrgMember(first.OrganizationID),
 	}, "should be a member and admin")
 }
 
