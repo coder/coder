@@ -117,7 +117,7 @@ export const workspaceSchedule =
               },
             ],
           },
-          tags: "loading"
+          tags: "loading",
         },
         gettingTemplate: {
           entry: "clearGetTemplateError",
