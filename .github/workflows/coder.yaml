@@ -338,7 +338,7 @@ jobs:
           else
             echo ::set-output name=cover::false
           fi
-          gotestsum --junitfile="gotests.xml" --jsonfile="gotestsum.json" --packages="./..." --debug -- -parallel=8 -timeout=3m -short -failfast $COVERAGE_FLAGS
+          gotestsum --junitfile="gotests.xml" --jsonfile="gotestsum.json" --packages="./..." --debug -- -parallel=8 -timeout=5m -short -failfast $COVERAGE_FLAGS
           ret=$?
           if ((ret)); then
             # Eternalize test timeout logs because "re-run failed" erases
