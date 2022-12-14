@@ -43,7 +43,7 @@ var (
 	errDeadlineBeforeStart = xerrors.New("new deadline must be before workspace start time")
 )
 
-// @Summary Get workspace metadata
+// @Summary Get workspace metadata 2
 // @ID get-workspace
 // @Security CoderSessionToken
 // @Produce json

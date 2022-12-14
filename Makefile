@@ -401,13 +401,13 @@ gen: \
 	provisionerd/proto/provisionerd.pb.go \
 	site/src/api/typesGenerated.ts \
 	docs/admin/prometheus.md \
-	$(wildcard docs/api/*.md) $(wildcard coder/apidocs/*)
+	coderd/apidocs/swagger.json
 .PHONY: gen
 
 # Mark all generated files as fresh so make thinks they're up-to-date. This is
 # used during releases so we don't run generation scripts.
 gen/mark-fresh:
-	files="coderd/database/dump.sql coderd/database/querier.go provisionersdk/proto/provisioner.pb.go provisionerd/proto/provisionerd.pb.go site/src/api/typesGenerated.ts docs/admin/prometheus.md $(wildcard docs/api/*.md) $(wildcard coder/apidocs/*) $(wildcard coderd/*.go)"
+	files="coderd/database/dump.sql coderd/database/querier.go provisionersdk/proto/provisioner.pb.go provisionerd/proto/provisionerd.pb.go site/src/api/typesGenerated.ts docs/admin/prometheus.md coderd/apidocs/swagger.json"
 	for file in $$files; do
 		echo "$$file"
 		if [ ! -f "$$file" ]; then
@@ -455,7 +455,7 @@ docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/me
 	cd site
 	yarn run format:write ../docs/admin/prometheus.md
 
-coderd/apidocs: $(shell find scripts/apidocgen -type f | grep -v node_modules) $(wildcard coderd/*.go)
+coderd/apidocs/swagger.json: $(shell find scripts/apidocgen -type f | grep -v node_modules) $(wildcard coderd/*.go)
 	./scripts/apidocgen/generate.sh
 	cd site
 ifdef CI

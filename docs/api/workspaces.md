@@ -169,7 +169,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
 
-## Get workspace metadata
+## Get workspace metadata 2
 
 ### Code samples
 
