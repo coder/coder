@@ -42,6 +42,7 @@ type DeploymentConfig struct {
 	APIRateLimit                    *DeploymentConfigField[int]             `json:"api_rate_limit" typescript:",notnull"`
 	Experimental                    *DeploymentConfigField[bool]            `json:"experimental" typescript:",notnull"`
 	UpdateCheck                     *DeploymentConfigField[bool]            `json:"update_check" typescript:",notnull"`
+	MaxTokenLifetime                *DeploymentConfigField[time.Duration]   `json:"max_token_lifetime" typescript:",notnull"`
 }
 
 type DERP struct {

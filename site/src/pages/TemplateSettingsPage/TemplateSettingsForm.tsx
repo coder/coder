@@ -24,43 +24,44 @@ import {
 import * as Yup from "yup"
 import i18next from "i18next"
 import { useTranslation } from "react-i18next"
+import { Maybe } from "components/Conditionals/Maybe"
 
-export const Language = {
-  nameLabel: "Name",
-  descriptionLabel: "Description",
-  defaultTtlLabel: "Auto-stop default",
-  iconLabel: "Icon",
-  formAriaLabel: "Template settings form",
-  selectEmoji: "Select emoji",
-  ttlMaxError:
-    "Please enter a limit that is less than or equal to 168 hours (7 days).",
-  descriptionMaxError:
-    "Please enter a description that is less than or equal to 128 characters.",
-  ttlHelperText: (ttl: number): string =>
-    `Workspaces created from this template will default to stopping after ${ttl} hours.`,
+const TTLHelperText = ({ ttl }: { ttl?: number }) => {
+  const { t } = useTranslation("templateSettingsPage")
+  const count = typeof ttl !== "number" ? 0 : ttl
+  return (
+    // no helper text if ttl is negative - error will show once field is considered touched
+    <Maybe condition={count >= 0}>
+      <span>{t("ttlHelperText", { count })}</span>
+    </Maybe>
+  )
 }
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128
 const MAX_TTL_DAYS = 7
 const MS_HOUR_CONVERSION = 3600000
 
-export const validationSchema = Yup.object({
-  name: nameValidator(Language.nameLabel),
-  display_name: templateDisplayNameValidator(
-    i18next.t("displayNameLabel", {
-      ns: "templatePage",
-    }),
-  ),
-  description: Yup.string().max(
-    MAX_DESCRIPTION_CHAR_LIMIT,
-    Language.descriptionMaxError,
-  ),
-  default_ttl_ms: Yup.number()
-    .integer()
-    .min(0)
-    .max(24 * MAX_TTL_DAYS /* 7 days in hours */, Language.ttlMaxError),
-  allow_user_cancel_workspace_jobs: Yup.boolean(),
-})
+export const getValidationSchema = (): Yup.AnyObjectSchema =>
+  Yup.object({
+    name: nameValidator(i18next.t("nameLabel", { ns: "templateSettingsPage" })),
+    display_name: templateDisplayNameValidator(
+      i18next.t("displayNameLabel", {
+        ns: "templateSettingsPage",
+      }),
+    ),
+    description: Yup.string().max(
+      MAX_DESCRIPTION_CHAR_LIMIT,
+      i18next.t("descriptionMaxError", { ns: "templateSettingsPage" }),
+    ),
+    default_ttl_ms: Yup.number()
+      .integer()
+      .min(0, i18next.t("ttlMinError", { ns: "templateSettingsPage" }))
+      .max(
+        24 * MAX_TTL_DAYS /* 7 days in hours */,
+        i18next.t("ttlMaxError", { ns: "templateSettingsPage" }),
+      ),
+    allow_user_cancel_workspace_jobs: Yup.boolean(),
+  })
 
 export interface TemplateSettingsForm {
   template: Template
@@ -81,6 +82,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   initialTouched,
 }) => {
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false)
+  const validationSchema = getValidationSchema()
   const form: FormikContextType<UpdateTemplateMeta> =
     useFormik<UpdateTemplateMeta>({
       initialValues: {
@@ -110,10 +112,10 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   const hasIcon = form.values.icon && form.values.icon !== ""
   const emojiButtonRef = useRef<HTMLButtonElement>(null)
 
-  const { t } = useTranslation("templatePage")
+  const { t } = useTranslation("templateSettingsPage")
 
   return (
-    <form onSubmit={form.handleSubmit} aria-label={Language.formAriaLabel}>
+    <form onSubmit={form.handleSubmit} aria-label={t("formAriaLabel")}>
       <Stack>
         <TextField
           {...getFieldHelpers("name")}
@@ -121,7 +123,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
           onChange={onChangeTrimmed(form)}
           autoFocus
           fullWidth
-          label={Language.nameLabel}
+          label={t("nameLabel")}
           variant="outlined"
         />
 
@@ -138,7 +140,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
           multiline
           disabled={isSubmitting}
           fullWidth
-          label={Language.descriptionLabel}
+          label={t("descriptionLabel")}
           variant="outlined"
           rows={2}
         />
@@ -148,7 +150,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
             {...getFieldHelpers("icon")}
             disabled={isSubmitting}
             fullWidth
-            label={Language.iconLabel}
+            label={t("iconLabel")}
             variant="outlined"
             InputProps={{
               endAdornment: hasIcon ? (
@@ -177,7 +179,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
               setIsEmojiPickerOpen((v) => !v)
             }}
           >
-            {Language.selectEmoji}
+            {t("selectEmoji")}
           </Button>
 
           <Popover
@@ -204,20 +206,17 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         </div>
 
         <TextField
-          {...getFieldHelpers("default_ttl_ms")}
+          {...getFieldHelpers(
+            "default_ttl_ms",
+            <TTLHelperText ttl={form.values.default_ttl_ms} />,
+          )}
           disabled={isSubmitting}
           fullWidth
           inputProps={{ min: 0, step: 1 }}
-          label={Language.defaultTtlLabel}
+          label={t("defaultTtlLabel")}
           variant="outlined"
           type="number"
         />
-        {/* If a value for default_ttl_ms has been entered and
-        there are no validation errors for that field, display helper text.
-        We do not use the MUI helper-text prop because it overrides the validation error */}
-        {form.values.default_ttl_ms && !form.errors.default_ttl_ms && (
-          <span>{Language.ttlHelperText(form.values.default_ttl_ms)}</span>
-        )}
 
         <Box display="flex">
           <div>

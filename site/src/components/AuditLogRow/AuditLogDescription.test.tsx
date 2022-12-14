@@ -1,6 +1,7 @@
 import {
   MockAuditLog,
   MockAuditLogWithWorkspaceBuild,
+  MockWorkspaceCreateAuditLogForDifferentOwner,
 } from "testHelpers/entities"
 import { AuditLogDescription } from "./AuditLogDescription"
 import { render } from "../../testHelpers/renderHelpers"
@@ -44,6 +45,18 @@ describe("AuditLogDescription", () => {
 
     expect(
       getByTextContent("TestUser stopped build for workspace workspace"),
+    ).toBeDefined()
+  })
+  it("renders the correct string for a workspace created for a different owner", async () => {
+    render(
+      <AuditLogDescription
+        auditLog={MockWorkspaceCreateAuditLogForDifferentOwner}
+      />,
+    )
+    expect(
+      getByTextContent(
+        `TestUser created workspace bruno-dev on behalf of ${MockWorkspaceCreateAuditLogForDifferentOwner.additional_fields.workspaceOwner}`,
+      ),
     ).toBeDefined()
   })
 })

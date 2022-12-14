@@ -16,3 +16,10 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'last_update
 
 -- name: GetLastUpdateCheck :one
 SELECT value FROM site_configs WHERE key = 'last_update_check';
+
+-- name: InsertOrUpdateServiceBanner :exec
+INSERT INTO site_configs (key, value) VALUES ('service_banner', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'service_banner';
+
+-- name: GetServiceBanner :one
+SELECT value FROM site_configs WHERE key = 'service_banner';

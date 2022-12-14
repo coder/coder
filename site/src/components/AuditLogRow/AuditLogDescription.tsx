@@ -14,10 +14,7 @@ export const AuditLogDescription: FC<{ auditLog: AuditLog }> = ({
   let target = auditLog.resource_target.trim()
 
   // audit logs with a resource_type of workspace build use workspace name as a target
-  if (
-    auditLog.resource_type === "workspace_build" &&
-    auditLog.additional_fields.workspaceName
-  ) {
+  if (auditLog.resource_type === "workspace_build") {
     target = auditLog.additional_fields.workspaceName.trim()
   }
 
@@ -48,9 +45,20 @@ export const AuditLogDescription: FC<{ auditLog: AuditLog }> = ({
       )}
       {auditLog.is_deleted && (
         <span className={classes.deletedLabel}>
-          <> {t("auditLog:table.logRow.deletedLabel")}</>
+          <>{t("auditLog:table.logRow.deletedLabel")}</>
         </span>
       )}
+      {/* logs for workspaces created on behalf of other users indicate ownership in the description */}
+      {auditLog.additional_fields.workspaceOwner &&
+        auditLog.additional_fields.workspaceOwner !== "unknown" && (
+          <span>
+            <>
+              {t("auditLog:table.logRow.onBehalfOf", {
+                owner: auditLog.additional_fields.workspaceOwner,
+              })}
+            </>
+          </span>
+        )}
     </span>
   )
 }

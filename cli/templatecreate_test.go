@@ -187,14 +187,25 @@ func TestTemplateCreate(t *testing.T) {
 			match string
 			write string
 		}{
-			{match: "Create and upload", write: "yes"},
+			{
+				match: "Create and upload",
+				write: "yes",
+			},
+			{
+				match: "Enter a value:",
+				write: "bingo",
+			},
+			{
+				match: "Confirm create?",
+				write: "yes",
+			},
 		}
 		for _, m := range matches {
 			pty.ExpectMatch(m.match)
 			pty.WriteLine(m.write)
 		}
 
-		require.EqualError(t, <-execDone, "Parameter value absent in parameter file for \"region\"!")
+		require.NoError(t, <-execDone)
 	})
 
 	t.Run("Recreate template with same name (create, delete, create)", func(t *testing.T) {

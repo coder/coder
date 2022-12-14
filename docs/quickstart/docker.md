@@ -15,7 +15,7 @@ Coder with Docker has the following advantages:
 
 1. Run Coder with Docker.
 
-   ```shell
+   ```console
    export CODER_DATA=$HOME/.config/coderv2-docker
    export DOCKER_GROUP=$(getent group docker | cut -d: -f3)
    mkdir -p $CODER_DATA
@@ -30,7 +30,7 @@ Coder with Docker has the following advantages:
 
 1. In new terminal, [install Coder](../install/) in order to connect to your deployment through the CLI.
 
-   ```shell
+   ```console
    curl -L https://coder.com/install.sh | sh
    ```
 
@@ -39,7 +39,7 @@ Coder with Docker has the following advantages:
 
 1. Pull the "Docker" example template using the interactive `coder templates init`:
 
-   ```shell
+   ```console
    coder templates init
    cd docker
    ```

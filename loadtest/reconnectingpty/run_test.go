@@ -3,7 +3,6 @@ package reconnectingpty_test
 import (
 	"bytes"
 	"context"
-	"runtime"
 	"testing"
 	"time"
 
@@ -23,9 +22,6 @@ import (
 
 func Test_Runner(t *testing.T) {
 	t.Parallel()
-	if runtime.GOOS != "linux" {
-		t.Skip("PTY is flakey on non-Linux platforms")
-	}
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
@@ -40,7 +36,7 @@ func Test_Runner(t *testing.T) {
 			LogOutput: true,
 		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 		defer cancel()
 
 		logs := bytes.NewBuffer(nil)
@@ -50,7 +46,9 @@ func Test_Runner(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Contains(t, logStr, "Output:")
-		require.Contains(t, logStr, "\thello world")
+		// OSX: Output:\n\thello world\n
+		// Win: Output:\n\t\x1b[2J\x1b[m\x1b[H\x1b]0;Administrator: C:\\Program Files\\PowerShell\\7\\pwsh.exe\a\x1b[?25hhello world\n
+		require.Contains(t, logStr, "hello world\n")
 	})
 
 	t.Run("NoLogOutput", func(t *testing.T) {
@@ -66,7 +64,7 @@ func Test_Runner(t *testing.T) {
 			LogOutput: false,
 		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 		defer cancel()
 
 		logs := bytes.NewBuffer(nil)
@@ -76,12 +74,10 @@ func Test_Runner(t *testing.T) {
 		require.NoError(t, err)
 
 		require.NotContains(t, logStr, "Output:")
-		require.NotContains(t, logStr, "\thello world")
 	})
 
 	t.Run("Timeout", func(t *testing.T) {
 		t.Parallel()
-		t.Skip("Flaky: https://github.com/coder/coder/issues/5187")
 
 		t.Run("NoTimeout", func(t *testing.T) {
 			t.Parallel()
@@ -93,11 +89,11 @@ func Test_Runner(t *testing.T) {
 				Init: codersdk.ReconnectingPTYInit{
 					Command: "echo 'hello world'",
 				},
-				Timeout:   httpapi.Duration(5 * time.Second),
+				Timeout:   httpapi.Duration(2 * testutil.WaitSuperLong),
 				LogOutput: true,
 			})
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 			defer cancel()
 
 			logs := bytes.NewBuffer(nil)
@@ -115,13 +111,13 @@ func Test_Runner(t *testing.T) {
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
 				Init: codersdk.ReconnectingPTYInit{
-					Command: "sleep 5",
+					Command: "sleep 120",
 				},
 				Timeout:   httpapi.Duration(2 * time.Second),
 				LogOutput: true,
 			})
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 			defer cancel()
 
 			logs := bytes.NewBuffer(nil)
@@ -144,14 +140,14 @@ func Test_Runner(t *testing.T) {
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
 				Init: codersdk.ReconnectingPTYInit{
-					Command: "sleep 5",
+					Command: "sleep 120",
 				},
 				Timeout:       httpapi.Duration(2 * time.Second),
 				ExpectTimeout: true,
 				LogOutput:     true,
 			})
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 			defer cancel()
 
 			logs := bytes.NewBuffer(nil)
@@ -171,12 +167,12 @@ func Test_Runner(t *testing.T) {
 				Init: codersdk.ReconnectingPTYInit{
 					Command: "echo 'hello world'",
 				},
-				Timeout:       httpapi.Duration(5 * time.Second),
+				Timeout:       httpapi.Duration(2 * testutil.WaitSuperLong),
 				ExpectTimeout: true,
 				LogOutput:     true,
 			})
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 			defer cancel()
 
 			logs := bytes.NewBuffer(nil)
@@ -190,7 +186,6 @@ func Test_Runner(t *testing.T) {
 
 	t.Run("ExpectOutput", func(t *testing.T) {
 		t.Parallel()
-		t.Skip("Flaky: https://github.com/coder/coder/issues/5187")
 
 		t.Run("Matches", func(t *testing.T) {
 			t.Parallel()
@@ -206,7 +201,7 @@ func Test_Runner(t *testing.T) {
 				LogOutput:    false,
 			})
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 			defer cancel()
 
 			logs := bytes.NewBuffer(nil)
@@ -230,7 +225,7 @@ func Test_Runner(t *testing.T) {
 				LogOutput:    false,
 			})
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 			defer cancel()
 
 			logs := bytes.NewBuffer(nil)
