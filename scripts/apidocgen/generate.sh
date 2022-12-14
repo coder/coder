@@ -16,7 +16,7 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 		--output="./coderd/apidocs" \
 		--outputTypes="go,json" \
 		--parseDependency=true
-)
+) || exit $?
 
 (
 	cd "$SCRIPT_DIR"
@@ -33,4 +33,4 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 		--language_tabs "shell:curl" \
 		--summary "../../coderd/apidocs/swagger.json" \
 		--outfile "../../docs/api.md"
-)
+) || exit $?
