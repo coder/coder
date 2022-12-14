@@ -588,7 +588,7 @@ func checkVersions(cmd *cobra.Command, client *codersdk.Client) error {
 	// Our installation script doesn't work on Windows, so instead we direct the user
 	// to the GitHub release page to download the latest installer.
 	if runtime.GOOS != "windows" {
-		fmtWarningText += `download the server version from: https://github.com/coder/coder/releases/tag/v%s`
+		fmtWarningText += `download the server version from: https://github.com/coder/coder/releases/v%s`
 	} else {
 		fmtWarningText += `download the server version with: 'curl -L https://coder.com/install.sh | sh -s -- --version %s'`
 	}
