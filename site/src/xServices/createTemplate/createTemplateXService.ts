@@ -121,7 +121,7 @@ export const createTemplateMachine =
             UPLOAD_FILE: {
               actions: ["assignFile"],
               target: "uploading",
-              cond: "isFromScratch",
+              cond: "isNotUsingExample",
             },
             REMOVE_FILE: {
               actions: ["removeFile"],
@@ -381,7 +381,7 @@ export const createTemplateMachine =
       },
       guards: {
         isExampleProvided: ({ exampleId }) => exampleId !== undefined,
-        isFromScratch: ({ exampleId }) => exampleId === undefined,
+        isNotUsingExample: ({ exampleId }) => exampleId === undefined,
         hasFile: ({ file }) => file !== undefined,
         hasFailed: (_, { data }) => data.job.status === "failed",
         hasMissingParameters: (_, { data }) =>
