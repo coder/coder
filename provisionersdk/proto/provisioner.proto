@@ -108,6 +108,7 @@ message App {
     bool subdomain = 6;
     Healthcheck healthcheck = 7;
     AppSharingLevel sharing_level = 8;
+    bool external = 9;
 }
 
 // Healthcheck represents configuration for checking for app readiness.

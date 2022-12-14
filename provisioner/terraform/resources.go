@@ -38,6 +38,7 @@ type agentAppAttributes struct {
 	Name        string                     `mapstructure:"name"`
 	Icon        string                     `mapstructure:"icon"`
 	URL         string                     `mapstructure:"url"`
+	External    bool                       `mapstructure:"external"`
 	Command     string                     `mapstructure:"command"`
 	Share       string                     `mapstructure:"share"`
 	Subdomain   bool                       `mapstructure:"subdomain"`
@@ -297,6 +298,7 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 					Slug:         attrs.Slug,
 					DisplayName:  attrs.DisplayName,
 					Command:      attrs.Command,
+					External:     attrs.External,
 					Url:          attrs.URL,
 					Icon:         attrs.Icon,
 					Subdomain:    attrs.Subdomain,
