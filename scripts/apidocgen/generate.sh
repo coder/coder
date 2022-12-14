@@ -8,8 +8,8 @@ set -euo pipefail
 SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 API_MD_TMP_FILE=$(mktemp /tmp/coder-apidocgen.XXXXXX)
 
-cleanup () {
-    rm -f "${API_MD_TMP_FILE}"
+cleanup() {
+	rm -f "${API_MD_TMP_FILE}"
 }
 trap cleanup EXIT
 
