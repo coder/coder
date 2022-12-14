@@ -26,6 +26,18 @@ WithIcon.args = {
   agent: MockWorkspaceAgent,
 }
 
+export const WithIconExternal = Template.bind({})
+WithIcon.args = {
+  workspace: MockWorkspace,
+  app: {
+    ...MockWorkspaceApp,
+    name: "code-server",
+    icon: "/icon/code.svg",
+    external: true,
+  },
+  agent: MockWorkspaceAgent,
+}
+
 export const WithoutIcon = Template.bind({})
 WithoutIcon.args = {
   workspace: MockWorkspace,

@@ -5280,6 +5280,7 @@ INSERT INTO
         icon,
         command,
         url,
+        external,
         subdomain,
         sharing_level,
         healthcheck_url,
@@ -5288,7 +5289,7 @@ INSERT INTO
         health
     )
 VALUES
-    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external
+    ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external
 `
 
 type InsertWorkspaceAppParams struct {
@@ -5300,6 +5301,7 @@ type InsertWorkspaceAppParams struct {
 	Icon                 string             `db:"icon" json:"icon"`
 	Command              sql.NullString     `db:"command" json:"command"`
 	Url                  sql.NullString     `db:"url" json:"url"`
+	External             bool               `db:"external" json:"external"`
 	Subdomain            bool               `db:"subdomain" json:"subdomain"`
 	SharingLevel         AppSharingLevel    `db:"sharing_level" json:"sharing_level"`
 	HealthcheckUrl       string             `db:"healthcheck_url" json:"healthcheck_url"`
@@ -5318,6 +5320,7 @@ func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspace
 		arg.Icon,
 		arg.Command,
 		arg.Url,
+		arg.External,
 		arg.Subdomain,
 		arg.SharingLevel,
 		arg.HealthcheckUrl,

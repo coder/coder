@@ -106,8 +106,9 @@ message App {
     string url = 4;
     string icon = 5;
     bool subdomain = 6;
-    Healthcheck healthcheck = 7;
-    AppSharingLevel sharing_level = 8;
+    bool external = 7;
+    Healthcheck healthcheck = 8;
+    AppSharingLevel sharing_level = 9;
 }
 
 // Healthcheck represents configuration for checking for app readiness.

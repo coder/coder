@@ -2743,6 +2743,7 @@ func (q *fakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 		Icon:                 arg.Icon,
 		Command:              arg.Command,
 		Url:                  arg.Url,
+		External:             arg.External,
 		Subdomain:            arg.Subdomain,
 		SharingLevel:         arg.SharingLevel,
 		HealthcheckUrl:       arg.HealthcheckUrl,
