@@ -22,7 +22,7 @@ CREATE DATABASE coder;
 Coder configuration is defined via [environment variables](../admin/configure.md).
 The database client requires the connection string provided via the `CODER_PG_CONNECTION_URL` variable.
 
-```sh
+```console
 export CODER_PG_CONNECTION_URL="postgres://coder:secret42@localhost/coder?sslmode=disable"
 ```
 
@@ -49,7 +49,7 @@ Once the schema is created, you can list all schemas with `\dn`:
 
 In this case the database client requires the modified connection string:
 
-```sh
+```console
 export CODER_PG_CONNECTION_URL="postgres://coder:secret42@localhost/coder?sslmode=disable&search_path=myschema"
 ```
 
@@ -77,7 +77,7 @@ ALTER ROLE coder SET search_path = myschema;
 Please make sure that the schema selected in the connection string `...&search_path=myschema` exists
 and the role has granted permissions to access it. The schema should be present on this listing:
 
-```sh
+```console
 psql -U coder -c '\dn'
 ```
 

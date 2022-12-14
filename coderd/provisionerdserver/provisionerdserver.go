@@ -531,23 +531,23 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 		auditor := server.Auditor.Load()
 		build, getBuildErr := server.Database.GetWorkspaceBuildByJobID(ctx, job.ID)
 		if getBuildErr != nil {
-			server.Logger.Error(ctx, "failed to create audit log - get build err", slog.Error(err))
+			server.Logger.Error(ctx, "audit log - get build", slog.Error(err))
 		} else {
 			auditAction := auditActionFromTransition(build.Transition)
 			workspace, getWorkspaceErr := server.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
 			if getWorkspaceErr != nil {
-				server.Logger.Error(ctx, "failed to create audit log - get workspace err", slog.Error(err))
+				server.Logger.Error(ctx, "audit log - get workspace", slog.Error(err))
 			} else {
 				// We pass the below information to the Auditor so that it
 				// can form a friendly string for the user to view in the UI.
-				workspaceResourceInfo := map[string]string{
+				buildResourceInfo := map[string]string{
 					"workspaceName": workspace.Name,
 					"buildNumber":   strconv.FormatInt(int64(build.BuildNumber), 10),
 				}
 
-				wriBytes, err := json.Marshal(workspaceResourceInfo)
+				wriBytes, err := json.Marshal(buildResourceInfo)
 				if err != nil {
-					server.Logger.Error(ctx, "could not marshal workspace name", slog.Error(err))
+					server.Logger.Error(ctx, "marshal workspace resource info for failed job", slog.Error(err))
 				}
 
 				audit.BuildAudit(ctx, &audit.BuildAuditParams[database.WorkspaceBuild]{
@@ -756,14 +756,14 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 
 			// We pass the below information to the Auditor so that it
 			// can form a friendly string for the user to view in the UI.
-			workspaceResourceInfo := map[string]string{
+			buildResourceInfo := map[string]string{
 				"workspaceName": workspace.Name,
 				"buildNumber":   strconv.FormatInt(int64(workspaceBuild.BuildNumber), 10),
 			}
 
-			wriBytes, err := json.Marshal(workspaceResourceInfo)
+			wriBytes, err := json.Marshal(buildResourceInfo)
 			if err != nil {
-				server.Logger.Error(ctx, "marshal resource info", slog.Error(err))
+				server.Logger.Error(ctx, "marshal resource info for successful job", slog.Error(err))
 			}
 
 			audit.BuildAudit(ctx, &audit.BuildAuditParams[database.WorkspaceBuild]{

@@ -19,6 +19,10 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+const (
+	tarMimeType = "application/x-tar"
+)
+
 func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -32,7 +36,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	contentType := r.Header.Get("Content-Type")
 
 	switch contentType {
-	case "application/x-tar":
+	case tarMimeType:
 	default:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Unsupported content type header %q.", contentType),

@@ -30,7 +30,6 @@ plugins:
   - import
   - react-hooks
   - jest
-  - no-storage
   - unicorn
 root: true
 rules:
@@ -98,7 +97,6 @@ rules:
           message:
             "Use path imports to avoid pulling in unused modules. See:
             https://material-ui.com/guides/minimizing-bundle-size/"
-  no-storage/no-browser-storage: error
   no-unused-vars: "off"
   "object-curly-spacing": "off"
   react-hooks/exhaustive-deps: warn

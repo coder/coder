@@ -2980,6 +2980,17 @@ func (q *sqlQuerier) GetLastUpdateCheck(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getServiceBanner = `-- name: GetServiceBanner :one
+SELECT value FROM site_configs WHERE key = 'service_banner'
+`
+
+func (q *sqlQuerier) GetServiceBanner(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getServiceBanner)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
 const insertDERPMeshKey = `-- name: InsertDERPMeshKey :exec
 INSERT INTO site_configs (key, value) VALUES ('derp_mesh_key', $1)
 `
@@ -3005,6 +3016,16 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'last_update
 
 func (q *sqlQuerier) InsertOrUpdateLastUpdateCheck(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, insertOrUpdateLastUpdateCheck, value)
+	return err
+}
+
+const insertOrUpdateServiceBanner = `-- name: InsertOrUpdateServiceBanner :exec
+INSERT INTO site_configs (key, value) VALUES ('service_banner', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'service_banner'
+`
+
+func (q *sqlQuerier) InsertOrUpdateServiceBanner(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, insertOrUpdateServiceBanner, value)
 	return err
 }
 
@@ -3496,6 +3517,46 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		&i.GroupACL,
 		&i.DisplayName,
 		&i.AllowUserCancelWorkspaceJobs,
+	)
+	return i, err
+}
+
+const getPreviousTemplateVersion = `-- name: GetPreviousTemplateVersion :one
+SELECT
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by
+FROM
+	template_versions
+WHERE
+	created_at < (
+		SELECT created_at
+		FROM template_versions AS tv
+		WHERE tv.organization_id = $1 AND tv.name = $2 AND tv.template_id = $3
+	)
+	AND organization_id = $1
+	AND template_id = $3
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+type GetPreviousTemplateVersionParams struct {
+	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
+	Name           string        `db:"name" json:"name"`
+	TemplateID     uuid.NullUUID `db:"template_id" json:"template_id"`
+}
+
+func (q *sqlQuerier) GetPreviousTemplateVersion(ctx context.Context, arg GetPreviousTemplateVersionParams) (TemplateVersion, error) {
+	row := q.db.QueryRowContext(ctx, getPreviousTemplateVersion, arg.OrganizationID, arg.Name, arg.TemplateID)
+	var i TemplateVersion
+	err := row.Scan(
+		&i.ID,
+		&i.TemplateID,
+		&i.OrganizationID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		&i.Readme,
+		&i.JobID,
+		&i.CreatedBy,
 	)
 	return i, err
 }

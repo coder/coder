@@ -194,7 +194,8 @@ export interface CreateTemplateVersionRequest {
   readonly name?: string
   readonly template_id?: string
   readonly storage_method: ProvisionerStorageMethod
-  readonly file_id: string
+  readonly file_id?: string
+  readonly example_id?: string
   readonly provisioner: ProvisionerType
   readonly tags: Record<string, string>
   readonly parameter_values?: CreateParameterRequest[]
@@ -210,6 +211,8 @@ export interface CreateTestAuditLogRequest {
 
 // From codersdk/apikey.go
 export interface CreateTokenRequest {
+  // This is likely an enum in an external package ("time.Duration")
+  readonly lifetime: number
   readonly scope: APIKeyScope
 }
 
@@ -307,6 +310,7 @@ export interface DeploymentConfig {
   readonly api_rate_limit: DeploymentConfigField<number>
   readonly experimental: DeploymentConfigField<boolean>
   readonly update_check: DeploymentConfigField<boolean>
+  readonly max_token_lifetime: DeploymentConfigField<number>
   readonly password_auth_hidden: DeploymentConfigField<boolean>
 }
 
@@ -623,6 +627,13 @@ export interface ServerSentEvent {
   readonly data: any
 }
 
+// From codersdk/servicebanner.go
+export interface ServiceBanner {
+  readonly enabled: boolean
+  readonly message?: string
+  readonly background_color?: string
+}
+
 // From codersdk/deploymentconfig.go
 export interface TLSConfig {
   readonly enable: DeploymentConfigField<boolean>
@@ -678,6 +689,17 @@ export type TemplateBuildTimeStats = Record<
 // From codersdk/templates.go
 export interface TemplateDAUsResponse {
   readonly entries: DAUEntry[]
+}
+
+// From codersdk/templates.go
+export interface TemplateExample {
+  readonly id: string
+  readonly url: string
+  readonly name: string
+  readonly description: string
+  readonly icon: string
+  readonly tags: string[]
+  readonly markdown: string
 }
 
 // From codersdk/templates.go
