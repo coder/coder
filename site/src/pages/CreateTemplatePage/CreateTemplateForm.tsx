@@ -1,9 +1,10 @@
 import Checkbox from "@material-ui/core/Checkbox"
 import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
-import { TemplateExample } from "api/typesGenerated"
+import { ParameterSchema, TemplateExample } from "api/typesGenerated"
 import { FormFooter } from "components/FormFooter/FormFooter"
 import { IconField } from "components/IconField/IconField"
+import { ParameterInput } from "components/ParameterInput/ParameterInput"
 import { Stack } from "components/Stack/Stack"
 import { useFormik } from "formik"
 import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate"
@@ -15,11 +16,12 @@ import * as Yup from "yup"
 
 const validationSchema = Yup.object({
   name: nameValidator("Name"),
-  displayName: Yup.string().optional(),
+  display_name: Yup.string().optional(),
   description: Yup.string().optional(),
   icon: Yup.string().optional(),
   default_ttl_hours: Yup.number(),
   allow_user_cancel_workspace_jobs: Yup.boolean(),
+  parameter_values_by_name: Yup.object().optional(),
 })
 
 const defaultInitialValues: CreateTemplateData = {
@@ -29,6 +31,7 @@ const defaultInitialValues: CreateTemplateData = {
   icon: "",
   default_ttl_hours: 24,
   allow_user_cancel_workspace_jobs: false,
+  parameter_values_by_name: undefined,
 }
 
 const getInitialValues = (starterTemplate?: TemplateExample) => {
@@ -47,7 +50,8 @@ const getInitialValues = (starterTemplate?: TemplateExample) => {
 
 interface CreateTemplateFormProps {
   starterTemplate?: TemplateExample
-  errors?: unknown
+  error?: unknown
+  parameters?: ParameterSchema[]
   isSubmitting: boolean
   onCancel: () => void
   onSubmit: (data: CreateTemplateData) => void
@@ -55,7 +59,8 @@ interface CreateTemplateFormProps {
 
 export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
   starterTemplate,
-  errors,
+  error,
+  parameters,
   isSubmitting,
   onCancel,
   onSubmit,
@@ -67,7 +72,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
     validationSchema,
     onSubmit,
   })
-  const getFieldHelpers = getFormHelpers<CreateTemplateData>(form, errors)
+  const getFieldHelpers = getFormHelpers<CreateTemplateData>(form, error)
   const { t } = useTranslation("createTemplatePage")
 
   return (
@@ -203,6 +208,36 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
             </label>
           </Stack>
         </div>
+
+        {/* Parameters */}
+        {parameters && (
+          <div className={styles.formSection}>
+            <div className={styles.formSectionInfo}>
+              <h2 className={styles.formSectionInfoTitle}>
+                {t("form.parameters.title")}
+              </h2>
+              <p className={styles.formSectionInfoDescription}>
+                {t("form.parameters.description")}
+              </p>
+            </div>
+
+            <Stack direction="column" className={styles.formSectionFields}>
+              {parameters.map((schema) => (
+                <ParameterInput
+                  schema={schema}
+                  disabled={isSubmitting}
+                  key={schema.id}
+                  onChange={async (value) => {
+                    await form.setFieldValue(
+                      `parameter_values_by_name.${schema.name}`,
+                      value,
+                    )
+                  }}
+                />
+              ))}
+            </Stack>
+          </div>
+        )}
 
         <FormFooter
           styles={formFooterStyles}

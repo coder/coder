@@ -17,6 +17,10 @@
       "title": "Operations",
       "description": "Allow or not users to run specific actions on the workspace."
     },
+    "parameters": {
+      "title": "Template params",
+      "description": "Those params are provided by your template's Terraform configuration."
+    },
     "fields": {
       "name": "Name",
       "displayName": "Display name",

@@ -1,4 +1,5 @@
 import { useMachine } from "@xstate/react"
+import { Maybe } from "components/Conditionals/Maybe"
 import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm"
 import { Loader } from "components/Loader/Loader"
 import { useOrganizationId } from "hooks/useOrganizationId"
@@ -26,11 +27,8 @@ const CreateTemplatePage: FC = () => {
       },
     },
   })
-  const { starterTemplate } = state.context
-  const shouldDisplayForm =
-    state.matches("idle") ||
-    state.matches("creating") ||
-    state.matches("created")
+  const { starterTemplate, parameters, error } = state.context
+  const shouldDisplayForm = !state.hasTag("loading")
 
   const onCancel = () => {
     navigate(-1)
@@ -43,11 +41,16 @@ const CreateTemplatePage: FC = () => {
       </Helmet>
 
       <FullPageHorizontalForm title={t("title")} onCancel={onCancel}>
-        {state.hasTag("loading") && <Loader />}
+        <Maybe condition={state.hasTag("loading")}>
+          <Loader />
+        </Maybe>
+
         {shouldDisplayForm && (
           <CreateTemplateForm
+            error={error}
             starterTemplate={starterTemplate}
-            isSubmitting={state.matches("creating")}
+            isSubmitting={state.hasTag("submitting")}
+            parameters={parameters}
             onCancel={onCancel}
             onSubmit={(data) => {
               send({
