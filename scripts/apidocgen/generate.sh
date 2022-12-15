@@ -4,6 +4,8 @@
 # from the coderd API.
 
 set -euo pipefail
+# shellcheck source=../scripts/lib.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 
 SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 API_MD_TMP_FILE=$(mktemp /tmp/coder-apidocgen.XXXXXX)
@@ -13,7 +15,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "Use temporary file: ${API_MD_TMP_FILE}"
+log "Use temporary file: ${API_MD_TMP_FILE}"
 
 (
 	cd "$SCRIPT_DIR/../.."
