@@ -3,7 +3,7 @@
  * presented as an Alert/banner, for reactively updating a workspace schedule.
  */
 import { getErrorMessage } from "api/errors"
-import { Template, Workspace } from "api/typesGenerated"
+import { Workspace } from "api/typesGenerated"
 import dayjs from "dayjs"
 import minMax from "dayjs/plugin/minMax"
 import {
@@ -29,7 +29,6 @@ export const Language = {
 
 export interface WorkspaceScheduleBannerContext {
   workspace: Workspace
-  template: Template
   deadline?: dayjs.Dayjs
 }
 
@@ -141,7 +140,6 @@ export const workspaceScheduleBannerMachine = createMachine(
           ? !canExtendDeadline(
               context.deadline,
               context.workspace,
-              context.template,
             )
           : false,
       isAtMinDeadline: (context) =>
@@ -169,7 +167,7 @@ export const workspaceScheduleBannerMachine = createMachine(
         const proposedDeadline = context.deadline.add(event.hours, "hours")
         const newDeadline = dayjs.min(
           proposedDeadline,
-          getMaxDeadline(context.workspace, context.template),
+          getMaxDeadline(context.workspace),
         )
         await API.putWorkspaceExtension(context.workspace.id, newDeadline)
       },

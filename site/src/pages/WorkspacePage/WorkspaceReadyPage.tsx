@@ -106,10 +106,9 @@ export const WorkspaceReadyPage = ({
           maxDeadlineDecrease: deadline
             ? getMaxDeadlineChange(deadline, getMinDeadline())
             : 0,
-          maxDeadlineIncrease:
-            deadline && template
+          maxDeadlineIncrease: deadline
               ? getMaxDeadlineChange(
-                  getMaxDeadline(workspace, template),
+                  getMaxDeadline(workspace),
                   deadline,
                 )
               : 0,
