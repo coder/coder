@@ -210,25 +210,25 @@
 
 ### Properties
 
-| Name                             | Type                              | Required | Restrictions | Description                                |
-| -------------------------------- | --------------------------------- | -------- | ------------ | ------------------------------------------ |
-| active_user_count                | integer                           | false    | none         | ActiveUserCount is set to -1 when loading. |
-| active_version_id                | string                            | false    | none         | none                                       |
-| allow_user_cancel_workspace_jobs | boolean                           | false    | none         | none                                       |
-| build_time_stats                 | `codersdk.TemplateBuildTimeStats` | false    | none         | none                                       |
-| created_at                       | string                            | false    | none         | none                                       |
-| created_by_id                    | string                            | false    | none         | none                                       |
-| created_by_name                  | string                            | false    | none         | none                                       |
-| default_ttl_ms                   | integer                           | false    | none         | none                                       |
-| description                      | string                            | false    | none         | none                                       |
-| display_name                     | string                            | false    | none         | none                                       |
-| icon                             | string                            | false    | none         | none                                       |
-| id                               | string                            | false    | none         | none                                       |
-| name                             | string                            | false    | none         | none                                       |
-| organization_id                  | string                            | false    | none         | none                                       |
-| provisioner                      | string                            | false    | none         | none                                       |
-| updated_at                       | string                            | false    | none         | none                                       |
-| workspace_owner_count            | integer                           | false    | none         | none                                       |
+| Name                             | Type                                                               | Required | Restrictions | Description                                |
+| -------------------------------- | ------------------------------------------------------------------ | -------- | ------------ | ------------------------------------------ |
+| active_user_count                | integer                                                            | false    | none         | ActiveUserCount is set to -1 when loading. |
+| active_version_id                | string                                                             | false    | none         | none                                       |
+| allow_user_cancel_workspace_jobs | boolean                                                            | false    | none         | none                                       |
+| build_time_stats                 | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats) | false    | none         | none                                       |
+| created_at                       | string                                                             | false    | none         | none                                       |
+| created_by_id                    | string                                                             | false    | none         | none                                       |
+| created_by_name                  | string                                                             | false    | none         | none                                       |
+| default_ttl_ms                   | integer                                                            | false    | none         | none                                       |
+| description                      | string                                                             | false    | none         | none                                       |
+| display_name                     | string                                                             | false    | none         | none                                       |
+| icon                             | string                                                             | false    | none         | none                                       |
+| id                               | string                                                             | false    | none         | none                                       |
+| name                             | string                                                             | false    | none         | none                                       |
+| organization_id                  | string                                                             | false    | none         | none                                       |
+| provisioner                      | string                                                             | false    | none         | none                                       |
+| updated_at                       | string                                                             | false    | none         | none                                       |
+| workspace_owner_count            | integer                                                            | false    | none         | none                                       |
 
 ## codersdk.TemplateBuildTimeStats
 
@@ -247,9 +247,9 @@
 
 ### Properties
 
-| Name                     | Type                       | Required | Restrictions | Description |
-| ------------------------ | -------------------------- | -------- | ------------ | ----------- |
-| **additionalProperties** | `codersdk.TransitionStats` | false    | none         | none        |
+| Name                     | Type                                                 | Required | Restrictions | Description |
+| ------------------------ | ---------------------------------------------------- | -------- | ------------ | ----------- |
+| **additionalProperties** | [codersdk.TransitionStats](#codersdktransitionstats) | false    | none         | none        |
 
 ## codersdk.TransitionStats
 
@@ -418,24 +418,24 @@
 
 ### Properties
 
-| Name                                      | Type                      | Required | Restrictions | Description |
-| ----------------------------------------- | ------------------------- | -------- | ------------ | ----------- |
-| autostart_schedule                        | string                    | false    | none         | none        |
-| created_at                                | string                    | false    | none         | none        |
-| id                                        | string                    | false    | none         | none        |
-| last_used_at                              | string                    | false    | none         | none        |
-| latest_build                              | `codersdk.WorkspaceBuild` | false    | none         | none        |
-| name                                      | string                    | false    | none         | none        |
-| outdated                                  | boolean                   | false    | none         | none        |
-| owner_id                                  | string                    | false    | none         | none        |
-| owner_name                                | string                    | false    | none         | none        |
-| template_allow_user_cancel_workspace_jobs | boolean                   | false    | none         | none        |
-| template_display_name                     | string                    | false    | none         | none        |
-| template_icon                             | string                    | false    | none         | none        |
-| template_id                               | string                    | false    | none         | none        |
-| template_name                             | string                    | false    | none         | none        |
-| ttl_ms                                    | integer                   | false    | none         | none        |
-| updated_at                                | string                    | false    | none         | none        |
+| Name                                      | Type                                               | Required | Restrictions | Description |
+| ----------------------------------------- | -------------------------------------------------- | -------- | ------------ | ----------- |
+| autostart_schedule                        | string                                             | false    | none         | none        |
+| created_at                                | string                                             | false    | none         | none        |
+| id                                        | string                                             | false    | none         | none        |
+| last_used_at                              | string                                             | false    | none         | none        |
+| latest_build                              | [codersdk.WorkspaceBuild](#codersdkworkspacebuild) | false    | none         | none        |
+| name                                      | string                                             | false    | none         | none        |
+| outdated                                  | boolean                                            | false    | none         | none        |
+| owner_id                                  | string                                             | false    | none         | none        |
+| owner_name                                | string                                             | false    | none         | none        |
+| template_allow_user_cancel_workspace_jobs | boolean                                            | false    | none         | none        |
+| template_display_name                     | string                                             | false    | none         | none        |
+| template_icon                             | string                                             | false    | none         | none        |
+| template_id                               | string                                             | false    | none         | none        |
+| template_name                             | string                                             | false    | none         | none        |
+| ttl_ms                                    | integer                                            | false    | none         | none        |
+| updated_at                                | string                                             | false    | none         | none        |
 
 ## codersdk.WorkspaceAgent
 
@@ -496,30 +496,30 @@
 
 ### Properties
 
-| Name                       | Type                  | Required | Restrictions | Description                                                             |
-| -------------------------- | --------------------- | -------- | ------------ | ----------------------------------------------------------------------- |
-| apps                       | array                 | false    | none         | none                                                                    |
-| architecture               | string                | false    | none         | none                                                                    |
-| connection_timeout_seconds | integer               | false    | none         | none                                                                    |
-| created_at                 | string                | false    | none         | none                                                                    |
-| directory                  | string                | false    | none         | none                                                                    |
-| disconnected_at            | string                | false    | none         | none                                                                    |
-| environment_variables      | object                | false    | none         | none                                                                    |
-| » **additionalProperties** | string                | false    | none         | none                                                                    |
-| first_connected_at         | string                | false    | none         | none                                                                    |
-| id                         | string                | false    | none         | none                                                                    |
-| instance_id                | string                | false    | none         | none                                                                    |
-| last_connected_at          | string                | false    | none         | none                                                                    |
-| latency                    | object                | false    | none         | DERPLatency is mapped by region name (e.g. "New York City", "Seattle"). |
-| » **additionalProperties** | `codersdk.DERPRegion` | false    | none         | none                                                                    |
-| name                       | string                | false    | none         | none                                                                    |
-| operating_system           | string                | false    | none         | none                                                                    |
-| resource_id                | string                | false    | none         | none                                                                    |
-| startup_script             | string                | false    | none         | none                                                                    |
-| status                     | string                | false    | none         | none                                                                    |
-| troubleshooting_url        | string                | false    | none         | none                                                                    |
-| updated_at                 | string                | false    | none         | none                                                                    |
-| version                    | string                | false    | none         | none                                                                    |
+| Name                       | Type                                       | Required | Restrictions | Description                                                             |
+| -------------------------- | ------------------------------------------ | -------- | ------------ | ----------------------------------------------------------------------- |
+| apps                       | array                                      | false    | none         | none                                                                    |
+| architecture               | string                                     | false    | none         | none                                                                    |
+| connection_timeout_seconds | integer                                    | false    | none         | none                                                                    |
+| created_at                 | string                                     | false    | none         | none                                                                    |
+| directory                  | string                                     | false    | none         | none                                                                    |
+| disconnected_at            | string                                     | false    | none         | none                                                                    |
+| environment_variables      | object                                     | false    | none         | none                                                                    |
+| » **additionalProperties** | string                                     | false    | none         | none                                                                    |
+| first_connected_at         | string                                     | false    | none         | none                                                                    |
+| id                         | string                                     | false    | none         | none                                                                    |
+| instance_id                | string                                     | false    | none         | none                                                                    |
+| last_connected_at          | string                                     | false    | none         | none                                                                    |
+| latency                    | object                                     | false    | none         | DERPLatency is mapped by region name (e.g. "New York City", "Seattle"). |
+| » **additionalProperties** | [codersdk.DERPRegion](#codersdkderpregion) | false    | none         | none                                                                    |
+| name                       | string                                     | false    | none         | none                                                                    |
+| operating_system           | string                                     | false    | none         | none                                                                    |
+| resource_id                | string                                     | false    | none         | none                                                                    |
+| startup_script             | string                                     | false    | none         | none                                                                    |
+| status                     | string                                     | false    | none         | none                                                                    |
+| troubleshooting_url        | string                                     | false    | none         | none                                                                    |
+| updated_at                 | string                                     | false    | none         | none                                                                    |
+| version                    | string                                     | false    | none         | none                                                                    |
 
 ## codersdk.WorkspaceApp
 
@@ -545,19 +545,19 @@
 
 ### Properties
 
-| Name          | Type                   | Required | Restrictions | Description                                                                                                                                                                                                                                             |
-| ------------- | ---------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| command       | string                 | false    | none         | none                                                                                                                                                                                                                                                    |
-| display_name  | string                 | false    | none         | DisplayName is a friendly name for the app.                                                                                                                                                                                                             |
-| external      | boolean                | false    | none         | External specifies whether the URL should be opened externally on<br>the client or not.                                                                                                                                                                 |
-| health        | string                 | false    | none         | none                                                                                                                                                                                                                                                    |
-| healthcheck   | `codersdk.Healthcheck` | false    | none         | none                                                                                                                                                                                                                                                    |
-| icon          | string                 | false    | none         | Icon is a relative path or external URL that specifies<br>an icon to be displayed in the dashboard.                                                                                                                                                     |
-| id            | string                 | false    | none         | none                                                                                                                                                                                                                                                    |
-| sharing_level | string                 | false    | none         | none                                                                                                                                                                                                                                                    |
-| slug          | string                 | false    | none         | Slug is a unique identifier within the agent.                                                                                                                                                                                                           |
-| subdomain     | boolean                | false    | none         | Subdomain denotes whether the app should be accessed via a path on the<br>`coder server` or via a hostname-based dev URL. If this is set to true<br>and there is no app wildcard configured on the server, the app will not<br>be accessible in the UI. |
-| url           | string                 | false    | none         | URL is the address being proxied to inside the workspace.<br>If external is specified, this will be opened on the client.                                                                                                                               |
+| Name          | Type                                         | Required | Restrictions | Description                                                                                                                                                                                                                                             |
+| ------------- | -------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| command       | string                                       | false    | none         | none                                                                                                                                                                                                                                                    |
+| display_name  | string                                       | false    | none         | DisplayName is a friendly name for the app.                                                                                                                                                                                                             |
+| external      | boolean                                      | false    | none         | External specifies whether the URL should be opened externally on<br>the client or not.                                                                                                                                                                 |
+| health        | string                                       | false    | none         | none                                                                                                                                                                                                                                                    |
+| healthcheck   | [codersdk.Healthcheck](#codersdkhealthcheck) | false    | none         | none                                                                                                                                                                                                                                                    |
+| icon          | string                                       | false    | none         | Icon is a relative path or external URL that specifies<br>an icon to be displayed in the dashboard.                                                                                                                                                     |
+| id            | string                                       | false    | none         | none                                                                                                                                                                                                                                                    |
+| sharing_level | string                                       | false    | none         | none                                                                                                                                                                                                                                                    |
+| slug          | string                                       | false    | none         | Slug is a unique identifier within the agent.                                                                                                                                                                                                           |
+| subdomain     | boolean                                      | false    | none         | Subdomain denotes whether the app should be accessed via a path on the<br>`coder server` or via a hostname-based dev URL. If this is set to true<br>and there is no app wildcard configured on the server, the app will not<br>be accessible in the UI. |
+| url           | string                                       | false    | none         | URL is the address being proxied to inside the workspace.<br>If external is specified, this will be opened on the client.                                                                                                                               |
 
 ## codersdk.WorkspaceBuild
 
@@ -677,27 +677,27 @@
 
 ### Properties
 
-| Name                  | Type                      | Required | Restrictions | Description |
-| --------------------- | ------------------------- | -------- | ------------ | ----------- |
-| build_number          | integer                   | false    | none         | none        |
-| created_at            | string                    | false    | none         | none        |
-| daily_cost            | integer                   | false    | none         | none        |
-| deadline              | `codersdk.NullTime`       | false    | none         | none        |
-| id                    | string                    | false    | none         | none        |
-| initiator_id          | string                    | false    | none         | none        |
-| initiator_name        | string                    | false    | none         | none        |
-| job                   | `codersdk.ProvisionerJob` | false    | none         | none        |
-| reason                | string                    | false    | none         | none        |
-| resources             | array                     | false    | none         | none        |
-| status                | string                    | false    | none         | none        |
-| template_version_id   | string                    | false    | none         | none        |
-| template_version_name | string                    | false    | none         | none        |
-| transition            | string                    | false    | none         | none        |
-| updated_at            | string                    | false    | none         | none        |
-| workspace_id          | string                    | false    | none         | none        |
-| workspace_name        | string                    | false    | none         | none        |
-| workspace_owner_id    | string                    | false    | none         | none        |
-| workspace_owner_name  | string                    | false    | none         | none        |
+| Name                  | Type                                               | Required | Restrictions | Description |
+| --------------------- | -------------------------------------------------- | -------- | ------------ | ----------- |
+| build_number          | integer                                            | false    | none         | none        |
+| created_at            | string                                             | false    | none         | none        |
+| daily_cost            | integer                                            | false    | none         | none        |
+| deadline              | [codersdk.NullTime](#codersdknulltime)             | false    | none         | none        |
+| id                    | string                                             | false    | none         | none        |
+| initiator_id          | string                                             | false    | none         | none        |
+| initiator_name        | string                                             | false    | none         | none        |
+| job                   | [codersdk.ProvisionerJob](#codersdkprovisionerjob) | false    | none         | none        |
+| reason                | string                                             | false    | none         | none        |
+| resources             | array                                              | false    | none         | none        |
+| status                | string                                             | false    | none         | none        |
+| template_version_id   | string                                             | false    | none         | none        |
+| template_version_name | string                                             | false    | none         | none        |
+| transition            | string                                             | false    | none         | none        |
+| updated_at            | string                                             | false    | none         | none        |
+| workspace_id          | string                                             | false    | none         | none        |
+| workspace_name        | string                                             | false    | none         | none        |
+| workspace_owner_id    | string                                             | false    | none         | none        |
+| workspace_owner_name  | string                                             | false    | none         | none        |
 
 ## codersdk.WorkspaceResource
 

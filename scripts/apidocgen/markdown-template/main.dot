@@ -67,7 +67,7 @@
 
 {{? block.rows.length}}|Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|{{?}}
-{{~ block.rows :p}}|{{=p.displayName}}|{{? p.$ref}}`{{=p.$ref}}`{{?}}{{? !p.$ref}}{{=p.type}}{{?}}|{{=p.required}}|{{=p.restrictions||'none'}}|{{=p.description||'none'}}|
+{{~ block.rows :p}}|{{=p.displayName}}|{{? p.$ref}}[{{=p.$ref}}](#{{=p.$ref.replace(".","").toLowerCase()}}){{?}}{{? !p.$ref}}{{=p.type}}{{?}}|{{=p.required}}|{{=p.restrictions||'none'}}|{{=p.description||'none'}}|
 {{~}}
 {{~}}
 {{? (blocks[0].rows.length === 0) && (blocks.length === 1) }}
