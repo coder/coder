@@ -131,6 +131,12 @@ isdarwin() {
 	[[ "${OSTYPE:-darwin}" == *darwin* ]]
 }
 
+# issourced returns true if the script that sourced this script is being
+# sourced by another.
+issourced() {
+	[[ "${BASH_SOURCE[1]}" != "$0" ]]
+}
+
 # We don't need to check dependencies more than once per script, but some
 # scripts call other scripts that also `source lib.sh`, so we set an environment
 # variable after successfully checking dependencies once.
