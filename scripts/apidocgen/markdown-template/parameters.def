@@ -3,7 +3,7 @@
 
 |Name|In|Type|Required|Description|
 |---|---|---|---|---|
-{{~ data.parameters :p}}|{{=p.name}}|{{=p.in}}|{{? p.schema['x-widdershins-oldRef']}}[{{= p.schema['x-widdershins-oldRef'].substring(21) }}](/schemas.md#{{= p.schema['x-widdershins-oldRef'].substring(21).replace(".","")}}){{?}}{{? !p.schema['x-widdershins-oldRef']}}{{= p.safeType}}{{?}}|{{=p.required}}|{{=p.shortDesc || 'none'}}|
+{{~ data.parameters :p}}|{{=p.name}}|{{=p.in}}|{{? p.schema['x-widdershins-oldRef']}}[{{= p.schema['x-widdershins-oldRef'].substring(21) }}](schemas.md#{{= p.schema['x-widdershins-oldRef'].substring(21).replace(".","")}}){{?}}{{? !p.schema['x-widdershins-oldRef']}}{{= p.safeType}}{{?}}|{{=p.required}}|{{=p.shortDesc || 'none'}}|
 {{~}}
 
 {{? data.longDescs }}

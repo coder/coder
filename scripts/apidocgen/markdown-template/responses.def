@@ -15,7 +15,7 @@
 
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
-{{~ data.responses :r}}|{{=r.status}}|{{=r.meaning}}|{{=r.description || 'none'}}|[{{= r.content['application/json'].schema['x-widdershins-oldRef'].substring(21) }}](/schemas.md#{{= r.content['application/json'].schema['x-widdershins-oldRef'].substring(21).replace(".","")}})|
+{{~ data.responses :r}}|{{=r.status}}|{{=r.meaning}}|{{=r.description || 'none'}}|[{{= r.content['application/json'].schema['x-widdershins-oldRef'].substring(21) }}](schemas.md#{{= r.content['application/json'].schema['x-widdershins-oldRef'].substring(21).replace(".","")}})|
 {{~}}
 
 {{ data.responseSchemas = false; }}
