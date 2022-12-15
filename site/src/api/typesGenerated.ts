@@ -618,7 +618,7 @@ export interface ServiceBanner {
 
 // From codersdk/deploymentconfig.go
 export interface SwaggerConfig {
-  readonly enabled: DeploymentConfigField<boolean>
+  readonly enable: DeploymentConfigField<boolean>
 }
 
 // From codersdk/deploymentconfig.go

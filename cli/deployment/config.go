@@ -431,7 +431,7 @@ func newConfig() *codersdk.DeploymentConfig {
 			Default: 24 * 30 * time.Hour,
 		},
 		Swagger: &codersdk.SwaggerConfig{
-			Enabled: &codersdk.DeploymentConfigField[bool]{
+			Enable: &codersdk.DeploymentConfigField[bool]{
 				Name:    "Enable swagger endpoint",
 				Usage:   "Expose the swagger endpoint via /swagger.",
 				Flag:    "swagger-enabled",

@@ -290,7 +290,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
 			DeploymentConfig:            options.DeploymentConfig,
 			UpdateCheckOptions:          options.UpdateCheckOptions,
-			SwaggerEndpointEnabled:      options.SwaggerEndpointEnabled,
+			SwaggerEndpointEnable:       options.SwaggerEndpointEnabled,
 		}
 }
 

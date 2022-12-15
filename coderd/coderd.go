@@ -112,7 +112,7 @@ type Options struct {
 	DeploymentConfig            *codersdk.DeploymentConfig
 	UpdateCheckOptions          *updatecheck.Options // Set non-nil to enable update checking.
 
-	SwaggerEndpointEnabled bool
+	SwaggerEndpointEnable bool
 
 	HTTPClient *http.Client
 }
@@ -601,7 +601,7 @@ func New(options *Options) *API {
 		})
 	})
 
-	if options.SwaggerEndpointEnabled {
+	if options.SwaggerEndpointEnable {
 		// Swagger UI requires the URL trailing slash. Otherwise, the browser tries to load /assets
 		// from http://localhost:8080/assets instead of http://localhost:8080/swagger/assets.
 		r.Get("/swagger", http.RedirectHandler("/swagger/", http.StatusSeeOther).ServeHTTP)
