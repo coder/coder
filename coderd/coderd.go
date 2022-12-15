@@ -117,7 +117,7 @@ type Options struct {
 	HTTPClient *http.Client
 }
 
-// @title Coderd API
+// @title Coder API
 // @version 2.0
 // @description Coderd is the service created by running coder server. It is a thin API that connects workspaces, provisioners and users. coderd stores its state in Postgres and is the only service that communicates with Postgres.
 // @termsOfService https://coder.com/legal/terms-of-service

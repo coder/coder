@@ -857,7 +857,7 @@ var SwaggerInfo = &swag.Spec{
 	Host:             "",
 	BasePath:         "/api/v2",
 	Schemes:          []string{},
-	Title:            "Coderd API",
+	Title:            "Coder API",
 	Description:      "Coderd is the service created by running coder server. It is a thin API that connects workspaces, provisioners and users. coderd stores its state in Postgres and is the only service that communicates with Postgres.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
