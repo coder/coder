@@ -108,6 +108,7 @@ type TelemetryConfig struct {
 type TLSConfig struct {
 	Enable         *DeploymentConfigField[bool]     `json:"enable" typescript:",notnull"`
 	Address        *DeploymentConfigField[string]   `json:"address" typescript:",notnull"`
+	RedirectHTTP   *DeploymentConfigField[bool]     `json:"redirect_http" typescript:",notnull"`
 	CertFiles      *DeploymentConfigField[[]string] `json:"cert_file" typescript:",notnull"`
 	ClientAuth     *DeploymentConfigField[string]   `json:"client_auth" typescript:",notnull"`
 	ClientCAFile   *DeploymentConfigField[string]   `json:"client_ca_file" typescript:",notnull"`

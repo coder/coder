@@ -338,6 +338,15 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				cmd.Printf("%s The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL by not specifying an access URL.\n", cliui.Styles.Warn.Render("Warning:"), cliui.Styles.Field.Render(accessURLParsed.String()), reason)
 			}
 
+			// Redirect from the HTTP listener to the access URL if:
+			// 1. The redirect flag is enabled.
+			// 2. HTTP listening is enabled (obviously).
+			// 3. TLS is enabled (otherwise they're likely using a reverse proxy
+			//    which can do this instead).
+			// 4. The access URL has been set manually (not a tunnel).
+			// 5. The access URL is HTTPS.
+			shouldRedirectHTTPToAccessURL := cfg.TLS.RedirectHTTP.Value && cfg.HTTPAddress.Value != "" && cfg.TLS.Enable.Value && tunnel == nil && accessURLParsed.Scheme == "https"
+
 			// A newline is added before for visibility in terminal output.
 			cmd.Printf("\nView the Web UI: %s\n", accessURLParsed.String())
 
@@ -715,15 +724,23 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			shutdownConnsCtx, shutdownConns := context.WithCancel(ctx)
 			defer shutdownConns()
 
-			// ReadHeaderTimeout is purposefully not enabled. It caused some issues with
-			// websockets over the dev tunnel.
+			// Wrap the server in middleware that redirects to the access URL if
+			// the request is not to a local IP.
+			var handler http.Handler = coderAPI.RootHandler
+			if shouldRedirectHTTPToAccessURL {
+				handler = redirectHTTPToAccessURL(handler, accessURLParsed)
+			}
+
+			// ReadHeaderTimeout is purposefully not enabled. It caused some
+			// issues with websockets over the dev tunnel.
 			// See: https://github.com/coder/coder/pull/3730
 			//nolint:gosec
 			httpServer := &http.Server{
-				// These errors are typically noise like "TLS: EOF". Vault does similar:
+				// These errors are typically noise like "TLS: EOF". Vault does
+				// similar:
 				// https://github.com/hashicorp/vault/blob/e2490059d0711635e529a4efcbaa1b26998d6e1c/command/server.go#L2714
 				ErrorLog: log.New(io.Discard, "", 0),
-				Handler:  coderAPI.RootHandler,
+				Handler:  handler,
 				BaseContext: func(_ net.Listener) context.Context {
 					return shutdownConnsCtx
 				},
@@ -1411,4 +1428,15 @@ func handleOauth2ClientCertificates(ctx context.Context, cfg *codersdk.Deploymen
 		}), nil
 	}
 	return ctx, nil
+}
+
+func redirectHTTPToAccessURL(handler http.Handler, accessURL *url.URL) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.TLS == nil {
+			http.Redirect(w, r, accessURL.String(), http.StatusTemporaryRedirect)
+			return
+		}
+
+		handler.ServeHTTP(w, r)
+	})
 }

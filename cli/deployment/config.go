@@ -283,6 +283,12 @@ func newConfig() *codersdk.DeploymentConfig {
 				Flag:    "tls-address",
 				Default: "127.0.0.1:3443",
 			},
+			RedirectHTTP: &codersdk.DeploymentConfigField[bool]{
+				Name:    "Redirect HTTP to HTTPS",
+				Usage:   "Whether HTTP requests will be redirected to the access URL (if it's a https URL and TLS is enabled). Requests to local IP addresses are never redirected regardless of this setting.",
+				Flag:    "tls-redirect-http-to-https",
+				Default: true,
+			},
 			CertFiles: &codersdk.DeploymentConfigField[[]string]{
 				Name:  "TLS Certificate Files",
 				Usage: "Path to each certificate for TLS. It requires a PEM-encoded file. To configure the listener to use a CA certificate, concatenate the primary certificate and the CA certificate together. The primary certificate should appear first in the combined file.",

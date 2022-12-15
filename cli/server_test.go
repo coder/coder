@@ -512,6 +512,145 @@ func TestServer(t *testing.T) {
 		require.NoError(t, <-errC)
 	})
 
+	t.Run("TLSRedirect", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name         string
+			httpListener bool
+			tlsListener  bool
+			accessURL    string
+			// Empty string means no redirect.
+			expectRedirect string
+		}{
+			{
+				name:           "OK",
+				httpListener:   true,
+				tlsListener:    true,
+				accessURL:      "https://example.com",
+				expectRedirect: "https://example.com",
+			},
+			{
+				name:           "NoTLSListener",
+				httpListener:   true,
+				tlsListener:    false,
+				accessURL:      "https://example.com",
+				expectRedirect: "",
+			},
+			{
+				name:           "NoHTTPListener",
+				httpListener:   false,
+				tlsListener:    true,
+				accessURL:      "https://example.com",
+				expectRedirect: "",
+			},
+		}
+
+		for _, c := range cases {
+			c := c
+
+			t.Run(c.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx, cancelFunc := context.WithCancel(context.Background())
+				defer cancelFunc()
+
+				certPath, keyPath := generateTLSCertificate(t)
+				flags := []string{
+					"server",
+					"--in-memory",
+					"--cache-dir", t.TempDir(),
+				}
+				if c.httpListener {
+					flags = append(flags, "--http-address", ":0")
+				}
+				if c.tlsListener {
+					flags = append(flags,
+						"--tls-enable",
+						"--tls-address", ":0",
+						"--tls-cert-file", certPath,
+						"--tls-key-file", keyPath,
+					)
+				}
+				if c.accessURL != "" {
+					flags = append(flags, "--access-url", c.accessURL)
+				}
+
+				root, _ := clitest.New(t, flags...)
+				pty := ptytest.New(t)
+				root.SetOutput(pty.Output())
+				root.SetErr(pty.Output())
+
+				errC := make(chan error, 1)
+				go func() {
+					errC <- root.ExecuteContext(ctx)
+				}()
+
+				var (
+					httpAddr string
+					tlsAddr  string
+				)
+				// We can't use waitAccessURL as it will only return the HTTP URL.
+				if c.httpListener {
+					const httpLinePrefix = "Started HTTP listener at "
+					pty.ExpectMatch(httpLinePrefix)
+					httpLine := pty.ReadLine()
+					httpAddr = strings.TrimSpace(strings.TrimPrefix(httpLine, httpLinePrefix))
+					require.NotEmpty(t, httpAddr)
+				}
+				if c.tlsListener {
+					const tlsLinePrefix = "Started TLS/HTTPS listener at "
+					pty.ExpectMatch(tlsLinePrefix)
+					tlsLine := pty.ReadLine()
+					tlsAddr = strings.TrimSpace(strings.TrimPrefix(tlsLine, tlsLinePrefix))
+					require.NotEmpty(t, tlsAddr)
+				}
+
+				// Verify HTTP redirects (or not)
+				if c.httpListener {
+					httpURL, err := url.Parse(httpAddr)
+					require.NoError(t, err)
+					client := codersdk.New(httpURL)
+					client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+						return http.ErrUseLastResponse
+					}
+					resp, err := client.Request(ctx, http.MethodGet, "/api/v2/buildinfo", nil)
+					require.NoError(t, err)
+					defer resp.Body.Close()
+					if c.expectRedirect == "" {
+						require.Equal(t, http.StatusOK, resp.StatusCode)
+					} else {
+						require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+						require.Equal(t, c.expectRedirect, resp.Header.Get("Location"))
+					}
+				}
+
+				// Verify TLS
+				if c.tlsListener {
+					tlsURL, err := url.Parse(tlsAddr)
+					require.NoError(t, err)
+					client := codersdk.New(tlsURL)
+					client.HTTPClient = &http.Client{
+						CheckRedirect: func(req *http.Request, via []*http.Request) error {
+							return http.ErrUseLastResponse
+						},
+						Transport: &http.Transport{
+							TLSClientConfig: &tls.Config{
+								//nolint:gosec
+								InsecureSkipVerify: true,
+							},
+						},
+					}
+					_, err = client.HasFirstUser(ctx)
+					require.NoError(t, err)
+
+					cancelFunc()
+					require.NoError(t, <-errC)
+				}
+			})
+		}
+	})
+
 	t.Run("NoAddress", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
