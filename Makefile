@@ -102,7 +102,7 @@ release: $(CODER_FAT_BINARIES) $(CODER_ALL_ARCHIVES) $(CODER_ALL_PACKAGES) $(COD
 .PHONY: release
 
 build/coder-slim_$(VERSION)_checksums.sha1: site/out/bin/coder.sha1
-	cp "site/out/bin/coder.sha1" "build/coder-slim_$(VERSION)_checksums.sha1"
+	cp "$<" "$@"
 
 site/out/bin/coder.sha1: $(CODER_SLIM_BINARIES)
 	pushd ./site/out/bin
@@ -115,7 +115,7 @@ build/coder-slim_$(VERSION).tar: build/coder-slim_$(VERSION)_checksums.sha1 $(CO
 	popd
 
 site/out/bin/coder.tar.zst: build/coder-slim_$(VERSION).tar.zst
-	cp "build/coder-slim_$(VERSION).tar.zst" "site/out/bin/coder.tar.zst"
+	cp "$<" "$@"
 
 build/coder-slim_$(VERSION).tar.zst: build/coder-slim_$(VERSION).tar
 	zstd $(ZSTDFLAGS) \
