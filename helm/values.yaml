@@ -45,7 +45,7 @@ coder:
   # for information about what environment variables can be set.
   # Note: The following environment variables are set by default and cannot be
   # overridden:
-  # - CODER_ADDRESS: set to 0.0.0.0:8080 and cannot be changed.
+  # - CODER_HTTP_ADDRESS: set to 0.0.0.0:8080 and cannot be changed.
   # - CODER_TLS_ADDRESS: set to 0.0.0.0:8443 if tls.secretName is not empty.
   # - CODER_TLS_ENABLE: set if tls.secretName is not empty.
   # - CODER_TLS_CERT_FILE: set if tls.secretName is not empty.
