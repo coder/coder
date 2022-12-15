@@ -4182,13 +4182,13 @@ SELECT
 FROM
 	users
 WHERE
-	users.deleted = $1
+	users.deleted = false
 	-- Start filters
 	-- Filter by name, email or username
 	AND CASE
-		WHEN $2 :: text != '' THEN (
-			email ILIKE concat('%', $2, '%')
-			OR username ILIKE concat('%', $2, '%')
+		WHEN $1 :: text != '' THEN (
+			email ILIKE concat('%', $1, '%')
+			OR username ILIKE concat('%', $1, '%')
 		)
 		ELSE true
 	END
@@ -4196,15 +4196,15 @@ WHERE
 	AND CASE
 		-- @status needs to be a text because it can be empty, If it was
 		-- user_status enum, it would not.
-		WHEN cardinality($3 :: user_status[]) > 0 THEN
-			status = ANY($3 :: user_status[])
+		WHEN cardinality($2 :: user_status[]) > 0 THEN
+			status = ANY($2 :: user_status[])
 		ELSE true
 	END
 	-- Filter by rbac_roles
 	AND CASE
 		-- @rbac_role allows filtering by rbac roles. If 'member' is included, show everyone, as everyone is a member.
-		WHEN cardinality($4 :: text[]) > 0 AND 'member' != ANY($4 :: text[])
-		THEN rbac_roles && $4 :: text[]
+		WHEN cardinality($3 :: text[]) > 0 AND 'member' != ANY($3 :: text[])
+		THEN rbac_roles && $3 :: text[]
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedUserCount
@@ -4212,19 +4212,14 @@ WHERE
 `
 
 type GetFilteredUserCountParams struct {
-	Deleted  bool         `db:"deleted" json:"deleted"`
 	Search   string       `db:"search" json:"search"`
 	Status   []UserStatus `db:"status" json:"status"`
 	RbacRole []string     `db:"rbac_role" json:"rbac_role"`
 }
 
+// This will never count deleted users.
 func (q *sqlQuerier) GetFilteredUserCount(ctx context.Context, arg GetFilteredUserCountParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getFilteredUserCount,
-		arg.Deleted,
-		arg.Search,
-		pq.Array(arg.Status),
-		pq.Array(arg.RbacRole),
-	)
+	row := q.db.QueryRowContext(ctx, getFilteredUserCount, arg.Search, pq.Array(arg.Status), pq.Array(arg.RbacRole))
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -4236,8 +4231,8 @@ SELECT
 FROM
 	users
 WHERE
-	(LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($2))
-	AND deleted = $3
+	(LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($2)) AND
+	deleted = false
 LIMIT
 	1
 `
@@ -4245,11 +4240,10 @@ LIMIT
 type GetUserByEmailOrUsernameParams struct {
 	Username string `db:"username" json:"username"`
 	Email    string `db:"email" json:"email"`
-	Deleted  bool   `db:"deleted" json:"deleted"`
 }
 
 func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserByEmailOrUsernameParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, getUserByEmailOrUsername, arg.Username, arg.Email, arg.Deleted)
+	row := q.db.QueryRowContext(ctx, getUserByEmailOrUsername, arg.Username, arg.Email)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -4303,7 +4297,9 @@ const getUserCount = `-- name: GetUserCount :one
 SELECT
 	COUNT(*)
 FROM
-	users WHERE deleted = false
+	users
+WHERE
+	deleted = false
 `
 
 func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
@@ -4319,12 +4315,12 @@ SELECT
 FROM
 	users
 WHERE
-	users.deleted = $1
+	users.deleted = false
 	AND CASE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without
 		-- duplicating or missing data.
-		WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+		WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
 			-- The pagination cursor is the last ID of the previous page.
 			-- The query is ordered by the created_at field, so select all
 			-- rows after the cursor.
@@ -4334,7 +4330,7 @@ WHERE
 				FROM
 					users
 				WHERE
-					id = $2
+					id = $1
 			)
 		)
 		ELSE true
@@ -4342,9 +4338,9 @@ WHERE
 	-- Start filters
 	-- Filter by name, email or username
 	AND CASE
-		WHEN $3 :: text != '' THEN (
-			email ILIKE concat('%', $3, '%')
-			OR username ILIKE concat('%', $3, '%')
+		WHEN $2 :: text != '' THEN (
+			email ILIKE concat('%', $2, '%')
+			OR username ILIKE concat('%', $2, '%')
 		)
 		ELSE true
 	END
@@ -4352,30 +4348,29 @@ WHERE
 	AND CASE
 		-- @status needs to be a text because it can be empty, If it was
 		-- user_status enum, it would not.
-		WHEN cardinality($4 :: user_status[]) > 0 THEN
-			status = ANY($4 :: user_status[])
+		WHEN cardinality($3 :: user_status[]) > 0 THEN
+			status = ANY($3 :: user_status[])
 		ELSE true
 	END
 	-- Filter by rbac_roles
 	AND CASE
 		-- @rbac_role allows filtering by rbac roles. If 'member' is included, show everyone, as
 	    -- everyone is a member.
-		WHEN cardinality($5 :: text[]) > 0 AND 'member' != ANY($5 :: text[]) THEN
-		    rbac_roles && $5 :: text[]
+		WHEN cardinality($4 :: text[]) > 0 AND 'member' != ANY($4 :: text[]) THEN
+		    rbac_roles && $4 :: text[]
 		ELSE true
 	END
 	-- End of filters
 ORDER BY
 	-- Deterministic and consistent ordering of all users, even if they share
 	-- a timestamp. This is to ensure consistent pagination.
-	(created_at, id) ASC OFFSET $6
+	(created_at, id) ASC OFFSET $5
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
-	NULLIF($7 :: int, 0)
+	NULLIF($6 :: int, 0)
 `
 
 type GetUsersParams struct {
-	Deleted   bool         `db:"deleted" json:"deleted"`
 	AfterID   uuid.UUID    `db:"after_id" json:"after_id"`
 	Search    string       `db:"search" json:"search"`
 	Status    []UserStatus `db:"status" json:"status"`
@@ -4400,9 +4395,9 @@ type GetUsersRow struct {
 	Count          int64          `db:"count" json:"count"`
 }
 
+// This will never return deleted users.
 func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUsersRow, error) {
 	rows, err := q.db.QueryContext(ctx, getUsers,
-		arg.Deleted,
 		arg.AfterID,
 		arg.Search,
 		pq.Array(arg.Status),

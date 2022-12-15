@@ -16,6 +16,9 @@ type Config struct {
 	// request.template_id must be set. A name will be generated if not
 	// specified.
 	Request codersdk.CreateWorkspaceRequest `json:"request"`
+	// NoWaitForAgents determines whether the test should wait for the workspace
+	// agents to connect before returning.
+	NoWaitForAgents bool `json:"no_wait_for_agents"`
 }
 
 func (c Config) Validate() error {
