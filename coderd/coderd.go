@@ -37,7 +37,7 @@ import (
 	"github.com/coder/coder/buildinfo"
 
 	// Used to serve the Swagger endpoint
-	_ "github.com/coder/coder/coderd/apidocs"
+	_ "github.com/coder/coder/coderd/apidoc"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"

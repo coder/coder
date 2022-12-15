@@ -21,7 +21,7 @@ echo "Use temporary file: ${API_MD_TMP_FILE}"
 	go run github.com/swaggo/swag/cmd/swag@v1.8.6 init \
 		--generalInfo="coderd.go" \
 		--dir="./coderd,./codersdk" \
-		--output="./coderd/apidocs" \
+		--output="./coderd/apidoc" \
 		--outputTypes="go,json" \
 		--parseDependency=true
 ) || exit $?
@@ -39,7 +39,7 @@ echo "Use temporary file: ${API_MD_TMP_FILE}"
 		--search false \
 		--omitHeader true \
 		--language_tabs "shell:curl" \
-		--summary "../../coderd/apidocs/swagger.json" \
+		--summary "../../coderd/apidoc/swagger.json" \
 		--outfile "${API_MD_TMP_FILE}"
 ) || exit $?
 
