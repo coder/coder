@@ -6,7 +6,7 @@ We recommend automating Coder deployments through the CLI. Examples include [upd
 
 Long-lived tokens can be generated to perform actions on behalf of your user account:
 
-```sh
+```console
 coder tokens create
 ```
 
@@ -15,7 +15,7 @@ coder tokens create
 You can use tokens with the CLI by setting the `--token` CLI flag or the `CODER_SESSION_TOKEN`
 environment variable.
 
-```sh
+```console
 export CODER_URL=https://coder.example.com
 export CODER_SESSION_TOKEN=*****
 coder workspaces ls
@@ -25,7 +25,7 @@ coder workspaces ls
 
 You can use tokens with the Coder's REST API using the `Coder-Session-Token` HTTP header.
 
-```sh
+```console
 curl 'https://dev.coder.com/api/v2/workspaces' \
   -H 'Coder-Session-Token: *****'
 ```
@@ -34,4 +34,4 @@ curl 'https://dev.coder.com/api/v2/workspaces' \
 
 ## Golang SDK
 
-Coder publishes a public [Golang SDK](https://pkg.go.dev/github.com/coder/coder@main/codersdk) for Coder. This is consumed by the [CLI package](https://github.com/coder/coder/tree/main/cli).
+Coder publishes a public [Golang SDK](https://pkg.go.dev/github.com/coder/coder/codersdk) for Coder. This is consumed by the [CLI package](https://github.com/coder/coder/tree/main/cli).

@@ -552,13 +552,17 @@ func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 func AwaitTemplateVersionJob(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
 	t.Helper()
 
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
+
 	t.Logf("waiting for template version job %s", version)
 	var templateVersion codersdk.TemplateVersion
 	require.Eventually(t, func() bool {
 		var err error
-		templateVersion, err = client.TemplateVersion(context.Background(), version)
+		templateVersion, err = client.TemplateVersion(ctx, version)
 		return assert.NoError(t, err) && templateVersion.Job.CompletedAt != nil
 	}, testutil.WaitMedium, testutil.IntervalFast)
+	t.Logf("got template version job %s", version)
 	return templateVersion
 }
 
@@ -566,13 +570,17 @@ func AwaitTemplateVersionJob(t *testing.T, client *codersdk.Client, version uuid
 func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UUID) codersdk.WorkspaceBuild {
 	t.Helper()
 
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
 	t.Logf("waiting for workspace build job %s", build)
 	var workspaceBuild codersdk.WorkspaceBuild
 	require.Eventually(t, func() bool {
 		var err error
-		workspaceBuild, err = client.WorkspaceBuild(context.Background(), build)
+		workspaceBuild, err = client.WorkspaceBuild(ctx, build)
 		return assert.NoError(t, err) && workspaceBuild.Job.CompletedAt != nil
 	}, testutil.WaitShort, testutil.IntervalFast)
+	t.Logf("got workspace build job %s", build)
 	return workspaceBuild
 }
 
@@ -580,11 +588,14 @@ func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UU
 func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID) []codersdk.WorkspaceResource {
 	t.Helper()
 
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
 	t.Logf("waiting for workspace agents (workspace %s)", workspaceID)
 	var resources []codersdk.WorkspaceResource
 	require.Eventually(t, func() bool {
 		var err error
-		workspace, err := client.Workspace(context.Background(), workspaceID)
+		workspace, err := client.Workspace(ctx, workspaceID)
 		if !assert.NoError(t, err) {
 			return false
 		}
@@ -604,6 +615,7 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, workspaceID uui
 
 		return true
 	}, testutil.WaitLong, testutil.IntervalFast)
+	t.Logf("got workspace agents (workspace %s)", workspaceID)
 	return resources
 }
 

@@ -12,6 +12,8 @@ import (
 	"github.com/gohugoio/hugo/parser/pageparser"
 	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/codersdk"
 )
 
 var (
@@ -19,23 +21,16 @@ var (
 	files embed.FS
 
 	exampleBasePath = "https://github.com/coder/coder/tree/main/examples/templates/"
-	examples        = make([]Example, 0)
+	examples        = make([]codersdk.TemplateExample, 0)
 	parseExamples   sync.Once
 	archives        = singleflight.Group{}
+	ErrNotFound     = xerrors.New("example not found")
 )
-
-type Example struct {
-	ID          string `json:"id"`
-	URL         string `json:"url"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Markdown    string `json:"markdown"`
-}
 
 const rootDir = "templates"
 
 // List returns all embedded examples.
-func List() ([]Example, error) {
+func List() ([]codersdk.TemplateExample, error) {
 	var returnError error
 	parseExamples.Do(func() {
 		files, err := fs.Sub(files, rootDir)
@@ -92,11 +87,41 @@ func List() ([]Example, error) {
 				return
 			}
 
-			examples = append(examples, Example{
+			tags := []string{}
+			tagsRaw, exists := frontMatter.FrontMatter["tags"]
+			if exists {
+				tagsI, valid := tagsRaw.([]interface{})
+				if !valid {
+					returnError = xerrors.Errorf("example %q tags isn't a slice: type %T", exampleID, tagsRaw)
+					return
+				}
+				for _, tagI := range tagsI {
+					tag, valid := tagI.(string)
+					if !valid {
+						returnError = xerrors.Errorf("example %q tag isn't a string: type %T", exampleID, tagI)
+						return
+					}
+					tags = append(tags, tag)
+				}
+			}
+
+			var icon string
+			iconRaw, exists := frontMatter.FrontMatter["icon"]
+			if exists {
+				icon, valid = iconRaw.(string)
+				if !valid {
+					returnError = xerrors.Errorf("example %q icon isn't a string", exampleID)
+					return
+				}
+			}
+
+			examples = append(examples, codersdk.TemplateExample{
 				ID:          exampleID,
 				URL:         exampleURL,
 				Name:        name,
 				Description: description,
+				Icon:        icon,
+				Tags:        tags,
 				Markdown:    string(frontMatter.Content),
 			})
 		}
@@ -112,7 +137,7 @@ func Archive(exampleID string) ([]byte, error) {
 			return nil, xerrors.Errorf("list: %w", err)
 		}
 
-		var selected Example
+		var selected codersdk.TemplateExample
 		for _, example := range examples {
 			if example.ID != exampleID {
 				continue
@@ -122,7 +147,7 @@ func Archive(exampleID string) ([]byte, error) {
 		}
 
 		if selected.ID == "" {
-			return nil, xerrors.Errorf("example with id %q not found", exampleID)
+			return nil, xerrors.Errorf("example with id %q not found: %w", exampleID, ErrNotFound)
 		}
 
 		exampleFiles, err := fs.Sub(files, path.Join(rootDir, exampleID))

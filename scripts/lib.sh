@@ -6,6 +6,15 @@
 
 set -euo pipefail
 
+# Avoid sourcing this script multiple times to guard against when lib.sh
+# is used by another sourced script, it can lead to confusing results.
+if [[ ${SCRIPTS_LIB_IS_SOURCED:-0} == 1 ]]; then
+	return
+fi
+# Do not export to avoid this value being inherited by non-sourced
+# scripts.
+SCRIPTS_LIB_IS_SOURCED=1
+
 # realpath returns an absolute path to the given relative path. It will fail if
 # the parent directory of the path does not exist. Make sure you are in the
 # expected directory before running this to avoid errors.
@@ -129,6 +138,12 @@ error() {
 # isdarwin returns an error if the current platform is not darwin.
 isdarwin() {
 	[[ "${OSTYPE:-darwin}" == *darwin* ]]
+}
+
+# issourced returns true if the script that sourced this script is being
+# sourced by another.
+issourced() {
+	[[ "${BASH_SOURCE[1]}" != "$0" ]]
 }
 
 # We don't need to check dependencies more than once per script, but some
