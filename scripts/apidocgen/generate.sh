@@ -19,11 +19,11 @@ log "Use temporary file: ${API_MD_TMP_FILE}"
 
 pushd "$SCRIPT_DIR/../.."
 go run github.com/swaggo/swag/cmd/swag@v1.8.6 init \
-		--generalInfo="coderd.go" \
-		--dir="./coderd,./codersdk" \
-		--output="./coderd/apidoc" \
-		--outputTypes="go,json" \
-		--parseDependency=true
+	--generalInfo="coderd.go" \
+	--dir="./coderd,./codersdk" \
+	--output="./coderd/apidoc" \
+	--outputTypes="go,json" \
+	--parseDependency=true
 popd
 
 pushd "$SCRIPT_DIR"
