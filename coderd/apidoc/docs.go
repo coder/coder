@@ -145,37 +145,48 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Owner username",
+                        "description": "Filter by owner username",
                         "name": "owner",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Template name",
+                        "description": "Filter by template name",
                         "name": "template",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Workspace name",
+                        "description": "Filter with partial-match by workspace name",
                         "name": "name",
                         "in": "query"
                     },
                     {
+                        "enum": [
+                            "pending",
+                            "running",
+                            "stopping",
+                            "stopped",
+                            "failed",
+                            "canceling",
+                            "canceled",
+                            "deleted",
+                            "deleting"
+                        ],
                         "type": "string",
-                        "description": "Workspace status",
+                        "description": "Filter by workspace status",
                         "name": "status",
                         "in": "query"
                     },
                     {
-                        "type": "boolean",
-                        "description": "Deleted workspaces",
-                        "name": "deleted",
-                        "in": "query"
-                    },
-                    {
-                        "type": "boolean",
-                        "description": "Has agent",
+                        "enum": [
+                            "connected",
+                            "connecting",
+                            "disconnected",
+                            "timeout"
+                        ],
+                        "type": "string",
+                        "description": "Filter by agent status",
                         "name": "has_agent",
                         "in": "query"
                     }

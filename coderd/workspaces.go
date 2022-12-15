@@ -110,12 +110,11 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
-// @Param owner query string false "Owner username"
-// @Param template query string false "Template name"
-// @Param name query string false "Workspace name"
-// @Param status query string false "Workspace status"
-// @Param deleted query bool false "Deleted workspaces"
-// @Param has_agent query bool false "Has agent"
+// @Param owner query string false "Filter by owner username"
+// @Param template query string false "Filter by template name"
+// @Param name query string false "Filter with partial-match by workspace name"
+// @Param status query string false "Filter by workspace status" Enums(pending,running,stopping,stopped,failed,canceling,canceled,deleted,deleting)
+// @Param has_agent query string false "Filter by agent status" Enums(connected,connecting,disconnected,timeout)
 // @Success 200 {object} codersdk.WorkspacesResponse
 // @Failure 400 {object} codersdk.Response
 // @Failure 500 {object} codersdk.Response
