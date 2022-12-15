@@ -153,8 +153,8 @@ resource "coder_agent" "coder" {
   startup_script = <<EOT
 #!/bin/bash
 
-# install code-server
-curl -fsSL https://code-server.dev/install.sh | sh
+# install code-server 4.8.3
+curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3
 
 # The & prevents the startup_script from blocking so the
 # next commands can run.
