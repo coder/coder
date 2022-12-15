@@ -117,7 +117,7 @@ export const updateCheckMachine = createMachine(
       dismissOrClear: {
         on: {
           DISMISS: {
-            actions: ["assignHide"],
+            actions: ["assignHide", "setDismissedVersion"],
             target: "dismissed",
           },
           CLEAR: {
@@ -141,9 +141,11 @@ export const updateCheckMachine = createMachine(
       assignPermissions: assign({
         permissions: (_, event) => event.data as Permissions,
       }),
-      assignShow: assign({
-        show: true,
-      }),
+      assignShow: assign((context) => ({
+        show:
+          localStorage.getItem("dismissedVersion") !==
+          context.updateCheck?.version,
+      })),
       assignHide: assign({
         show: false,
       }),
@@ -161,6 +163,12 @@ export const updateCheckMachine = createMachine(
         ...context,
         error: undefined,
       })),
+      setDismissedVersion: (context) => {
+        if (context.updateCheck?.version) {
+          // We use localStorage to ensure users who have dismissed the UpdateCheckBanner are not plagued by its reappearance on page reload
+          localStorage.setItem("dismissedVersion", context.updateCheck.version)
+        }
+      },
     },
     guards: {
       canViewUpdateCheck: (context) =>

@@ -11,6 +11,19 @@ terraform {
   }
 }
 
+# User parameters
+
+variable "dotfiles_uri" {
+  type        = string
+  description = <<-EOF
+  default     = ""
+  Dotfiles repo URI (optional)
+
+  see https://dotfiles.github.io
+  EOF
+  default     = ""
+}
+
 variable "datocms_api_token" {
   type        = string
   description = "An API token from DATOCMS for usage with building our website."
@@ -39,7 +52,10 @@ resource "coder_agent" "dev" {
     curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3
     code-server --auth none --port 13337 &
     sudo service docker start
-    coder dotfiles -y 2>&1 | tee  ~/.personalize.log
+    DOTFILES_URI=${var.dotfiles_uri}
+    if [ -n "$DOTFILES_URI" ]; then
+      coder dotfiles var.dotfiles_uri -y 2>&1 | tee  ~/.personalize.log
+    fi
     EOF
 }
 

@@ -19,6 +19,7 @@ const (
 	UniqueWorkspaceAppsAgentIDSlugIndex            UniqueConstraint = "workspace_apps_agent_id_slug_idx"               // ALTER TABLE ONLY workspace_apps ADD CONSTRAINT workspace_apps_agent_id_slug_idx UNIQUE (agent_id, slug);
 	UniqueWorkspaceBuildsJobIDKey                  UniqueConstraint = "workspace_builds_job_id_key"                    // ALTER TABLE ONLY workspace_builds ADD CONSTRAINT workspace_builds_job_id_key UNIQUE (job_id);
 	UniqueWorkspaceBuildsWorkspaceIDBuildNumberKey UniqueConstraint = "workspace_builds_workspace_id_build_number_key" // ALTER TABLE ONLY workspace_builds ADD CONSTRAINT workspace_builds_workspace_id_build_number_key UNIQUE (workspace_id, build_number);
+	UniqueWorkspaceResourceMetadataName            UniqueConstraint = "workspace_resource_metadata_name"               // ALTER TABLE ONLY workspace_resource_metadata ADD CONSTRAINT workspace_resource_metadata_name UNIQUE (workspace_resource_id, key);
 	UniqueIndexOrganizationName                    UniqueConstraint = "idx_organization_name"                          // CREATE UNIQUE INDEX idx_organization_name ON organizations USING btree (name);
 	UniqueIndexOrganizationNameLower               UniqueConstraint = "idx_organization_name_lower"                    // CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lower(name));
 	UniqueIndexUsersEmail                          UniqueConstraint = "idx_users_email"                                // CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE (deleted = false);

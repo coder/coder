@@ -31,7 +31,6 @@ BunchOfMetadata.args = {
   resource: {
     ...MockWorkspaceResource,
     metadata: [
-      { key: "type", value: "kubernetes_pod", sensitive: false },
       {
         key: "CPU(limits, requests)",
         value: "2 cores, 500m",

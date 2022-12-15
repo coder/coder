@@ -65,6 +65,10 @@ Flags:
                                                      production.
                                                      Consumes $CODER_EXPERIMENTAL
   -h, --help                                         help for server
+      --max-token-lifetime duration                  The maximum lifetime duration for any
+                                                     user creating a token.
+                                                     Consumes $CODER_MAX_TOKEN_LIFETIME
+                                                     (default 720h0m0s)
       --oauth2-github-allow-everyone                 Allow all logins, setting this option
                                                      means allowed orgs and teams must be
                                                      empty.

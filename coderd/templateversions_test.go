@@ -179,6 +179,15 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		tar, err := examples.Archive(ls[0].ID)
 		require.NoError(t, err)
 		require.EqualValues(t, tar, fl)
+
+		// ensure we don't get file conflicts on multiple uses of the same example
+		tv, err = client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
+			Name:          "my-example",
+			StorageMethod: codersdk.ProvisionerStorageMethodFile,
+			ExampleID:     ls[0].ID,
+			Provisioner:   codersdk.ProvisionerTypeEcho,
+		})
+		require.NoError(t, err)
 	})
 }
 

@@ -206,6 +206,8 @@ export interface CreateTestAuditLogRequest {
 
 // From codersdk/apikey.go
 export interface CreateTokenRequest {
+  // This is likely an enum in an external package ("time.Duration")
+  readonly lifetime: number
   readonly scope: APIKeyScope
 }
 
@@ -303,6 +305,7 @@ export interface DeploymentConfig {
   readonly api_rate_limit: DeploymentConfigField<number>
   readonly experimental: DeploymentConfigField<boolean>
   readonly update_check: DeploymentConfigField<boolean>
+  readonly max_token_lifetime: DeploymentConfigField<number>
 }
 
 // From codersdk/deploymentconfig.go
@@ -891,6 +894,8 @@ export interface WorkspaceAgentResourceMetadata {
 // From codersdk/workspaceapps.go
 export interface WorkspaceApp {
   readonly id: string
+  readonly url: string
+  readonly external: boolean
   readonly slug: string
   readonly display_name: string
   readonly command?: string

@@ -878,21 +878,39 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		// upload a copy of the template tar as a file in the database
 		hashBytes := sha256.Sum256(tar)
 		hash := hex.EncodeToString(hashBytes[:])
-		file, err = api.Database.InsertFile(ctx, database.InsertFileParams{
-			ID:        uuid.New(),
+		// Check if the file already exists.
+		file, err := api.Database.GetFileByHashAndCreator(ctx, database.GetFileByHashAndCreatorParams{
 			Hash:      hash,
 			CreatedBy: apiKey.UserID,
-			CreatedAt: database.Now(),
-			Mimetype:  tarMimeType,
-			Data:      tar,
 		})
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error creating file.",
-				Detail:  err.Error(),
+			if !errors.Is(err, sql.ErrNoRows) {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error fetching file.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+
+			// If the example tar file doesn't exist, create it.
+			file, err = api.Database.InsertFile(ctx, database.InsertFileParams{
+				ID:        uuid.New(),
+				Hash:      hash,
+				CreatedBy: apiKey.UserID,
+				CreatedAt: database.Now(),
+				Mimetype:  tarMimeType,
+				Data:      tar,
 			})
-			return
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error creating file.",
+					Detail:  err.Error(),
+				})
+				return
+			}
 		}
+
+		req.FileID = file.ID
 	}
 
 	if req.FileID != uuid.Nil {
