@@ -35,7 +35,7 @@ func newConfig() *codersdk.DeploymentConfig {
 		// DEPRECATED: Use HTTPAddress or TLS.Address instead.
 		Address: &codersdk.DeploymentConfigField[string]{
 			Name:      "Address",
-			Usage:     "HTTP bind address of the server. Unset to disable the HTTP endpoint.",
+			Usage:     "Bind address of the server.",
 			Flag:      "address",
 			Shorthand: "a",
 			// Deprecated, so we don't have a default. If set, it will overwrite
