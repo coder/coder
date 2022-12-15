@@ -434,7 +434,7 @@ func newConfig() *codersdk.DeploymentConfig {
 			Enable: &codersdk.DeploymentConfigField[bool]{
 				Name:    "Enable swagger endpoint",
 				Usage:   "Expose the swagger endpoint via /swagger.",
-				Flag:    "swagger-enabled",
+				Flag:    "swagger-enable",
 				Default: false,
 			},
 		},
