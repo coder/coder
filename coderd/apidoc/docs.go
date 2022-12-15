@@ -13,7 +13,7 @@ const docTemplate = `{
         "termsOfService": "https://coder.com/legal/terms-of-service",
         "contact": {
             "name": "API Support",
-            "url": "http://coder.com",
+            "url": "https://coder.com",
             "email": "support@coder.com"
         },
         "license": {

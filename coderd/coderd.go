@@ -122,7 +122,7 @@ type Options struct {
 // @termsOfService https://coder.com/legal/terms-of-service
 
 // @contact.name API Support
-// @contact.url http://coder.com
+// @contact.url https://coder.com
 // @contact.email support@coder.com
 
 // @license.name AGPL-3.0
