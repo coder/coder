@@ -43,7 +43,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization-id}/tem
 | Name            | In   | Type                                                                       | Required | Description     |
 | --------------- | ---- | -------------------------------------------------------------------------- | -------- | --------------- |
 | organization-id | path | string                                                                     | true     | Organization ID |
-| body            | body | [codersdk.CreateTemplateRequest](schemas.md#codersdkCreateTemplateRequest) | true     | Request body    |
+| body            | body | [codersdk.CreateTemplateRequest](schemas.md#codersdkcreatetemplaterequest) | true     | Request body    |
 
 ### Example responses
 
@@ -84,9 +84,9 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization-id}/tem
 
 | Status | Meaning                                                                    | Description           | Schema                                           |
 | ------ | -------------------------------------------------------------------------- | --------------------- | ------------------------------------------------ |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                    | OK                    | [codersdk.Template](schemas.md#codersdkTemplate) |
-| 404    | [Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)             | Not Found             | [codersdk.Response](schemas.md#codersdkResponse) |
-| 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | Internal Server Error | [codersdk.Response](schemas.md#codersdkResponse) |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                    | OK                    | [codersdk.Template](schemas.md#codersdktemplate) |
+| 404    | [Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)             | Not Found             | [codersdk.Response](schemas.md#codersdkresponse) |
+| 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | Internal Server Error | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
 
@@ -149,8 +149,8 @@ curl -X GET http://coder-server:8080/api/v2/templates/{id} \
 
 | Status | Meaning                                                                    | Description           | Schema                                           |
 | ------ | -------------------------------------------------------------------------- | --------------------- | ------------------------------------------------ |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                    | OK                    | [codersdk.Template](schemas.md#codersdkTemplate) |
-| 404    | [Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)             | Not Found             | [codersdk.Response](schemas.md#codersdkResponse) |
-| 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | Internal Server Error | [codersdk.Response](schemas.md#codersdkResponse) |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                    | OK                    | [codersdk.Template](schemas.md#codersdktemplate) |
+| 404    | [Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)             | Not Found             | [codersdk.Response](schemas.md#codersdkresponse) |
+| 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | Internal Server Error | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
