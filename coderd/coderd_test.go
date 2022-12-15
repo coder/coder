@@ -189,4 +189,21 @@ func TestSwagger(t *testing.T) {
 
 		require.Equal(t, "<pre>\n</pre>\n", string(body))
 	})
+	t.Run("doc.json disabled by default", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		defer cancel()
+
+		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, swaggerEndpoint+"/doc.json", nil)
+		require.NoError(t, err)
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		require.Equal(t, "<pre>\n</pre>\n", string(body))
+	})
 }
