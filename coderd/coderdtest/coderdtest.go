@@ -78,6 +78,10 @@ import (
 )
 
 type Options struct {
+	// AccessURL denotes a custom access URL. By default we use the httptest
+	// server's URL. Setting this may result in unexpected behavior (especially
+	// with running agents).
+	AccessURL            *url.URL
 	AppHostname          string
 	AWSCertificates      awsidentity.Certificates
 	Authorizer           rbac.Authorizer
@@ -144,7 +148,7 @@ func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer)
 	return client, closer
 }
 
-func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.CancelFunc, *coderd.Options) {
+func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.CancelFunc, *url.URL, *coderd.Options) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -214,6 +218,11 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 	derpPort, err := strconv.Atoi(serverURL.Port())
 	require.NoError(t, err)
 
+	accessURL := options.AccessURL
+	if accessURL == nil {
+		accessURL = serverURL
+	}
+
 	stunAddr, stunCleanup := stuntest.ServeWithPacketListener(t, nettype.Std{})
 	t.Cleanup(stunCleanup)
 
@@ -236,12 +245,12 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			mutex.Lock()
 			defer mutex.Unlock()
 			handler = h
-		}, cancelFunc, &coderd.Options{
+		}, cancelFunc, serverURL, &coderd.Options{
 			AgentConnectionUpdateFrequency: 150 * time.Millisecond,
 			// Force a long disconnection timeout to ensure
 			// agents are not marked as disconnected during slow tests.
 			AgentInactiveDisconnectTimeout: testutil.WaitShort,
-			AccessURL:                      serverURL,
+			AccessURL:                      accessURL,
 			AppHostname:                    options.AppHostname,
 			AppHostnameRegex:               appHostnameRegex,
 			Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
@@ -298,7 +307,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	if options == nil {
 		options = &Options{}
 	}
-	setHandler, cancelFunc, newOptions := NewOptions(t, options)
+	setHandler, cancelFunc, serverURL, newOptions := NewOptions(t, options)
 	// We set the handler after server creation for the access URL.
 	coderAPI := coderd.New(newOptions)
 	setHandler(coderAPI.RootHandler)
@@ -306,7 +315,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	if options.IncludeProvisionerDaemon {
 		provisionerCloser = NewProvisionerDaemon(t, coderAPI)
 	}
-	client := codersdk.New(coderAPI.AccessURL)
+	client := codersdk.New(serverURL)
 	t.Cleanup(func() {
 		cancelFunc()
 		_ = provisionerCloser.Close()
