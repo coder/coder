@@ -152,29 +152,6 @@
 | » **additionalProperties** | string | false    | none         | none        |
 | worker_id                  | string | false    | none         | none        |
 
-## codersdk.Response
-
-```json
-{
-  "detail": "string",
-  "message": "string",
-  "validations": [
-    {
-      "detail": "string",
-      "field": "string"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name        | Type   | Required | Restrictions | Description                                                                                                                                                                                                                                    |
-| ----------- | ------ | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| detail      | string | false    | none         | Detail is a debug message that provides further insight into why the<br>action failed. This information can be technical and a regular golang<br>err.Error() text.<br>- "database: too many open connections"<br>- "stat: too many open files" |
-| message     | string | false    | none         | Message is an actionable message that depicts actions the request took.<br>These messages should be fully formed sentences with proper punctuation.<br>Examples:<br>- "A user has been created."<br>- "Failed to create a user."               |
-| validations | array  | false    | none         | Validations are form field-specific friendly error messages. They will be<br>shown on a form field in the UI. These can also be used to add additional<br>context if there is a set of errors in the primary 'Message'.                        |
-
 ## codersdk.Template
 
 ```json
@@ -266,22 +243,6 @@
 | ---- | ------- | -------- | ------------ | ----------- |
 | p50  | integer | false    | none         | none        |
 | p95  | integer | false    | none         | none        |
-
-## codersdk.ValidationError
-
-```json
-{
-  "detail": "string",
-  "field": "string"
-}
-```
-
-### Properties
-
-| Name   | Type   | Required | Restrictions | Description |
-| ------ | ------ | -------- | ------------ | ----------- |
-| detail | string | true     | none         | none        |
-| field  | string | true     | none         | none        |
 
 ## codersdk.Workspace
 

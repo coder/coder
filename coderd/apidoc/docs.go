@@ -64,18 +64,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.Template"
                         }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 }
             }
@@ -110,18 +98,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Template"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 }
@@ -197,18 +173,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.WorkspacesResponse"
                         }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
                     }
                 }
             }
@@ -249,30 +213,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Workspace"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    },
-                    "410": {
-                        "description": "Gone",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 }
@@ -435,26 +375,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.Response": {
-            "type": "object",
-            "properties": {
-                "detail": {
-                    "description": "Detail is a debug message that provides further insight into why the\naction failed. This information can be technical and a regular golang\nerr.Error() text.\n- \"database: too many open connections\"\n- \"stat: too many open files\"",
-                    "type": "string"
-                },
-                "message": {
-                    "description": "Message is an actionable message that depicts actions the request took.\nThese messages should be fully formed sentences with proper punctuation.\nExamples:\n- \"A user has been created.\"\n- \"Failed to create a user.\"",
-                    "type": "string"
-                },
-                "validations": {
-                    "description": "Validations are form field-specific friendly error messages. They will be\nshown on a form field in the UI. These can also be used to add additional\ncontext if there is a set of errors in the primary 'Message'.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.ValidationError"
-                    }
-                }
-            }
-        },
         "codersdk.Template": {
             "type": "object",
             "properties": {
@@ -526,21 +446,6 @@ const docTemplate = `{
                 },
                 "p95": {
                     "type": "integer"
-                }
-            }
-        },
-        "codersdk.ValidationError": {
-            "type": "object",
-            "required": [
-                "detail",
-                "field"
-            ],
-            "properties": {
-                "detail": {
-                    "type": "string"
-                },
-                "field": {
-                    "type": "string"
                 }
             }
         },

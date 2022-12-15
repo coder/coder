@@ -41,8 +41,6 @@ const (
 // @Tags Templates
 // @Param id path string true "Template ID" format(uuid)
 // @Success 200 {object} codersdk.Template
-// @Failure 404 {object} codersdk.Response
-// @Failure 500 {object} codersdk.Response
 // @Router /templates/{id} [get]
 // Returns a single template.
 func (api *API) template(rw http.ResponseWriter, r *http.Request) {
@@ -145,8 +143,6 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 // @Param request body codersdk.CreateTemplateRequest true "Request body"
 // @Param organization-id path string true "Organization ID"
 // @Success 200 {object} codersdk.Template
-// @Failure 404 {object} codersdk.Response
-// @Failure 500 {object} codersdk.Response
 // @Router /organizations/{organization-id}/templates/ [post]
 // Returns a single template.
 // Create a new template in an organization.

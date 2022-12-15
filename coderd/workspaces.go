@@ -51,10 +51,6 @@ var (
 // @Param id path string true "Workspace ID" format(uuid)
 // @Param include_deleted query string false "Return data instead of HTTP 404 if the workspace is deleted"
 // @Success 200 {object} codersdk.Workspace
-// @Failure 400 {object} codersdk.Response
-// @Failure 404 {object} codersdk.Response
-// @Failure 410 {object} codersdk.Response
-// @Failure 500 {object} codersdk.Response
 // @Router /workspaces/{id} [get]
 func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -116,8 +112,6 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 // @Param status query string false "Filter by workspace status" Enums(pending,running,stopping,stopped,failed,canceling,canceled,deleted,deleting)
 // @Param has_agent query string false "Filter by agent status" Enums(connected,connecting,disconnected,timeout)
 // @Success 200 {object} codersdk.WorkspacesResponse
-// @Failure 400 {object} codersdk.Response
-// @Failure 500 {object} codersdk.Response
 // @Router /workspaces [get]
 //
 // workspaces returns all workspaces a user can read.
