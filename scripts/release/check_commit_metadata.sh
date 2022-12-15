@@ -22,7 +22,7 @@ to_ref=${2:-}
 if [[ -z $from_ref ]]; then
 	error "No from_ref specified"
 fi
-if [[ -z $from_ref ]]; then
+if [[ -z $to_ref ]]; then
 	error "No to_ref specified"
 fi
 
