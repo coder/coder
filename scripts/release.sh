@@ -73,7 +73,7 @@ old_version=${versions[0]}
 
 log "Checking commit metadata for changes since $old_version..."
 # shellcheck source=scripts/release/check_commit_metadata.sh
-source "$SCRIPT_DIR/release/check_commit_metadata.sh" "$old_version..$ref"
+source "$SCRIPT_DIR/release/check_commit_metadata.sh" "$old_version" "$ref"
 
 mapfile -d . -t version_parts <<<"$old_version"
 if [[ $minor == 1 ]] || [[ $COMMIT_METADATA_BREAKING == 1 ]]; then

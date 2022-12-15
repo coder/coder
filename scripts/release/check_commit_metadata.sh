@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
-# Usage: source ./check_commit_tags.sh <revision range>
-# Usage: ./check_commit_tags.sh <revision range>
+# Usage: source ./check_commit_metadata.sh <revision range>
+# Usage: ./check_commit_metadata.sh <revision range>
 #
-# Example: ./check_commit_tags.sh v0.13.1..971e3678
+# Example: ./check_commit_metadata.sh v0.13.1..971e3678
 #
 # When sourced, this script will populate the COMMIT_METADATA_* variables
 # with the commit metadata for each commit in the revision range.
@@ -16,11 +16,17 @@ set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 
-range=${1:-}
+from_ref=${1:-}
+to_ref=${2:-}
 
-if [[ -z $range ]]; then
-	error "No revision range specified"
+if [[ -z $from_ref ]]; then
+	error "No from_ref specified"
 fi
+if [[ -z $from_ref ]]; then
+	error "No to_ref specified"
+fi
+
+range="$from_ref..$to_ref"
 
 # Check dependencies.
 dependencies gh
@@ -39,31 +45,59 @@ main() {
 	breaking_label=release/breaking
 	breaking_category=breaking
 
-	mapfile -t commits < <(git log --no-merges --pretty=format:"%h %s" "$range")
+	# Get abbreviated and full commit hashes and titles for each commit.
+	mapfile -t commits < <(git log --no-merges --pretty=format:"%h %H %s" "$range")
+
+	# If this is a tag, use rev-list to find the commit it points to.
+	from_commit=$(git rev-list -n 1 "$from_ref")
+	# Get the committer date of the commit so that we can list PRs merged.
+	from_commit_date=$(git show --no-patch --date=short --format=%cd "$from_commit")
+
+	# Get the labels for all PRs merged since the last release, this is
+	# inexact based on date, so a few PRs part of the previous release may
+	# be included.
+	#
+	# Example output:
+	#
+	#   27386d49d08455b6f8fbf2c18f38244d03fda892 label:security
+	#   d9f2aaf3b430d8b6f3d5f24032ed6357adaab1f1
+	#   fd54512858c906e66f04b0744d8715c2e0de97e6 label:stale label:enhancement
+	mapfile -t pr_labels_raw < <(
+		gh pr list \
+			--base main \
+			--state merged \
+			--limit 10000 \
+			--search "merged:>=$from_commit_date" \
+			--json mergeCommit,labels \
+			--jq '.[] | .mergeCommit.oid + " " + (["label:" + .labels[].name] | join(" "))'
+	)
+	declare -A labels
+	for entry in "${pr_labels_raw[@]}"; do
+		commit_sha_long=${entry%% *}
+		all_labels=${entry#* }
+		labels[$commit_sha_long]=$all_labels
+	done
 
 	for commit in "${commits[@]}"; do
 		mapfile -d ' ' -t parts <<<"$commit"
-		commit_sha=${parts[0]}
-		commit_prefix=${parts[1]}
+		commit_sha_short=${parts[0]}
+		commit_sha_long=${parts[1]}
+		commit_prefix=${parts[2]}
+
+		# Safety-check, guarantee all commits had their metadata fetched.
+		if [[ ! -v labels[$commit_sha_long] ]]; then
+			error "Metadata missing for commit $commit_sha_short"
+		fi
 
 		# Store the commit title for later use.
-		title=${parts[*]:1}
+		title=${parts[*]:2}
 		title=${title%$'\n'}
-		COMMIT_METADATA_TITLE[$commit_sha]=$title
+		COMMIT_METADATA_TITLE[$commit_sha_short]=$title
 
 		# First, check the title for breaking changes. This avoids doing a
 		# GH API request if there's a match.
-		if [[ $commit_prefix =~ $breaking_title ]]; then
-			COMMIT_METADATA_CATEGORY[$commit_sha]=$breaking_category
-			COMMIT_METADATA_BREAKING=1
-			continue
-		fi
-
-		# Get the labels for the PR associated with this commit.
-		mapfile -t labels < <(gh api -H "Accept: application/vnd.github+json" "/repos/coder/coder/commits/${commit_sha}/pulls" -q '.[].labels[].name')
-
-		if [[ " ${labels[*]} " = *" ${breaking_label} "* ]]; then
-			COMMIT_METADATA_CATEGORY[$commit_sha]=$breaking_category
+		if [[ $commit_prefix =~ $breaking_title ]] || [[ ${labels[$commit_sha_long]} = *"label:$breaking_label"* ]]; then
+			COMMIT_METADATA_CATEGORY[$commit_sha_short]=$breaking_category
 			COMMIT_METADATA_BREAKING=1
 			continue
 		fi
@@ -73,10 +107,10 @@ main() {
 		fi
 		case $commit_prefix in
 		feat | fix)
-			COMMIT_METADATA_CATEGORY[$commit_sha]=$commit_prefix
+			COMMIT_METADATA_CATEGORY[$commit_sha_short]=$commit_prefix
 			;;
 		*)
-			COMMIT_METADATA_CATEGORY[$commit_sha]=other
+			COMMIT_METADATA_CATEGORY[$commit_sha_short]=other
 			;;
 		esac
 	done

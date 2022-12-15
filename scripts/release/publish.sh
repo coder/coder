@@ -107,7 +107,7 @@ if [[ "$dry_run" == 1 ]]; then
 fi
 
 # shellcheck source=scripts/release/check_commit_metadata.sh
-source "$SCRIPT_DIR/release/check_commit_metadata.sh" "$old_tag..$new_ref"
+source "$SCRIPT_DIR/release/check_commit_metadata.sh" "$old_tag" "$new_ref"
 
 # Craft the release notes.
 release_notes="$(execrelative ./generate_release_notes.sh --old-version "$old_tag" --new-version "$new_tag" --ref "$new_ref")"
