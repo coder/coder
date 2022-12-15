@@ -31,10 +31,10 @@ echo "Use temporary file: ${API_MD_TMP_FILE}"
 	npm ci
 
 	# Make sure that widdershins is installed correctly.
-	node ./node_modules/widdershins/widdershins.js --version
+	npm exec -- widdershins --version
 
 	# Render the Markdown file.
-	node ./node_modules/widdershins/widdershins.js \
+	npm exec -- widdershins \
 		--user_templates "./markdown-template" \
 		--search false \
 		--omitHeader true \
