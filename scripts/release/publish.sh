@@ -27,7 +27,7 @@
 
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
-source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
+source "$(dirname "$(dirname "${BASH_SOURCE[0]}")")/lib.sh"
 
 if [[ "${CI:-}" == "" ]]; then
 	error "This script must be run in CI"
@@ -110,7 +110,7 @@ fi
 source "$SCRIPT_DIR/release/check_commit_metadata.sh" "$old_tag" "$new_ref"
 
 # Craft the release notes.
-release_notes="$(execrelative ./generate_release_notes.sh --old-version "$old_tag" --new-version "$new_tag" --ref "$new_ref")"
+release_notes="$(execrelative ./release/generate_release_notes.sh --old-version "$old_tag" --new-version "$new_tag" --ref "$new_ref")"
 
 release_notes_file="$(mktemp)"
 echo "$release_notes" >"$release_notes_file"
