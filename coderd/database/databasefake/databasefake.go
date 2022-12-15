@@ -448,7 +448,7 @@ func (q *fakeQuerier) GetUserByEmailOrUsername(_ context.Context, arg database.G
 	defer q.mutex.RUnlock()
 
 	for _, user := range q.users {
-		if strings.EqualFold(user.Email, arg.Email) || strings.EqualFold(user.Username, arg.Username) {
+		if !user.Deleted && (strings.EqualFold(user.Email, arg.Email) || strings.EqualFold(user.Username, arg.Username)) {
 			return user, nil
 		}
 	}

@@ -20,7 +20,8 @@ SELECT
 FROM
 	users
 WHERE
-	LOWER(username) = LOWER(@username) OR LOWER(email) = LOWER(@email)
+	(LOWER(username) = LOWER(@username) OR LOWER(email) = LOWER(@email)) AND
+	deleted = false
 LIMIT
 	1;
 
@@ -28,7 +29,9 @@ LIMIT
 SELECT
 	COUNT(*)
 FROM
-	users WHERE deleted = false;
+	users
+WHERE
+	deleted = false;
 
 -- name: GetActiveUserCount :one
 SELECT

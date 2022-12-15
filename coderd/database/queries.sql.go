@@ -4217,6 +4217,7 @@ type GetFilteredUserCountParams struct {
 	RbacRole []string     `db:"rbac_role" json:"rbac_role"`
 }
 
+// This will never count deleted users.
 func (q *sqlQuerier) GetFilteredUserCount(ctx context.Context, arg GetFilteredUserCountParams) (int64, error) {
 	row := q.db.QueryRowContext(ctx, getFilteredUserCount, arg.Search, pq.Array(arg.Status), pq.Array(arg.RbacRole))
 	var count int64
@@ -4230,7 +4231,8 @@ SELECT
 FROM
 	users
 WHERE
-	LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($2)
+	(LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($2)) AND
+	deleted = false
 LIMIT
 	1
 `
@@ -4295,7 +4297,9 @@ const getUserCount = `-- name: GetUserCount :one
 SELECT
 	COUNT(*)
 FROM
-	users WHERE deleted = false
+	users
+WHERE
+	deleted = false
 `
 
 func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
@@ -4391,6 +4395,7 @@ type GetUsersRow struct {
 	Count          int64          `db:"count" json:"count"`
 }
 
+// This will never return deleted users.
 func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUsersRow, error) {
 	rows, err := q.db.QueryContext(ctx, getUsers,
 		arg.AfterID,

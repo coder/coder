@@ -23,6 +23,7 @@ Commands:
   port-forward   Forward ports from machine to a workspace
   publickey      Output your Coder public key used for Git operations
   reset-password Directly connect to the database to reset a user's password
+  scaletest      Run a scale test against the Coder API
   server         Start a Coder server
   state          Manually manage Terraform state to fix broken workspaces
   templates      Manage templates

@@ -43,6 +43,7 @@ type sqlcQuerier interface {
 	GetDeploymentID(ctx context.Context) (string, error)
 	GetFileByHashAndCreator(ctx context.Context, arg GetFileByHashAndCreatorParams) (File, error)
 	GetFileByID(ctx context.Context, id uuid.UUID) (File, error)
+	// This will never count deleted users.
 	GetFilteredUserCount(ctx context.Context, arg GetFilteredUserCountParams) (int64, error)
 	GetGitAuthLink(ctx context.Context, arg GetGitAuthLinkParams) (GitAuthLink, error)
 	GetGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, error)
@@ -97,6 +98,7 @@ type sqlcQuerier interface {
 	GetUserGroups(ctx context.Context, userID uuid.UUID) ([]Group, error)
 	GetUserLinkByLinkedID(ctx context.Context, linkedID string) (UserLink, error)
 	GetUserLinkByUserIDLoginType(ctx context.Context, arg GetUserLinkByUserIDLoginTypeParams) (UserLink, error)
+	// This will never return deleted users.
 	GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUsersRow, error)
 	// This shouldn't check for deleted, because it's frequently used
 	// to look up references to actions. eg. a user could build a workspace
