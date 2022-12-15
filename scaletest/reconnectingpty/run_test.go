@@ -31,7 +31,8 @@ func Test_Runner(t *testing.T) {
 		runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 			AgentID: agentID,
 			Init: codersdk.ReconnectingPTYInit{
-				Command: "echo 'hello world' && sleep 1",
+				// Use ; here because it's powershell compatible (vs &&).
+				Command: "echo 'hello world'; sleep 1",
 			},
 			LogOutput: true,
 		})
@@ -195,7 +196,7 @@ func Test_Runner(t *testing.T) {
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
 				Init: codersdk.ReconnectingPTYInit{
-					Command: "echo 'hello world' && sleep 1",
+					Command: "echo 'hello world'; sleep 1",
 				},
 				ExpectOutput: "hello world",
 				LogOutput:    false,
@@ -219,7 +220,7 @@ func Test_Runner(t *testing.T) {
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
 				Init: codersdk.ReconnectingPTYInit{
-					Command: "echo 'hello world' && sleep 1",
+					Command: "echo 'hello world'; sleep 1",
 				},
 				ExpectOutput: "bello borld",
 				LogOutput:    false,
