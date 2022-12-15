@@ -138,6 +138,7 @@ func writeDocs(sections [][]byte) error {
 		Description string  `json:"description,omitempty"`
 		Path        string  `json:"path,omitempty"`
 		IconPath    string  `json:"icon_path,omitempty"`
+		State       string  `json:"state,omitempty"`
 		Children    []route `json:"children,omitempty"`
 	}
 

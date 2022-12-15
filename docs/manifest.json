@@ -214,13 +214,15 @@
           "title": "Groups",
           "description": "Learn how to manage user groups",
           "path": "./admin/groups.md",
-          "icon_path": "./images/icons/group.svg"
+          "icon_path": "./images/icons/group.svg",
+          "state": "enterprise"
         },
         {
           "title": "RBAC",
           "description": "Learn how to use the role based access control",
           "path": "./admin/rbac.md",
-          "icon_path": "./images/icons/rbac.svg"
+          "icon_path": "./images/icons/rbac.svg",
+          "state": "enterprise"
         },
         {
           "title": "Configuration",
@@ -250,19 +252,22 @@
           "title": "Audit Logs",
           "description": "Learn how to use Audit Logs in your Coder deployment",
           "path": "./admin/audit-logs.md",
-          "icon_path": "./images/icons/radar.svg"
+          "icon_path": "./images/icons/radar.svg",
+          "state": "enterprise"
         },
         {
           "title": "Quotas",
           "description": "Learn how to use Workspace Quotas in Coder",
           "path": "./admin/quotas.md",
-          "icon_path": "./images/icons/dollar.svg"
+          "icon_path": "./images/icons/dollar.svg",
+          "state": "enterprise"
         },
         {
           "title": "High Availability",
           "description": "Learn how to configure Coder for High Availability",
           "path": "./admin/high-availability.md",
-          "icon_path": "./images/icons/hydra.svg"
+          "icon_path": "./images/icons/hydra.svg",
+          "state": "enterprise"
         },
         {
           "title": "Prometheus",
@@ -274,7 +279,8 @@
           "title": "Service Banners",
           "description": "Learn how to configure Service Banners",
           "path": "./admin/service-banners.md",
-          "icon_path": "./images/icons/info.svg"
+          "icon_path": "./images/icons/info.svg",
+          "state": "enterprise"
         },
         {
           "title": "Telemetry",
