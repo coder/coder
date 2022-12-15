@@ -48,10 +48,6 @@ sql:
   - schema: "./dump.sql"
     queries: "./queries"
     engine: "postgresql"
-    # codegen
-    # gen
-    # strict_function_checks: true
-    # strict_type_checks: true
     gen:
       go:
         package: "database"
