@@ -4,7 +4,7 @@
 # from the coderd API.
 
 set -euo pipefail
-# shellcheck source=../scripts/lib.sh
+# shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 
 SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
