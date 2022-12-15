@@ -189,7 +189,7 @@
     },
     {
       "title": "Secrets",
-      "description": "Learn how to use secrets in your worskpace",
+      "description": "Learn how to use secrets in your workspace",
       "icon_path": "./images/icons/secrets.svg",
       "path": "./secrets.md"
     },
@@ -319,6 +319,13 @@
           "path": "./contributing/SECURITY.md"
         }
       ]
+    },
+    {
+      "title": "API",
+      "description": "Learn how to use Coderd API",
+      "icon_path": "./images/icons/api.svg",
+      "path": "./api/index.md",
+      "children": []
     }
   ]
 }

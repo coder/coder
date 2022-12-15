@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"flag"
-	"fmt"
 	"log"
 	"os"
 	"path"
@@ -61,7 +60,7 @@ func main() {
 		log.Fatal("can't write docs directory: ", err)
 	}
 
-	fmt.Println("Done")
+	log.Println("Done")
 }
 
 func loadMarkdownSections() ([][]byte, error) {
