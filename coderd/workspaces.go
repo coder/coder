@@ -44,7 +44,7 @@ var (
 )
 
 // @Summary Get workspace metadata by ID
-// @ID get-workspace
+// @ID get-workspace-metadata-by-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces

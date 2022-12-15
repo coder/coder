@@ -82,7 +82,7 @@ const docTemplate = `{
                     "Templates"
                 ],
                 "summary": "Get template metadata by ID",
-                "operationId": "get-template",
+                "operationId": "get-template-metadata-by-id",
                 "parameters": [
                     {
                         "type": "string",
@@ -191,7 +191,7 @@ const docTemplate = `{
                     "Workspaces"
                 ],
                 "summary": "Get workspace metadata by ID",
-                "operationId": "get-workspace",
+                "operationId": "get-workspace-metadata-by-id",
                 "parameters": [
                     {
                         "type": "string",

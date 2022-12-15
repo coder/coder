@@ -35,7 +35,7 @@ const (
 )
 
 // @Summary Get template metadata by ID
-// @ID get-template
+// @ID get-template-metadata-by-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
