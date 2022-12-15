@@ -891,6 +891,7 @@ func TestAppSubdomainLogout(t *testing.T) {
 		// If empty, the expected location is the redirectURI if the
 		// expected status code is http.StatusTemporaryRedirect (using the
 		// access URL if not set).
+		// You can use "access_url" to force the access URL.
 		expectedLocation string
 	}{
 		{
@@ -942,11 +943,15 @@ func TestAppSubdomainLogout(t *testing.T) {
 			expectedBodyContains: "Could not parse redirect URI",
 		},
 		{
-			name:                 "DisallowedRedirectURI",
-			cookie:               "-",
-			redirectURI:          "https://github.com/coder/coder",
-			expectedStatus:       http.StatusBadRequest,
-			expectedBodyContains: "not on the same host as the access URL",
+			name:        "DisallowedRedirectURI",
+			cookie:      "-",
+			redirectURI: "https://github.com/coder/coder",
+			// We don't allow redirecting to a different host, but we don't
+			// show an error page and just redirect to the access URL to avoid
+			// breaking the logout flow if the user is accessing from the wrong
+			// host.
+			expectedStatus:   http.StatusTemporaryRedirect,
+			expectedLocation: "access_url",
 		},
 	}
 
@@ -983,6 +988,9 @@ func TestAppSubdomainLogout(t *testing.T) {
 			if c.expectedLocation == "" && c.expectedStatus == http.StatusTemporaryRedirect {
 				c.expectedLocation = c.redirectURI
 			}
+			if c.expectedLocation == "access_url" {
+				c.expectedLocation = client.URL.String()
+			}
 
 			logoutURL := &url.URL{
 				Scheme: "http",
@@ -1013,6 +1021,7 @@ func TestAppSubdomainLogout(t *testing.T) {
 			}
 			resp, err := client.HTTPClient.Do(req)
 			require.NoError(t, err, "do logout request")
+			defer resp.Body.Close()
 
 			require.Equal(t, c.expectedStatus, resp.StatusCode, "logout response status code")
 			if c.expectedStatus < 400 && c.cookie != "" {

@@ -365,14 +365,10 @@ func (api *API) handleWorkspaceAppLogout(rw http.ResponseWriter, r *http.Request
 			_, ok = httpapi.ExecuteHostnamePattern(api.AppHostnameRegex, parsedRedirectURI.Hostname())
 		}
 		if !ok {
-			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-				Status:       http.StatusBadRequest,
-				Title:        "Invalid redirect URI",
-				Description:  fmt.Sprintf("Redirect URI %q is not on the same host as the access URL or an application URL", redirectURI),
-				RetryEnabled: false,
-				DashboardURL: api.AccessURL.String(),
-			})
-			return
+			// The redirect URI they provided is not allowed, but we don't want
+			// to return an error page because it'll interrupt the logout flow,
+			// so we just use the default access URL.
+			parsedRedirectURI = api.AccessURL
 		}
 
 		redirectURI = parsedRedirectURI.String()

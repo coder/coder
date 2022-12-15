@@ -469,7 +469,21 @@ export const authMachine =
         signIn: async (_, event) => {
           return await API.login(event.email, event.password)
         },
-        signOut: API.logout,
+        signOut: async () => {
+          // Get app hostname so we can see if we need to log out of app URLs.
+          // We need to load this before we log out of the API as this is an
+          // authenticated endpoint.
+          const appHost = await API.getApplicationsHost();
+          await API.logout();
+
+          if (appHost.host) {
+            const redirect_uri = encodeURIComponent(window.location.href);
+            // The path doesn't matter but we use /api because the dev server
+            // proxies /api to the backend.
+            const uri = `${window.location.protocol}//${appHost.host.replace("*", "coder-logout")}/api/logout?redirect_uri=${redirect_uri}`;
+            window.location.replace(uri);
+          }
+        },
         getMe: API.getUser,
         getMethods: API.getAuthMethods,
         updateProfile: async (context, event) => {
