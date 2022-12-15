@@ -12,10 +12,16 @@ spec:
   type: {{ .Values.coder.service.type }}
   sessionAffinity: ClientIP
   ports:
-    - name: {{ include "coder.portName" . | quote }}
-      port: {{ include "coder.servicePort" . }}
-      targetPort: {{ include "coder.portName" . | quote }}
+    - name: "http"
+      port: 80
+      targetPort: "http"
       protocol: TCP
+    {{- if eq (include "coder.tlsEnabled" .) "true" }}
+    - name: "https"
+      port: 443
+      targetPort: "https"
+      protocol: TCP
+    {{- end }}
   {{- if eq "LoadBalancer" .Values.coder.service.type }}
   {{- with .Values.coder.service.loadBalancerIP }}
   loadBalancerIP: {{ . | quote }}
