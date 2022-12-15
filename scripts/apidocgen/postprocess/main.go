@@ -128,7 +128,7 @@ func writeDocs(sections [][]byte) error {
 		}
 		mdFiles = append(mdFiles, mdFile{
 			title: sectionName,
-			path:  "./docs/" + mdFilename,
+			path:  "./" + path.Join(apiSubdir, mdFilename),
 		})
 	}
 
@@ -192,7 +192,7 @@ func writeDocs(sections [][]byte) error {
 }
 
 func extractSectionName(section []byte) (string, error) {
-	scanner := bufio.NewScanner(bytes.NewBuffer(section))
+	scanner := bufio.NewScanner(bytes.NewReader(section))
 	if !scanner.Scan() {
 		return "", xerrors.Errorf("section header was expected")
 	}

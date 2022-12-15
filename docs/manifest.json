@@ -327,19 +327,19 @@
       "children": [
         {
           "title": "Authentication",
-          "path": "./docs/authentication.md"
+          "path": "./api/authentication.md"
         },
         {
           "title": "Templates",
-          "path": "./docs/templates.md"
+          "path": "./api/templates.md"
         },
         {
           "title": "Workspaces",
-          "path": "./docs/workspaces.md"
+          "path": "./api/workspaces.md"
         },
         {
           "title": "Schemas",
-          "path": "./docs/schemas.md"
+          "path": "./api/schemas.md"
         }
       ]
     }
