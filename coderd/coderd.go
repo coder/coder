@@ -101,18 +101,17 @@ type Options struct {
 	RealIPConfig         *httpmw.RealIPConfig
 	TrialGenerator       func(ctx context.Context, email string) error
 	// TLSCertificates is used to mesh DERP servers securely.
-	TLSCertificates    []tls.Certificate
-	TailnetCoordinator tailnet.Coordinator
-	DERPServer         *derp.Server
-	DERPMap            *tailcfg.DERPMap
+	TLSCertificates       []tls.Certificate
+	TailnetCoordinator    tailnet.Coordinator
+	DERPServer            *derp.Server
+	DERPMap               *tailcfg.DERPMap
+	SwaggerEndpointEnable bool
 
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
 	Experimental                bool
 	DeploymentConfig            *codersdk.DeploymentConfig
 	UpdateCheckOptions          *updatecheck.Options // Set non-nil to enable update checking.
-
-	SwaggerEndpointEnable bool
 
 	HTTPClient *http.Client
 }
@@ -604,7 +603,7 @@ func New(options *Options) *API {
 	if options.SwaggerEndpointEnable {
 		// Swagger UI requires the URL trailing slash. Otherwise, the browser tries to load /assets
 		// from http://localhost:8080/assets instead of http://localhost:8080/swagger/assets.
-		r.Get("/swagger", http.RedirectHandler("/swagger/", http.StatusSeeOther).ServeHTTP)
+		r.Get("/swagger", http.RedirectHandler("/swagger/", http.StatusTemporaryRedirect).ServeHTTP)
 		r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json")))
 	}
 

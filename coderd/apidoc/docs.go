@@ -93,7 +93,7 @@ const docTemplate = `{
                 "tags": [
                     "Templates"
                 ],
-                "summary": "Get template metadata",
+                "summary": "Get template metadata by ID",
                 "operationId": "get-template",
                 "parameters": [
                     {
@@ -214,7 +214,7 @@ const docTemplate = `{
                 "tags": [
                     "Workspaces"
                 ],
-                "summary": "Get workspace metadata",
+                "summary": "Get workspace metadata by ID",
                 "operationId": "get-workspace",
                 "parameters": [
                     {

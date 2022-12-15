@@ -34,7 +34,7 @@ const (
 	AutoImportTemplateKubernetes AutoImportTemplate = "kubernetes"
 )
 
-// @Summary Get template metadata
+// @Summary Get template metadata by ID
 // @ID get-template
 // @Security CoderSessionToken
 // @Produce json

@@ -90,7 +90,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization-id}/tem
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
 
-## Get template metadata
+## Get template metadata by ID
 
 ### Code samples
 
