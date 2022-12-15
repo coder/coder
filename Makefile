@@ -458,7 +458,7 @@ docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/me
 coderd/apidocs/swagger.json: $(shell find scripts/apidocgen -type f | grep -v node_modules) $(wildcard coderd/*.go)
 	./scripts/apidocgen/generate.sh
 	cd site
-	yarn run format:write ../docs/api
+	yarn run format:write ../docs/api ../docs/manifest.json
 
 update-golden-files: cli/testdata/.gen-golden
 .PHONY: update-golden-files
