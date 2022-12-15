@@ -19,6 +19,7 @@ import {
 
 dayjs.extend(duration)
 const now = dayjs()
+const startTime = dayjs(Mocks.MockWorkspaceBuild.updated_at)
 
 describe("util/schedule", () => {
   describe("stripTimezone", () => {
@@ -43,30 +44,17 @@ describe("util/schedule", () => {
 })
 
 describe("maxDeadline", () => {
-  // Given: a workspace built from a template with a max deadline equal to 25 hours which isn't really possible
   const workspace: Workspace = {
     ...Mocks.MockWorkspace,
     latest_build: {
       ...Mocks.MockWorkspaceBuild,
-      deadline: now.add(8, "hours").utc().format(),
+      deadline: startTime.add(8, "hours").utc().format(),
     },
   }
-  describe("given a template with 25 hour max ttl", () => {
-    it("should be never be greater than global max deadline", () => {
-      // Then: deadlineMinusDisabled should be falsy
-      const delta = getMaxDeadline(workspace).diff(now)
-      expect(delta).toBeLessThanOrEqual(deadlineExtensionMax.asMilliseconds())
-    })
+  it("should be 24 hours from the workspace start time", () => {
+    const delta = getMaxDeadline(workspace).diff(startTime)
+    expect(delta).toEqual(deadlineExtensionMax.asMilliseconds())
   })
-
-  describe("given a template with 4 hour max ttl", () => {
-    it("should be never be greater than global max deadline", () => {
-      // Then: deadlineMinusDisabled should be falsy
-      const delta = getMaxDeadline(workspace).diff(now)
-      expect(delta).toBeLessThanOrEqual(deadlineExtensionMax.asMilliseconds())
-    })
-  })
-
 })
 
 describe("minDeadline", () => {
@@ -80,27 +68,9 @@ describe("canExtendDeadline", () => {
   it("should be falsy if the deadline is more than 24 hours in the future", () => {
     expect(
       canExtendDeadline(
-        dayjs().add(25, "hours"),
+        startTime.add(25, "hours"),
         Mocks.MockWorkspace,
       ),
-    ).toBeFalsy()
-  })
-
-  it("should be falsy if the deadline is more than the template max_ttl", () => {
-    const tooFarAhead = dayjs().add(
-      dayjs.duration(Mocks.MockTemplate.default_ttl_ms, "milliseconds"),
-    )
-    expect(
-      canExtendDeadline(tooFarAhead, Mocks.MockWorkspace),
-    ).toBeFalsy()
-  })
-
-  it("should be truth if the deadline is within the template max_ttl", () => {
-    const okDeadline = dayjs().add(
-      dayjs.duration(Mocks.MockTemplate.default_ttl_ms / 2, "milliseconds"),
-    )
-    expect(
-      canExtendDeadline(okDeadline, Mocks.MockWorkspace),
     ).toBeFalsy()
   })
 })
