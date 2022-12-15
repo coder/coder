@@ -185,7 +185,8 @@ func (p *PTY) ExpectMatch(str string) string {
 func (p *PTY) ReadLine() string {
 	p.t.Helper()
 
-	timeout, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	// timeout, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	timeout, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	var buffer bytes.Buffer
@@ -198,28 +199,25 @@ func (p *PTY) ReadLine() string {
 				if err != nil {
 					return err
 				}
-				if r == '\r' || r == '\n' {
-					// Peek the next runes to see if it's a CR or LF and then
-					// consume it.
-					for {
-						if p.runeReader.Buffered() == 0 {
-							break
-						}
-						// Unicode code points can be up to 4 bytes, but the
-						// ones we're looking for are only 1 byte.
-						b, _ := p.runeReader.Peek(1)
-						if len(b) == 0 {
-							return nil
-						}
+				if r == '\n' {
+					return nil
+				}
+				if r == '\r' {
+					// Peek the next rune to see if it's an LF and then consume
+					// it.
 
-						r, _ = utf8.DecodeRune(b)
-						if r == '\r' || r == '\n' {
-							_, _, err = p.runeReader.ReadRune()
-							if err != nil {
-								return err
-							}
-						} else {
-							break
+					// Unicode code points can be up to 4 bytes, but the
+					// ones we're looking for are only 1 byte.
+					b, _ := p.runeReader.Peek(1)
+					if len(b) == 0 {
+						return nil
+					}
+
+					r, _ = utf8.DecodeRune(b)
+					if r == '\n' {
+						_, _, err = p.runeReader.ReadRune()
+						if err != nil {
+							return err
 						}
 					}
 
