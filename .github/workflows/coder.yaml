@@ -338,14 +338,21 @@ jobs:
           else
             echo ::set-output name=cover::false
           fi
+          set +e
           gotestsum --junitfile="gotests.xml" --jsonfile="gotestsum.json" --packages="./..." --debug -- -parallel=8 -timeout=5m -short -failfast $COVERAGE_FLAGS
           ret=$?
           if ((ret)); then
             # Eternalize test timeout logs because "re-run failed" erases
             # artifacts and gotestsum doesn't always capture it:
             # https://github.com/gotestyourself/gotestsum/issues/292
-            echo "Checking gotestsum.json for panic trace:"
-            grep -A 999999 'panic: test timed out' gotestsum.json
+            # Multiple test packages could've failed, each one may or may
+            # not run into the edge case. PS. Don't summon ShellCheck here.
+            for testWithStack in $(grep 'panic: test timed out' gotestsum.json | grep -E -o '("Test":[^,}]*)'); do
+              if [ -n "$testWithStack" ] && grep -q "${testWithStack}.*PASS" gotestsum.json; then
+                echo "Conditions met for gotestsum stack trace missing bug, outputting panic trace:"
+                grep -A 999999 "${testWithStack}.*panic: test timed out" gotestsum.json
+              fi
+            done
           fi
           exit $ret
 
@@ -423,14 +430,21 @@ jobs:
 
       - name: Test with PostgreSQL Database
         run: |
+          set +e
           make test-postgres
           ret=$?
           if ((ret)); then
             # Eternalize test timeout logs because "re-run failed" erases
             # artifacts and gotestsum doesn't always capture it:
             # https://github.com/gotestyourself/gotestsum/issues/292
-            echo "Checking gotestsum.json for panic trace:"
-            grep -A 999999 'panic: test timed out' gotestsum.json
+            # Multiple test packages could've failed, each one may or may
+            # not run into the edge case. PS. Don't summon ShellCheck here.
+            for testWithStack in $(grep 'panic: test timed out' gotestsum.json | grep -E -o '("Test":[^,}]*)'); do
+              if [ -n "$testWithStack" ] && grep -q "${testWithStack}.*PASS" gotestsum.json; then
+                echo "Conditions met for gotestsum stack trace missing bug, outputting panic trace:"
+                grep -A 999999 "${testWithStack}.*panic: test timed out" gotestsum.json
+              fi
+            done
           fi
           exit $ret
 
