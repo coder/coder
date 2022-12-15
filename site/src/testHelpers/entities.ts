@@ -244,6 +244,8 @@ export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
   icon: "",
   subdomain: false,
   health: "disabled",
+  external: false,
+  url: "",
   sharing_level: "owner",
   healthcheck: {
     url: "",
@@ -338,10 +340,7 @@ export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
   workspace_transition: "start",
   hide: false,
   icon: "",
-  metadata: [
-    { key: "type", value: "a-workspace-resource", sensitive: false },
-    { key: "api_key", value: "12345678", sensitive: true },
-  ],
+  metadata: [{ key: "api_key", value: "12345678", sensitive: true }],
   daily_cost: 10,
 }
 
@@ -359,10 +358,7 @@ export const MockWorkspaceResource2: TypesGen.WorkspaceResource = {
   workspace_transition: "start",
   hide: false,
   icon: "",
-  metadata: [
-    { key: "type", value: "google_compute_disk", sensitive: false },
-    { key: "size", value: "32GB", sensitive: false },
-  ],
+  metadata: [{ key: "size", value: "32GB", sensitive: false }],
   daily_cost: 10,
 }
 
@@ -380,10 +376,7 @@ export const MockWorkspaceResource3: TypesGen.WorkspaceResource = {
   workspace_transition: "start",
   hide: true,
   icon: "",
-  metadata: [
-    { key: "type", value: "google_compute_disk", sensitive: false },
-    { key: "size", value: "32GB", sensitive: false },
-  ],
+  metadata: [{ key: "size", value: "32GB", sensitive: false }],
   daily_cost: 20,
 }
 

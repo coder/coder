@@ -694,6 +694,7 @@ type WorkspaceApp struct {
 	Subdomain            bool               `db:"subdomain" json:"subdomain"`
 	SharingLevel         AppSharingLevel    `db:"sharing_level" json:"sharing_level"`
 	Slug                 string             `db:"slug" json:"slug"`
+	External             bool               `db:"external" json:"external"`
 }
 
 type WorkspaceBuild struct {
@@ -730,4 +731,5 @@ type WorkspaceResourceMetadatum struct {
 	Key                 string         `db:"key" json:"key"`
 	Value               sql.NullString `db:"value" json:"value"`
 	Sensitive           bool           `db:"sensitive" json:"sensitive"`
+	ID                  int64          `db:"id" json:"id"`
 }

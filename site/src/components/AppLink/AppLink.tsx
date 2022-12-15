@@ -54,6 +54,9 @@ export const AppLink: FC<AppLinkProps> = ({
     const subdomain = `${appSlug}--${agent.name}--${workspace.name}--${username}`
     href = `${window.location.protocol}//${appsHost}/`.replace("*", subdomain)
   }
+  if (app.external) {
+    href = app.url
+  }
 
   let canClick = true
   let icon = <BaseIcon app={app} />
