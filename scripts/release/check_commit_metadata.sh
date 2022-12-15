@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
-# Usage: source ./check_commit_metadata.sh <revision range>
-# Usage: ./check_commit_metadata.sh <revision range>
+# Usage: source ./check_commit_metadata.sh <from revision> <to revision>
+# Usage: ./check_commit_metadata.sh <from revision> <to revision>
 #
-# Example: ./check_commit_metadata.sh v0.13.1..971e3678
+# Example: ./check_commit_metadata.sh v0.13.1 971e3678
 #
 # When sourced, this script will populate the COMMIT_METADATA_* variables
 # with the commit metadata for each commit in the revision range.
