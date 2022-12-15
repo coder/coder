@@ -73,13 +73,15 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                   {
                     "command": "string",
                     "display_name": "string",
+                    "external": true,
                     "health": "string",
                     "healthcheck": {},
                     "icon": "string",
                     "id": "string",
                     "sharing_level": "string",
                     "slug": "string",
-                    "subdomain": true
+                    "subdomain": true,
+                    "url": "string"
                   }
                 ],
                 "architecture": "string",
@@ -235,6 +237,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{id} \
               {
                 "command": "string",
                 "display_name": "string",
+                "external": true,
                 "health": "string",
                 "healthcheck": {
                   "interval": 0,
@@ -245,7 +248,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{id} \
                 "id": "string",
                 "sharing_level": "string",
                 "slug": "string",
-                "subdomain": true
+                "subdomain": true,
+                "url": "string"
               }
             ],
             "architecture": "string",

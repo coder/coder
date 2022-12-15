@@ -669,6 +669,10 @@ const docTemplate = `{
                     "description": "DisplayName is a friendly name for the app.",
                     "type": "string"
                 },
+                "external": {
+                    "description": "External specifies whether the URL should be opened externally on\nthe client or not.",
+                    "type": "boolean"
+                },
                 "health": {
                     "type": "string"
                 },
@@ -693,6 +697,10 @@ const docTemplate = `{
                 "subdomain": {
                     "description": "Subdomain denotes whether the app should be accessed via a path on the\n` + "`" + `coder server` + "`" + ` or via a hostname-based dev URL. If this is set to true\nand there is no app wildcard configured on the server, the app will not\nbe accessible in the UI.",
                     "type": "boolean"
+                },
+                "url": {
+                    "description": "URL is the address being proxied to inside the workspace.\nIf external is specified, this will be opened on the client.",
+                    "type": "string"
                 }
             }
         },

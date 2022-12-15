@@ -326,6 +326,7 @@
               {
                 "command": "string",
                 "display_name": "string",
+                "external": true,
                 "health": "string",
                 "healthcheck": {
                   "interval": 0,
@@ -336,7 +337,8 @@
                 "id": "string",
                 "sharing_level": "string",
                 "slug": "string",
-                "subdomain": true
+                "subdomain": true,
+                "url": "string"
               }
             ],
             "architecture": "string",
@@ -443,6 +445,7 @@
     {
       "command": "string",
       "display_name": "string",
+      "external": true,
       "health": "string",
       "healthcheck": {
         "interval": 0,
@@ -453,7 +456,8 @@
       "id": "string",
       "sharing_level": "string",
       "slug": "string",
-      "subdomain": true
+      "subdomain": true,
+      "url": "string"
     }
   ],
   "architecture": "string",
@@ -523,6 +527,7 @@
 {
   "command": "string",
   "display_name": "string",
+  "external": true,
   "health": "string",
   "healthcheck": {
     "interval": 0,
@@ -533,7 +538,8 @@
   "id": "string",
   "sharing_level": "string",
   "slug": "string",
-  "subdomain": true
+  "subdomain": true,
+  "url": "string"
 }
 ```
 
@@ -543,6 +549,7 @@
 | ------------- | ---------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | command       | string                 | false    | none         | none                                                                                                                                                                                                                                                    |
 | display_name  | string                 | false    | none         | DisplayName is a friendly name for the app.                                                                                                                                                                                                             |
+| external      | boolean                | false    | none         | External specifies whether the URL should be opened externally on<br>the client or not.                                                                                                                                                                 |
 | health        | string                 | false    | none         | none                                                                                                                                                                                                                                                    |
 | healthcheck   | `codersdk.Healthcheck` | false    | none         | none                                                                                                                                                                                                                                                    |
 | icon          | string                 | false    | none         | Icon is a relative path or external URL that specifies<br>an icon to be displayed in the dashboard.                                                                                                                                                     |
@@ -550,6 +557,7 @@
 | sharing_level | string                 | false    | none         | none                                                                                                                                                                                                                                                    |
 | slug          | string                 | false    | none         | Slug is a unique identifier within the agent.                                                                                                                                                                                                           |
 | subdomain     | boolean                | false    | none         | Subdomain denotes whether the app should be accessed via a path on the<br>`coder server` or via a hostname-based dev URL. If this is set to true<br>and there is no app wildcard configured on the server, the app will not<br>be accessible in the UI. |
+| url           | string                 | false    | none         | URL is the address being proxied to inside the workspace.<br>If external is specified, this will be opened on the client.                                                                                                                               |
 
 ## codersdk.WorkspaceBuild
 
@@ -589,6 +597,7 @@
             {
               "command": "string",
               "display_name": "string",
+              "external": true,
               "health": "string",
               "healthcheck": {
                 "interval": 0,
@@ -599,7 +608,8 @@
               "id": "string",
               "sharing_level": "string",
               "slug": "string",
-              "subdomain": true
+              "subdomain": true,
+              "url": "string"
             }
           ],
           "architecture": "string",
@@ -699,6 +709,7 @@
         {
           "command": "string",
           "display_name": "string",
+          "external": true,
           "health": "string",
           "healthcheck": {
             "interval": 0,
@@ -709,7 +720,8 @@
           "id": "string",
           "sharing_level": "string",
           "slug": "string",
-          "subdomain": true
+          "subdomain": true,
+          "url": "string"
         }
       ],
       "architecture": "string",
@@ -844,13 +856,15 @@
                   {
                     "command": "string",
                     "display_name": "string",
+                    "external": true,
                     "health": "string",
                     "healthcheck": {},
                     "icon": "string",
                     "id": "string",
                     "sharing_level": "string",
                     "slug": "string",
-                    "subdomain": true
+                    "subdomain": true,
+                    "url": "string"
                   }
                 ],
                 "architecture": "string",
