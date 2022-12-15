@@ -39,7 +39,7 @@ const (
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
-// @Param id path string true "Template ID"
+// @Param id path string true "Template ID" format(uuid)
 // @Success 200 {object} codersdk.Template
 // @Failure 404 {object} codersdk.Response
 // @Failure 500 {object} codersdk.Response

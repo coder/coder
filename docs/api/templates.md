@@ -106,9 +106,9 @@ curl -X GET http://coder-server:8080/api/v2/templates/{id} \
 
 ### Parameters
 
-| Name | In   | Type   | Required | Description |
-| ---- | ---- | ------ | -------- | ----------- |
-| id   | path | string | true     | Template ID |
+| Name | In   | Type         | Required | Description |
+| ---- | ---- | ------------ | -------- | ----------- |
+| id   | path | string(uuid) | true     | Template ID |
 
 ### Example responses
 

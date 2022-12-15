@@ -90,6 +90,7 @@
                 "parameters": [
                     {
                         "type": "string",
+                        "format": "uuid",
                         "description": "Template ID",
                         "name": "id",
                         "in": "path",
@@ -211,6 +212,7 @@
                 "parameters": [
                     {
                         "type": "string",
+                        "format": "uuid",
                         "description": "Workspace ID",
                         "name": "id",
                         "in": "path",

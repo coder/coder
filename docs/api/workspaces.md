@@ -187,10 +187,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{id} \
 
 ### Parameters
 
-| Name            | In    | Type   | Required | Description     |
-| --------------- | ----- | ------ | -------- | --------------- |
-| id              | path  | string | true     | Workspace ID    |
-| include_deleted | query | string | false    | Include deleted |
+| Name            | In    | Type         | Required | Description     |
+| --------------- | ----- | ------------ | -------- | --------------- |
+| id              | path  | string(uuid) | true     | Workspace ID    |
+| include_deleted | query | string       | false    | Include deleted |
 
 ### Example responses
 

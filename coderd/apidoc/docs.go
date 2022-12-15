@@ -98,6 +98,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "format": "uuid",
                         "description": "Template ID",
                         "name": "id",
                         "in": "path",
@@ -219,6 +220,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "format": "uuid",
                         "description": "Workspace ID",
                         "name": "id",
                         "in": "path",

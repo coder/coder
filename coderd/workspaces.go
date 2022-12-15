@@ -48,7 +48,7 @@ var (
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
-// @Param id path string true "Workspace ID"
+// @Param id path string true "Workspace ID" format(uuid)
 // @Param include_deleted query string false "Include deleted"
 // @Success 200 {object} codersdk.Workspace
 // @Failure 400 {object} codersdk.Response
