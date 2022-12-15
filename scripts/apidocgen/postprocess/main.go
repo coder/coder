@@ -14,7 +14,17 @@ import (
 	"golang.org/x/xerrors"
 )
 
-const apiSubdir = "api"
+const (
+	apiSubdir = "api"
+
+	apiIndexFile    = "index.md"
+	apiIndexContent = `Get started with Coder API:
+
+<children>
+  This page is rendered on https://coder.com/docs/coder-oss/api. Refer to the other documents in the ` + "`" + `api/` + "`" + ` directory.
+</children>
+`
+)
 
 var (
 	docsDirectory  string
@@ -91,6 +101,12 @@ func prepareDocsDirectory() error {
 func writeDocs(sections [][]byte) error {
 	log.Println("Write docs to destination")
 
+	apiDir := path.Join(docsDirectory, apiSubdir)
+	err := os.WriteFile(path.Join(apiDir, apiIndexFile), []byte(apiIndexContent), 0644) // #nosec
+	if err != nil {
+		return xerrors.Errorf(`can't write the index file: %w`, err)
+	}
+
 	for _, section := range sections {
 		sectionName, err := extractSectionName(section)
 		if err != nil {
@@ -98,7 +114,7 @@ func writeDocs(sections [][]byte) error {
 		}
 		log.Printf("Write section: %s", sectionName)
 
-		docPath := path.Join(docsDirectory, apiSubdir, sectionName)
+		docPath := path.Join(apiDir, sectionName)
 		err = os.WriteFile(docPath, section, 0644) // #nosec
 		if err != nil {
 			return xerrors.Errorf(`can't write doc file "%s": %w`, docPath, err)
