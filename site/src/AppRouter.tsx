@@ -39,6 +39,9 @@ const SecurityPage = lazy(
 const SSHKeysPage = lazy(
   () => import("./pages/UserSettingsPage/SSHKeysPage/SSHKeysPage"),
 )
+const TokensPage = lazy(
+  () => import("./pages/UserSettingsPage/TokensPage/TokensPage"),
+)
 const CreateUserPage = lazy(
   () => import("./pages/UsersPage/CreateUserPage/CreateUserPage"),
 )
@@ -219,6 +222,7 @@ export const AppRouter: FC = () => {
               <Route path="account" element={<AccountPage />} />
               <Route path="security" element={<SecurityPage />} />
               <Route path="ssh-keys" element={<SSHKeysPage />} />
+              <Route path="tokens" element={<TokensPage />} />
             </Route>
 
             <Route path="/@:username">
