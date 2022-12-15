@@ -460,6 +460,7 @@ func TestServer(t *testing.T) {
 			"--http-address", ":0",
 			"--access-url", "https://example.com",
 			"--tls-enable",
+			"--tls-redirect-http-to-https=false",
 			"--tls-address", ":0",
 			"--tls-cert-file", certPath,
 			"--tls-key-file", keyPath,
@@ -490,6 +491,9 @@ func TestServer(t *testing.T) {
 		httpURL, err := url.Parse(httpAddr)
 		require.NoError(t, err)
 		client := codersdk.New(httpURL)
+		client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
 		_, err = client.HasFirstUser(ctx)
 		require.NoError(t, err)
 
@@ -497,6 +501,9 @@ func TestServer(t *testing.T) {
 		tlsURL, err := url.Parse(tlsAddr)
 		require.NoError(t, err)
 		client = codersdk.New(tlsURL)
+		client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
 		client.HTTPClient = &http.Client{
 			Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{
