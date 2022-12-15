@@ -49,7 +49,7 @@ var (
 // @Produce json
 // @Tags Workspaces
 // @Param id path string true "Workspace ID" format(uuid)
-// @Param include_deleted query string false "Include deleted"
+// @Param include_deleted query string false "Return data instead of HTTP 404 if the workspace is deleted"
 // @Success 200 {object} codersdk.Workspace
 // @Failure 400 {object} codersdk.Response
 // @Failure 404 {object} codersdk.Response

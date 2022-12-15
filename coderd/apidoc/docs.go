@@ -228,7 +228,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Include deleted",
+                        "description": "Return data instead of HTTP 404 if the workspace is deleted",
                         "name": "include_deleted",
                         "in": "query"
                     }
