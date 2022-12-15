@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"flag"
 	"log"
 	"os"
@@ -14,8 +15,7 @@ import (
 )
 
 const (
-	apiSubdir = "api"
-
+	apiSubdir       = "api"
 	apiIndexFile    = "index.md"
 	apiIndexContent = `Get started with Coderd API:
 
@@ -106,6 +106,13 @@ func writeDocs(sections [][]byte) error {
 		return xerrors.Errorf(`can't write the index file: %w`, err)
 	}
 
+	type mdFile struct {
+		title string
+		path  string
+	}
+	var mdFiles []mdFile
+
+	// Write .md files for grouped API method (Templates, Workspaces, etc.)
 	for _, section := range sections {
 		sectionName, err := extractSectionName(section)
 		if err != nil {
@@ -113,12 +120,73 @@ func writeDocs(sections [][]byte) error {
 		}
 		log.Printf("Write section: %s", sectionName)
 
-		docPath := path.Join(apiDir, sectionName)
+		mdFilename := toMdFilename(sectionName)
+		docPath := path.Join(apiDir, mdFilename)
 		err = os.WriteFile(docPath, section, 0644) // #nosec
 		if err != nil {
 			return xerrors.Errorf(`can't write doc file "%s": %w`, docPath, err)
 		}
+		mdFiles = append(mdFiles, mdFile{
+			title: sectionName,
+			path:  "./docs/" + mdFilename,
+		})
 	}
+
+	// Update manifest.json
+	type route struct {
+		Title       string  `json:"title,omitempty"`
+		Description string  `json:"description,omitempty"`
+		Path        string  `json:"path,omitempty"`
+		IconPath    string  `json:"icon_path,omitempty"`
+		Children    []route `json:"children,omitempty"`
+	}
+
+	type manifest struct {
+		Versions []string `json:"versions,omitempty"`
+		Routes   []route  `json:"routes,omitempty"`
+	}
+
+	manifestPath := path.Join(docsDirectory, "manifest.json")
+	manifestFile, err := os.ReadFile(manifestPath)
+	if err != nil {
+		return xerrors.Errorf("can't read manifest file: %w", err)
+	}
+	log.Printf("Read manifest file: %dB", len(manifestFile))
+
+	var m manifest
+	err = json.Unmarshal(manifestFile, &m)
+	if err != nil {
+		return xerrors.Errorf("json.Unmarshal failed: %w", err)
+	}
+
+	for i, r := range m.Routes {
+		if r.Title != "API" {
+			continue
+		}
+
+		var children []route
+		for _, mdf := range mdFiles {
+			docRoute := route{
+				Title: mdf.title,
+				Path:  mdf.path,
+			}
+			children = append(children, docRoute)
+		}
+
+		m.Routes[i].Children = children
+		break
+	}
+
+	manifestFile, err = json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return xerrors.Errorf("json.Marshal failed: %w", err)
+	}
+
+	err = os.WriteFile(manifestPath, manifestFile, 0644) // #nosec
+	if err != nil {
+		return xerrors.Errorf("can't write manifest file: %w", err)
+	}
+	log.Printf("Write manifest file: %dB", len(manifestFile))
 	return nil
 }
 
@@ -129,5 +197,9 @@ func extractSectionName(section []byte) (string, error) {
 	}
 
 	header := scanner.Text()[2:] // Skip #<space>
-	return nonAlphanumericRegex.ReplaceAllLiteralString(strings.ToLower(strings.TrimSpace(header)), "-") + ".md", nil
+	return strings.TrimSpace(header), nil
+}
+
+func toMdFilename(sectionName string) string {
+	return nonAlphanumericRegex.ReplaceAllLiteralString(strings.ToLower(sectionName), "-") + ".md"
 }
