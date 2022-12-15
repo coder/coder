@@ -121,7 +121,7 @@ fatal() {
 	trap 'fatal "Script encountered an error"' ERR
 
 	cdroot
-	start_cmd API "" "${CODER_DEV_SHIM}" server --address 0.0.0.0:3000
+	start_cmd API "" "${CODER_DEV_SHIM}" server --http-address 0.0.0.0:3000
 
 	echo '== Waiting for Coder to become ready'
 	# Start the timeout in the background so interrupting this script

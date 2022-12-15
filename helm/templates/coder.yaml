@@ -52,8 +52,10 @@ spec:
           resources:
             {{- toYaml .Values.coder.resources | nindent 12 }}
           env:
-            - name: CODER_ADDRESS
-              value: "0.0.0.0:{{ include "coder.port" . }}"
+            - name: CODER_HTTP_ADDRESS
+              value: "0.0.0.0:8080"
+            - name: CODER_PROMETHEUS_ADDRESS
+              value: "0.0.0.0:6060"
             # Set the default access URL so a `helm apply` works by default.
             # See: https://github.com/coder/coder/issues/5024
             {{- $hasAccessURL := false }}
@@ -64,7 +66,7 @@ spec:
             {{- end }}
             {{- if not $hasAccessURL }}
             - name: CODER_ACCESS_URL
-              value: "{{ include "coder.portName" . }}://coder.{{.Release.Namespace}}.svc.cluster.local"
+              value: {{ include "coder.defaultAccessURL" . | quote }}
             {{- end }}
             # Used for inter-pod communication with high-availability.
             - name: KUBE_POD_IP
@@ -72,38 +74,37 @@ spec:
                 fieldRef:
                   fieldPath: status.podIP
             - name: CODER_DERP_SERVER_RELAY_URL
-              value: "{{ include "coder.portName" . }}://$(KUBE_POD_IP):{{ include "coder.port" . }}"
+              value: "http://$(KUBE_POD_IP):8080"
             {{- include "coder.tlsEnv" . | nindent 12 }}
             {{- with .Values.coder.env -}}
             {{ toYaml . | nindent 12 }}
             {{- end }}
-            {{- range .Values.coder.env }}
-            {{- if eq .name "CODER_PROMETHEUS_ADDRESS" }}
-            - name: CODER_PROMETHEUS_ENABLE
-              value: "true"
-            {{- end }}
-            {{- end }}
           ports:
-            - name: {{ include "coder.portName" . | quote }}
-              containerPort: {{ include "coder.port" . }}
+            - name: "http"
+              containerPort: 8080
               protocol: TCP
+            {{- if eq (include "coder.tlsEnabled" .) "true" }}
+            - name: "https"
+              containerPort: 8443
+              protocol: TCP
+            {{- end }}
             {{- range .Values.coder.env }}
-            {{- if eq .name "CODER_PROMETHEUS_ADDRESS" }}
+            {{- if and (eq .name "CODER_PROMETHEUS_ENABLE") (eq .value "true") }}
             - name: "prometheus-http"
-              containerPort: {{ (splitList ":" .value) | last }}
+              containerPort: 6060
               protocol: TCP
             {{- end }}
             {{- end }}
           readinessProbe:
             httpGet:
               path: /api/v2/buildinfo
-              port: {{ include "coder.portName" . | quote }}
-              scheme: {{ include "coder.scheme" . | quote }}
+              port: "http"
+              scheme: "HTTP"
           livenessProbe:
             httpGet:
               path: /api/v2/buildinfo
-              port: {{ include "coder.portName" . | quote }}
-              scheme: {{ include "coder.scheme" . | quote }}
+              port: "http"
+              scheme: "HTTP"
           {{- include "coder.volumeMounts" . | nindent 10 }}
 
       {{- include "coder.volumes" . | nindent 6 }}
