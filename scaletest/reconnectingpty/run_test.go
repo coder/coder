@@ -281,7 +281,7 @@ func setupRunnerTest(t *testing.T) (client *codersdk.Client, agentID uuid.UUID) 
 	agentClient.SetSessionToken(authToken)
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,
-		Logger: slogtest.Make(t, nil).Named("agent"),
+		Logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("agent"),
 	})
 	t.Cleanup(func() {
 		_ = agentCloser.Close()
