@@ -8,7 +8,7 @@ export const Language = {
   title: "Tokens",
   description: (
     <p>
-      Tokens are keys used to authenticate with the Coder API.
+      Tokens are used to authenticate with the Coder API.
     </p>
   ),
 }
