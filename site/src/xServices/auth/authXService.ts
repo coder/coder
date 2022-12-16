@@ -89,6 +89,7 @@ export interface AuthContext {
   sshKey?: TypesGen.GitSSHKey
   getSSHKeyError?: Error | unknown
   regenerateSSHKeyError?: Error | unknown
+  host?: TypesGen.GetAppHostResponse["host"]
 }
 
 export type AuthEvent =
@@ -153,6 +154,13 @@ export const authMachine =
       initial: "gettingUser",
       states: {
         signedOut: {
+          on: {
+            SIGN_IN: {
+              target: "signingIn",
+            },
+          },
+        },
+        signedOutAllDomains: {
           on: {
             SIGN_IN: {
               target: "signingIn",
@@ -416,9 +424,43 @@ export const authMachine =
           },
           on: {
             SIGN_OUT: {
-              target: "signingOut",
+              target: "checkingAppHost",
             },
           },
+        },
+        checkingAppHost: {
+          invoke: {
+            src: "checkHost",
+            id: "checkHost",
+            onDone: [
+              {
+                cond: "hasHost",
+                actions: ["assignHost"],
+                target: "signingOutAndRedirecting",
+              },
+              {
+                target: "signingOut",
+              },
+            ],
+          }
+        },
+        signingOutAndRedirecting: {
+          invoke: {
+            src: "signOutAndRedirect",
+            id: "signOutAndRedirect",
+            onDone: [
+              {
+                actions: ["unassignMe", "clearAuthError"],
+                target: "signedOutAllDomains",
+              },
+            ],
+            onError: [
+              {
+                actions: "assignAuthError",
+                target: "signedIn",
+              },
+            ],
+          }
         },
         signingOut: {
           invoke: {
@@ -469,24 +511,27 @@ export const authMachine =
         signIn: async (_, event) => {
           return await API.login(event.email, event.password)
         },
-        signOut: async () => {
+        checkHost: async () => {
+          const appHost = await API.getApplicationsHost()
+          return appHost.host
+        },
+        signOutAndRedirect: async (context) => {
           // Get app hostname so we can see if we need to log out of app URLs.
           // We need to load this before we log out of the API as this is an
           // authenticated endpoint.
-          const appHost = await API.getApplicationsHost()
           await API.logout()
-
-          if (appHost.host) {
+          if (context.host) {
             const redirect_uri = encodeURIComponent(window.location.href)
             // The path doesn't matter but we use /api because the dev server
             // proxies /api to the backend.
-            const uri = `${window.location.protocol}//${appHost.host.replace(
+            const uri = `${window.location.protocol}//${context.host.replace(
               "*",
               "coder-logout",
             )}/api/logout?redirect_uri=${redirect_uri}`
             window.location.replace(uri)
           }
         },
+        signOut: API.logout,
         getMe: API.getUser,
         getMethods: API.getAuthMethods,
         updateProfile: async (context, event) => {
@@ -594,9 +639,13 @@ export const authMachine =
         notifySuccessSSHKeyRegenerated: () => {
           displaySuccess(Language.successRegenerateSSHKey)
         },
+        assignHost: () => assign({
+          host: (_, event) => event
+        })
       },
       guards: {
         isTrue: (_, event) => event.data,
+        hasHost: (_, event) => Boolean(event),
       },
     },
   )
