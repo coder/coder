@@ -11,6 +11,8 @@ import { Maybe } from "components/Conditionals/Maybe"
 import { Stack } from "components/Stack/Stack"
 import { TableEmpty } from "components/TableEmpty/TableEmpty"
 import { TableLoader } from "components/TableLoader/TableLoader"
+import DeleteOutlineIcon from '@material-ui/icons/DeleteOutline';
+import dayjs from "dayjs"
 import { FC } from "react"
 
 export const Language = {
@@ -39,11 +41,11 @@ export const TokensPageView: FC<
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell width="34%">{Language.idLabel}</TableCell>
-                  <TableCell width="16%">{Language.createdAtLabel}</TableCell>
-                  <TableCell width="16%">{Language.lastUsedLabel}</TableCell>
-                  <TableCell width="16%">{Language.expiresAtLabel}</TableCell>
-                  <TableCell width="1%"></TableCell>
+                  <TableCell width="30%">{Language.idLabel}</TableCell>
+                  <TableCell width="20%">{Language.createdAtLabel}</TableCell>
+                  <TableCell width="20%">{Language.lastUsedLabel}</TableCell>
+                  <TableCell width="20%">{Language.expiresAtLabel}</TableCell>
+                  <TableCell width="10%"></TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -52,18 +54,19 @@ export const TokensPageView: FC<
                 </Maybe>
 
                 <ChooseOne>
-                  <Cond condition={Boolean(tokens?.length)}>
+                  <Cond condition={tokens?.length === 0}>
                     <TableEmpty
                       message={Language.emptyMessage}
                     />
                   </Cond>
                   <Cond>
                     {tokens?.map((token) => {
-
+                      const t = dayjs(token.last_used)
+                      const now = dayjs()
+                      const lastUsed = now.isBefore(t.add(100, "year")) ? t.fromNow() : "Never"
                       return (
                         <TableRow
                           key={token.id}
-                          hover
                           data-testid={`token-${token.id}`}
                           tabIndex={0}
                         >
@@ -79,24 +82,27 @@ export const TokensPageView: FC<
                             <span
                               style={{ color: theme.palette.text.secondary }}
                             >
-                              {token.created_at}
+                              {dayjs(token.created_at).fromNow()}
                             </span>
                           </TableCell>
 
 
                           <TableCell>
-                            <span
-                              style={{ color: theme.palette.text.secondary }}
-                            >
-                              {token.last_used}
-                            </span>
+                            {lastUsed}
                           </TableCell>
 
                           <TableCell>
                             <span
                               style={{ color: theme.palette.text.secondary }}
                             >
-                              {token.expires_at}
+                              {dayjs(token.expires_at).fromNow()}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <span
+                              style={{ color: theme.palette.text.secondary }}
+                            >
+                              <DeleteOutlineIcon />
                             </span>
                           </TableCell>
                         </TableRow>
