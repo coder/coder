@@ -461,7 +461,7 @@ docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/me
 coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen -not \( -path './scripts/apidocgen/node_modules' -prune \) -type f) $(wildcard coderd/*.go)
 	./scripts/apidocgen/generate.sh
 	cd site
-	yarn run format:write ../docs/api ../docs/manifest.json
+	yarn run format:write ../docs/api ../docs/manifest.json ../coderd/apidoc/swagger.json
 
 update-golden-files: cli/testdata/.gen-golden
 .PHONY: update-golden-files
