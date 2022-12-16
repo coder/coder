@@ -89,6 +89,7 @@ export interface AuthContext {
   sshKey?: TypesGen.GitSSHKey
   getSSHKeyError?: Error | unknown
   regenerateSSHKeyError?: Error | unknown
+  appHost?: TypesGen.GetAppHostResponse
 }
 
 export type AuthEvent =
@@ -426,7 +427,7 @@ export const authMachine =
             id: "signOut",
             onDone: [
               {
-                actions: ["redirectAfterLogout", "unassignMe", "clearAuthError"],
+                actions: ["assignHost", "redirectAfterLogout", "unassignMe", "clearAuthError"],
                 target: "gettingMethods",
               },
             ],
@@ -470,7 +471,9 @@ export const authMachine =
           return await API.login(event.email, event.password)
         },
         signOut: async () => {
-          await API.logout
+          const appHost = await API.getApplicationsHost()
+          await API.logout()
+          return appHost
         },
 //         signOut: async () => {
 //           const appHost = await API.getApplicationsHost()
@@ -592,6 +595,9 @@ export const authMachine =
         notifySuccessSSHKeyRegenerated: () => {
           displaySuccess(Language.successRegenerateSSHKey)
         },
+        assignHost: () => assign({
+          appHost: (_, event) => event
+        })
       },
       guards: {
         isTrue: (_, event) => event.data,

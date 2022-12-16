@@ -9,7 +9,6 @@ import { entitlementsMachine } from "./entitlements/entitlementsXService"
 import { siteRolesMachine } from "./roles/siteRolesXService"
 import { serviceBannerMachine } from "./serviceBanner/serviceBannerXService"
 import { useNavigate } from "react-router-dom"
-import * as API from "api/api"
 
 interface XServiceContextType {
   authXService: ActorRefFrom<typeof authMachine>
@@ -40,13 +39,12 @@ export const XServiceProvider: FC<{ children: ReactNode }> = ({ children }) => {
       value={{
         authXService: useInterpret(authMachine, {
           actions: {
-            redirectAfterLogout: async () => {
-              const appHost = await API.getApplicationsHost()
-              if (appHost.host) {
+            redirectAfterLogout: async (context) => {
+              if (context?.appHost?.host) {
                 const redirect_uri = encodeURIComponent(window.location.href)
                 const uri = `${
                   window.location.protocol
-                }//${appHost.host.replace(
+                }//${context.appHost.host.replace(
                   "*",
                   "coder-logout",
                 )}/api/logout?redirect_uri=${redirect_uri}`
