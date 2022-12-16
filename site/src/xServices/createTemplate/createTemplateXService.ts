@@ -304,7 +304,7 @@ export const createTemplateMachine =
                 name: schema.name,
                 source_value: value ?? schema.default_source_value,
                 destination_scheme: schema.default_destination_scheme,
-                source_scheme: schema.default_source_scheme,
+                source_scheme: "data",
               })
             })
           }
