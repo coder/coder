@@ -8,6 +8,8 @@ import { deploymentConfigMachine } from "./deploymentConfig/deploymentConfigMach
 import { entitlementsMachine } from "./entitlements/entitlementsXService"
 import { siteRolesMachine } from "./roles/siteRolesXService"
 import { serviceBannerMachine } from "./serviceBanner/serviceBannerXService"
+import { useNavigate } from "react-router-dom"
+import * as API from "api/api"
 
 interface XServiceContextType {
   authXService: ActorRefFrom<typeof authMachine>
@@ -31,10 +33,29 @@ interface XServiceContextType {
 export const XServiceContext = createContext({} as XServiceContextType)
 
 export const XServiceProvider: FC<{ children: ReactNode }> = ({ children }) => {
+  const navigate = useNavigate()
+
   return (
     <XServiceContext.Provider
       value={{
-        authXService: useInterpret(authMachine),
+        authXService: useInterpret(authMachine, {
+          actions: {
+            redirectAfterLogout: async () => {
+              const appHost = await API.getApplicationsHost()
+              if (appHost.host) {
+                const redirect_uri = encodeURIComponent(window.location.href)
+                const uri = `${
+                  window.location.protocol
+                }//${appHost.host.replace(
+                  "*",
+                  "coder-logout",
+                )}/api/logout?redirect_uri=${redirect_uri}`
+                // window.location.replace(uri) // this is the culprit
+                navigate(uri)
+              }
+            },
+          },
+        }),
         buildInfoXService: useInterpret(buildInfoMachine),
         entitlementsXService: useInterpret(entitlementsMachine),
         serviceBannerXService: useInterpret(serviceBannerMachine),
