@@ -5,7 +5,7 @@
 ### Code samples
 
 ```shell
-# You can also use wget
+# Example request using curl
 curl -X POST http://coder-server:8080/api/v2/organizations/{organization-id}/templates/ \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
@@ -93,7 +93,7 @@ To perform this operation, you must be authenticated by means of one of the foll
 ### Code samples
 
 ```shell
-# You can also use wget
+# Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templates/{id} \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
