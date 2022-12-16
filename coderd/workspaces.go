@@ -192,6 +192,16 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary Get workspace metadata by owner and workspace name
+// @ID get-workspace-metadata-by-owner-and-workspace-name
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Workspaces
+// @Param user path string true "Owner username"
+// @Param workspacename path string true "Workspace name"
+// @Param include_deleted query string false "Return data instead of HTTP 404 if the workspace is deleted"
+// @Success 200 {object} codersdk.Workspace
+// @Router /users/{user}/workspace/{workspacename} [get]
 func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	owner := httpmw.UserParam(r)
@@ -256,6 +266,15 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 	))
 }
 
+// @Summary Create workspace by organization
+// @ID create-workspace-by-organization
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Workspaces
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param user path string true "Username"
+// @Success 200 {object} codersdk.Workspace
+// @Router /organizations/{organization}/members/{user}/workspaces [post]
 // Create a new workspace for the currently authenticated user.
 func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
