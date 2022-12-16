@@ -138,7 +138,7 @@ func TestSwagger(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, &coderdtest.Options{
-			SwaggerEndpointEnabled: true,
+			SwaggerEndpoint: true,
 		})
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
@@ -157,7 +157,7 @@ func TestSwagger(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, &coderdtest.Options{
-			SwaggerEndpointEnabled: true,
+			SwaggerEndpoint: true,
 		})
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)

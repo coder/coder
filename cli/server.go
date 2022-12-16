@@ -679,7 +679,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			}
 
 			if cfg.Swagger.Enable.Value {
-				options.SwaggerEndpointEnable = cfg.Swagger.Enable.Value
+				options.SwaggerEndpoint = cfg.Swagger.Enable.Value
 			}
 
 			// We use a separate coderAPICloser so the Enterprise API
