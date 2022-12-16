@@ -49,7 +49,7 @@ var (
 // @Produce json
 // @Tags Workspaces
 // @Param id path string true "Workspace ID" format(uuid)
-// @Param include_deleted query string false "Return data instead of HTTP 404 if the workspace is deleted"
+// @Param include_deleted query bool false "Return data instead of HTTP 404 if the workspace is deleted"
 // @Success 200 {object} codersdk.Workspace
 // @Router /workspaces/{id} [get]
 func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
@@ -199,7 +199,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 // @Tags Workspaces
 // @Param user path string true "Owner username"
 // @Param workspacename path string true "Workspace name"
-// @Param include_deleted query string false "Return data instead of HTTP 404 if the workspace is deleted"
+// @Param include_deleted query bool false "Return data instead of HTTP 404 if the workspace is deleted"
 // @Success 200 {object} codersdk.Workspace
 // @Router /users/{user}/workspace/{workspacename} [get]
 func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request) {

@@ -180,11 +180,11 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
 
 ### Parameters
 
-| Name            | In    | Type   | Required | Description                                                 |
-| --------------- | ----- | ------ | -------- | ----------------------------------------------------------- |
-| user            | path  | string | true     | Owner username                                              |
-| workspacename   | path  | string | true     | Workspace name                                              |
-| include_deleted | query | string | false    | Return data instead of HTTP 404 if the workspace is deleted |
+| Name            | In    | Type    | Required | Description                                                 |
+| --------------- | ----- | ------- | -------- | ----------------------------------------------------------- |
+| user            | path  | string  | true     | Owner username                                              |
+| workspacename   | path  | string  | true     | Workspace name                                              |
+| include_deleted | query | boolean | false    | Return data instead of HTTP 404 if the workspace is deleted |
 
 ### Example responses
 
@@ -534,7 +534,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{id} \
 | Name            | In    | Type         | Required | Description                                                 |
 | --------------- | ----- | ------------ | -------- | ----------------------------------------------------------- |
 | id              | path  | string(uuid) | true     | Workspace ID                                                |
-| include_deleted | query | string       | false    | Return data instead of HTTP 404 if the workspace is deleted |
+| include_deleted | query | boolean      | false    | Return data instead of HTTP 404 if the workspace is deleted |
 
 ### Example responses
 
