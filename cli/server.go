@@ -85,6 +85,25 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			if err != nil {
 				return xerrors.Errorf("getting deployment config: %w", err)
 			}
+
+			// Validate bind addresses.
+			if cfg.Address.Value != "" {
+				cmd.PrintErr(cliui.Styles.Warn.Render("WARN:") + " --address and -a are deprecated, please use --http-address and --tls-address instead")
+				if cfg.TLS.Enable.Value {
+					cfg.HTTPAddress.Value = ""
+					cfg.TLS.Address.Value = cfg.Address.Value
+				} else {
+					cfg.HTTPAddress.Value = cfg.Address.Value
+					cfg.TLS.Address.Value = ""
+				}
+			}
+			if cfg.TLS.Enable.Value && cfg.TLS.Address.Value == "" {
+				return xerrors.Errorf("TLS address must be set if TLS is enabled")
+			}
+			if !cfg.TLS.Enable.Value && cfg.HTTPAddress.Value == "" {
+				return xerrors.Errorf("either HTTP or TLS must be enabled")
+			}
+
 			printLogo(cmd)
 			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
 			if ok, _ := cmd.Flags().GetBool(varVerbose); ok {
@@ -186,14 +205,41 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}()
 			}
 
-			listener, err := net.Listen("tcp", cfg.Address.Value)
-			if err != nil {
-				return xerrors.Errorf("listen %q: %w", cfg.Address.Value, err)
-			}
-			defer listener.Close()
+			var (
+				httpListener net.Listener
+				httpURL      *url.URL
+			)
+			if cfg.HTTPAddress.Value != "" {
+				httpListener, err = net.Listen("tcp", cfg.HTTPAddress.Value)
+				if err != nil {
+					return xerrors.Errorf("listen %q: %w", cfg.HTTPAddress.Value, err)
+				}
+				defer httpListener.Close()
 
-			var tlsConfig *tls.Config
+				tcpAddr, tcpAddrValid := httpListener.Addr().(*net.TCPAddr)
+				if !tcpAddrValid {
+					return xerrors.Errorf("invalid TCP address type %T", httpListener.Addr())
+				}
+				if tcpAddr.IP.IsUnspecified() {
+					tcpAddr.IP = net.IPv4(127, 0, 0, 1)
+				}
+				httpURL = &url.URL{
+					Scheme: "http",
+					Host:   tcpAddr.String(),
+				}
+				cmd.Println("Started HTTP listener at " + httpURL.String())
+			}
+
+			var (
+				tlsConfig     *tls.Config
+				httpsListener net.Listener
+				httpsURL      *url.URL
+			)
 			if cfg.TLS.Enable.Value {
+				if cfg.TLS.Address.Value == "" {
+					return xerrors.New("tls address must be set if tls is enabled")
+				}
+
 				tlsConfig, err = configureTLS(
 					cfg.TLS.MinVersion.Value,
 					cfg.TLS.ClientAuth.Value,
@@ -204,7 +250,38 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				if err != nil {
 					return xerrors.Errorf("configure tls: %w", err)
 				}
-				listener = tls.NewListener(listener, tlsConfig)
+				httpsListenerInner, err := net.Listen("tcp", cfg.TLS.Address.Value)
+				if err != nil {
+					return xerrors.Errorf("listen %q: %w", cfg.TLS.Address.Value, err)
+				}
+				defer httpsListenerInner.Close()
+
+				httpsListener = tls.NewListener(httpsListenerInner, tlsConfig)
+				defer httpsListener.Close()
+
+				tcpAddr, tcpAddrValid := httpsListener.Addr().(*net.TCPAddr)
+				if !tcpAddrValid {
+					return xerrors.Errorf("invalid TCP address type %T", httpsListener.Addr())
+				}
+				if tcpAddr.IP.IsUnspecified() {
+					tcpAddr.IP = net.IPv4(127, 0, 0, 1)
+				}
+				httpsURL = &url.URL{
+					Scheme: "https",
+					Host:   tcpAddr.String(),
+				}
+				cmd.Println("Started TLS/HTTPS listener at " + httpsURL.String())
+			}
+
+			// Sanity check that at least one listener was started.
+			if httpListener == nil && httpsListener == nil {
+				return xerrors.New("must listen on at least one address")
+			}
+
+			// Prefer HTTP because it's less prone to TLS errors over localhost.
+			localURL := httpsURL
+			if httpURL != nil {
+				localURL = httpURL
 			}
 
 			ctx, httpClient, err := configureHTTPClient(
@@ -215,24 +292,6 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			)
 			if err != nil {
 				return xerrors.Errorf("configure http client: %w", err)
-			}
-
-			tcpAddr, valid := listener.Addr().(*net.TCPAddr)
-			if !valid {
-				return xerrors.New("must be listening on tcp")
-			}
-			// If just a port is specified, assume localhost.
-			if tcpAddr.IP.IsUnspecified() {
-				tcpAddr.IP = net.IPv4(127, 0, 0, 1)
-			}
-			// If no access URL is specified, fallback to the
-			// bounds URL.
-			localURL := &url.URL{
-				Scheme: "http",
-				Host:   tcpAddr.String(),
-			}
-			if cfg.TLS.Enable.Value {
-				localURL.Scheme = "https"
 			}
 
 			var (
@@ -288,6 +347,15 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 				cmd.Printf("%s The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL by not specifying an access URL.\n", cliui.Styles.Warn.Render("Warning:"), cliui.Styles.Field.Render(accessURLParsed.String()), reason)
 			}
+
+			// Redirect from the HTTP listener to the access URL if:
+			// 1. The redirect flag is enabled.
+			// 2. HTTP listening is enabled (obviously).
+			// 3. TLS is enabled (otherwise they're likely using a reverse proxy
+			//    which can do this instead).
+			// 4. The access URL has been set manually (not a tunnel).
+			// 5. The access URL is HTTPS.
+			shouldRedirectHTTPToAccessURL := cfg.TLS.RedirectHTTP.Value && cfg.HTTPAddress.Value != "" && cfg.TLS.Enable.Value && tunnel == nil && accessURLParsed.Scheme == "https"
 
 			// A newline is added before for visibility in terminal output.
 			cmd.Printf("\nView the Web UI: %s\n", accessURLParsed.String())
@@ -630,6 +698,11 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				defer client.HTTPClient.CloseIdleConnections()
 			}
 
+			// This is helpful for tests, but can be silently ignored.
+			// Coder may be ran as users that don't have permission to write in the homedir,
+			// such as via the systemd service.
+			_ = config.URL().Write(client.URL.String())
+
 			// Since errCh only has one buffered slot, all routines
 			// sending on it must be wrapped in a select/default to
 			// avoid leaving dangling goroutines waiting for the
@@ -657,40 +730,65 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			shutdownConnsCtx, shutdownConns := context.WithCancel(ctx)
 			defer shutdownConns()
 
-			// ReadHeaderTimeout is purposefully not enabled. It caused some issues with
-			// websockets over the dev tunnel.
+			// Wrap the server in middleware that redirects to the access URL if
+			// the request is not to a local IP.
+			var handler http.Handler = coderAPI.RootHandler
+			if shouldRedirectHTTPToAccessURL {
+				handler = redirectHTTPToAccessURL(handler, accessURLParsed)
+			}
+
+			// ReadHeaderTimeout is purposefully not enabled. It caused some
+			// issues with websockets over the dev tunnel.
 			// See: https://github.com/coder/coder/pull/3730
 			//nolint:gosec
-			server := &http.Server{
-				// These errors are typically noise like "TLS: EOF". Vault does similar:
+			httpServer := &http.Server{
+				// These errors are typically noise like "TLS: EOF". Vault does
+				// similar:
 				// https://github.com/hashicorp/vault/blob/e2490059d0711635e529a4efcbaa1b26998d6e1c/command/server.go#L2714
 				ErrorLog: log.New(io.Discard, "", 0),
-				Handler:  coderAPI.RootHandler,
+				Handler:  handler,
 				BaseContext: func(_ net.Listener) context.Context {
 					return shutdownConnsCtx
 				},
 			}
 			defer func() {
-				_ = shutdownWithTimeout(server.Shutdown, 5*time.Second)
+				_ = shutdownWithTimeout(httpServer.Shutdown, 5*time.Second)
 			}()
 
-			eg := errgroup.Group{}
-			eg.Go(func() error {
-				// Make sure to close the tunnel listener if we exit so the
-				// errgroup doesn't wait forever!
-				if tunnel != nil {
-					defer tunnel.Listener.Close()
+			// We call this in the routine so we can kill the other listeners if
+			// one of them fails.
+			closeListenersNow := func() {
+				if httpListener != nil {
+					_ = httpListener.Close()
 				}
+				if httpsListener != nil {
+					_ = httpsListener.Close()
+				}
+				if tunnel != nil {
+					_ = tunnel.Listener.Close()
+				}
+			}
 
-				return server.Serve(listener)
-			})
-			if tunnel != nil {
+			eg := errgroup.Group{}
+			if httpListener != nil {
 				eg.Go(func() error {
-					defer listener.Close()
-
-					return server.Serve(tunnel.Listener)
+					defer closeListenersNow()
+					return httpServer.Serve(httpListener)
 				})
 			}
+			if httpsListener != nil {
+				eg.Go(func() error {
+					defer closeListenersNow()
+					return httpServer.Serve(httpsListener)
+				})
+			}
+			if tunnel != nil {
+				eg.Go(func() error {
+					defer closeListenersNow()
+					return httpServer.Serve(tunnel.Listener)
+				})
+			}
+
 			go func() {
 				select {
 				case errCh <- eg.Wait():
@@ -717,11 +815,6 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			defer autobuildPoller.Stop()
 			autobuildExecutor := executor.New(ctx, options.Database, logger, autobuildPoller.C)
 			autobuildExecutor.Run()
-
-			// This is helpful for tests, but can be silently ignored.
-			// Coder may be ran as users that don't have permission to write in the homedir,
-			// such as via the systemd service.
-			_ = config.URL().Write(client.URL.String())
 
 			// Currently there is no way to ask the server to shut
 			// itself down, so any exit signal will result in a non-zero
@@ -759,7 +852,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			// in-flight requests, give in-flight requests 5 seconds to
 			// complete.
 			cmd.Println("Shutting down API server...")
-			err = shutdownWithTimeout(server.Shutdown, 3*time.Second)
+			err = shutdownWithTimeout(httpServer.Shutdown, 3*time.Second)
 			if err != nil {
 				cmd.Printf("API server shutdown took longer than 3s: %s\n", err)
 			} else {
@@ -1356,4 +1449,15 @@ func configureHTTPClient(ctx context.Context, clientCertFile, clientKeyFile stri
 		return context.WithValue(ctx, oauth2.HTTPClient, httpClient), httpClient, nil
 	}
 	return ctx, &http.Client{}, nil
+}
+
+func redirectHTTPToAccessURL(handler http.Handler, accessURL *url.URL) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.TLS == nil {
+			http.Redirect(w, r, accessURL.String(), http.StatusTemporaryRedirect)
+			return
+		}
+
+		handler.ServeHTTP(w, r)
+	})
 }

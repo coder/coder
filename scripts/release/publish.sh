@@ -7,7 +7,7 @@
 # pipeline to do the final publish step. If you want to create a release use:
 #   git tag -a -m "$ver" "$ver" && git push origin "$ver"
 #
-# Usage: ./publish_release.sh [--version 1.2.3] [--dry-run] path/to/asset1 path/to/asset2 ...
+# Usage: ./publish.sh [--version 1.2.3] [--dry-run] path/to/asset1 path/to/asset2 ...
 #
 # The supplied images must already be pushed to the registry or this will fail.
 # Also, the source images cannot be in a different registry than the target
@@ -27,7 +27,7 @@
 
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+source "$(dirname "$(dirname "${BASH_SOURCE[0]}")")/lib.sh"
 
 if [[ "${CI:-}" == "" ]]; then
 	error "This script must be run in CI"
@@ -101,23 +101,16 @@ old_tag="$(git describe --abbrev=0 HEAD^1)"
 
 # For dry-run builds we want to use the SHA instead of the tag, because the new
 # tag probably doesn't exist.
-changelog_range="$old_tag..$new_tag"
+new_ref="$new_tag"
 if [[ "$dry_run" == 1 ]]; then
-	changelog_range="$old_tag..$(git rev-parse --short HEAD)"
+	new_ref="$(git rev-parse --short HEAD)"
 fi
 
+# shellcheck source=scripts/release/check_commit_metadata.sh
+source "$SCRIPT_DIR/release/check_commit_metadata.sh" "$old_tag" "$new_ref"
+
 # Craft the release notes.
-changelog="$(git log --no-merges --pretty=format:"- %h %s" "$changelog_range")"
-image_tag="$(execrelative ./image_tag.sh --version "$version")"
-release_notes="
-## Changelog
-
-$changelog
-
-## Container Image
-- \`docker pull $image_tag\`
-
-"
+release_notes="$(execrelative ./release/generate_release_notes.sh --old-version "$old_tag" --new-version "$new_tag" --ref "$new_ref")"
 
 release_notes_file="$(mktemp)"
 echo "$release_notes" >"$release_notes_file"

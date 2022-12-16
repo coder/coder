@@ -694,6 +694,7 @@ type WorkspaceApp struct {
 	Subdomain            bool               `db:"subdomain" json:"subdomain"`
 	SharingLevel         AppSharingLevel    `db:"sharing_level" json:"sharing_level"`
 	Slug                 string             `db:"slug" json:"slug"`
+	External             bool               `db:"external" json:"external"`
 }
 
 type WorkspaceBuild struct {

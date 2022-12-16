@@ -58,7 +58,7 @@ var nonCanonicalHeaders = map[string]string{
 
 func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
 	host := api.AppHostname
-	if api.AccessURL.Port() != "" {
+	if host != "" && api.AccessURL.Port() != "" {
 		host += fmt.Sprintf(":%s", api.AccessURL.Port())
 	}
 

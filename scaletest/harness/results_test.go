@@ -9,7 +9,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/loadtest/harness"
+	"github.com/coder/coder/scaletest/harness"
 )
 
 func Test_Results(t *testing.T) {

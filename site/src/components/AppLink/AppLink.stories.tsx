@@ -18,10 +18,19 @@ WithIcon.args = {
   workspace: MockWorkspace,
   app: {
     ...MockWorkspaceApp,
-    name: "code-server",
     icon: "/icon/code.svg",
     sharing_level: "owner",
     health: "healthy",
+  },
+  agent: MockWorkspaceAgent,
+}
+
+export const WithIconExternal = Template.bind({})
+WithIconExternal.args = {
+  workspace: MockWorkspace,
+  app: {
+    ...MockWorkspaceApp,
+    external: true,
   },
   agent: MockWorkspaceAgent,
 }
@@ -31,7 +40,6 @@ WithoutIcon.args = {
   workspace: MockWorkspace,
   app: {
     ...MockWorkspaceApp,
-    name: "code-server",
     sharing_level: "owner",
     health: "healthy",
   },
@@ -43,7 +51,6 @@ HealthDisabled.args = {
   workspace: MockWorkspace,
   app: {
     ...MockWorkspaceApp,
-    name: "code-server",
     sharing_level: "owner",
     health: "disabled",
   },
@@ -55,7 +62,6 @@ HealthInitializing.args = {
   workspace: MockWorkspace,
   app: {
     ...MockWorkspaceApp,
-    name: "code-server",
     health: "initializing",
   },
   agent: MockWorkspaceAgent,
@@ -66,7 +72,6 @@ HealthUnhealthy.args = {
   workspace: MockWorkspace,
   app: {
     ...MockWorkspaceApp,
-    name: "code-server",
     health: "unhealthy",
   },
   agent: MockWorkspaceAgent,

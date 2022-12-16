@@ -448,7 +448,7 @@ func (q *fakeQuerier) GetUserByEmailOrUsername(_ context.Context, arg database.G
 	defer q.mutex.RUnlock()
 
 	for _, user := range q.users {
-		if (strings.EqualFold(user.Email, arg.Email) || strings.EqualFold(user.Username, arg.Username)) && user.Deleted == arg.Deleted {
+		if !user.Deleted && (strings.EqualFold(user.Email, arg.Email) || strings.EqualFold(user.Username, arg.Username)) {
 			return user, nil
 		}
 	}
@@ -513,15 +513,14 @@ func (q *fakeQuerier) GetAuthorizedUserCount(ctx context.Context, params databas
 		users = append(users, user)
 	}
 
-	if params.Deleted {
-		tmp := make([]database.User, 0, len(users))
-		for _, user := range users {
-			if user.Deleted {
-				tmp = append(tmp, user)
-			}
+	// Filter out deleted since they should never be returned..
+	tmp := make([]database.User, 0, len(users))
+	for _, user := range users {
+		if !user.Deleted {
+			tmp = append(tmp, user)
 		}
-		users = tmp
 	}
+	users = tmp
 
 	if params.Search != "" {
 		tmp := make([]database.User, 0, len(users))
@@ -593,15 +592,14 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 		return a.CreatedAt.Before(b.CreatedAt)
 	})
 
-	if params.Deleted {
-		tmp := make([]database.User, 0, len(users))
-		for _, user := range users {
-			if user.Deleted {
-				tmp = append(tmp, user)
-			}
+	// Filter out deleted since they should never be returned..
+	tmp := make([]database.User, 0, len(users))
+	for _, user := range users {
+		if !user.Deleted {
+			tmp = append(tmp, user)
 		}
-		users = tmp
 	}
+	users = tmp
 
 	if params.AfterID != uuid.Nil {
 		found := false
@@ -2742,6 +2740,7 @@ func (q *fakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 		Icon:                 arg.Icon,
 		Command:              arg.Command,
 		Url:                  arg.Url,
+		External:             arg.External,
 		Subdomain:            arg.Subdomain,
 		SharingLevel:         arg.SharingLevel,
 		HealthcheckUrl:       arg.HealthcheckUrl,

@@ -14,9 +14,9 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/loadtest/reconnectingpty"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/scaletest/reconnectingpty"
 	"github.com/coder/coder/testutil"
 )
 
@@ -31,7 +31,8 @@ func Test_Runner(t *testing.T) {
 		runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 			AgentID: agentID,
 			Init: codersdk.ReconnectingPTYInit{
-				Command: "echo 'hello world' && sleep 1",
+				// Use ; here because it's powershell compatible (vs &&).
+				Command: "echo 'hello world'; sleep 1",
 			},
 			LogOutput: true,
 		})
@@ -195,7 +196,7 @@ func Test_Runner(t *testing.T) {
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
 				Init: codersdk.ReconnectingPTYInit{
-					Command: "echo 'hello world' && sleep 1",
+					Command: "echo 'hello world'; sleep 1",
 				},
 				ExpectOutput: "hello world",
 				LogOutput:    false,
@@ -219,7 +220,7 @@ func Test_Runner(t *testing.T) {
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
 				Init: codersdk.ReconnectingPTYInit{
-					Command: "echo 'hello world' && sleep 1",
+					Command: "echo 'hello world'; sleep 1",
 				},
 				ExpectOutput: "bello borld",
 				LogOutput:    false,
@@ -280,7 +281,7 @@ func setupRunnerTest(t *testing.T) (client *codersdk.Client, agentID uuid.UUID) 
 	agentClient.SetSessionToken(authToken)
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,
-		Logger: slogtest.Make(t, nil).Named("agent"),
+		Logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("agent"),
 	})
 	t.Cleanup(func() {
 		_ = agentCloser.Close()
