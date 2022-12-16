@@ -56,12 +56,12 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization-id}/tem
   "allow_user_cancel_workspace_jobs": true,
   "build_time_stats": {
     "property1": {
-      "p50": 0,
-      "p95": 0
+      "p50": 123,
+      "p95": 146
     },
     "property2": {
-      "p50": 0,
-      "p95": 0
+      "p50": 123,
+      "p95": 146
     }
   },
   "created_at": "string",
@@ -119,12 +119,12 @@ curl -X GET http://coder-server:8080/api/v2/templates/{id} \
   "allow_user_cancel_workspace_jobs": true,
   "build_time_stats": {
     "property1": {
-      "p50": 0,
-      "p95": 0
+      "p50": 123,
+      "p95": 146
     },
     "property2": {
-      "p50": 0,
-      "p95": 0
+      "p50": 123,
+      "p95": 146
     }
   },
   "created_at": "string",

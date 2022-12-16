@@ -531,10 +531,12 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "p50": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 123
                 },
                 "p95": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 146
                 }
             }
         },

@@ -36,8 +36,8 @@ type Template struct {
 }
 
 type TransitionStats struct {
-	P50 *int64
-	P95 *int64
+	P50 *int64 `example:"123"`
+	P95 *int64 `example:"146"`
 }
 
 type TemplateBuildTimeStats map[WorkspaceTransition]TransitionStats
