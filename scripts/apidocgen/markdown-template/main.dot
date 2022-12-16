@@ -1,18 +1,22 @@
 {{
-function renderSinglePropertyType(p) {
-  if (p.$ref) {
-		var pRef = p.$ref.replace("#/components/schemas/","");
-    return "[" + pRef + "](#" + pRef.replace(".","").toLowerCase() + ")";
-	}
-	return p.type;
-}
+	function renderSinglePropertyType(p) {
+		if (!p.$ref) {
+			return p.type;
+		}
 
-function renderPropertyType(p) {
-	if (p.type == "array") {
-		return "array of " + renderSinglePropertyType(p.schema.items);
+		var pRef = p.$ref.replace("#/components/schemas/","");
+		if (pRef == "codersdk.NullTime") {
+			return "string(time) or `null`";
+		}
+		return "[" + pRef + "](#" + pRef.replace(".","").toLowerCase() + ")";
 	}
-	return renderSinglePropertyType(p);
-}
+
+	function renderPropertyType(p) {
+		if (p.type == "array") {
+			return "array of " + renderSinglePropertyType(p.schema.items);
+		}
+		return renderSinglePropertyType(p);
+	}
 }}
 
 {{? data.api.components && data.api.components.securitySchemes }}{{#def.security}}{{?}}
@@ -42,7 +46,11 @@ function renderPropertyType(p) {
 <!-- APIDOCGEN: BEGIN SECTION -->
 # Schemas
 
-{{ for (var s in data.components.schemas) { }}
+{{ for (var s in data.components.schemas) {
+	if (s == "codersdk.NullTime") {
+		continue;
+	}
+}}
 {{ var origSchema = data.components.schemas[s]; }}
 {{ var schema = data.api.components.schemas[s]; }}
 

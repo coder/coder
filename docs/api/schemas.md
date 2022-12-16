@@ -100,22 +100,6 @@
 | `threshold` | integer | false    | none         | Threshold specifies the number of consecutive failed health checks before returning "unhealthy". |
 | `url`       | string  | false    | none         | URL specifies the url to check for the app health.                                               |
 
-## codersdk.NullTime
-
-```json
-{
-  "time": "string",
-  "valid": true
-}
-```
-
-### Properties
-
-| Name    | Type    | Required | Restrictions | Description                       |
-| ------- | ------- | -------- | ------------ | --------------------------------- |
-| `time`  | string  | false    | none         | none                              |
-| `valid` | boolean | false    | none         | Valid is true if Time is not NULL |
-
 ## codersdk.ProvisionerJob
 
 ```json
@@ -643,7 +627,7 @@
 | `build_number`          | integer                                                           | false    | none         | none        |
 | `created_at`            | string                                                            | false    | none         | none        |
 | `daily_cost`            | integer                                                           | false    | none         | none        |
-| `deadline`              | [codersdk.NullTime](#codersdknulltime)                            | false    | none         | none        |
+| `deadline`              | string(time) or `null`                                            | false    | none         | none        |
 | `id`                    | string                                                            | false    | none         | none        |
 | `initiator_id`          | string                                                            | false    | none         | none        |
 | `initiator_name`        | string                                                            | false    | none         | none        |
