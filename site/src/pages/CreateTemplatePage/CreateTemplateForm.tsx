@@ -1,7 +1,11 @@
 import Checkbox from "@material-ui/core/Checkbox"
 import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
-import { ParameterSchema, TemplateExample } from "api/typesGenerated"
+import {
+  ParameterSchema,
+  ProvisionerJobLog,
+  TemplateExample,
+} from "api/typesGenerated"
 import { FormFooter } from "components/FormFooter/FormFooter"
 import { IconField } from "components/IconField/IconField"
 import { ParameterInput } from "components/ParameterInput/ParameterInput"
@@ -17,6 +21,7 @@ import { useTranslation } from "react-i18next"
 import { nameValidator, getFormHelpers, onChangeTrimmed } from "util/formUtils"
 import { CreateTemplateData } from "xServices/createTemplate/createTemplateXService"
 import * as Yup from "yup"
+import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
 
 const validationSchema = Yup.object({
   name: nameValidator("Name"),
@@ -60,6 +65,8 @@ interface CreateTemplateFormProps {
   onCancel: () => void
   onSubmit: (data: CreateTemplateData) => void
   upload: TemplateUploadProps
+  jobError?: string
+  logs?: ProvisionerJobLog[]
 }
 
 export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
@@ -70,6 +77,8 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
   onCancel,
   onSubmit,
   upload,
+  jobError,
+  logs,
 }) => {
   const styles = useStyles()
   const formFooterStyles = useFormFooterStyles()
@@ -249,11 +258,27 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
           </div>
         )}
 
+        {jobError && (
+          <Stack>
+            <div className={styles.error}>
+              <h5 className={styles.errorTitle}>Error during provisioning</h5>
+              <p className={styles.errorDescription}>
+                Looks like we found an error during the template provisioning.
+                You can see the logs bellow.
+              </p>
+
+              <code className={styles.errorDetails}>{jobError}</code>
+            </div>
+
+            <WorkspaceBuildLogs logs={logs ?? []} />
+          </Stack>
+        )}
+
         <FormFooter
           styles={formFooterStyles}
           onCancel={onCancel}
           isLoading={isSubmitting}
-          submitLabel="Create template"
+          submitLabel={jobError ? "Retry" : "Create template"}
         />
       </Stack>
     </form>
@@ -317,6 +342,31 @@ const useStyles = makeStyles((theme) => ({
   optionHelperText: {
     fontSize: theme.spacing(1.5),
     color: theme.palette.text.secondary,
+  },
+
+  error: {
+    padding: theme.spacing(3),
+    borderRadius: theme.spacing(1),
+    background: theme.palette.background.paper,
+    border: `1px solid ${theme.palette.error.main}`,
+  },
+
+  errorTitle: {
+    fontSize: 16,
+    margin: 0,
+  },
+
+  errorDescription: {
+    margin: 0,
+    color: theme.palette.text.secondary,
+    marginTop: theme.spacing(0.5),
+  },
+
+  errorDetails: {
+    display: "block",
+    marginTop: theme.spacing(1),
+    color: theme.palette.error.light,
+    fontSize: theme.spacing(2),
   },
 }))
 

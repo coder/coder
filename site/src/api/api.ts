@@ -754,3 +754,12 @@ export const uploadTemplateFile = async (
   })
   return response.data
 }
+
+export const getTemplateVersionLogs = async (
+  versionId: string,
+): Promise<TypesGen.ProvisionerJobLog[]> => {
+  const response = await axios.get<TypesGen.ProvisionerJobLog[]>(
+    `/api/v2/templateversions/${versionId}/logs`,
+  )
+  return response.data
+}

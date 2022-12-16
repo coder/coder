@@ -27,7 +27,8 @@ const CreateTemplatePage: FC = () => {
       },
     },
   })
-  const { starterTemplate, parameters, error, file } = state.context
+  const { starterTemplate, parameters, error, file, jobError, jobLogs } =
+    state.context
   const shouldDisplayForm = !state.hasTag("loading")
 
   const onCancel = () => {
@@ -68,6 +69,8 @@ const CreateTemplatePage: FC = () => {
                 send({ type: "UPLOAD_FILE", file })
               },
             }}
+            jobError={jobError}
+            logs={jobLogs}
           />
         )}
       </FullPageHorizontalForm>

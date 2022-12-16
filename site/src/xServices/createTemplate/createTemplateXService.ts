@@ -5,10 +5,12 @@ import {
   createTemplate,
   getTemplateVersionSchema,
   uploadTemplateFile,
+  getTemplateVersionLogs,
 } from "api/api"
 import {
   CreateTemplateVersionRequest,
   ParameterSchema,
+  ProvisionerJobLog,
   Template,
   TemplateExample,
   TemplateVersion,
@@ -41,6 +43,7 @@ interface CreateTemplateContext {
   organizationId: string
   error?: unknown
   jobError?: string
+  jobLogs?: ProvisionerJobLog[]
   starterTemplate?: TemplateExample
   exampleId?: string | null // It can be null because it is being passed from query string
   version?: TemplateVersion
@@ -85,6 +88,9 @@ export const createTemplateMachine =
           }
           createTemplate: {
             data: Template
+          }
+          loadVersionLogs: {
+            data: ProvisionerJobLog[]
           }
         },
       },
@@ -169,8 +175,8 @@ export const createTemplateMachine =
                     actions: ["assignVersion"],
                   },
                   {
-                    target: "#createTemplate.idle",
-                    actions: ["displayJobError"],
+                    target: "loadingVersionLogs",
+                    actions: ["assignJobError", "assignVersion"],
                     cond: "hasFailed",
                   },
                   { target: "creatingTemplate", actions: ["assignVersion"] },
@@ -181,6 +187,19 @@ export const createTemplateMachine =
                 },
               },
               tags: ["submitting"],
+            },
+            loadingVersionLogs: {
+              invoke: {
+                src: "loadVersionLogs",
+                onDone: {
+                  target: "#createTemplate.idle",
+                  actions: ["assignJobLogs"],
+                },
+                onError: {
+                  target: "#createTemplate.idle",
+                  actions: ["assignError"],
+                },
+              },
             },
             loadingMissingParameters: {
               invoke: {
@@ -357,12 +376,17 @@ export const createTemplateMachine =
             template_version_id: version.id,
           })
         },
+        loadVersionLogs: ({ version }) => {
+          if (!version) {
+            throw new Error("Version is not set")
+          }
+
+          return getTemplateVersionLogs(version.id)
+        },
       },
       actions: {
         assignError: assign({ error: (_, { data }) => data }),
-        displayJobError: (_, { data }) => {
-          displayError("Provisioner job failed.", data.job.error)
-        },
+        assignJobError: assign({ jobError: (_, { data }) => data.job.error }),
         displayUploadError: () => {
           displayError("Error on upload the file.")
         },
@@ -378,6 +402,7 @@ export const createTemplateMachine =
           file: (_) => undefined,
           uploadResponse: (_) => undefined,
         }),
+        assignJobLogs: assign({ jobLogs: (_, { data }) => data }),
       },
       guards: {
         isExampleProvided: ({ exampleId }) => exampleId !== undefined,
