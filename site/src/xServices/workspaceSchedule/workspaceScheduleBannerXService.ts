@@ -29,7 +29,6 @@ export const Language = {
 
 export interface WorkspaceScheduleBannerContext {
   workspace: Workspace
-  deadline?: dayjs.Dayjs
 }
 
 export type WorkspaceScheduleBannerEvent =
@@ -135,15 +134,17 @@ export const workspaceScheduleBannerMachine = createMachine(
   },
   {
     guards: {
-      isAtMaxDeadline: (context) =>
-        context.deadline
+      isAtMaxDeadline: (context) => {
+        return context.workspace.latest_build.deadline
           ? !canExtendDeadline(
-              context.deadline,
+              getDeadline(context.workspace),
               context.workspace,
             )
-          : false,
-      isAtMinDeadline: (context) =>
-        context.deadline ? !canReduceDeadline(context.deadline) : false,
+          : false
+      },
+      isAtMinDeadline: (context) => {
+        return context.workspace.latest_build.deadline ? !canReduceDeadline(getDeadline(context.workspace)) : false
+      }
     },
     actions: {
       // This error does not have a detail, so using the snackbar is okay
@@ -155,16 +156,15 @@ export const workspaceScheduleBannerMachine = createMachine(
       },
       assignWorkspace: assign((_, event) => ({
         workspace: event.workspace,
-        deadline: getDeadline(event.workspace),
       })),
     },
 
     services: {
       increaseDeadline: async (context, event) => {
-        if (!context.deadline) {
+        if (!context.workspace.latest_build.deadline) {
           throw Error("Deadline is undefined.")
         }
-        const proposedDeadline = context.deadline.add(event.hours, "hours")
+        const proposedDeadline = getDeadline(context.workspace).add(event.hours, "hours")
         const newDeadline = dayjs.min(
           proposedDeadline,
           getMaxDeadline(context.workspace),
@@ -172,10 +172,10 @@ export const workspaceScheduleBannerMachine = createMachine(
         await API.putWorkspaceExtension(context.workspace.id, newDeadline)
       },
       decreaseDeadline: async (context, event) => {
-        if (!context.deadline) {
+        if (!context.workspace.latest_build.deadline) {
           throw Error("Deadline is undefined.")
         }
-        const proposedDeadline = context.deadline.subtract(event.hours, "hours")
+        const proposedDeadline = getDeadline(context.workspace).subtract(event.hours, "hours")
         const newDeadline = dayjs.max(proposedDeadline, getMinDeadline())
         await API.putWorkspaceExtension(context.workspace.id, newDeadline)
       },

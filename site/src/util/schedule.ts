@@ -151,15 +151,29 @@ export function getMinDeadline(): dayjs.Dayjs {
   return dayjs().add(deadlineExtensionMin)
 }
 
+/**
+ * Determines if ScheduleBanner can increase ttl by one or more hours
+ * without hitting the global max deadline.
+ * @param deadline
+ * @param workspace
+ */
 export function canExtendDeadline(
   deadline: dayjs.Dayjs,
   workspace: Workspace,
 ): boolean {
-  return deadline < getMaxDeadline(workspace)
+  const diff = (getMaxDeadline(workspace)).diff(deadline, 'hours')
+  return diff >= 1
 }
 
+/**
+ * Determines if ScheduleBanner can reduce ttl by one or more hours
+ * without hitting the global min remaining time to live.
+ * Depends on workspace deadline, current time, and a global constant.
+ * @param deadline current workspace deadline
+ */
 export function canReduceDeadline(deadline: dayjs.Dayjs): boolean {
-  return deadline > getMinDeadline()
+  const diff = deadline.diff(getMinDeadline(), 'hours')
+  return diff >= 1
 }
 
 export const getDeadline = (workspace: Workspace): dayjs.Dayjs =>

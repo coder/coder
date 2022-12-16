@@ -29,7 +29,6 @@ Running.args = {
       return canExtendDeadline(
         dayjs(Mocks.MockWorkspace.latest_build.deadline),
         Mocks.MockWorkspace,
-        Mocks.MockTemplate,
       )
     },
     maxDeadlineDecrease: 1000,
