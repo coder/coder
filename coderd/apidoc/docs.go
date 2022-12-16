@@ -731,7 +731,8 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "created_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "daily_cost": {
                     "type": "integer"
@@ -740,10 +741,12 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.NullTime"
                 },
                 "id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "initiator_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "initiator_name": {
                     "type": "string"
@@ -761,28 +764,49 @@ const docTemplate = `{
                     }
                 },
                 "status": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "pending",
+                        "starting",
+                        "running",
+                        "stopping",
+                        "stopped",
+                        "failed",
+                        "canceling",
+                        "canceled",
+                        "deleting",
+                        "deleted"
+                    ]
                 },
                 "template_version_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "template_version_name": {
                     "type": "string"
                 },
                 "transition": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "start",
+                        "stop",
+                        "delete"
+                    ]
                 },
                 "updated_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "workspace_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "workspace_name": {
                     "type": "string"
                 },
                 "workspace_owner_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "workspace_owner_name": {
                     "type": "string"
@@ -799,7 +823,8 @@ const docTemplate = `{
                     }
                 },
                 "created_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "daily_cost": {
                     "type": "integer"
@@ -811,10 +836,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "job_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "metadata": {
                     "type": "array",
@@ -829,7 +856,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "workspace_transition": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "start",
+                        "stop",
+                        "delete"
+                    ]
                 }
             }
         },

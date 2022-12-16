@@ -33,14 +33,14 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
   "last_used_at": "2019-08-24T14:15:22Z",
   "latest_build": {
     "build_number": 0,
-    "created_at": "string",
+    "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": {
       "time": "string",
       "valid": true
     },
-    "id": "string",
-    "initiator_id": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
     "job": {
       "canceled_at": "string",
@@ -114,12 +114,12 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
             "version": "string"
           }
         ],
-        "created_at": "string",
+        "created_at": "2019-08-24T14:15:22Z",
         "daily_cost": 0,
         "hide": true,
         "icon": "string",
-        "id": "string",
-        "job_id": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
         "metadata": [
           {
             "key": "string",
@@ -129,17 +129,17 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
         ],
         "name": "string",
         "type": "string",
-        "workspace_transition": "string"
+        "workspace_transition": "start"
       }
     ],
-    "status": "string",
-    "template_version_id": "string",
+    "status": "pending",
+    "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "template_version_name": "string",
-    "transition": "string",
-    "updated_at": "string",
-    "workspace_id": "string",
+    "transition": "start",
+    "updated_at": "2019-08-24T14:15:22Z",
+    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
     "workspace_name": "string",
-    "workspace_owner_id": "string",
+    "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
     "workspace_owner_name": "string"
   },
   "name": "string",
@@ -198,14 +198,14 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   "last_used_at": "2019-08-24T14:15:22Z",
   "latest_build": {
     "build_number": 0,
-    "created_at": "string",
+    "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": {
       "time": "string",
       "valid": true
     },
-    "id": "string",
-    "initiator_id": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
     "job": {
       "canceled_at": "string",
@@ -279,12 +279,12 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
             "version": "string"
           }
         ],
-        "created_at": "string",
+        "created_at": "2019-08-24T14:15:22Z",
         "daily_cost": 0,
         "hide": true,
         "icon": "string",
-        "id": "string",
-        "job_id": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
         "metadata": [
           {
             "key": "string",
@@ -294,17 +294,17 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
         ],
         "name": "string",
         "type": "string",
-        "workspace_transition": "string"
+        "workspace_transition": "start"
       }
     ],
-    "status": "string",
-    "template_version_id": "string",
+    "status": "pending",
+    "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "template_version_name": "string",
-    "transition": "string",
-    "updated_at": "string",
-    "workspace_id": "string",
+    "transition": "start",
+    "updated_at": "2019-08-24T14:15:22Z",
+    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
     "workspace_name": "string",
-    "workspace_owner_id": "string",
+    "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
     "workspace_owner_name": "string"
   },
   "name": "string",
@@ -386,14 +386,14 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
       "last_used_at": "2019-08-24T14:15:22Z",
       "latest_build": {
         "build_number": 0,
-        "created_at": "string",
+        "created_at": "2019-08-24T14:15:22Z",
         "daily_cost": 0,
         "deadline": {
           "time": "string",
           "valid": true
         },
-        "id": "string",
-        "initiator_id": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
         "initiator_name": "string",
         "job": {
           "canceled_at": "string",
@@ -463,12 +463,12 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                 "version": "string"
               }
             ],
-            "created_at": "string",
+            "created_at": "2019-08-24T14:15:22Z",
             "daily_cost": 0,
             "hide": true,
             "icon": "string",
-            "id": "string",
-            "job_id": "string",
+            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+            "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
             "metadata": [
               {
                 "key": "string",
@@ -478,17 +478,17 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
             ],
             "name": "string",
             "type": "string",
-            "workspace_transition": "string"
+            "workspace_transition": "start"
           }
         ],
-        "status": "string",
-        "template_version_id": "string",
+        "status": "pending",
+        "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
         "template_version_name": "string",
-        "transition": "string",
-        "updated_at": "string",
-        "workspace_id": "string",
+        "transition": "start",
+        "updated_at": "2019-08-24T14:15:22Z",
+        "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
         "workspace_name": "string",
-        "workspace_owner_id": "string",
+        "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
         "workspace_owner_name": "string"
       },
       "name": "string",
@@ -548,14 +548,14 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{id} \
   "last_used_at": "2019-08-24T14:15:22Z",
   "latest_build": {
     "build_number": 0,
-    "created_at": "string",
+    "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
     "deadline": {
       "time": "string",
       "valid": true
     },
-    "id": "string",
-    "initiator_id": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
     "job": {
       "canceled_at": "string",
@@ -629,12 +629,12 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{id} \
             "version": "string"
           }
         ],
-        "created_at": "string",
+        "created_at": "2019-08-24T14:15:22Z",
         "daily_cost": 0,
         "hide": true,
         "icon": "string",
-        "id": "string",
-        "job_id": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
         "metadata": [
           {
             "key": "string",
@@ -644,17 +644,17 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{id} \
         ],
         "name": "string",
         "type": "string",
-        "workspace_transition": "string"
+        "workspace_transition": "start"
       }
     ],
-    "status": "string",
-    "template_version_id": "string",
+    "status": "pending",
+    "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "template_version_name": "string",
-    "transition": "string",
-    "updated_at": "string",
-    "workspace_id": "string",
+    "transition": "start",
+    "updated_at": "2019-08-24T14:15:22Z",
+    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
     "workspace_name": "string",
-    "workspace_owner_id": "string",
+    "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
     "workspace_owner_name": "string"
   },
   "name": "string",
