@@ -5,10 +5,10 @@ import { Section } from "../../../components/Section/Section"
 import { TokensPageView } from "./TokensPageView"
 
 export const Language = {
-  title: "Authentication Tokens",
+  title: "Tokens",
   description: (
     <p>
-      Authentication tokens are used to authenticate with the Coder API.
+      Tokens are keys used to authenticate with the Coder API.
     </p>
   ),
 }
