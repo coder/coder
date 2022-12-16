@@ -1,3 +1,11 @@
+{{
+  function renderResponseType(r) {
+		var oldRef = r.content['application/json'].schema['x-widdershins-oldRef'];
+		var aType = oldRef.replace("#/components/schemas/","");
+		var href = aType.replace(".","").toLowerCase();
+		return "[" + aType + "](schemas.md#" + href + ")";
+	}
+}}
 {{ data.responses = data.utils.getResponses(data); }}
 {{ data.responseSchemas = false; }}
 {{~ data.responses :response }}
@@ -15,7 +23,7 @@
 
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
-{{~ data.responses :r}}|{{=r.status}}|{{=r.meaning}}|{{=r.description || 'none'}}|[{{= r.content['application/json'].schema['x-widdershins-oldRef'].substring(21) }}](schemas.md#{{= r.content['application/json'].schema['x-widdershins-oldRef'].substring(21).replace(".","").toLowerCase()}})|
+{{~ data.responses :r}}|{{=r.status}}|{{=r.meaning}}|{{=r.description || 'none'}}|{{= renderResponseType(r)}}|
 {{~}}
 
 {{ data.responseSchemas = false; }}
