@@ -169,18 +169,18 @@
       "p95": 146
     }
   },
-  "created_at": "string",
-  "created_by_id": "string",
+  "created_at": "2019-08-24T14:15:22Z",
+  "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
   "default_ttl_ms": 0,
   "description": "string",
   "display_name": "string",
   "icon": "string",
-  "id": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
-  "organization_id": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "string",
-  "updated_at": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
   "workspace_owner_count": 0
 }
 ```
@@ -249,9 +249,9 @@
 ```json
 {
   "autostart_schedule": "string",
-  "created_at": "string",
-  "id": "string",
-  "last_used_at": "string",
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "last_used_at": "2019-08-24T14:15:22Z",
   "latest_build": {
     "build_number": 0,
     "created_at": "string",
@@ -365,15 +365,15 @@
   },
   "name": "string",
   "outdated": true,
-  "owner_id": "string",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
   "template_icon": "string",
-  "template_id": "string",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
   "ttl_ms": 0,
-  "updated_at": "string"
+  "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -779,9 +779,9 @@
   "workspaces": [
     {
       "autostart_schedule": "string",
-      "created_at": "string",
-      "id": "string",
-      "last_used_at": "string",
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "last_used_at": "2019-08-24T14:15:22Z",
       "latest_build": {
         "build_number": 0,
         "created_at": "string",
@@ -891,15 +891,15 @@
       },
       "name": "string",
       "outdated": true,
-      "owner_id": "string",
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
       "template_allow_user_cancel_workspace_jobs": true,
       "template_display_name": "string",
       "template_icon": "string",
-      "template_id": "string",
+      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "ttl_ms": 0,
-      "updated_at": "string"
+      "updated_at": "2019-08-24T14:15:22Z"
     }
   ]
 }

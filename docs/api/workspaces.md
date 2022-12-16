@@ -28,9 +28,9 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
 ```json
 {
   "autostart_schedule": "string",
-  "created_at": "string",
-  "id": "string",
-  "last_used_at": "string",
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "last_used_at": "2019-08-24T14:15:22Z",
   "latest_build": {
     "build_number": 0,
     "created_at": "string",
@@ -144,15 +144,15 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
   },
   "name": "string",
   "outdated": true,
-  "owner_id": "string",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
   "template_icon": "string",
-  "template_id": "string",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
   "ttl_ms": 0,
-  "updated_at": "string"
+  "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -193,9 +193,9 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
 ```json
 {
   "autostart_schedule": "string",
-  "created_at": "string",
-  "id": "string",
-  "last_used_at": "string",
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "last_used_at": "2019-08-24T14:15:22Z",
   "latest_build": {
     "build_number": 0,
     "created_at": "string",
@@ -309,15 +309,15 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   },
   "name": "string",
   "outdated": true,
-  "owner_id": "string",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
   "template_icon": "string",
-  "template_id": "string",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
   "ttl_ms": 0,
-  "updated_at": "string"
+  "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -381,9 +381,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
   "workspaces": [
     {
       "autostart_schedule": "string",
-      "created_at": "string",
-      "id": "string",
-      "last_used_at": "string",
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "last_used_at": "2019-08-24T14:15:22Z",
       "latest_build": {
         "build_number": 0,
         "created_at": "string",
@@ -493,15 +493,15 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
       },
       "name": "string",
       "outdated": true,
-      "owner_id": "string",
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
       "template_allow_user_cancel_workspace_jobs": true,
       "template_display_name": "string",
       "template_icon": "string",
-      "template_id": "string",
+      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "ttl_ms": 0,
-      "updated_at": "string"
+      "updated_at": "2019-08-24T14:15:22Z"
     }
   ]
 }
@@ -543,9 +543,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{id} \
 ```json
 {
   "autostart_schedule": "string",
-  "created_at": "string",
-  "id": "string",
-  "last_used_at": "string",
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "last_used_at": "2019-08-24T14:15:22Z",
   "latest_build": {
     "build_number": 0,
     "created_at": "string",
@@ -659,15 +659,15 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{id} \
   },
   "name": "string",
   "outdated": true,
-  "owner_id": "string",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
   "template_icon": "string",
-  "template_id": "string",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
   "ttl_ms": 0,
-  "updated_at": "string"
+  "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 

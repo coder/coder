@@ -481,10 +481,12 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.TemplateBuildTimeStats"
                 },
                 "created_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "created_by_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "created_by_name": {
                     "type": "string"
@@ -502,19 +504,22 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "name": {
                     "type": "string"
                 },
                 "organization_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "provisioner": {
                     "type": "string"
                 },
                 "updated_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "workspace_owner_count": {
                     "type": "integer"
@@ -547,13 +552,16 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "created_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "last_used_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "latest_build": {
                     "$ref": "#/definitions/codersdk.WorkspaceBuild"
@@ -565,7 +573,8 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "owner_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "owner_name": {
                     "type": "string"
@@ -580,7 +589,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "template_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "template_name": {
                     "type": "string"
@@ -589,7 +599,8 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "updated_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 }
             }
         },
