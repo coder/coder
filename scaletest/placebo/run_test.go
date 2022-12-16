@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/loadtest/placebo"
+	"github.com/coder/coder/scaletest/placebo"
 )
 
 func Test_Runner(t *testing.T) {

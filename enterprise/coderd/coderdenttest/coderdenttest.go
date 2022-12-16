@@ -62,7 +62,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	if options.Options == nil {
 		options.Options = &coderdtest.Options{}
 	}
-	setHandler, cancelFunc, oop := coderdtest.NewOptions(t, options.Options)
+	setHandler, cancelFunc, serverURL, oop := coderdtest.NewOptions(t, options.Options)
 	coderAPI, err := coderd.New(context.Background(), &coderd.Options{
 		RBAC:                       true,
 		AuditLogging:               options.AuditLogging,
@@ -86,7 +86,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		_ = provisionerCloser.Close()
 		_ = coderAPI.Close()
 	})
-	client := codersdk.New(coderAPI.AccessURL)
+	client := codersdk.New(serverURL)
 	client.HTTPClient = &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{

@@ -9,7 +9,7 @@ import (
 
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/loadtest/reconnectingpty"
+	"github.com/coder/coder/scaletest/reconnectingpty"
 )
 
 func Test_Config(t *testing.T) {

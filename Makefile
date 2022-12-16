@@ -101,19 +101,23 @@ build-fat build-full build: $(CODER_FAT_BINARIES)
 release: $(CODER_FAT_BINARIES) $(CODER_ALL_ARCHIVES) $(CODER_ALL_PACKAGES) $(CODER_ARCH_IMAGES) build/coder_helm_$(VERSION).tgz
 .PHONY: release
 
-build/coder-slim_$(VERSION)_checksums.sha1 site/out/bin/coder.sha1: $(CODER_SLIM_BINARIES)
+build/coder-slim_$(VERSION)_checksums.sha1: site/out/bin/coder.sha1
+	cp "$<" "$@"
+
+site/out/bin/coder.sha1: $(CODER_SLIM_BINARIES)
 	pushd ./site/out/bin
 		openssl dgst -r -sha1 coder-* | tee coder.sha1
 	popd
-
-	cp "site/out/bin/coder.sha1" "build/coder-slim_$(VERSION)_checksums.sha1"
 
 build/coder-slim_$(VERSION).tar: build/coder-slim_$(VERSION)_checksums.sha1 $(CODER_SLIM_BINARIES)
 	pushd ./site/out/bin
 		tar cf "../../../build/$(@F)" coder-*
 	popd
 
-build/coder-slim_$(VERSION).tar.zst site/out/bin/coder.tar.zst: build/coder-slim_$(VERSION).tar
+site/out/bin/coder.tar.zst: build/coder-slim_$(VERSION).tar.zst
+	cp "$<" "$@"
+
+build/coder-slim_$(VERSION).tar.zst: build/coder-slim_$(VERSION).tar
 	zstd $(ZSTDFLAGS) \
 		--force \
 		--long \
@@ -121,7 +125,6 @@ build/coder-slim_$(VERSION).tar.zst site/out/bin/coder.tar.zst: build/coder-slim
 		-o "build/coder-slim_$(VERSION).tar.zst" \
 		"build/coder-slim_$(VERSION).tar"
 
-	cp "build/coder-slim_$(VERSION).tar.zst" "site/out/bin/coder.tar.zst"
 	# delete the uncompressed binaries from the embedded dir
 	rm site/out/bin/coder-*
 

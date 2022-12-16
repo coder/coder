@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/loadtest/workspacebuild"
+	"github.com/coder/coder/scaletest/workspacebuild"
 )
 
 func Test_Config(t *testing.T) {
@@ -28,6 +28,7 @@ func Test_Config(t *testing.T) {
 				Request: codersdk.CreateWorkspaceRequest{
 					TemplateID: id,
 				},
+				NoWaitForAgents: true,
 			},
 			errContains: "organization_id must be set",
 		},

@@ -16,9 +16,9 @@ import (
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/loadtest/workspacebuild"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/scaletest/workspacebuild"
 	"github.com/coder/coder/testutil"
 )
 
@@ -103,8 +103,8 @@ func Test_Runner(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
 		// Since the runner creates the workspace on it's own, we have to keep
-		// listing workspaces until we find it, then wait for the build to finish,
-		// then start the agents.
+		// listing workspaces until we find it, then wait for the build to
+		// finish, then start the agents.
 		go func() {
 			var workspace codersdk.Workspace
 			for {
