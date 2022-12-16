@@ -5,9 +5,9 @@
 
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
-source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
+source "$(dirname "$(dirname "${BASH_SOURCE[0]}")")/lib.sh"
 
-SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
+APIDOCGEN_DIR=$(dirname "${BASH_SOURCE[0]}")
 API_MD_TMP_FILE=$(mktemp /tmp/coder-apidocgen.XXXXXX)
 
 cleanup() {
@@ -17,7 +17,7 @@ trap cleanup EXIT
 
 log "Use temporary file: ${API_MD_TMP_FILE}"
 
-pushd "$SCRIPT_DIR/../.."
+pushd "${APIDOCGEN_DIR}/../.."
 go run github.com/swaggo/swag/cmd/swag@v1.8.6 init \
 	--generalInfo="coderd.go" \
 	--dir="./coderd,./codersdk" \
@@ -26,7 +26,7 @@ go run github.com/swaggo/swag/cmd/swag@v1.8.6 init \
 	--parseDependency=true
 popd
 
-pushd "$SCRIPT_DIR"
+pushd "${APIDOCGEN_DIR}"
 npm ci
 
 # Make sure that widdershins is installed correctly.
