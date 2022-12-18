@@ -192,6 +192,7 @@ func (api *api) network(w http.ResponseWriter, r *http.Request) {
 
 type ExecuteRequest struct {
 	Command string `json:"command"`
+	Stdin   string `json:"stdin"`
 }
 
 type ExecuteResponse struct {
@@ -240,8 +241,8 @@ func (api *api) execute(w http.ResponseWriter, r *http.Request) {
 	execWriter := &execWriter{w, f}
 	session.Stdout = execWriter
 	session.Stderr = execWriter
-	session.Stdin = strings.NewReader(req.Command + "\n")
-	err = session.Start("sh")
+	session.Stdin = strings.NewReader(req.Stdin)
+	err = session.Start(req.Command)
 	if err != nil {
 		httpapi.Write(r.Context(), w, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to start SSH session.",
