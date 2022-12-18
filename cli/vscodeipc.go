@@ -66,7 +66,7 @@ func vscodeipcCmd() *cobra.Command {
 				Handler: handler,
 			}
 			defer server.Close()
-			cmd.Printf("%d\n", addr.Port)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\n", addr.String())
 			errChan := make(chan error, 1)
 			go func() {
 				err := server.Serve(listener)

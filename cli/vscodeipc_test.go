@@ -1,8 +1,7 @@
 package cli_test
 
 import (
-	"bytes"
-	"fmt"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -20,8 +19,8 @@ func TestVSCodeIPC(t *testing.T) {
 		client, workspace, _ := setupWorkspaceForAgent(t, nil)
 		cmd, _ := clitest.New(t, "vscodeipc", workspace.LatestBuild.Resources[0].Agents[0].ID.String(),
 			"--token", client.SessionToken(), "--url", client.URL.String())
-		var buf bytes.Buffer
-		cmd.SetOut(&buf)
+		rdr, wtr := io.Pipe()
+		cmd.SetOut(wtr)
 		ctx, cancelFunc := testutil.Context(t)
 		defer cancelFunc()
 		done := make(chan error, 1)
@@ -30,14 +29,14 @@ func TestVSCodeIPC(t *testing.T) {
 			done <- err
 		}()
 
-		var line string
+		buf := make([]byte, 64)
 		require.Eventually(t, func() bool {
-			t.Log("Looking for port!")
+			t.Log("Looking for address!")
 			var err error
-			line, err = buf.ReadString('\n')
+			_, err = rdr.Read(buf)
 			return err == nil
 		}, testutil.WaitMedium, testutil.IntervalFast)
-		t.Logf("Port: %s\n", line)
+		t.Logf("Address: %s\n", buf)
 
 		cancelFunc()
 		<-done

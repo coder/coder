@@ -35,7 +35,7 @@ import (
 //
 // The VS Code extension is located at https://github.com/coder/vscode-coder. The
 // extension downloads the slim binary from `/bin/*` and executes `coder vscodeipc`
-// which calls this function. This API must maintain backawards compatibility with
+// which calls this function. This API must maintain backward compatibility with
 // the extension to support prior versions of Coder.
 func New(ctx context.Context, client *codersdk.Client, agentID uuid.UUID, options *codersdk.DialWorkspaceAgentOptions) (http.Handler, io.Closer, error) {
 	if options == nil {
@@ -54,28 +54,12 @@ func New(ctx context.Context, client *codersdk.Client, agentID uuid.UUID, option
 	r := chi.NewRouter()
 	// This is to prevent unauthorized clients on the same machine from executing
 	// requests on behalf of the workspace.
-	r.Use(func(h http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			token := r.Header.Get("Coder-Session-Token")
-			if token == "" {
-				httpapi.Write(r.Context(), w, http.StatusUnauthorized, codersdk.Response{
-					Message: "A session token must be provided in the `Coder-Session-Token` header.",
-				})
-				return
-			}
-			if token != client.SessionToken() {
-				httpapi.Write(r.Context(), w, http.StatusUnauthorized, codersdk.Response{
-					Message: "The session token provided doesn't match the one used to create the client.",
-				})
-				return
-			}
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			h.ServeHTTP(w, r)
-		})
+	r.Use(sessionTokenMiddleware(client.SessionToken()))
+	r.Route("/v1", func(r chi.Router) {
+		r.Get("/port/{port}", api.port)
+		r.Get("/network", api.network)
+		r.Post("/execute", api.execute)
 	})
-	r.Get("/port/{port}", api.port)
-	r.Get("/network", api.network)
-	r.Post("/execute", api.execute)
 	return r, api, nil
 }
 
@@ -137,9 +121,9 @@ func (api *api) port(w http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(w, err)
 		return
 	}
+	defer localConn.Close()
 
 	_ = brw.Flush()
-	defer localConn.Close()
 	agent.Bicopy(r.Context(), localConn, remoteConn)
 }
 
@@ -222,6 +206,9 @@ func (api *api) execute(w http.ResponseWriter, r *http.Request) {
 	api.sshClientOnce.Do(func() {
 		// The SSH client is lazily created because it's not needed for
 		// all requests. It's only needed for the execute endpoint.
+		//
+		// It's alright if this fails on the first execution, because
+		// a new instance of this API is created for each remote SSH request.
 		api.sshClient, api.sshClientErr = api.agentConn.SSHClient(context.Background())
 	})
 	if api.sshClientErr != nil {
@@ -292,7 +279,32 @@ func (e *execWriter) Write(data []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	_, _ = e.w.Write(js)
+	_, err = e.w.Write(js)
+	if err != nil {
+		return 0, err
+	}
 	e.f.Flush()
 	return len(data), nil
+}
+
+func sessionTokenMiddleware(sessionToken string) func(h http.Handler) http.Handler {
+	return func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			token := r.Header.Get("Coder-IPC-Token")
+			if token == "" {
+				httpapi.Write(r.Context(), w, http.StatusUnauthorized, codersdk.Response{
+					Message: "A session token must be provided in the `Coder-IPC-Token` header.",
+				})
+				return
+			}
+			if token != sessionToken {
+				httpapi.Write(r.Context(), w, http.StatusUnauthorized, codersdk.Response{
+					Message: "The session token provided doesn't match the one used to create the client.",
+				})
+				return
+			}
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			h.ServeHTTP(w, r)
+		})
+	}
 }

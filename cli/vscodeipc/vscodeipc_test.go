@@ -115,7 +115,7 @@ func TestVSCodeIPC(t *testing.T) {
 		handler.ServeHTTP(res, req)
 		network := &vscodeipc.NetworkResponse{}
 		err = json.NewDecoder(res.Body).Decode(&network)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		return network.Latency != 0
 	}, testutil.WaitLong, testutil.IntervalFast)
 
