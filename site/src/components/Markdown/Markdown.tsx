@@ -11,7 +11,7 @@ import ReactMarkdown from "react-markdown"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import gfm from "remark-gfm"
 import { colors } from "theme/colors"
-import darcula from "react-syntax-highlighter/dist/cjs/styles/prism/darcula"
+import { darcula } from "react-syntax-highlighter/dist/cjs/styles/prism"
 
 export interface MarkdownProps {
   children: string
@@ -41,13 +41,14 @@ export const Markdown: FC<{ children: string }> = ({ children }) => {
           return <pre>{children}</pre>
         },
 
-        code: ({ node, inline, className, children, ...props }) => {
+        code: ({ node, inline, className, children, style, ...props }) => {
           const match = /language-(\w+)/.exec(className || "")
 
           return !inline && match ? (
             <SyntaxHighlighter
               style={darcula}
-              language={match[1]}
+              // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- this can be undefined
+              language={match[1] ?? "language-shell"}
               useInlineStyles={false}
               // Use inline styles does not work correctly
               // https://github.com/react-syntax-highlighter/react-syntax-highlighter/issues/329

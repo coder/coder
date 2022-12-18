@@ -11,9 +11,11 @@ import (
 
 // DeploymentConfig is the central configuration for the coder server.
 type DeploymentConfig struct {
-	AccessURL                       *DeploymentConfigField[string]          `json:"access_url" typescript:",notnull"`
-	WildcardAccessURL               *DeploymentConfigField[string]          `json:"wildcard_access_url" typescript:",notnull"`
+	AccessURL         *DeploymentConfigField[string] `json:"access_url" typescript:",notnull"`
+	WildcardAccessURL *DeploymentConfigField[string] `json:"wildcard_access_url" typescript:",notnull"`
+	// DEPRECATED: Use HTTPAddress or TLS.Address instead.
 	Address                         *DeploymentConfigField[string]          `json:"address" typescript:",notnull"`
+	HTTPAddress                     *DeploymentConfigField[string]          `json:"http_address" typescript:",notnull"`
 	AutobuildPollInterval           *DeploymentConfigField[time.Duration]   `json:"autobuild_poll_interval" typescript:",notnull"`
 	DERP                            *DERP                                   `json:"derp" typescript:",notnull"`
 	GitAuth                         *DeploymentConfigField[[]GitAuthConfig] `json:"gitauth" typescript:",notnull"`
@@ -42,6 +44,7 @@ type DeploymentConfig struct {
 	APIRateLimit                    *DeploymentConfigField[int]             `json:"api_rate_limit" typescript:",notnull"`
 	Experimental                    *DeploymentConfigField[bool]            `json:"experimental" typescript:",notnull"`
 	UpdateCheck                     *DeploymentConfigField[bool]            `json:"update_check" typescript:",notnull"`
+	MaxTokenLifetime                *DeploymentConfigField[time.Duration]   `json:"max_token_lifetime" typescript:",notnull"`
 }
 
 type DERP struct {
@@ -105,6 +108,8 @@ type TelemetryConfig struct {
 
 type TLSConfig struct {
 	Enable         *DeploymentConfigField[bool]     `json:"enable" typescript:",notnull"`
+	Address        *DeploymentConfigField[string]   `json:"address" typescript:",notnull"`
+	RedirectHTTP   *DeploymentConfigField[bool]     `json:"redirect_http" typescript:",notnull"`
 	CertFiles      *DeploymentConfigField[[]string] `json:"cert_file" typescript:",notnull"`
 	ClientAuth     *DeploymentConfigField[string]   `json:"client_auth" typescript:",notnull"`
 	ClientCAFile   *DeploymentConfigField[string]   `json:"client_ca_file" typescript:",notnull"`

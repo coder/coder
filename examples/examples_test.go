@@ -27,6 +27,7 @@ func TestTemplate(t *testing.T) {
 			assert.NotEmpty(t, eg.Name, "example name should not be empty")
 			assert.NotEmpty(t, eg.Description, "example description should not be empty")
 			assert.NotEmpty(t, eg.Markdown, "example markdown should not be empty")
+			assert.NotNil(t, eg.Tags, "example tags should not be nil, should be empty array if no tags")
 			_, err := examples.Archive(eg.ID)
 			assert.NoError(t, err, "error archiving example")
 		})
@@ -50,6 +51,6 @@ func TestSubdirs(t *testing.T) {
 		entryPaths[header.Typeflag] = append(entryPaths[header.Typeflag], header.Name)
 	}
 
-	require.Subset(t, entryPaths[tar.TypeDir], []string{"./", "images/"})
+	require.Subset(t, entryPaths[tar.TypeDir], []string{"images"})
 	require.Subset(t, entryPaths[tar.TypeReg], []string{"README.md", "main.tf", "images/base.Dockerfile"})
 }

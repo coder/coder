@@ -23,27 +23,15 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
-// initMut is a global mutex that protects the Terraform cache directory from
-// concurrent usage by path. Only `terraform init` commands are guarded by this
-// mutex.
-//
-// When cache path is set, we must protect against multiple calls to
-// `terraform init`.
-//
-// From the Terraform documentation:
-//
-//	Note: The plugin cache directory is not guaranteed to be concurrency
-//	safe. The provider installer's behavior in environments with multiple
-//	terraform init calls is undefined.
-var initMut = &sync.Mutex{}
-
 type executor struct {
+	mut        *sync.Mutex
 	binaryPath string
-	cachePath  string
-	workdir    string
+	// cachePath and workdir must not be used by multiple processes at once.
+	cachePath string
+	workdir   string
 }
 
-func (e executor) basicEnv() []string {
+func (e *executor) basicEnv() []string {
 	// Required for "terraform init" to find "git" to
 	// clone Terraform modules.
 	env := safeEnviron()
@@ -55,7 +43,8 @@ func (e executor) basicEnv() []string {
 	return env
 }
 
-func (e executor) execWriteOutput(ctx, killCtx context.Context, args, env []string, stdOutWriter, stdErrWriter io.WriteCloser) (err error) {
+// execWriteOutput must only be called while the lock is held.
+func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []string, stdOutWriter, stdErrWriter io.WriteCloser) (err error) {
 	defer func() {
 		closeErr := stdOutWriter.Close()
 		if err == nil && closeErr != nil {
@@ -98,7 +87,8 @@ func (e executor) execWriteOutput(ctx, killCtx context.Context, args, env []stri
 	return cmd.Wait()
 }
 
-func (e executor) execParseJSON(ctx, killCtx context.Context, args, env []string, v interface{}) error {
+// execParseJSON must only be called while the lock is held.
+func (e *executor) execParseJSON(ctx, killCtx context.Context, args, env []string, v interface{}) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -133,7 +123,7 @@ func (e executor) execParseJSON(ctx, killCtx context.Context, args, env []string
 	return nil
 }
 
-func (e executor) checkMinVersion(ctx context.Context) error {
+func (e *executor) checkMinVersion(ctx context.Context) error {
 	v, err := e.version(ctx)
 	if err != nil {
 		return err
@@ -147,7 +137,8 @@ func (e executor) checkMinVersion(ctx context.Context) error {
 	return nil
 }
 
-func (e executor) version(ctx context.Context) (*version.Version, error) {
+// version doesn't need the lock because it doesn't read or write to any state.
+func (e *executor) version(ctx context.Context) (*version.Version, error) {
 	return versionFromBinaryPath(ctx, e.binaryPath)
 }
 
@@ -177,7 +168,10 @@ func versionFromBinaryPath(ctx context.Context, binaryPath string) (*version.Ver
 	return version.NewVersion(vj.Version)
 }
 
-func (e executor) init(ctx, killCtx context.Context, logr logSink) error {
+func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
+	e.mut.Lock()
+	defer e.mut.Unlock()
+
 	outWriter, doneOut := logWriter(logr, proto.LogLevel_DEBUG)
 	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
 	defer func() {
@@ -193,23 +187,14 @@ func (e executor) init(ctx, killCtx context.Context, logr logSink) error {
 		"-input=false",
 	}
 
-	// When cache path is set, we must protect against multiple calls
-	// to `terraform init`.
-	//
-	// From the Terraform documentation:
-	//     Note: The plugin cache directory is not guaranteed to be
-	//     concurrency safe. The provider installer's behavior in
-	//     environments with multiple terraform init calls is undefined.
-	if e.cachePath != "" {
-		initMut.Lock()
-		defer initMut.Unlock()
-	}
-
 	return e.execWriteOutput(ctx, killCtx, args, e.basicEnv(), outWriter, errWriter)
 }
 
 // revive:disable-next-line:flag-parameter
-func (e executor) plan(ctx, killCtx context.Context, env, vars []string, logr logSink, destroy bool) (*proto.Provision_Response, error) {
+func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr logSink, destroy bool) (*proto.Provision_Response, error) {
+	e.mut.Lock()
+	defer e.mut.Unlock()
+
 	planfilePath := filepath.Join(e.workdir, "terraform.tfplan")
 	args := []string{
 		"plan",
@@ -257,7 +242,8 @@ func (e executor) plan(ctx, killCtx context.Context, env, vars []string, logr lo
 	}, nil
 }
 
-func (e executor) planResources(ctx, killCtx context.Context, planfilePath string) ([]*proto.Resource, error) {
+// planResources must only be called while the lock is held.
+func (e *executor) planResources(ctx, killCtx context.Context, planfilePath string) ([]*proto.Resource, error) {
 	plan, err := e.showPlan(ctx, killCtx, planfilePath)
 	if err != nil {
 		return nil, xerrors.Errorf("show terraform plan file: %w", err)
@@ -270,14 +256,16 @@ func (e executor) planResources(ctx, killCtx context.Context, planfilePath strin
 	return ConvertResources(plan.PlannedValues.RootModule, rawGraph)
 }
 
-func (e executor) showPlan(ctx, killCtx context.Context, planfilePath string) (*tfjson.Plan, error) {
+// showPlan must only be called while the lock is held.
+func (e *executor) showPlan(ctx, killCtx context.Context, planfilePath string) (*tfjson.Plan, error) {
 	args := []string{"show", "-json", "-no-color", planfilePath}
 	p := new(tfjson.Plan)
 	err := e.execParseJSON(ctx, killCtx, args, e.basicEnv(), p)
 	return p, err
 }
 
-func (e executor) graph(ctx, killCtx context.Context) (string, error) {
+// graph must only be called while the lock is held.
+func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
 	if ctx.Err() != nil {
 		return "", ctx.Err()
 	}
@@ -302,9 +290,12 @@ func (e executor) graph(ctx, killCtx context.Context) (string, error) {
 }
 
 // revive:disable-next-line:flag-parameter
-func (e executor) apply(
+func (e *executor) apply(
 	ctx, killCtx context.Context, plan []byte, env []string, logr logSink,
 ) (*proto.Provision_Response, error) {
+	e.mut.Lock()
+	defer e.mut.Unlock()
+
 	planFile, err := ioutil.TempFile("", "coder-terrafrom-plan")
 	if err != nil {
 		return nil, xerrors.Errorf("create plan file: %w", err)
@@ -356,7 +347,8 @@ func (e executor) apply(
 	}, nil
 }
 
-func (e executor) stateResources(ctx, killCtx context.Context) ([]*proto.Resource, error) {
+// stateResources must only be called while the lock is held.
+func (e *executor) stateResources(ctx, killCtx context.Context) ([]*proto.Resource, error) {
 	state, err := e.state(ctx, killCtx)
 	if err != nil {
 		return nil, err
@@ -375,7 +367,8 @@ func (e executor) stateResources(ctx, killCtx context.Context) ([]*proto.Resourc
 	return resources, nil
 }
 
-func (e executor) state(ctx, killCtx context.Context) (*tfjson.State, error) {
+// state must only be called while the lock is held.
+func (e *executor) state(ctx, killCtx context.Context) (*tfjson.State, error) {
 	args := []string{"show", "-json", "-no-color"}
 	state := &tfjson.State{}
 	err := e.execParseJSON(ctx, killCtx, args, e.basicEnv(), state)

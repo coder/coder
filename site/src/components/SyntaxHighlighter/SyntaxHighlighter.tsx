@@ -1,58 +1,47 @@
+import { FC } from "react"
+import Editor, { DiffEditor } from "@monaco-editor/react"
+import { useCoderTheme } from "./coderTheme"
 import { makeStyles } from "@material-ui/core/styles"
-import { ComponentProps, FC } from "react"
-import { Prism } from "react-syntax-highlighter"
-import { colors } from "theme/colors"
-import darcula from "react-syntax-highlighter/dist/cjs/styles/prism/darcula"
-import { combineClasses } from "util/combineClasses"
 
-export const SyntaxHighlighter: FC<ComponentProps<typeof Prism>> = ({
-  className,
-  ...props
-}) => {
+export const SyntaxHighlighter: FC<{
+  value: string
+  language: string
+  compareWith?: string
+}> = ({ value, compareWith, language }) => {
   const styles = useStyles()
+  const hasDiff = compareWith && value !== compareWith
+  const coderTheme = useCoderTheme()
+  const commonProps = {
+    language,
+    theme: coderTheme.name,
+    height: 560,
+    options: {
+      minimap: {
+        enabled: false,
+      },
+      renderSideBySide: true,
+      readOnly: true,
+    },
+  }
+
+  if (coderTheme.isLoading) {
+    return null
+  }
 
   return (
-    <Prism
-      style={darcula}
-      useInlineStyles={false}
-      // Use inline styles does not work correctly
-      // https://github.com/react-syntax-highlighter/react-syntax-highlighter/issues/329
-      codeTagProps={{ style: {} }}
-      className={combineClasses([styles.prism, className])}
-      {...props}
-    />
+    <div className={styles.wrapper}>
+      {hasDiff ? (
+        <DiffEditor original={compareWith} modified={value} {...commonProps} />
+      ) : (
+        <Editor value={value} {...commonProps} />
+      )}
+    </div>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
-  prism: {
-    margin: 0,
-    background: theme.palette.background.paperLight,
-    borderRadius: theme.shape.borderRadius,
-    padding: theme.spacing(2, 3),
-    // Line breaks are broken when used with line numbers on react-syntax-highlighter
-    // https://github.com/react-syntax-highlighter/react-syntax-highlighter/pull/483
-    overflowX: "auto",
-
-    "& code": {
-      color: theme.palette.text.secondary,
-    },
-
-    "& .key, & .property, & .code-snippet, & .keyword": {
-      color: colors.turquoise[7],
-    },
-
-    "& .url": {
-      color: colors.blue[6],
-    },
-
-    "& .comment": {
-      color: theme.palette.text.disabled,
-    },
-
-    "& .title": {
-      color: theme.palette.text.primary,
-      fontWeight: 600,
-    },
+  wrapper: {
+    padding: theme.spacing(1, 0),
+    background: theme.palette.background.paper,
   },
 }))

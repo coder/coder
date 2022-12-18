@@ -30,7 +30,7 @@ resource "coder_agent" "main" {
   startup_script = <<EOF
     #!/bin/sh
     # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh
+    curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3
     code-server --auth none --port 13337
     EOF
 

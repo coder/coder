@@ -44,8 +44,21 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		scope = database.APIKeyScope(createToken.Scope)
 	}
 
-	// tokens last 100 years
-	lifeTime := time.Hour * 876000
+	// default lifetime is 30 days
+	lifeTime := 30 * 24 * time.Hour
+	if createToken.Lifetime != 0 {
+		lifeTime = createToken.Lifetime
+	}
+
+	err := api.validateAPIKeyLifetime(lifeTime)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to validate create API key request.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	cookie, err := api.createAPIKey(ctx, createAPIKeyParams{
 		UserID:          user.ID,
 		LoginType:       database.LoginTypeToken,
@@ -65,7 +78,6 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 }
 
 // Creates a new session key, used for logging in via the CLI.
-// DEPRECATED: use postToken instead.
 func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
@@ -212,6 +224,18 @@ type createAPIKeyParams struct {
 	ExpiresAt       time.Time
 	LifetimeSeconds int64
 	Scope           database.APIKeyScope
+}
+
+func (api *API) validateAPIKeyLifetime(lifetime time.Duration) error {
+	if lifetime <= 0 {
+		return xerrors.New("lifetime must be positive number greater than 0")
+	}
+
+	if lifetime > api.DeploymentConfig.MaxTokenLifetime.Value {
+		return xerrors.Errorf("lifetime must be less than %s", api.DeploymentConfig.MaxTokenLifetime.Value)
+	}
+
+	return nil
 }
 
 func (api *API) createAPIKey(ctx context.Context, params createAPIKeyParams) (*http.Cookie, error) {

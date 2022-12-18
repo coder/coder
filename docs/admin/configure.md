@@ -40,7 +40,7 @@ downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the
 If you are using the built-in PostgreSQL deployment and need to use `psql` (aka
 the PostgreSQL interactive terminal), output the connection URL with the following command:
 
-```sh
+```console
 $ coder server postgres-builtin-url
 $ psql "postgres://coder@localhost:49627/coder?sslmode=disable&password=feU...yI1"
 ```
@@ -50,7 +50,7 @@ $ psql "postgres://coder@localhost:49627/coder?sslmode=disable&password=feU...yI
 If you've installed Coder via a [system package](../install/packages.md) Coder, you can
 configure the server by setting the following variables in `/etc/coder.d/coder.env`:
 
-```sh
+```console
 # String. Specifies the external URL (HTTP/S) to access Coder.
 CODER_ACCESS_URL=https://coder.example.com
 
@@ -78,7 +78,7 @@ CODER_TLS_KEY_FILE=
 
 To run Coder as a system service on the host:
 
-```sh
+```console
 # Use systemd to start Coder now and on reboot
 sudo systemctl enable --now coder
 
@@ -88,7 +88,7 @@ journalctl -u coder.service -b
 
 To restart Coder after applying system changes:
 
-```sh
+```console
 sudo systemctl restart coder
 ```
 

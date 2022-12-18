@@ -313,7 +313,8 @@ func TestPostLogin(t *testing.T) {
 		apiKey, err := client.GetAPIKey(ctx, admin.UserID.String(), split[0])
 		require.NoError(t, err, "fetch api key")
 
-		require.True(t, apiKey.ExpiresAt.After(time.Now().Add(time.Hour*438300)), "tokens lasts more than 50 years")
+		require.True(t, apiKey.ExpiresAt.After(time.Now().Add(time.Hour*24*29)), "default tokens lasts more than 29 days")
+		require.True(t, apiKey.ExpiresAt.Before(time.Now().Add(time.Hour*24*31)), "default tokens lasts less than 31 days")
 		require.Greater(t, apiKey.LifetimeSeconds, key.LifetimeSeconds, "token should have longer lifetime")
 	})
 }
@@ -817,15 +818,6 @@ func TestGrantSiteRoles(t *testing.T) {
 			StatusCode:   http.StatusForbidden,
 		},
 		{
-			Name:         "MemberAssignMember",
-			Client:       member,
-			OrgID:        first.OrganizationID,
-			AssignToUser: first.UserID.String(),
-			Roles:        []string{},
-			Error:        true,
-			StatusCode:   http.StatusForbidden,
-		},
-		{
 			Name:         "AdminUpdateOrgSelf",
 			Client:       admin,
 			OrgID:        first.OrganizationID,
@@ -920,7 +912,7 @@ func TestInitialRoles(t *testing.T) {
 	}, "should be a member and admin")
 
 	require.ElementsMatch(t, roles.OrganizationRoles[first.OrganizationID], []string{
-		rbac.RoleOrgAdmin(first.OrganizationID),
+		rbac.RoleOrgMember(first.OrganizationID),
 	}, "should be a member and admin")
 }
 

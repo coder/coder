@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/examples"
 	"github.com/coder/coder/provisionersdk"
 )
@@ -22,7 +23,7 @@ func templateInit() *cobra.Command {
 				return err
 			}
 			exampleNames := []string{}
-			exampleByName := map[string]examples.Example{}
+			exampleByName := map[string]codersdk.TemplateExample{}
 			for _, example := range exampleList {
 				name := fmt.Sprintf(
 					"%s\n%s\n%s\n",

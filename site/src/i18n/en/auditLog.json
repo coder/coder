@@ -8,11 +8,12 @@
     "emptyPage": "No audit logs available on this page",
     "noLogs": "No audit logs available",
     "logRow": {
-      "deletedLabel": "(deleted)",
+      "deletedLabel": " (deleted)",
       "ip": "IP: ",
       "os": "OS: ",
       "browser": "Browser: ",
-      "notAvailable": "Not available"
+      "notAvailable": "Not available",
+      "onBehalfOf": " on behalf of {{owner}}"
     }
   }
 }
