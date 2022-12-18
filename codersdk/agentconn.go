@@ -139,7 +139,9 @@ func (c *AgentConn) AwaitReachable(ctx context.Context) bool {
 	return c.Conn.AwaitReachable(ctx, TailnetIP)
 }
 
-func (c *AgentConn) Ping(ctx context.Context) (time.Duration, error) {
+// Ping pings the agent and returns the round-trip time.
+// The bool returns true if the ping was made P2P.
+func (c *AgentConn) Ping(ctx context.Context) (time.Duration, bool, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
