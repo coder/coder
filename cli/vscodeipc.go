@@ -24,9 +24,10 @@ func vscodeipcCmd() *cobra.Command {
 		port   uint16
 	)
 	cmd := &cobra.Command{
-		Use:    "vscodeipc <workspace-agent>",
-		Args:   cobra.ExactArgs(1),
-		Hidden: true,
+		Use:          "vscodeipc <workspace-agent>",
+		Args:         cobra.ExactArgs(1),
+		SilenceUsage: true,
+		Hidden:       true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if rawURL == "" {
 				return xerrors.New("CODER_URL must be set!")
