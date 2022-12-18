@@ -110,8 +110,8 @@ func TestVSCodeIPC(t *testing.T) {
 	// Ensure that we're actually connected!
 	require.Eventually(t, func() bool {
 		res := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, "/network", nil)
-		req.Header.Set("Coder-Session-Token", token)
+		req := httptest.NewRequest(http.MethodGet, "/v1/network", nil)
+		req.Header.Set(vscodeipc.AuthHeader, token)
 		handler.ServeHTTP(res, req)
 		network := &vscodeipc.NetworkResponse{}
 		err = json.NewDecoder(res.Body).Decode(&network)
@@ -125,7 +125,7 @@ func TestVSCodeIPC(t *testing.T) {
 	t.Run("NoSessionToken", func(t *testing.T) {
 		t.Parallel()
 		res := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/port/%s", port), nil)
+		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/v1/port/%s", port), nil)
 		handler.ServeHTTP(res, req)
 		require.Equal(t, http.StatusUnauthorized, res.Code)
 	})
@@ -133,8 +133,8 @@ func TestVSCodeIPC(t *testing.T) {
 	t.Run("MismatchedSessionToken", func(t *testing.T) {
 		t.Parallel()
 		res := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/port/%s", port), nil)
-		req.Header.Set("Coder-Session-Token", uuid.NewString())
+		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/v1/port/%s", port), nil)
+		req.Header.Set(vscodeipc.AuthHeader, uuid.NewString())
 		handler.ServeHTTP(res, req)
 		require.Equal(t, http.StatusUnauthorized, res.Code)
 	})
@@ -147,8 +147,8 @@ func TestVSCodeIPC(t *testing.T) {
 		defer input.Close()
 		defer output.Close()
 		res := &hijackable{httptest.NewRecorder(), output}
-		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/port/%s", port), nil)
-		req.Header.Set("Coder-Session-Token", token)
+		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/v1/port/%s", port), nil)
+		req.Header.Set(vscodeipc.AuthHeader, token)
 		go handler.ServeHTTP(res, req)
 
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1/", nil)
@@ -177,8 +177,8 @@ func TestVSCodeIPC(t *testing.T) {
 		data, _ := json.Marshal(vscodeipc.ExecuteRequest{
 			Command: "echo test",
 		})
-		req := httptest.NewRequest(http.MethodPost, "/execute", bytes.NewReader(data))
-		req.Header.Set("Coder-Session-Token", token)
+		req := httptest.NewRequest(http.MethodPost, "/v1/execute", bytes.NewReader(data))
+		req.Header.Set(vscodeipc.AuthHeader, token)
 		handler.ServeHTTP(res, req)
 
 		decoder := json.NewDecoder(res.Body)

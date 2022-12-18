@@ -23,6 +23,8 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+const AuthHeader = "Coder-IPC-Token"
+
 // New creates a VS Code IPC client that can be used to communicate with workspaces.
 //
 // Creating this IPC was required instead of using SSH, because we're unable to get
@@ -290,10 +292,10 @@ func (e *execWriter) Write(data []byte) (int, error) {
 func sessionTokenMiddleware(sessionToken string) func(h http.Handler) http.Handler {
 	return func(h http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			token := r.Header.Get("Coder-IPC-Token")
+			token := r.Header.Get(AuthHeader)
 			if token == "" {
 				httpapi.Write(r.Context(), w, http.StatusUnauthorized, codersdk.Response{
-					Message: "A session token must be provided in the `Coder-IPC-Token` header.",
+					Message: fmt.Sprintf("A session token must be provided in the `%s` header.", AuthHeader),
 				})
 				return
 			}
