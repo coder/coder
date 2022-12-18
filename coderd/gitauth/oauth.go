@@ -41,7 +41,8 @@ var scope = map[codersdk.GitProvider][]string{
 	codersdk.GitProviderAzureDevops: {"vso.code_write"},
 	codersdk.GitProviderBitBucket:   {"account", "repository:write"},
 	codersdk.GitProviderGitLab:      {"write_repository"},
-	codersdk.GitProviderGitHub:      {"repo"},
+	// "workflow" is required for managing GitHub Actions in a repository.
+	codersdk.GitProviderGitHub: {"repo", "workflow"},
 }
 
 // regex provides defaults for each Git provider to
