@@ -1,5 +1,7 @@
 # Templates
 
+> This page is incomplete, stay tuned.
+
 ## Create template by organization
 
 ### Code samples

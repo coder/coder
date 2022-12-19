@@ -1,5 +1,7 @@
 # Schemas
 
+> This page is incomplete, stay tuned.
+
 ## codersdk.CreateParameterRequest
 
 ```json

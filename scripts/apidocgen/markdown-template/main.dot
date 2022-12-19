@@ -61,6 +61,8 @@
 <!-- APIDOCGEN: BEGIN SECTION -->
 {{= data.tags.section }}# {{= r}}
 
+> This page is incomplete, stay tuned.
+
 {{? data.resource.description }}{{= data.resource.description}}{{?}}
 
 {{ for (var m in data.resource.methods) { }}
@@ -79,6 +81,8 @@
 
 <!-- APIDOCGEN: BEGIN SECTION -->
 # Schemas
+
+> This page is incomplete, stay tuned.
 
 {{ for (var s in data.components.schemas) {
 	if (s == "codersdk.NullTime") {
