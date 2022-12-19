@@ -561,6 +561,16 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	))
 }
 
+// @Summary Update workspace metadata by ID
+// @ID update-workspace-metadata-by-id
+// @Security CoderSessionToken
+// @Consume json
+// @Produce json
+// @Tags Workspaces
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Param request body codersdk.UpdateWorkspaceRequest true "Metadata update request"
+// @Success 204
+// @Router /workspaces/{workspace} [patch]
 func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -641,6 +651,16 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// @Summary Update workspace autostart schedule by ID
+// @ID update-workspace-autostart-schedule-by-id
+// @Security CoderSessionToken
+// @Consume json
+// @Produce json
+// @Tags Workspaces
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Param request body codersdk.UpdateWorkspaceAutostartRequest true "Schedule update request"
+// @Success 204
+// @Router /workspaces/{workspace}/autostart [put]
 func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -694,6 +714,16 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// @Summary Update workspace ttl by ID
+// @ID update-workspace-ttl-by-id
+// @Security CoderSessionToken
+// @Consume json
+// @Produce json
+// @Tags Workspaces
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Param request body codersdk.UpdateWorkspaceTTLRequest true "Workspace TTL update request"
+// @Success 204
+// @Router /workspaces/{workspace}/ttl [put]
 func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -760,6 +790,16 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// @Summary Extend workspace deadline by ID
+// @ID extend-workspace-deadline-by-id
+// @Security CoderSessionToken
+// @Consume json
+// @Produce json
+// @Tags Workspaces
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Param request body codersdk.PutExtendWorkspaceRequest true "Extend deadline update request"
+// @Success 200 {object} codersdk.Response
+// @Router /workspaces/{workspace}/extend [put]
 func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
@@ -841,6 +881,14 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, code, resp)
 }
 
+// @Summary Watch workspace by ID
+// @ID watch-workspace-id
+// @Security CoderSessionToken
+// @Produce application/json
+// @Tags Workspaces
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Success 200 {object} codersdk.Response
+// @Router /workspaces/{workspace}/watch [get]
 func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)

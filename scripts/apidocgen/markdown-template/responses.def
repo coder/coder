@@ -1,5 +1,8 @@
 {{
   function renderResponseType(r) {
+		if (!r.content) {
+			return "none";
+		}
 		var oldRef = r.content['application/json'].schema['x-widdershins-oldRef'];
 		var aType = oldRef.replace("#/components/schemas/","");
 		var href = aType.replace(".","").toLowerCase();

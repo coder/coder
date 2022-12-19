@@ -269,6 +269,188 @@
           }
         }
       }
+    },
+    "/workspaces/{workspace}": {
+      "patch": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Workspaces"],
+        "summary": "Update workspace metadata by ID",
+        "operationId": "update-workspace-metadata-by-id",
+        "parameters": [
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "Workspace ID",
+            "name": "workspace",
+            "in": "path",
+            "required": true
+          },
+          {
+            "description": "Metadata update request",
+            "name": "request",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/codersdk.UpdateWorkspaceRequest"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/workspaces/{workspace}/autostart": {
+      "put": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Workspaces"],
+        "summary": "Update workspace autostart schedule by ID",
+        "operationId": "update-workspace-autostart-schedule-by-id",
+        "parameters": [
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "Workspace ID",
+            "name": "workspace",
+            "in": "path",
+            "required": true
+          },
+          {
+            "description": "Schedule update request",
+            "name": "request",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/codersdk.UpdateWorkspaceAutostartRequest"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/workspaces/{workspace}/extend": {
+      "put": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Workspaces"],
+        "summary": "Extend workspace deadline by ID",
+        "operationId": "extend-workspace-deadline-by-id",
+        "parameters": [
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "Workspace ID",
+            "name": "workspace",
+            "in": "path",
+            "required": true
+          },
+          {
+            "description": "Extend deadline update request",
+            "name": "request",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/codersdk.PutExtendWorkspaceRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/codersdk.Response"
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspace}/ttl": {
+      "put": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Workspaces"],
+        "summary": "Update workspace ttl by ID",
+        "operationId": "update-workspace-ttl-by-id",
+        "parameters": [
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "Workspace ID",
+            "name": "workspace",
+            "in": "path",
+            "required": true
+          },
+          {
+            "description": "Workspace TTL update request",
+            "name": "request",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/codersdk.UpdateWorkspaceTTLRequest"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/workspaces/{workspace}/watch": {
+      "get": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Workspaces"],
+        "summary": "Watch workspace by ID",
+        "operationId": "watch-workspace-id",
+        "parameters": [
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "Workspace ID",
+            "name": "workspace",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/codersdk.Response"
+            }
+          }
+        }
+      }
     }
   },
   "definitions": {
@@ -419,6 +601,35 @@
         }
       }
     },
+    "codersdk.PutExtendWorkspaceRequest": {
+      "type": "object",
+      "required": ["deadline"],
+      "properties": {
+        "deadline": {
+          "type": "string"
+        }
+      }
+    },
+    "codersdk.Response": {
+      "type": "object",
+      "properties": {
+        "detail": {
+          "description": "Detail is a debug message that provides further insight into why the\naction failed. This information can be technical and a regular golang\nerr.Error() text.\n- \"database: too many open connections\"\n- \"stat: too many open files\"",
+          "type": "string"
+        },
+        "message": {
+          "description": "Message is an actionable message that depicts actions the request took.\nThese messages should be fully formed sentences with proper punctuation.\nExamples:\n- \"A user has been created.\"\n- \"Failed to create a user.\"",
+          "type": "string"
+        },
+        "validations": {
+          "description": "Validations are form field-specific friendly error messages. They will be\nshown on a form field in the UI. These can also be used to add additional\ncontext if there is a set of errors in the primary 'Message'.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/codersdk.ValidationError"
+          }
+        }
+      }
+    },
     "codersdk.Template": {
       "type": "object",
       "properties": {
@@ -497,6 +708,42 @@
         "p95": {
           "type": "integer",
           "example": 146
+        }
+      }
+    },
+    "codersdk.UpdateWorkspaceAutostartRequest": {
+      "type": "object",
+      "properties": {
+        "schedule": {
+          "type": "string"
+        }
+      }
+    },
+    "codersdk.UpdateWorkspaceRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "codersdk.UpdateWorkspaceTTLRequest": {
+      "type": "object",
+      "properties": {
+        "ttl_ms": {
+          "type": "integer"
+        }
+      }
+    },
+    "codersdk.ValidationError": {
+      "type": "object",
+      "required": ["detail", "field"],
+      "properties": {
+        "detail": {
+          "type": "string"
+        },
+        "field": {
+          "type": "string"
         }
       }
     },

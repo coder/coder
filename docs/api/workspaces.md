@@ -678,3 +678,214 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{id} \
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Workspace](schemas.md#codersdkworkspace) |
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Update workspace metadata by ID
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/workspaces/{workspace} \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+
+```
+
+`PATCH /workspaces/{workspace}`
+
+> Body parameter
+
+```json
+{
+  "name": "string"
+}
+```
+
+### Parameters
+
+| Name      | In   | Type                                                                         | Required | Description             |
+| --------- | ---- | ---------------------------------------------------------------------------- | -------- | ----------------------- |
+| workspace | path | string(uuid)                                                                 | true     | Workspace ID            |
+| body      | body | [codersdk.UpdateWorkspaceRequest](schemas.md#codersdkupdateworkspacerequest) | true     | Metadata update request |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  | none   |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Update workspace autostart schedule by ID
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/autostart \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+
+```
+
+`PUT /workspaces/{workspace}/autostart`
+
+> Body parameter
+
+```json
+{
+  "schedule": "string"
+}
+```
+
+### Parameters
+
+| Name      | In   | Type                                                                                           | Required | Description             |
+| --------- | ---- | ---------------------------------------------------------------------------------------------- | -------- | ----------------------- |
+| workspace | path | string(uuid)                                                                                   | true     | Workspace ID            |
+| body      | body | [codersdk.UpdateWorkspaceAutostartRequest](schemas.md#codersdkupdateworkspaceautostartrequest) | true     | Schedule update request |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  | none   |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Extend workspace deadline by ID
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/extend \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+
+```
+
+`PUT /workspaces/{workspace}/extend`
+
+> Body parameter
+
+```json
+{
+  "deadline": "string"
+}
+```
+
+### Parameters
+
+| Name      | In   | Type                                                                               | Required | Description                    |
+| --------- | ---- | ---------------------------------------------------------------------------------- | -------- | ------------------------------ |
+| workspace | path | string(uuid)                                                                       | true     | Workspace ID                   |
+| body      | body | [codersdk.PutExtendWorkspaceRequest](schemas.md#codersdkputextendworkspacerequest) | true     | Extend deadline update request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Update workspace ttl by ID
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/ttl \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+
+```
+
+`PUT /workspaces/{workspace}/ttl`
+
+> Body parameter
+
+```json
+{
+  "ttl_ms": 0
+}
+```
+
+### Parameters
+
+| Name      | In   | Type                                                                               | Required | Description                  |
+| --------- | ---- | ---------------------------------------------------------------------------------- | -------- | ---------------------------- |
+| workspace | path | string(uuid)                                                                       | true     | Workspace ID                 |
+| body      | body | [codersdk.UpdateWorkspaceTTLRequest](schemas.md#codersdkupdateworkspacettlrequest) | true     | Workspace TTL update request |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  | none   |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Watch workspace by ID
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/watch \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+
+```
+
+`GET /workspaces/{workspace}/watch`
+
+### Parameters
+
+| Name      | In   | Type         | Required | Description  |
+| --------- | ---- | ------------ | -------- | ------------ |
+| workspace | path | string(uuid) | true     | Workspace ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
