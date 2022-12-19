@@ -303,7 +303,7 @@ func newConfig() *codersdk.DeploymentConfig {
 				Name:    "TLS Client Auth",
 				Usage:   "Policy the server will follow for TLS Client Authentication. Accepted values are \"none\", \"request\", \"require-any\", \"verify-if-given\", or \"require-and-verify\".",
 				Flag:    "tls-client-auth",
-				Default: "request",
+				Default: "none",
 			},
 			KeyFiles: &codersdk.DeploymentConfigField[[]string]{
 				Name:  "TLS Key Files",

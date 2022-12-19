@@ -198,7 +198,7 @@ Flags:
                                                      "verify-if-given", or
                                                      "require-and-verify".
                                                      Consumes $CODER_TLS_CLIENT_AUTH (default
-                                                     "request")
+                                                     "none")
       --tls-client-ca-file string                    PEM-encoded Certificate Authority file
                                                      used for checking the authenticity of
                                                      client
