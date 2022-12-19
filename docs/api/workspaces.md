@@ -808,7 +808,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/extend \
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
 
-## Update workspace ttl by ID
+## Update workspace TTL by ID
 
 ### Code samples
 

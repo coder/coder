@@ -446,7 +446,7 @@ const docTemplate = `{
                 "tags": [
                     "Workspaces"
                 ],
-                "summary": "Update workspace ttl by ID",
+                "summary": "Update workspace TTL by ID",
                 "operationId": "update-workspace-ttl-by-id",
                 "parameters": [
                     {

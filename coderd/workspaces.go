@@ -714,7 +714,7 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// @Summary Update workspace ttl by ID
+// @Summary Update workspace TTL by ID
 // @ID update-workspace-ttl-by-id
 // @Security CoderSessionToken
 // @Consume json
