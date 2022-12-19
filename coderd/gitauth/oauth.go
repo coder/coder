@@ -45,13 +45,13 @@ var scope = map[codersdk.GitProvider][]string{
 	codersdk.GitProviderGitHub: {"repo", "workflow"},
 }
 
-// regex provides defaults for each Git provider to
-// match their SaaS host URL. This is configurable by each provider.
+// regex provides defaults for each Git provider to match their SaaS host URL.
+// This is configurable by each provider.
 var regex = map[codersdk.GitProvider]*regexp.Regexp{
-	codersdk.GitProviderAzureDevops: regexp.MustCompile(`dev\.azure\.com`),
-	codersdk.GitProviderBitBucket:   regexp.MustCompile(`bitbucket\.org`),
-	codersdk.GitProviderGitLab:      regexp.MustCompile(`gitlab\.com`),
-	codersdk.GitProviderGitHub:      regexp.MustCompile(`github\.com`),
+	codersdk.GitProviderAzureDevops: regexp.MustCompile(`^(https?://)?dev\.azure\.com(/.*)?$`),
+	codersdk.GitProviderBitBucket:   regexp.MustCompile(`^(https?://)?bitbucket\.org(/.*)?$`),
+	codersdk.GitProviderGitLab:      regexp.MustCompile(`^(https?://)?gitlab\.com(/.*)?$`),
+	codersdk.GitProviderGitHub:      regexp.MustCompile(`^(https?://)?github\.com(/.*)?$`),
 }
 
 // newJWTOAuthConfig creates a new OAuth2 config that uses a custom

@@ -691,16 +691,17 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			}
 
 			client := codersdk.New(localURL)
-			if cfg.TLS.Enable.Value {
-				// Secure transport isn't needed for locally communicating!
+			if localURL.Scheme == "https" && isLocalhost(localURL.Hostname()) {
+				// The certificate will likely be self-signed or for a different
+				// hostname, so we need to skip verification.
 				client.HTTPClient.Transport = &http.Transport{
 					TLSClientConfig: &tls.Config{
 						//nolint:gosec
 						InsecureSkipVerify: true,
 					},
 				}
-				defer client.HTTPClient.CloseIdleConnections()
 			}
+			defer client.HTTPClient.CloseIdleConnections()
 
 			// This is helpful for tests, but can be silently ignored.
 			// Coder may be ran as users that don't have permission to write in the homedir,
@@ -1404,7 +1405,7 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	if err != nil {
 		return "", nil, xerrors.Errorf("read postgres port: %w", err)
 	}
-	pgPort, err := strconv.Atoi(pgPortRaw)
+	pgPort, err := strconv.ParseUint(pgPortRaw, 10, 16)
 	if err != nil {
 		return "", nil, xerrors.Errorf("parse postgres port: %w", err)
 	}
@@ -1464,4 +1465,10 @@ func redirectHTTPToAccessURL(handler http.Handler, accessURL *url.URL) http.Hand
 
 		handler.ServeHTTP(w, r)
 	})
+}
+
+// isLocalhost returns true if the host points to the local machine. Intended to
+// be called with `u.Hostname()`.
+func isLocalhost(host string) bool {
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }

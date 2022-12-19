@@ -131,6 +131,9 @@ func Untar(directory string, archive []byte) error {
 		if err != nil {
 			return err
 		}
+		if header.Name == "." || strings.Contains(header.Name, "..") {
+			continue
+		}
 		// #nosec
 		target := filepath.Join(directory, filepath.FromSlash(header.Name))
 		switch header.Typeflag {
