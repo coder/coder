@@ -140,6 +140,13 @@ export const authMachine =
           hasFirstUser: {
             data: boolean
           }
+          signOut: {
+            data:
+              | {
+                  redirectUrl: string
+                }
+              | undefined
+          }
         },
       },
       context: {
@@ -426,6 +433,10 @@ export const authMachine =
             id: "signOut",
             onDone: [
               {
+                actions: ["unassignMe", "clearAuthError", "redirect"],
+                cond: "hasRedirectUrl",
+              },
+              {
                 actions: ["unassignMe", "clearAuthError"],
                 target: "gettingMethods",
               },
@@ -476,15 +487,21 @@ export const authMachine =
           const appHost = await API.getApplicationsHost()
           await API.logout()
 
-          if (appHost.host) {
-            const redirect_uri = encodeURIComponent(window.location.href)
+          if (appHost.host !== "") {
+            const { protocol, host } = window.location
+            const redirect_uri = encodeURIComponent(
+              `${protocol}://${host}/login`,
+            )
             // The path doesn't matter but we use /api because the dev server
             // proxies /api to the backend.
-            const uri = `${window.location.protocol}//${appHost.host.replace(
+            const uri = `${protocol}//${appHost.host.replace(
               "*",
               "coder-logout",
             )}/api/logout?redirect_uri=${redirect_uri}`
-            window.location.replace(uri)
+
+            return {
+              redirectUrl: uri,
+            }
           }
         },
         getMe: API.getUser,
@@ -594,9 +611,20 @@ export const authMachine =
         notifySuccessSSHKeyRegenerated: () => {
           displaySuccess(Language.successRegenerateSSHKey)
         },
+        redirect: (_, { data }) => {
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- data can be undefined
+          if (!data) {
+            throw new Error(
+              "Redirect only should be called with data.redirectUrl",
+            )
+          }
+
+          window.location.replace(data.redirectUrl)
+        },
       },
       guards: {
         isTrue: (_, event) => event.data,
+        hasRedirectUrl: (_, { data }) => Boolean(data),
       },
     },
   )
