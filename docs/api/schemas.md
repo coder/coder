@@ -60,7 +60,7 @@
 | `allow_user_cancel_workspace_jobs` | boolean                                                                     | false    | none         | Allow users to cancel in-progress workspace jobs.<br>\*bool as the default value is "true".                                                                                                                                                                                                          |
 | `default_ttl_ms`                   | integer                                                                     | false    | none         | DefaultTTLMillis allows optionally specifying the default TTL<br>for all workspaces created from this template.                                                                                                                                                                                      |
 | `description`                      | string                                                                      | false    | none         | Description is a description of what the template contains. It must be<br>less than 128 bytes.                                                                                                                                                                                                       |
-| `display_name`                     | string                                                                      | false    | none         | DisplayName is the displayed name of the template.                                                                                                                                                                                                                                                   |
+| `display_name`                     | string                                                                      | false    | none         | Display name is the displayed name of the template.                                                                                                                                                                                                                                                  |
 | `icon`                             | string                                                                      | false    | none         | Icon is a relative path or external URL that specifies<br>an icon to be displayed in the dashboard.                                                                                                                                                                                                  |
 | `name`                             | string                                                                      | true     | none         | Name is the name of the template.                                                                                                                                                                                                                                                                    |
 | `parameter_values`                 | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest) | false    | none         | none                                                                                                                                                                                                                                                                                                 |
@@ -98,7 +98,7 @@
 | ----------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------ |
 | `interval`  | integer | false    | none         | Interval specifies the seconds between each health check.                                        |
 | `threshold` | integer | false    | none         | Threshold specifies the number of consecutive failed health checks before returning "unhealthy". |
-| `url`       | string  | false    | none         | URL specifies the url to check for the app health.                                               |
+| `url`       | string  | false    | none         | Url specifies the url to check for the app health.                                               |
 
 ## codersdk.ProvisionerJob
 
@@ -208,25 +208,25 @@
 
 ### Properties
 
-| Name                               | Type                                                               | Required | Restrictions | Description                                |
-| ---------------------------------- | ------------------------------------------------------------------ | -------- | ------------ | ------------------------------------------ |
-| `active_user_count`                | integer                                                            | false    | none         | ActiveUserCount is set to -1 when loading. |
-| `active_version_id`                | string                                                             | false    | none         | none                                       |
-| `allow_user_cancel_workspace_jobs` | boolean                                                            | false    | none         | none                                       |
-| `build_time_stats`                 | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats) | false    | none         | none                                       |
-| `created_at`                       | string                                                             | false    | none         | none                                       |
-| `created_by_id`                    | string                                                             | false    | none         | none                                       |
-| `created_by_name`                  | string                                                             | false    | none         | none                                       |
-| `default_ttl_ms`                   | integer                                                            | false    | none         | none                                       |
-| `description`                      | string                                                             | false    | none         | none                                       |
-| `display_name`                     | string                                                             | false    | none         | none                                       |
-| `icon`                             | string                                                             | false    | none         | none                                       |
-| `id`                               | string                                                             | false    | none         | none                                       |
-| `name`                             | string                                                             | false    | none         | none                                       |
-| `organization_id`                  | string                                                             | false    | none         | none                                       |
-| `provisioner`                      | string                                                             | false    | none         | none                                       |
-| `updated_at`                       | string                                                             | false    | none         | none                                       |
-| `workspace_owner_count`            | integer                                                            | false    | none         | none                                       |
+| Name                               | Type                                                               | Required | Restrictions | Description                                  |
+| ---------------------------------- | ------------------------------------------------------------------ | -------- | ------------ | -------------------------------------------- |
+| `active_user_count`                | integer                                                            | false    | none         | Active user count is set to -1 when loading. |
+| `active_version_id`                | string                                                             | false    | none         | none                                         |
+| `allow_user_cancel_workspace_jobs` | boolean                                                            | false    | none         | none                                         |
+| `build_time_stats`                 | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats) | false    | none         | none                                         |
+| `created_at`                       | string                                                             | false    | none         | none                                         |
+| `created_by_id`                    | string                                                             | false    | none         | none                                         |
+| `created_by_name`                  | string                                                             | false    | none         | none                                         |
+| `default_ttl_ms`                   | integer                                                            | false    | none         | none                                         |
+| `description`                      | string                                                             | false    | none         | none                                         |
+| `display_name`                     | string                                                             | false    | none         | none                                         |
+| `icon`                             | string                                                             | false    | none         | none                                         |
+| `id`                               | string                                                             | false    | none         | none                                         |
+| `name`                             | string                                                             | false    | none         | none                                         |
+| `organization_id`                  | string                                                             | false    | none         | none                                         |
+| `provisioner`                      | string                                                             | false    | none         | none                                         |
+| `updated_at`                       | string                                                             | false    | none         | none                                         |
+| `workspace_owner_count`            | integer                                                            | false    | none         | none                                         |
 
 ## codersdk.TemplateBuildTimeStats
 
@@ -245,9 +245,9 @@
 
 ### Properties
 
-| Name                       | Type                                                 | Required | Restrictions | Description |
-| -------------------------- | ---------------------------------------------------- | -------- | ------------ | ----------- |
-| `**additionalProperties**` | [codersdk.TransitionStats](#codersdktransitionstats) | false    | none         | none        |
+| Name             | Type                                                 | Required | Restrictions | Description |
+| ---------------- | ---------------------------------------------------- | -------- | ------------ | ----------- |
+| `[any property]` | [codersdk.TransitionStats](#codersdktransitionstats) | false    | none         | none        |
 
 ## codersdk.TransitionStats
 
@@ -588,7 +588,7 @@
 | Name            | Type                                         | Required | Restrictions | Description                                                                                                                                                                                                                                             |
 | --------------- | -------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `command`       | string                                       | false    | none         | none                                                                                                                                                                                                                                                    |
-| `display_name`  | string                                       | false    | none         | DisplayName is a friendly name for the app.                                                                                                                                                                                                             |
+| `display_name`  | string                                       | false    | none         | Display name is a friendly name for the app.                                                                                                                                                                                                            |
 | `external`      | boolean                                      | false    | none         | External specifies whether the URL should be opened externally on<br>the client or not.                                                                                                                                                                 |
 | `health`        | string                                       | false    | none         | none                                                                                                                                                                                                                                                    |
 | `healthcheck`   | [codersdk.Healthcheck](#codersdkhealthcheck) | false    | none         | none                                                                                                                                                                                                                                                    |
@@ -597,7 +597,7 @@
 | `sharing_level` | string                                       | false    | none         | none                                                                                                                                                                                                                                                    |
 | `slug`          | string                                       | false    | none         | Slug is a unique identifier within the agent.                                                                                                                                                                                                           |
 | `subdomain`     | boolean                                      | false    | none         | Subdomain denotes whether the app should be accessed via a path on the<br>`coder server` or via a hostname-based dev URL. If this is set to true<br>and there is no app wildcard configured on the server, the app will not<br>be accessible in the UI. |
-| `url`           | string                                       | false    | none         | URL is the address being proxied to inside the workspace.<br>If external is specified, this will be opened on the client.                                                                                                                               |
+| `url`           | string                                       | false    | none         | Url is the address being proxied to inside the workspace.<br>If external is specified, this will be opened on the client.                                                                                                                               |
 
 ## codersdk.WorkspaceBuild
 

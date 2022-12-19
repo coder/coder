@@ -12,9 +12,9 @@
 			return "no schema";
 		}
 
-		var oldRef = content.schema["x-widdershins-oldRef"];
-		var aType = oldRef.replace("#/components/schemas/","");
-		var href = aType.replace(".","").toLowerCase();
+		const oldRef = content.schema["x-widdershins-oldRef"];
+		const aType = oldRef.replace("#/components/schemas/","");
+		const href = aType.replace(".","").toLowerCase();
 		return "[" + aType + "](schemas.md#" + href + ")";
 	}
 }}

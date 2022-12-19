@@ -4,7 +4,7 @@
 			return p.type;
 		}
 
-		var pRef = p.$ref.replace("#/components/schemas/","");
+		const pRef = p.$ref.replace("#/components/schemas/","");
 		if (pRef == "codersdk.NullTime") {
 			return "string(time) or `null`";
 		}
@@ -22,7 +22,34 @@
 		if (p.displayName == "» **additionalProperties**") {
 			return "» `[any property]`";
 		}
+		if (p.displayName == "**additionalProperties**") {
+			return "`[any property]`";
+		}
 		return "`" + p.displayName + "`";
+	}
+
+	function renderDescription(p) {
+		if (!p.description) {
+			return "none";
+		}
+
+		const toSnakeCase = str =>
+			str
+				.match(/[A-Z]{2,}(?=[A-Z][a-z]+[0-9]*|\b)|[A-Z]?[a-z]+[0-9]*|[A-Z]|[0-9]+/g)
+				.map(x => x.toLowerCase())
+				.join('_');
+
+		const words = p.description.split(' ');
+		if (words.length == 0) {
+			return "none";
+		}
+
+		var firstWord = toSnakeCase(words[0]);
+		if (p.displayName == firstWord) {
+			const displayName = p.displayName.charAt(0).toUpperCase() + p.displayName.replaceAll("_", " ").toLowerCase().slice(1);
+			return displayName + " " + words.slice(1).join(' ');
+		}
+		return p.description;
 	}
 }}
 
@@ -99,7 +126,7 @@
 
 {{? block.rows.length}}|Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|{{?}}
-{{~ block.rows :p}}|{{= renderDisplayName(p)}}|{{= renderPropertyType(p)}}|{{=p.required}}|{{=p.restrictions||'none'}}|{{=p.description||'none'}}|
+{{~ block.rows :p}}|{{= renderDisplayName(p)}}|{{= renderPropertyType(p)}}|{{=p.required}}|{{=p.restrictions||'none'}}|{{= renderDescription(p)}}|
 {{~}}
 {{~}}
 {{? (blocks[0].rows.length === 0) && (blocks.length === 1) }}

@@ -1,8 +1,8 @@
 {{
   function renderParameterType(p) {
 	if (p.schema['x-widdershins-oldRef']) {
-		var aType = p.schema['x-widdershins-oldRef'].replace("#/components/schemas/","");
-		var href = aType.replace(".","").toLowerCase();
+		const aType = p.schema['x-widdershins-oldRef'].replace("#/components/schemas/","");
+		const href = aType.replace(".","").toLowerCase();
 		return "[" + aType + "](schemas.md#" + href + ")";
 	}
 	return p.safeType;
