@@ -44,8 +44,8 @@
 			return "none";
 		}
 
-		var firstWord = toSnakeCase(words[0]);
-		if (p.displayName == firstWord) {
+		const countUppercase = words[0].length - words[0].replace(/[A-Z]/g, '').length;
+		if (countUppercase > 1) {
 			const displayName = p.displayName.charAt(0).toUpperCase() + p.displayName.replaceAll("_", " ").toLowerCase().slice(1);
 			return displayName + " " + words.slice(1).join(' ');
 		}
