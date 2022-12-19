@@ -169,6 +169,8 @@ Flags:
                                                      "ecdsa", or "rsa4096".
                                                      Consumes $CODER_SSH_KEYGEN_ALGORITHM
                                                      (default "ed25519")
+      --swagger-enable                               Expose the swagger endpoint via /swagger.
+                                                     Consumes $CODER_SWAGGER_ENABLE
       --telemetry                                    Whether telemetry is enabled or not.
                                                      Coder collects anonymized usage data to
                                                      help improve our product.
@@ -196,7 +198,7 @@ Flags:
                                                      "verify-if-given", or
                                                      "require-and-verify".
                                                      Consumes $CODER_TLS_CLIENT_AUTH (default
-                                                     "request")
+                                                     "none")
       --tls-client-ca-file string                    PEM-encoded Certificate Authority file
                                                      used for checking the authenticity of
                                                      client

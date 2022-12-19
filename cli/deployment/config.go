@@ -303,7 +303,7 @@ func newConfig() *codersdk.DeploymentConfig {
 				Name:    "TLS Client Auth",
 				Usage:   "Policy the server will follow for TLS Client Authentication. Accepted values are \"none\", \"request\", \"require-any\", \"verify-if-given\", or \"require-and-verify\".",
 				Flag:    "tls-client-auth",
-				Default: "request",
+				Default: "none",
 			},
 			KeyFiles: &codersdk.DeploymentConfigField[[]string]{
 				Name:  "TLS Key Files",
@@ -451,6 +451,14 @@ func newConfig() *codersdk.DeploymentConfig {
 			Usage:   "The maximum lifetime duration for any user creating a token.",
 			Flag:    "max-token-lifetime",
 			Default: 24 * 30 * time.Hour,
+		},
+		Swagger: &codersdk.SwaggerConfig{
+			Enable: &codersdk.DeploymentConfigField[bool]{
+				Name:    "Enable swagger endpoint",
+				Usage:   "Expose the swagger endpoint via /swagger.",
+				Flag:    "swagger-enable",
+				Default: false,
+			},
 		},
 	}
 }

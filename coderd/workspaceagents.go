@@ -222,11 +222,11 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	height, err := strconv.Atoi(r.URL.Query().Get("height"))
+	height, err := strconv.ParseUint(r.URL.Query().Get("height"), 10, 16)
 	if err != nil {
 		height = 80
 	}
-	width, err := strconv.Atoi(r.URL.Query().Get("width"))
+	width, err := strconv.ParseUint(r.URL.Query().Get("width"), 10, 16)
 	if err != nil {
 		width = 80
 	}
@@ -330,7 +330,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 		if port == "" {
 			continue
 		}
-		portNum, err := strconv.Atoi(port)
+		portNum, err := strconv.ParseUint(port, 10, 16)
 		if err != nil {
 			continue
 		}
@@ -344,7 +344,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 	// common non-HTTP ports such as databases, FTP, SSH, etc.
 	filteredPorts := make([]codersdk.ListeningPort, 0, len(portsResponse.Ports))
 	for _, port := range portsResponse.Ports {
-		if port.Port < uint16(codersdk.MinimumListeningPort) {
+		if port.Port < codersdk.MinimumListeningPort {
 			continue
 		}
 		if _, ok := appPorts[port.Port]; ok {

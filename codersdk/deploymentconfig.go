@@ -45,6 +45,7 @@ type DeploymentConfig struct {
 	Experimental                    *DeploymentConfigField[bool]            `json:"experimental" typescript:",notnull"`
 	UpdateCheck                     *DeploymentConfigField[bool]            `json:"update_check" typescript:",notnull"`
 	MaxTokenLifetime                *DeploymentConfigField[time.Duration]   `json:"max_token_lifetime" typescript:",notnull"`
+	Swagger                         *SwaggerConfig                          `json:"swagger" typescript:",notnull"`
 }
 
 type DERP struct {
@@ -143,6 +144,10 @@ type ProvisionerConfig struct {
 	DaemonPollInterval  *DeploymentConfigField[time.Duration] `json:"daemon_poll_interval" typescript:",notnull"`
 	DaemonPollJitter    *DeploymentConfigField[time.Duration] `json:"daemon_poll_jitter" typescript:",notnull"`
 	ForceCancelInterval *DeploymentConfigField[time.Duration] `json:"force_cancel_interval" typescript:",notnull"`
+}
+
+type SwaggerConfig struct {
+	Enable *DeploymentConfigField[bool] `json:"enable" typescript:",notnull"`
 }
 
 type Flaggable interface {
