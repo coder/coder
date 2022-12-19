@@ -3,7 +3,16 @@
 		if (!r.content) {
 			return "none";
 		}
-		var oldRef = r.content['application/json'].schema['x-widdershins-oldRef'];
+		var content;
+		for (var ct in r.content) {
+			content = r.content[ct];
+			break;
+		}
+		if (!content) {
+			return "no schema";
+		}
+
+		var oldRef = content.schema["x-widdershins-oldRef"];
 		var aType = oldRef.replace("#/components/schemas/","");
 		var href = aType.replace(".","").toLowerCase();
 		return "[" + aType + "](schemas.md#" + href + ")";

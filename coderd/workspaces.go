@@ -884,7 +884,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Summary Watch workspace by ID
 // @ID watch-workspace-id
 // @Security CoderSessionToken
-// @Produce application/json
+// @Produce text/event-stream
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Success 200 {object} codersdk.Response

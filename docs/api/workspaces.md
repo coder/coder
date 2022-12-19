@@ -852,7 +852,7 @@ To perform this operation, you must be authenticated by means of one of the foll
 ```shell
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/watch \
-  -H 'Accept: application/json' \
+  -H 'Accept: text/event-stream' \
   -H 'Coder-Session-Token: API_KEY'
 
 ```
@@ -868,19 +868,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/watch \
 ### Example responses
 
 > 200 Response
-
-```json
-{
-  "detail": "string",
-  "message": "string",
-  "validations": [
-    {
-      "detail": "string",
-      "field": "string"
-    }
-  ]
-}
-```
 
 ### Responses
 

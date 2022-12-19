@@ -482,7 +482,7 @@ const docTemplate = `{
                     }
                 ],
                 "produces": [
-                    "application/json"
+                    "text/event-stream"
                 ],
                 "tags": [
                     "Workspaces"

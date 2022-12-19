@@ -428,7 +428,7 @@
             "CoderSessionToken": []
           }
         ],
-        "produces": ["application/json"],
+        "produces": ["text/event-stream"],
         "tags": ["Workspaces"],
         "summary": "Watch workspace by ID",
         "operationId": "watch-workspace-id",
