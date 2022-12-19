@@ -22,6 +22,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/prometheus/client_golang/prometheus"
+	httpSwagger "github.com/swaggo/http-swagger"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
@@ -34,6 +35,9 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/buildinfo"
+
+	// Used to serve the Swagger endpoint
+	_ "github.com/coder/coder/coderd/apidoc"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
@@ -102,15 +106,34 @@ type Options struct {
 	TailnetCoordinator tailnet.Coordinator
 	DERPServer         *derp.Server
 	DERPMap            *tailcfg.DERPMap
+	SwaggerEndpoint    bool
 
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
 	Experimental                bool
 	DeploymentConfig            *codersdk.DeploymentConfig
 	UpdateCheckOptions          *updatecheck.Options // Set non-nil to enable update checking.
-	HTTPClient                  *http.Client
+
+	HTTPClient *http.Client
 }
 
+// @title Coder API
+// @version 2.0
+// @description Coderd is the service created by running coder server. It is a thin API that connects workspaces, provisioners and users. coderd stores its state in Postgres and is the only service that communicates with Postgres.
+// @termsOfService https://coder.com/legal/terms-of-service
+
+// @contact.name API Support
+// @contact.url https://coder.com
+// @contact.email support@coder.com
+
+// @license.name AGPL-3.0
+// @license.url https://github.com/coder/coder/blob/main/LICENSE
+
+// @BasePath /api/v2
+
+// @securitydefinitions.apiKey CoderSessionToken
+// @in header
+// @name Coder-Session-Token
 // New constructs a Coder API handler.
 func New(options *Options) *API {
 	if options == nil {
@@ -577,6 +600,13 @@ func New(options *Options) *API {
 			})
 		})
 	})
+
+	if options.SwaggerEndpoint {
+		// Swagger UI requires the URL trailing slash. Otherwise, the browser tries to load /assets
+		// from http://localhost:8080/assets instead of http://localhost:8080/swagger/assets.
+		r.Get("/swagger", http.RedirectHandler("/swagger/", http.StatusTemporaryRedirect).ServeHTTP)
+		r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json")))
+	}
 
 	r.NotFound(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP)).ServeHTTP)
 	return api

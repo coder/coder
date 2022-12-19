@@ -410,13 +410,14 @@ gen: \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
 	site/src/api/typesGenerated.ts \
-	docs/admin/prometheus.md
+	docs/admin/prometheus.md \
+	coderd/apidoc/swagger.json
 .PHONY: gen
 
 # Mark all generated files as fresh so make thinks they're up-to-date. This is
 # used during releases so we don't run generation scripts.
 gen/mark-fresh:
-	files="coderd/database/dump.sql coderd/database/querier.go provisionersdk/proto/provisioner.pb.go provisionerd/proto/provisionerd.pb.go site/src/api/typesGenerated.ts docs/admin/prometheus.md"
+	files="coderd/database/dump.sql coderd/database/querier.go provisionersdk/proto/provisioner.pb.go provisionerd/proto/provisionerd.pb.go site/src/api/typesGenerated.ts docs/admin/prometheus.md coderd/apidoc/swagger.json"
 	for file in $$files; do
 		echo "$$file"
 		if [ ! -f "$$file" ]; then
@@ -463,6 +464,11 @@ docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/me
 	go run scripts/metricsdocgen/main.go
 	cd site
 	yarn run format:write ../docs/admin/prometheus.md
+
+coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen -not \( -path './scripts/apidocgen/node_modules' -prune \) -type f) $(wildcard coderd/*.go) $(wildcard codersdk/*.go)
+	./scripts/apidocgen/generate.sh
+	cd site
+	yarn run format:write ../docs/api ../docs/manifest.json ../coderd/apidoc/swagger.json
 
 update-golden-files: cli/testdata/.gen-golden
 .PHONY: update-golden-files

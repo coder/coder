@@ -678,6 +678,10 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				), cfg.Prometheus.Address.Value, "prometheus")()
 			}
 
+			if cfg.Swagger.Enable.Value {
+				options.SwaggerEndpoint = cfg.Swagger.Enable.Value
+			}
+
 			// We use a separate coderAPICloser so the Enterprise API
 			// can have it's own close functions. This is cleaner
 			// than abstracting the Coder API itself.

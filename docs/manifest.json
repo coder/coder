@@ -10,16 +10,16 @@
         {
           "title": "Architecture",
           "description": "Learn how Coder works",
-          "icon_path": "./images/icons/protractor.svg",
-          "path": "./about/architecture.md"
+          "path": "./about/architecture.md",
+          "icon_path": "./images/icons/protractor.svg"
         }
       ]
     },
     {
       "title": "Installation",
       "description": "How to install and deploy Coder",
-      "icon_path": "./images/icons/download.svg",
       "path": "./install/index.md",
+      "icon_path": "./images/icons/download.svg",
       "children": [
         {
           "title": "Install script",
@@ -66,32 +66,32 @@
     {
       "title": "Quickstart",
       "description": "Create your first template and workspace",
-      "icon_path": "./images/icons/star.svg",
       "path": "./quickstart.md",
+      "icon_path": "./images/icons/star.svg",
       "children": [
         {
           "title": "Docker",
           "description": "Setup Coder with Docker",
-          "icon_path": "./images/icons/docker.svg",
-          "path": "./quickstart/docker.md"
+          "path": "./quickstart/docker.md",
+          "icon_path": "./images/icons/docker.svg"
         },
         {
           "title": "Google Cloud Platform",
           "description": "Setup Coder on a GCP Compute Engine VM",
-          "icon_path": "./images/google-cloud.svg",
-          "path": "./quickstart/google-cloud-platform.md"
+          "path": "./quickstart/google-cloud-platform.md",
+          "icon_path": "./images/google-cloud.svg"
         },
         {
           "title": "AWS",
           "description": "Setup Coder on an AWS EC2 VM",
-          "icon_path": "./images/aws.svg",
-          "path": "./quickstart/aws.md"
+          "path": "./quickstart/aws.md",
+          "icon_path": "./images/aws.svg"
         },
         {
           "title": "Azure",
           "description": "Setup Coder on an Azure VM",
-          "icon_path": "./images/azure.svg",
-          "path": "./quickstart/azure.md"
+          "path": "./quickstart/azure.md",
+          "icon_path": "./images/azure.svg"
         }
       ]
     },
@@ -105,8 +105,7 @@
           "title": "Resource Persistence",
           "description": "Learn how resource persistence works in Coder",
           "path": "./templates/resource-persistence.md",
-          "icon_path": "./images/icons/infinity.svg",
-          "last_updated": "2022-10-23"
+          "icon_path": "./images/icons/infinity.svg"
         },
         {
           "title": "Provider Authentication",
@@ -137,8 +136,8 @@
     {
       "title": "Workspaces",
       "description": "Learn about Coder workspaces.",
-      "icon_path": "./images/icons/layers.svg",
-      "path": "./workspaces.md"
+      "path": "./workspaces.md",
+      "icon_path": "./images/icons/layers.svg"
     },
     {
       "title": "IDEs",
@@ -184,45 +183,45 @@
     {
       "title": "Dotfiles",
       "description": "Learn how to personalize your workspace",
-      "icon_path": "./images/icons/art-pad.svg",
-      "path": "./dotfiles.md"
+      "path": "./dotfiles.md",
+      "icon_path": "./images/icons/art-pad.svg"
     },
     {
       "title": "Secrets",
-      "description": "Learn how to use secrets in your worskpace",
-      "icon_path": "./images/icons/secrets.svg",
-      "path": "./secrets.md"
+      "description": "Learn how to use secrets in your workspace",
+      "path": "./secrets.md",
+      "icon_path": "./images/icons/secrets.svg"
     },
     {
       "title": "Administration",
       "description": "How to install and deploy Coder",
-      "icon_path": "./images/icons/wrench.svg",
       "path": "./admin/index.md",
+      "icon_path": "./images/icons/wrench.svg",
       "children": [
         {
           "title": "Authentication",
           "description": "Learn how to set up authentication using GitHub or OpenID Connect",
-          "icon_path": "./images/icons/key.svg",
-          "path": "./admin/auth.md"
+          "path": "./admin/auth.md",
+          "icon_path": "./images/icons/key.svg"
         },
         {
           "title": "Users",
           "description": "Learn about user roles available in Coder and how to create and manage users",
-          "icon_path": "./images/icons/users.svg",
-          "path": "./admin/users.md"
+          "path": "./admin/users.md",
+          "icon_path": "./images/icons/users.svg"
         },
         {
           "title": "Groups",
           "description": "Learn how to manage user groups",
-          "icon_path": "./images/icons/group.svg",
           "path": "./admin/groups.md",
+          "icon_path": "./images/icons/group.svg",
           "state": "enterprise"
         },
         {
           "title": "RBAC",
           "description": "Learn how to use the role based access control",
-          "icon_path": "./images/icons/rbac.svg",
           "path": "./admin/rbac.md",
+          "icon_path": "./images/icons/rbac.svg",
           "state": "enterprise"
         },
         {
@@ -234,74 +233,74 @@
         {
           "title": "Git Providers",
           "description": "Learn how connect Coder with external git providers",
-          "icon_path": "./images/icons/git.svg",
-          "path": "./admin/git-providers.md"
+          "path": "./admin/git-providers.md",
+          "icon_path": "./images/icons/git.svg"
         },
         {
           "title": "Upgrading",
           "description": "Learn how to upgrade Coder",
-          "icon_path": "./images/icons/upgrade.svg",
-          "path": "./admin/upgrade.md"
+          "path": "./admin/upgrade.md",
+          "icon_path": "./images/icons/upgrade.svg"
         },
         {
           "title": "Automation",
           "description": "Learn how to automate Coder with the CLI and API",
-          "icon_path": "./images/icons/plug.svg",
-          "path": "./admin/automation.md"
+          "path": "./admin/automation.md",
+          "icon_path": "./images/icons/plug.svg"
         },
         {
           "title": "Audit Logs",
           "description": "Learn how to use Audit Logs in your Coder deployment",
-          "icon_path": "./images/icons/radar.svg",
           "path": "./admin/audit-logs.md",
+          "icon_path": "./images/icons/radar.svg",
           "state": "enterprise"
         },
         {
           "title": "Quotas",
           "description": "Learn how to use Workspace Quotas in Coder",
-          "icon_path": "./images/icons/dollar.svg",
           "path": "./admin/quotas.md",
+          "icon_path": "./images/icons/dollar.svg",
           "state": "enterprise"
         },
         {
           "title": "High Availability",
           "description": "Learn how to configure Coder for High Availability",
-          "icon_path": "./images/icons/hydra.svg",
           "path": "./admin/high-availability.md",
+          "icon_path": "./images/icons/hydra.svg",
           "state": "enterprise"
         },
         {
           "title": "Prometheus",
           "description": "Learn how to collect Prometheus metrics",
-          "icon_path": "./images/icons/speed.svg",
-          "path": "./admin/prometheus.md"
+          "path": "./admin/prometheus.md",
+          "icon_path": "./images/icons/speed.svg"
         },
         {
           "title": "Service Banners",
           "description": "Learn how to configure Service Banners",
-          "icon_path": "./images/icons/info.svg",
           "path": "./admin/service-banners.md",
+          "icon_path": "./images/icons/info.svg",
           "state": "enterprise"
         },
         {
           "title": "Telemetry",
           "description": "Learn what usage telemetry Coder collects",
-          "icon_path": "./images/icons/science.svg",
-          "path": "./admin/telemetry.md"
+          "path": "./admin/telemetry.md",
+          "icon_path": "./images/icons/science.svg"
         }
       ]
     },
     {
       "title": "Enterprise",
       "description": "Learn how to enable Enterprise features",
-      "icon_path": "./images/icons/group.svg",
-      "path": "./enterprise.md"
+      "path": "./enterprise.md",
+      "icon_path": "./images/icons/group.svg"
     },
     {
       "title": "Contributing",
       "description": "Learn how to contribute to Coder",
-      "icon_path": "./images/icons/contributing.svg",
       "path": "./CONTRIBUTING.md",
+      "icon_path": "./images/icons/contributing.svg",
       "children": [
         {
           "title": "Code of Conduct",
@@ -317,6 +316,30 @@
           "title": "Security",
           "description": "How to report vulnerabilities in Coder",
           "path": "./contributing/SECURITY.md"
+        }
+      ]
+    },
+    {
+      "title": "API",
+      "description": "Learn how to use Coderd API",
+      "path": "./api/index.md",
+      "icon_path": "./images/icons/api.svg",
+      "children": [
+        {
+          "title": "Authentication",
+          "path": "./api/authentication.md"
+        },
+        {
+          "title": "Templates",
+          "path": "./api/templates.md"
+        },
+        {
+          "title": "Workspaces",
+          "path": "./api/workspaces.md"
+        },
+        {
+          "title": "Schemas",
+          "path": "./api/schemas.md"
         }
       ]
     }
