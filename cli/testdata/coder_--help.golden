@@ -36,6 +36,7 @@ Workspace Commands:
   create         Create a workspace
   delete         Delete a workspace
   list           List workspaces
+  rename         Rename a workspace
   schedule       Schedule automated start and stop times for workspaces
   show           Display details of a workspace's resources and agents
   speedtest      Run upload and download tests from your machine to a workspace
