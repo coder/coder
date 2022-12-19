@@ -79,7 +79,7 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceAuditLog) {
+	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceAuditLog) {
 		httpapi.Forbidden(rw)
 		return
 	}
