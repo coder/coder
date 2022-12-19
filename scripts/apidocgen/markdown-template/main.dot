@@ -17,6 +17,13 @@
 		}
 		return renderSinglePropertyType(p);
 	}
+
+	function renderDisplayName(p) {
+		if (p.displayName == "» **additionalProperties**") {
+			return "» `[any property]`";
+		}
+		return "`" + p.displayName + "`";
+	}
 }}
 
 {{? data.api.components && data.api.components.securitySchemes }}{{#def.security}}{{?}}
@@ -92,7 +99,7 @@
 
 {{? block.rows.length}}|Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|{{?}}
-{{~ block.rows :p}}|`{{=p.displayName}}`|{{= renderPropertyType(p)}}|{{=p.required}}|{{=p.restrictions||'none'}}|{{=p.description||'none'}}|
+{{~ block.rows :p}}|{{= renderDisplayName(p)}}|{{= renderPropertyType(p)}}|{{=p.required}}|{{=p.restrictions||'none'}}|{{=p.description||'none'}}|
 {{~}}
 {{~}}
 {{? (blocks[0].rows.length === 0) && (blocks.length === 1) }}

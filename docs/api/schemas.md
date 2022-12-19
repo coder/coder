@@ -122,19 +122,19 @@
 
 ### Properties
 
-| Name                         | Type   | Required | Restrictions | Description |
-| ---------------------------- | ------ | -------- | ------------ | ----------- |
-| `canceled_at`                | string | false    | none         | none        |
-| `completed_at`               | string | false    | none         | none        |
-| `created_at`                 | string | false    | none         | none        |
-| `error`                      | string | false    | none         | none        |
-| `file_id`                    | string | false    | none         | none        |
-| `id`                         | string | false    | none         | none        |
-| `started_at`                 | string | false    | none         | none        |
-| `status`                     | string | false    | none         | none        |
-| `tags`                       | object | false    | none         | none        |
-| `» **additionalProperties**` | string | false    | none         | none        |
-| `worker_id`                  | string | false    | none         | none        |
+| Name               | Type   | Required | Restrictions | Description |
+| ------------------ | ------ | -------- | ------------ | ----------- |
+| `canceled_at`      | string | false    | none         | none        |
+| `completed_at`     | string | false    | none         | none        |
+| `created_at`       | string | false    | none         | none        |
+| `error`            | string | false    | none         | none        |
+| `file_id`          | string | false    | none         | none        |
+| `id`               | string | false    | none         | none        |
+| `started_at`       | string | false    | none         | none        |
+| `status`           | string | false    | none         | none        |
+| `tags`             | object | false    | none         | none        |
+| » `[any property]` | string | false    | none         | none        |
+| `worker_id`        | string | false    | none         | none        |
 
 ## codersdk.PutExtendWorkspaceRequest
 
@@ -545,13 +545,13 @@
 | `directory`                  | string                                                  | false    | none         | none                                                                    |
 | `disconnected_at`            | string                                                  | false    | none         | none                                                                    |
 | `environment_variables`      | object                                                  | false    | none         | none                                                                    |
-| `» **additionalProperties**` | string                                                  | false    | none         | none                                                                    |
+| » `[any property]`           | string                                                  | false    | none         | none                                                                    |
 | `first_connected_at`         | string                                                  | false    | none         | none                                                                    |
 | `id`                         | string                                                  | false    | none         | none                                                                    |
 | `instance_id`                | string                                                  | false    | none         | none                                                                    |
 | `last_connected_at`          | string                                                  | false    | none         | none                                                                    |
 | `latency`                    | object                                                  | false    | none         | DERPLatency is mapped by region name (e.g. "New York City", "Seattle"). |
-| `» **additionalProperties**` | [codersdk.DERPRegion](#codersdkderpregion)              | false    | none         | none                                                                    |
+| » `[any property]`           | [codersdk.DERPRegion](#codersdkderpregion)              | false    | none         | none                                                                    |
 | `name`                       | string                                                  | false    | none         | none                                                                    |
 | `operating_system`           | string                                                  | false    | none         | none                                                                    |
 | `resource_id`                | string                                                  | false    | none         | none                                                                    |
