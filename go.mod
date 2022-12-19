@@ -51,6 +51,11 @@ replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20221117204504-2d65
 // makes importing it directly a bit messy.
 replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20220811105153-fcea99919338
 
+// This package is only used in tests, but there's a data race causing
+// occasional flakes.
+// https://github.com/bramvdbogaerde/go-scp/pull/66
+replace github.com/bramvdbogaerde/go-scp => github.com/mafredri/go-scp v1.2.1-0.20221123115109-607fd1f5015c
+
 require (
 	cdr.dev/slog v1.4.2-0.20220525200111-18dce5c2cd5f
 	cloud.google.com/go/compute/metadata v0.2.1
