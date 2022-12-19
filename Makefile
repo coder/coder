@@ -44,10 +44,17 @@ else
 ZSTDFLAGS := -6
 endif
 
+# Common paths to exclude from find commands, this rule is written so
+# that it can be it can be used in a chain of AND statements (meaning
+# you can simply write `find . $(FIND_EXCLUSIONS) -name thing-i-want`).
+# Note, all find statements should be written with `.` or `./path` as
+# the search path so that these exclusions match.
+FIND_EXCLUSIONS= \
+	-not \( \( -path '*/.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path '*/node_modules/*' -o -path './site/out/*' \) -prune \)
 # Source files used for make targets, evaluated on use.
-GO_SRC_FILES = $(shell find . -not \( -path './.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path './site/node_modules/*' -o -path './site/out/*' \) -type f -name '*.go')
+GO_SRC_FILES = $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.go')
 # All the shell files in the repo, excluding ignored files.
-SHELL_SRC_FILES = $(shell find . -not \( -path './.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path './site/node_modules/*' -o -path './site/out/*' \) -type f -name '*.sh')
+SHELL_SRC_FILES = $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.sh')
 
 # All ${OS}_${ARCH} combos we build for. Windows binaries have the .exe suffix.
 OS_ARCHES := \
@@ -341,7 +348,7 @@ build/coder_helm_$(VERSION).tgz:
 		--version "$(VERSION)" \
 		--output "$@"
 
-site/out/index.html: site/package.json $(shell find ./site -not -path './site/node_modules/*' -type f \( -name '*.ts' -o -name '*.tsx' \))
+site/out/index.html: site/package.json $(shell find ./site $(FIND_EXCLUSIONS) -type f \( -name '*.ts' -o -name '*.tsx' \))
 	./scripts/yarn_install.sh
 	cd site
 	yarn build
@@ -447,7 +454,7 @@ provisionerd/proto/provisionerd.pb.go: provisionerd/proto/provisionerd.proto
 		--go-drpc_opt=paths=source_relative \
 		./provisionerd/proto/provisionerd.proto
 
-site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find codersdk -type f -name '*.go')
+site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go')
 	go run scripts/apitypings/main.go > site/src/api/typesGenerated.ts
 	cd site
 	yarn run format:types
