@@ -1,3 +1,4 @@
+import Button from "@material-ui/core/Button"
 import Link from "@material-ui/core/Link"
 import { makeStyles, Theme } from "@material-ui/core/styles"
 import Table from "@material-ui/core/Table"
@@ -7,14 +8,16 @@ import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
+import AddIcon from "@material-ui/icons/AddOutlined"
 import useTheme from "@material-ui/styles/useTheme"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Maybe } from "components/Conditionals/Maybe"
 import { TableEmpty } from "components/TableEmpty/TableEmpty"
+import { useEntitlements } from "hooks/useEntitlements"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, Link as RouterLink } from "react-router-dom"
 import { createDayString } from "util/createDayString"
 import {
   formatTemplateBuildTime,
@@ -39,6 +42,7 @@ import {
   HelpTooltipText,
   HelpTooltipTitle,
 } from "../../components/Tooltips/HelpTooltip/HelpTooltip"
+import { usePermissions } from "hooks/usePermissions"
 
 export const Language = {
   developerCount: (activeCount: number): string => {
@@ -106,10 +110,25 @@ export const TemplatesPageView: FC<
     !props.getOrganizationsError &&
     !props.getTemplatesError &&
     !props.templates?.length
+  const entitlements = useEntitlements()
+  const permissions = usePermissions()
 
   return (
     <Margins>
-      <PageHeader>
+      <PageHeader
+        actions={
+          <Maybe
+            condition={entitlements.experimental && permissions.createTemplates}
+          >
+            <Button component={RouterLink} to="/starter-templates">
+              Starter templates
+            </Button>
+            <Button startIcon={<AddIcon />} component={RouterLink} to="new">
+              Add template
+            </Button>
+          </Maybe>
+        }
+      >
         <PageHeaderTitle>
           <Stack spacing={1} direction="row" alignItems="center">
             Templates
