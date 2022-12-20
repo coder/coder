@@ -494,7 +494,6 @@ func (api *API) verifyWorkspaceApplicationSubdomainAuth(rw http.ResponseWriter, 
 // @Summary Redirect to URI with encrypted API key
 // @ID redirect-to-uri-with-encrypted-api-key
 // @Security CoderSessionToken
-// @Produce json
 // @Tags Applications
 // @Param redirect_uri query string false "Redirect destination"
 // @Success 307

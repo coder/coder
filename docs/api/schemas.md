@@ -2,6 +2,105 @@
 
 > This page is incomplete, stay tuned.
 
+## codersdk.AuthorizationCheck
+
+```json
+{
+  "action": "create",
+  "object": {
+    "organization_id": "string",
+    "owner_id": "string",
+    "resource_id": "string",
+    "resource_type": "string"
+  }
+}
+```
+
+### Properties
+
+| Name     | Type                                                         | Required | Restrictions | Description                                           |
+| -------- | ------------------------------------------------------------ | -------- | ------------ | ----------------------------------------------------- |
+| `action` | string                                                       | false    | none         | Action can be `create`, `read`, `update`, or `delete` |
+| `object` | [codersdk.AuthorizationObject](#codersdkauthorizationobject) | false    | none         | none                                                  |
+
+#### Enumerated Values
+
+| Property | Value  |
+| -------- | ------ |
+| action   | create |
+| action   | read   |
+| action   | update |
+| action   | delete |
+
+## codersdk.AuthorizationObject
+
+```json
+{
+  "organization_id": "string",
+  "owner_id": "string",
+  "resource_id": "string",
+  "resource_type": "string"
+}
+```
+
+### Properties
+
+| Name              | Type   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                        |
+| ----------------- | ------ | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `organization_id` | string | false    | none         | Organization id (optional) is an organization_id. It adds the set constraint to<br>all resources owned by a given organization.                                                                                                                                                                                                                                                    |
+| `owner_id`        | string | false    | none         | Owner id (optional) is a user_id. It adds the set constraint to all resources owned<br>by a given user.                                                                                                                                                                                                                                                                            |
+| `resource_id`     | string | false    | none         | Resource id (optional) reduces the set to a singular resource. This assigns<br>a resource ID to the resource type, eg: a single workspace.<br>The rbac library will not fetch the resource from the database, so if you<br>are using this option, you should also set the 'OwnerID' and 'OrganizationID'<br>if possible. Be as specific as possible using all the fields relevant. |
+| `resource_type`   | string | false    | none         | Resource type is the name of the resource.<br>`./coderd/rbac/object.go` has the list of valid resource types.                                                                                                                                                                                                                                                                      |
+
+## codersdk.AuthorizationRequest
+
+```json
+{
+  "checks": {
+    "property1": {
+      "action": "create",
+      "object": {
+        "organization_id": "string",
+        "owner_id": "string",
+        "resource_id": "string",
+        "resource_type": "string"
+      }
+    },
+    "property2": {
+      "action": "create",
+      "object": {
+        "organization_id": "string",
+        "owner_id": "string",
+        "resource_id": "string",
+        "resource_type": "string"
+      }
+    }
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                                                                                                                  |
+| ------------------ | ---------------------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `checks`           | object                                                     | false    | none         | Checks is a map keyed with an arbitrary string to a permission check.<br>The key can be any string that is helpful to the caller, and allows<br>multiple permission checks to be run in a single request.<br>The key ensures that each permission check has the same key in the<br>response. |
+| » `[any property]` | [codersdk.AuthorizationCheck](#codersdkauthorizationcheck) | false    | none         | none                                                                                                                                                                                                                                                                                         |
+
+## codersdk.AuthorizationResponse
+
+```json
+{
+  "property1": true,
+  "property2": true
+}
+```
+
+### Properties
+
+| Name             | Type    | Required | Restrictions | Description |
+| ---------------- | ------- | -------- | ------------ | ----------- |
+| `[any property]` | boolean | false    | none         | none        |
+
 ## codersdk.CreateParameterRequest
 
 ```json

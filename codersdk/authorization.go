@@ -10,7 +10,7 @@ type AuthorizationResponse map[string]bool
 
 // AuthorizationRequest is a structure instead of a map because
 // go-playground/validate can only validate structs. If you attempt to pass
-// a map into 'httpapi.Read', you will get an invalid type error.
+// a map into `httpapi.Read`, you will get an invalid type error.
 type AuthorizationRequest struct {
 	// Checks is a map keyed with an arbitrary string to a permission check.
 	// The key can be any string that is helpful to the caller, and allows
@@ -34,13 +34,13 @@ type AuthorizationCheck struct {
 	// Omitting the 'OrganizationID' could produce the incorrect value, as
 	// workspaces have both `user` and `organization` owners.
 	Object AuthorizationObject `json:"object"`
-	// Action can be 'create', 'read', 'update', or 'delete'
-	Action string `json:"action"`
+	// Action can be `create`, `read`, `update`, or `delete`
+	Action string `json:"action" enums:"create,read,update,delete"`
 }
 
 type AuthorizationObject struct {
 	// ResourceType is the name of the resource.
-	// './coderd/rbac/object.go' has the list of valid resource types.
+	// `./coderd/rbac/object.go` has the list of valid resource types.
 	ResourceType string `json:"resource_type"`
 	// OwnerID (optional) is a user_id. It adds the set constraint to all resources owned
 	// by a given user.
