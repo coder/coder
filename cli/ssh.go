@@ -1,12 +1,15 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -21,6 +24,7 @@ import (
 	"golang.org/x/term"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/autobuild/notify"
@@ -39,6 +43,7 @@ func ssh() *cobra.Command {
 		stdio          bool
 		shuffle        bool
 		forwardAgent   bool
+		forwardGPG     bool
 		identityAgent  string
 		wsPollInterval time.Duration
 	)
@@ -138,12 +143,24 @@ func ssh() *cobra.Command {
 			if forwardAgent && identityAgent != "" {
 				err = gosshagent.ForwardToRemote(sshClient, identityAgent)
 				if err != nil {
-					return xerrors.Errorf("forward agent failed: %w", err)
+					return xerrors.Errorf("forward agent: %w", err)
 				}
 				err = gosshagent.RequestAgentForwarding(sshSession)
 				if err != nil {
 					return xerrors.Errorf("request agent forwarding failed: %w", err)
 				}
+			}
+
+			if forwardGPG {
+				err = uploadGPGKeys(ctx, sshClient)
+				if err != nil {
+					return xerrors.Errorf("upload GPG public keys and ownertrust to workspace: %w", err)
+				}
+				closer, err := forwardGPGAgent(ctx, cmd.ErrOrStderr(), sshClient)
+				if err != nil {
+					return xerrors.Errorf("forward GPG socket: %w", err)
+				}
+				defer closer.Close()
 			}
 
 			stdoutFile, validOut := cmd.OutOrStdout().(*os.File)
@@ -363,4 +380,142 @@ func verifyWorkspaceOutdated(client *codersdk.Client, workspace codersdk.Workspa
 // Build the user workspace link which navigates to the Coder web UI.
 func buildWorkspaceLink(serverURL *url.URL, workspace codersdk.Workspace) *url.URL {
 	return serverURL.ResolveReference(&url.URL{Path: fmt.Sprintf("@%s/%s", workspace.OwnerName, workspace.Name)})
+}
+
+// runLocal runs a command on the local machine.
+func runLocal(ctx context.Context, stdin io.Reader, name string, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Stdin = stdin
+
+	out, err := cmd.Output()
+	if err != nil {
+		var stderr []byte
+		if exitErr := new(exec.ExitError); errors.As(err, &exitErr) {
+			stderr = exitErr.Stderr
+		}
+
+		return out, xerrors.Errorf(
+			"`%s %s` failed: stderr: %s\n\nstdout: %s\n\n%w",
+			name,
+			strings.Join(args, " "),
+			bytes.TrimSpace(stderr),
+			bytes.TrimSpace(out),
+			err,
+		)
+	}
+
+	return out, nil
+}
+
+// runRemoteSSH runs a command on a remote machine/workspace via SSH.
+func runRemoteSSH(sshClient *gossh.Client, stdin io.Reader, cmd string) ([]byte, error) {
+	sess, err := sshClient.NewSession()
+	if err != nil {
+		return nil, xerrors.Errorf("create SSH session")
+	}
+	defer sess.Close()
+
+	stderr := bytes.NewBuffer(nil)
+	sess.Stdin = stdin
+	sess.Stderr = stderr
+
+	out, err := sess.Output(cmd)
+	if err != nil {
+		return out, xerrors.Errorf(
+			"`%s` failed: stderr: %s\n\nstdout: %s:\n\n%w",
+			cmd,
+			bytes.TrimSpace(stderr.Bytes()),
+			bytes.TrimSpace(out),
+			err,
+		)
+	}
+
+	return out, nil
+}
+
+func uploadGPGKeys(ctx context.Context, sshClient *gossh.Client) error {
+	// Read the user's public keys and ownertrust from GPG.
+	pubKeyExport, err := runLocal(ctx, nil, "gpg", "--armor", "--export")
+	if err != nil {
+		return xerrors.Errorf("export local public keys from GPG: %w", err)
+	}
+	ownerTrustExport, err := runLocal(ctx, nil, "gpg", "--export-ownertrust")
+	if err != nil {
+		return xerrors.Errorf("export local ownertrust from GPG: %w", err)
+	}
+
+	// Import the public keys and ownertrust into the workspace.
+	_, err = runRemoteSSH(sshClient, bytes.NewReader(pubKeyExport), "gpg --import")
+	if err != nil {
+		return xerrors.Errorf("import public keys into workspace: %w", err)
+	}
+	_, err = runRemoteSSH(sshClient, bytes.NewReader(ownerTrustExport), "gpg --import-ownertrust")
+	if err != nil {
+		return xerrors.Errorf("import ownertrust into workspace: %w", err)
+	}
+
+	return nil
+}
+
+func localGPGExtraSocket(ctx context.Context) (string, error) {
+	localSocket, err := runLocal(ctx, nil, "gpgconf", "--list-dir", "agent-extra-socket")
+	if err != nil {
+		return "", xerrors.Errorf("get local GPG agent socket: %w", err)
+	}
+
+	return string(bytes.TrimSpace(localSocket)), nil
+}
+
+func remoteGPGAgentSocket(sshClient *gossh.Client) (string, error) {
+	remoteSocket, err := runRemoteSSH(sshClient, nil, "gpgconf --list-dir agent-socket")
+	if err != nil {
+		return "", xerrors.Errorf("get remote GPG agent socket: %w", err)
+	}
+
+	return string(bytes.TrimSpace(remoteSocket)), nil
+}
+
+// cookieAddr is a special net.Addr accepted by sshForward() which includes a
+// cookie which is written to the connection before forwarding.
+type cookieAddr struct {
+	net.Addr
+	cookie []byte
+}
+
+// sshForward starts forwarding connections from a remote listener to a local
+// address via SSH in a goroutine.
+//
+// Accepts a `cookieAddr` as the local address.
+func sshForward(ctx context.Context, stderr io.Writer, sshClient *gossh.Client, localAddr, remoteAddr net.Addr) (io.Closer, error) {
+	listener, err := sshClient.Listen(remoteAddr.Network(), remoteAddr.String())
+	if err != nil {
+		return nil, xerrors.Errorf("listen on local address %s: %w", localAddr, err)
+	}
+
+	go func() {
+		for {
+			remoteConn, err := listener.Accept()
+			if err != nil {
+				if ctx.Err() == nil {
+					fmt.Fprintf(stderr, "Accept SSH listener connection: %+v\n", err)
+				}
+				return
+			}
+
+			localConn, err := net.Dial(localAddr.Network(), localAddr.String())
+			if err != nil {
+				fmt.Fprintf(stderr, "Dial local address %s: %+v\n", localAddr, err)
+				_ = remoteConn.Close()
+				continue
+			}
+
+			if c, ok := localAddr.(cookieAddr); ok {
+				_, _ = localConn.Write(c.cookie)
+			}
+
+			go agent.Bicopy(ctx, localConn, remoteConn)
+		}
+	}()
+
+	return listener, nil
 }
