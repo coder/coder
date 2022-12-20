@@ -149,7 +149,7 @@ export const workspaceSchedule =
             id: "submitSchedule",
             onDone: [
               {
-                cond: "autoStartChanged",
+                cond: "autoStopChanged",
                 target: "showingRestartDialog",
               },
               { target: "done" },
@@ -180,7 +180,7 @@ export const workspaceSchedule =
     },
     {
       guards: {
-        autoStartChanged: (context) => Boolean(context.autoStopChanged),
+        autoStopChanged: (context) => Boolean(context.autoStopChanged),
       },
       actions: {
         assignSubmissionError: assign({
