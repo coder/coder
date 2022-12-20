@@ -22,7 +22,6 @@ import { AuthAndFrame } from "./components/AuthAndFrame/AuthAndFrame"
 import { RequireAuth } from "./components/RequireAuth/RequireAuth"
 import { SettingsLayout } from "./components/SettingsLayout/SettingsLayout"
 import { DeploySettingsLayout } from "components/DeploySettingsLayout/DeploySettingsLayout"
-import StarterTemplatePage from "pages/StarterTemplatePage/StarterTemplatePage"
 
 // Lazy load pages
 // - Pages that are secondary, not in the main navigation or not usually accessed
@@ -95,6 +94,9 @@ const TemplateVersionPage = lazy(
 )
 const StarterTemplatesPage = lazy(
   () => import("./pages/StarterTemplatesPage/StarterTemplatesPage"),
+)
+const StarterTemplatePage = lazy(
+  () => import("pages/StarterTemplatePage/StarterTemplatePage"),
 )
 const CreateTemplatePage = lazy(
   () => import("./pages/CreateTemplatePage/CreateTemplatePage"),
