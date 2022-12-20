@@ -175,7 +175,9 @@ export const workspaceSchedule =
             GET_WORKSPACE: "gettingWorkspace",
           },
         },
-        done: {},
+        done: {
+          type: "final"
+        },
       },
     },
     {
