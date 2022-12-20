@@ -105,6 +105,7 @@ export const WorkspaceScheduleButton: React.FC<
               <span className={styles.actions}>
                 <IconButton
                   className={styles.subtractButton}
+                  aria-label="Subtract hours from deadline"
                   size="small"
                   disabled={!deadlineMinusEnabled}
                   onClick={() => {
@@ -119,6 +120,7 @@ export const WorkspaceScheduleButton: React.FC<
                 </IconButton>
                 <IconButton
                   className={styles.addButton}
+                  aria-label="Add hours to deadline"
                   size="small"
                   disabled={!deadlinePlusEnabled}
                   onClick={() => {
