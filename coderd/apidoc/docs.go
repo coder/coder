@@ -790,6 +790,7 @@ const docTemplate = `{
             }
         },
         "codersdk.CreateParameterRequest": {
+            "description": "CreateParameterRequest is a structure used to create a new parameter value for a scope.",
             "type": "object",
             "required": [
                 "destination_scheme",

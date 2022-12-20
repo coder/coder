@@ -117,6 +117,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 }
 ```
 
+CreateParameterRequest is a structure used to create a new parameter value for a scope.
+
 ### Properties
 
 | Name                  | Type   | Required | Restrictions | Description                                                                                                                                                                                                                                                    |
@@ -168,7 +170,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `display_name`                     | string                                                                      | false    | none         | Display name is the displayed name of the template.                                                                                                                                                                                                                                                            |
 | `icon`                             | string                                                                      | false    | none         | Icon is a relative path or external URL that specifies<br>an icon to be displayed in the dashboard.                                                                                                                                                                                                            |
 | `name`                             | string                                                                      | true     | none         | Name is the name of the template.                                                                                                                                                                                                                                                                              |
-| `parameter_values`                 | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest) | false    | none         | none                                                                                                                                                                                                                                                                                                           |
+| `parameter_values`                 | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest) | false    | none         | Parameter values is a structure used to create a new parameter value for a scope.]                                                                                                                                                                                                                             |
 | `template_version_id`              | string                                                                      | true     | none         | Template version id is an in-progress or completed job to use as an initial version<br>of the template.<br><br>This is required on creation to enable a user-flow of validating a<br>template works. There is no reason the data-model cannot support empty<br>templates, but it doesn't make sense for users. |
 
 ## codersdk.DERPRegion
