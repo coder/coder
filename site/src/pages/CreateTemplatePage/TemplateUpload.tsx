@@ -8,6 +8,9 @@ import { combineClasses } from "util/combineClasses"
 import IconButton from "@material-ui/core/IconButton"
 import RemoveIcon from "@material-ui/icons/DeleteOutline"
 import FileIcon from "@material-ui/icons/FolderOutlined"
+import { useTranslation } from "react-i18next"
+import Link from "@material-ui/core/Link"
+import { Link as RouterLink } from "react-router-dom"
 
 const useTarDrop = (
   callback: (file: File) => void,
@@ -56,6 +59,7 @@ export const TemplateUpload: FC<TemplateUploadProps> = ({
       inputRef.current.click()
     }
   })
+  const { t } = useTranslation("createTemplatePage")
 
   if (!isUploading && file) {
     return (
@@ -70,7 +74,11 @@ export const TemplateUpload: FC<TemplateUploadProps> = ({
           <span>{file.name}</span>
         </Stack>
 
-        <IconButton title="Remove file" size="small" onClick={onRemove}>
+        <IconButton
+          title={t("form.upload.removeFile")}
+          size="small"
+          onClick={onRemove}
+        >
           <RemoveIcon />
         </IconButton>
       </Stack>
@@ -95,9 +103,20 @@ export const TemplateUpload: FC<TemplateUploadProps> = ({
           )}
 
           <Stack alignItems="center" spacing={0.5}>
-            <span className={styles.title}>Upload template</span>
+            <span className={styles.title}>{t("form.upload.title")}</span>
             <span className={styles.description}>
-              The template needs to be in a .tar file
+              The template has to be a .tar file. You can also use our{" "}
+              <Link
+                component={RouterLink}
+                to="/starter-templates"
+                // Prevent trigger the upload
+                onClick={(e) => {
+                  e.stopPropagation()
+                }}
+              >
+                starter templates
+              </Link>{" "}
+              to getting started with Coder.
             </span>
           </Stack>
         </Stack>
@@ -149,6 +168,8 @@ const useStyles = makeStyles((theme) => ({
 
   description: {
     color: theme.palette.text.secondary,
+    textAlign: "center",
+    maxWidth: theme.spacing(50),
   },
 
   input: {

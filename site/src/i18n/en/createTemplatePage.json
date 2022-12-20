@@ -32,6 +32,10 @@
     "helperText": {
       "autoStop": "Time in hours",
       "allowUsersToCancel": "Not recommended"
+    },
+    "upload": {
+      "removeTitle": "Remove file",
+      "title": "Upload template"
     }
   }
 }
