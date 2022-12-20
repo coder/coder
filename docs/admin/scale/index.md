@@ -1,13 +1,13 @@
-We regularly scale-test Coder against various reference architectures. Additionally, we provide a [scale testing utility](#scaletest-utility) which can be used in your own environment to give insight on how Coder scales with your deployment's specific templates, images, etc.
+We regularly scale-test Coder with our [scale testing utility](#scaletest-utility). The same utility can be used in your own environment for insights on how Coder scales with your deployment's specific templates, images, etc.
 
-## Reference Architectures
+## Recent scale tests
 
-| Environment                                       | Users         | Last tested  | Status   |
-| ------------------------------------------------- | ------------- | ------------ | -------- |
-| [Google Kubernetes Engine (GKE)](./gke.md)        | 50, 100, 1000 | Nov 29, 2022 | Complete |
-| [AWS Elastic Kubernetes Service (EKS)](./eks.md)  | 50, 100, 1000 | Nov 29, 2022 | Complete |
-| [Google Compute Engine + Docker](./gce-docker.md) | 15, 50        | Nov 29, 2022 | Complete |
-| [Google Compute Engine + VMs](./gce-vms.md)       | 1000          | Nov 29, 2022 | Complete |
+> This section is incomplete. Stay tuned for reference architectures for up to 3,000 users.
+
+| Environment        | Users | Concurrent builds | Concurrent connections (SSH) | Concurrent connections (web) | Last tested  |
+| ------------------ | ----- | ----------------- | ---------------------------- | ---------------------------- | ------------ |
+| Kubernetes (GKE)   | 1000  | 500               | 10,000                       | 10,000                       | Dec 20, 2022 |
+| Docker (Single VM) | 1000  | 500               | 10,000                       | 10,000                       | Dec 20, 2022 |
 
 ## Scale testing utility
 

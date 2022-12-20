@@ -1,9 +1,5 @@
 {
-  "versions": [
-    "main",
-    "v0.8.1",
-    "v0.7.12"
-  ],
+  "versions": ["main", "v0.8.1", "v0.7.12"],
   "routes": [
     {
       "title": "About",
@@ -257,14 +253,7 @@
           "title": "Scaling Coder",
           "description": "Reference architecture and load testing tools",
           "icon_path": "./images/icons/scale.svg",
-          "path": "./admin/scale/index.md",
-          "children": [
-            {
-              "title": "GKE",
-              "description": "Learn how to scale Coder on GKE",
-              "path": "./admin/scale/gke.md"
-            }
-          ]
+          "path": "./admin/scale/index.md"
         },
         {
           "title": "Audit Logs",
