@@ -13,19 +13,15 @@ import useTheme from "@material-ui/styles/useTheme"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Maybe } from "components/Conditionals/Maybe"
-import { TableEmpty } from "components/TableEmpty/TableEmpty"
 import { useEntitlements } from "hooks/useEntitlements"
 import { FC } from "react"
-import { useTranslation } from "react-i18next"
 import { useNavigate, Link as RouterLink } from "react-router-dom"
 import { createDayString } from "util/createDayString"
 import {
   formatTemplateBuildTime,
   formatTemplateActiveDevelopers,
 } from "util/templates"
-import * as TypesGen from "../../api/typesGenerated"
 import { AvatarData } from "../../components/AvatarData/AvatarData"
-import { CodeExample } from "../../components/CodeExample/CodeExample"
 import { Margins } from "../../components/Margins/Margins"
 import {
   PageHeader,
@@ -43,6 +39,9 @@ import {
   HelpTooltipTitle,
 } from "../../components/Tooltips/HelpTooltip/HelpTooltip"
 import { usePermissions } from "hooks/usePermissions"
+import { EmptyTemplates } from "./EmptyTemplates"
+import { TemplatesContext } from "xServices/templates/templatesXService"
+import { Permissions } from "xServices/auth/authXService"
 
 export const Language = {
   developerCount: (activeCount: number): string => {
@@ -54,21 +53,6 @@ export const Language = {
   buildTimeLabel: "Build time",
   usedByLabel: "Used by",
   lastUpdatedLabel: "Last updated",
-  emptyViewNoPerms:
-    "Contact your Coder administrator to create a template. You can share the code below.",
-  emptyMessage: "Create your first template",
-  emptyDescription: (
-    <>
-      To create a workspace you need to have a template. You can{" "}
-      <Link
-        target="_blank"
-        href="https://coder.com/docs/coder-oss/latest/templates"
-      >
-        create one from scratch
-      </Link>{" "}
-      or use a built-in template using the following Coder CLI command:
-    </>
-  ),
   templateTooltipTitle: "What is template?",
   templateTooltipText:
     "With templates you can create a common configuration for your workspaces using Terraform.",
@@ -91,25 +75,19 @@ const TemplateHelpTooltip: React.FC = () => {
 }
 
 export interface TemplatesPageViewProps {
-  loading?: boolean
-  canCreateTemplate?: boolean
-  templates?: TypesGen.Template[]
-  getOrganizationsError?: Error | unknown
-  getTemplatesError?: Error | unknown
+  context: TemplatesContext
+  permissions: Permissions
 }
 
 export const TemplatesPageView: FC<
   React.PropsWithChildren<TemplatesPageViewProps>
-> = (props) => {
+> = ({ context }) => {
   const styles = useStyles()
   const navigate = useNavigate()
-  const { t } = useTranslation("templatesPage")
   const theme: Theme = useTheme()
-  const empty =
-    !props.loading &&
-    !props.getOrganizationsError &&
-    !props.getTemplatesError &&
-    !props.templates?.length
+  const { templates, error, examples } = context
+  const isLoading = !templates
+  const isEmpty = Boolean(templates && templates.length === 0)
   const entitlements = useEntitlements()
   const permissions = usePermissions()
 
@@ -135,12 +113,10 @@ export const TemplatesPageView: FC<
             <TemplateHelpTooltip />
           </Stack>
         </PageHeaderTitle>
-        <Maybe
-          condition={Boolean(props.templates && props.templates.length > 0)}
-        >
+        <Maybe condition={Boolean(templates && templates.length > 0)}>
           <PageHeaderSubtitle>
             Choose a template to create a new workspace
-            {props.canCreateTemplate ? (
+            {permissions.createTemplates ? (
               <>
                 , or{" "}
                 <Link
@@ -159,20 +135,10 @@ export const TemplatesPageView: FC<
       </PageHeader>
 
       <ChooseOne>
-        <Cond condition={Boolean(props.getOrganizationsError)}>
-          <AlertBanner
-            severity="error"
-            error={props.getOrganizationsError}
-            text={t("errors.getOrganizationsError")}
-          />
+        <Cond condition={Boolean(error)}>
+          <AlertBanner severity="error" error={error} />
         </Cond>
-        <Cond condition={Boolean(props.getTemplatesError)}>
-          <AlertBanner
-            severity="error"
-            error={props.getTemplatesError}
-            text={t("errors.getTemplatesError")}
-          />
-        </Cond>
+
         <Cond>
           <TableContainer>
             <Table>
@@ -187,30 +153,20 @@ export const TemplatesPageView: FC<
                 </TableRow>
               </TableHead>
               <TableBody>
-                <Maybe condition={Boolean(props.loading)}>
+                <Maybe condition={isLoading}>
                   <TableLoader />
                 </Maybe>
 
                 <ChooseOne>
-                  <Cond condition={empty}>
-                    <TableEmpty
-                      className={styles.empty}
-                      message={Language.emptyMessage}
-                      description={
-                        props.canCreateTemplate
-                          ? Language.emptyDescription
-                          : Language.emptyViewNoPerms
-                      }
-                      cta={<CodeExample code="coder templates init" />}
-                      image={
-                        <div className={styles.emptyImage}>
-                          <img src="/featured/templates.webp" alt="" />
-                        </div>
-                      }
+                  <Cond condition={isEmpty}>
+                    <EmptyTemplates
+                      permissions={permissions}
+                      examples={examples ?? []}
                     />
                   </Cond>
+
                   <Cond>
-                    {props.templates?.map((template) => {
+                    {templates?.map((template) => {
                       const templatePageLink = `/templates/${template.name}`
                       const hasIcon = template.icon && template.icon !== ""
 
@@ -336,20 +292,6 @@ const useStyles = makeStyles((theme) => ({
 
     "& img": {
       width: "100%",
-    },
-  },
-  empty: {
-    paddingBottom: 0,
-  },
-
-  emptyImage: {
-    maxWidth: "50%",
-    height: theme.spacing(40),
-    overflow: "hidden",
-    opacity: 0.85,
-
-    "& img": {
-      maxWidth: "100%",
     },
   },
 }))
