@@ -731,6 +731,7 @@ const docTemplate = `{
     },
     "definitions": {
         "codersdk.AuthorizationCheck": {
+            "description": "AuthorizationCheck is used to check if the currently authenticated user (or the specified user) can do a given action to a given set of objects.",
             "type": "object",
             "properties": {
                 "action": {
@@ -749,10 +750,11 @@ const docTemplate = `{
             }
         },
         "codersdk.AuthorizationObject": {
+            "description": "AuthorizationObject can represent a \"set\" of objects, such as: all workspaces in an organization, all workspaces owned by me, all workspaces across the entire product.",
             "type": "object",
             "properties": {
                 "organization_id": {
-                    "description": "Organization ID (optional) adds the set constraint to all resources owned by a given organization.",
+                    "description": "OrganizationID (optional) adds the set constraint to all resources owned by a given organization.",
                     "type": "string"
                 },
                 "owner_id": {

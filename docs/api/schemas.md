@@ -16,12 +16,14 @@
 }
 ```
 
+AuthorizationCheck is used to check if the currently authenticated user (or the specified user) can do a given action to a given set of objects.
+
 ### Properties
 
-| Name     | Type                                                         | Required | Restrictions | Description |
-| -------- | ------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `action` | string                                                       | false    | none         | none        |
-| `object` | [codersdk.AuthorizationObject](#codersdkauthorizationobject) | false    | none         | none        |
+| Name     | Type                                                         | Required | Restrictions | Description                                                                                                                                                |
+| -------- | ------------------------------------------------------------ | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `action` | string                                                       | false    | none         | none                                                                                                                                                       |
+| `object` | [codersdk.AuthorizationObject](#codersdkauthorizationobject) | false    | none         | Object can represent a "set" of objects, such as: all workspaces in an organization, all workspaces owned by me, all workspaces across the entire product. |
 
 #### Enumerated Values
 
@@ -43,11 +45,13 @@
 }
 ```
 
+AuthorizationObject can represent a "set" of objects, such as: all workspaces in an organization, all workspaces owned by me, all workspaces across the entire product.
+
 ### Properties
 
 | Name              | Type   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                        |
 | ----------------- | ------ | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `organization_id` | string | false    | none         | Organization ID (optional) adds the set constraint to all resources owned by a given organization.                                                                                                                                                                                                                                                                                 |
+| `organization_id` | string | false    | none         | Organization id (optional) adds the set constraint to all resources owned by a given organization.                                                                                                                                                                                                                                                                                 |
 | `owner_id`        | string | false    | none         | Owner id (optional) adds the set constraint to all resources owned by a given user.                                                                                                                                                                                                                                                                                                |
 | `resource_id`     | string | false    | none         | Resource id (optional) reduces the set to a singular resource. This assigns<br>a resource ID to the resource type, eg: a single workspace.<br>The rbac library will not fetch the resource from the database, so if you<br>are using this option, you should also set the `OwnerID` and `OrganizationID`<br>if possible. Be as specific as possible using all the fields relevant. |
 | `resource_type`   | string | false    | none         | Resource type is the name of the resource.<br>`./coderd/rbac/object.go` has the list of valid resource types.                                                                                                                                                                                                                                                                      |
@@ -84,7 +88,7 @@
 | Name               | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                                                                                                                  |
 | ------------------ | ---------------------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `checks`           | object                                                     | false    | none         | Checks is a map keyed with an arbitrary string to a permission check.<br>The key can be any string that is helpful to the caller, and allows<br>multiple permission checks to be run in a single request.<br>The key ensures that each permission check has the same key in the<br>response. |
-| » `[any property]` | [codersdk.AuthorizationCheck](#codersdkauthorizationcheck) | false    | none         | none                                                                                                                                                                                                                                                                                         |
+| » `[any property]` | [codersdk.AuthorizationCheck](#codersdkauthorizationcheck) | false    | none         | » **additionalproperties** is used to check if the currently authenticated user (or the specified user) can do a given action to a given set of objects.                                                                                                                                     |
 
 ## codersdk.AuthorizationResponse
 
