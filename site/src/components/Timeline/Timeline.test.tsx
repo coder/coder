@@ -2,7 +2,13 @@ import { createDisplayDate } from "./TimelineDateRow"
 
 describe("createDisplayDate", () => {
   it("returns correctly for Saturdays", () => {
-    const date = new Date("Sat Dec 03 2022 00:00:00 GMT-0500")
-    expect(createDisplayDate(date)).toEqual("last Saturday")
+    const now = new Date(2020, 1, 7)
+    const date = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      // Previous Saturday, from now.
+      now.getDate() - now.getDay() - 1,
+    )
+    expect(createDisplayDate(date, now)).toEqual("last Saturday")
   })
 })

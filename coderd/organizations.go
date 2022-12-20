@@ -76,7 +76,11 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
 			Roles: []string{
-				rbac.RoleOrgAdmin(organization.ID),
+				// TODO: When organizations are allowed to be created, we should
+				// come back to determining the default role of the person who
+				// creates the org. Until that happens, all users in an organization
+				// should be just regular members.
+				rbac.RoleOrgMember(organization.ID),
 			},
 		})
 		if err != nil {

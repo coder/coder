@@ -38,6 +38,7 @@ type agentAppAttributes struct {
 	Name        string                     `mapstructure:"name"`
 	Icon        string                     `mapstructure:"icon"`
 	URL         string                     `mapstructure:"url"`
+	External    bool                       `mapstructure:"external"`
 	Command     string                     `mapstructure:"command"`
 	Share       string                     `mapstructure:"share"`
 	Subdomain   bool                       `mapstructure:"subdomain"`
@@ -218,8 +219,15 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 				if agent.Id != agentID {
 					continue
 				}
-				agent.Auth = &proto.Agent_InstanceId{
-					InstanceId: instanceID,
+				// Only apply the instance ID if the agent authentication
+				// type is set to do so. A user ran into a bug where they
+				// had the instance ID block, but auth was set to "token". See:
+				// https://github.com/coder/coder/issues/4551#issuecomment-1336293468
+				switch t := agent.Auth.(type) {
+				case *proto.Agent_Token:
+					continue
+				case *proto.Agent_InstanceId:
+					t.InstanceId = instanceID
 				}
 				break
 			}
@@ -290,6 +298,7 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 					Slug:         attrs.Slug,
 					DisplayName:  attrs.DisplayName,
 					Command:      attrs.Command,
+					External:     attrs.External,
 					Url:          attrs.URL,
 					Icon:         attrs.Icon,
 					Subdomain:    attrs.Subdomain,

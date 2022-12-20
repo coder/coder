@@ -3214,6 +3214,13 @@
   dependencies:
     "@types/react" "*"
 
+"@types/react-syntax-highlighter@15.5.5":
+  version "15.5.5"
+  resolved "https://registry.yarnpkg.com/@types/react-syntax-highlighter/-/react-syntax-highlighter-15.5.5.tgz#4d3b51f8956195f1f63360ff03f8822c5d74c516"
+  integrity sha512-QH3JZQXa2usAvJvSsdSUJ4Yu4j8ReuZpgRrEW+XP+Rmosbn425YshW9iGEb/pAARm8496axHhHUPRH3UmTiB6A==
+  dependencies:
+    "@types/react" "*"
+
 "@types/react-transition-group@^4.2.0":
   version "4.4.5"
   resolved "https://registry.yarnpkg.com/@types/react-transition-group/-/react-transition-group-4.4.5.tgz#aae20dcf773c5aa275d5b9f7cdbca638abc5e416"
@@ -6549,11 +6556,6 @@ eslint-plugin-jsx-a11y@6.6.1:
     language-tags "^1.0.5"
     minimatch "^3.1.2"
     semver "^6.3.0"
-
-eslint-plugin-no-storage@1.0.2:
-  version "1.0.2"
-  resolved "https://registry.yarnpkg.com/eslint-plugin-no-storage/-/eslint-plugin-no-storage-1.0.2.tgz#b32b2f00c4084f8e70c6c4ea79704ffe28b6caad"
-  integrity sha512-INY2pA4ynTsPIb7wP6+j1QEzDx+zVZ1rZsQkC3up+TQLXsVGg3AnYSqDv/LlwR1QPfh4fDEgQ2Hg5Zxk2XxxEw==
 
 eslint-plugin-react-hooks@4.6.0:
   version "4.6.0"
@@ -11752,7 +11754,7 @@ react-router@6.4.1:
   dependencies:
     "@remix-run/router" "1.0.1"
 
-react-syntax-highlighter@^15.4.5:
+react-syntax-highlighter@15.5.0, react-syntax-highlighter@^15.4.5:
   version "15.5.0"
   resolved "https://registry.yarnpkg.com/react-syntax-highlighter/-/react-syntax-highlighter-15.5.0.tgz#4b3eccc2325fa2ec8eff1e2d6c18fa4a9e07ab20"
   integrity sha512-+zq2myprEnQmH5yw6Gqc8lD55QHnpKaU8TOcFeC/Lg/MQSs8UknEA0JC4nTZGFAXC2J2Hyj/ijJ7NlabyPi2gg==

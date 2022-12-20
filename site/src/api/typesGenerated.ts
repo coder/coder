@@ -206,6 +206,8 @@ export interface CreateTestAuditLogRequest {
 
 // From codersdk/apikey.go
 export interface CreateTokenRequest {
+  // This is likely an enum in an external package ("time.Duration")
+  readonly lifetime: number
   readonly scope: APIKeyScope
 }
 
@@ -275,6 +277,7 @@ export interface DeploymentConfig {
   readonly access_url: DeploymentConfigField<string>
   readonly wildcard_access_url: DeploymentConfigField<string>
   readonly address: DeploymentConfigField<string>
+  readonly http_address: DeploymentConfigField<string>
   readonly autobuild_poll_interval: DeploymentConfigField<number>
   readonly derp: DERP
   readonly gitauth: DeploymentConfigField<GitAuthConfig[]>
@@ -303,6 +306,8 @@ export interface DeploymentConfig {
   readonly api_rate_limit: DeploymentConfigField<number>
   readonly experimental: DeploymentConfigField<boolean>
   readonly update_check: DeploymentConfigField<boolean>
+  readonly max_token_lifetime: DeploymentConfigField<number>
+  readonly swagger: SwaggerConfig
 }
 
 // From codersdk/deploymentconfig.go
@@ -613,8 +618,15 @@ export interface ServiceBanner {
 }
 
 // From codersdk/deploymentconfig.go
+export interface SwaggerConfig {
+  readonly enable: DeploymentConfigField<boolean>
+}
+
+// From codersdk/deploymentconfig.go
 export interface TLSConfig {
   readonly enable: DeploymentConfigField<boolean>
+  readonly address: DeploymentConfigField<string>
+  readonly redirect_http: DeploymentConfigField<boolean>
   readonly cert_file: DeploymentConfigField<string[]>
   readonly client_auth: DeploymentConfigField<string>
   readonly client_ca_file: DeploymentConfigField<string>
@@ -891,6 +903,8 @@ export interface WorkspaceAgentResourceMetadata {
 // From codersdk/workspaceapps.go
 export interface WorkspaceApp {
   readonly id: string
+  readonly url: string
+  readonly external: boolean
   readonly slug: string
   readonly display_name: string
   readonly command?: string

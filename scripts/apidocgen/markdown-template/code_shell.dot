@@ -1,0 +1,4 @@
+# Example request using curl
+curl -X {{=data.methodUpper}} http://coder-server:8080{{=data.url}}{{=data.requiredQueryString}}{{?data.allHeaders.length}} \{{?}}
+{{~data.allHeaders :p:index}}  -H '{{=p.name}}: {{=p.exampleValues.object}}'{{?index < data.allHeaders.length-1}} \{{?}}
+{{~}}
