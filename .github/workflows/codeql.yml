@@ -33,7 +33,6 @@ jobs:
       with:
         languages: ${{ matrix.language }}
 
-
     - name: Download Go Dependencies
       if: matrix.language == 'go'
       run: go mod download
