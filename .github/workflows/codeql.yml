@@ -33,15 +33,12 @@ jobs:
       with:
         languages: ${{ matrix.language }}
 
-    - name: Setup Go
-      if: matrix.language == 'go'
-      uses: actions/setup-go@v3
-      with:
-        go-version: "~1.19"
-
     - name: Download Go Dependencies
       if: matrix.language == 'go'
-      run: go mod download
+      run: |
+        go mod download
+        # Disable Analysis step from trying to build the project.
+        rm Makefile
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
