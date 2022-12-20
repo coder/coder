@@ -17,7 +17,7 @@ func TestAPIKeyEncryption(t *testing.T) {
 	t.Parallel()
 
 	generateAPIKey := func(t *testing.T, db database.Store) (keyID, keySecret string, hashedSecret []byte, data encryptedAPIKeyPayload) {
-		keyID, keySecret, err := generateAPIKeyIDSecret()
+		keyID, keySecret, err := GenerateAPIKeyIDSecret()
 		require.NoError(t, err)
 
 		hashedSecretArray := sha256.Sum256([]byte(keySecret))
