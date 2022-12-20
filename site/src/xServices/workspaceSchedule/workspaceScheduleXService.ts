@@ -176,7 +176,7 @@ export const workspaceSchedule =
           },
         },
         done: {
-          type: "final"
+          type: "final",
         },
       },
     },
