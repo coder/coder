@@ -13,7 +13,6 @@ import useTheme from "@material-ui/styles/useTheme"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Maybe } from "components/Conditionals/Maybe"
-import { useEntitlements } from "hooks/useEntitlements"
 import { FC } from "react"
 import { useNavigate, Link as RouterLink } from "react-router-dom"
 import { createDayString } from "util/createDayString"
@@ -38,10 +37,9 @@ import {
   HelpTooltipText,
   HelpTooltipTitle,
 } from "../../components/Tooltips/HelpTooltip/HelpTooltip"
-import { usePermissions } from "hooks/usePermissions"
 import { EmptyTemplates } from "./EmptyTemplates"
 import { TemplatesContext } from "xServices/templates/templatesXService"
-import { Permissions } from "xServices/auth/authXService"
+import { Entitlements } from "api/typesGenerated"
 
 export const Language = {
   developerCount: (activeCount: number): string => {
@@ -76,20 +74,18 @@ const TemplateHelpTooltip: React.FC = () => {
 
 export interface TemplatesPageViewProps {
   context: TemplatesContext
-  permissions: Permissions
+  entitlements: Entitlements
 }
 
 export const TemplatesPageView: FC<
   React.PropsWithChildren<TemplatesPageViewProps>
-> = ({ context }) => {
+> = ({ context, entitlements }) => {
   const styles = useStyles()
   const navigate = useNavigate()
   const theme: Theme = useTheme()
-  const { templates, error, examples } = context
+  const { templates, error, examples, permissions } = context
   const isLoading = !templates
   const isEmpty = Boolean(templates && templates.length === 0)
-  const entitlements = useEntitlements()
-  const permissions = usePermissions()
 
   return (
     <Margins>
@@ -162,6 +158,7 @@ export const TemplatesPageView: FC<
                     <EmptyTemplates
                       permissions={permissions}
                       examples={examples ?? []}
+                      entitlements={entitlements}
                     />
                   </Cond>
 
