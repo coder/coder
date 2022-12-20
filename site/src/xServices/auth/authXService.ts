@@ -490,7 +490,7 @@ export const authMachine =
           if (appHost.host !== "") {
             const { protocol, host } = window.location
             const redirect_uri = encodeURIComponent(
-              `${protocol}://${host}/login`,
+              `${protocol}//${host}/login`,
             )
             // The path doesn't matter but we use /api because the dev server
             // proxies /api to the backend.
