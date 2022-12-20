@@ -25,6 +25,61 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/applications/auth-redirect": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Applications"
+                ],
+                "summary": "Redirect to URI with encrypted API key",
+                "operationId": "redirect-to-uri-with-encrypted-api-key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Redirect destination",
+                        "name": "redirect_uri",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "307": {
+                        "description": "Temporary Redirect"
+                    }
+                }
+            }
+        },
+        "/applications/host": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Applications"
+                ],
+                "summary": "Get applications host",
+                "operationId": "get-app-host",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GetAppHostResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/organizations/{organization-id}/templates/": {
             "post": {
                 "security": [
@@ -709,6 +764,15 @@ const docTemplate = `{
                 },
                 "preferred": {
                     "type": "boolean"
+                }
+            }
+        },
+        "codersdk.GetAppHostResponse": {
+            "type": "object",
+            "properties": {
+                "host": {
+                    "description": "Host is the externally accessible URL for the Coder instance.",
+                    "type": "string"
                 }
             }
         },

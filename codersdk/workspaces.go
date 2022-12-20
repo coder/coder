@@ -350,6 +350,7 @@ func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name
 }
 
 type GetAppHostResponse struct {
+	// Host is the externally accessible URL for the Coder instance.
 	Host string `json:"host"`
 }
 

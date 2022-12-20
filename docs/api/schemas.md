@@ -84,6 +84,20 @@
 | `latency_ms` | number  | false    | none         | none        |
 | `preferred`  | boolean | false    | none         | none        |
 
+## codersdk.GetAppHostResponse
+
+```json
+{
+  "host": "string"
+}
+```
+
+### Properties
+
+| Name   | Type   | Required | Restrictions | Description                                                   |
+| ------ | ------ | -------- | ------------ | ------------------------------------------------------------- |
+| `host` | string | false    | none         | Host is the externally accessible URL for the Coder instance. |
+
 ## codersdk.Healthcheck
 
 ```json

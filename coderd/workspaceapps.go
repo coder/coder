@@ -56,6 +56,13 @@ var nonCanonicalHeaders = map[string]string{
 	"Sec-Websocket-Version":    "Sec-WebSocket-Version",
 }
 
+// @Summary Get applications host
+// @ID get-app-host
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Applications
+// @Success 200 {object} codersdk.GetAppHostResponse
+// @Router /applications/host [get]
 func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
 	host := api.AppHostname
 	if host != "" && api.AccessURL.Port() != "" {
@@ -484,6 +491,15 @@ func (api *API) verifyWorkspaceApplicationSubdomainAuth(rw http.ResponseWriter, 
 	return false
 }
 
+// @Summary Redirect to URI with encrypted API key
+// @ID redirect-to-uri-with-encrypted-api-key
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Applications
+// @Param redirect_uri query string false "Redirect destination"
+// @Success 307
+// @Router /applications/auth-redirect [get]
+//
 // workspaceApplicationAuth is an endpoint on the main router that handles
 // redirects from the subdomain handler.
 //
