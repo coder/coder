@@ -405,9 +405,9 @@ export const createTemplateMachine =
         assignJobLogs: assign({ jobLogs: (_, { data }) => data }),
       },
       guards: {
-        isExampleProvided: ({ exampleId }) => exampleId !== undefined,
-        isNotUsingExample: ({ exampleId }) => exampleId === undefined,
-        hasFile: ({ file }) => file !== undefined,
+        isExampleProvided: ({ exampleId }) => Boolean(exampleId),
+        isNotUsingExample: ({ exampleId }) => !exampleId,
+        hasFile: ({ file }) => Boolean(file),
         hasFailed: (_, { data }) => data.job.status === "failed",
         hasMissingParameters: (_, { data }) =>
           Boolean(
