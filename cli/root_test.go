@@ -3,10 +3,12 @@ package cli_test
 import (
 	"bytes"
 	"flag"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -30,26 +32,46 @@ var updateGoldenFiles = flag.Bool("update", false, "update .golden files")
 func TestCommandHelp(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	commonEnv := map[string]string{
+		"CODER_CONFIG_DIR": "/tmp/coder-cli-test-config",
+	}
+
+	type testCase struct {
 		name string
 		cmd  []string
 		env  map[string]string
-	}{
+	}
+	tests := []testCase{
 		{
 			name: "coder --help",
 			cmd:  []string{"--help"},
-			env: map[string]string{
-				"CODER_CONFIG_DIR": "/tmp/coder-cli-test-config",
-			},
 		},
 		{
 			name: "coder server --help",
 			cmd:  []string{"server", "--help"},
 			env: map[string]string{
-				"CODER_CONFIG_DIR":      "/tmp/coder-cli-test-config",
 				"CODER_CACHE_DIRECTORY": "/tmp/coder-cli-test-cache",
 			},
 		},
+	}
+
+	root := cli.Root(cli.AGPL())
+ExtractCommandPathsLoop:
+	for _, cp := range extractVisibleCommandPaths(nil, root.Commands()) {
+		name := fmt.Sprintf("coder %s --help", strings.Join(cp, " "))
+		cmd := append(cp, "--help")
+		for _, tt := range tests {
+			if tt.name == name {
+				continue ExtractCommandPathsLoop
+			}
+		}
+		tests = append(tests, testCase{name: name, cmd: cmd})
+	}
+
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	if runtime.GOOS == "windows" {
+		wd = strings.ReplaceAll(wd, "\\", "\\\\")
 	}
 
 	for _, tt := range tests {
@@ -63,6 +85,14 @@ func TestCommandHelp(t *testing.T) {
 				}
 			}
 			// Override environment variables for a reproducible test.
+			for k, v := range commonEnv {
+				if tt.env != nil {
+					if _, ok := tt.env[k]; ok {
+						continue
+					}
+				}
+				t.Setenv(k, v)
+			}
 			for k, v := range tt.env {
 				t.Setenv(k, v)
 			}
@@ -79,6 +109,10 @@ func TestCommandHelp(t *testing.T) {
 			// Remove CRLF newlines (Windows).
 			got = bytes.ReplaceAll(got, []byte{'\r', '\n'}, []byte{'\n'})
 
+			// The `coder templates create --help` command prints the path
+			// to the working directory (--directory flag default value).
+			got = bytes.ReplaceAll(got, []byte(wd), []byte("/tmp/coder-cli-test-workdir"))
+
 			gf := filepath.Join("testdata", strings.Replace(tt.name, " ", "_", -1)+".golden")
 			if *updateGoldenFiles {
 				t.Logf("update golden file for: %q: %s", tt.name, gf)
@@ -93,6 +127,19 @@ func TestCommandHelp(t *testing.T) {
 			require.Equal(t, string(want), string(got), "golden file mismatch: %s, run \"make update-golden-files\", verify and commit the changes", gf)
 		})
 	}
+}
+
+func extractVisibleCommandPaths(cmdPath []string, cmds []*cobra.Command) [][]string {
+	var cmdPaths [][]string
+	for _, c := range cmds {
+		if c.Hidden {
+			continue
+		}
+		cmdPath := append(cmdPath, c.Name())
+		cmdPaths = append(cmdPaths, cmdPath)
+		cmdPaths = append(cmdPaths, extractVisibleCommandPaths(cmdPath, c.Commands())...)
+	}
+	return cmdPaths
 }
 
 func TestRoot(t *testing.T) {
