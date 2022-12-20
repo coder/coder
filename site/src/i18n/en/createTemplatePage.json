@@ -36,6 +36,9 @@
     "upload": {
       "removeTitle": "Remove file",
       "title": "Upload template"
+    },
+    "tooltip": {
+      "allowUsersToCancel": "Depending on your template, canceling builds may leave workspaces in an unhealthy state. This option isn't recommended for most use cases."
     }
   }
 }

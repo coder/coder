@@ -22,6 +22,7 @@ import { nameValidator, getFormHelpers, onChangeTrimmed } from "util/formUtils"
 import { CreateTemplateData } from "xServices/createTemplate/createTemplateXService"
 import * as Yup from "yup"
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
+import { HelpTooltip, HelpTooltipText } from "components/Tooltips/HelpTooltip"
 
 const validationSchema = Yup.object({
   name: nameValidator("Name"),
@@ -216,9 +217,20 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
                 />
 
                 <Stack direction="column" spacing={0.5}>
-                  <span className={styles.optionText}>
+                  <Stack
+                    direction="row"
+                    alignItems="center"
+                    spacing={0.5}
+                    className={styles.optionText}
+                  >
                     {t("form.fields.allowUsersToCancel")}
-                  </span>
+
+                    <HelpTooltip>
+                      <HelpTooltipText>
+                        {t("form.tooltip.allowUsersToCancel")}
+                      </HelpTooltipText>
+                    </HelpTooltip>
+                  </Stack>
                   <span className={styles.optionHelperText}>
                     {t("form.helperText.allowUsersToCancel")}
                   </span>
