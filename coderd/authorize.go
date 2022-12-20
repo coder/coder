@@ -107,7 +107,7 @@ func (h *HTTPAuthorizer) AuthorizeSQLFilter(r *http.Request, action rbac.Action,
 // @Summary Check authorization
 // @ID check-authorization
 // @Security CoderSessionToken
-// @Consume json
+// @Accept json
 // @Produce json
 // @Tags Authorization
 // @Param request body codersdk.AuthorizationRequest true "Authorization request"

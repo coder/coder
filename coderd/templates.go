@@ -145,7 +145,7 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 // @Summary Create template by organization
 // @ID create-template-by-organization
 // @Security CoderSessionToken
-// @Consume json
+// @Accept json
 // @Produce json
 // @Tags Templates
 // @Param request body codersdk.CreateTemplateRequest true "Request body"

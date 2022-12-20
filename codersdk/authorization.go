@@ -24,9 +24,9 @@ type AuthorizationRequest struct {
 // the specified user) can do a given action to a given set of objects.
 type AuthorizationCheck struct {
 	// Object can represent a "set" of objects, such as:
-	//	- All workspaces in an organization
-	//	- All workspaces owned by me
-	//	- All workspaces across the entire product
+	// - All workspaces in an organization
+	// - All workspaces owned by me
+	// - All workspaces across the entire product
 	// When defining an object, use the most specific language when possible to
 	// produce the smallest set. Meaning to set as many fields on 'Object' as
 	// you can. Example, if you want to check if you can update all workspaces
@@ -37,6 +37,7 @@ type AuthorizationCheck struct {
 	Action string              `json:"action" enums:"create,read,update,delete"`
 }
 
+// AuthorizationObject can represent a "set" of objects, such as: all workspaces in an organization, all workspaces owned by me, all workspaces across the entire product.
 type AuthorizationObject struct {
 	// ResourceType is the name of the resource.
 	// `./coderd/rbac/object.go` has the list of valid resource types.
