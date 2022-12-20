@@ -921,7 +921,8 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 		},
 	}
 
-	root.AddCommand(&cobra.Command{
+	var pgRawURL bool
+	postgresBuiltinURLCmd := &cobra.Command{
 		Use:   "postgres-builtin-url",
 		Short: "Output the connection URL for the built-in PostgreSQL deployment.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -930,37 +931,49 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			if err != nil {
 				return err
 			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "psql %q\n", url)
+			if pgRawURL {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\n", url)
+			} else {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\n", cliui.Styles.Code.Render(fmt.Sprintf("psql %q", url)))
+			}
 			return nil
 		},
-	})
-
-	root.AddCommand(&cobra.Command{
+	}
+	postgresBuiltinServeCmd := &cobra.Command{
 		Use:   "postgres-builtin-serve",
 		Short: "Run the built-in PostgreSQL deployment.",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+
 			cfg := createConfig(cmd)
 			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
 			if ok, _ := cmd.Flags().GetBool(varVerbose); ok {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
-			url, closePg, err := startBuiltinPostgres(cmd.Context(), cfg, logger)
+			ctx, cancel := signal.NotifyContext(ctx, InterruptSignals...)
+			defer cancel()
+
+			url, closePg, err := startBuiltinPostgres(ctx, cfg, logger)
 			if err != nil {
 				return err
 			}
 			defer func() { _ = closePg() }()
 
-			cmd.Println(cliui.Styles.Code.Render("psql \"" + url + "\""))
+			if pgRawURL {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\n", url)
+			} else {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\n", cliui.Styles.Code.Render(fmt.Sprintf("psql %q", url)))
+			}
 
-			stopChan := make(chan os.Signal, 1)
-			defer signal.Stop(stopChan)
-			signal.Notify(stopChan, os.Interrupt)
-
-			<-stopChan
+			<-ctx.Done()
 			return nil
 		},
-	})
+	}
+	postgresBuiltinURLCmd.Flags().BoolVar(&pgRawURL, "raw-url", false, "Output the raw connection URL instead of a psql command.")
+	postgresBuiltinServeCmd.Flags().BoolVar(&pgRawURL, "raw-url", false, "Output the raw connection URL instead of a psql command.")
+
+	root.AddCommand(postgresBuiltinURLCmd, postgresBuiltinServeCmd)
 
 	deployment.AttachFlags(root.Flags(), vip, false)
 

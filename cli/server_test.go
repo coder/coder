@@ -118,6 +118,19 @@ func TestServer(t *testing.T) {
 
 		pty.ExpectMatch("psql")
 	})
+	t.Run("BuiltinPostgresURLRaw", func(t *testing.T) {
+		t.Parallel()
+		root, _ := clitest.New(t, "server", "postgres-builtin-url", "--raw-url")
+		pty := ptytest.New(t)
+		root.SetOutput(pty.Output())
+		err := root.Execute()
+		require.NoError(t, err)
+
+		got := pty.ReadLine()
+		if !strings.HasPrefix(got, "postgres://") {
+			t.Fatalf("expected postgres URL to start with \"postgres://\", got %q", got)
+		}
+	})
 
 	// Validate that a warning is printed that it may not be externally
 	// reachable.
