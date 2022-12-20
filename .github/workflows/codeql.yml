@@ -7,6 +7,7 @@ on:
     # The branches below must be a subset of the branches above
     branches: [ "main" ]
   schedule:
+    # run every week at 10:24 on Thursday
     - cron: '24 10 * * 4'
 
 jobs:
