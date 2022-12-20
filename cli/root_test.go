@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -69,6 +70,9 @@ ExtractCommandPathsLoop:
 
 	wd, err := os.Getwd()
 	require.NoError(t, err)
+	if runtime.GOOS == "windows" {
+		wd = strings.ReplaceAll(wd, "\\", "\\\\")
+	}
 
 	for _, tt := range tests {
 		tt := tt
