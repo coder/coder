@@ -77,23 +77,23 @@ ExtractCommandPathsLoop:
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			env := make(map[string]string)
+			for k, v := range commonEnv {
+				env[k] = v
+			}
+			for k, v := range tt.env {
+				env[k] = v
+			}
+
 			// Unset all CODER_ environment variables for a clean slate.
 			for _, kv := range os.Environ() {
 				name := strings.Split(kv, "=")[0]
-				if _, ok := tt.env[name]; !ok && strings.HasPrefix(name, "CODER_") {
+				if _, ok := env[name]; !ok && strings.HasPrefix(name, "CODER_") {
 					t.Setenv(name, "")
 				}
 			}
 			// Override environment variables for a reproducible test.
-			for k, v := range commonEnv {
-				if tt.env != nil {
-					if _, ok := tt.env[k]; ok {
-						continue
-					}
-				}
-				t.Setenv(k, v)
-			}
-			for k, v := range tt.env {
+			for k, v := range env {
 				t.Setenv(k, v)
 			}
 
