@@ -18,10 +18,10 @@
 
 ### Properties
 
-| Name     | Type                                                         | Required | Restrictions | Description                                           |
-| -------- | ------------------------------------------------------------ | -------- | ------------ | ----------------------------------------------------- |
-| `action` | string                                                       | false    | none         | Action can be `create`, `read`, `update`, or `delete` |
-| `object` | [codersdk.AuthorizationObject](#codersdkauthorizationobject) | false    | none         | none                                                  |
+| Name     | Type                                                         | Required | Restrictions | Description |
+| -------- | ------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `action` | string                                                       | false    | none         | none        |
+| `object` | [codersdk.AuthorizationObject](#codersdkauthorizationobject) | false    | none         | none        |
 
 #### Enumerated Values
 

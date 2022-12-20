@@ -23,18 +23,20 @@ type AuthorizationRequest struct {
 // AuthorizationCheck is used to check if the currently authenticated user (or
 // the specified user) can do a given action to a given set of objects.
 type AuthorizationCheck struct {
-	// Object can represent a "set" of objects, such as: all workspaces in an organization, all workspaces owned by me, all workspaces across the entire product.
+	// Object can represent a "set" of objects, such as:
+	//	- All workspaces in an organization
+	//	- All workspaces owned by me
+	//	- All workspaces across the entire product
+	// When defining an object, use the most specific language when possible to
+	// produce the smallest set. Meaning to set as many fields on 'Object' as
+	// you can. Example, if you want to check if you can update all workspaces
+	// owned by 'me', try to also add an 'OrganizationID' to the settings.
+	// Omitting the 'OrganizationID' could produce the incorrect value, as
+	// workspaces have both `user` and `organization` owners.
 	Object AuthorizationObject `json:"object"`
-	// Action can be `create`, `read`, `update`, or `delete`
-	Action string `json:"action" enums:"create,read,update,delete"`
+	Action string              `json:"action" enums:"create,read,update,delete"`
 }
 
-// AuthorizationObject: when defining, use the most specific language when possible to
-// produce the smallest set. Meaning to set as many fields on `Object` as
-// you can. Example, if you want to check if you can update all workspaces
-// owned by `me`, try to also add an `OrganizationID` to the settings.
-// Omitting the `OrganizationID` could produce the incorrect value, as
-// workspaces have both `user` and `organization` owners.
 type AuthorizationObject struct {
 	// ResourceType is the name of the resource.
 	// `./coderd/rbac/object.go` has the list of valid resource types.
