@@ -7,8 +7,6 @@ import { Workspace } from "api/typesGenerated"
 import dayjs from "dayjs"
 import minMax from "dayjs/plugin/minMax"
 import {
-  canExtendDeadline,
-  canReduceDeadline,
   getDeadline,
   getMaxDeadline,
   getMinDeadline,
@@ -58,51 +56,27 @@ export const workspaceScheduleBannerMachine = createMachine(
       events: {} as WorkspaceScheduleBannerEvent,
       context: {} as WorkspaceScheduleBannerContext,
     },
-    initial: "initialize",
+    initial: "idle",
     on: {
       REFRESH_WORKSPACE: { actions: "assignWorkspace" },
     },
     states: {
-      initialize: {
-        always: [
-          { cond: "isAtMaxDeadline", target: "atMaxDeadline" },
-          { cond: "isAtMinDeadline", target: "atMinDeadline" },
-          { target: "midRange" },
-        ],
-      },
-      midRange: {
+      idle: {
         on: {
           INCREASE_DEADLINE: "increasingDeadline",
           DECREASE_DEADLINE: "decreasingDeadline",
-        },
-      },
-      atMaxDeadline: {
-        on: {
-          DECREASE_DEADLINE: "decreasingDeadline",
-        },
-      },
-      atMinDeadline: {
-        on: {
-          INCREASE_DEADLINE: "increasingDeadline",
         },
       },
       increasingDeadline: {
         invoke: {
           src: "increaseDeadline",
           id: "increaseDeadline",
-          onDone: [
-            {
-              cond: "isAtMaxDeadline",
-              target: "atMaxDeadline",
-              actions: "displaySuccessMessage",
-            },
-            {
-              target: "midRange",
-              actions: "displaySuccessMessage",
-            },
-          ],
+          onDone: {
+            target: "idle",
+            actions: "displaySuccessMessage",
+          },
           onError: {
-            target: "midRange",
+            target: "idle",
             actions: "displayFailureMessage",
           },
         },
@@ -112,19 +86,12 @@ export const workspaceScheduleBannerMachine = createMachine(
         invoke: {
           src: "decreaseDeadline",
           id: "decreaseDeadline",
-          onDone: [
-            {
-              cond: "isAtMinDeadline",
-              target: "atMinDeadline",
-              actions: "displaySuccessMessage",
-            },
-            {
-              target: "midRange",
-              actions: "displaySuccessMessage",
-            },
-          ],
+          onDone: {
+            target: "idle",
+            actions: "displaySuccessMessage",
+          },
           onError: {
-            target: "midRange",
+            target: "idle",
             actions: "displayFailureMessage",
           },
         },
@@ -133,19 +100,6 @@ export const workspaceScheduleBannerMachine = createMachine(
     },
   },
   {
-    guards: {
-      isAtMaxDeadline: (context) => {
-        return context.workspace.latest_build.deadline
-          ? !canExtendDeadline(
-              getDeadline(context.workspace),
-              context.workspace,
-            )
-          : false
-      },
-      isAtMinDeadline: (context) => {
-        return context.workspace.latest_build.deadline ? !canReduceDeadline(getDeadline(context.workspace)) : false
-      }
-    },
     actions: {
       // This error does not have a detail, so using the snackbar is okay
       displayFailureMessage: (_, event) => {

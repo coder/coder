@@ -5,8 +5,6 @@ import { emptyTTL } from "pages/WorkspaceSchedulePage/ttl"
 import { Workspace } from "../api/typesGenerated"
 import * as Mocks from "../testHelpers/entities"
 import {
-  canExtendDeadline,
-  canReduceDeadline,
   deadlineExtensionMax,
   deadlineExtensionMin,
   extractTimezone,
@@ -61,50 +59,6 @@ describe("minDeadline", () => {
   it("should never be less than 30 minutes", () => {
     const delta = getMinDeadline().diff(now)
     expect(delta).toBeGreaterThanOrEqual(deadlineExtensionMin.asMilliseconds())
-  })
-})
-
-describe("canExtendDeadline", () => {
-  it("should be falsy if the deadline is more than 24 hours from the start time", () => {
-    expect(
-      canExtendDeadline(
-        startTime.add(25, "hours"),
-        Mocks.MockWorkspace,
-      ),
-    ).toBeFalsy()
-  })
-  it("should be falsy if the deadline is less than an hour below the max deadline", () => {
-    expect(
-      canExtendDeadline(
-        startTime.add(23.5, "hours"),
-        Mocks.MockWorkspace
-      )
-    ).toBeFalsy()
-  })
-  it("should be true if the deadline is one hour below the max deadline", () => {
-    expect(
-      canExtendDeadline(
-        startTime.add(23, "hours"),
-        Mocks.MockWorkspace
-      )
-    ).toBeTruthy()
-  })
-})
-
-describe("canReduceDeadline", () => {
-  // the minimum ttl is 30 minutes from the current time
-  // ttl can be reduced by one hour at a time
-  // so current deadline must be >=90 minutes from current time to be reducible
-  it("should be falsy if the deadline is 90 minutes or less in the future", () => {
-    expect(canReduceDeadline(dayjs())).toBeFalsy()
-    expect(canReduceDeadline(dayjs().add(1, "minutes"))).toBeFalsy()
-    expect(canReduceDeadline(dayjs().add(89, "minutes"))).toBeFalsy()
-    expect(canReduceDeadline(dayjs().add(90, "minutes"))).toBeTruthy()
-  })
-
-  it("should be truthy if the deadline is 90 minutes or more in the future", () => {
-    expect(canReduceDeadline(dayjs().add(91, "minutes"))).toBeTruthy()
-    expect(canReduceDeadline(dayjs().add(100, "years"))).toBeTruthy()
   })
 })
 
