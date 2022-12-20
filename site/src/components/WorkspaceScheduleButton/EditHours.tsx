@@ -19,6 +19,7 @@ export const EditHours = ({
   const styles = useStyles()
 
   return (
+    // hours is NaN when user deletes the value, so treat it as 0
     <form onSubmit={() => handleSubmit(Number.isNaN(hours) ? 0 : hours)}>
       <Stack direction="row" alignItems="baseline" spacing={1}>
         <TextField
