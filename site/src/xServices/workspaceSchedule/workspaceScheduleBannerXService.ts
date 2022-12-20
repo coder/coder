@@ -6,11 +6,7 @@ import { getErrorMessage } from "api/errors"
 import { Workspace } from "api/typesGenerated"
 import dayjs from "dayjs"
 import minMax from "dayjs/plugin/minMax"
-import {
-  getDeadline,
-  getMaxDeadline,
-  getMinDeadline,
-} from "util/schedule"
+import { getDeadline, getMaxDeadline, getMinDeadline } from "util/schedule"
 import { ActorRefFrom, assign, createMachine } from "xstate"
 import * as API from "../../api/api"
 import {
@@ -118,7 +114,10 @@ export const workspaceScheduleBannerMachine = createMachine(
         if (!context.workspace.latest_build.deadline) {
           throw Error("Deadline is undefined.")
         }
-        const proposedDeadline = getDeadline(context.workspace).add(event.hours, "hours")
+        const proposedDeadline = getDeadline(context.workspace).add(
+          event.hours,
+          "hours",
+        )
         const newDeadline = dayjs.min(
           proposedDeadline,
           getMaxDeadline(context.workspace),
@@ -129,7 +128,10 @@ export const workspaceScheduleBannerMachine = createMachine(
         if (!context.workspace.latest_build.deadline) {
           throw Error("Deadline is undefined.")
         }
-        const proposedDeadline = getDeadline(context.workspace).subtract(event.hours, "hours")
+        const proposedDeadline = getDeadline(context.workspace).subtract(
+          event.hours,
+          "hours",
+        )
         const newDeadline = dayjs.max(proposedDeadline, getMinDeadline())
         await API.putWorkspaceExtension(context.workspace.id, newDeadline)
       },

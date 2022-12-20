@@ -104,9 +104,9 @@ export const WorkspaceReadyPage = ({
           },
           maxDeadlineDecrease: getMaxDeadlineChange(deadline, getMinDeadline()),
           maxDeadlineIncrease: getMaxDeadlineChange(
-              getMaxDeadline(workspace),
-              deadline,
-            )
+            getMaxDeadline(workspace),
+            deadline,
+          ),
         }}
         isUpdating={workspaceState.hasTag("updating")}
         workspace={workspace}
