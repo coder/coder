@@ -1,0 +1,11 @@
+{
+  "title": "Starter Templates",
+  "subtitle": "Pick one of the built-in templates to start using Coder",
+  "filterCaption": "Filter",
+  "tags": {
+    "all": "All templates",
+    "digitalocean": "Digital Ocean",
+    "aws": "AWS",
+    "google": "Google Cloud"
+  }
+}

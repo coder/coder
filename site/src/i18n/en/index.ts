@@ -14,6 +14,9 @@ import loginPage from "./loginPage.json"
 import workspaceChangeVersionPage from "./workspaceChangeVersionPage.json"
 import workspaceSchedulePage from "./workspaceSchedulePage.json"
 import serviceBannerSettings from "./serviceBannerSettings.json"
+import starterTemplatesPage from "./starterTemplatesPage.json"
+import starterTemplatePage from "./starterTemplatePage.json"
+import createTemplatePage from "./createTemplatePage.json"
 
 export const en = {
   common,
@@ -32,4 +35,7 @@ export const en = {
   workspaceChangeVersionPage,
   workspaceSchedulePage,
   serviceBannerSettings,
+  starterTemplatesPage,
+  starterTemplatePage,
+  createTemplatePage,
 }
