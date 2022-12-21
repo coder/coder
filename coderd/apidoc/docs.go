@@ -142,7 +142,7 @@ const docTemplate = `{
             }
         },
         "/buildinfo": {
-            "post": {
+            "get": {
                 "security": [
                     {
                         "CoderSessionToken": []

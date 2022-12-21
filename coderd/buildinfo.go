@@ -14,7 +14,7 @@ import (
 // @Produce json
 // @Tags General
 // @Success 200 {object} codersdk.BuildInfoResponse
-// @Router /buildinfo [post]
+// @Router /buildinfo [get]
 func buildInfo(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.BuildInfoResponse{
 		ExternalURL: buildinfo.ExternalURL(),

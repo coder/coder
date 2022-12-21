@@ -118,7 +118,7 @@
       }
     },
     "/buildinfo": {
-      "post": {
+      "get": {
         "security": [
           {
             "CoderSessionToken": []
