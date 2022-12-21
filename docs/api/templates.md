@@ -12,7 +12,6 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization-id}/tem
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `POST /organizations/{organization-id}/templates/`
@@ -99,7 +98,6 @@ To perform this operation, you must be authenticated by means of one of the foll
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templates \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `GET /organizations/{organization}/templates`
@@ -192,7 +190,6 @@ To perform this operation, you must be authenticated by means of one of the foll
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templates/{template-name} \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `GET /organizations/{organization}/templates/{template-name}`
@@ -256,7 +253,6 @@ To perform this operation, you must be authenticated by means of one of the foll
 curl -X GET http://coder-server:8080/api/v2/templates/{id} \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `GET /templates/{id}`
@@ -319,7 +315,6 @@ To perform this operation, you must be authenticated by means of one of the foll
 curl -X DELETE http://coder-server:8080/api/v2/templates/{id} \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `DELETE /templates/{id}`

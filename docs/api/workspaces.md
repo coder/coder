@@ -11,7 +11,6 @@
 curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/members/{user}/workspaces \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `POST /organizations/{organization}/members/{user}/workspaces`
@@ -175,7 +174,6 @@ To perform this operation, you must be authenticated by means of one of the foll
 curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacename} \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `GET /users/{user}/workspace/{workspacename}`
@@ -340,7 +338,6 @@ To perform this operation, you must be authenticated by means of one of the foll
 curl -X GET http://coder-server:8080/api/v2/workspaces \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `GET /workspaces`
@@ -526,7 +523,6 @@ To perform this operation, you must be authenticated by means of one of the foll
 curl -X GET http://coder-server:8080/api/v2/workspaces/{id} \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `GET /workspaces/{id}`
@@ -690,7 +686,6 @@ To perform this operation, you must be authenticated by means of one of the foll
 curl -X PATCH http://coder-server:8080/api/v2/workspaces/{workspace} \
   -H 'Content-Type: application/json' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `PATCH /workspaces/{workspace}`
@@ -727,7 +722,6 @@ To perform this operation, you must be authenticated by means of one of the foll
 curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/autostart \
   -H 'Content-Type: application/json' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `PUT /workspaces/{workspace}/autostart`
@@ -765,7 +759,6 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/extend \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `PUT /workspaces/{workspace}/extend`
@@ -819,7 +812,6 @@ To perform this operation, you must be authenticated by means of one of the foll
 curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/ttl \
   -H 'Content-Type: application/json' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `PUT /workspaces/{workspace}/ttl`
@@ -856,7 +848,6 @@ To perform this operation, you must be authenticated by means of one of the foll
 curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/watch \
   -H 'Accept: text/event-stream' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `GET /workspaces/{workspace}/watch`

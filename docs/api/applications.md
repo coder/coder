@@ -10,7 +10,6 @@
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/applications/auth-redirect \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `GET /applications/auth-redirect`
@@ -38,7 +37,6 @@ To perform this operation, you must be authenticated by means of one of the foll
 curl -X GET http://coder-server:8080/api/v2/applications/host \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `GET /applications/host`
