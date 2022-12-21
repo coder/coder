@@ -42,7 +42,7 @@ export const getFormHelpers =
   ): FormHelpers => {
     const apiValidationErrors = isApiValidationError(error)
       ? (mapApiErrorToFieldErrors(error.response.data) as FormikErrors<T>)
-      : undefined
+      : error
 
     if (typeof name !== "string") {
       throw new Error(
