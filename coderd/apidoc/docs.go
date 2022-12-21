@@ -25,12 +25,106 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/applications/auth-redirect": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Applications"
+                ],
+                "summary": "Redirect to URI with encrypted API key",
+                "operationId": "redirect-to-uri-with-encrypted-api-key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Redirect destination",
+                        "name": "redirect_uri",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "307": {
+                        "description": "Temporary Redirect"
+                    }
+                }
+            }
+        },
+        "/applications/host": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Applications"
+                ],
+                "summary": "Get applications host",
+                "operationId": "get-app-host",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GetAppHostResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/authcheck": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authorization"
+                ],
+                "summary": "Check authorization",
+                "operationId": "check-authorization",
+                "parameters": [
+                    {
+                        "description": "Authorization request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AuthorizationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AuthorizationResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/organizations/{organization-id}/templates/": {
             "post": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
+                ],
+                "consumes": [
+                    "application/json"
                 ],
                 "produces": [
                     "application/json"
@@ -427,6 +521,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -468,6 +565,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -508,6 +608,9 @@ const docTemplate = `{
                     {
                         "CoderSessionToken": []
                     }
+                ],
+                "consumes": [
+                    "application/json"
                 ],
                 "produces": [
                     "application/json"
@@ -552,6 +655,9 @@ const docTemplate = `{
                     {
                         "CoderSessionToken": []
                     }
+                ],
+                "consumes": [
+                    "application/json"
                 ],
                 "produces": [
                     "application/json"
@@ -624,7 +730,67 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "codersdk.AuthorizationCheck": {
+            "description": "AuthorizationCheck is used to check if the currently authenticated user (or the specified user) can do a given action to a given set of objects.",
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": [
+                        "create",
+                        "read",
+                        "update",
+                        "delete"
+                    ]
+                },
+                "object": {
+                    "description": "Object can represent a \"set\" of objects, such as:\n\t- All workspaces in an organization\n\t- All workspaces owned by me\n\t- All workspaces across the entire product\nWhen defining an object, use the most specific language when possible to\nproduce the smallest set. Meaning to set as many fields on 'Object' as\nyou can. Example, if you want to check if you can update all workspaces\nowned by 'me', try to also add an 'OrganizationID' to the settings.\nOmitting the 'OrganizationID' could produce the incorrect value, as\nworkspaces have both ` + "`" + `user` + "`" + ` and ` + "`" + `organization` + "`" + ` owners.",
+                    "$ref": "#/definitions/codersdk.AuthorizationObject"
+                }
+            }
+        },
+        "codersdk.AuthorizationObject": {
+            "description": "AuthorizationObject can represent a \"set\" of objects, such as: all workspaces in an organization, all workspaces owned by me, all workspaces across the entire product.",
+            "type": "object",
+            "properties": {
+                "organization_id": {
+                    "description": "OrganizationID (optional) adds the set constraint to all resources owned by a given organization.",
+                    "type": "string"
+                },
+                "owner_id": {
+                    "description": "OwnerID (optional) adds the set constraint to all resources owned by a given user.",
+                    "type": "string"
+                },
+                "resource_id": {
+                    "description": "ResourceID (optional) reduces the set to a singular resource. This assigns\na resource ID to the resource type, eg: a single workspace.\nThe rbac library will not fetch the resource from the database, so if you\nare using this option, you should also set the ` + "`" + `OwnerID` + "`" + ` and ` + "`" + `OrganizationID` + "`" + `\nif possible. Be as specific as possible using all the fields relevant.",
+                    "type": "string"
+                },
+                "resource_type": {
+                    "description": "ResourceType is the name of the resource.\n` + "`" + `./coderd/rbac/object.go` + "`" + ` has the list of valid resource types.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.AuthorizationRequest": {
+            "type": "object",
+            "properties": {
+                "checks": {
+                    "description": "Checks is a map keyed with an arbitrary string to a permission check.\nThe key can be any string that is helpful to the caller, and allows\nmultiple permission checks to be run in a single request.\nThe key ensures that each permission check has the same key in the\nresponse.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.AuthorizationCheck"
+                    }
+                }
+            }
+        },
+        "codersdk.AuthorizationResponse": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "boolean"
+            }
+        },
         "codersdk.CreateParameterRequest": {
+            "description": "CreateParameterRequest is a structure used to create a new parameter value for a scope.",
             "type": "object",
             "required": [
                 "destination_scheme",
@@ -709,6 +875,15 @@ const docTemplate = `{
                 },
                 "preferred": {
                     "type": "boolean"
+                }
+            }
+        },
+        "codersdk.GetAppHostResponse": {
+            "type": "object",
+            "properties": {
+                "host": {
+                    "description": "Host is the externally accessible URL for the Coder instance.",
+                    "type": "string"
                 }
             }
         },

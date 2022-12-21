@@ -12,7 +12,6 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization-id}/tem
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `POST /organizations/{organization-id}/templates/`
@@ -99,7 +98,6 @@ To perform this operation, you must be authenticated by means of one of the foll
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templates \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `GET /organizations/{organization}/templates`
@@ -159,27 +157,27 @@ Status Code **200**
 
 | Name                               | Type                              | Required | Restrictions | Description                                |
 | ---------------------------------- | --------------------------------- | -------- | ------------ | ------------------------------------------ |
-| _anonymous_                        | array                             | false    | none         | none                                       |
-| » active_user_count                | integer                           | false    | none         | ActiveUserCount is set to -1 when loading. |
-| » active_version_id                | string                            | false    | none         | none                                       |
-| » allow_user_cancel_workspace_jobs | boolean                           | false    | none         | none                                       |
-| » build_time_stats                 | `codersdk.TemplateBuildTimeStats` | false    | none         | none                                       |
-| »» **additionalProperties**        | `codersdk.TransitionStats`        | false    | none         | none                                       |
-| »»» p50                            | integer                           | false    | none         | none                                       |
-| »»» p95                            | integer                           | false    | none         | none                                       |
-| » created_at                       | string                            | false    | none         | none                                       |
-| » created_by_id                    | string                            | false    | none         | none                                       |
-| » created_by_name                  | string                            | false    | none         | none                                       |
-| » default_ttl_ms                   | integer                           | false    | none         | none                                       |
-| » description                      | string                            | false    | none         | none                                       |
-| » display_name                     | string                            | false    | none         | none                                       |
-| » icon                             | string                            | false    | none         | none                                       |
-| » id                               | string                            | false    | none         | none                                       |
-| » name                             | string                            | false    | none         | none                                       |
-| » organization_id                  | string                            | false    | none         | none                                       |
-| » provisioner                      | string                            | false    | none         | none                                       |
-| » updated_at                       | string                            | false    | none         | none                                       |
-| » workspace_owner_count            | integer                           | false    | none         | none                                       |
+| _anonymous_                        | array                             | false    |              |                                            |
+| » active_user_count                | integer                           | false    |              | ActiveUserCount is set to -1 when loading. |
+| » active_version_id                | string                            | false    |              |                                            |
+| » allow_user_cancel_workspace_jobs | boolean                           | false    |              |                                            |
+| » build_time_stats                 | `codersdk.TemplateBuildTimeStats` | false    |              |                                            |
+| »» **additionalProperties**        | `codersdk.TransitionStats`        | false    |              |                                            |
+| »»» p50                            | integer                           | false    |              |                                            |
+| »»» p95                            | integer                           | false    |              |                                            |
+| » created_at                       | string                            | false    |              |                                            |
+| » created_by_id                    | string                            | false    |              |                                            |
+| » created_by_name                  | string                            | false    |              |                                            |
+| » default_ttl_ms                   | integer                           | false    |              |                                            |
+| » description                      | string                            | false    |              |                                            |
+| » display_name                     | string                            | false    |              |                                            |
+| » icon                             | string                            | false    |              |                                            |
+| » id                               | string                            | false    |              |                                            |
+| » name                             | string                            | false    |              |                                            |
+| » organization_id                  | string                            | false    |              |                                            |
+| » provisioner                      | string                            | false    |              |                                            |
+| » updated_at                       | string                            | false    |              |                                            |
+| » workspace_owner_count            | integer                           | false    |              |                                            |
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
 
@@ -192,7 +190,6 @@ To perform this operation, you must be authenticated by means of one of the foll
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templates/{template-name} \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `GET /organizations/{organization}/templates/{template-name}`
@@ -256,7 +253,6 @@ To perform this operation, you must be authenticated by means of one of the foll
 curl -X GET http://coder-server:8080/api/v2/templates/{id} \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `GET /templates/{id}`
@@ -319,7 +315,6 @@ To perform this operation, you must be authenticated by means of one of the foll
 curl -X DELETE http://coder-server:8080/api/v2/templates/{id} \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `DELETE /templates/{id}`
