@@ -60,7 +60,14 @@ func Handler(siteFS fs.FS, binFS http.FileSystem) http.Handler {
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/bin/", http.StripPrefix("/bin", http.FileServer(binFS)))
+	mux.Handle("/bin/", http.StripPrefix("/bin", http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		// Convert underscores in the filename to hyphens. We eventually want to
+		// change our hyphen-based filenames to underscores, but we need to
+		// support both for now.
+		r.URL.Path = strings.ReplaceAll(r.URL.Path, "_", "-")
+
+		http.FileServer(binFS).ServeHTTP(rw, r)
+	})))
 	mux.Handle("/", http.FileServer(http.FS(siteFS))) // All other non-html static files.
 
 	return secureHeaders(&handler{
