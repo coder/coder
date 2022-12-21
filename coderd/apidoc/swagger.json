@@ -370,11 +370,6 @@
     },
     "/updatecheck": {
       "get": {
-        "security": [
-          {
-            "CoderSessionToken": []
-          }
-        ],
         "produces": ["application/json"],
         "tags": ["General"],
         "summary": "Update check",

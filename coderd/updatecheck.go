@@ -15,7 +15,6 @@ import (
 
 // @Summary Update check
 // @ID update-check
-// @Security CoderSessionToken
 // @Produce json
 // @Tags General
 // @Success 200 {object} codersdk.UpdateCheckResponse

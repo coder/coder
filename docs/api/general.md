@@ -112,8 +112,7 @@ To perform this operation, you must be authenticated by means of one of the foll
 ```shell
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/updatecheck \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
+  -H 'Accept: application/json'
 ```
 
 `GET /updatecheck`
@@ -136,4 +135,4 @@ curl -X GET http://coder-server:8080/api/v2/updatecheck \
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UpdateCheckResponse](schemas.md#codersdkupdatecheckresponse) |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+undefined

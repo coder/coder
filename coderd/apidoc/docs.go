@@ -430,11 +430,6 @@ const docTemplate = `{
         },
         "/updatecheck": {
             "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "produces": [
                     "application/json"
                 ],
