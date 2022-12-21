@@ -315,7 +315,9 @@ func TestServingBin(t *testing.T) {
 				},
 			},
 			reqs: []req{
+				// We support both hyphens and underscores for compatibility.
 				{url: "/bin/coder-linux-amd64", wantStatus: http.StatusOK, wantBody: []byte("embed")},
+				{url: "/bin/coder_linux_amd64", wantStatus: http.StatusOK, wantBody: []byte("embed")},
 				{url: "/bin/GITKEEP", wantStatus: http.StatusOK, wantBody: []byte("")},
 			},
 		},
