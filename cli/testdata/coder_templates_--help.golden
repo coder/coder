@@ -9,17 +9,17 @@ Aliases:
   templates, template
 
 Get Started:
-  - Create a template for developers to create workspaces:                      
+  - Create a template for developers to create workspaces:
 
-      [;m$ coder templates create[0m 
+      [;m$ coder templates create[0m
 
-  - Make changes to your template, and plan the changes:                        
+  - Make changes to your template, and plan the changes:
 
-      [;m$ coder templates plan my-template[0m 
+      [;m$ coder templates plan my-template[0m
 
   - Push an update to the template. Your developers can update their workspaces:
 
-      [;m$ coder templates push my-template[0m 
+      [;m$ coder templates push my-template[0m
 
 Commands:
   create      Create a template from the current directory or as specified by flag

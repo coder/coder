@@ -9,7 +9,7 @@ gitauth:
 
 # Multiple providers are an Enterprise feature.
 # Contact sales@coder.com for a license.
-# 
+#
 # If multiple providers are used, a unique "id"
 # must be provided for each one.
 # - id: example
