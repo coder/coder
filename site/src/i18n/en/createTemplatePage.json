@@ -11,15 +11,15 @@
     },
     "schedule": {
       "title": "Schedule",
-      "description": "Define when a workspace create from this template is going to stop."
+      "description": "Define when a workspace created from this template is going to stop."
     },
     "operations": {
       "title": "Operations",
-      "description": "Allow or not users to run specific actions on the workspace."
+      "description": "Allow or disallow users to run specific actions on the workspace."
     },
     "parameters": {
       "title": "Template params",
-      "description": "Those params are provided by your template's Terraform configuration."
+      "description": "These params are provided by your template's Terraform configuration."
     },
     "fields": {
       "name": "Name",
