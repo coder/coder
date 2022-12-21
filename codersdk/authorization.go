@@ -20,8 +20,9 @@ type AuthorizationRequest struct {
 	Checks map[string]AuthorizationCheck `json:"checks"`
 }
 
-// @Description AuthorizationCheck is used to check if the currently authenticated user (or
-// @Description the specified user) can do a given action to a given set of objects.
+// AuthorizationCheck is used to check if the currently authenticated user (or the specified user) can do a given action to a given set of objects.
+//
+// @Description AuthorizationCheck is used to check if the currently authenticated user (or the specified user) can do a given action to a given set of objects.
 type AuthorizationCheck struct {
 	// Object can represent a "set" of objects, such as:
 	// - All workspaces in an organization
@@ -37,6 +38,9 @@ type AuthorizationCheck struct {
 	Action string              `json:"action" enums:"create,read,update,delete"`
 }
 
+// AuthorizationObject can represent a "set" of objects, such as: all workspaces in an organization, all workspaces owned by me,
+// all workspaces across the entire product.
+//
 // @Description AuthorizationObject can represent a "set" of objects, such as: all workspaces in an organization, all workspaces owned by me,
 // @Description all workspaces across the entire product.
 type AuthorizationObject struct {
