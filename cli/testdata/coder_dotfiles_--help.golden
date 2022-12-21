@@ -4,9 +4,9 @@ Usage:
   coder dotfiles [git_repo_url] [flags]
 
 Get Started:
-  - Check out and install a dotfiles repository without prompts:                
+  - Check out and install a dotfiles repository without prompts:
 
-      [;m$ coder dotfiles --yes git@github.com:example/dotfiles.git[0m 
+      [;m$ coder dotfiles --yes git@github.com:example/dotfiles.git[0m
 
 Flags:
   -h, --help                 help for dotfiles

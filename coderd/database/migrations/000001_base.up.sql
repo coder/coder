@@ -1,6 +1,6 @@
 -- This migration creates tables and types for v1 if they do not exist.
 -- This allows v2 to operate independently of v1, but share data if it exists.
--- 
+--
 -- All tables and types are stolen from:
 -- https://github.com/coder/m/blob/47b6fc383347b9f9fab424d829c482defd3e1fe2/product/coder/pkg/database/dump.sql
 

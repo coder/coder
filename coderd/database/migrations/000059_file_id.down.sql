@@ -30,7 +30,7 @@ AND
 	a.hash = b.hash;
 
 -- Drop the primary key on files.id.
-ALTER TABLE files DROP CONSTRAINT files_pkey; 
+ALTER TABLE files DROP CONSTRAINT files_pkey;
 -- Drop the id column.
 ALTER TABLE files DROP COLUMN id;
 -- Drop the unique constraint on hash + owner.

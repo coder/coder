@@ -1,6 +1,6 @@
-UPDATE 
+UPDATE
   organization_members
-SET 
+SET
   roles = ARRAY [] :: text[]
-WHERE 
+WHERE
   'organization-admin:'||organization_id = ANY(roles);
