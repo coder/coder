@@ -110,10 +110,10 @@ CREATE TYPE parameter_destination_scheme AS ENUM('none', 'environment_variable',
 
 -- Stores template version parameters parsed on import.
 -- No secrets are stored here.
--- 
+--
 -- All parameter validation occurs server-side to process
 -- complex validations.
--- 
+--
 -- Parameter types, description, and validation will produce
 -- a UI for users to enter values.
 -- Needs to be made consistent with the examples below.
