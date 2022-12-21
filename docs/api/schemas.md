@@ -14,7 +14,7 @@
 
 | Name         | Type   | Required | Restrictions | Description |
 | ------------ | ------ | -------- | ------------ | ----------- |
-| `csp-report` | object | false    | none         | none        |
+| `csp-report` | object | false    |              |             |
 
 ## codersdk.AuthorizationCheck
 
@@ -130,10 +130,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description                                                                                                                                                                         |
-| -------------- | ------ | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `external_url` | string | false    | none         | External url is a URL referencing the current Coder version. For production<br>builds, this will link directly to a release. For development builds, this<br>will link to a commit. |
-| `version`      | string | false    | none         | Version returns the semantic version of the build.                                                                                                                                  |
+| Name           | Type   | Required | Restrictions | Description                                                                                                                                                                   |
+| -------------- | ------ | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `external_url` | string | false    |              | External url is a URL referencing the current Coder version. For production builds, this will link directly to a release. For development builds, this will link to a commit. |
+| `version`      | string | false    |              | Version returns the semantic version of the build.                                                                                                                            |
 
 ## codersdk.CreateParameterRequest
 
@@ -429,11 +429,11 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ### Properties
 
-| Name      | Type    | Required | Restrictions | Description                                                                              |
-| --------- | ------- | -------- | ------------ | ---------------------------------------------------------------------------------------- |
-| `current` | boolean | false    | none         | Current is a boolean indicating whether the<br>server version is the same as the latest. |
-| `url`     | string  | false    | none         | Url to download the latest release of Coder.                                             |
-| `version` | string  | false    | none         | Version is the semantic version for the latest<br>release of Coder.                      |
+| Name      | Type    | Required | Restrictions | Description                                                                           |
+| --------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------------- |
+| `current` | boolean | false    |              | Current is a boolean indicating whether the server version is the same as the latest. |
+| `url`     | string  | false    |              | Url to download the latest release of Coder.                                          |
+| `version` | string  | false    |              | Version is the semantic version for the latest release of Coder.                      |
 
 ## codersdk.UpdateWorkspaceAutostartRequest
 
