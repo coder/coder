@@ -7,7 +7,7 @@ Aliases:
   activate, active
 
 Get Started:
-  [;m$ coder users activate example_user[0m 
+  [;m$ coder users activate example_user[0m
 
 Flags:
   -c, --column stringArray   Specify a column to filter in the table. (default

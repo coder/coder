@@ -7,7 +7,7 @@ Aliases:
   suspend, rm, delete
 
 Get Started:
-  [;m$ coder users suspend example_user[0m 
+  [;m$ coder users suspend example_user[0m
 
 Flags:
   -c, --column stringArray   Specify a column to filter in the table. (default

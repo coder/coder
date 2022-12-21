@@ -46,7 +46,7 @@ SELECT
 	@workspace_resource_id :: uuid AS workspace_resource_id,
 	unnest(@key :: text [ ]) AS key,
 	unnest(@value :: text [ ]) AS value,
-	unnest(@sensitive :: boolean [ ]) AS sensitive RETURNING *; 
+	unnest(@sensitive :: boolean [ ]) AS sensitive RETURNING *;
 
 -- name: GetWorkspaceResourceMetadataCreatedAfter :many
 SELECT * FROM workspace_resource_metadata WHERE workspace_resource_id = ANY(

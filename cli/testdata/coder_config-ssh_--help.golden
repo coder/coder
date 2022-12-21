@@ -4,14 +4,14 @@ Usage:
   coder config-ssh [flags]
 
 Get Started:
-  - You can use -o (or --ssh-option) so set SSH options to be used for all your 
-    workspaces:                                                                 
+  - You can use -o (or --ssh-option) so set SSH options to be used for all your
+    workspaces:
 
-      [;m$ coder config-ssh -o ForwardAgent=yes[0m 
+      [;m$ coder config-ssh -o ForwardAgent=yes[0m
 
-  - You can use --dry-run (or -n) to see the changes that would be made:        
+  - You can use --dry-run (or -n) to see the changes that would be made:
 
-      [;m$ coder config-ssh --dry-run[0m 
+      [;m$ coder config-ssh --dry-run[0m
 
 Flags:
   -n, --dry-run                  Perform a trial run with no changes made, showing a diff at
