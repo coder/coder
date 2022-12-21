@@ -15,7 +15,7 @@ Usage:
   coder schedule stop <workspace-name> { <duration> | manual } [flags]
 
 Get Started:
-  [;m$ coder schedule stop my-workspace 2h30m[0m 
+  [;m$ coder schedule stop my-workspace 2h30m[0m
 
 Flags:
   -h, --help   help for stop

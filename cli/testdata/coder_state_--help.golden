@@ -6,8 +6,8 @@ Usage:
   coder state [command]
 
 Commands:
-  pull        
-  push        
+  pull
+  push
 
 Flags:
   -h, --help   help for state

@@ -12,9 +12,9 @@ Usage:
   coder schedule start <workspace-name> { <start-time> [day-of-week] [location] | manual } [flags]
 
 Get Started:
-  - Set the workspace to start at 9:30am (in Dublin) from Monday to Friday:     
+  - Set the workspace to start at 9:30am (in Dublin) from Monday to Friday:
 
-      [;m$ coder schedule start my-workspace 9:30AM Mon-Fri Europe/Dublin[0m 
+      [;m$ coder schedule start my-workspace 9:30AM Mon-Fri Europe/Dublin[0m
 
 Flags:
   -h, --help   help for start
