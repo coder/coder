@@ -611,6 +611,9 @@ func extractBin(dest string, r io.Reader) (numExtracted int, err error) {
 			}
 			return n, xerrors.Errorf("read tar archive failed: %w", err)
 		}
+		if h.Name == "." || strings.Contains(h.Name, "..") {
+			continue
+		}
 
 		name := filepath.Join(dest, filepath.Base(h.Name))
 		f, err := os.Create(name)

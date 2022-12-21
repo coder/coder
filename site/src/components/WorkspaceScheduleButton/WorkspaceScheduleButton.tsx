@@ -48,8 +48,6 @@ export interface WorkspaceScheduleButtonProps {
   workspace: Workspace
   onDeadlinePlus: (hours: number) => void
   onDeadlineMinus: (hours: number) => void
-  deadlineMinusEnabled: () => boolean
-  deadlinePlusEnabled: () => boolean
   maxDeadlineIncrease: number
   maxDeadlineDecrease: number
   canUpdateWorkspace: boolean
@@ -63,8 +61,6 @@ export const WorkspaceScheduleButton: React.FC<
   workspace,
   onDeadlinePlus,
   onDeadlineMinus,
-  deadlinePlusEnabled,
-  deadlineMinusEnabled,
   maxDeadlineDecrease,
   maxDeadlineIncrease,
   canUpdateWorkspace,
@@ -75,6 +71,8 @@ export const WorkspaceScheduleButton: React.FC<
   const [editMode, setEditMode] = useState<EditMode>("off")
   const id = isOpen ? "schedule-popover" : undefined
   const styles = useStyles({ editMode })
+  const deadlinePlusEnabled = maxDeadlineIncrease >= 1
+  const deadlineMinusEnabled = maxDeadlineDecrease >= 1
 
   const onClose = () => {
     setIsOpen(false)
@@ -107,8 +105,9 @@ export const WorkspaceScheduleButton: React.FC<
               <span className={styles.actions}>
                 <IconButton
                   className={styles.subtractButton}
+                  aria-label="Subtract hours from deadline"
                   size="small"
-                  disabled={!deadlineMinusEnabled()}
+                  disabled={!deadlineMinusEnabled}
                   onClick={() => {
                     setEditMode("subtract")
                   }}
@@ -121,8 +120,9 @@ export const WorkspaceScheduleButton: React.FC<
                 </IconButton>
                 <IconButton
                   className={styles.addButton}
+                  aria-label="Add hours to deadline"
                   size="small"
-                  disabled={!deadlinePlusEnabled()}
+                  disabled={!deadlinePlusEnabled}
                   onClick={() => {
                     setEditMode("add")
                   }}

@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -55,7 +56,7 @@ func CreateTemplateVersionSource(t *testing.T, responses *echo.Responses) string
 	directory := t.TempDir()
 	f, err := ioutil.TempFile(directory, "*.tf")
 	require.NoError(t, err)
-	f.Close()
+	_ = f.Close()
 	data, err := echo.Tar(responses)
 	require.NoError(t, err)
 	extractTar(t, data, directory)
@@ -70,6 +71,9 @@ func extractTar(t *testing.T, data []byte, directory string) {
 			break
 		}
 		require.NoError(t, err)
+		if header.Name == "." || strings.Contains(header.Name, "..") {
+			continue
+		}
 		// #nosec
 		path := filepath.Join(directory, header.Name)
 		mode := header.FileInfo().Mode()

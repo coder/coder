@@ -30,17 +30,18 @@ func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			cookieValue := apiTokenFromRequest(r)
-			if cookieValue == "" {
+			tokenValue := apiTokenFromRequest(r)
+			if tokenValue == "" {
 				httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 					Message: fmt.Sprintf("Cookie %q must be provided.", codersdk.SessionTokenKey),
 				})
 				return
 			}
-			token, err := uuid.Parse(cookieValue)
+			token, err := uuid.Parse(tokenValue)
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-					Message: "Agent token is invalid.",
+					Message: "Workspace agent token invalid.",
+					Detail:  fmt.Sprintf("An agent token must be a valid UUIDv4. (len %d)", len(tokenValue)),
 				})
 				return
 			}
@@ -48,7 +49,8 @@ func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
 					httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-						Message: "Agent token is invalid.",
+						Message: "Workspace agent not authorized.",
+						Detail:  "The agent cannot authenticate until the workspace provision job has been completed. If the job is no longer running, this agent is invalid.",
 					})
 					return
 				}

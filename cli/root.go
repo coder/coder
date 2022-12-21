@@ -77,7 +77,6 @@ func Core() []*cobra.Command {
 		dotfiles(),
 		gitssh(),
 		list(),
-		loadtest(),
 		login(),
 		logout(),
 		parameters(),
@@ -85,6 +84,7 @@ func Core() []*cobra.Command {
 		publickey(),
 		rename(),
 		resetPassword(),
+		scaletest(),
 		schedules(),
 		show(),
 		speedtest(),
@@ -98,6 +98,7 @@ func Core() []*cobra.Command {
 		users(),
 		versionCmd(),
 		workspaceAgent(),
+		vscodeipcCmd(),
 	}
 }
 
