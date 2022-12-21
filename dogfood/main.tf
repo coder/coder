@@ -11,6 +11,25 @@ terraform {
   }
 }
 
+# User parameters
+
+variable "dotfiles_uri" {
+  type        = string
+  description = <<-EOF
+  default     = ""
+  Dotfiles repo URI (optional)
+
+  see https://dotfiles.github.io
+  EOF
+  default     = ""
+}
+
+variable "datocms_api_token" {
+  type        = string
+  description = "An API token from DATOCMS for usage with building our website."
+  default     = ""
+}
+
 # Admin parameters
 
 provider "docker" {
@@ -30,10 +49,13 @@ resource "coder_agent" "dev" {
     #!/bin/sh
     set -x
     # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh
+    curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3
     code-server --auth none --port 13337 &
     sudo service docker start
-    if [ -f ~/personalize ]; then ~/personalize 2>&1 | tee  ~/.personalize.log; fi
+    DOTFILES_URI=${var.dotfiles_uri}
+    if [ -n "$DOTFILES_URI" ]; then
+      coder dotfiles "$DOTFILES_URI" -y 2>&1 | tee  ~/.personalize.log
+    fi
     EOF
 }
 
@@ -118,7 +140,10 @@ resource "docker_container" "workspace" {
   # CPU limits are unnecessary since Docker will load balance automatically
   memory  = 32768
   runtime = "sysbox-runc"
-  env     = ["CODER_AGENT_TOKEN=${coder_agent.dev.token}"]
+  env = [
+    "CODER_AGENT_TOKEN=${coder_agent.dev.token}",
+    "DATOCMS_API_TOKEN=${var.datocms_api_token}",
+  ]
   host {
     host = "host.docker.internal"
     ip   = "host-gateway"

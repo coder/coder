@@ -19,13 +19,14 @@ export const EditHours = ({
   const styles = useStyles()
 
   return (
-    <form onSubmit={() => handleSubmit(hours)}>
+    // hours is NaN when user deletes the value, so treat it as 0
+    <form onSubmit={() => handleSubmit(Number.isNaN(hours) ? 0 : hours)}>
       <Stack direction="row" alignItems="baseline" spacing={1}>
         <TextField
           className={styles.inputField}
           inputProps={{ min: 0, max, step: 1 }}
           label={t("workspaceScheduleButton.hours")}
-          value={hours}
+          value={hours.toString()}
           onChange={(e) => setHours(parseInt(e.target.value))}
           type="number"
         />

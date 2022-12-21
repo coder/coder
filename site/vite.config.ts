@@ -9,6 +9,7 @@ export default defineConfig({
     outDir: path.resolve(__dirname, "./out"),
     // We need to keep the /bin folder and GITKEEP files
     emptyOutDir: false,
+    sourcemap: process.env.NODE_ENV === "development",
   },
   define: {
     "process.env": {
@@ -22,6 +23,10 @@ export default defineConfig({
       "/api": {
         target: process.env.CODER_HOST || "http://localhost:3000",
         ws: true,
+        secure: process.env.NODE_ENV === "production",
+      },
+      "/swagger": {
+        target: process.env.CODER_HOST || "http://localhost:3000",
         secure: process.env.NODE_ENV === "production",
       },
     },

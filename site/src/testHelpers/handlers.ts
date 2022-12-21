@@ -77,6 +77,12 @@ export const handlers = [
       return res(ctx.status(200), ctx.json(M.MockTemplateVersion))
     },
   ),
+  rest.get(
+    "api/v2/organizations/:organizationId/templateversions/:templateVersionName/previous",
+    async (req, res, ctx) => {
+      return res(ctx.status(200), ctx.json(M.MockTemplateVersion2))
+    },
+  ),
   rest.delete("/api/v2/templates/:templateId", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockTemplate))
   }),
@@ -125,6 +131,7 @@ export const handlers = [
     const permissions = [
       ...Object.keys(permissionsToCheck),
       "canUpdateTemplate",
+      "updateWorkspace",
     ]
     const response = permissions.reduce((obj, permission) => {
       return {

@@ -15,58 +15,57 @@ Coder with Docker has the following advantages:
 
 1. Run Coder with Docker.
 
-    ```shell
-    export CODER_DATA=$HOME/.config/coderv2-docker
-    export DOCKER_GROUP=$(getent group docker | cut -d: -f3)
-    mkdir -p $CODER_DATA
-    docker run --rm -it \
-        -v $CODER_DATA:/home/coder/.config \
-        -v /var/run/docker.sock:/var/run/docker.sock \
-        --group-add $DOCKER_GROUP \
-        ghcr.io/coder/coder:latest
-    ```
-    
-    > This will use Coder's tunnel and built-in database. See our [Docker documentation](../install/docker.md) for other configuration options such as running on localhost, using docker-compose, and external PostgreSQL.
+   ```console
+   export CODER_DATA=$HOME/.config/coderv2-docker
+   export DOCKER_GROUP=$(getent group docker | cut -d: -f3)
+   mkdir -p $CODER_DATA
+   docker run --rm -it \
+       -v $CODER_DATA:/home/coder/.config \
+       -v /var/run/docker.sock:/var/run/docker.sock \
+       --group-add $DOCKER_GROUP \
+       ghcr.io/coder/coder:latest
+   ```
 
+   > This will use Coder's tunnel and built-in database. See our [Docker documentation](../install/docker.md) for other configuration options such as running on localhost, using docker-compose, and external PostgreSQL.
 
-1.  In new terminal, [install Coder](../install/) in order to connect to your deployment through the CLI.
+1. In new terminal, [install Coder](../install/) in order to connect to your deployment through the CLI.
 
-    ```shell
-    curl -L https://coder.com/install.sh | sh
-    ```
+   ```console
+   curl -L https://coder.com/install.sh | sh
+   ```
 
-1.  Run `coder login <access url>` and follow the
-    interactive instructions to create your user.
+1. Run `coder login <access url>` and follow the
+   interactive instructions to create your user.
 
-1.  Pull the "Docker" example template using the interactive `coder templates init`:
+1. Pull the "Docker" example template using the interactive `coder templates init`:
 
-    ```shell
-    coder templates init
-    cd docker
-    ```
+   ```console
+   coder templates init
+   cd docker
+   ```
 
-1.  Push up the template with `coder templates create`
+1. Push up the template with `coder templates create`
 
-1.  Open the dashboard in your browser to create your
-    first workspace:
+1. Open the dashboard in your browser to create your
+   first workspace:
 
-    <img src="../images/quickstart/docker/login.png">
+   <img src="../images/quickstart/docker/login.png">
 
-    Then navigate to `Templates > docker > Create workspace`
+   Then navigate to `Templates > docker > Create workspace`
 
-    <img src="../images/quickstart/docker/create-workspace.png">
+   <img src="../images/quickstart/docker/create-workspace.png">
 
-    Now wait a few moments for the workspace to build... After the first build,
-    the image is cached and subsequent builds will take a few seconds.
+   Now wait a few moments for the workspace to build... After the first build,
+   the image is cached and subsequent builds will take a few seconds.
 
-1.  Your workspace is ready to go!
+1. Your workspace is ready to go!
 
-    <img src="../images/quickstart/docker/ides.png">
+   <img src="../images/quickstart/docker/ides.png">
 
-    Open up a web application or [SSH in](../ides.md#ssh-configuration).
+   Open up a web application or [SSH in](../ides.md#ssh-configuration).
 
-1.  If you want to modify the Docker image or template, edit the files in the
-    previously created `./docker` directory, then run `coder templates push`.
+1. If you want to modify the Docker image or template, edit the files in the
+   previously created `./docker` directory, then run `coder templates push`.
 
 ## Troubleshooting
 

@@ -261,7 +261,6 @@ func (q *sqlQuerier) GetAuthorizedUserCount(ctx context.Context, arg GetFiltered
 
 	query := fmt.Sprintf("-- name: GetAuthorizedUserCount :one\n%s", filtered)
 	row := q.db.QueryRowContext(ctx, query,
-		arg.Deleted,
 		arg.Search,
 		pq.Array(arg.Status),
 		pq.Array(arg.RbacRole),

@@ -32,12 +32,22 @@ func newConfig() *codersdk.DeploymentConfig {
 			Usage: "Specifies the wildcard hostname to use for workspace applications in the form \"*.example.com\".",
 			Flag:  "wildcard-access-url",
 		},
+		// DEPRECATED: Use HTTPAddress or TLS.Address instead.
 		Address: &codersdk.DeploymentConfigField[string]{
 			Name:      "Address",
 			Usage:     "Bind address of the server.",
 			Flag:      "address",
 			Shorthand: "a",
-			Default:   "127.0.0.1:3000",
+			// Deprecated, so we don't have a default. If set, it will overwrite
+			// HTTPAddress and TLS.Address and print a warning.
+			Hidden:  true,
+			Default: "",
+		},
+		HTTPAddress: &codersdk.DeploymentConfigField[string]{
+			Name:    "Address",
+			Usage:   "HTTP bind address of the server. Unset to disable the HTTP endpoint.",
+			Flag:    "http-address",
+			Default: "127.0.0.1:3000",
 		},
 		AutobuildPollInterval: &codersdk.DeploymentConfigField[time.Duration]{
 			Name:    "Autobuild Poll Interval",
@@ -216,9 +226,9 @@ func newConfig() *codersdk.DeploymentConfig {
 				Flag:   "oidc-client-secret",
 				Secret: true,
 			},
-			EmailDomain: &codersdk.DeploymentConfigField[string]{
+			EmailDomain: &codersdk.DeploymentConfigField[[]string]{
 				Name:  "OIDC Email Domain",
-				Usage: "Email domain that clients logging in with OIDC must match.",
+				Usage: "Email domains that clients logging in with OIDC must match.",
 				Flag:  "oidc-email-domain",
 			},
 			IssuerURL: &codersdk.DeploymentConfigField[string]{
@@ -267,6 +277,18 @@ func newConfig() *codersdk.DeploymentConfig {
 				Usage: "Whether TLS will be enabled.",
 				Flag:  "tls-enable",
 			},
+			Address: &codersdk.DeploymentConfigField[string]{
+				Name:    "TLS Address",
+				Usage:   "HTTPS bind address of the server.",
+				Flag:    "tls-address",
+				Default: "127.0.0.1:3443",
+			},
+			RedirectHTTP: &codersdk.DeploymentConfigField[bool]{
+				Name:    "Redirect HTTP to HTTPS",
+				Usage:   "Whether HTTP requests will be redirected to the access URL (if it's a https URL and TLS is enabled). Requests to local IP addresses are never redirected regardless of this setting.",
+				Flag:    "tls-redirect-http-to-https",
+				Default: true,
+			},
 			CertFiles: &codersdk.DeploymentConfigField[[]string]{
 				Name:  "TLS Certificate Files",
 				Usage: "Path to each certificate for TLS. It requires a PEM-encoded file. To configure the listener to use a CA certificate, concatenate the primary certificate and the CA certificate together. The primary certificate should appear first in the combined file.",
@@ -281,7 +303,7 @@ func newConfig() *codersdk.DeploymentConfig {
 				Name:    "TLS Client Auth",
 				Usage:   "Policy the server will follow for TLS Client Authentication. Accepted values are \"none\", \"request\", \"require-any\", \"verify-if-given\", or \"require-and-verify\".",
 				Flag:    "tls-client-auth",
-				Default: "request",
+				Default: "none",
 			},
 			KeyFiles: &codersdk.DeploymentConfigField[[]string]{
 				Name:  "TLS Key Files",
@@ -423,6 +445,20 @@ func newConfig() *codersdk.DeploymentConfig {
 			Usage:   "Periodically check for new releases of Coder and inform the owner. The check is performed once per day.",
 			Flag:    "update-check",
 			Default: flag.Lookup("test.v") == nil && !buildinfo.IsDev(),
+		},
+		MaxTokenLifetime: &codersdk.DeploymentConfigField[time.Duration]{
+			Name:    "Max Token Lifetime",
+			Usage:   "The maximum lifetime duration for any user creating a token.",
+			Flag:    "max-token-lifetime",
+			Default: 24 * 30 * time.Hour,
+		},
+		Swagger: &codersdk.SwaggerConfig{
+			Enable: &codersdk.DeploymentConfigField[bool]{
+				Name:    "Enable swagger endpoint",
+				Usage:   "Expose the swagger endpoint via /swagger.",
+				Flag:    "swagger-enable",
+				Default: false,
+			},
 		},
 	}
 }

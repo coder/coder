@@ -35,8 +35,7 @@ jobs:
 
           echo "Installer URL: $installer_url"
 
-          # version should be extracted from the installer
-          wingetcreate update Coder.Coder `
+          .\wingetcreate.exe update Coder.Coder `
             --submit `
             --version "${{ steps.version.outputs.version }}" `
             --urls "$installer_url" `

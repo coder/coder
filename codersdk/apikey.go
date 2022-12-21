@@ -40,7 +40,8 @@ const (
 )
 
 type CreateTokenRequest struct {
-	Scope APIKeyScope `json:"scope"`
+	Lifetime time.Duration `json:"lifetime"`
+	Scope    APIKeyScope   `json:"scope"`
 }
 
 // GenerateAPIKeyResponse contains an API key for a user.

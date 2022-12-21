@@ -14,7 +14,7 @@ import * as Yup from "yup"
 
 export const Language = {
   nameRequired: (name: string): string => {
-    return `Please enter a ${name.toLowerCase()}.`
+    return name ? `Please enter a ${name.toLowerCase()}.` : "Required"
   },
   nameInvalidChars: (name: string): string => {
     return `${name} must start with a-Z or 0-9 and can contain a-Z, 0-9 or -`
@@ -37,7 +37,6 @@ interface FormHelpers {
   helperText?: ReactNode
 }
 
-// backendErrorName can be used if the backend names a field differently than the frontend does
 export const getFormHelpers =
   <T>(form: FormikContextType<T>, error?: Error | unknown) =>
   (
@@ -54,6 +53,7 @@ export const getFormHelpers =
         `name must be type of string, instead received '${typeof name}'`,
       )
     }
+
     const apiErrorName = backendErrorName ?? name
 
     // getIn is a util function from Formik that gets at any depth of nesting

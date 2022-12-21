@@ -3,6 +3,7 @@ package terraform
 import (
 	"context"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/cli/safeexec"
@@ -22,8 +23,9 @@ type ServeOptions struct {
 	// BinaryPath specifies the "terraform" binary to use.
 	// If omitted, the $PATH will attempt to find it.
 	BinaryPath string
-	CachePath  string
-	Logger     slog.Logger
+	// CachePath must not be used by multiple processes at once.
+	CachePath string
+	Logger    slog.Logger
 
 	// ExitTimeout defines how long we will wait for a running Terraform
 	// command to exit (cleanly) if the provision was stopped. This only
@@ -91,6 +93,7 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 		options.ExitTimeout = defaultExitTimeout
 	}
 	return provisionersdk.Serve(ctx, &server{
+		execMut:     &sync.Mutex{},
 		binaryPath:  options.BinaryPath,
 		cachePath:   options.CachePath,
 		logger:      options.Logger,
@@ -99,14 +102,16 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 }
 
 type server struct {
+	execMut     *sync.Mutex
 	binaryPath  string
 	cachePath   string
 	logger      slog.Logger
 	exitTimeout time.Duration
 }
 
-func (s *server) executor(workdir string) executor {
-	return executor{
+func (s *server) executor(workdir string) *executor {
+	return &executor{
+		mut:        s.execMut,
 		binaryPath: s.binaryPath,
 		cachePath:  s.cachePath,
 		workdir:    workdir,

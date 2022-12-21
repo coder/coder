@@ -27,7 +27,10 @@ var (
 	// TailnetIP is a static IPv6 address with the Tailscale prefix that is used to route
 	// connections from clients to this node. A dynamic address is not required because a Tailnet
 	// client only dials a single agent at a time.
-	TailnetIP                  = netip.MustParseAddr("fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4")
+	TailnetIP = netip.MustParseAddr("fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4")
+)
+
+const (
 	TailnetSSHPort             = 1
 	TailnetReconnectingPTYPort = 2
 	TailnetSpeedtestPort       = 3
@@ -139,7 +142,9 @@ func (c *AgentConn) AwaitReachable(ctx context.Context) bool {
 	return c.Conn.AwaitReachable(ctx, TailnetIP)
 }
 
-func (c *AgentConn) Ping(ctx context.Context) (time.Duration, error) {
+// Ping pings the agent and returns the round-trip time.
+// The bool returns true if the ping was made P2P.
+func (c *AgentConn) Ping(ctx context.Context) (time.Duration, bool, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -169,7 +174,7 @@ func (c *AgentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, height, w
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	conn, err := c.DialContextTCP(ctx, netip.AddrPortFrom(TailnetIP, uint16(TailnetReconnectingPTYPort)))
+	conn, err := c.DialContextTCP(ctx, netip.AddrPortFrom(TailnetIP, TailnetReconnectingPTYPort))
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +202,7 @@ func (c *AgentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, height, w
 func (c *AgentConn) SSH(ctx context.Context) (net.Conn, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	return c.DialContextTCP(ctx, netip.AddrPortFrom(TailnetIP, uint16(TailnetSSHPort)))
+	return c.DialContextTCP(ctx, netip.AddrPortFrom(TailnetIP, TailnetSSHPort))
 }
 
 // SSHClient calls SSH to create a client that uses a weak cipher
@@ -224,7 +229,7 @@ func (c *AgentConn) SSHClient(ctx context.Context) (*ssh.Client, error) {
 func (c *AgentConn) Speedtest(ctx context.Context, direction speedtest.Direction, duration time.Duration) ([]speedtest.Result, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	speedConn, err := c.DialContextTCP(ctx, netip.AddrPortFrom(TailnetIP, uint16(TailnetSpeedtestPort)))
+	speedConn, err := c.DialContextTCP(ctx, netip.AddrPortFrom(TailnetIP, TailnetSpeedtestPort))
 	if err != nil {
 		return nil, xerrors.Errorf("dial speedtest: %w", err)
 	}
@@ -242,7 +247,7 @@ func (c *AgentConn) DialContext(ctx context.Context, network string, addr string
 		return nil, xerrors.New("network must be tcp or udp")
 	}
 	_, rawPort, _ := net.SplitHostPort(addr)
-	port, _ := strconv.Atoi(rawPort)
+	port, _ := strconv.ParseUint(rawPort, 10, 16)
 	ipp := netip.AddrPortFrom(TailnetIP, uint16(port))
 	if network == "udp" {
 		return c.Conn.DialContextUDP(ctx, ipp)
@@ -270,7 +275,7 @@ func (c *AgentConn) statisticsClient() *http.Client {
 					return nil, xerrors.Errorf("request %q does not appear to be for statistics server", addr)
 				}
 
-				conn, err := c.DialContextTCP(context.Background(), netip.AddrPortFrom(TailnetIP, uint16(TailnetStatisticsPort)))
+				conn, err := c.DialContextTCP(context.Background(), netip.AddrPortFrom(TailnetIP, TailnetStatisticsPort))
 				if err != nil {
 					return nil, xerrors.Errorf("dial statistics: %w", err)
 				}

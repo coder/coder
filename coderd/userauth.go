@@ -192,8 +192,8 @@ type OIDCConfig struct {
 	httpmw.OAuth2Config
 
 	Verifier *oidc.IDTokenVerifier
-	// EmailDomain is the domain to enforce when a user authenticates.
-	EmailDomain  string
+	// EmailDomains are the domains to enforce when a user authenticates.
+	EmailDomain  []string
 	AllowSignups bool
 	// IgnoreEmailVerified allows ignoring the email_verified claim
 	// from an upstream OIDC provider. See #5065 for context.
@@ -289,10 +289,17 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		}
 		username = httpapi.UsernameFrom(username)
 	}
-	if api.OIDCConfig.EmailDomain != "" {
-		if !strings.HasSuffix(strings.ToLower(email), strings.ToLower(api.OIDCConfig.EmailDomain)) {
+	if len(api.OIDCConfig.EmailDomain) > 0 {
+		ok = false
+		for _, domain := range api.OIDCConfig.EmailDomain {
+			if strings.HasSuffix(strings.ToLower(email), strings.ToLower(domain)) {
+				ok = true
+				break
+			}
+		}
+		if !ok {
 			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-				Message: fmt.Sprintf("Your email %q is not a part of the %q domain!", email, api.OIDCConfig.EmailDomain),
+				Message: fmt.Sprintf("Your email %q is not in domains %q !", email, api.OIDCConfig.EmailDomain),
 			})
 			return
 		}

@@ -1071,7 +1071,11 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 				return xerrors.Errorf("create organization: %w", err)
 			}
 			req.OrganizationID = organization.ID
-			orgRoles = append(orgRoles, rbac.RoleOrgAdmin(req.OrganizationID))
+			// TODO: When organizations are allowed to be created, we should
+			// come back to determining the default role of the person who
+			// creates the org. Until that happens, all users in an organization
+			// should be just regular members.
+			orgRoles = append(orgRoles, rbac.RoleOrgMember(req.OrganizationID))
 
 			_, err = tx.InsertAllUsersGroup(ctx, organization.ID)
 			if err != nil {

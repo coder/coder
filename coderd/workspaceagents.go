@@ -222,11 +222,11 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	height, err := strconv.Atoi(r.URL.Query().Get("height"))
+	height, err := strconv.ParseUint(r.URL.Query().Get("height"), 10, 16)
 	if err != nil {
 		height = 80
 	}
-	width, err := strconv.Atoi(r.URL.Query().Get("width"))
+	width, err := strconv.ParseUint(r.URL.Query().Get("width"), 10, 16)
 	if err != nil {
 		width = 80
 	}
@@ -330,7 +330,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 		if port == "" {
 			continue
 		}
-		portNum, err := strconv.Atoi(port)
+		portNum, err := strconv.ParseUint(port, 10, 16)
 		if err != nil {
 			continue
 		}
@@ -344,7 +344,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 	// common non-HTTP ports such as databases, FTP, SSH, etc.
 	filteredPorts := make([]codersdk.ListeningPort, 0, len(portsResponse.Ports))
 	for _, port := range portsResponse.Ports {
-		if port.Port < uint16(codersdk.MinimumListeningPort) {
+		if port.Port < codersdk.MinimumListeningPort {
 			continue
 		}
 		if _, ok := appPorts[port.Port]; ok {
@@ -644,6 +644,8 @@ func convertApps(dbApps []database.WorkspaceApp) []codersdk.WorkspaceApp {
 	for _, dbApp := range dbApps {
 		apps = append(apps, codersdk.WorkspaceApp{
 			ID:           dbApp.ID,
+			URL:          dbApp.Url.String,
+			External:     dbApp.External,
 			Slug:         dbApp.Slug,
 			DisplayName:  dbApp.DisplayName,
 			Command:      dbApp.Command.String,
@@ -789,7 +791,20 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		WithLabelValues(workspace.ID.String(), workspace.Name).
 		Add(float64(req.TxBytes))
 
+	api.Logger.Debug(ctx, "read stats report",
+		slog.F("interval", api.AgentStatsRefreshInterval),
+		slog.F("agent", workspaceAgent.ID),
+		slog.F("workspace", workspace.ID),
+		slog.F("payload", req),
+	)
+
 	activityBumpWorkspace(api.Logger.Named("activity_bump"), api.Database, workspace.ID)
+
+	payload, err := json.Marshal(req)
+	if err != nil {
+		api.Logger.Error(ctx, "marshal agent stats report", slog.Error(err))
+		payload = json.RawMessage("{}")
+	}
 
 	now := database.Now()
 	_, err = api.Database.InsertAgentStat(ctx, database.InsertAgentStatParams{
@@ -799,7 +814,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		WorkspaceID: workspace.ID,
 		UserID:      workspace.OwnerID,
 		TemplateID:  workspace.TemplateID,
-		Payload:     json.RawMessage("{}"),
+		Payload:     payload,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -1161,6 +1176,9 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 				UserID:     workspace.OwnerID,
 			})
 			if err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					continue
+				}
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Failed to get git auth link.",
 					Detail:  err.Error(),

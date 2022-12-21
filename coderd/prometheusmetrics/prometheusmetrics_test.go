@@ -224,7 +224,9 @@ func TestWorkspaces(t *testing.T) {
 					if !ok {
 						t.Fail()
 					}
-					require.Equal(t, count, int(metric.Gauge.GetValue()), "invalid count for %s", metric.Label[0].GetValue())
+					if metric.Gauge.GetValue() != float64(count) {
+						return false
+					}
 					sum += int(metric.Gauge.GetValue())
 				}
 				t.Logf("sum %d == total %d", sum, tc.Total)

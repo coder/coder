@@ -30,6 +30,7 @@ import (
 	"github.com/spf13/afero"
 	"go.uber.org/atomic"
 	gossh "golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
@@ -90,7 +91,7 @@ func New(options Options) io.Closer {
 		}
 	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	server := &agent{
+	a := &agent{
 		reconnectingPTYTimeout: options.ReconnectingPTYTimeout,
 		logger:                 options.Logger,
 		closeCancel:            cancelFunc,
@@ -101,8 +102,8 @@ func New(options Options) io.Closer {
 		filesystem:             options.Filesystem,
 		tempDir:                options.TempDir,
 	}
-	server.init(ctx)
-	return server
+	a.init(ctx)
+	return a
 }
 
 type agent struct {
@@ -215,8 +216,35 @@ func (a *agent) run(ctx context.Context) error {
 			return xerrors.Errorf("create tailnet: %w", err)
 		}
 		a.closeMutex.Lock()
-		a.network = network
+		// Re-check if agent was closed while initializing the network.
+		closed := a.isClosed()
+		if !closed {
+			a.network = network
+		}
 		a.closeMutex.Unlock()
+		if closed {
+			_ = network.Close()
+			return xerrors.New("agent is closed")
+		}
+
+		// Report statistics from the created network.
+		cl, err := a.client.AgentReportStats(ctx, a.logger, func() *codersdk.AgentStats {
+			stats := network.ExtractTrafficStats()
+			return convertAgentStats(stats)
+		})
+		if err != nil {
+			a.logger.Error(ctx, "report stats", slog.Error(err))
+		} else {
+			if err = a.trackConnGoroutine(func() {
+				// This is OK because the agent never re-creates the tailnet
+				// and the only shutdown indicator is agent.Close().
+				<-a.closed
+				_ = cl.Close()
+			}); err != nil {
+				a.logger.Debug(ctx, "report stats goroutine", slog.Error(err))
+				_ = cl.Close()
+			}
+		}
 	} else {
 		// Update the DERP map!
 		network.SetDERPMap(metadata.DERPMap)
@@ -245,20 +273,14 @@ func (a *agent) trackConnGoroutine(fn func()) error {
 	return nil
 }
 
-func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (network *tailnet.Conn, err error) {
-	a.closeMutex.Lock()
-	if a.isClosed() {
-		a.closeMutex.Unlock()
-		return nil, xerrors.New("closed")
-	}
-	network, err = tailnet.NewConn(&tailnet.Options{
+func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ *tailnet.Conn, err error) {
+	network, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:          []netip.Prefix{netip.PrefixFrom(codersdk.TailnetIP, 128)},
 		DERPMap:            derpMap,
 		Logger:             a.logger.Named("tailnet"),
 		EnableTrafficStats: true,
 	})
 	if err != nil {
-		a.closeMutex.Unlock()
 		return nil, xerrors.Errorf("create tailnet: %w", err)
 	}
 	defer func() {
@@ -266,8 +288,6 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (ne
 			network.Close()
 		}
 	}()
-	a.network = network
-	a.closeMutex.Unlock()
 
 	sshListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetSSHPort))
 	if err != nil {
@@ -300,10 +320,12 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (ne
 		}
 	}()
 	if err = a.trackConnGoroutine(func() {
+		logger := a.logger.Named("reconnecting-pty")
+
 		for {
 			conn, err := reconnectingPTYListener.Accept()
 			if err != nil {
-				a.logger.Debug(ctx, "accept pty failed", slog.Error(err))
+				logger.Debug(ctx, "accept pty failed", slog.Error(err))
 				return
 			}
 			// This cannot use a JSON decoder, since that can
@@ -324,7 +346,9 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (ne
 			if err != nil {
 				continue
 			}
-			go a.handleReconnectingPTY(ctx, msg, conn)
+			go func() {
+				_ = a.handleReconnectingPTY(ctx, logger, msg, conn)
+			}()
 		}
 	}); err != nil {
 		return nil, err
@@ -556,28 +580,6 @@ func (a *agent) init(ctx context.Context) {
 	}
 
 	go a.runLoop(ctx)
-	cl, err := a.client.AgentReportStats(ctx, a.logger, func() *codersdk.AgentStats {
-		stats := map[netlogtype.Connection]netlogtype.Counts{}
-		a.closeMutex.Lock()
-		if a.network != nil {
-			stats = a.network.ExtractTrafficStats()
-		}
-		a.closeMutex.Unlock()
-		return convertAgentStats(stats)
-	})
-	if err != nil {
-		a.logger.Error(ctx, "report stats", slog.Error(err))
-		return
-	}
-
-	if err = a.trackConnGoroutine(func() {
-		<-a.closed
-		_ = cl.Close()
-	}); err != nil {
-		a.logger.Error(ctx, "report stats goroutine", slog.Error(err))
-		_ = cl.Close()
-		return
-	}
 }
 
 func convertAgentStats(counts map[netlogtype.Connection]netlogtype.Counts) *codersdk.AgentStats {
@@ -798,38 +800,56 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 	return cmd.Wait()
 }
 
-func (a *agent) handleReconnectingPTY(ctx context.Context, msg codersdk.ReconnectingPTYInit, conn net.Conn) {
+func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, msg codersdk.ReconnectingPTYInit, conn net.Conn) (retErr error) {
 	defer conn.Close()
 
 	connectionID := uuid.NewString()
+	logger = logger.With(slog.F("id", msg.ID), slog.F("connection_id", connectionID))
+
+	defer func() {
+		if err := retErr; err != nil {
+			a.closeMutex.Lock()
+			closed := a.isClosed()
+			a.closeMutex.Unlock()
+
+			// If the agent is closed, we don't want to
+			// log this as an error since it's expected.
+			if closed {
+				logger.Debug(ctx, "session error after agent close", slog.Error(err))
+			} else {
+				logger.Error(ctx, "session error", slog.Error(err))
+			}
+		}
+		logger.Debug(ctx, "session closed")
+	}()
+
 	var rpty *reconnectingPTY
 	rawRPTY, ok := a.reconnectingPTYs.Load(msg.ID)
 	if ok {
+		logger.Debug(ctx, "connecting to existing session")
 		rpty, ok = rawRPTY.(*reconnectingPTY)
 		if !ok {
-			a.logger.Error(ctx, "found invalid type in reconnecting pty map", slog.F("id", msg.ID))
-			return
+			return xerrors.Errorf("found invalid type in reconnecting pty map: %T", rawRPTY)
 		}
 	} else {
+		logger.Debug(ctx, "creating new session")
+
 		// Empty command will default to the users shell!
 		cmd, err := a.createCommand(ctx, msg.Command, nil)
 		if err != nil {
-			a.logger.Error(ctx, "create reconnecting pty command", slog.Error(err))
-			return
+			return xerrors.Errorf("create command: %w", err)
 		}
 		cmd.Env = append(cmd.Env, "TERM=xterm-256color")
 
 		// Default to buffer 64KiB.
 		circularBuffer, err := circbuf.NewBuffer(64 << 10)
 		if err != nil {
-			a.logger.Error(ctx, "create circular buffer", slog.Error(err))
-			return
+			return xerrors.Errorf("create circular buffer: %w", err)
 		}
 
 		ptty, process, err := pty.Start(cmd)
 		if err != nil {
-			a.logger.Error(ctx, "start reconnecting pty command", slog.F("id", msg.ID), slog.Error(err))
-			return
+			return xerrors.Errorf("start command: %w", err)
 		}
 
 		ctx, cancelFunc := context.WithCancel(ctx)
@@ -873,7 +893,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, msg codersdk.Reconnec
 				_, err = rpty.circularBuffer.Write(part)
 				rpty.circularBufferMutex.Unlock()
 				if err != nil {
-					a.logger.Error(ctx, "reconnecting pty write buffer", slog.Error(err), slog.F("id", msg.ID))
+					logger.Error(ctx, "write to circular buffer", slog.Error(err))
 					break
 				}
 				rpty.activeConnsMutex.Lock()
@@ -889,23 +909,27 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, msg codersdk.Reconnec
 			rpty.Close()
 			a.reconnectingPTYs.Delete(msg.ID)
 		}); err != nil {
-			a.logger.Error(ctx, "start reconnecting pty routine", slog.F("id", msg.ID), slog.Error(err))
-			return
+			return xerrors.Errorf("start routine: %w", err)
 		}
 	}
 	// Resize the PTY to initial height + width.
 	err := rpty.ptty.Resize(msg.Height, msg.Width)
 	if err != nil {
 		// We can continue after this, it's not fatal!
-		a.logger.Error(ctx, "resize reconnecting pty", slog.F("id", msg.ID), slog.Error(err))
+		logger.Error(ctx, "resize", slog.Error(err))
 	}
 	// Write any previously stored data for the TTY.
 	rpty.circularBufferMutex.RLock()
-	_, err = conn.Write(rpty.circularBuffer.Bytes())
+	prevBuf := slices.Clone(rpty.circularBuffer.Bytes())
 	rpty.circularBufferMutex.RUnlock()
+	// Note that there is a small race here between writing buffered
+	// data and storing conn in activeConns. This is likely a very minor
+	// edge case, but we should look into ways to avoid it. Holding
+	// activeConnsMutex would be one option, but holding this mutex
+	// while also holding circularBufferMutex seems dangerous.
+	_, err = conn.Write(prevBuf)
 	if err != nil {
-		a.logger.Warn(ctx, "write reconnecting pty buffer", slog.F("id", msg.ID), slog.Error(err))
-		return
+		return xerrors.Errorf("write buffer to conn: %w", err)
 	}
 	// Multiple connections to the same TTY are permitted.
 	// This could easily be used for terminal sharing, but
@@ -946,16 +970,16 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, msg codersdk.Reconnec
 	for {
 		err = decoder.Decode(&req)
 		if xerrors.Is(err, io.EOF) {
-			return
+			return nil
 		}
 		if err != nil {
-			a.logger.Warn(ctx, "reconnecting pty buffer read error", slog.F("id", msg.ID), slog.Error(err))
-			return
+			logger.Warn(ctx, "read conn", slog.Error(err))
+			return nil
 		}
 		_, err = rpty.ptty.Input().Write([]byte(req.Data))
 		if err != nil {
-			a.logger.Warn(ctx, "write to reconnecting pty", slog.F("id", msg.ID), slog.Error(err))
-			return
+			logger.Warn(ctx, "write to pty", slog.Error(err))
+			return nil
 		}
 		// Check if a resize needs to happen!
 		if req.Height == 0 || req.Width == 0 {
@@ -964,7 +988,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, msg codersdk.Reconnec
 		err = rpty.ptty.Resize(req.Height, req.Width)
 		if err != nil {
 			// We can continue after this, it's not fatal!
-			a.logger.Error(ctx, "resize reconnecting pty", slog.F("id", msg.ID), slog.Error(err))
+			logger.Error(ctx, "resize", slog.Error(err))
 		}
 	}
 }

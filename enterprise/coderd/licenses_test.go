@@ -109,6 +109,7 @@ func TestGetLicense(t *testing.T) {
 			codersdk.FeatureTemplateRBAC:               json.Number("1"),
 			codersdk.FeatureMultipleGitAuth:            json.Number("0"),
 			codersdk.FeatureExternalProvisionerDaemons: json.Number("0"),
+			codersdk.FeatureServiceBanners:             json.Number("0"),
 		}, licenses[0].Claims["features"])
 		assert.Equal(t, int32(2), licenses[1].ID)
 		assert.Equal(t, "testing2", licenses[1].Claims["account_id"])
@@ -122,6 +123,7 @@ func TestGetLicense(t *testing.T) {
 			codersdk.FeatureTemplateRBAC:               json.Number("0"),
 			codersdk.FeatureMultipleGitAuth:            json.Number("0"),
 			codersdk.FeatureExternalProvisionerDaemons: json.Number("0"),
+			codersdk.FeatureServiceBanners:             json.Number("0"),
 		}, licenses[1].Claims["features"])
 	})
 }

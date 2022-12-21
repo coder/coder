@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -16,9 +17,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
+	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -45,17 +48,48 @@ const (
 func TestGetAppHost(t *testing.T) {
 	t.Parallel()
 
-	cases := []string{"", proxyTestSubdomainRaw}
+	cases := []struct {
+		name        string
+		accessURL   string
+		appHostname string
+		expected    string
+	}{
+		{
+			name:        "OK",
+			accessURL:   "https://test.coder.com",
+			appHostname: "*.test.coder.com",
+			expected:    "*.test.coder.com",
+		},
+		{
+			name:        "None",
+			accessURL:   "https://test.coder.com",
+			appHostname: "",
+			expected:    "",
+		},
+		{
+			name:        "OKWithPort",
+			accessURL:   "https://test.coder.com:8443",
+			appHostname: "*.test.coder.com",
+			expected:    "*.test.coder.com:8443",
+		},
+		{
+			name:        "OKWithSuffix",
+			accessURL:   "https://test.coder.com:8443",
+			appHostname: "*--suffix.test.coder.com",
+			expected:    "*--suffix.test.coder.com:8443",
+		},
+	}
 	for _, c := range cases {
 		c := c
-		name := c
-		if name == "" {
-			name = "Empty"
-		}
-		t.Run(name, func(t *testing.T) {
+		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
+
+			accessURL, err := url.Parse(c.accessURL)
+			require.NoError(t, err)
+
 			client := coderdtest.New(t, &coderdtest.Options{
-				AppHostname: c,
+				AccessURL:   accessURL,
+				AppHostname: c.appHostname,
 			})
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -69,8 +103,7 @@ func TestGetAppHost(t *testing.T) {
 			_ = coderdtest.CreateFirstUser(t, client)
 			host, err = client.GetAppHost(ctx)
 			require.NoError(t, err)
-			domain := strings.Split(host.Host, ":")[0]
-			require.Equal(t, c, domain)
+			require.Equal(t, c.expected, host.Host)
 		})
 	}
 }
@@ -412,7 +445,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		t.Log("navigating to: ", gotLocation.String())
 		req, err = http.NewRequestWithContext(ctx, "GET", gotLocation.String(), nil)
 		require.NoError(t, err)
-		resp, err = client.HTTPClient.Do(req)
+		resp, err = doWithRetries(t, client, req)
 		require.NoError(t, err)
 		resp.Body.Close()
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
@@ -469,7 +502,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		req, err = http.NewRequestWithContext(ctx, "GET", gotLocation.String(), nil)
 		require.NoError(t, err)
 		req.Header.Set(codersdk.SessionCustomHeader, apiKey)
-		resp, err = client.HTTPClient.Do(req)
+		resp, err = doWithRetries(t, client, req)
 		require.NoError(t, err)
 		resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -860,6 +893,195 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 	})
 }
 
+func TestAppSubdomainLogout(t *testing.T) {
+	t.Parallel()
+
+	keyID, keySecret, err := coderd.GenerateAPIKeyIDSecret()
+	require.NoError(t, err)
+	fakeAPIKey := fmt.Sprintf("%s-%s", keyID, keySecret)
+
+	cases := []struct {
+		name string
+		// The cookie to send with the request. The regular API key header
+		// is also sent to bypass any auth checks on this value, and to
+		// ensure that the logout code is safe when multiple keys are
+		// passed.
+		// Empty value means no cookie is sent, "-" means send a valid
+		// API key, and "bad-secret" means send a valid key ID with a bad
+		// secret.
+		cookie string
+		// You can use "access_url" to use the site access URL as the
+		// redirect URI, or "app_host" to use a valid app host.
+		redirectURI string
+
+		// If expectedStatus is not an error status, we expect the cookie to
+		// be deleted if it was set.
+		expectedStatus       int
+		expectedBodyContains string
+		// If empty, the expected location is the redirectURI if the
+		// expected status code is http.StatusTemporaryRedirect (using the
+		// access URL if not set).
+		// You can use "access_url" to force the access URL.
+		expectedLocation string
+	}{
+		{
+			name:           "OKAccessURL",
+			cookie:         "-",
+			redirectURI:    "access_url",
+			expectedStatus: http.StatusTemporaryRedirect,
+		},
+		{
+			name:           "OKAppHost",
+			cookie:         "-",
+			redirectURI:    "app_host",
+			expectedStatus: http.StatusTemporaryRedirect,
+		},
+		{
+			name:        "OKNoAPIKey",
+			cookie:      "",
+			redirectURI: "access_url",
+			// Even if the devurl cookie is missing, we still redirect without
+			// any complaints.
+			expectedStatus: http.StatusTemporaryRedirect,
+		},
+		{
+			name:        "OKBadAPIKey",
+			cookie:      "test-api-key",
+			redirectURI: "access_url",
+			// Even if the devurl cookie is bad, we still delete the cookie and
+			// redirect without any complaints.
+			expectedStatus: http.StatusTemporaryRedirect,
+		},
+		{
+			name:           "OKUnknownAPIKey",
+			cookie:         fakeAPIKey,
+			redirectURI:    "access_url",
+			expectedStatus: http.StatusTemporaryRedirect,
+		},
+		{
+			name:                 "BadAPIKeySecret",
+			cookie:               "bad-secret",
+			redirectURI:          "access_url",
+			expectedStatus:       http.StatusUnauthorized,
+			expectedBodyContains: "API key secret is invalid",
+		},
+		{
+			name:                 "InvalidRedirectURI",
+			cookie:               "-",
+			redirectURI:          string([]byte{0x00}),
+			expectedStatus:       http.StatusBadRequest,
+			expectedBodyContains: "Could not parse redirect URI",
+		},
+		{
+			name:        "DisallowedRedirectURI",
+			cookie:      "-",
+			redirectURI: "https://github.com/coder/coder",
+			// We don't allow redirecting to a different host, but we don't
+			// show an error page and just redirect to the access URL to avoid
+			// breaking the logout flow if the user is accessing from the wrong
+			// host.
+			expectedStatus:   http.StatusTemporaryRedirect,
+			expectedLocation: "access_url",
+		},
+	}
+
+	for _, c := range cases {
+		c := c
+
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			client, _, _, _ := setupProxyTest(t)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			// The token should work.
+			_, err := client.User(ctx, codersdk.Me)
+			require.NoError(t, err)
+
+			appHost, err := client.GetAppHost(ctx)
+			require.NoError(t, err, "get app host")
+
+			if c.cookie == "-" {
+				c.cookie = client.SessionToken()
+			} else if c.cookie == "bad-secret" {
+				keyID, _, err := httpmw.SplitAPIToken(client.SessionToken())
+				require.NoError(t, err)
+				c.cookie = fmt.Sprintf("%s-%s", keyID, keySecret)
+			}
+			if c.redirectURI == "access_url" {
+				c.redirectURI = client.URL.String()
+			} else if c.redirectURI == "app_host" {
+				c.redirectURI = "http://" + strings.Replace(appHost.Host, "*", "something--something--something--something", 1) + "/"
+			}
+			if c.expectedLocation == "" && c.expectedStatus == http.StatusTemporaryRedirect {
+				c.expectedLocation = c.redirectURI
+			}
+			if c.expectedLocation == "access_url" {
+				c.expectedLocation = client.URL.String()
+			}
+
+			logoutURL := &url.URL{
+				Scheme: "http",
+				Host:   strings.Replace(appHost.Host, "*", "coder-logout", 1),
+				Path:   "/",
+			}
+			if c.redirectURI != "" {
+				q := logoutURL.Query()
+				q.Set("redirect_uri", c.redirectURI)
+				logoutURL.RawQuery = q.Encode()
+			}
+
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, logoutURL.String(), nil)
+			require.NoError(t, err, "create logout request")
+			// The header is prioritized over the devurl cookie if both are
+			// set, so this ensures we can trigger the logout code path with
+			// bad cookies during tests.
+			req.Header.Set(codersdk.SessionCustomHeader, client.SessionToken())
+			if c.cookie != "" {
+				req.AddCookie(&http.Cookie{
+					Name:  httpmw.DevURLSessionTokenCookie,
+					Value: c.cookie,
+				})
+			}
+
+			client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			}
+			resp, err := client.HTTPClient.Do(req)
+			require.NoError(t, err, "do logout request")
+			defer resp.Body.Close()
+
+			require.Equal(t, c.expectedStatus, resp.StatusCode, "logout response status code")
+			if c.expectedStatus < 400 && c.cookie != "" {
+				cookies := resp.Cookies()
+				require.Len(t, cookies, 1, "logout response cookies")
+				cookie := cookies[0]
+				require.Equal(t, httpmw.DevURLSessionTokenCookie, cookie.Name)
+				require.Equal(t, "", cookie.Value)
+				require.True(t, cookie.Expires.Before(time.Now()), "cookie should be expired")
+
+				// The token shouldn't work anymore if it was the original valid
+				// session token.
+				if c.cookie == client.SessionToken() {
+					_, err = client.User(ctx, codersdk.Me)
+					require.Error(t, err)
+				}
+			}
+			if c.expectedBodyContains != "" {
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				require.Contains(t, string(body), c.expectedBodyContains, "logout response body")
+			}
+			if c.expectedLocation != "" {
+				location := resp.Header.Get("Location")
+				require.Equal(t, c.expectedLocation, location, "logout response location")
+			}
+		})
+	}
+}
+
 func TestAppSharing(t *testing.T) {
 	t.Parallel()
 
@@ -1022,5 +1244,197 @@ func TestAppSharing(t *testing.T) {
 			// Unauthenticated user should be able to access the workspace.
 			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNamePublic, clientWithNoAuth, true, false)
 		})
+	})
+}
+
+func TestWorkspaceAppsNonCanonicalHeaders(t *testing.T) {
+	t.Parallel()
+
+	setupNonCanonicalHeadersTest := func(t *testing.T, customAppHost ...string) (*codersdk.Client, codersdk.CreateFirstUserResponse, codersdk.Workspace, uint16) {
+		// Start a TCP server that manually parses the request. Golang's HTTP
+		// server canonicalizes all HTTP request headers it receives, so we
+		// can't use it to test that we forward non-canonical headers.
+		// #nosec
+		ln, err := net.Listen("tcp", ":0")
+		require.NoError(t, err)
+		go func() {
+			for {
+				c, err := ln.Accept()
+				if xerrors.Is(err, net.ErrClosed) {
+					return
+				}
+				require.NoError(t, err)
+
+				go func() {
+					s := bufio.NewScanner(c)
+
+					// Read request line.
+					assert.True(t, s.Scan())
+					reqLine := s.Text()
+					assert.True(t, strings.HasPrefix(reqLine, fmt.Sprintf("GET /?%s HTTP/1.1", proxyTestAppQuery)))
+
+					// Read headers and discard them. We collect the
+					// Sec-WebSocket-Key header (with a capital S) to respond
+					// with.
+					secWebSocketKey := "(none found)"
+					for s.Scan() {
+						if s.Text() == "" {
+							break
+						}
+
+						line := strings.TrimSpace(s.Text())
+						if strings.HasPrefix(line, "Sec-WebSocket-Key: ") {
+							secWebSocketKey = strings.TrimPrefix(line, "Sec-WebSocket-Key: ")
+						}
+					}
+
+					// Write response containing text/plain with the
+					// Sec-WebSocket-Key header.
+					res := fmt.Sprintf("HTTP/1.1 204 No Content\r\nSec-WebSocket-Key: %s\r\nConnection: close\r\n\r\n", secWebSocketKey)
+					_, err = c.Write([]byte(res))
+					assert.NoError(t, err)
+					err = c.Close()
+					assert.NoError(t, err)
+				}()
+			}
+		}()
+		t.Cleanup(func() {
+			_ = ln.Close()
+		})
+		tcpAddr, ok := ln.Addr().(*net.TCPAddr)
+		require.True(t, ok)
+
+		appHost := proxyTestSubdomainRaw
+		if len(customAppHost) > 0 {
+			appHost = customAppHost[0]
+		}
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			AppHostname:                 appHost,
+			IncludeProvisionerDaemon:    true,
+			AgentStatsRefreshInterval:   time.Millisecond * 100,
+			MetricsCacheRefreshInterval: time.Millisecond * 100,
+			RealIPConfig: &httpmw.RealIPConfig{
+				TrustedOrigins: []*net.IPNet{{
+					IP:   net.ParseIP("127.0.0.1"),
+					Mask: net.CIDRMask(8, 32),
+				}},
+				TrustedHeaders: []string{
+					"CF-Connecting-IP",
+				},
+			},
+		})
+
+		user := coderdtest.CreateFirstUser(t, client)
+
+		workspace := createWorkspaceWithApps(t, client, user.OrganizationID, appHost, uint16(tcpAddr.Port))
+
+		// Configure the HTTP client to not follow redirects and to route all
+		// requests regardless of hostname to the coderd test server.
+		client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+		defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+		require.True(t, ok)
+		transport := defaultTransport.Clone()
+		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return (&net.Dialer{}).DialContext(ctx, network, client.URL.Host)
+		}
+		client.HTTPClient.Transport = transport
+		t.Cleanup(func() {
+			transport.CloseIdleConnections()
+		})
+
+		return client, user, workspace, uint16(tcpAddr.Port)
+	}
+
+	t.Run("ProxyPath", func(t *testing.T) {
+		t.Parallel()
+
+		client, _, workspace, _ := setupNonCanonicalHeadersTest(t)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		u, err := client.URL.Parse(fmt.Sprintf("/@me/%s/apps/%s/?%s", workspace.Name, proxyTestAppNameOwner, proxyTestAppQuery))
+		require.NoError(t, err)
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+		require.NoError(t, err)
+
+		// Use a non-canonical header name. The S in Sec-WebSocket-Key should be
+		// capitalized according to the websocket spec, but Golang will
+		// lowercase it to match the HTTP/1 spec.
+		//
+		// Setting the header on the map directly will force the header to not
+		// be canonicalized on the client, but it will be canonicalized on the
+		// server.
+		secWebSocketKey := "test-dean-was-here"
+		req.Header["Sec-WebSocket-Key"] = []string{secWebSocketKey}
+
+		req.Header.Set(codersdk.SessionCustomHeader, client.SessionToken())
+		resp, err := doWithRetries(t, client, req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		// The response should be a 204 No Content with the Sec-WebSocket-Key
+		// header set to the value we sent.
+		res, err := httputil.DumpResponse(resp, true)
+		require.NoError(t, err)
+		t.Log(string(res))
+		require.Equal(t, http.StatusNoContent, resp.StatusCode)
+		require.Equal(t, secWebSocketKey, resp.Header.Get("Sec-WebSocket-Key"))
+	})
+
+	t.Run("Subdomain", func(t *testing.T) {
+		t.Parallel()
+
+		appHost := proxyTestSubdomainRaw
+		client, _, workspace, _ := setupNonCanonicalHeadersTest(t, appHost)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		user, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+
+		u := fmt.Sprintf(
+			"http://%s--%s--%s--%s%s?%s",
+			proxyTestAppNameOwner,
+			proxyTestAgentName,
+			workspace.Name,
+			user.Username,
+			strings.ReplaceAll(appHost, "*", ""),
+			proxyTestAppQuery,
+		)
+
+		// Re-enable the default redirect behavior.
+		client.HTTPClient.CheckRedirect = nil
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+		require.NoError(t, err)
+
+		// Use a non-canonical header name. The S in Sec-WebSocket-Key should be
+		// capitalized according to the websocket spec, but Golang will
+		// lowercase it to match the HTTP/1 spec.
+		//
+		// Setting the header on the map directly will force the header to not
+		// be canonicalized on the client, but it will be canonicalized on the
+		// server.
+		secWebSocketKey := "test-dean-was-here"
+		req.Header["Sec-WebSocket-Key"] = []string{secWebSocketKey}
+
+		req.Header.Set(codersdk.SessionCustomHeader, client.SessionToken())
+		resp, err := doWithRetries(t, client, req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		// The response should be a 204 No Content with the Sec-WebSocket-Key
+		// header set to the value we sent.
+		res, err := httputil.DumpResponse(resp, true)
+		require.NoError(t, err)
+		t.Log(string(res))
+		require.Equal(t, http.StatusNoContent, resp.StatusCode)
+		require.Equal(t, secWebSocketKey, resp.Header.Get("Sec-WebSocket-Key"))
 	})
 }

@@ -2,6 +2,7 @@
 name: Develop in an ECS-hosted container
 description: Get started with Linux development on AWS ECS.
 tags: [cloud, aws]
+icon: /icon/aws.png
 ---
 
 # aws-ecs

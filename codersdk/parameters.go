@@ -83,7 +83,9 @@ type ParameterSchema struct {
 	ValidationContains []string `json:"validation_contains,omitempty"`
 }
 
-// CreateParameterRequest is used to create a new parameter value for a scope.
+// CreateParameterRequest is a structure used to create a new parameter value for a scope.
+//
+// @Description CreateParameterRequest is a structure used to create a new parameter value for a scope.
 type CreateParameterRequest struct {
 	// CloneID allows copying the value of another parameter.
 	// The other param must be related to the same template_id for this to
