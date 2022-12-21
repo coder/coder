@@ -25,6 +25,31 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "API root handler",
+                "operationId": "api-root-handler",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/applications/auth-redirect": {
             "get": {
                 "security": [
@@ -112,6 +137,67 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.AuthorizationResponse"
                         }
+                    }
+                }
+            }
+        },
+        "/buildinfo": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Build info",
+                "operationId": "build-info",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.BuildInfoResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/csp/reports": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "text/plain"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Report CSP violations",
+                "operationId": "report-csp-violations",
+                "parameters": [
+                    {
+                        "description": "Violation report",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/coderd.cspViolation"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
                     }
                 }
             }
@@ -730,6 +816,15 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "coderd.cspViolation": {
+            "type": "object",
+            "properties": {
+                "csp-report": {
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            }
+        },
         "codersdk.AuthorizationCheck": {
             "description": "AuthorizationCheck is used to check if the currently authenticated user (or the specified user) can do a given action to a given set of objects.",
             "type": "object",
@@ -787,6 +882,19 @@ const docTemplate = `{
             "type": "object",
             "additionalProperties": {
                 "type": "boolean"
+            }
+        },
+        "codersdk.BuildInfoResponse": {
+            "type": "object",
+            "properties": {
+                "external_url": {
+                    "description": "ExternalURL is a URL referencing the current Coder version.  For production\nbuilds, this will link directly to a release.  For development builds, this\nwill link to a commit.",
+                    "type": "string"
+                },
+                "version": {
+                    "description": "Version returns the semantic version of the build.",
+                    "type": "string"
+                }
             }
         },
         "codersdk.CreateParameterRequest": {

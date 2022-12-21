@@ -2,6 +2,20 @@
 
 > This page is incomplete, stay tuned.
 
+## coderd.cspViolation
+
+```json
+{
+  "csp-report": {}
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+| ------------ | ------ | -------- | ------------ | ----------- |
+| `csp-report` | object | false    | none         | none        |
+
 ## codersdk.AuthorizationCheck
 
 ```json
@@ -104,6 +118,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name             | Type    | Required | Restrictions | Description |
 | ---------------- | ------- | -------- | ------------ | ----------- |
 | `[any property]` | boolean | false    | none         | none        |
+
+## codersdk.BuildInfoResponse
+
+```json
+{
+  "external_url": "string",
+  "version": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description                                                                                                                                                                         |
+| -------------- | ------ | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `external_url` | string | false    | none         | External url is a URL referencing the current Coder version. For production<br>builds, this will link directly to a release. For development builds, this<br>will link to a commit. |
+| `version`      | string | false    | none         | Version returns the semantic version of the build.                                                                                                                                  |
 
 ## codersdk.CreateParameterRequest
 
