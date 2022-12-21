@@ -429,11 +429,11 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ### Properties
 
-| Name      | Type    | Required | Restrictions | Description                                                                           |
-| --------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------------- |
-| `current` | boolean | false    |              | Current is a boolean indicating whether the server version is the same as the latest. |
-| `url`     | string  | false    |              | Url to download the latest release of Coder.                                          |
-| `version` | string  | false    |              | Version is the semantic version for the latest release of Coder.                      |
+| Name      | Type    | Required | Restrictions | Description                                                             |
+| --------- | ------- | -------- | ------------ | ----------------------------------------------------------------------- |
+| `current` | boolean | false    |              | Current indicates whether the server version is the same as the latest. |
+| `url`     | string  | false    |              | Url to download the latest release of Coder.                            |
+| `version` | string  | false    |              | Version is the semantic version for the latest release of Coder.        |
 
 ## codersdk.UpdateWorkspaceAutostartRequest
 

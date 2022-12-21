@@ -898,7 +898,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "external_url": {
-                    "description": "ExternalURL is a URL referencing the current Coder version.  For production\nbuilds, this will link directly to a release.  For development builds, this\nwill link to a commit.",
+                    "description": "ExternalURL is a URL referencing the current Coder version.\nFor production builds, this will link directly to a release. For development builds, this will link to a commit.",
                     "type": "string"
                 },
                 "version": {
@@ -1188,7 +1188,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "current": {
-                    "description": "Current is a boolean indicating whether the\nserver version is the same as the latest.",
+                    "description": "Current indicates whether the server version is the same as the latest.",
                     "type": "boolean"
                 },
                 "url": {
@@ -1196,7 +1196,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "version": {
-                    "description": "Version is the semantic version for the latest\nrelease of Coder.",
+                    "description": "Version is the semantic version for the latest release of Coder.",
                     "type": "string"
                 }
             }
