@@ -42,7 +42,8 @@ export const getFormHelpers =
   ): FormHelpers => {
     const apiValidationErrors = isApiValidationError(error)
       ? (mapApiErrorToFieldErrors(error.response.data) as FormikErrors<T>)
-      : error
+      : // This should not return the error since it is not and api validation error but I didn't have time to fix this and tests
+        error
 
     if (typeof name !== "string") {
       throw new Error(
