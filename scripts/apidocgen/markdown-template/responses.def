@@ -77,7 +77,7 @@ Status Code **{{=response.status}}**
 {{?}}
 |Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|
-{{~block.rows :p}}|{{=p.displayName}}|{{? p.$ref}}`{{=p.$ref}}`{{?}}{{? !p.$ref}}{{=p.type}}{{?}}|{{=p.required}}|{{=p.restrictions||''}}|{{=p.description||''}}|
+{{~block.rows :p}}|`{{=p.displayName}}`|{{? p.$ref}}`{{=p.$ref}}`{{?}}{{? !p.$ref}}{{=p.type}}{{?}}|{{=p.required}}|{{=p.restrictions||''}}|{{=p.description||''}}|
 {{~}}
 {{~}}
 {{?}}

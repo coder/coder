@@ -93,9 +93,9 @@ curl -X POST http://coder-server:8080/api/v2/csp/reports \
 
 ### Parameters
 
-| Name | In   | Type                                                 | Required | Description      |
-| ---- | ---- | ---------------------------------------------------- | -------- | ---------------- |
-| body | body | [coderd.cspViolation](schemas.md#coderdcspviolation) | true     | Violation report |
+| Name   | In   | Type                                                 | Required | Description      |
+| ------ | ---- | ---------------------------------------------------- | -------- | ---------------- |
+| `body` | body | [coderd.cspViolation](schemas.md#coderdcspviolation) | true     | Violation report |
 
 ### Responses
 

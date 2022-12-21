@@ -45,9 +45,9 @@ curl -X POST http://coder-server:8080/api/v2/authcheck \
 
 ### Parameters
 
-| Name | In   | Type                                                                     | Required | Description           |
-| ---- | ---- | ------------------------------------------------------------------------ | -------- | --------------------- |
-| body | body | [codersdk.AuthorizationRequest](schemas.md#codersdkauthorizationrequest) | true     | Authorization request |
+| Name   | In   | Type                                                                     | Required | Description           |
+| ------ | ---- | ------------------------------------------------------------------------ | -------- | --------------------- |
+| `body` | body | [codersdk.AuthorizationRequest](schemas.md#codersdkauthorizationrequest) | true     | Authorization request |
 
 ### Example responses
 
