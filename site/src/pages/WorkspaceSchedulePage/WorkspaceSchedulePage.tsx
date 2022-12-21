@@ -3,6 +3,7 @@ import { useMachine } from "@xstate/react"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { Margins } from "components/Margins/Margins"
+import dayjs from "dayjs"
 import { scheduleToAutoStart } from "pages/WorkspaceSchedulePage/schedule"
 import { ttlMsToAutoStop } from "pages/WorkspaceSchedulePage/ttl"
 import React, { useEffect } from "react"
@@ -61,7 +62,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
     return <Navigate to="/workspaces" />
   }
 
-  if (scheduleState.hasTag("loading")) {
+  if (scheduleState.hasTag("loading") || !template) {
     return <FullScreenLoader />
   }
 
@@ -105,7 +106,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
           ...getAutoStop(workspace),
         }}
         isLoading={scheduleState.tags.has("loading")}
-        defaultTTL={template.default_ttl_ms}
+        defaultTTL={dayjs.duration(template.default_ttl_ms, "ms").asHours()}
         onCancel={() => {
           navigate(`/@${username}/${workspaceName}`)
         }}
