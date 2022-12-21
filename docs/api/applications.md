@@ -10,7 +10,6 @@
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/applications/auth-redirect \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `GET /applications/auth-redirect`
@@ -23,9 +22,9 @@ curl -X GET http://coder-server:8080/api/v2/applications/auth-redirect \
 
 ### Responses
 
-| Status | Meaning                                                                 | Description        | Schema    |
-| ------ | ----------------------------------------------------------------------- | ------------------ | --------- |
-| 307    | [Temporary Redirect](https://tools.ietf.org/html/rfc7231#section-6.4.7) | Temporary Redirect | no schema |
+| Status | Meaning                                                                 | Description        | Schema |
+| ------ | ----------------------------------------------------------------------- | ------------------ | ------ |
+| 307    | [Temporary Redirect](https://tools.ietf.org/html/rfc7231#section-6.4.7) | Temporary Redirect |        |
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
 
@@ -38,7 +37,6 @@ To perform this operation, you must be authenticated by means of one of the foll
 curl -X GET http://coder-server:8080/api/v2/applications/host \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `GET /applications/host`

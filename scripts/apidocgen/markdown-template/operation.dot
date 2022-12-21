@@ -1,3 +1,9 @@
+{{
+	function renderCodeSample(data) {
+		const originalCodeSample = data.utils.getCodeSamples(data);
+		return originalCodeSample.replace("\n```\n", "```\n")
+	}
+}}
 {{= data.tags.section }}
 
 ## {{= data.operationUniqueName}}
@@ -14,7 +20,7 @@
 {{? data.options.codeSamples || data.operation["x-code-samples"] }}
 ### Code samples
 
-{{= data.utils.getCodeSamples(data)}}
+{{=renderCodeSample(data)}}
 {{?}}
 
 `{{= data.methodUpper}} {{=data.method.path}}`

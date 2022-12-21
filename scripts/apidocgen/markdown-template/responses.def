@@ -6,7 +6,7 @@
 			break;
 		}
 		if (!content) {
-			return "no schema";
+			return "";
 		}
 
 		var ref = content.schema["x-widdershins-oldRef"];
@@ -42,7 +42,7 @@
 
 |Status|Meaning|Description|Schema|
 |---|---|---|---|
-{{~ data.responses :r}}|{{=r.status}}|{{=r.meaning}}|{{=r.description || 'none'}}|{{= renderResponseType(r)}}|
+{{~ data.responses :r}}|{{=r.status}}|{{=r.meaning}}|{{=r.description||''}}|{{= renderResponseType(r)}}|
 {{~}}
 
 {{ data.responseSchemas = false; }}
@@ -77,7 +77,7 @@ Status Code **{{=response.status}}**
 {{?}}
 |Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|
-{{~block.rows :p}}|{{=p.displayName}}|{{? p.$ref}}`{{=p.$ref}}`{{?}}{{? !p.$ref}}{{=p.type}}{{?}}|{{=p.required}}|{{=p.restrictions||'none'}}|{{=p.description||'none'}}|
+{{~block.rows :p}}|{{=p.displayName}}|{{? p.$ref}}`{{=p.$ref}}`{{?}}{{? !p.$ref}}{{=p.type}}{{?}}|{{=p.required}}|{{=p.restrictions||''}}|{{=p.description||''}}|
 {{~}}
 {{~}}
 {{?}}
@@ -106,7 +106,7 @@ Status Code **{{=response.status}}**
 
 |Status|Header|Type|Format|Description|
 |---|---|---|---|---|
-{{~ data.responseHeaders :h}}|{{=h.status}}|{{=h.header}}|{{=h.type}}|{{=h.format||''}}|{{=h.description||'none'}}|
+{{~ data.responseHeaders :h}}|{{=h.status}}|{{=h.header}}|{{=h.type}}|{{=h.format||''}}|{{=h.description||''}}|
 {{~}}
 
 {{?}}

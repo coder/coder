@@ -12,7 +12,6 @@ curl -X POST http://coder-server:8080/api/v2/authcheck \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `POST /authcheck`
