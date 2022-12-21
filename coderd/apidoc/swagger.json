@@ -19,11 +19,6 @@
   "paths": {
     "/": {
       "get": {
-        "security": [
-          {
-            "CoderSessionToken": []
-          }
-        ],
         "produces": ["application/json"],
         "tags": ["General"],
         "summary": "API root handler",

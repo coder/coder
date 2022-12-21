@@ -27,11 +27,6 @@ const docTemplate = `{
     "paths": {
         "/": {
             "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "produces": [
                     "application/json"
                 ],

@@ -9,8 +9,7 @@
 ```shell
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/ \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
+  -H 'Accept: application/json'
 
 ```
 
@@ -39,7 +38,7 @@ curl -X GET http://coder-server:8080/api/v2/ \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+undefined
 
 ## Build info
 

@@ -9,7 +9,6 @@ import (
 
 // @Summary API root handler
 // @ID api-root-handler
-// @Security CoderSessionToken
 // @Produce json
 // @Tags General
 // @Success 200 {object} codersdk.Response
