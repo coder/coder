@@ -121,6 +121,9 @@ build/coder-slim_$(VERSION).tar: build/coder-slim_$(VERSION)_checksums.sha1 $(CO
 		tar cf "../../../build/$(@F)" coder-*
 	popd
 
+	# delete the uncompressed binaries from the embedded dir
+	rm -f site/out/bin/coder-*
+
 site/out/bin/coder.tar.zst: build/coder-slim_$(VERSION).tar.zst
 	cp "$<" "$@"
 
@@ -131,9 +134,6 @@ build/coder-slim_$(VERSION).tar.zst: build/coder-slim_$(VERSION).tar
 		--no-progress \
 		-o "build/coder-slim_$(VERSION).tar.zst" \
 		"build/coder-slim_$(VERSION).tar"
-
-	# delete the uncompressed binaries from the embedded dir
-	rm site/out/bin/coder-*
 
 # Redirect from version-less targets to the versioned ones. There is a similar
 # target for slim binaries below.
