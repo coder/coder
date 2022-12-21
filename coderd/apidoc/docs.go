@@ -143,11 +143,6 @@ const docTemplate = `{
         },
         "/buildinfo": {
             "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "produces": [
                     "application/json"
                 ],
@@ -433,6 +428,31 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/updatecheck": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Update check",
+                "operationId": "update-check",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateCheckResponse"
                         }
                     }
                 }
@@ -1171,6 +1191,23 @@ const docTemplate = `{
                 "p95": {
                     "type": "integer",
                     "example": 146
+                }
+            }
+        },
+        "codersdk.UpdateCheckResponse": {
+            "type": "object",
+            "properties": {
+                "current": {
+                    "description": "Current is a boolean indicating whether the\nserver version is the same as the latest.",
+                    "type": "boolean"
+                },
+                "url": {
+                    "description": "URL to download the latest release of Coder.",
+                    "type": "string"
+                },
+                "version": {
+                    "description": "Version is the semantic version for the latest\nrelease of Coder.",
+                    "type": "string"
                 }
             }
         },

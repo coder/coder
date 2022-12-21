@@ -416,6 +416,24 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `p50` | integer | false    | none         | none        |
 | `p95` | integer | false    | none         | none        |
 
+## codersdk.UpdateCheckResponse
+
+```json
+{
+  "current": true,
+  "url": "string",
+  "version": "string"
+}
+```
+
+### Properties
+
+| Name      | Type    | Required | Restrictions | Description                                                                              |
+| --------- | ------- | -------- | ------------ | ---------------------------------------------------------------------------------------- |
+| `current` | boolean | false    | none         | Current is a boolean indicating whether the<br>server version is the same as the latest. |
+| `url`     | string  | false    | none         | Url to download the latest release of Coder.                                             |
+| `version` | string  | false    | none         | Version is the semantic version for the latest<br>release of Coder.                      |
+
 ## codersdk.UpdateWorkspaceAutostartRequest
 
 ```json

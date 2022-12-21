@@ -48,8 +48,7 @@ To perform this operation, you must be authenticated by means of one of the foll
 ```shell
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/buildinfo \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
+  -H 'Accept: application/json'
 
 ```
 
@@ -72,7 +71,7 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.BuildInfoResponse](schemas.md#codersdkbuildinforesponse) |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+undefined
 
 ## Report CSP violations
 
@@ -107,5 +106,39 @@ curl -X POST http://coder-server:8080/api/v2/csp/reports \
 | Status | Meaning                                                 | Description | Schema    |
 | ------ | ------------------------------------------------------- | ----------- | --------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | no schema |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Update check
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/updatecheck \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+
+```
+
+`GET /updatecheck`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "current": true,
+  "url": "string",
+  "version": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                 |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UpdateCheckResponse](schemas.md#codersdkupdatecheckresponse) |
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.

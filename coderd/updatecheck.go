@@ -13,6 +13,13 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+// @Summary Update check
+// @ID update-check
+// @Security CoderSessionToken
+// @Produce json
+// @Tags General
+// @Success 200 {object} codersdk.UpdateCheckResponse
+// @Router /updatecheck [get]
 func (api *API) updateCheck(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

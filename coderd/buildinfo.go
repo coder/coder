@@ -10,7 +10,6 @@ import (
 
 // @Summary Build info
 // @ID build-info
-// @Security CoderSessionToken
 // @Produce json
 // @Tags General
 // @Success 200 {object} codersdk.BuildInfoResponse
