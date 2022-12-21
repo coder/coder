@@ -47,7 +47,8 @@ export const getFormHelpers =
     const apiValidationErrors =
       isApiError(error) && hasApiFieldErrors(error)
         ? (mapApiErrorToFieldErrors(error.response.data) as FormikErrors<T>)
-        : error
+        : undefined
+
     if (typeof name !== "string") {
       throw new Error(
         `name must be type of string, instead received '${typeof name}'`,
@@ -62,6 +63,7 @@ export const getFormHelpers =
     const apiError = getIn(apiValidationErrors, apiErrorName)
     const frontendError = getIn(form.errors, name)
     const returnError = apiError ?? frontendError
+
     return {
       ...form.getFieldProps(name),
       id: name,
