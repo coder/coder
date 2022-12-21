@@ -139,7 +139,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
             <TextField
               {...getFieldHelpers("display_name")}
               disabled={isSubmitting}
-              onChange={onChangeTrimmed(form)}
               fullWidth
               label={t("form.fields.displayName")}
               variant="outlined"
@@ -148,7 +147,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
             <TextField
               {...getFieldHelpers("description")}
               disabled={isSubmitting}
-              onChange={onChangeTrimmed(form)}
               rows={5}
               multiline
               fullWidth
