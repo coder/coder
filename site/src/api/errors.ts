@@ -63,6 +63,10 @@ export const mapApiErrorToFieldErrors = (
   return result
 }
 
+export const isApiValidationError = (error: unknown): error is ApiError => {
+  return isApiError(error) && hasApiFieldErrors(error)
+}
+
 /**
  *
  * @param error

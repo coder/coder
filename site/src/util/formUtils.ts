@@ -1,8 +1,4 @@
-import {
-  hasApiFieldErrors,
-  isApiError,
-  mapApiErrorToFieldErrors,
-} from "api/errors"
+import { isApiValidationError, mapApiErrorToFieldErrors } from "api/errors"
 import { FormikContextType, FormikErrors, getIn } from "formik"
 import {
   ChangeEvent,
@@ -44,10 +40,9 @@ export const getFormHelpers =
     HelperText: ReactNode = "",
     backendErrorName?: string,
   ): FormHelpers => {
-    const apiValidationErrors =
-      isApiError(error) && hasApiFieldErrors(error)
-        ? (mapApiErrorToFieldErrors(error.response.data) as FormikErrors<T>)
-        : undefined
+    const apiValidationErrors = isApiValidationError(error)
+      ? (mapApiErrorToFieldErrors(error.response.data) as FormikErrors<T>)
+      : undefined
 
     if (typeof name !== "string") {
       throw new Error(

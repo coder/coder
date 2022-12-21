@@ -1,7 +1,10 @@
 import { useMachine } from "@xstate/react"
+import { isApiValidationError } from "api/errors"
+import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Maybe } from "components/Conditionals/Maybe"
 import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm"
 import { Loader } from "components/Loader/Loader"
+import { Stack } from "components/Stack/Stack"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
@@ -46,33 +49,39 @@ const CreateTemplatePage: FC = () => {
           <Loader />
         </Maybe>
 
-        {shouldDisplayForm && (
-          <CreateTemplateForm
-            error={error}
-            starterTemplate={starterTemplate}
-            isSubmitting={state.hasTag("submitting")}
-            parameters={parameters}
-            onCancel={onCancel}
-            onSubmit={(data) => {
-              send({
-                type: "CREATE",
-                data,
-              })
-            }}
-            upload={{
-              file,
-              isUploading: state.matches("uploading"),
-              onRemove: () => {
-                send("REMOVE_FILE")
-              },
-              onUpload: (file) => {
-                send({ type: "UPLOAD_FILE", file })
-              },
-            }}
-            jobError={jobError}
-            logs={jobLogs}
-          />
-        )}
+        <Stack spacing={6}>
+          <Maybe condition={Boolean(error && !isApiValidationError(error))}>
+            <AlertBanner error={error} severity="error" />
+          </Maybe>
+
+          {shouldDisplayForm && (
+            <CreateTemplateForm
+              error={error}
+              starterTemplate={starterTemplate}
+              isSubmitting={state.hasTag("submitting")}
+              parameters={parameters}
+              onCancel={onCancel}
+              onSubmit={(data) => {
+                send({
+                  type: "CREATE",
+                  data,
+                })
+              }}
+              upload={{
+                file,
+                isUploading: state.matches("uploading"),
+                onRemove: () => {
+                  send("REMOVE_FILE")
+                },
+                onUpload: (file) => {
+                  send({ type: "UPLOAD_FILE", file })
+                },
+              }}
+              jobError={jobError}
+              logs={jobLogs}
+            />
+          )}
+        </Stack>
       </FullPageHorizontalForm>
     </>
   )
