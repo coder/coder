@@ -12,6 +12,7 @@ import templateSettingsPage from "./templateSettingsPage.json"
 import templateVersionPage from "./templateVersionPage.json"
 import loginPage from "./loginPage.json"
 import workspaceChangeVersionPage from "./workspaceChangeVersionPage.json"
+import workspaceSchedulePage from "./workspaceSchedulePage.json"
 import serviceBannerSettings from "./serviceBannerSettings.json"
 
 export const en = {
@@ -29,5 +30,6 @@ export const en = {
   templateVersionPage,
   loginPage,
   workspaceChangeVersionPage,
+  workspaceSchedulePage,
   serviceBannerSettings,
 }

@@ -131,6 +131,7 @@ export const handlers = [
     const permissions = [
       ...Object.keys(permissionsToCheck),
       "canUpdateTemplate",
+      "updateWorkspace",
     ]
     const response = permissions.reduce((obj, permission) => {
       return {
