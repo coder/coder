@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"crypto/subtle"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
@@ -36,7 +37,15 @@ const (
 	// conflict with query parameters that users may use.
 	//nolint:gosec
 	subdomainProxyAPIKeyParam = "coder_application_connect_api_key_35e783"
-	redirectURIQueryParam     = "redirect_uri"
+	// redirectURIQueryParam is the query param for the app URL to be passed
+	// back to the API auth endpoint on the main access URL.
+	redirectURIQueryParam = "redirect_uri"
+	// appLogoutHostname is the hostname to use for the logout redirect. When
+	// the dashboard logs out, it will redirect to this subdomain of the app
+	// hostname, and the server will remove the cookie and redirect to the main
+	// login page.
+	// It is important that this URL can never match a valid app hostname.
+	appLogoutHostname = "coder-logout"
 )
 
 // nonCanonicalHeaders is a map from "canonical" headers to the actual header we
@@ -257,6 +266,12 @@ func (api *API) parseWorkspaceApplicationHostname(rw http.ResponseWriter, r *htt
 		return httpapi.ApplicationURL{}, false
 	}
 
+	// Check if the request is part of a logout flow.
+	if subdomain == appLogoutHostname {
+		api.handleWorkspaceAppLogout(rw, r)
+		return httpapi.ApplicationURL{}, false
+	}
+
 	// Parse the application URL from the subdomain.
 	app, err := httpapi.ParseSubdomainAppURL(subdomain)
 	if err != nil {
@@ -271,6 +286,95 @@ func (api *API) parseWorkspaceApplicationHostname(rw http.ResponseWriter, r *htt
 	}
 
 	return app, true
+}
+
+func (api *API) handleWorkspaceAppLogout(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Delete the API key and cookie first before attempting to parse/validate
+	// the redirect URI.
+	cookie, err := r.Cookie(httpmw.DevURLSessionTokenCookie)
+	if err == nil && cookie.Value != "" {
+		id, secret, err := httpmw.SplitAPIToken(cookie.Value)
+		// If it's not a valid token then we don't need to delete it from the
+		// database, but we'll still delete the cookie.
+		if err == nil {
+			// To avoid a situation where someone overloads the API with
+			// different auth formats, and tricks this endpoint into deleting an
+			// unchecked API key, we validate that the secret matches the secret
+			// we store in the database.
+			apiKey, err := api.Database.GetAPIKeyByID(ctx, id)
+			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to lookup API key.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			// This is wrapped in `err == nil` because if the API key doesn't
+			// exist, we still want to delete the cookie.
+			if err == nil {
+				hashedSecret := sha256.Sum256([]byte(secret))
+				if subtle.ConstantTimeCompare(apiKey.HashedSecret, hashedSecret[:]) != 1 {
+					httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
+						Message: httpmw.SignedOutErrorMessage,
+						Detail:  "API key secret is invalid.",
+					})
+					return
+				}
+				err = api.Database.DeleteAPIKeyByID(ctx, id)
+				if err != nil {
+					httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+						Message: "Failed to delete API key.",
+						Detail:  err.Error(),
+					})
+					return
+				}
+			}
+		}
+	}
+	if !api.setWorkspaceAppCookie(rw, r, "") {
+		return
+	}
+
+	// Read the redirect URI from the query string.
+	redirectURI := r.URL.Query().Get(redirectURIQueryParam)
+	if redirectURI == "" {
+		redirectURI = api.AccessURL.String()
+	} else {
+		// Validate that the redirect URI is a valid URL and exists on the same
+		// host as the access URL or an app URL.
+		parsedRedirectURI, err := url.Parse(redirectURI)
+		if err != nil {
+			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+				Status:       http.StatusBadRequest,
+				Title:        "Invalid redirect URI",
+				Description:  fmt.Sprintf("Could not parse redirect URI %q: %s", redirectURI, err.Error()),
+				RetryEnabled: false,
+				DashboardURL: api.AccessURL.String(),
+			})
+			return
+		}
+
+		// Check if the redirect URI is on the same host as the access URL or an
+		// app URL.
+		ok := httpapi.HostnamesMatch(api.AccessURL.Hostname(), parsedRedirectURI.Hostname())
+		if !ok && api.AppHostnameRegex != nil {
+			// We could also check that it's a valid application URL for
+			// completeness, but this check should be good enough.
+			_, ok = httpapi.ExecuteHostnamePattern(api.AppHostnameRegex, parsedRedirectURI.Hostname())
+		}
+		if !ok {
+			// The redirect URI they provided is not allowed, but we don't want
+			// to return an error page because it'll interrupt the logout flow,
+			// so we just use the default access URL.
+			parsedRedirectURI = api.AccessURL
+		}
+
+		redirectURI = parsedRedirectURI.String()
+	}
+
+	http.Redirect(rw, r, redirectURI, http.StatusTemporaryRedirect)
 }
 
 // lookupWorkspaceApp looks up the workspace application by slug in the given
@@ -410,7 +514,7 @@ func (api *API) verifyWorkspaceApplicationSubdomainAuth(rw http.ResponseWriter, 
 	// and strip that query parameter.
 	if encryptedAPIKey := r.URL.Query().Get(subdomainProxyAPIKeyParam); encryptedAPIKey != "" {
 		// Exchange the encoded API key for a real one.
-		_, apiKey, err := decryptAPIKey(r.Context(), api.Database, encryptedAPIKey)
+		_, token, err := decryptAPIKey(r.Context(), api.Database, encryptedAPIKey)
 		if err != nil {
 			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 				Status:      http.StatusBadRequest,
@@ -424,33 +528,7 @@ func (api *API) verifyWorkspaceApplicationSubdomainAuth(rw http.ResponseWriter, 
 			return false
 		}
 
-		hostSplit := strings.SplitN(api.AppHostname, ".", 2)
-		if len(hostSplit) != 2 {
-			// This should be impossible as we verify the app hostname on
-			// startup, but we'll check anyways.
-			api.Logger.Error(r.Context(), "could not split invalid app hostname", slog.F("hostname", api.AppHostname))
-			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-				Status:       http.StatusInternalServerError,
-				Title:        "Internal Server Error",
-				Description:  "The app is configured with an invalid app wildcard hostname. Please contact an administrator.",
-				RetryEnabled: false,
-				DashboardURL: api.AccessURL.String(),
-			})
-			return false
-		}
-
-		// Set the app cookie for all subdomains of api.AppHostname. This cookie
-		// is handled properly by the ExtractAPIKey middleware.
-		cookieHost := "." + hostSplit[1]
-		http.SetCookie(rw, &http.Cookie{
-			Name:     httpmw.DevURLSessionTokenCookie,
-			Value:    apiKey,
-			Domain:   cookieHost,
-			Path:     "/",
-			HttpOnly: true,
-			SameSite: http.SameSiteLaxMode,
-			Secure:   api.SecureAuthCookie,
-		})
+		api.setWorkspaceAppCookie(rw, r, token)
 
 		// Strip the query parameter.
 		path := r.URL.Path
@@ -482,6 +560,51 @@ func (api *API) verifyWorkspaceApplicationSubdomainAuth(rw http.ResponseWriter, 
 
 	http.Redirect(rw, r, u.String(), http.StatusTemporaryRedirect)
 	return false
+}
+
+// setWorkspaceAppCookie sets a cookie on the workspace app domain. If the app
+// hostname cannot be parsed properly, a static error page is rendered and false
+// is returned.
+//
+// If an empty token is supplied, it will clear the cookie.
+func (api *API) setWorkspaceAppCookie(rw http.ResponseWriter, r *http.Request, token string) bool {
+	hostSplit := strings.SplitN(api.AppHostname, ".", 2)
+	if len(hostSplit) != 2 {
+		// This should be impossible as we verify the app hostname on
+		// startup, but we'll check anyways.
+		api.Logger.Error(r.Context(), "could not split invalid app hostname", slog.F("hostname", api.AppHostname))
+		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+			Status:       http.StatusInternalServerError,
+			Title:        "Internal Server Error",
+			Description:  "The app is configured with an invalid app wildcard hostname. Please contact an administrator.",
+			RetryEnabled: false,
+			DashboardURL: api.AccessURL.String(),
+		})
+		return false
+	}
+
+	// Set the app cookie for all subdomains of api.AppHostname. This cookie is
+	// handled properly by the ExtractAPIKey middleware.
+	//
+	// We don't set an expiration because the key in the database already has an
+	// expiration.
+	maxAge := 0
+	if token == "" {
+		maxAge = -1
+	}
+	cookieHost := "." + hostSplit[1]
+	http.SetCookie(rw, &http.Cookie{
+		Name:     httpmw.DevURLSessionTokenCookie,
+		Value:    token,
+		Domain:   cookieHost,
+		Path:     "/",
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   api.SecureAuthCookie,
+	})
+
+	return true
 }
 
 // workspaceApplicationAuth is an endpoint on the main router that handles
