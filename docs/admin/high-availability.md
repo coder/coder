@@ -7,11 +7,11 @@ and other cloud vendors offer fully-managed HA Postgres services that pair
 nicely with Coder.
 
 For Coder to operate correctly, every node must be within 10ms of each other
-and Postgres. We make a best-effort attempt to warn the user when inter-coder
+and Postgres. We make a best-effort attempt to warn the user when inter-Coder
 latency is too high, but if requests start dropping, this is one metric to investigate.
-Note that this latency requirement applies _only_ to coder services. Coder will
+Note that this latency requirement applies _only_ to Coder services. Coder will
 operate correctly even with few seconds of latency on
-workspace <-> coder and user <-> coder connections.
+workspace <-> Coder and user <-> Coder connections.
 
 ## Setup
 
