@@ -707,9 +707,9 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaces/{workspace} \
 
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema    |
-| ------ | --------------------------------------------------------------- | ----------- | --------- |
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  | no schema |
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
 
@@ -743,9 +743,9 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/autostart \
 
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema    |
-| ------ | --------------------------------------------------------------- | ----------- | --------- |
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  | no schema |
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
 
@@ -833,9 +833,9 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/ttl \
 
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema    |
-| ------ | --------------------------------------------------------------- | ----------- | --------- |
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  | no schema |
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
 

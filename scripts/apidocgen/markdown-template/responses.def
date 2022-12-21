@@ -6,7 +6,7 @@
 			break;
 		}
 		if (!content) {
-			return "no schema";
+			return "";
 		}
 
 		var ref = content.schema["x-widdershins-oldRef"];
