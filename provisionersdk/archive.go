@@ -81,11 +81,11 @@ func Tar(directory string, limit int64) ([]byte, error) {
 				return filepath.SkipDir
 			}
 			// Don't archive hidden files!
-			return err
+			return nil
 		}
 		if strings.Contains(rel, ".tfstate") {
 			// Don't store tfstate!
-			return err
+			return nil
 		}
 		// Use unix paths in the tar archive.
 		header.Name = filepath.ToSlash(rel)
@@ -130,6 +130,9 @@ func Untar(directory string, archive []byte) error {
 		}
 		if err != nil {
 			return err
+		}
+		if header.Name == "." || strings.Contains(header.Name, "..") {
+			continue
 		}
 		// #nosec
 		target := filepath.Join(directory, filepath.FromSlash(header.Name))

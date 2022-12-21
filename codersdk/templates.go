@@ -14,10 +14,10 @@ import (
 // Template is the JSON representation of a Coder template. This type matches the
 // database object for now, but is abstracted for ease of change later on.
 type Template struct {
-	ID                  uuid.UUID       `json:"id"`
-	CreatedAt           time.Time       `json:"created_at"`
-	UpdatedAt           time.Time       `json:"updated_at"`
-	OrganizationID      uuid.UUID       `json:"organization_id"`
+	ID                  uuid.UUID       `json:"id" format:"uuid"`
+	CreatedAt           time.Time       `json:"created_at" format:"date-time"`
+	UpdatedAt           time.Time       `json:"updated_at" format:"date-time"`
+	OrganizationID      uuid.UUID       `json:"organization_id" format:"uuid"`
 	Name                string          `json:"name"`
 	DisplayName         string          `json:"display_name"`
 	Provisioner         ProvisionerType `json:"provisioner"`
@@ -29,15 +29,15 @@ type Template struct {
 	Description      string                 `json:"description"`
 	Icon             string                 `json:"icon"`
 	DefaultTTLMillis int64                  `json:"default_ttl_ms"`
-	CreatedByID      uuid.UUID              `json:"created_by_id"`
+	CreatedByID      uuid.UUID              `json:"created_by_id" format:"uuid"`
 	CreatedByName    string                 `json:"created_by_name"`
 
 	AllowUserCancelWorkspaceJobs bool `json:"allow_user_cancel_workspace_jobs"`
 }
 
 type TransitionStats struct {
-	P50 *int64
-	P95 *int64
+	P50 *int64 `example:"123"`
+	P95 *int64 `example:"146"`
 }
 
 type TemplateBuildTimeStats map[WorkspaceTransition]TransitionStats

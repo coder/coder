@@ -140,6 +140,13 @@ export const authMachine =
           hasFirstUser: {
             data: boolean
           }
+          signOut: {
+            data:
+              | {
+                  redirectUrl: string
+                }
+              | undefined
+          }
         },
       },
       context: {
@@ -426,6 +433,10 @@ export const authMachine =
             id: "signOut",
             onDone: [
               {
+                actions: ["unassignMe", "clearAuthError", "redirect"],
+                cond: "hasRedirectUrl",
+              },
+              {
                 actions: ["unassignMe", "clearAuthError"],
                 target: "gettingMethods",
               },
@@ -469,7 +480,30 @@ export const authMachine =
         signIn: async (_, event) => {
           return await API.login(event.email, event.password)
         },
-        signOut: API.logout,
+        signOut: async () => {
+          // Get app hostname so we can see if we need to log out of app URLs.
+          // We need to load this before we log out of the API as this is an
+          // authenticated endpoint.
+          const appHost = await API.getApplicationsHost()
+          await API.logout()
+
+          if (appHost.host !== "") {
+            const { protocol, host } = window.location
+            const redirect_uri = encodeURIComponent(
+              `${protocol}//${host}/login`,
+            )
+            // The path doesn't matter but we use /api because the dev server
+            // proxies /api to the backend.
+            const uri = `${protocol}//${appHost.host.replace(
+              "*",
+              "coder-logout",
+            )}/api/logout?redirect_uri=${redirect_uri}`
+
+            return {
+              redirectUrl: uri,
+            }
+          }
+        },
         getMe: API.getUser,
         getMethods: API.getAuthMethods,
         updateProfile: async (context, event) => {
@@ -577,9 +611,20 @@ export const authMachine =
         notifySuccessSSHKeyRegenerated: () => {
           displaySuccess(Language.successRegenerateSSHKey)
         },
+        redirect: (_, { data }) => {
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- data can be undefined
+          if (!data) {
+            throw new Error(
+              "Redirect only should be called with data.redirectUrl",
+            )
+          }
+
+          window.location.replace(data.redirectUrl)
+        },
       },
       guards: {
         isTrue: (_, event) => event.data,
+        hasRedirectUrl: (_, { data }) => Boolean(data),
       },
     },
   )

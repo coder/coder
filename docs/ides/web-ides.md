@@ -51,7 +51,8 @@ resource "coder_agent" "main" {
     startup_script = <<EOF
     #!/bin/sh
     # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh
+    # remove '-s -- --version 4.8.3' to install the latest version
+    curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3
     code-server --auth none --port 13337
     EOF
 }
@@ -63,7 +64,7 @@ For advanced use, we recommend installing code-server in your VM snapshot or con
 FROM codercom/enterprise-base:ubuntu
 
 # install a specific code-server version
-RUN curl -fsSL https://code-server.dev/install.sh | sh -s -- --version=4.3.0
+RUN curl -fsSL https://code-server.dev/install.sh | sh -s -- --version=4.8.3
 
 # pre-install versions
 RUN code-server --install-extension eamodio.gitlens

@@ -22,6 +22,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/prometheus/client_golang/prometheus"
+	httpSwagger "github.com/swaggo/http-swagger"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
@@ -34,6 +35,9 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/buildinfo"
+
+	// Used to serve the Swagger endpoint
+	_ "github.com/coder/coder/coderd/apidoc"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
@@ -61,6 +65,7 @@ type Options struct {
 	AccessURL *url.URL
 	// AppHostname should be the wildcard hostname to use for workspace
 	// applications INCLUDING the asterisk, (optional) suffix and leading dot.
+	// It will use the same scheme and port number as the access URL.
 	// E.g. "*.apps.coder.com" or "*-apps.coder.com".
 	AppHostname string
 	// AppHostnameRegex contains the regex version of options.AppHostname as
@@ -101,14 +106,34 @@ type Options struct {
 	TailnetCoordinator tailnet.Coordinator
 	DERPServer         *derp.Server
 	DERPMap            *tailcfg.DERPMap
+	SwaggerEndpoint    bool
 
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
 	Experimental                bool
 	DeploymentConfig            *codersdk.DeploymentConfig
 	UpdateCheckOptions          *updatecheck.Options // Set non-nil to enable update checking.
+
+	HTTPClient *http.Client
 }
 
+// @title Coder API
+// @version 2.0
+// @description Coderd is the service created by running coder server. It is a thin API that connects workspaces, provisioners and users. coderd stores its state in Postgres and is the only service that communicates with Postgres.
+// @termsOfService https://coder.com/legal/terms-of-service
+
+// @contact.name API Support
+// @contact.url https://coder.com
+// @contact.email support@coder.com
+
+// @license.name AGPL-3.0
+// @license.url https://github.com/coder/coder/blob/main/LICENSE
+
+// @BasePath /api/v2
+
+// @securitydefinitions.apiKey CoderSessionToken
+// @in header
+// @name Coder-Session-Token
 // New constructs a Coder API handler.
 func New(options *Options) *API {
 	if options == nil {
@@ -279,7 +304,7 @@ func New(options *Options) *API {
 		for _, gitAuthConfig := range options.GitAuthConfigs {
 			r.Route(fmt.Sprintf("/%s", gitAuthConfig.ID), func(r chi.Router) {
 				r.Use(
-					httpmw.ExtractOAuth2(gitAuthConfig),
+					httpmw.ExtractOAuth2(gitAuthConfig, options.HTTPClient),
 					apiKeyMiddleware,
 				)
 				r.Get("/callback", api.gitAuthCallback(gitAuthConfig))
@@ -428,12 +453,12 @@ func New(options *Options) *API {
 			r.Get("/authmethods", api.userAuthMethods)
 			r.Route("/oauth2", func(r chi.Router) {
 				r.Route("/github", func(r chi.Router) {
-					r.Use(httpmw.ExtractOAuth2(options.GithubOAuth2Config))
+					r.Use(httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient))
 					r.Get("/callback", api.userOAuth2Github)
 				})
 			})
 			r.Route("/oidc/callback", func(r chi.Router) {
-				r.Use(httpmw.ExtractOAuth2(options.OIDCConfig))
+				r.Use(httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient))
 				r.Get("/", api.userOIDC)
 			})
 			r.Group(func(r chi.Router) {
@@ -575,6 +600,13 @@ func New(options *Options) *API {
 			})
 		})
 	})
+
+	if options.SwaggerEndpoint {
+		// Swagger UI requires the URL trailing slash. Otherwise, the browser tries to load /assets
+		// from http://localhost:8080/assets instead of http://localhost:8080/swagger/assets.
+		r.Get("/swagger", http.RedirectHandler("/swagger/", http.StatusTemporaryRedirect).ServeHTTP)
+		r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json")))
+	}
 
 	r.NotFound(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP)).ServeHTTP)
 	return api
