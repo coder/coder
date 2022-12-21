@@ -30,7 +30,7 @@
 
 	function renderDescription(p) {
 		if (!p.description) {
-			return "none";
+			return "";
 		}
 
 		const toSnakeCase = str =>
@@ -41,7 +41,7 @@
 
 		const words = p.description.split(' ');
 		if (words.length == 0) {
-			return "none";
+			return "";
 		}
 
 		const countUppercase = words[0].length - words[0].replace(/[A-Z]/g, '').length;
@@ -130,7 +130,7 @@
 
 {{? block.rows.length}}|Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|{{?}}
-{{~ block.rows :p}}|{{= renderDisplayName(p)}}|{{= renderPropertyType(p)}}|{{=p.required}}|{{=p.restrictions||'none'}}|{{= renderDescription(p)}}|
+{{~ block.rows :p}}|{{= renderDisplayName(p)}}|{{= renderPropertyType(p)}}|{{=p.required}}|{{=p.restrictions||''}}|{{= renderDescription(p)}}|
 {{~}}
 {{~}}
 {{? (blocks[0].rows.length === 0) && (blocks.length === 1) }}
