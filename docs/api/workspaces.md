@@ -354,21 +354,21 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
 
 #### Enumerated Values
 
-| Parameter | Value        |
-| --------- | ------------ |
-| status    | pending      |
-| status    | running      |
-| status    | stopping     |
-| status    | stopped      |
-| status    | failed       |
-| status    | canceling    |
-| status    | canceled     |
-| status    | deleted      |
-| status    | deleting     |
-| has_agent | connected    |
-| has_agent | connecting   |
-| has_agent | disconnected |
-| has_agent | timeout      |
+| Parameter   | Value          |
+| ----------- | -------------- |
+| `status`    | `pending`      |
+| `status`    | `running`      |
+| `status`    | `stopping`     |
+| `status`    | `stopped`      |
+| `status`    | `failed`       |
+| `status`    | `canceling`    |
+| `status`    | `canceled`     |
+| `status`    | `deleted`      |
+| `status`    | `deleting`     |
+| `has_agent` | `connected`    |
+| `has_agent` | `connecting`   |
+| `has_agent` | `disconnected` |
+| `has_agent` | `timeout`      |
 
 ### Example responses
 

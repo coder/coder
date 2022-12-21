@@ -41,12 +41,12 @@ AuthorizationCheck is used to check if the currently authenticated user (or the 
 
 #### Enumerated Values
 
-| Property | Value  |
-| -------- | ------ |
-| action   | create |
-| action   | read   |
-| action   | update |
-| action   | delete |
+| Property | Value    |
+| -------- | -------- |
+| `action` | `create` |
+| `action` | `read`   |
+| `action` | `update` |
+| `action` | `delete` |
 
 ## codersdk.AuthorizationObject
 
@@ -161,11 +161,11 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 #### Enumerated Values
 
-| Property           | Value                |
-| ------------------ | -------------------- |
-| destination_scheme | environment_variable |
-| destination_scheme | provisioner_variable |
-| source_scheme      | data                 |
+| Property             | Value                  |
+| -------------------- | ---------------------- |
+| `destination_scheme` | `environment_variable` |
+| `destination_scheme` | `provisioner_variable` |
+| `source_scheme`      | `data`                 |
 
 ## codersdk.CreateTemplateRequest
 
@@ -911,21 +911,21 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 #### Enumerated Values
 
-| Property   | Value     |
-| ---------- | --------- |
-| status     | pending   |
-| status     | starting  |
-| status     | running   |
-| status     | stopping  |
-| status     | stopped   |
-| status     | failed    |
-| status     | canceling |
-| status     | canceled  |
-| status     | deleting  |
-| status     | deleted   |
-| transition | start     |
-| transition | stop      |
-| transition | delete    |
+| Property     | Value       |
+| ------------ | ----------- |
+| `status`     | `pending`   |
+| `status`     | `starting`  |
+| `status`     | `running`   |
+| `status`     | `stopping`  |
+| `status`     | `stopped`   |
+| `status`     | `failed`    |
+| `status`     | `canceling` |
+| `status`     | `canceled`  |
+| `status`     | `deleting`  |
+| `status`     | `deleted`   |
+| `transition` | `start`     |
+| `transition` | `stop`      |
+| `transition` | `delete`    |
 
 ## codersdk.WorkspaceResource
 
@@ -1022,11 +1022,11 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 #### Enumerated Values
 
-| Property             | Value  |
-| -------------------- | ------ |
-| workspace_transition | start  |
-| workspace_transition | stop   |
-| workspace_transition | delete |
+| Property               | Value    |
+| ---------------------- | -------- |
+| `workspace_transition` | `start`  |
+| `workspace_transition` | `stop`   |
+| `workspace_transition` | `delete` |
 
 ## codersdk.WorkspaceResourceMetadata
 

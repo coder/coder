@@ -140,7 +140,7 @@
 
 |Property|Value|
 |---|---|
-{{~ enums :e}}|{{=e.name}}|{{=data.utils.toPrimitive(e.value)}}|
+{{~ enums :e}}|`{{=e.name}}`|`{{=data.utils.toPrimitive(e.value)}}`|
 {{~}}
 
 {{= data.tags.endSection }}

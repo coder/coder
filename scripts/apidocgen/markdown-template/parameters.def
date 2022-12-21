@@ -44,7 +44,7 @@
 
 |Parameter|Value|
 |---|---|
-{{~ data.enums :e}}|{{=e.name}}|{{=data.utils.toPrimitive(e.value)}}|
+{{~ data.enums :e}}|`{{=e.name}}`|`{{=data.utils.toPrimitive(e.value)}}`|
 {{~}}
 {{?}}
 {{= data.tags.endSection }}
