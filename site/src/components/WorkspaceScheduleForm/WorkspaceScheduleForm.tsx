@@ -192,7 +192,7 @@ export const WorkspaceScheduleForm: FC<
   onCancel,
   onSubmit,
   initialTouched,
-  defaultTTL
+  defaultTTL,
 }) => {
   const styles = useStyles()
 

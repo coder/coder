@@ -47,7 +47,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
     getTemplateError,
     permissions,
     workspace,
-    template
+    template,
   } = scheduleState.context
 
   // Get workspace on mount and whenever the args for getting a workspace change.
