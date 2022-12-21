@@ -20,8 +20,8 @@ Running.args = {
     onDeadlinePlus: () => {
       // do nothing, this is just for storybook
     },
-    maxDeadlineDecrease: 1000,
-    maxDeadlineIncrease: 1000,
+    maxDeadlineDecrease: 0,
+    maxDeadlineIncrease: 24,
   },
   workspace: Mocks.MockWorkspace,
   handleStart: action("start"),
