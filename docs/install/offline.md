@@ -29,7 +29,7 @@ RUN mkdir -p /opt/terraform
 #
 # See https://github.com/coder/coder/blob/main/provisioner/terraform/install.go#L23-L24
 # for supported Terraform versions.
-ARG TERRAFORM_VERSION=1.3.0
+ARG TERRAFORM_VERSION=1.3.6
 RUN curl -LOs https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip \
     && unzip -o terraform_${TERRAFORM_VERSION}_linux_amd64.zip \
     && mv terraform /opt/terraform \
