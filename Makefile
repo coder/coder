@@ -495,8 +495,9 @@ cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(GO_SRC_FILES)
 	go test ./cli -run=TestCommandHelp -update
 	touch "$@"
 
-# Ensure there's a .prettierrc.yaml project-wide when prettier is run outside
-# the site package.
+# Generate a prettierrc for the site package that uses relative paths for
+# overrides. This allows us to share the same prettier config between the
+# site and the root of the repo.
 site/.prettierrc.yaml: .prettierrc.yaml Makefile
 	echo "#" > "$@"
 	echo "# Generated from ../$< by Makefile; DO NOT EDIT." >> "$@"
@@ -542,9 +543,9 @@ site/.prettierrc.yaml: .prettierrc.yaml Makefile
 		cat "$$f" >> "$@"
 	done
 
-# Generate ignore files based on gitignore into the site directory. We only
-# include rules relevant for the site directory to prevent false-positives.
-#
+# Generate ignore files based on gitignore into the site directory. We turn all
+# rules into relative paths for the `site/` directory (where applicable),
+# following the pattern format defined by git:
 # https://git-scm.com/docs/gitignore#_pattern_format
 #
 # This is done for compatibility reasons, see:
