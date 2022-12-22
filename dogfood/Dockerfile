@@ -325,12 +325,12 @@ USER coder
 
 # Install Nix
 ARG NIX_VERSION=2.3.15
-RUN curl --silent --show-error --location \
+RUN cd /opt \
+  && curl --silent --show-error --location \
   "https://releases.nixos.org/nix/nix-${NIX_VERSION}/nix-${NIX_VERSION}-x86_64-linux.tar.xz" \
-  -o "nix-${NIX_VERSION}-x86_64-linux.tar.xz"
-
-RUN tar -xf "nix-${NIX_VERSION}-x86_64-linux.tar.xz" \
-  && bash "nix-${NIX_VERSION}-x86_64-linux/install" "--no-daemon" \
+  -o "nix-${NIX_VERSION}-x86_64-linux.tar.xz" \
+  && tar -xf "nix-${NIX_VERSION}-x86_64-linux.tar.xz" \
+  && ln -s "nix-${NIX_VERSION}-x86_64-linux" nix \
   && rm -rf "nix-${NIX_VERSION}-x86_64-linux.tar.xz"
 
 # Enable installation of unfree software - https://nixos.wiki/wiki/FAQ/How_can_I_install_a_proprietary_or_unfree_package
