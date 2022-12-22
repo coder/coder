@@ -157,7 +157,7 @@ Status Code **200**
 
 | Name                                 | Type                              | Required | Restrictions | Description                                |
 | ------------------------------------ | --------------------------------- | -------- | ------------ | ------------------------------------------ |
-| `[array items]`                      | array                             | false    |              |                                            |
+| `[array item]`                       | array                             | false    |              |                                            |
 | `» active_user_count`                | integer                           | false    |              | ActiveUserCount is set to -1 when loading. |
 | `» active_version_id`                | string                            | false    |              |                                            |
 | `» allow_user_cancel_workspace_jobs` | boolean                           | false    |              |                                            |
