@@ -1,0 +1,16 @@
+#
+# Generated from ../.prettierrc.yaml by Makefile; DO NOT EDIT.
+#
+printWidth: 80
+semi: false
+trailingComma: all
+overrides:
+  - files:
+      - ../README.md
+    options:
+      proseWrap: preserve
+  - files:
+      - "./**/*.yaml"
+      - "./**/*.yml"
+    options:
+      proseWrap: always

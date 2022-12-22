@@ -86,16 +86,13 @@ rules:
     - error
     - paths:
         - name: "@material-ui/core"
-          message:
-            "Use path imports to avoid pulling in unused modules. See:
+          message: "Use path imports to avoid pulling in unused modules. See:
             https://material-ui.com/guides/minimizing-bundle-size/"
         - name: "@material-ui/icons"
-          message:
-            "Use path imports to avoid pulling in unused modules. See:
+          message: "Use path imports to avoid pulling in unused modules. See:
             https://material-ui.com/guides/minimizing-bundle-size/"
         - name: "@material-ui/styles"
-          message:
-            "Use path imports to avoid pulling in unused modules. See:
+          message: "Use path imports to avoid pulling in unused modules. See:
             https://material-ui.com/guides/minimizing-bundle-size/"
   no-unused-vars: "off"
   "object-curly-spacing": "off"

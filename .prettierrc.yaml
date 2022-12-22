@@ -1,0 +1,13 @@
+printWidth: 80
+semi: false
+trailingComma: all
+overrides:
+  - files:
+      - README.md
+    options:
+      proseWrap: preserve
+  - files:
+      - "site/**/*.yaml"
+      - "site/**/*.yml"
+    options:
+      proseWrap: always

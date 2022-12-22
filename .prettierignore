@@ -18,24 +18,24 @@ yarn-error.log
 # VSCode settings.
 .vscode/
 # Allow VSCode recommendations and default settings in project root.
-!../.vscode/extensions.json
-!../.vscode/settings.json
+!/.vscode/extensions.json
+!/.vscode/settings.json
 
 # Front-end ignore patterns.
 .next/
-**/*.typegen.ts
-build-storybook.log
-coverage/
-storybook-static/
-test-results/
+site/**/*.typegen.ts
+site/build-storybook.log
+site/coverage/
+site/storybook-static/
+site/test-results/
 
 # Make target for updating golden files.
-../cli/testdata/.gen-golden
+cli/testdata/.gen-golden
 
 # Build
-../build/
-../dist/
-out/
+/build/
+/dist/
+site/out/
 
 *.tfstate
 *.tfstate.backup
@@ -43,7 +43,7 @@ out/
 *.lock.hcl
 .terraform/
 
-../.coderv2/*
+/.coderv2/*
 **/__debug_bin
 
 # direnv
@@ -51,11 +51,11 @@ out/
 # .prettierignore.include:
 # Helm templates contain variables that are invalid YAML and can't be formatted
 # by Prettier.
-../helm/templates/*.yaml
+helm/templates/*.yaml
 
 # Terraform state files used in tests, these are automatically generated.
 # Example: provisioner/terraform/testdata/instance-id/instance-id.tfstate.json
 **/testdata/**/*.tf*.json
 
 # Testdata shouldn't be formatted.
-../scripts/apitypings/testdata/**/*.ts
+scripts/apitypings/testdata/**/*.ts
