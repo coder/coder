@@ -13,7 +13,7 @@
 
 |Name|In|Type|Required|Description|
 |---|---|---|---|---|
-{{~ data.parameters :p}}|{{=p.name}}|{{=p.in}}|{{= renderParameterType(p)}}|{{=p.required}}|{{=p.shortDesc || 'none'}}|
+{{~ data.parameters :p}}|{{=p.name}}|{{=p.in}}|{{= renderParameterType(p)}}|{{=p.required}}|{{=p.shortDesc||''}}|
 {{~}}
 
 {{? data.longDescs }}

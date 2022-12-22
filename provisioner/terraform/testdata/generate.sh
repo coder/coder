@@ -6,6 +6,12 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 for d in */; do
 	pushd "$d"
 	name=$(basename "$(pwd)")
+
+	# This needs care to update correctly.
+	if [[ $name == "kubernetes-metadata" ]]; then
+		continue
+	fi
+
 	terraform init -upgrade
 	terraform plan -out terraform.tfplan
 	terraform show -json ./terraform.tfplan | jq >"$name".tfplan.json

@@ -330,6 +330,14 @@
           "path": "./api/authentication.md"
         },
         {
+          "title": "Applications",
+          "path": "./api/applications.md"
+        },
+        {
+          "title": "Authorization",
+          "path": "./api/authorization.md"
+        },
+        {
           "title": "Templates",
           "path": "./api/templates.md"
         },

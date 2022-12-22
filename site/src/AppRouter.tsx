@@ -92,6 +92,15 @@ const GitAuthPage = lazy(() => import("./pages/GitAuthPage/GitAuthPage"))
 const TemplateVersionPage = lazy(
   () => import("./pages/TemplateVersionPage/TemplateVersionPage"),
 )
+const StarterTemplatesPage = lazy(
+  () => import("./pages/StarterTemplatesPage/StarterTemplatesPage"),
+)
+const StarterTemplatePage = lazy(
+  () => import("pages/StarterTemplatePage/StarterTemplatePage"),
+)
+const CreateTemplatePage = lazy(
+  () => import("./pages/CreateTemplatePage/CreateTemplatePage"),
+)
 
 export const AppRouter: FC = () => {
   const xServices = useContext(XServiceContext)
@@ -141,6 +150,26 @@ export const AppRouter: FC = () => {
           }
         />
 
+        <Route path="starter-templates">
+          <Route
+            index
+            element={
+              <AuthAndFrame>
+                <StarterTemplatesPage />
+              </AuthAndFrame>
+            }
+          />
+
+          <Route
+            path=":exampleId"
+            element={
+              <AuthAndFrame>
+                <StarterTemplatePage />
+              </AuthAndFrame>
+            }
+          ></Route>
+        </Route>
+
         <Route path="templates">
           <Route
             index
@@ -148,6 +177,15 @@ export const AppRouter: FC = () => {
               <AuthAndFrame>
                 <TemplatesPage />
               </AuthAndFrame>
+            }
+          />
+
+          <Route
+            path="new"
+            element={
+              <RequireAuth>
+                <CreateTemplatePage />
+              </RequireAuth>
             }
           />
 

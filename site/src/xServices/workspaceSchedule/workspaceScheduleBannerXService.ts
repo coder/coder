@@ -3,16 +3,10 @@
  * presented as an Alert/banner, for reactively updating a workspace schedule.
  */
 import { getErrorMessage } from "api/errors"
-import { Template, Workspace } from "api/typesGenerated"
+import { Workspace } from "api/typesGenerated"
 import dayjs from "dayjs"
 import minMax from "dayjs/plugin/minMax"
-import {
-  canExtendDeadline,
-  canReduceDeadline,
-  getDeadline,
-  getMaxDeadline,
-  getMinDeadline,
-} from "util/schedule"
+import { getDeadline, getMaxDeadline, getMinDeadline } from "util/schedule"
 import { ActorRefFrom, assign, createMachine } from "xstate"
 import * as API from "../../api/api"
 import {
@@ -29,8 +23,6 @@ export const Language = {
 
 export interface WorkspaceScheduleBannerContext {
   workspace: Workspace
-  template: Template
-  deadline?: dayjs.Dayjs
 }
 
 export type WorkspaceScheduleBannerEvent =
@@ -60,51 +52,27 @@ export const workspaceScheduleBannerMachine = createMachine(
       events: {} as WorkspaceScheduleBannerEvent,
       context: {} as WorkspaceScheduleBannerContext,
     },
-    initial: "initialize",
+    initial: "idle",
     on: {
       REFRESH_WORKSPACE: { actions: "assignWorkspace" },
     },
     states: {
-      initialize: {
-        always: [
-          { cond: "isAtMaxDeadline", target: "atMaxDeadline" },
-          { cond: "isAtMinDeadline", target: "atMinDeadline" },
-          { target: "midRange" },
-        ],
-      },
-      midRange: {
+      idle: {
         on: {
           INCREASE_DEADLINE: "increasingDeadline",
           DECREASE_DEADLINE: "decreasingDeadline",
-        },
-      },
-      atMaxDeadline: {
-        on: {
-          DECREASE_DEADLINE: "decreasingDeadline",
-        },
-      },
-      atMinDeadline: {
-        on: {
-          INCREASE_DEADLINE: "increasingDeadline",
         },
       },
       increasingDeadline: {
         invoke: {
           src: "increaseDeadline",
           id: "increaseDeadline",
-          onDone: [
-            {
-              cond: "isAtMaxDeadline",
-              target: "atMaxDeadline",
-              actions: "displaySuccessMessage",
-            },
-            {
-              target: "midRange",
-              actions: "displaySuccessMessage",
-            },
-          ],
+          onDone: {
+            target: "idle",
+            actions: "displaySuccessMessage",
+          },
           onError: {
-            target: "midRange",
+            target: "idle",
             actions: "displayFailureMessage",
           },
         },
@@ -114,19 +82,12 @@ export const workspaceScheduleBannerMachine = createMachine(
         invoke: {
           src: "decreaseDeadline",
           id: "decreaseDeadline",
-          onDone: [
-            {
-              cond: "isAtMinDeadline",
-              target: "atMinDeadline",
-              actions: "displaySuccessMessage",
-            },
-            {
-              target: "midRange",
-              actions: "displaySuccessMessage",
-            },
-          ],
+          onDone: {
+            target: "idle",
+            actions: "displaySuccessMessage",
+          },
           onError: {
-            target: "midRange",
+            target: "idle",
             actions: "displayFailureMessage",
           },
         },
@@ -135,18 +96,6 @@ export const workspaceScheduleBannerMachine = createMachine(
     },
   },
   {
-    guards: {
-      isAtMaxDeadline: (context) =>
-        context.deadline
-          ? !canExtendDeadline(
-              context.deadline,
-              context.workspace,
-              context.template,
-            )
-          : false,
-      isAtMinDeadline: (context) =>
-        context.deadline ? !canReduceDeadline(context.deadline) : false,
-    },
     actions: {
       // This error does not have a detail, so using the snackbar is okay
       displayFailureMessage: (_, event) => {
@@ -157,27 +106,32 @@ export const workspaceScheduleBannerMachine = createMachine(
       },
       assignWorkspace: assign((_, event) => ({
         workspace: event.workspace,
-        deadline: getDeadline(event.workspace),
       })),
     },
 
     services: {
       increaseDeadline: async (context, event) => {
-        if (!context.deadline) {
+        if (!context.workspace.latest_build.deadline) {
           throw Error("Deadline is undefined.")
         }
-        const proposedDeadline = context.deadline.add(event.hours, "hours")
+        const proposedDeadline = getDeadline(context.workspace).add(
+          event.hours,
+          "hours",
+        )
         const newDeadline = dayjs.min(
           proposedDeadline,
-          getMaxDeadline(context.workspace, context.template),
+          getMaxDeadline(context.workspace),
         )
         await API.putWorkspaceExtension(context.workspace.id, newDeadline)
       },
       decreaseDeadline: async (context, event) => {
-        if (!context.deadline) {
+        if (!context.workspace.latest_build.deadline) {
           throw Error("Deadline is undefined.")
         }
-        const proposedDeadline = context.deadline.subtract(event.hours, "hours")
+        const proposedDeadline = getDeadline(context.workspace).subtract(
+          event.hours,
+          "hours",
+        )
         const newDeadline = dayjs.max(proposedDeadline, getMinDeadline())
         await API.putWorkspaceExtension(context.workspace.id, newDeadline)
       },

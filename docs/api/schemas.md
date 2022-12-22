@@ -2,6 +2,109 @@
 
 > This page is incomplete, stay tuned.
 
+## codersdk.AuthorizationCheck
+
+```json
+{
+  "action": "create",
+  "object": {
+    "organization_id": "string",
+    "owner_id": "string",
+    "resource_id": "string",
+    "resource_type": "string"
+  }
+}
+```
+
+AuthorizationCheck is used to check if the currently authenticated user (or the specified user) can do a given action to a given set of objects.
+
+### Properties
+
+| Name     | Type                                                         | Required | Restrictions | Description                                                                                                                                                |
+| -------- | ------------------------------------------------------------ | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `action` | string                                                       | false    |              |                                                                                                                                                            |
+| `object` | [codersdk.AuthorizationObject](#codersdkauthorizationobject) | false    |              | Object can represent a "set" of objects, such as: all workspaces in an organization, all workspaces owned by me, all workspaces across the entire product. |
+
+#### Enumerated Values
+
+| Property | Value  |
+| -------- | ------ |
+| action   | create |
+| action   | read   |
+| action   | update |
+| action   | delete |
+
+## codersdk.AuthorizationObject
+
+```json
+{
+  "organization_id": "string",
+  "owner_id": "string",
+  "resource_id": "string",
+  "resource_type": "string"
+}
+```
+
+AuthorizationObject can represent a "set" of objects, such as: all workspaces in an organization, all workspaces owned by me, all workspaces across the entire product.
+
+### Properties
+
+| Name              | Type   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                            |
+| ----------------- | ------ | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `organization_id` | string | false    |              | Organization id (optional) adds the set constraint to all resources owned by a given organization.                                                                                                                                                                                                                                                                     |
+| `owner_id`        | string | false    |              | Owner id (optional) adds the set constraint to all resources owned by a given user.                                                                                                                                                                                                                                                                                    |
+| `resource_id`     | string | false    |              | Resource id (optional) reduces the set to a singular resource. This assigns a resource ID to the resource type, eg: a single workspace. The rbac library will not fetch the resource from the database, so if you are using this option, you should also set the `OwnerID` and `OrganizationID` if possible. Be as specific as possible using all the fields relevant. |
+| `resource_type`   | string | false    |              | Resource type is the name of the resource. `./coderd/rbac/object.go` has the list of valid resource types.                                                                                                                                                                                                                                                             |
+
+## codersdk.AuthorizationRequest
+
+```json
+{
+  "checks": {
+    "property1": {
+      "action": "create",
+      "object": {
+        "organization_id": "string",
+        "owner_id": "string",
+        "resource_id": "string",
+        "resource_type": "string"
+      }
+    },
+    "property2": {
+      "action": "create",
+      "object": {
+        "organization_id": "string",
+        "owner_id": "string",
+        "resource_id": "string",
+        "resource_type": "string"
+      }
+    }
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                                                                                                      |
+| ------------------ | ---------------------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `checks`           | object                                                     | false    |              | Checks is a map keyed with an arbitrary string to a permission check. The key can be any string that is helpful to the caller, and allows multiple permission checks to be run in a single request. The key ensures that each permission check has the same key in the response. |
+| » `[any property]` | [codersdk.AuthorizationCheck](#codersdkauthorizationcheck) | false    |              | It is used to check if the currently authenticated user (or the specified user) can do a given action to a given set of objects.                                                                                                                                                 |
+
+## codersdk.AuthorizationResponse
+
+```json
+{
+  "property1": true,
+  "property2": true
+}
+```
+
+### Properties
+
+| Name             | Type    | Required | Restrictions | Description |
+| ---------------- | ------- | -------- | ------------ | ----------- |
+| `[any property]` | boolean | false    |              |             |
+
 ## codersdk.CreateParameterRequest
 
 ```json
@@ -14,15 +117,17 @@
 }
 ```
 
+CreateParameterRequest is a structure used to create a new parameter value for a scope.
+
 ### Properties
 
-| Name                  | Type   | Required | Restrictions | Description                                                                                                                                                                                                                                                    |
-| --------------------- | ------ | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `copy_from_parameter` | string | false    | none         | Copy from parameter allows copying the value of another parameter.<br>The other param must be related to the same template_id for this to<br>succeed.<br>No other fields are required if using this, as all fields will be copied<br>from the other parameter. |
-| `destination_scheme`  | string | true     | none         | none                                                                                                                                                                                                                                                           |
-| `name`                | string | true     | none         | none                                                                                                                                                                                                                                                           |
-| `source_scheme`       | string | true     | none         | none                                                                                                                                                                                                                                                           |
-| `source_value`        | string | true     | none         | none                                                                                                                                                                                                                                                           |
+| Name                  | Type   | Required | Restrictions | Description                                                                                                                                                                                                                                        |
+| --------------------- | ------ | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `copy_from_parameter` | string | false    |              | Copy from parameter allows copying the value of another parameter. The other param must be related to the same template_id for this to succeed. No other fields are required if using this, as all fields will be copied from the other parameter. |
+| `destination_scheme`  | string | true     |              |                                                                                                                                                                                                                                                    |
+| `name`                | string | true     |              |                                                                                                                                                                                                                                                    |
+| `source_scheme`       | string | true     |              |                                                                                                                                                                                                                                                    |
+| `source_value`        | string | true     |              |                                                                                                                                                                                                                                                    |
 
 #### Enumerated Values
 
@@ -57,16 +162,17 @@
 
 ### Properties
 
-| Name                               | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                    |
-| ---------------------------------- | --------------------------------------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `allow_user_cancel_workspace_jobs` | boolean                                                                     | false    | none         | Allow users to cancel in-progress workspace jobs.<br>\*bool as the default value is "true".                                                                                                                                                                                                                    |
-| `default_ttl_ms`                   | integer                                                                     | false    | none         | Default ttl ms allows optionally specifying the default TTL<br>for all workspaces created from this template.                                                                                                                                                                                                  |
-| `description`                      | string                                                                      | false    | none         | Description is a description of what the template contains. It must be<br>less than 128 bytes.                                                                                                                                                                                                                 |
-| `display_name`                     | string                                                                      | false    | none         | Display name is the displayed name of the template.                                                                                                                                                                                                                                                            |
-| `icon`                             | string                                                                      | false    | none         | Icon is a relative path or external URL that specifies<br>an icon to be displayed in the dashboard.                                                                                                                                                                                                            |
-| `name`                             | string                                                                      | true     | none         | Name is the name of the template.                                                                                                                                                                                                                                                                              |
-| `parameter_values`                 | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest) | false    | none         | none                                                                                                                                                                                                                                                                                                           |
-| `template_version_id`              | string                                                                      | true     | none         | Template version id is an in-progress or completed job to use as an initial version<br>of the template.<br><br>This is required on creation to enable a user-flow of validating a<br>template works. There is no reason the data-model cannot support empty<br>templates, but it doesn't make sense for users. |
+| Name                                                                                                                                                                                      | Type                                                                        | Required | Restrictions | Description                                                                                                |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------- |
+| `allow_user_cancel_workspace_jobs`                                                                                                                                                        | boolean                                                                     | false    |              | Allow users to cancel in-progress workspace jobs. \*bool as the default value is "true".                   |
+| `default_ttl_ms`                                                                                                                                                                          | integer                                                                     | false    |              | Default ttl ms allows optionally specifying the default TTL for all workspaces created from this template. |
+| `description`                                                                                                                                                                             | string                                                                      | false    |              | Description is a description of what the template contains. It must be less than 128 bytes.                |
+| `display_name`                                                                                                                                                                            | string                                                                      | false    |              | Display name is the displayed name of the template.                                                        |
+| `icon`                                                                                                                                                                                    | string                                                                      | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.           |
+| `name`                                                                                                                                                                                    | string                                                                      | true     |              | Name is the name of the template.                                                                          |
+| `parameter_values`                                                                                                                                                                        | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest) | false    |              | Parameter values is a structure used to create a new parameter value for a scope.]                         |
+| `template_version_id`                                                                                                                                                                     | string                                                                      | true     |              | Template version id is an in-progress or completed job to use as an initial version of the template.       |
+| This is required on creation to enable a user-flow of validating a template works. There is no reason the data-model cannot support empty templates, but it doesn't make sense for users. |
 
 ## codersdk.DERPRegion
 
@@ -81,8 +187,22 @@
 
 | Name         | Type    | Required | Restrictions | Description |
 | ------------ | ------- | -------- | ------------ | ----------- |
-| `latency_ms` | number  | false    | none         | none        |
-| `preferred`  | boolean | false    | none         | none        |
+| `latency_ms` | number  | false    |              |             |
+| `preferred`  | boolean | false    |              |             |
+
+## codersdk.GetAppHostResponse
+
+```json
+{
+  "host": "string"
+}
+```
+
+### Properties
+
+| Name   | Type   | Required | Restrictions | Description                                                   |
+| ------ | ------ | -------- | ------------ | ------------------------------------------------------------- |
+| `host` | string | false    |              | Host is the externally accessible URL for the Coder instance. |
 
 ## codersdk.Healthcheck
 
@@ -98,9 +218,9 @@
 
 | Name        | Type    | Required | Restrictions | Description                                                                                      |
 | ----------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------ |
-| `interval`  | integer | false    | none         | Interval specifies the seconds between each health check.                                        |
-| `threshold` | integer | false    | none         | Threshold specifies the number of consecutive failed health checks before returning "unhealthy". |
-| `url`       | string  | false    | none         | Url specifies the url to check for the app health.                                               |
+| `interval`  | integer | false    |              | Interval specifies the seconds between each health check.                                        |
+| `threshold` | integer | false    |              | Threshold specifies the number of consecutive failed health checks before returning "unhealthy". |
+| `url`       | string  | false    |              | Url specifies the url to check for the app health.                                               |
 
 ## codersdk.ProvisionerJob
 
@@ -126,17 +246,17 @@
 
 | Name               | Type   | Required | Restrictions | Description |
 | ------------------ | ------ | -------- | ------------ | ----------- |
-| `canceled_at`      | string | false    | none         | none        |
-| `completed_at`     | string | false    | none         | none        |
-| `created_at`       | string | false    | none         | none        |
-| `error`            | string | false    | none         | none        |
-| `file_id`          | string | false    | none         | none        |
-| `id`               | string | false    | none         | none        |
-| `started_at`       | string | false    | none         | none        |
-| `status`           | string | false    | none         | none        |
-| `tags`             | object | false    | none         | none        |
-| » `[any property]` | string | false    | none         | none        |
-| `worker_id`        | string | false    | none         | none        |
+| `canceled_at`      | string | false    |              |             |
+| `completed_at`     | string | false    |              |             |
+| `created_at`       | string | false    |              |             |
+| `error`            | string | false    |              |             |
+| `file_id`          | string | false    |              |             |
+| `id`               | string | false    |              |             |
+| `started_at`       | string | false    |              |             |
+| `status`           | string | false    |              |             |
+| `tags`             | object | false    |              |             |
+| » `[any property]` | string | false    |              |             |
+| `worker_id`        | string | false    |              |             |
 
 ## codersdk.PutExtendWorkspaceRequest
 
@@ -150,7 +270,7 @@
 
 | Name       | Type   | Required | Restrictions | Description |
 | ---------- | ------ | -------- | ------------ | ----------- |
-| `deadline` | string | true     | none         | none        |
+| `deadline` | string | true     |              |             |
 
 ## codersdk.Response
 
@@ -169,11 +289,11 @@
 
 ### Properties
 
-| Name          | Type                                                          | Required | Restrictions | Description                                                                                                                                                                                                                                    |
-| ------------- | ------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `detail`      | string                                                        | false    | none         | Detail is a debug message that provides further insight into why the<br>action failed. This information can be technical and a regular golang<br>err.Error() text.<br>- "database: too many open connections"<br>- "stat: too many open files" |
-| `message`     | string                                                        | false    | none         | Message is an actionable message that depicts actions the request took.<br>These messages should be fully formed sentences with proper punctuation.<br>Examples:<br>- "A user has been created."<br>- "Failed to create a user."               |
-| `validations` | array of [codersdk.ValidationError](#codersdkvalidationerror) | false    | none         | Validations are form field-specific friendly error messages. They will be<br>shown on a form field in the UI. These can also be used to add additional<br>context if there is a set of errors in the primary 'Message'.                        |
+| Name          | Type                                                          | Required | Restrictions | Description                                                                                                                                                                                                                        |
+| ------------- | ------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `detail`      | string                                                        | false    |              | Detail is a debug message that provides further insight into why the action failed. This information can be technical and a regular golang err.Error() text. - "database: too many open connections" - "stat: too many open files" |
+| `message`     | string                                                        | false    |              | Message is an actionable message that depicts actions the request took. These messages should be fully formed sentences with proper punctuation. Examples: - "A user has been created." - "Failed to create a user."               |
+| `validations` | array of [codersdk.ValidationError](#codersdkvalidationerror) | false    |              | Validations are form field-specific friendly error messages. They will be shown on a form field in the UI. These can also be used to add additional context if there is a set of errors in the primary 'Message'.                  |
 
 ## codersdk.Template
 
@@ -212,23 +332,23 @@
 
 | Name                               | Type                                                               | Required | Restrictions | Description                                  |
 | ---------------------------------- | ------------------------------------------------------------------ | -------- | ------------ | -------------------------------------------- |
-| `active_user_count`                | integer                                                            | false    | none         | Active user count is set to -1 when loading. |
-| `active_version_id`                | string                                                             | false    | none         | none                                         |
-| `allow_user_cancel_workspace_jobs` | boolean                                                            | false    | none         | none                                         |
-| `build_time_stats`                 | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats) | false    | none         | none                                         |
-| `created_at`                       | string                                                             | false    | none         | none                                         |
-| `created_by_id`                    | string                                                             | false    | none         | none                                         |
-| `created_by_name`                  | string                                                             | false    | none         | none                                         |
-| `default_ttl_ms`                   | integer                                                            | false    | none         | none                                         |
-| `description`                      | string                                                             | false    | none         | none                                         |
-| `display_name`                     | string                                                             | false    | none         | none                                         |
-| `icon`                             | string                                                             | false    | none         | none                                         |
-| `id`                               | string                                                             | false    | none         | none                                         |
-| `name`                             | string                                                             | false    | none         | none                                         |
-| `organization_id`                  | string                                                             | false    | none         | none                                         |
-| `provisioner`                      | string                                                             | false    | none         | none                                         |
-| `updated_at`                       | string                                                             | false    | none         | none                                         |
-| `workspace_owner_count`            | integer                                                            | false    | none         | none                                         |
+| `active_user_count`                | integer                                                            | false    |              | Active user count is set to -1 when loading. |
+| `active_version_id`                | string                                                             | false    |              |                                              |
+| `allow_user_cancel_workspace_jobs` | boolean                                                            | false    |              |                                              |
+| `build_time_stats`                 | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats) | false    |              |                                              |
+| `created_at`                       | string                                                             | false    |              |                                              |
+| `created_by_id`                    | string                                                             | false    |              |                                              |
+| `created_by_name`                  | string                                                             | false    |              |                                              |
+| `default_ttl_ms`                   | integer                                                            | false    |              |                                              |
+| `description`                      | string                                                             | false    |              |                                              |
+| `display_name`                     | string                                                             | false    |              |                                              |
+| `icon`                             | string                                                             | false    |              |                                              |
+| `id`                               | string                                                             | false    |              |                                              |
+| `name`                             | string                                                             | false    |              |                                              |
+| `organization_id`                  | string                                                             | false    |              |                                              |
+| `provisioner`                      | string                                                             | false    |              |                                              |
+| `updated_at`                       | string                                                             | false    |              |                                              |
+| `workspace_owner_count`            | integer                                                            | false    |              |                                              |
 
 ## codersdk.TemplateBuildTimeStats
 
@@ -249,7 +369,7 @@
 
 | Name             | Type                                                 | Required | Restrictions | Description |
 | ---------------- | ---------------------------------------------------- | -------- | ------------ | ----------- |
-| `[any property]` | [codersdk.TransitionStats](#codersdktransitionstats) | false    | none         | none        |
+| `[any property]` | [codersdk.TransitionStats](#codersdktransitionstats) | false    |              |             |
 
 ## codersdk.TransitionStats
 
@@ -264,8 +384,8 @@
 
 | Name  | Type    | Required | Restrictions | Description |
 | ----- | ------- | -------- | ------------ | ----------- |
-| `p50` | integer | false    | none         | none        |
-| `p95` | integer | false    | none         | none        |
+| `p50` | integer | false    |              |             |
+| `p95` | integer | false    |              |             |
 
 ## codersdk.UpdateWorkspaceAutostartRequest
 
@@ -279,7 +399,7 @@
 
 | Name       | Type   | Required | Restrictions | Description |
 | ---------- | ------ | -------- | ------------ | ----------- |
-| `schedule` | string | false    | none         | none        |
+| `schedule` | string | false    |              |             |
 
 ## codersdk.UpdateWorkspaceRequest
 
@@ -293,7 +413,7 @@
 
 | Name   | Type   | Required | Restrictions | Description |
 | ------ | ------ | -------- | ------------ | ----------- |
-| `name` | string | false    | none         | none        |
+| `name` | string | false    |              |             |
 
 ## codersdk.UpdateWorkspaceTTLRequest
 
@@ -307,7 +427,7 @@
 
 | Name     | Type    | Required | Restrictions | Description |
 | -------- | ------- | -------- | ------------ | ----------- |
-| `ttl_ms` | integer | false    | none         | none        |
+| `ttl_ms` | integer | false    |              |             |
 
 ## codersdk.ValidationError
 
@@ -322,8 +442,8 @@
 
 | Name     | Type   | Required | Restrictions | Description |
 | -------- | ------ | -------- | ------------ | ----------- |
-| `detail` | string | true     | none         | none        |
-| `field`  | string | true     | none         | none        |
+| `detail` | string | true     |              |             |
+| `field`  | string | true     |              |             |
 
 ## codersdk.Workspace
 
@@ -462,22 +582,22 @@
 
 | Name                                        | Type                                               | Required | Restrictions | Description |
 | ------------------------------------------- | -------------------------------------------------- | -------- | ------------ | ----------- |
-| `autostart_schedule`                        | string                                             | false    | none         | none        |
-| `created_at`                                | string                                             | false    | none         | none        |
-| `id`                                        | string                                             | false    | none         | none        |
-| `last_used_at`                              | string                                             | false    | none         | none        |
-| `latest_build`                              | [codersdk.WorkspaceBuild](#codersdkworkspacebuild) | false    | none         | none        |
-| `name`                                      | string                                             | false    | none         | none        |
-| `outdated`                                  | boolean                                            | false    | none         | none        |
-| `owner_id`                                  | string                                             | false    | none         | none        |
-| `owner_name`                                | string                                             | false    | none         | none        |
-| `template_allow_user_cancel_workspace_jobs` | boolean                                            | false    | none         | none        |
-| `template_display_name`                     | string                                             | false    | none         | none        |
-| `template_icon`                             | string                                             | false    | none         | none        |
-| `template_id`                               | string                                             | false    | none         | none        |
-| `template_name`                             | string                                             | false    | none         | none        |
-| `ttl_ms`                                    | integer                                            | false    | none         | none        |
-| `updated_at`                                | string                                             | false    | none         | none        |
+| `autostart_schedule`                        | string                                             | false    |              |             |
+| `created_at`                                | string                                             | false    |              |             |
+| `id`                                        | string                                             | false    |              |             |
+| `last_used_at`                              | string                                             | false    |              |             |
+| `latest_build`                              | [codersdk.WorkspaceBuild](#codersdkworkspacebuild) | false    |              |             |
+| `name`                                      | string                                             | false    |              |             |
+| `outdated`                                  | boolean                                            | false    |              |             |
+| `owner_id`                                  | string                                             | false    |              |             |
+| `owner_name`                                | string                                             | false    |              |             |
+| `template_allow_user_cancel_workspace_jobs` | boolean                                            | false    |              |             |
+| `template_display_name`                     | string                                             | false    |              |             |
+| `template_icon`                             | string                                             | false    |              |             |
+| `template_id`                               | string                                             | false    |              |             |
+| `template_name`                             | string                                             | false    |              |             |
+| `ttl_ms`                                    | integer                                            | false    |              |             |
+| `updated_at`                                | string                                             | false    |              |             |
 
 ## codersdk.WorkspaceAgent
 
@@ -540,28 +660,28 @@
 
 | Name                         | Type                                                    | Required | Restrictions | Description                                                         |
 | ---------------------------- | ------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------- |
-| `apps`                       | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp) | false    | none         | none                                                                |
-| `architecture`               | string                                                  | false    | none         | none                                                                |
-| `connection_timeout_seconds` | integer                                                 | false    | none         | none                                                                |
-| `created_at`                 | string                                                  | false    | none         | none                                                                |
-| `directory`                  | string                                                  | false    | none         | none                                                                |
-| `disconnected_at`            | string                                                  | false    | none         | none                                                                |
-| `environment_variables`      | object                                                  | false    | none         | none                                                                |
-| » `[any property]`           | string                                                  | false    | none         | none                                                                |
-| `first_connected_at`         | string                                                  | false    | none         | none                                                                |
-| `id`                         | string                                                  | false    | none         | none                                                                |
-| `instance_id`                | string                                                  | false    | none         | none                                                                |
-| `last_connected_at`          | string                                                  | false    | none         | none                                                                |
-| `latency`                    | object                                                  | false    | none         | Latency is mapped by region name (e.g. "New York City", "Seattle"). |
-| » `[any property]`           | [codersdk.DERPRegion](#codersdkderpregion)              | false    | none         | none                                                                |
-| `name`                       | string                                                  | false    | none         | none                                                                |
-| `operating_system`           | string                                                  | false    | none         | none                                                                |
-| `resource_id`                | string                                                  | false    | none         | none                                                                |
-| `startup_script`             | string                                                  | false    | none         | none                                                                |
-| `status`                     | string                                                  | false    | none         | none                                                                |
-| `troubleshooting_url`        | string                                                  | false    | none         | none                                                                |
-| `updated_at`                 | string                                                  | false    | none         | none                                                                |
-| `version`                    | string                                                  | false    | none         | none                                                                |
+| `apps`                       | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp) | false    |              |                                                                     |
+| `architecture`               | string                                                  | false    |              |                                                                     |
+| `connection_timeout_seconds` | integer                                                 | false    |              |                                                                     |
+| `created_at`                 | string                                                  | false    |              |                                                                     |
+| `directory`                  | string                                                  | false    |              |                                                                     |
+| `disconnected_at`            | string                                                  | false    |              |                                                                     |
+| `environment_variables`      | object                                                  | false    |              |                                                                     |
+| » `[any property]`           | string                                                  | false    |              |                                                                     |
+| `first_connected_at`         | string                                                  | false    |              |                                                                     |
+| `id`                         | string                                                  | false    |              |                                                                     |
+| `instance_id`                | string                                                  | false    |              |                                                                     |
+| `last_connected_at`          | string                                                  | false    |              |                                                                     |
+| `latency`                    | object                                                  | false    |              | Latency is mapped by region name (e.g. "New York City", "Seattle"). |
+| » `[any property]`           | [codersdk.DERPRegion](#codersdkderpregion)              | false    |              |                                                                     |
+| `name`                       | string                                                  | false    |              |                                                                     |
+| `operating_system`           | string                                                  | false    |              |                                                                     |
+| `resource_id`                | string                                                  | false    |              |                                                                     |
+| `startup_script`             | string                                                  | false    |              |                                                                     |
+| `status`                     | string                                                  | false    |              |                                                                     |
+| `troubleshooting_url`        | string                                                  | false    |              |                                                                     |
+| `updated_at`                 | string                                                  | false    |              |                                                                     |
+| `version`                    | string                                                  | false    |              |                                                                     |
 
 ## codersdk.WorkspaceApp
 
@@ -587,19 +707,19 @@
 
 ### Properties
 
-| Name            | Type                                         | Required | Restrictions | Description                                                                                                                                                                                                                                             |
-| --------------- | -------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `command`       | string                                       | false    | none         | none                                                                                                                                                                                                                                                    |
-| `display_name`  | string                                       | false    | none         | Display name is a friendly name for the app.                                                                                                                                                                                                            |
-| `external`      | boolean                                      | false    | none         | External specifies whether the URL should be opened externally on<br>the client or not.                                                                                                                                                                 |
-| `health`        | string                                       | false    | none         | none                                                                                                                                                                                                                                                    |
-| `healthcheck`   | [codersdk.Healthcheck](#codersdkhealthcheck) | false    | none         | none                                                                                                                                                                                                                                                    |
-| `icon`          | string                                       | false    | none         | Icon is a relative path or external URL that specifies<br>an icon to be displayed in the dashboard.                                                                                                                                                     |
-| `id`            | string                                       | false    | none         | none                                                                                                                                                                                                                                                    |
-| `sharing_level` | string                                       | false    | none         | none                                                                                                                                                                                                                                                    |
-| `slug`          | string                                       | false    | none         | Slug is a unique identifier within the agent.                                                                                                                                                                                                           |
-| `subdomain`     | boolean                                      | false    | none         | Subdomain denotes whether the app should be accessed via a path on the<br>`coder server` or via a hostname-based dev URL. If this is set to true<br>and there is no app wildcard configured on the server, the app will not<br>be accessible in the UI. |
-| `url`           | string                                       | false    | none         | Url is the address being proxied to inside the workspace.<br>If external is specified, this will be opened on the client.                                                                                                                               |
+| Name            | Type                                         | Required | Restrictions | Description                                                                                                                                                                                                                                    |
+| --------------- | -------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `command`       | string                                       | false    |              |                                                                                                                                                                                                                                                |
+| `display_name`  | string                                       | false    |              | Display name is a friendly name for the app.                                                                                                                                                                                                   |
+| `external`      | boolean                                      | false    |              | External specifies whether the URL should be opened externally on the client or not.                                                                                                                                                           |
+| `health`        | string                                       | false    |              |                                                                                                                                                                                                                                                |
+| `healthcheck`   | [codersdk.Healthcheck](#codersdkhealthcheck) | false    |              |                                                                                                                                                                                                                                                |
+| `icon`          | string                                       | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                               |
+| `id`            | string                                       | false    |              |                                                                                                                                                                                                                                                |
+| `sharing_level` | string                                       | false    |              |                                                                                                                                                                                                                                                |
+| `slug`          | string                                       | false    |              | Slug is a unique identifier within the agent.                                                                                                                                                                                                  |
+| `subdomain`     | boolean                                      | false    |              | Subdomain denotes whether the app should be accessed via a path on the `coder server` or via a hostname-based dev URL. If this is set to true and there is no app wildcard configured on the server, the app will not be accessible in the UI. |
+| `url`           | string                                       | false    |              | Url is the address being proxied to inside the workspace. If external is specified, this will be opened on the client.                                                                                                                         |
 
 ## codersdk.WorkspaceBuild
 
@@ -721,25 +841,25 @@
 
 | Name                    | Type                                                              | Required | Restrictions | Description |
 | ----------------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `build_number`          | integer                                                           | false    | none         | none        |
-| `created_at`            | string                                                            | false    | none         | none        |
-| `daily_cost`            | integer                                                           | false    | none         | none        |
-| `deadline`              | string(time) or `null`                                            | false    | none         | none        |
-| `id`                    | string                                                            | false    | none         | none        |
-| `initiator_id`          | string                                                            | false    | none         | none        |
-| `initiator_name`        | string                                                            | false    | none         | none        |
-| `job`                   | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                | false    | none         | none        |
-| `reason`                | string                                                            | false    | none         | none        |
-| `resources`             | array of [codersdk.WorkspaceResource](#codersdkworkspaceresource) | false    | none         | none        |
-| `status`                | string                                                            | false    | none         | none        |
-| `template_version_id`   | string                                                            | false    | none         | none        |
-| `template_version_name` | string                                                            | false    | none         | none        |
-| `transition`            | string                                                            | false    | none         | none        |
-| `updated_at`            | string                                                            | false    | none         | none        |
-| `workspace_id`          | string                                                            | false    | none         | none        |
-| `workspace_name`        | string                                                            | false    | none         | none        |
-| `workspace_owner_id`    | string                                                            | false    | none         | none        |
-| `workspace_owner_name`  | string                                                            | false    | none         | none        |
+| `build_number`          | integer                                                           | false    |              |             |
+| `created_at`            | string                                                            | false    |              |             |
+| `daily_cost`            | integer                                                           | false    |              |             |
+| `deadline`              | string(time) or `null`                                            | false    |              |             |
+| `id`                    | string                                                            | false    |              |             |
+| `initiator_id`          | string                                                            | false    |              |             |
+| `initiator_name`        | string                                                            | false    |              |             |
+| `job`                   | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                | false    |              |             |
+| `reason`                | string                                                            | false    |              |             |
+| `resources`             | array of [codersdk.WorkspaceResource](#codersdkworkspaceresource) | false    |              |             |
+| `status`                | string                                                            | false    |              |             |
+| `template_version_id`   | string                                                            | false    |              |             |
+| `template_version_name` | string                                                            | false    |              |             |
+| `transition`            | string                                                            | false    |              |             |
+| `updated_at`            | string                                                            | false    |              |             |
+| `workspace_id`          | string                                                            | false    |              |             |
+| `workspace_name`        | string                                                            | false    |              |             |
+| `workspace_owner_id`    | string                                                            | false    |              |             |
+| `workspace_owner_name`  | string                                                            | false    |              |             |
 
 #### Enumerated Values
 
@@ -840,17 +960,17 @@
 
 | Name                   | Type                                                                              | Required | Restrictions | Description |
 | ---------------------- | --------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `agents`               | array of [codersdk.WorkspaceAgent](#codersdkworkspaceagent)                       | false    | none         | none        |
-| `created_at`           | string                                                                            | false    | none         | none        |
-| `daily_cost`           | integer                                                                           | false    | none         | none        |
-| `hide`                 | boolean                                                                           | false    | none         | none        |
-| `icon`                 | string                                                                            | false    | none         | none        |
-| `id`                   | string                                                                            | false    | none         | none        |
-| `job_id`               | string                                                                            | false    | none         | none        |
-| `metadata`             | array of [codersdk.WorkspaceResourceMetadata](#codersdkworkspaceresourcemetadata) | false    | none         | none        |
-| `name`                 | string                                                                            | false    | none         | none        |
-| `type`                 | string                                                                            | false    | none         | none        |
-| `workspace_transition` | string                                                                            | false    | none         | none        |
+| `agents`               | array of [codersdk.WorkspaceAgent](#codersdkworkspaceagent)                       | false    |              |             |
+| `created_at`           | string                                                                            | false    |              |             |
+| `daily_cost`           | integer                                                                           | false    |              |             |
+| `hide`                 | boolean                                                                           | false    |              |             |
+| `icon`                 | string                                                                            | false    |              |             |
+| `id`                   | string                                                                            | false    |              |             |
+| `job_id`               | string                                                                            | false    |              |             |
+| `metadata`             | array of [codersdk.WorkspaceResourceMetadata](#codersdkworkspaceresourcemetadata) | false    |              |             |
+| `name`                 | string                                                                            | false    |              |             |
+| `type`                 | string                                                                            | false    |              |             |
+| `workspace_transition` | string                                                                            | false    |              |             |
 
 #### Enumerated Values
 
@@ -874,9 +994,9 @@
 
 | Name        | Type    | Required | Restrictions | Description |
 | ----------- | ------- | -------- | ------------ | ----------- |
-| `key`       | string  | false    | none         | none        |
-| `sensitive` | boolean | false    | none         | none        |
-| `value`     | string  | false    | none         | none        |
+| `key`       | string  | false    |              |             |
+| `sensitive` | boolean | false    |              |             |
+| `value`     | string  | false    |              |             |
 
 ## codersdk.WorkspacesResponse
 
@@ -1016,5 +1136,5 @@
 
 | Name         | Type                                              | Required | Restrictions | Description |
 | ------------ | ------------------------------------------------- | -------- | ------------ | ----------- |
-| `count`      | integer                                           | false    | none         | none        |
-| `workspaces` | array of [codersdk.Workspace](#codersdkworkspace) | false    | none         | none        |
+| `count`      | integer                                           | false    |              |             |
+| `workspaces` | array of [codersdk.Workspace](#codersdkworkspace) | false    |              |             |
