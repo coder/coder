@@ -1,22 +1,22 @@
 {
-    "ignorePatterns": [
-        {
-            "pattern": ":\/\/localhost"
-        },
-        {
-            "pattern": ":\/\/.*.?example\\.com"
-        },
-        {
-            "pattern": "developer.github.com"
-        },
-        {
-            "pattern": "docs.github.com"
-        },
-        {
-            "pattern": "support.google.com"
-        },
-        {
-            "pattern": "tailscale.com"
-        }
-    ]
+  "ignorePatterns": [
+    {
+      "pattern": "://localhost"
+    },
+    {
+      "pattern": "://.*.?example\\.com"
+    },
+    {
+      "pattern": "developer.github.com"
+    },
+    {
+      "pattern": "docs.github.com"
+    },
+    {
+      "pattern": "support.google.com"
+    },
+    {
+      "pattern": "tailscale.com"
+    }
+  ]
 }
