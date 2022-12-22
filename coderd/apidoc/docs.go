@@ -867,7 +867,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "resource_id": {
-                    "description": "ResourceID (optional) reduces the set to a singular resource. This assigns\na resource ID to the resource type, eg: a single workspace.\nThe rbac library will not fetch the resource from the database, so if you\nare using this option, you should also set the ` + "`" + `OwnerID` + "`" + ` and ` + "`" + `OrganizationID` + "`" + `\nif possible. Be as specific as possible using all the fields relevant.",
+                    "description": "ResourceID (optional) reduces the set to a singular resource. This assigns\na resource ID to the resource type, eg: a single workspace.\nThe rbac library will not fetch the resource from the database, so if you\nare using this option, you should also set the owner ID and organization ID\nif possible. Be as specific as possible using all the fields relevant.",
                     "type": "string"
                 },
                 "resource_type": {
@@ -898,7 +898,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "external_url": {
-                    "description": "ExternalURL is a URL referencing the current Coder version.\nFor production builds, this will link directly to a release. For development builds, this will link to a commit.",
+                    "description": "ExternalURL references the current Coder version.\nFor production builds, this will link directly to a release. For development builds, this will link to a commit.",
                     "type": "string"
                 },
                 "version": {
@@ -1017,7 +1017,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "url": {
-                    "description": "URL specifies the url to check for the app health.",
+                    "description": "URL specifies the endpoint to check for the app health.",
                     "type": "string"
                 }
             }
