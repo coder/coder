@@ -5,6 +5,12 @@ on your preferred clouds and servers.
 
 By building on top of common development interfaces (SSH) and infrastructure tools (Terraform), Coder aims to make the process of **provisioning** and **accessing** remote workspaces approachable for organizations of various sizes and stages of cloud-native maturity.
 
+<blockquote class="warning">
+  <p>
+  If you are a Coder v1 customer, view <a href="https://coder.com/docs/coder">the docs</a> or <a href="https://coder.com/docs/coder/latest/guides/v2-faq">the sunset plans</a>.
+  </p>
+</blockquote>
+
 ## How it works
 
 Coder workspaces are represented with Terraform, but no Terraform knowledge is
