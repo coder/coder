@@ -29,7 +29,8 @@
 		if (p.displayName == "*anonymous*") {
 			return "[array items]";
 		}
-		return p.displayName;
+		let displayName = p.displayName.replace("**additionalProperties**", "[any property]");
+		return displayName;
 	}
 }}
 {{ data.responses = data.utils.getResponses(data); }}

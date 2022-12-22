@@ -162,7 +162,7 @@ Status Code **200**
 | `» active_version_id`                | string                            | false    |              |                                            |
 | `» allow_user_cancel_workspace_jobs` | boolean                           | false    |              |                                            |
 | `» build_time_stats`                 | `codersdk.TemplateBuildTimeStats` | false    |              |                                            |
-| `»» **additionalProperties**`        | `codersdk.TransitionStats`        | false    |              |                                            |
+| `»» [any property]`                  | `codersdk.TransitionStats`        | false    |              |                                            |
 | `»»» p50`                            | integer                           | false    |              |                                            |
 | `»»» p95`                            | integer                           | false    |              |                                            |
 | `» created_at`                       | string                            | false    |              |                                            |
