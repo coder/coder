@@ -38,6 +38,12 @@ jobs:
       uses: actions/setup-go@v3
       with:
         go-version: "~1.19"
+  
+    - name: Remove Makefile # workaround to prevent CodeQL from building site
+      if: matrix.language == 'go'
+      run: |
+        # Disable Analysis step from trying to build the project.
+        rm Makefile
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
