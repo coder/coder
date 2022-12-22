@@ -198,6 +198,8 @@ type OIDCConfig struct {
 	// IgnoreEmailVerified allows ignoring the email_verified claim
 	// from an upstream OIDC provider. See #5065 for context.
 	IgnoreEmailVerified bool
+	// UsernameField selects the claim field to be used as username
+	UsernameField string
 }
 
 func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
@@ -236,7 +238,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	usernameRaw, ok := claims["preferred_username"]
+	usernameRaw, ok := claims[api.OIDCConfig.UsernameField]
 	var username string
 	if ok {
 		username, _ = usernameRaw.(string)

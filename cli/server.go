@@ -526,8 +526,9 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					Verifier: oidcProvider.Verifier(&oidc.Config{
 						ClientID: cfg.OIDC.ClientID.Value,
 					}),
-					EmailDomain:  cfg.OIDC.EmailDomain.Value,
-					AllowSignups: cfg.OIDC.AllowSignups.Value,
+					EmailDomain:   cfg.OIDC.EmailDomain.Value,
+					AllowSignups:  cfg.OIDC.AllowSignups.Value,
+					UsernameField: cfg.OIDC.UsernameField.Value,
 				}
 			}
 

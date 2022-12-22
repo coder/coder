@@ -248,6 +248,12 @@ func newConfig() *codersdk.DeploymentConfig {
 				Flag:    "oidc-ignore-email-verified",
 				Default: false,
 			},
+			UsernameField: &codersdk.DeploymentConfigField[string]{
+				Name:    "OIDC Username field",
+				Usage:   "OIDC claim filed to use as user-name.",
+				Flag:    "oidc-username-field",
+				Default: "preferred_username",
+			},
 		},
 
 		Telemetry: &codersdk.TelemetryConfig{
