@@ -14,6 +14,8 @@ type cspViolation struct {
 	Report map[string]interface{} `json:"csp-report"`
 }
 
+// logReportCSPViolations will log all reported csp violations.
+//
 // @Summary Report CSP violations
 // @ID report-csp-violations
 // @Security CoderSessionToken
@@ -23,8 +25,6 @@ type cspViolation struct {
 // @Param request body cspViolation true "Violation report"
 // @Success 200
 // @Router /csp/reports [post]
-//
-// logReportCSPViolations will log all reported csp violations.
 func (api *API) logReportCSPViolations(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var v cspViolation

@@ -16,7 +16,8 @@ type UpdateCheckResponse struct {
 	URL string `json:"url"`
 }
 
-// UpdateCheck returns information about the latest release version of Coder and whether or not the server is running the latest release.
+// UpdateCheck returns information about the latest release version of
+// Coder and whether or not the server is running the latest release.
 func (c *Client) UpdateCheck(ctx context.Context) (UpdateCheckResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/updatecheck", nil)
 	if err != nil {
