@@ -333,9 +333,6 @@ RUN cd /opt \
   && ln -s "nix-${NIX_VERSION}-x86_64-linux" nix \
   && rm -rf "nix-${NIX_VERSION}-x86_64-linux.tar.xz"
 
-# Enable installation of unfree software - https://nixos.wiki/wiki/FAQ/How_can_I_install_a_proprietary_or_unfree_package
-RUN mkdir -p /home/coder/.config/nixpkgs && echo '{ allowUnfree = true; }' >> /home/coder/.config/nixpkgs/config.nix
-
 # Ensure go bins are in the 'coder' user's path. Note that no go bins are
 # installed in this docker file, as they'd be mounted over by the persistent
 # home volume.
