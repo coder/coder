@@ -478,7 +478,7 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 // @Tags Templates
 // @Param id path string true "Template ID" format(uuid)
 // @Success 200 {object} codersdk.Template
-// @Router /templates/{id} [get]
+// @Router /templates/{id} [patch]
 func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()

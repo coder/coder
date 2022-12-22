@@ -49,13 +49,15 @@ type ComputedParameter struct {
 }
 
 // Parameter represents a set value for the scope.
+//
+// @Description Parameter represents a set value for the scope.
 type Parameter struct {
-	ID                uuid.UUID                  `json:"id" table:"id"`
-	Scope             ParameterScope             `json:"scope" table:"scope"`
-	ScopeID           uuid.UUID                  `json:"scope_id" table:"scope id"`
+	ID                uuid.UUID                  `json:"id" table:"id" format:"uuid"`
+	Scope             ParameterScope             `json:"scope" table:"scope" enums:"template,workspace,import_job"`
+	ScopeID           uuid.UUID                  `json:"scope_id" table:"scope id" format:"uuid"`
 	Name              string                     `json:"name" table:"name"`
-	SourceScheme      ParameterSourceScheme      `json:"source_scheme" table:"source scheme" validate:"ne=none"`
-	DestinationScheme ParameterDestinationScheme `json:"destination_scheme" table:"destination scheme" validate:"ne=none"`
+	SourceScheme      ParameterSourceScheme      `json:"source_scheme" table:"source scheme" validate:"ne=none" enums:"none,data"`
+	DestinationScheme ParameterDestinationScheme `json:"destination_scheme" table:"destination scheme" validate:"ne=none" enums:"none,environment_variable,provisioner_variable"`
 	CreatedAt         time.Time                  `json:"created_at" table:"created at"`
 	UpdatedAt         time.Time                  `json:"updated_at" table:"updated at"`
 }
@@ -96,8 +98,8 @@ type CreateParameterRequest struct {
 
 	Name              string                     `json:"name" validate:"required"`
 	SourceValue       string                     `json:"source_value" validate:"required"`
-	SourceScheme      ParameterSourceScheme      `json:"source_scheme" validate:"oneof=data,required"`
-	DestinationScheme ParameterDestinationScheme `json:"destination_scheme" validate:"oneof=environment_variable provisioner_variable,required"`
+	SourceScheme      ParameterSourceScheme      `json:"source_scheme" validate:"oneof=data,required" enums:"none,data"`
+	DestinationScheme ParameterDestinationScheme `json:"destination_scheme" validate:"oneof=environment_variable provisioner_variable,required" enums:"none,environment_variable,provisioner_variable"`
 }
 
 func (c *Client) CreateParameter(ctx context.Context, scope ParameterScope, id uuid.UUID, req CreateParameterRequest) (Parameter, error) {

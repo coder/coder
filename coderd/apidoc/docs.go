@@ -97,6 +97,92 @@ const docTemplate = `{
                 }
             }
         },
+        "/audit": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Audit"
+                ],
+                "summary": "Get audit logs",
+                "operationId": "get-audit-logs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search query",
+                        "name": "q",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "After ID",
+                        "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AuditLogResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/audit/testgenerate": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Audit"
+                ],
+                "summary": "Generate fake audit log",
+                "operationId": "generate-fake-audit-logs",
+                "parameters": [
+                    {
+                        "description": "Audit log request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateTestAuditLogRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/authcheck": {
             "post": {
                 "security": [
@@ -156,6 +242,31 @@ const docTemplate = `{
                 }
             }
         },
+        "/config/deployment": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Get deployment config",
+                "operationId": "get-deployment-config",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.DeploymentConfig"
+                        }
+                    }
+                }
+            }
+        },
         "/csp/reports": {
             "post": {
                 "security": [
@@ -183,6 +294,81 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/coderd.cspViolation"
                         }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/files": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "description": "Notice: Swagger 2.0 doesn't support file upload with a ` + "`" + `content-type` + "`" + ` different than ` + "`" + `application/x-www-form-urlencoded` + "`" + `.",
+                "consumes": [
+                    "application/x-tar"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Files"
+                ],
+                "summary": "Upload file",
+                "operationId": "update-file",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "default": "application/x-tar",
+                        "description": "Content-Type must be ` + "`" + `application/x-tar` + "`" + `",
+                        "name": "Content-Type",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "File to be uploaded",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UploadResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/files/{fileID}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Files"
+                ],
+                "summary": "Get file by ID",
+                "operationId": "get-file-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "File ID",
+                        "name": "fileID",
+                        "in": "path",
+                        "required": true
                     }
                 ],
                 "responses": {
@@ -360,6 +546,167 @@ const docTemplate = `{
                 }
             }
         },
+        "/parameters/{scope}/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Parameters"
+                ],
+                "summary": "Get parameters",
+                "operationId": "get-parameters",
+                "parameters": [
+                    {
+                        "enum": [
+                            "template",
+                            "workspace",
+                            "import_job"
+                        ],
+                        "type": "string",
+                        "description": "Scope",
+                        "name": "scope",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Parameter"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Parameters"
+                ],
+                "summary": "Create parameter",
+                "operationId": "create-parameter",
+                "parameters": [
+                    {
+                        "description": "Parameter request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateParameterRequest"
+                        }
+                    },
+                    {
+                        "enum": [
+                            "template",
+                            "workspace",
+                            "import_job"
+                        ],
+                        "type": "string",
+                        "description": "Scope",
+                        "name": "scope",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Parameter"
+                        }
+                    }
+                }
+            }
+        },
+        "/parameters/{scope}/{id}/{name}": {
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Parameters"
+                ],
+                "summary": "Delete parameter",
+                "operationId": "delete-parameter",
+                "parameters": [
+                    {
+                        "enum": [
+                            "template",
+                            "workspace",
+                            "import_job"
+                        ],
+                        "type": "string",
+                        "description": "Scope",
+                        "name": "scope",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/templates/{id}": {
             "get": {
                 "security": [
@@ -373,8 +720,8 @@ const docTemplate = `{
                 "tags": [
                     "Templates"
                 ],
-                "summary": "Update template metadata by ID",
-                "operationId": "update-template-metadata",
+                "summary": "Get template metadata by ID",
+                "operationId": "get-template-metadata-by-id",
                 "parameters": [
                     {
                         "type": "string",
@@ -423,6 +770,39 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Update template metadata by ID",
+                "operationId": "update-template-metadata",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Template"
                         }
                     }
                 }
@@ -835,6 +1215,99 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AuditDiff": {
+            "type": "object",
+            "additionalProperties": {
+                "$ref": "#/definitions/codersdk.AuditDiffField"
+            }
+        },
+        "codersdk.AuditDiffField": {
+            "type": "object",
+            "properties": {
+                "new": {},
+                "old": {},
+                "secret": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.AuditLog": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string"
+                },
+                "additional_fields": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "diff": {
+                    "$ref": "#/definitions/codersdk.AuditDiff"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "ip": {
+                    "$ref": "#/definitions/netip.Addr"
+                },
+                "is_deleted": {
+                    "type": "boolean"
+                },
+                "organization_id": {
+                    "type": "string"
+                },
+                "request_id": {
+                    "type": "string"
+                },
+                "resource_icon": {
+                    "type": "string"
+                },
+                "resource_id": {
+                    "type": "string"
+                },
+                "resource_link": {
+                    "type": "string"
+                },
+                "resource_target": {
+                    "description": "ResourceTarget is the name of the resource.",
+                    "type": "string"
+                },
+                "resource_type": {
+                    "type": "string"
+                },
+                "status_code": {
+                    "type": "integer"
+                },
+                "time": {
+                    "type": "string"
+                },
+                "user": {
+                    "$ref": "#/definitions/codersdk.User"
+                },
+                "user_agent": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.AuditLogResponse": {
+            "type": "object",
+            "properties": {
+                "audit_logs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AuditLog"
+                    }
+                },
+                "count": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.AuthorizationCheck": {
             "description": "AuthorizationCheck is used to check if the currently authenticated user (or the specified user) can do a given action to a given set of objects.",
             "type": "object",
@@ -924,6 +1397,7 @@ const docTemplate = `{
                 "destination_scheme": {
                     "type": "string",
                     "enum": [
+                        "none",
                         "environment_variable",
                         "provisioner_variable"
                     ]
@@ -934,6 +1408,7 @@ const docTemplate = `{
                 "source_scheme": {
                     "type": "string",
                     "enum": [
+                        "none",
                         "data"
                     ]
                 },
@@ -985,6 +1460,63 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateTestAuditLogRequest": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": [
+                        "create",
+                        "write",
+                        "delete",
+                        "start",
+                        "stop"
+                    ]
+                },
+                "resource_id": {
+                    "type": "string"
+                },
+                "resource_type": {
+                    "type": "string",
+                    "enum": [
+                        "organization",
+                        "template",
+                        "template_version",
+                        "user",
+                        "workspace",
+                        "workspace_build",
+                        "git_ssh_key",
+                        "api_key",
+                        "group"
+                    ]
+                },
+                "time": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.DERP": {
+            "type": "object",
+            "properties": {
+                "config": {
+                    "$ref": "#/definitions/codersdk.DERPConfig"
+                },
+                "server": {
+                    "$ref": "#/definitions/codersdk.DERPServerConfig"
+                }
+            }
+        },
+        "codersdk.DERPConfig": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
+                "url": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                }
+            }
+        },
         "codersdk.DERPRegion": {
             "type": "object",
             "properties": {
@@ -996,11 +1528,375 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.DERPServerConfig": {
+            "type": "object",
+            "properties": {
+                "enable": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
+                "region_code": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
+                "region_id": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-int"
+                },
+                "region_name": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
+                "relay_url": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
+                "stun_addresses": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
+                }
+            }
+        },
+        "codersdk.DeploymentConfig": {
+            "type": "object",
+            "properties": {
+                "access_url": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
+                "address": {
+                    "description": "DEPRECATED: Use HTTPAddress or TLS.Address instead.",
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
+                "agent_fallback_troubleshooting_url": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
+                "agent_stat_refresh_interval": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-time_Duration"
+                },
+                "api_rate_limit": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-int"
+                },
+                "audit_logging": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
+                "auto_import_templates": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
+                },
+                "autobuild_poll_interval": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-time_Duration"
+                },
+                "browser_only": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
+                "cache_directory": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
+                "derp": {
+                    "$ref": "#/definitions/codersdk.DERP"
+                },
+                "experimental": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
+                "gitauth": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_codersdk_GitAuthConfig"
+                },
+                "http_address": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
+                "in_memory_database": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
+                "max_token_lifetime": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-time_Duration"
+                },
+                "metrics_cache_refresh_interval": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-time_Duration"
+                },
+                "oauth2": {
+                    "$ref": "#/definitions/codersdk.OAuth2Config"
+                },
+                "oidc": {
+                    "$ref": "#/definitions/codersdk.OIDCConfig"
+                },
+                "pg_connection_url": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
+                "pprof": {
+                    "$ref": "#/definitions/codersdk.PprofConfig"
+                },
+                "prometheus": {
+                    "$ref": "#/definitions/codersdk.PrometheusConfig"
+                },
+                "provisioner": {
+                    "$ref": "#/definitions/codersdk.ProvisionerConfig"
+                },
+                "proxy_trusted_headers": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
+                },
+                "proxy_trusted_origins": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
+                },
+                "scim_api_key": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
+                "secure_auth_cookie": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
+                "ssh_keygen_algorithm": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
+                "swagger": {
+                    "$ref": "#/definitions/codersdk.SwaggerConfig"
+                },
+                "telemetry": {
+                    "$ref": "#/definitions/codersdk.TelemetryConfig"
+                },
+                "tls": {
+                    "$ref": "#/definitions/codersdk.TLSConfig"
+                },
+                "trace": {
+                    "$ref": "#/definitions/codersdk.TraceConfig"
+                },
+                "update_check": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
+                "wildcard_access_url": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                }
+            }
+        },
+        "codersdk.DeploymentConfigField-array_codersdk_GitAuthConfig": {
+            "type": "object",
+            "properties": {
+                "default": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.GitAuthConfig"
+                    }
+                },
+                "enterprise": {
+                    "type": "boolean"
+                },
+                "flag": {
+                    "type": "string"
+                },
+                "hidden": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "secret": {
+                    "type": "boolean"
+                },
+                "shorthand": {
+                    "type": "string"
+                },
+                "usage": {
+                    "type": "string"
+                },
+                "value": {
+                    "$ref": "#/definitions/codersdk.GitAuthConfig"
+                }
+            }
+        },
+        "codersdk.DeploymentConfigField-array_string": {
+            "type": "object",
+            "properties": {
+                "default": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "enterprise": {
+                    "type": "boolean"
+                },
+                "flag": {
+                    "type": "string"
+                },
+                "hidden": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "secret": {
+                    "type": "boolean"
+                },
+                "shorthand": {
+                    "type": "string"
+                },
+                "usage": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.DeploymentConfigField-bool": {
+            "type": "object",
+            "properties": {
+                "default": {
+                    "type": "boolean"
+                },
+                "enterprise": {
+                    "type": "boolean"
+                },
+                "flag": {
+                    "type": "string"
+                },
+                "hidden": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "secret": {
+                    "type": "boolean"
+                },
+                "shorthand": {
+                    "type": "string"
+                },
+                "usage": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.DeploymentConfigField-int": {
+            "type": "object",
+            "properties": {
+                "default": {
+                    "type": "integer"
+                },
+                "enterprise": {
+                    "type": "boolean"
+                },
+                "flag": {
+                    "type": "string"
+                },
+                "hidden": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "secret": {
+                    "type": "boolean"
+                },
+                "shorthand": {
+                    "type": "string"
+                },
+                "usage": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.DeploymentConfigField-string": {
+            "type": "object",
+            "properties": {
+                "default": {
+                    "type": "string"
+                },
+                "enterprise": {
+                    "type": "boolean"
+                },
+                "flag": {
+                    "type": "string"
+                },
+                "hidden": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "secret": {
+                    "type": "boolean"
+                },
+                "shorthand": {
+                    "type": "string"
+                },
+                "usage": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.DeploymentConfigField-time_Duration": {
+            "type": "object",
+            "properties": {
+                "default": {
+                    "type": "integer"
+                },
+                "enterprise": {
+                    "type": "boolean"
+                },
+                "flag": {
+                    "type": "string"
+                },
+                "hidden": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "secret": {
+                    "type": "boolean"
+                },
+                "shorthand": {
+                    "type": "string"
+                },
+                "usage": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.GetAppHostResponse": {
             "type": "object",
             "properties": {
                 "host": {
                     "description": "Host is the externally accessible URL for the Coder instance.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.GitAuthConfig": {
+            "type": "object",
+            "properties": {
+                "auth_url": {
+                    "type": "string"
+                },
+                "client_id": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "no_refresh": {
+                    "type": "boolean"
+                },
+                "regex": {
+                    "type": "string"
+                },
+                "scopes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "token_url": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "validate_url": {
                     "type": "string"
                 }
             }
@@ -1022,15 +1918,148 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.NullTime": {
+        "codersdk.OAuth2Config": {
             "type": "object",
             "properties": {
-                "time": {
+                "github": {
+                    "$ref": "#/definitions/codersdk.OAuth2GithubConfig"
+                }
+            }
+        },
+        "codersdk.OAuth2GithubConfig": {
+            "type": "object",
+            "properties": {
+                "allow_everyone": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
+                "allow_signups": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
+                "allowed_orgs": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
+                },
+                "allowed_teams": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
+                },
+                "client_id": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
+                "client_secret": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
+                "enterprise_base_url": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                }
+            }
+        },
+        "codersdk.OIDCConfig": {
+            "type": "object",
+            "properties": {
+                "allow_signups": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
+                "client_id": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
+                "client_secret": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
+                "email_domain": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
+                },
+                "ignore_email_verified": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
+                "issuer_url": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
+                "scopes": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
+                }
+            }
+        },
+        "codersdk.Parameter": {
+            "description": "Parameter represents a set value for the scope.",
+            "type": "object",
+            "properties": {
+                "created_at": {
                     "type": "string"
                 },
-                "valid": {
-                    "description": "Valid is true if Time is not NULL",
-                    "type": "boolean"
+                "destination_scheme": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "environment_variable",
+                        "provisioner_variable"
+                    ]
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "scope": {
+                    "type": "string",
+                    "enum": [
+                        "template",
+                        "workspace",
+                        "import_job"
+                    ]
+                },
+                "scope_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "source_scheme": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "data"
+                    ]
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.PprofConfig": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
+                "enable": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                }
+            }
+        },
+        "codersdk.PrometheusConfig": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
+                "enable": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                }
+            }
+        },
+        "codersdk.ProvisionerConfig": {
+            "type": "object",
+            "properties": {
+                "daemon_poll_interval": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-time_Duration"
+                },
+                "daemon_poll_jitter": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-time_Duration"
+                },
+                "daemons": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-int"
+                },
+                "force_cancel_interval": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-time_Duration"
                 }
             }
         },
@@ -1103,6 +2132,74 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.Role": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.SwaggerConfig": {
+            "type": "object",
+            "properties": {
+                "enable": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                }
+            }
+        },
+        "codersdk.TLSConfig": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
+                "cert_file": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
+                },
+                "client_auth": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
+                "client_ca_file": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
+                "client_cert_file": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
+                "client_key_file": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
+                "enable": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
+                "key_file": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
+                },
+                "min_version": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
+                "redirect_http": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                }
+            }
+        },
+        "codersdk.TelemetryConfig": {
+            "type": "object",
+            "properties": {
+                "enable": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
+                "trace": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
+                "url": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                }
+            }
+        },
         "codersdk.Template": {
             "type": "object",
             "properties": {
@@ -1171,6 +2268,20 @@ const docTemplate = `{
                 "$ref": "#/definitions/codersdk.TransitionStats"
             }
         },
+        "codersdk.TraceConfig": {
+            "type": "object",
+            "properties": {
+                "capture_logs": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
+                "enable": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
+                "honeycomb_api_key": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                }
+            }
+        },
         "codersdk.TransitionStats": {
             "type": "object",
             "properties": {
@@ -1222,6 +2333,58 @@ const docTemplate = `{
             "properties": {
                 "ttl_ms": {
                     "type": "integer"
+                }
+            }
+        },
+        "codersdk.UploadResponse": {
+            "type": "object",
+            "properties": {
+                "hash": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.User": {
+            "type": "object",
+            "required": [
+                "created_at",
+                "email",
+                "id",
+                "username"
+            ],
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "last_seen_at": {
+                    "type": "string"
+                },
+                "organization_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Role"
+                    }
+                },
+                "status": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
                 }
             }
         },
@@ -1433,7 +2596,8 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "deadline": {
-                    "$ref": "#/definitions/codersdk.NullTime"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "id": {
                     "type": "string",
@@ -1587,6 +2751,9 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "netip.Addr": {
+            "type": "object"
         }
     },
     "securityDefinitions": {

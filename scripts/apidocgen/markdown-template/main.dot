@@ -5,9 +5,6 @@
 		}
 
 		const pRef = p.$ref.replace("#/components/schemas/","");
-		if (pRef == "codersdk.NullTime") {
-			return "string(time) or `null`";
-		}
 		return "[" + pRef + "](#" + pRef.replace(".","").toLowerCase() + ")";
 	}
 

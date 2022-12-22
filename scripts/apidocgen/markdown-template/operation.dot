@@ -48,7 +48,5 @@
 {{ data.security = data.operation.security ? data.operation.security : data.api.security; }}
 {{? data.security && data.security.length }}
 {{#def.authentication}}
-{{??}}
-{{#def.authentication_none}}
 {{?}}
 {{= data.tags.endSection }}
