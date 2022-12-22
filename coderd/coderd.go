@@ -319,26 +319,12 @@ func New(options *Options) *API {
 			// Specific routes can specify smaller limits.
 			httpmw.RateLimit(options.APIRateLimit, time.Minute),
 		)
-		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-			httpapi.Write(r.Context(), w, http.StatusOK, codersdk.Response{
-				//nolint:gocritic
-				Message: "👋",
-			})
-		})
+		r.Get("/", apiRoot)
 		// All CSP errors will be logged
 		r.Post("/csp/reports", api.logReportCSPViolations)
 
-		r.Route("/buildinfo", func(r chi.Router) {
-			r.Get("/", func(rw http.ResponseWriter, r *http.Request) {
-				httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.BuildInfoResponse{
-					ExternalURL: buildinfo.ExternalURL(),
-					Version:     buildinfo.Version(),
-				})
-			})
-		})
-		r.Route("/updatecheck", func(r chi.Router) {
-			r.Get("/", api.updateCheck)
-		})
+		r.Get("/buildinfo", buildInfo)
+		r.Get("/updatecheck", api.updateCheck)
 		r.Route("/config", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/deployment", api.deploymentConfig)

@@ -41,10 +41,10 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization-id}/tem
 
 ### Parameters
 
-| Name            | In   | Type                                                                       | Required | Description     |
-| --------------- | ---- | -------------------------------------------------------------------------- | -------- | --------------- |
-| organization-id | path | string                                                                     | true     | Organization ID |
-| body            | body | [codersdk.CreateTemplateRequest](schemas.md#codersdkcreatetemplaterequest) | true     | Request body    |
+| Name              | In   | Type                                                                       | Required | Description     |
+| ----------------- | ---- | -------------------------------------------------------------------------- | -------- | --------------- |
+| `organization-id` | path | string                                                                     | true     | Organization ID |
+| `body`            | body | [codersdk.CreateTemplateRequest](schemas.md#codersdkcreatetemplaterequest) | true     | Request body    |
 
 ### Example responses
 
@@ -104,9 +104,9 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 ### Parameters
 
-| Name         | In   | Type         | Required | Description     |
-| ------------ | ---- | ------------ | -------- | --------------- |
-| organization | path | string(uuid) | true     | Organization ID |
+| Name           | In   | Type         | Required | Description     |
+| -------------- | ---- | ------------ | -------- | --------------- |
+| `organization` | path | string(uuid) | true     | Organization ID |
 
 ### Example responses
 
@@ -155,29 +155,29 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 Status Code **200**
 
-| Name                               | Type                              | Required | Restrictions | Description                                |
-| ---------------------------------- | --------------------------------- | -------- | ------------ | ------------------------------------------ |
-| _anonymous_                        | array                             | false    |              |                                            |
-| » active_user_count                | integer                           | false    |              | ActiveUserCount is set to -1 when loading. |
-| » active_version_id                | string                            | false    |              |                                            |
-| » allow_user_cancel_workspace_jobs | boolean                           | false    |              |                                            |
-| » build_time_stats                 | `codersdk.TemplateBuildTimeStats` | false    |              |                                            |
-| »» **additionalProperties**        | `codersdk.TransitionStats`        | false    |              |                                            |
-| »»» p50                            | integer                           | false    |              |                                            |
-| »»» p95                            | integer                           | false    |              |                                            |
-| » created_at                       | string                            | false    |              |                                            |
-| » created_by_id                    | string                            | false    |              |                                            |
-| » created_by_name                  | string                            | false    |              |                                            |
-| » default_ttl_ms                   | integer                           | false    |              |                                            |
-| » description                      | string                            | false    |              |                                            |
-| » display_name                     | string                            | false    |              |                                            |
-| » icon                             | string                            | false    |              |                                            |
-| » id                               | string                            | false    |              |                                            |
-| » name                             | string                            | false    |              |                                            |
-| » organization_id                  | string                            | false    |              |                                            |
-| » provisioner                      | string                            | false    |              |                                            |
-| » updated_at                       | string                            | false    |              |                                            |
-| » workspace_owner_count            | integer                           | false    |              |                                            |
+| Name                                 | Type                              | Required | Restrictions | Description                                |
+| ------------------------------------ | --------------------------------- | -------- | ------------ | ------------------------------------------ |
+| `[array item]`                       | array                             | false    |              |                                            |
+| `» active_user_count`                | integer                           | false    |              | ActiveUserCount is set to -1 when loading. |
+| `» active_version_id`                | string                            | false    |              |                                            |
+| `» allow_user_cancel_workspace_jobs` | boolean                           | false    |              |                                            |
+| `» build_time_stats`                 | `codersdk.TemplateBuildTimeStats` | false    |              |                                            |
+| `»» [any property]`                  | `codersdk.TransitionStats`        | false    |              |                                            |
+| `»»» p50`                            | integer                           | false    |              |                                            |
+| `»»» p95`                            | integer                           | false    |              |                                            |
+| `» created_at`                       | string                            | false    |              |                                            |
+| `» created_by_id`                    | string                            | false    |              |                                            |
+| `» created_by_name`                  | string                            | false    |              |                                            |
+| `» default_ttl_ms`                   | integer                           | false    |              |                                            |
+| `» description`                      | string                            | false    |              |                                            |
+| `» display_name`                     | string                            | false    |              |                                            |
+| `» icon`                             | string                            | false    |              |                                            |
+| `» id`                               | string                            | false    |              |                                            |
+| `» name`                             | string                            | false    |              |                                            |
+| `» organization_id`                  | string                            | false    |              |                                            |
+| `» provisioner`                      | string                            | false    |              |                                            |
+| `» updated_at`                       | string                            | false    |              |                                            |
+| `» workspace_owner_count`            | integer                           | false    |              |                                            |
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
 
@@ -196,10 +196,10 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 ### Parameters
 
-| Name          | In   | Type         | Required | Description     |
-| ------------- | ---- | ------------ | -------- | --------------- |
-| organization  | path | string(uuid) | true     | Organization ID |
-| template-name | path | string       | true     | Template name   |
+| Name            | In   | Type         | Required | Description     |
+| --------------- | ---- | ------------ | -------- | --------------- |
+| `organization`  | path | string(uuid) | true     | Organization ID |
+| `template-name` | path | string       | true     | Template name   |
 
 ### Example responses
 
@@ -261,7 +261,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{id} \
 
 | Name | In   | Type         | Required | Description |
 | ---- | ---- | ------------ | -------- | ----------- |
-| id   | path | string(uuid) | true     | Template ID |
+| `id` | path | string(uuid) | true     | Template ID |
 
 ### Example responses
 
@@ -323,7 +323,7 @@ curl -X DELETE http://coder-server:8080/api/v2/templates/{id} \
 
 | Name | In   | Type         | Required | Description |
 | ---- | ---- | ------------ | -------- | ----------- |
-| id   | path | string(uuid) | true     | Template ID |
+| `id` | path | string(uuid) | true     | Template ID |
 
 ### Example responses
 

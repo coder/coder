@@ -24,6 +24,14 @@
 		}
 		return renderSingleResponseType(r);
 	}
+
+	function renderDisplayName(p) {
+		if (p.displayName == "*anonymous*") {
+			return "[array item]";
+		}
+		let displayName = p.displayName.replace("**additionalProperties**", "[any property]");
+		return displayName;
+	}
 }}
 {{ data.responses = data.utils.getResponses(data); }}
 {{ data.responseSchemas = false; }}
@@ -77,7 +85,7 @@ Status Code **{{=response.status}}**
 {{?}}
 |Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|
-{{~block.rows :p}}|{{=p.displayName}}|{{? p.$ref}}`{{=p.$ref}}`{{?}}{{? !p.$ref}}{{=p.type}}{{?}}|{{=p.required}}|{{=p.restrictions||''}}|{{=p.description||''}}|
+{{~block.rows :p}}|`{{=renderDisplayName(p)}}`|{{? p.$ref}}`{{=p.$ref}}`{{?}}{{? !p.$ref}}{{=p.type}}{{?}}|{{=p.required}}|{{=p.restrictions||''}}|{{=p.description||''}}|
 {{~}}
 {{~}}
 {{?}}
@@ -87,7 +95,7 @@ Status Code **{{=response.status}}**
 
 |Property|Value|
 |---|---|
-{{~ enums :e}}|{{=e.name}}|{{=data.utils.toPrimitive(e.value)}}|
+{{~ enums :e}}|`{{=e.name}}`|`{{=data.utils.toPrimitive(e.value)}}`|
 {{~}}
 
 {{?}}
