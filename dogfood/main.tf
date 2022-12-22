@@ -57,7 +57,6 @@ resource "coder_agent" "dev" {
       coder dotfiles "$DOTFILES_URI" -y 2>&1 | tee  ~/.personalize.log
     fi
 
-
     # Install Nix into our bash profile so `nix-shell`, `nix-build, and `nix` are available
     echo '. /home/coder/.nix-profile/etc/profile.d/nix.sh' >> /home/coder/.bashrc
     bash /opt/nix/install --no-daemon
