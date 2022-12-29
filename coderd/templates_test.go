@@ -501,7 +501,7 @@ func TestDeleteTemplate(t *testing.T) {
 		err := client.DeleteTemplate(ctx, template.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 }
 

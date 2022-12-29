@@ -206,7 +206,7 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		err := client.CancelTemplateVersion(ctx, version.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 	t.Run("AlreadyCanceled", func(t *testing.T) {
 		t.Parallel()
@@ -238,7 +238,7 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		err = client.CancelTemplateVersion(ctx, version.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 		require.Eventually(t, func() bool {
 			var err error
 			version, err = client.TemplateVersion(ctx, version.ID)
@@ -300,7 +300,7 @@ func TestTemplateVersionSchema(t *testing.T) {
 		_, err := client.TemplateVersionSchema(ctx, version.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
@@ -380,7 +380,7 @@ func TestTemplateVersionParameters(t *testing.T) {
 		_, err := client.TemplateVersionParameters(ctx, version.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
@@ -447,7 +447,7 @@ func TestTemplateVersionResources(t *testing.T) {
 		_, err := client.TemplateVersionResources(ctx, version.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
@@ -749,7 +749,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 
 	t.Run("Cancel", func(t *testing.T) {
@@ -828,7 +828,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 			err = client.CancelTemplateVersionDryRun(ctx, version.ID, job.ID)
 			var apiErr *codersdk.Error
 			require.ErrorAs(t, err, &apiErr)
-			require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 		})
 
 		t.Run("AlreadyCanceled", func(t *testing.T) {
@@ -873,7 +873,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 			err = client.CancelTemplateVersionDryRun(ctx, version.ID, job.ID)
 			var apiErr *codersdk.Error
 			require.ErrorAs(t, err, &apiErr)
-			require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 		})
 	})
 }
