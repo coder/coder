@@ -130,7 +130,7 @@ require (
 	github.com/tabbed/pqtype v0.1.1
 	github.com/u-root/u-root v0.10.0
 	github.com/unrolled/secure v1.13.0
-	github.com/valyala/fasthttp v1.41.0
+	github.com/valyala/fasthttp v1.43.0
 	go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1
 	go.nhat.io/otelsql v0.7.0
 	go.opentelemetry.io/otel v1.11.1
