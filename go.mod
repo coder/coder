@@ -70,7 +70,7 @@ require (
 	github.com/coreos/go-oidc/v3 v3.4.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/creack/pty v1.1.18
-	github.com/elastic/go-sysinfo v1.8.1
+	github.com/elastic/go-sysinfo v1.9.0
 	github.com/fatih/color v1.13.0
 	github.com/fatih/structs v1.1.0
 	github.com/fatih/structtag v1.2.0
