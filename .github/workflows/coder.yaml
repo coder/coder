@@ -313,7 +313,7 @@ jobs:
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Install gotestsum
-        uses: jaxxstorm/action-install-gh-release@v1.7.1
+        uses: jaxxstorm/action-install-gh-release@v1.9.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -416,7 +416,7 @@ jobs:
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Install gotestsum
-        uses: jaxxstorm/action-install-gh-release@v1.7.1
+        uses: jaxxstorm/action-install-gh-release@v1.9.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
