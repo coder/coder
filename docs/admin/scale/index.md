@@ -13,19 +13,21 @@ We regularly scale-test Coder with our [scale testing utility](#scaletest-utilit
 
 Since Coder's performance is highly dependent on the templates and workflows you support, we recommend using our scale testing utility against your own environments.
 
-The following command will run the same scenario against your own Coder deployment. You can also specify a template name and any parameter values.
+The following command will run our scale test against your own Coder deployment. You can also specify a template name and any parameter values.
 
 ```sh
 coder scaletest create-workspaces \
-    --count 100 \
-    --template "my-custom-template" \
-    --parameter image="my-custom-image" \
+    --count 1000 \
+    --template "kubernetes" \
+    --concurrency 0 \
+    --cleanup-concurrency 0 \
+    --parameter "home_disk_size=10" \
     --run-command "sleep 2 && echo hello"
 
 # Run `coder scaletest create-workspaces --help` for all usage
 ```
 
-> To avoid outages and orphaned resources, we recommend running scale tests on a secondary "staging" environment.
+> To avoid potential outages and orphaned resources, we recommend running scale tests on a secondary "staging" environment.
 
 The test does the following:
 
@@ -39,4 +41,4 @@ Workspace jobs run concurrently, meaning that the test will attempt to connect t
 
 ## Troubleshooting
 
-If a load test fails or if you are experiencing performance issues during day-to-day use, you can leverage Coder's [performance tracing](#) and [prometheus metrics](../prometheus.md) to identify bottlenecks during scale tests. Additionally, you can use your existing cloud monitoring stack to measure load, view server logs, etc.
+If a load test fails or if you are experiencing performance issues during day-to-day use, you can leverage Coder's [prometheus metrics](../prometheus.md) to identify bottlenecks during scale tests. Additionally, you can use your existing cloud monitoring stack to measure load, view server logs, etc.
