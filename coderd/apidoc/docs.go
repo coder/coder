@@ -875,6 +875,114 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/aws-instance-identity": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Authenticate agent on AWS instance",
+                "operationId": "authenticate-agent-on-aws-instance",
+                "parameters": [
+                    {
+                        "description": "Instance identity token",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AWSInstanceIdentityToken"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentAuthenticateResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaceagents/azure-instance-identity": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Authenticate agent on Azure instance",
+                "operationId": "authenticate-agent-on-azure-instance",
+                "parameters": [
+                    {
+                        "description": "Instance identity token",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AzureInstanceIdentityToken"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentAuthenticateResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaceagents/google-instance-identity": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Authenticate agent on Google Cloud instance",
+                "operationId": "authenticate-agent-on-google-cloud-instance",
+                "parameters": [
+                    {
+                        "description": "Instance identity token",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GoogleInstanceIdentityToken"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentAuthenticateResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/workspacebuilds/{workspacebuild}": {
             "get": {
                 "security": [
@@ -1409,6 +1517,21 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AWSInstanceIdentityToken": {
+            "type": "object",
+            "required": [
+                "document",
+                "signature"
+            ],
+            "properties": {
+                "document": {
+                    "type": "string"
+                },
+                "signature": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.AuditDiff": {
             "type": "object",
             "additionalProperties": {
@@ -1559,6 +1682,21 @@ const docTemplate = `{
             "type": "object",
             "additionalProperties": {
                 "type": "boolean"
+            }
+        },
+        "codersdk.AzureInstanceIdentityToken": {
+            "type": "object",
+            "required": [
+                "encoding",
+                "signature"
+            ],
+            "properties": {
+                "encoding": {
+                    "type": "string"
+                },
+                "signature": {
+                    "type": "string"
+                }
             }
         },
         "codersdk.BuildInfoResponse": {
@@ -2091,6 +2229,17 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "validate_url": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.GoogleInstanceIdentityToken": {
+            "type": "object",
+            "required": [
+                "json_web_token"
+            ],
+            "properties": {
+                "json_web_token": {
                     "type": "string"
                 }
             }
@@ -2773,6 +2922,14 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentAuthenticateResponse": {
+            "type": "object",
+            "properties": {
+                "session_token": {
                     "type": "string"
                 }
             }

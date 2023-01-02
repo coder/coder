@@ -16,6 +16,22 @@
 | ------------ | ------ | -------- | ------------ | ----------- |
 | `csp-report` | object | false    |              |             |
 
+## codersdk.AWSInstanceIdentityToken
+
+```json
+{
+  "document": "string",
+  "signature": "string"
+}
+```
+
+### Properties
+
+| Name        | Type   | Required | Restrictions | Description |
+| ----------- | ------ | -------- | ------------ | ----------- |
+| `document`  | string | true     |              |             |
+| `signature` | string | true     |              |             |
+
 ## codersdk.AuditDiff
 
 ```json
@@ -296,6 +312,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name             | Type    | Required | Restrictions | Description |
 | ---------------- | ------- | -------- | ------------ | ----------- |
 | `[any property]` | boolean | false    |              |             |
+
+## codersdk.AzureInstanceIdentityToken
+
+```json
+{
+  "encoding": "string",
+  "signature": "string"
+}
+```
+
+### Properties
+
+| Name        | Type   | Required | Restrictions | Description |
+| ----------- | ------ | -------- | ------------ | ----------- |
+| `encoding`  | string | true     |              |             |
+| `signature` | string | true     |              |             |
 
 ## codersdk.BuildInfoResponse
 
@@ -1786,6 +1818,20 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `type`         | string          | false    |              |             |
 | `validate_url` | string          | false    |              |             |
 
+## codersdk.GoogleInstanceIdentityToken
+
+```json
+{
+  "json_web_token": "string"
+}
+```
+
+### Properties
+
+| Name             | Type   | Required | Restrictions | Description |
+| ---------------- | ------ | -------- | ------------ | ----------- |
+| `json_web_token` | string | true     |              |             |
+
 ## codersdk.Healthcheck
 
 ```json
@@ -3100,6 +3146,20 @@ Parameter represents a set value for the scope.
 | `troubleshooting_url`        | string                                                  | false    |              |                                                                     |
 | `updated_at`                 | string                                                  | false    |              |                                                                     |
 | `version`                    | string                                                  | false    |              |                                                                     |
+
+## codersdk.WorkspaceAgentAuthenticateResponse
+
+```json
+{
+  "session_token": "string"
+}
+```
+
+### Properties
+
+| Name            | Type   | Required | Restrictions | Description |
+| --------------- | ------ | -------- | ------------ | ----------- |
+| `session_token` | string | false    |              |             |
 
 ## codersdk.WorkspaceApp
 

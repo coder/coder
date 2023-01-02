@@ -323,6 +323,146 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
 
+## Authenticate agent on AWS instance
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/workspaceagents/aws-instance-identity \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /workspaceagents/aws-instance-identity`
+
+> Body parameter
+
+```json
+{
+  "document": "string",
+  "signature": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                             | Required | Description             |
+| ------ | ---- | -------------------------------------------------------------------------------- | -------- | ----------------------- |
+| `body` | body | [codersdk.AWSInstanceIdentityToken](schemas.md#codersdkawsinstanceidentitytoken) | true     | Instance identity token |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "session_token": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                               |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentAuthenticateResponse](schemas.md#codersdkworkspaceagentauthenticateresponse) |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Authenticate agent on Azure instance
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/workspaceagents/azure-instance-identity \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /workspaceagents/azure-instance-identity`
+
+> Body parameter
+
+```json
+{
+  "encoding": "string",
+  "signature": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                 | Required | Description             |
+| ------ | ---- | ------------------------------------------------------------------------------------ | -------- | ----------------------- |
+| `body` | body | [codersdk.AzureInstanceIdentityToken](schemas.md#codersdkazureinstanceidentitytoken) | true     | Instance identity token |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "session_token": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                               |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentAuthenticateResponse](schemas.md#codersdkworkspaceagentauthenticateresponse) |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Authenticate agent on Google Cloud instance
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/workspaceagents/google-instance-identity \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /workspaceagents/google-instance-identity`
+
+> Body parameter
+
+```json
+{
+  "json_web_token": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                   | Required | Description             |
+| ------ | ---- | -------------------------------------------------------------------------------------- | -------- | ----------------------- |
+| `body` | body | [codersdk.GoogleInstanceIdentityToken](schemas.md#codersdkgoogleinstanceidentitytoken) | true     | Instance identity token |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "session_token": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                               |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentAuthenticateResponse](schemas.md#codersdkworkspaceagentauthenticateresponse) |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
 ## Get workspace build
 
 ### Code samples
