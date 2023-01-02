@@ -3,6 +3,10 @@
 Coder is an open source platform for creating and managing developer workspaces
 on your preferred clouds and servers.
 
+<p align="center">
+  <img src="./images/hero-image.png">
+</p>
+
 By building on top of common development interfaces (SSH) and infrastructure tools (Terraform), Coder aims to make the process of **provisioning** and **accessing** remote workspaces approachable for organizations of various sizes and stages of cloud-native maturity.
 
 <blockquote class="warning">
@@ -101,3 +105,4 @@ Azure, Google Cloud, Kubernetes, and more.
 ## Up next
 
 - Learn about [Templates](./templates.md)
+- [Install Coder](./install/install.sh.md)
