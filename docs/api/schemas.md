@@ -32,6 +32,22 @@
 | `document`  | string | true     |              |             |
 | `signature` | string | true     |              |             |
 
+## codersdk.AgentGitSSHKey
+
+```json
+{
+  "private_key": "string",
+  "public_key": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+| ------------- | ------ | -------- | ------------ | ----------- |
+| `private_key` | string | false    |              |             |
+| `public_key`  | string | false    |              |             |
+
 ## codersdk.AgentStats
 
 ```json

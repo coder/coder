@@ -1016,6 +1016,29 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/me/coordinate": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "description": "It accepts a WebSocket connection to an agent that listens to\nincoming connections and publishes node updates.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Coordinate workspace agent via Tailnet",
+                "operationId": "get-workspace-agent-git-ssh-key-via-tailnet",
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                }
+            }
+        },
         "/workspaceagents/me/gitauth": {
             "get": {
                 "security": [
@@ -1055,6 +1078,34 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.WorkspaceAgentGitAuthResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaceagents/me/gitsshkey": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get workspace agent Git SSH key",
+                "operationId": "get-workspace-agent-git-ssh-key",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AgentGitSSHKey"
                         }
                     }
                 }
@@ -1702,6 +1753,17 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "signature": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.AgentGitSSHKey": {
+            "type": "object",
+            "properties": {
+                "private_key": {
+                    "type": "string"
+                },
+                "public_key": {
                     "type": "string"
                 }
             }

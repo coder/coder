@@ -456,6 +456,15 @@ func (api *API) workspaceAgentConnection(rw http.ResponseWriter, r *http.Request
 	})
 }
 
+// @Summary Coordinate workspace agent via Tailnet
+// @Description It accepts a WebSocket connection to an agent that listens to
+// @Description incoming connections and publishes node updates.
+// @ID get-workspace-agent-git-ssh-key-via-tailnet
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Agents
+// @Success 101
+// @Router /workspaceagents/me/coordinate [get]
 func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

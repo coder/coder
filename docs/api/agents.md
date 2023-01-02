@@ -180,6 +180,29 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/app-health \
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
 
+## Coordinate workspace agent via Tailnet
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/coordinate \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaceagents/me/coordinate`
+
+It accepts a WebSocket connection to an agent that listens to
+incoming connections and publishes node updates.
+
+### Responses
+
+| Status | Meaning                                                                  | Description         | Schema |
+| ------ | ------------------------------------------------------------------------ | ------------------- | ------ |
+| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
 ## Get workspace agent Git auth
 
 ### Code samples
@@ -217,6 +240,38 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitauth?url=http%
 | Status | Meaning                                                 | Description | Schema                                                                                     |
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentGitAuthResponse](schemas.md#codersdkworkspaceagentgitauthresponse) |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Get workspace agent Git SSH key
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitsshkey \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaceagents/me/gitsshkey`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "private_key": "string",
+  "public_key": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                       |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AgentGitSSHKey](schemas.md#codersdkagentgitsshkey) |
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
 
