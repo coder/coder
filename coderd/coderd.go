@@ -512,9 +512,6 @@ func New(options *Options) *API {
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Get("/coordinate", api.workspaceAgentCoordinate)
 				r.Post("/report-stats", api.workspaceAgentReportStats)
-				// DEPRECATED in favor of the POST endpoint above.
-				// TODO: remove in January 2023
-				r.Get("/report-stats", api.workspaceAgentReportStatsWebsocket)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
