@@ -41,21 +41,21 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
     "job": {
-      "canceled_at": "string",
-      "completed_at": "string",
-      "created_at": "string",
+      "canceled_at": "2019-08-24T14:15:22Z",
+      "completed_at": "2019-08-24T14:15:22Z",
+      "created_at": "2019-08-24T14:15:22Z",
       "error": "string",
-      "file_id": "string",
-      "id": "string",
-      "started_at": "string",
-      "status": "string",
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "started_at": "2019-08-24T14:15:22Z",
+      "status": "pending",
       "tags": {
         "property1": "string",
         "property2": "string"
       },
-      "worker_id": "string"
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
     },
-    "reason": "string",
+    "reason": "initiator",
     "resources": [
       {
         "agents": [
@@ -202,21 +202,21 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
     "job": {
-      "canceled_at": "string",
-      "completed_at": "string",
-      "created_at": "string",
+      "canceled_at": "2019-08-24T14:15:22Z",
+      "completed_at": "2019-08-24T14:15:22Z",
+      "created_at": "2019-08-24T14:15:22Z",
       "error": "string",
-      "file_id": "string",
-      "id": "string",
-      "started_at": "string",
-      "status": "string",
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "started_at": "2019-08-24T14:15:22Z",
+      "status": "pending",
       "tags": {
         "property1": "string",
         "property2": "string"
       },
-      "worker_id": "string"
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
     },
-    "reason": "string",
+    "reason": "initiator",
     "resources": [
       {
         "agents": [
@@ -356,21 +356,21 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "initiator_name": "string",
   "job": {
-    "canceled_at": "string",
-    "completed_at": "string",
-    "created_at": "string",
+    "canceled_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "created_at": "2019-08-24T14:15:22Z",
     "error": "string",
-    "file_id": "string",
-    "id": "string",
-    "started_at": "string",
-    "status": "string",
+    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "started_at": "2019-08-24T14:15:22Z",
+    "status": "pending",
     "tags": {
       "property1": "string",
       "property2": "string"
     },
-    "worker_id": "string"
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
   },
-  "reason": "string",
+  "reason": "initiator",
   "resources": [
     {
       "agents": [
@@ -538,9 +538,9 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/log
 ```json
 [
   {
-    "created_at": "string",
+    "created_at": "2019-08-24T14:15:22Z",
     "id": 0,
-    "log_level": "string",
+    "log_level": "trace",
     "log_source": "string",
     "output": "string",
     "stage": "string"
@@ -567,6 +567,16 @@ Status Code **200**
 | `» log_source` | string  | false    |              |             |
 | `» output`     | string  | false    |              |             |
 | `» stage`      | string  | false    |              |             |
+
+#### Enumerated Values
+
+| Property    | Value   |
+| ----------- | ------- |
+| `log_level` | `trace` |
+| `log_level` | `debug` |
+| `log_level` | `info`  |
+| `log_level` | `warn`  |
+| `log_level` | `error` |
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
 
@@ -779,21 +789,21 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "initiator_name": "string",
   "job": {
-    "canceled_at": "string",
-    "completed_at": "string",
-    "created_at": "string",
+    "canceled_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "created_at": "2019-08-24T14:15:22Z",
     "error": "string",
-    "file_id": "string",
-    "id": "string",
-    "started_at": "string",
-    "status": "string",
+    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "started_at": "2019-08-24T14:15:22Z",
+    "status": "pending",
     "tags": {
       "property1": "string",
       "property2": "string"
     },
-    "worker_id": "string"
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
   },
-  "reason": "string",
+  "reason": "initiator",
   "resources": [
     {
       "agents": [
@@ -951,21 +961,21 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
         "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
         "initiator_name": "string",
         "job": {
-          "canceled_at": "string",
-          "completed_at": "string",
-          "created_at": "string",
+          "canceled_at": "2019-08-24T14:15:22Z",
+          "completed_at": "2019-08-24T14:15:22Z",
+          "created_at": "2019-08-24T14:15:22Z",
           "error": "string",
-          "file_id": "string",
-          "id": "string",
-          "started_at": "string",
-          "status": "string",
+          "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "started_at": "2019-08-24T14:15:22Z",
+          "status": "pending",
           "tags": {
             "property1": "string",
             "property2": "string"
           },
-          "worker_id": "string"
+          "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
         },
-        "reason": "string",
+        "reason": "initiator",
         "resources": [
           {
             "agents": [
@@ -1109,21 +1119,21 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{id} \
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
     "job": {
-      "canceled_at": "string",
-      "completed_at": "string",
-      "created_at": "string",
+      "canceled_at": "2019-08-24T14:15:22Z",
+      "completed_at": "2019-08-24T14:15:22Z",
+      "created_at": "2019-08-24T14:15:22Z",
       "error": "string",
-      "file_id": "string",
-      "id": "string",
-      "started_at": "string",
-      "status": "string",
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "started_at": "2019-08-24T14:15:22Z",
+      "status": "pending",
       "tags": {
         "property1": "string",
         "property2": "string"
       },
-      "worker_id": "string"
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
     },
-    "reason": "string",
+    "reason": "initiator",
     "resources": [
       {
         "agents": [

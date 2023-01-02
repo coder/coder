@@ -2261,28 +2261,42 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "canceled_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "completed_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "created_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "error": {
                     "type": "string"
                 },
                 "file_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "started_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "status": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "pending",
+                        "running",
+                        "succeeded",
+                        "canceling",
+                        "canceled",
+                        "failed"
+                    ]
                 },
                 "tags": {
                     "type": "object",
@@ -2291,7 +2305,8 @@ const docTemplate = `{
                     }
                 },
                 "worker_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -2299,13 +2314,21 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "created_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "id": {
                     "type": "integer"
                 },
                 "log_level": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "trace",
+                        "debug",
+                        "info",
+                        "warn",
+                        "error"
+                    ]
                 },
                 "log_source": {
                     "type": "string"
@@ -2831,7 +2854,12 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ProvisionerJob"
                 },
                 "reason": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "initiator",
+                        "autostart",
+                        "autostop"
+                    ]
                 },
                 "resources": {
                     "type": "array",

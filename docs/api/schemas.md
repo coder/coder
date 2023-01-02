@@ -2267,19 +2267,19 @@ Parameter represents a set value for the scope.
 
 ```json
 {
-  "canceled_at": "string",
-  "completed_at": "string",
-  "created_at": "string",
+  "canceled_at": "2019-08-24T14:15:22Z",
+  "completed_at": "2019-08-24T14:15:22Z",
+  "created_at": "2019-08-24T14:15:22Z",
   "error": "string",
-  "file_id": "string",
-  "id": "string",
-  "started_at": "string",
-  "status": "string",
+  "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "started_at": "2019-08-24T14:15:22Z",
+  "status": "pending",
   "tags": {
     "property1": "string",
     "property2": "string"
   },
-  "worker_id": "string"
+  "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
 }
 ```
 
@@ -2299,13 +2299,24 @@ Parameter represents a set value for the scope.
 | » `[any property]` | string | false    |              |             |
 | `worker_id`        | string | false    |              |             |
 
+#### Enumerated Values
+
+| Property | Value       |
+| -------- | ----------- |
+| `status` | `pending`   |
+| `status` | `running`   |
+| `status` | `succeeded` |
+| `status` | `canceling` |
+| `status` | `canceled`  |
+| `status` | `failed`    |
+
 ## codersdk.ProvisionerJobLog
 
 ```json
 {
-  "created_at": "string",
+  "created_at": "2019-08-24T14:15:22Z",
   "id": 0,
-  "log_level": "string",
+  "log_level": "trace",
   "log_source": "string",
   "output": "string",
   "stage": "string"
@@ -2322,6 +2333,16 @@ Parameter represents a set value for the scope.
 | `log_source` | string  | false    |              |             |
 | `output`     | string  | false    |              |             |
 | `stage`      | string  | false    |              |             |
+
+#### Enumerated Values
+
+| Property    | Value   |
+| ----------- | ------- |
+| `log_level` | `trace` |
+| `log_level` | `debug` |
+| `log_level` | `info`  |
+| `log_level` | `warn`  |
+| `log_level` | `error` |
 
 ## codersdk.PutExtendWorkspaceRequest
 
@@ -2862,21 +2883,21 @@ Parameter represents a set value for the scope.
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
     "job": {
-      "canceled_at": "string",
-      "completed_at": "string",
-      "created_at": "string",
+      "canceled_at": "2019-08-24T14:15:22Z",
+      "completed_at": "2019-08-24T14:15:22Z",
+      "created_at": "2019-08-24T14:15:22Z",
       "error": "string",
-      "file_id": "string",
-      "id": "string",
-      "started_at": "string",
-      "status": "string",
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "started_at": "2019-08-24T14:15:22Z",
+      "status": "pending",
       "tags": {
         "property1": "string",
         "property2": "string"
       },
-      "worker_id": "string"
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
     },
-    "reason": "string",
+    "reason": "initiator",
     "resources": [
       {
         "agents": [
@@ -3130,21 +3151,21 @@ Parameter represents a set value for the scope.
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "initiator_name": "string",
   "job": {
-    "canceled_at": "string",
-    "completed_at": "string",
-    "created_at": "string",
+    "canceled_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "created_at": "2019-08-24T14:15:22Z",
     "error": "string",
-    "file_id": "string",
-    "id": "string",
-    "started_at": "string",
-    "status": "string",
+    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "started_at": "2019-08-24T14:15:22Z",
+    "status": "pending",
     "tags": {
       "property1": "string",
       "property2": "string"
     },
-    "worker_id": "string"
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
   },
-  "reason": "string",
+  "reason": "initiator",
   "resources": [
     {
       "agents": [
@@ -3259,6 +3280,9 @@ Parameter represents a set value for the scope.
 
 | Property     | Value       |
 | ------------ | ----------- |
+| `reason`     | `initiator` |
+| `reason`     | `autostart` |
+| `reason`     | `autostop`  |
 | `status`     | `pending`   |
 | `status`     | `starting`  |
 | `status`     | `running`   |
@@ -3412,21 +3436,21 @@ Parameter represents a set value for the scope.
         "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
         "initiator_name": "string",
         "job": {
-          "canceled_at": "string",
-          "completed_at": "string",
-          "created_at": "string",
+          "canceled_at": "2019-08-24T14:15:22Z",
+          "completed_at": "2019-08-24T14:15:22Z",
+          "created_at": "2019-08-24T14:15:22Z",
           "error": "string",
-          "file_id": "string",
-          "id": "string",
-          "started_at": "string",
-          "status": "string",
+          "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "started_at": "2019-08-24T14:15:22Z",
+          "status": "pending",
           "tags": {
             "property1": "string",
             "property2": "string"
           },
-          "worker_id": "string"
+          "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
         },
-        "reason": "string",
+        "reason": "initiator",
         "resources": [
           {
             "agents": [
