@@ -2299,6 +2299,30 @@ Parameter represents a set value for the scope.
 | » `[any property]` | string | false    |              |             |
 | `worker_id`        | string | false    |              |             |
 
+## codersdk.ProvisionerJobLog
+
+```json
+{
+  "created_at": "string",
+  "id": 0,
+  "log_level": "string",
+  "log_source": "string",
+  "output": "string",
+  "stage": "string"
+}
+```
+
+### Properties
+
+| Name         | Type    | Required | Restrictions | Description |
+| ------------ | ------- | -------- | ------------ | ----------- |
+| `created_at` | string  | false    |              |             |
+| `id`         | integer | false    |              |             |
+| `log_level`  | string  | false    |              |             |
+| `log_source` | string  | false    |              |             |
+| `output`     | string  | false    |              |             |
+| `stage`      | string  | false    |              |             |
+
 ## codersdk.PutExtendWorkspaceRequest
 
 ```json

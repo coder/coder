@@ -23,6 +23,14 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+// @Summary Get workspace build
+// @ID get-workspace-build
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Workspaces
+// @Param workspacebuild path string true "Workspace build ID"
+// @Success 200 {object} codersdk.WorkspaceBuild
+// @Router /workspacebuilds/{workspacebuild} [get]
 func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
@@ -535,6 +543,14 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusCreated, apiBuild)
 }
 
+// @Summary Cancel workspace build
+// @ID cancel-workspace-build
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Workspaces
+// @Param workspacebuild path string true "Workspace build ID"
+// @Success 200 {object} codersdk.Response
+// @Router /workspacebuilds/{workspacebuild}/cancel [patch]
 func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
@@ -630,6 +646,14 @@ func (api *API) verifyUserCanCancelWorkspaceBuilds(ctx context.Context, userID u
 	return slices.Contains(user.RBACRoles, rbac.RoleOwner()), nil // only user with "owner" role can cancel workspace builds
 }
 
+// @Summary Get workspace resources for workspace build
+// @ID get-workspace-resources-for-workspace-build
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Workspaces
+// @Param workspacebuild path string true "Workspace build ID"
+// @Success 200 {array} codersdk.WorkspaceResource
+// @Router /workspacebuilds/{workspacebuild}/resources [get]
 func (api *API) workspaceBuildResources(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
@@ -657,6 +681,17 @@ func (api *API) workspaceBuildResources(rw http.ResponseWriter, r *http.Request)
 	api.provisionerJobResources(rw, r, job)
 }
 
+// @Summary Get workspace build logs
+// @ID get-workspace-build-logs
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Workspaces
+// @Param workspacebuild path string true "Workspace build ID"
+// @Param before query int false "Before Unix timestamp"
+// @Param after query int false "After Unix timestamp"
+// @Param follow query bool false "Follow log stream"
+// @Success 200 {array} codersdk.ProvisionerJobLog
+// @Router /workspacebuilds/{workspacebuild}/logs [get]
 func (api *API) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
@@ -684,6 +719,14 @@ func (api *API) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 	api.provisionerJobLogs(rw, r, job)
 }
 
+// @Summary Get provisioner state for workspace build
+// @ID get-provisioner-state-for-workspace-build
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Workspaces
+// @Param workspacebuild path string true "Workspace build ID"
+// @Success 200 {object} codersdk.WorkspaceBuild
+// @Router /workspacebuilds/{workspacebuild}/state [get]
 func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)

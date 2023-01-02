@@ -757,6 +757,180 @@
         }
       }
     },
+    "/workspacebuilds/{workspacebuild}": {
+      "get": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Workspaces"],
+        "summary": "Get workspace build",
+        "operationId": "get-workspace-build",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Workspace build ID",
+            "name": "workspacebuild",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/codersdk.WorkspaceBuild"
+            }
+          }
+        }
+      }
+    },
+    "/workspacebuilds/{workspacebuild}/cancel": {
+      "patch": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Workspaces"],
+        "summary": "Cancel workspace build",
+        "operationId": "cancel-workspace-build",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Workspace build ID",
+            "name": "workspacebuild",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/codersdk.Response"
+            }
+          }
+        }
+      }
+    },
+    "/workspacebuilds/{workspacebuild}/logs": {
+      "get": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Workspaces"],
+        "summary": "Get workspace build logs",
+        "operationId": "get-workspace-build-logs",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Workspace build ID",
+            "name": "workspacebuild",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "integer",
+            "description": "Before Unix timestamp",
+            "name": "before",
+            "in": "query"
+          },
+          {
+            "type": "integer",
+            "description": "After Unix timestamp",
+            "name": "after",
+            "in": "query"
+          },
+          {
+            "type": "boolean",
+            "description": "Follow log stream",
+            "name": "follow",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/codersdk.ProvisionerJobLog"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspacebuilds/{workspacebuild}/resources": {
+      "get": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Workspaces"],
+        "summary": "Get workspace resources for workspace build",
+        "operationId": "get-workspace-resources-for-workspace-build",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Workspace build ID",
+            "name": "workspacebuild",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/codersdk.WorkspaceResource"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspacebuilds/{workspacebuild}/state": {
+      "get": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Workspaces"],
+        "summary": "Get provisioner state for workspace build",
+        "operationId": "get-provisioner-state-for-workspace-build",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Workspace build ID",
+            "name": "workspacebuild",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/codersdk.WorkspaceBuild"
+            }
+          }
+        }
+      }
+    },
     "/workspaces": {
       "get": {
         "security": [
@@ -1906,6 +2080,29 @@
           }
         },
         "worker_id": {
+          "type": "string"
+        }
+      }
+    },
+    "codersdk.ProvisionerJobLog": {
+      "type": "object",
+      "properties": {
+        "created_at": {
+          "type": "string"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "log_level": {
+          "type": "string"
+        },
+        "log_source": {
+          "type": "string"
+        },
+        "output": {
+          "type": "string"
+        },
+        "stage": {
           "type": "string"
         }
       }

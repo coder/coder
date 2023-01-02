@@ -323,6 +323,571 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
 
+## Get workspace build
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspacebuilds/{workspacebuild}`
+
+### Parameters
+
+| Name             | In   | Type   | Required | Description        |
+| ---------------- | ---- | ------ | -------- | ------------------ |
+| `workspacebuild` | path | string | true     | Workspace build ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "build_number": 0,
+  "created_at": "2019-08-24T14:15:22Z",
+  "daily_cost": 0,
+  "deadline": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+  "initiator_name": "string",
+  "job": {
+    "canceled_at": "string",
+    "completed_at": "string",
+    "created_at": "string",
+    "error": "string",
+    "file_id": "string",
+    "id": "string",
+    "started_at": "string",
+    "status": "string",
+    "tags": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "worker_id": "string"
+  },
+  "reason": "string",
+  "resources": [
+    {
+      "agents": [
+        {
+          "apps": [
+            {
+              "command": "string",
+              "display_name": "string",
+              "external": true,
+              "health": "string",
+              "healthcheck": {
+                "interval": 0,
+                "threshold": 0,
+                "url": "string"
+              },
+              "icon": "string",
+              "id": "string",
+              "sharing_level": "string",
+              "slug": "string",
+              "subdomain": true,
+              "url": "string"
+            }
+          ],
+          "architecture": "string",
+          "connection_timeout_seconds": 0,
+          "created_at": "string",
+          "directory": "string",
+          "disconnected_at": "string",
+          "environment_variables": {
+            "property1": "string",
+            "property2": "string"
+          },
+          "first_connected_at": "string",
+          "id": "string",
+          "instance_id": "string",
+          "last_connected_at": "string",
+          "latency": {
+            "property1": {
+              "latency_ms": 0,
+              "preferred": true
+            },
+            "property2": {
+              "latency_ms": 0,
+              "preferred": true
+            }
+          },
+          "name": "string",
+          "operating_system": "string",
+          "resource_id": "string",
+          "startup_script": "string",
+          "status": "string",
+          "troubleshooting_url": "string",
+          "updated_at": "string",
+          "version": "string"
+        }
+      ],
+      "created_at": "2019-08-24T14:15:22Z",
+      "daily_cost": 0,
+      "hide": true,
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+      "metadata": [
+        {
+          "key": "string",
+          "sensitive": true,
+          "value": "string"
+        }
+      ],
+      "name": "string",
+      "type": "string",
+      "workspace_transition": "start"
+    }
+  ],
+  "status": "pending",
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "template_version_name": "string",
+  "transition": "start",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+  "workspace_name": "string",
+  "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
+  "workspace_owner_name": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                       |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceBuild](schemas.md#codersdkworkspacebuild) |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Cancel workspace build
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/cancel \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /workspacebuilds/{workspacebuild}/cancel`
+
+### Parameters
+
+| Name             | In   | Type   | Required | Description        |
+| ---------------- | ---- | ------ | -------- | ------------------ |
+| `workspacebuild` | path | string | true     | Workspace build ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Get workspace build logs
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/logs \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspacebuilds/{workspacebuild}/logs`
+
+### Parameters
+
+| Name             | In    | Type    | Required | Description           |
+| ---------------- | ----- | ------- | -------- | --------------------- |
+| `workspacebuild` | path  | string  | true     | Workspace build ID    |
+| `before`         | query | integer | false    | Before Unix timestamp |
+| `after`          | query | integer | false    | After Unix timestamp  |
+| `follow`         | query | boolean | false    | Follow log stream     |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "created_at": "string",
+    "id": 0,
+    "log_level": "string",
+    "log_source": "string",
+    "output": "string",
+    "stage": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                      |
+| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ProvisionerJobLog](schemas.md#codersdkprovisionerjoblog) |
+
+<h3 id="get-workspace-build-logs-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name           | Type    | Required | Restrictions | Description |
+| -------------- | ------- | -------- | ------------ | ----------- |
+| `[array item]` | array   | false    |              |             |
+| `» created_at` | string  | false    |              |             |
+| `» id`         | integer | false    |              |             |
+| `» log_level`  | string  | false    |              |             |
+| `» log_source` | string  | false    |              |             |
+| `» output`     | string  | false    |              |             |
+| `» stage`      | string  | false    |              |             |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Get workspace resources for workspace build
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/resources \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspacebuilds/{workspacebuild}/resources`
+
+### Parameters
+
+| Name             | In   | Type   | Required | Description        |
+| ---------------- | ---- | ------ | -------- | ------------------ |
+| `workspacebuild` | path | string | true     | Workspace build ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "agents": [
+      {
+        "apps": [
+          {
+            "command": "string",
+            "display_name": "string",
+            "external": true,
+            "health": "string",
+            "healthcheck": {
+              "interval": 0,
+              "threshold": 0,
+              "url": "string"
+            },
+            "icon": "string",
+            "id": "string",
+            "sharing_level": "string",
+            "slug": "string",
+            "subdomain": true,
+            "url": "string"
+          }
+        ],
+        "architecture": "string",
+        "connection_timeout_seconds": 0,
+        "created_at": "string",
+        "directory": "string",
+        "disconnected_at": "string",
+        "environment_variables": {
+          "property1": "string",
+          "property2": "string"
+        },
+        "first_connected_at": "string",
+        "id": "string",
+        "instance_id": "string",
+        "last_connected_at": "string",
+        "latency": {
+          "property1": {
+            "latency_ms": 0,
+            "preferred": true
+          },
+          "property2": {
+            "latency_ms": 0,
+            "preferred": true
+          }
+        },
+        "name": "string",
+        "operating_system": "string",
+        "resource_id": "string",
+        "startup_script": "string",
+        "status": "string",
+        "troubleshooting_url": "string",
+        "updated_at": "string",
+        "version": "string"
+      }
+    ],
+    "created_at": "2019-08-24T14:15:22Z",
+    "daily_cost": 0,
+    "hide": true,
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+    "metadata": [
+      {
+        "key": "string",
+        "sensitive": true,
+        "value": "string"
+      }
+    ],
+    "name": "string",
+    "type": "string",
+    "workspace_transition": "start"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                      |
+| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.WorkspaceResource](schemas.md#codersdkworkspaceresource) |
+
+<h3 id="get-workspace-resources-for-workspace-build-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                            | Type                   | Required | Restrictions | Description                                                                                                                                                                                                                                             |
+| ------------------------------- | ---------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[array item]`                  | array                  | false    |              |                                                                                                                                                                                                                                                         |
+| `» agents`                      | array                  | false    |              |                                                                                                                                                                                                                                                         |
+| `»» apps`                       | array                  | false    |              |                                                                                                                                                                                                                                                         |
+| `»»» command`                   | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»»» display_name`              | string                 | false    |              | DisplayName is a friendly name for the app.                                                                                                                                                                                                             |
+| `»»» external`                  | boolean                | false    |              | External specifies whether the URL should be opened externally on<br>the client or not.                                                                                                                                                                 |
+| `»»» health`                    | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»»» healthcheck`               | `codersdk.Healthcheck` | false    |              |                                                                                                                                                                                                                                                         |
+| `»»»» interval`                 | integer                | false    |              | Interval specifies the seconds between each health check.                                                                                                                                                                                               |
+| `»»»» threshold`                | integer                | false    |              | Threshold specifies the number of consecutive failed health checks before returning "unhealthy".                                                                                                                                                        |
+| `»»»» url`                      | string                 | false    |              | URL specifies the endpoint to check for the app health.                                                                                                                                                                                                 |
+| `»»» icon`                      | string                 | false    |              | Icon is a relative path or external URL that specifies<br>an icon to be displayed in the dashboard.                                                                                                                                                     |
+| `»»» id`                        | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»»» sharing_level`             | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»»» slug`                      | string                 | false    |              | Slug is a unique identifier within the agent.                                                                                                                                                                                                           |
+| `»»» subdomain`                 | boolean                | false    |              | Subdomain denotes whether the app should be accessed via a path on the<br>`coder server` or via a hostname-based dev URL. If this is set to true<br>and there is no app wildcard configured on the server, the app will not<br>be accessible in the UI. |
+| `»»» url`                       | string                 | false    |              | URL is the address being proxied to inside the workspace.<br>If external is specified, this will be opened on the client.                                                                                                                               |
+| `»» architecture`               | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»» connection_timeout_seconds` | integer                | false    |              |                                                                                                                                                                                                                                                         |
+| `»» created_at`                 | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»» directory`                  | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»» disconnected_at`            | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»» environment_variables`      | object                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»»» [any property]`            | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»» first_connected_at`         | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»» id`                         | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»» instance_id`                | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»» last_connected_at`          | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»» latency`                    | object                 | false    |              | DERPLatency is mapped by region name (e.g. "New York City", "Seattle").                                                                                                                                                                                 |
+| `»»» [any property]`            | `codersdk.DERPRegion`  | false    |              |                                                                                                                                                                                                                                                         |
+| `»»»» latency_ms`               | number                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»»»» preferred`                | boolean                | false    |              |                                                                                                                                                                                                                                                         |
+| `»» name`                       | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»» operating_system`           | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»» resource_id`                | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»» startup_script`             | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»» status`                     | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»» troubleshooting_url`        | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»» updated_at`                 | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»» version`                    | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `» created_at`                  | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `» daily_cost`                  | integer                | false    |              |                                                                                                                                                                                                                                                         |
+| `» hide`                        | boolean                | false    |              |                                                                                                                                                                                                                                                         |
+| `» icon`                        | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `» id`                          | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `» job_id`                      | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `» metadata`                    | array                  | false    |              |                                                                                                                                                                                                                                                         |
+| `»» key`                        | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»» sensitive`                  | boolean                | false    |              |                                                                                                                                                                                                                                                         |
+| `»» value`                      | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `» name`                        | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `» type`                        | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `» workspace_transition`        | string                 | false    |              |                                                                                                                                                                                                                                                         |
+
+#### Enumerated Values
+
+| Property               | Value    |
+| ---------------------- | -------- |
+| `workspace_transition` | `start`  |
+| `workspace_transition` | `stop`   |
+| `workspace_transition` | `delete` |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Get provisioner state for workspace build
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/state \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspacebuilds/{workspacebuild}/state`
+
+### Parameters
+
+| Name             | In   | Type   | Required | Description        |
+| ---------------- | ---- | ------ | -------- | ------------------ |
+| `workspacebuild` | path | string | true     | Workspace build ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "build_number": 0,
+  "created_at": "2019-08-24T14:15:22Z",
+  "daily_cost": 0,
+  "deadline": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+  "initiator_name": "string",
+  "job": {
+    "canceled_at": "string",
+    "completed_at": "string",
+    "created_at": "string",
+    "error": "string",
+    "file_id": "string",
+    "id": "string",
+    "started_at": "string",
+    "status": "string",
+    "tags": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "worker_id": "string"
+  },
+  "reason": "string",
+  "resources": [
+    {
+      "agents": [
+        {
+          "apps": [
+            {
+              "command": "string",
+              "display_name": "string",
+              "external": true,
+              "health": "string",
+              "healthcheck": {
+                "interval": 0,
+                "threshold": 0,
+                "url": "string"
+              },
+              "icon": "string",
+              "id": "string",
+              "sharing_level": "string",
+              "slug": "string",
+              "subdomain": true,
+              "url": "string"
+            }
+          ],
+          "architecture": "string",
+          "connection_timeout_seconds": 0,
+          "created_at": "string",
+          "directory": "string",
+          "disconnected_at": "string",
+          "environment_variables": {
+            "property1": "string",
+            "property2": "string"
+          },
+          "first_connected_at": "string",
+          "id": "string",
+          "instance_id": "string",
+          "last_connected_at": "string",
+          "latency": {
+            "property1": {
+              "latency_ms": 0,
+              "preferred": true
+            },
+            "property2": {
+              "latency_ms": 0,
+              "preferred": true
+            }
+          },
+          "name": "string",
+          "operating_system": "string",
+          "resource_id": "string",
+          "startup_script": "string",
+          "status": "string",
+          "troubleshooting_url": "string",
+          "updated_at": "string",
+          "version": "string"
+        }
+      ],
+      "created_at": "2019-08-24T14:15:22Z",
+      "daily_cost": 0,
+      "hide": true,
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+      "metadata": [
+        {
+          "key": "string",
+          "sensitive": true,
+          "value": "string"
+        }
+      ],
+      "name": "string",
+      "type": "string",
+      "workspace_transition": "start"
+    }
+  ],
+  "status": "pending",
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "template_version_name": "string",
+  "transition": "start",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+  "workspace_name": "string",
+  "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
+  "workspace_owner_name": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                       |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceBuild](schemas.md#codersdkworkspacebuild) |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
 ## List workspaces
 
 ### Code samples
