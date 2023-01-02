@@ -1052,7 +1052,7 @@
           }
         ],
         "produces": ["application/json"],
-        "tags": ["Workspaces"],
+        "tags": ["Builds"],
         "summary": "Get workspace build",
         "operationId": "get-workspace-build",
         "parameters": [
@@ -1082,7 +1082,7 @@
           }
         ],
         "produces": ["application/json"],
-        "tags": ["Workspaces"],
+        "tags": ["Builds"],
         "summary": "Cancel workspace build",
         "operationId": "cancel-workspace-build",
         "parameters": [
@@ -1112,7 +1112,7 @@
           }
         ],
         "produces": ["application/json"],
-        "tags": ["Workspaces"],
+        "tags": ["Builds"],
         "summary": "Get workspace build logs",
         "operationId": "get-workspace-build-logs",
         "parameters": [
@@ -1163,7 +1163,7 @@
           }
         ],
         "produces": ["application/json"],
-        "tags": ["Workspaces"],
+        "tags": ["Builds"],
         "summary": "Get workspace resources for workspace build",
         "operationId": "get-workspace-resources-for-workspace-build",
         "parameters": [
@@ -1196,7 +1196,7 @@
           }
         ],
         "produces": ["application/json"],
-        "tags": ["Workspaces"],
+        "tags": ["Builds"],
         "summary": "Get provisioner state for workspace build",
         "operationId": "get-provisioner-state-for-workspace-build",
         "parameters": [

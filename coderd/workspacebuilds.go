@@ -27,7 +27,7 @@ import (
 // @ID get-workspace-build
 // @Security CoderSessionToken
 // @Produce json
-// @Tags Workspaces
+// @Tags Builds
 // @Param workspacebuild path string true "Workspace build ID"
 // @Success 200 {object} codersdk.WorkspaceBuild
 // @Router /workspacebuilds/{workspacebuild} [get]
@@ -547,7 +547,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 // @ID cancel-workspace-build
 // @Security CoderSessionToken
 // @Produce json
-// @Tags Workspaces
+// @Tags Builds
 // @Param workspacebuild path string true "Workspace build ID"
 // @Success 200 {object} codersdk.Response
 // @Router /workspacebuilds/{workspacebuild}/cancel [patch]
@@ -650,7 +650,7 @@ func (api *API) verifyUserCanCancelWorkspaceBuilds(ctx context.Context, userID u
 // @ID get-workspace-resources-for-workspace-build
 // @Security CoderSessionToken
 // @Produce json
-// @Tags Workspaces
+// @Tags Builds
 // @Param workspacebuild path string true "Workspace build ID"
 // @Success 200 {array} codersdk.WorkspaceResource
 // @Router /workspacebuilds/{workspacebuild}/resources [get]
@@ -685,7 +685,7 @@ func (api *API) workspaceBuildResources(rw http.ResponseWriter, r *http.Request)
 // @ID get-workspace-build-logs
 // @Security CoderSessionToken
 // @Produce json
-// @Tags Workspaces
+// @Tags Builds
 // @Param workspacebuild path string true "Workspace build ID"
 // @Param before query int false "Before Unix timestamp"
 // @Param after query int false "After Unix timestamp"
@@ -723,7 +723,7 @@ func (api *API) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 // @ID get-provisioner-state-for-workspace-build
 // @Security CoderSessionToken
 // @Produce json
-// @Tags Workspaces
+// @Tags Builds
 // @Param workspacebuild path string true "Workspace build ID"
 // @Success 200 {object} codersdk.WorkspaceBuild
 // @Router /workspacebuilds/{workspacebuild}/state [get]

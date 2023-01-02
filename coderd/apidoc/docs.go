@@ -1219,7 +1219,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Workspaces"
+                    "Builds"
                 ],
                 "summary": "Get workspace build",
                 "operationId": "get-workspace-build",
@@ -1253,7 +1253,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Workspaces"
+                    "Builds"
                 ],
                 "summary": "Cancel workspace build",
                 "operationId": "cancel-workspace-build",
@@ -1287,7 +1287,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Workspaces"
+                    "Builds"
                 ],
                 "summary": "Get workspace build logs",
                 "operationId": "get-workspace-build-logs",
@@ -1342,7 +1342,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Workspaces"
+                    "Builds"
                 ],
                 "summary": "Get workspace resources for workspace build",
                 "operationId": "get-workspace-resources-for-workspace-build",
@@ -1379,7 +1379,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Workspaces"
+                    "Builds"
                 ],
                 "summary": "Get provisioner state for workspace build",
                 "operationId": "get-provisioner-state-for-workspace-build",

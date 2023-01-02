@@ -366,6 +366,10 @@
           "path": "./api/agents.md"
         },
         {
+          "title": "Builds",
+          "path": "./api/builds.md"
+        },
+        {
           "title": "Schemas",
           "path": "./api/schemas.md"
         }
