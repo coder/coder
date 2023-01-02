@@ -983,6 +983,83 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/me/app-health": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Submit workspace application health",
+                "operationId": "submit-workspace-workspace-agent-health",
+                "parameters": [
+                    {
+                        "description": "Application health request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PostWorkspaceAppHealthsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/workspaceagents/me/gitauth": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get workspace agent Git auth",
+                "operationId": "get-workspace-agent-git-auth",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "Git URL",
+                        "name": "url",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Wait for a new token to be issued",
+                        "name": "listen",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentGitAuthResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaceagents/me/metadata": {
             "get": {
                 "security": [
@@ -1007,6 +1084,75 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.WorkspaceAgentMetadata"
                         }
+                    }
+                }
+            }
+        },
+        "/workspaceagents/me/report-stats": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Submit workspace agent stats",
+                "operationId": "submit-workspace-workspace-agent-stats",
+                "parameters": [
+                    {
+                        "description": "Stats request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AgentStats"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AgentStatsResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaceagents/me/version": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Submit workspace agent version",
+                "operationId": "submit-workspace-workspace-agent-version",
+                "parameters": [
+                    {
+                        "description": "Version request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PostWorkspaceAgentVersionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
                     }
                 }
             }
@@ -1557,6 +1703,47 @@ const docTemplate = `{
                 },
                 "signature": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.AgentStats": {
+            "type": "object",
+            "properties": {
+                "conns_by_proto": {
+                    "description": "ConnsByProto is a count of connections by protocol.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "num_comms": {
+                    "description": "NumConns is the number of connections received by an agent.",
+                    "type": "integer"
+                },
+                "rx_bytes": {
+                    "description": "RxBytes is the number of received bytes.",
+                    "type": "integer"
+                },
+                "rx_packets": {
+                    "description": "RxPackets is the number of received packets.",
+                    "type": "integer"
+                },
+                "tx_bytes": {
+                    "description": "TxBytes is the number of transmitted bytes.",
+                    "type": "integer"
+                },
+                "tx_packets": {
+                    "description": "TxPackets is the number of transmitted bytes.",
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.AgentStatsResponse": {
+            "type": "object",
+            "properties": {
+                "report_interval": {
+                    "description": "ReportInterval is the duration after which the agent should send stats\nagain.",
+                    "type": "integer"
                 }
             }
         },
@@ -2395,6 +2582,26 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.PostWorkspaceAgentVersionRequest": {
+            "type": "object",
+            "properties": {
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.PostWorkspaceAppHealthsRequest": {
+            "type": "object",
+            "properties": {
+                "healths": {
+                    "description": "Healths is a map of the workspace app name and the health of the app.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "codersdk.PprofConfig": {
             "type": "object",
             "properties": {
@@ -2971,6 +3178,20 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "session_token": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentGitAuthResponse": {
+            "type": "object",
+            "properties": {
+                "password": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                },
+                "username": {
                     "type": "string"
                 }
             }

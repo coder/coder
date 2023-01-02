@@ -32,6 +32,48 @@
 | `document`  | string | true     |              |             |
 | `signature` | string | true     |              |             |
 
+## codersdk.AgentStats
+
+```json
+{
+  "conns_by_proto": {
+    "property1": 0,
+    "property2": 0
+  },
+  "num_comms": 0,
+  "rx_bytes": 0,
+  "rx_packets": 0,
+  "tx_bytes": 0,
+  "tx_packets": 0
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description                                                  |
+| ------------------ | ------- | -------- | ------------ | ------------------------------------------------------------ |
+| `conns_by_proto`   | object  | false    |              | Conns by proto is a count of connections by protocol.        |
+| » `[any property]` | integer | false    |              |                                                              |
+| `num_comms`        | integer | false    |              | Num comms is the number of connections received by an agent. |
+| `rx_bytes`         | integer | false    |              | Rx bytes is the number of received bytes.                    |
+| `rx_packets`       | integer | false    |              | Rx packets is the number of received packets.                |
+| `tx_bytes`         | integer | false    |              | Tx bytes is the number of transmitted bytes.                 |
+| `tx_packets`       | integer | false    |              | Tx packets is the number of transmitted bytes.               |
+
+## codersdk.AgentStatsResponse
+
+```json
+{
+  "report_interval": 0
+}
+```
+
+### Properties
+
+| Name              | Type    | Required | Restrictions | Description                                                                    |
+| ----------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------ |
+| `report_interval` | integer | false    |              | Report interval is the duration after which the agent should send stats again. |
+
 ## codersdk.AuditDiff
 
 ```json
@@ -2177,6 +2219,38 @@ Parameter represents a set value for the scope.
 | `source_scheme`      | `none`                 |
 | `source_scheme`      | `data`                 |
 
+## codersdk.PostWorkspaceAgentVersionRequest
+
+```json
+{
+  "version": "string"
+}
+```
+
+### Properties
+
+| Name      | Type   | Required | Restrictions | Description |
+| --------- | ------ | -------- | ------------ | ----------- |
+| `version` | string | false    |              |             |
+
+## codersdk.PostWorkspaceAppHealthsRequest
+
+```json
+{
+  "healths": {
+    "property1": "string",
+    "property2": "string"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description                                                           |
+| ------------------ | ------ | -------- | ------------ | --------------------------------------------------------------------- |
+| `healths`          | object | false    |              | Healths is a map of the workspace app name and the health of the app. |
+| » `[any property]` | string | false    |              |                                                                       |
+
 ## codersdk.PprofConfig
 
 ```json
@@ -3169,6 +3243,24 @@ Parameter represents a set value for the scope.
 | Name            | Type   | Required | Restrictions | Description |
 | --------------- | ------ | -------- | ------------ | ----------- |
 | `session_token` | string | false    |              |             |
+
+## codersdk.WorkspaceAgentGitAuthResponse
+
+```json
+{
+  "password": "string",
+  "url": "string",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description |
+| ---------- | ------ | -------- | ------------ | ----------- |
+| `password` | string | false    |              |             |
+| `url`      | string | false    |              |             |
+| `username` | string | false    |              |             |
 
 ## codersdk.WorkspaceAgentMetadata
 

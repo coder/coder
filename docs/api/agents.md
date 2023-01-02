@@ -142,6 +142,84 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/google-instance-ide
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
 
+## Submit workspace application health
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/app-health \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /workspaceagents/me/app-health`
+
+> Body parameter
+
+```json
+{
+  "healths": {
+    "property1": "string",
+    "property2": "string"
+  }
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                         | Required | Description                |
+| ------ | ---- | -------------------------------------------------------------------------------------------- | -------- | -------------------------- |
+| `body` | body | [codersdk.PostWorkspaceAppHealthsRequest](schemas.md#codersdkpostworkspaceapphealthsrequest) | true     | Application health request |
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema |
+| ------ | ------------------------------------------------------- | ----------- | ------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Get workspace agent Git auth
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitauth?url=http%3A%2F%2Fexample.com \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaceagents/me/gitauth`
+
+### Parameters
+
+| Name     | In    | Type        | Required | Description                       |
+| -------- | ----- | ----------- | -------- | --------------------------------- |
+| `url`    | query | string(uri) | true     | Git URL                           |
+| `listen` | query | boolean     | false    | Wait for a new token to be issued |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "password": "string",
+  "url": "string",
+  "username": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                     |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentGitAuthResponse](schemas.md#codersdkworkspaceagentgitauthresponse) |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
 ## Get authorized workspace agent metadata
 
 ### Code samples
@@ -248,5 +326,94 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/metadata \
 | Status | Meaning                                                 | Description | Schema                                                                       |
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentMetadata](schemas.md#codersdkworkspaceagentmetadata) |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Submit workspace agent stats
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/report-stats \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /workspaceagents/me/report-stats`
+
+> Body parameter
+
+```json
+{
+  "conns_by_proto": {
+    "property1": 0,
+    "property2": 0
+  },
+  "num_comms": 0,
+  "rx_bytes": 0,
+  "rx_packets": 0,
+  "tx_bytes": 0,
+  "tx_packets": 0
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                 | Required | Description   |
+| ------ | ---- | ---------------------------------------------------- | -------- | ------------- |
+| `body` | body | [codersdk.AgentStats](schemas.md#codersdkagentstats) | true     | Stats request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "report_interval": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                               |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AgentStatsResponse](schemas.md#codersdkagentstatsresponse) |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Submit workspace agent version
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/version \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /workspaceagents/me/version`
+
+> Body parameter
+
+```json
+{
+  "version": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                             | Required | Description     |
+| ------ | ---- | ------------------------------------------------------------------------------------------------ | -------- | --------------- |
+| `body` | body | [codersdk.PostWorkspaceAgentVersionRequest](schemas.md#codersdkpostworkspaceagentversionrequest) | true     | Version request |
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema |
+| ------ | ------------------------------------------------------- | ----------- | ------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
