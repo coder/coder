@@ -65,6 +65,14 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, apiAgent)
 }
 
+// @Summary Get authorized workspace agent metadata
+// @ID get-authorized-workspace-agent-metadata
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Agents
+// @Success 200 {object} codersdk.WorkspaceAgentMetadata
+// @Router /workspaceagents/me/metadata [get]
 func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)

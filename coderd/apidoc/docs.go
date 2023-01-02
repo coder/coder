@@ -886,7 +886,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Workspaces"
+                    "Agents"
                 ],
                 "summary": "Authenticate agent on AWS instance",
                 "operationId": "authenticate-agent-on-aws-instance",
@@ -922,7 +922,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Workspaces"
+                    "Agents"
                 ],
                 "summary": "Authenticate agent on Azure instance",
                 "operationId": "authenticate-agent-on-azure-instance",
@@ -958,7 +958,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Workspaces"
+                    "Agents"
                 ],
                 "summary": "Authenticate agent on Google Cloud instance",
                 "operationId": "authenticate-agent-on-google-cloud-instance",
@@ -978,6 +978,34 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.WorkspaceAgentAuthenticateResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaceagents/me/metadata": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get authorized workspace agent metadata",
+                "operationId": "get-authorized-workspace-agent-metadata",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentMetadata"
                         }
                     }
                 }
@@ -2867,13 +2895,15 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "created_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "directory": {
                     "type": "string"
                 },
                 "disconnected_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "environment_variables": {
                     "type": "object",
@@ -2882,16 +2912,19 @@ const docTemplate = `{
                     }
                 },
                 "first_connected_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "instance_id": {
                     "type": "string"
                 },
                 "last_connected_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "latency": {
                     "description": "DERPLatency is mapped by region name (e.g. \"New York City\", \"Seattle\").",
@@ -2907,19 +2940,27 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "resource_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "startup_script": {
                     "type": "string"
                 },
                 "status": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "connecting",
+                        "connected",
+                        "disconnected",
+                        "timeout"
+                    ]
                 },
                 "troubleshooting_url": {
                     "type": "string"
                 },
                 "updated_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "version": {
                     "type": "string"
@@ -2930,6 +2971,42 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "session_token": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentMetadata": {
+            "type": "object",
+            "properties": {
+                "apps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceApp"
+                    }
+                },
+                "derpmap": {
+                    "$ref": "#/definitions/tailcfg.DERPMap"
+                },
+                "directory": {
+                    "type": "string"
+                },
+                "environment_variables": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "git_auth_configs": {
+                    "description": "GitAuthConfigs stores the number of Git configurations\nthe Coder deployment has. If this number is \u003e0, we\nset up special configuration in the workspace.",
+                    "type": "integer"
+                },
+                "motd_file": {
+                    "type": "string"
+                },
+                "startup_script": {
+                    "type": "string"
+                },
+                "vscode_port_proxy_uri": {
                     "type": "string"
                 }
             }
@@ -2960,10 +3037,16 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "sharing_level": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "owner",
+                        "authenticated",
+                        "public"
+                    ]
                 },
                 "slug": {
                     "description": "Slug is a unique identifier within the agent.",
@@ -3156,6 +3239,107 @@ const docTemplate = `{
         },
         "netip.Addr": {
             "type": "object"
+        },
+        "tailcfg.DERPMap": {
+            "type": "object",
+            "properties": {
+                "omitDefaultRegions": {
+                    "description": "OmitDefaultRegions specifies to not use Tailscale's DERP servers, and only use those\nspecified in this DERPMap. If there are none set outside of the defaults, this is a noop.",
+                    "type": "boolean"
+                },
+                "regions": {
+                    "description": "Regions is the set of geographic regions running DERP node(s).\n\nIt's keyed by the DERPRegion.RegionID.\n\nThe numbers are not necessarily contiguous.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/tailcfg.DERPRegion"
+                    }
+                }
+            }
+        },
+        "tailcfg.DERPNode": {
+            "type": "object",
+            "properties": {
+                "certName": {
+                    "description": "CertName optionally specifies the expected TLS cert common\nname. If empty, HostName is used. If CertName is non-empty,\nHostName is only used for the TCP dial (if IPv4/IPv6 are\nnot present) + TLS ClientHello.",
+                    "type": "string"
+                },
+                "derpport": {
+                    "description": "DERPPort optionally provides an alternate TLS port number\nfor the DERP HTTPS server.\n\nIf zero, 443 is used.",
+                    "type": "integer"
+                },
+                "forceHTTP": {
+                    "description": "ForceHTTP is used by unit tests to force HTTP.\nIt should not be set by users.",
+                    "type": "boolean"
+                },
+                "hostName": {
+                    "description": "HostName is the DERP node's hostname.\n\nIt is required but need not be unique; multiple nodes may\nhave the same HostName but vary in configuration otherwise.",
+                    "type": "string"
+                },
+                "insecureForTests": {
+                    "description": "InsecureForTests is used by unit tests to disable TLS verification.\nIt should not be set by users.",
+                    "type": "boolean"
+                },
+                "ipv4": {
+                    "description": "IPv4 optionally forces an IPv4 address to use, instead of using DNS.\nIf empty, A record(s) from DNS lookups of HostName are used.\nIf the string is not an IPv4 address, IPv4 is not used; the\nconventional string to disable IPv4 (and not use DNS) is\n\"none\".",
+                    "type": "string"
+                },
+                "ipv6": {
+                    "description": "IPv6 optionally forces an IPv6 address to use, instead of using DNS.\nIf empty, AAAA record(s) from DNS lookups of HostName are used.\nIf the string is not an IPv6 address, IPv6 is not used; the\nconventional string to disable IPv6 (and not use DNS) is\n\"none\".",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Name is a unique node name (across all regions).\nIt is not a host name.\nIt's typically of the form \"1b\", \"2a\", \"3b\", etc. (region\nID + suffix within that region)",
+                    "type": "string"
+                },
+                "regionID": {
+                    "description": "RegionID is the RegionID of the DERPRegion that this node\nis running in.",
+                    "type": "integer"
+                },
+                "stunonly": {
+                    "description": "STUNOnly marks a node as only a STUN server and not a DERP\nserver.",
+                    "type": "boolean"
+                },
+                "stunport": {
+                    "description": "Port optionally specifies a STUN port to use.\nZero means 3478.\nTo disable STUN on this node, use -1.",
+                    "type": "integer"
+                },
+                "stuntestIP": {
+                    "description": "STUNTestIP is used in tests to override the STUN server's IP.\nIf empty, it's assumed to be the same as the DERP server.",
+                    "type": "string"
+                }
+            }
+        },
+        "tailcfg.DERPRegion": {
+            "type": "object",
+            "properties": {
+                "avoid": {
+                    "description": "Avoid is whether the client should avoid picking this as its home\nregion. The region should only be used if a peer is there.\nClients already using this region as their home should migrate\naway to a new region without Avoid set.",
+                    "type": "boolean"
+                },
+                "embeddedRelay": {
+                    "description": "EmbeddedRelay is true when the region is bundled with the Coder\ncontrol plane.",
+                    "type": "boolean"
+                },
+                "nodes": {
+                    "description": "Nodes are the DERP nodes running in this region, in\npriority order for the current client. Client TLS\nconnections should ideally only go to the first entry\n(falling back to the second if necessary). STUN packets\nshould go to the first 1 or 2.\n\nIf nodes within a region route packets amongst themselves,\nbut not to other regions. That said, each user/domain\nshould get a the same preferred node order, so if all nodes\nfor a user/network pick the first one (as they should, when\nthings are healthy), the inter-cluster routing is minimal\nto zero.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tailcfg.DERPNode"
+                    }
+                },
+                "regionCode": {
+                    "description": "RegionCode is a short name for the region. It's usually a popular\ncity or airport code in the region: \"nyc\", \"sf\", \"sin\",\n\"fra\", etc.",
+                    "type": "string"
+                },
+                "regionID": {
+                    "description": "RegionID is a unique integer for a geographic region.\n\nIt corresponds to the legacy derpN.tailscale.com hostnames\nused by older clients. (Older clients will continue to resolve\nderpN.tailscale.com when contacting peers, rather than use\nthe server-provided DERPMap)\n\nRegionIDs must be non-zero, positive, and guaranteed to fit\nin a JavaScript number.\n\nRegionIDs in range 900-999 are reserved for end users to run their\nown DERP nodes.",
+                    "type": "integer"
+                },
+                "regionName": {
+                    "description": "RegionName is a long English name for the region: \"New York City\",\n\"San Francisco\", \"Singapore\", \"Frankfurt\", etc.",
+                    "type": "string"
+                }
+            }
         }
     },
     "securityDefinitions": {

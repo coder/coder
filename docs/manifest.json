@@ -362,6 +362,10 @@
           "path": "./api/parameters.md"
         },
         {
+          "title": "Agents",
+          "path": "./api/agents.md"
+        },
+        {
           "title": "Schemas",
           "path": "./api/schemas.md"
         }

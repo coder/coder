@@ -72,8 +72,8 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
                   "url": "string"
                 },
                 "icon": "string",
-                "id": "string",
-                "sharing_level": "string",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "sharing_level": "owner",
                 "slug": "string",
                 "subdomain": true,
                 "url": "string"
@@ -81,17 +81,17 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
             ],
             "architecture": "string",
             "connection_timeout_seconds": 0,
-            "created_at": "string",
+            "created_at": "2019-08-24T14:15:22Z",
             "directory": "string",
-            "disconnected_at": "string",
+            "disconnected_at": "2019-08-24T14:15:22Z",
             "environment_variables": {
               "property1": "string",
               "property2": "string"
             },
-            "first_connected_at": "string",
-            "id": "string",
+            "first_connected_at": "2019-08-24T14:15:22Z",
+            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "instance_id": "string",
-            "last_connected_at": "string",
+            "last_connected_at": "2019-08-24T14:15:22Z",
             "latency": {
               "property1": {
                 "latency_ms": 0,
@@ -104,11 +104,11 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
             },
             "name": "string",
             "operating_system": "string",
-            "resource_id": "string",
+            "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "startup_script": "string",
-            "status": "string",
+            "status": "connecting",
             "troubleshooting_url": "string",
-            "updated_at": "string",
+            "updated_at": "2019-08-24T14:15:22Z",
             "version": "string"
           }
         ],
@@ -233,8 +233,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
                   "url": "string"
                 },
                 "icon": "string",
-                "id": "string",
-                "sharing_level": "string",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "sharing_level": "owner",
                 "slug": "string",
                 "subdomain": true,
                 "url": "string"
@@ -242,17 +242,17 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
             ],
             "architecture": "string",
             "connection_timeout_seconds": 0,
-            "created_at": "string",
+            "created_at": "2019-08-24T14:15:22Z",
             "directory": "string",
-            "disconnected_at": "string",
+            "disconnected_at": "2019-08-24T14:15:22Z",
             "environment_variables": {
               "property1": "string",
               "property2": "string"
             },
-            "first_connected_at": "string",
-            "id": "string",
+            "first_connected_at": "2019-08-24T14:15:22Z",
+            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "instance_id": "string",
-            "last_connected_at": "string",
+            "last_connected_at": "2019-08-24T14:15:22Z",
             "latency": {
               "property1": {
                 "latency_ms": 0,
@@ -265,11 +265,11 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
             },
             "name": "string",
             "operating_system": "string",
-            "resource_id": "string",
+            "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "startup_script": "string",
-            "status": "string",
+            "status": "connecting",
             "troubleshooting_url": "string",
-            "updated_at": "string",
+            "updated_at": "2019-08-24T14:15:22Z",
             "version": "string"
           }
         ],
@@ -320,146 +320,6 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
 | Status | Meaning                                                 | Description | Schema                                             |
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Workspace](schemas.md#codersdkworkspace) |
-
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
-
-## Authenticate agent on AWS instance
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X POST http://coder-server:8080/api/v2/workspaceagents/aws-instance-identity \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`POST /workspaceagents/aws-instance-identity`
-
-> Body parameter
-
-```json
-{
-  "document": "string",
-  "signature": "string"
-}
-```
-
-### Parameters
-
-| Name   | In   | Type                                                                             | Required | Description             |
-| ------ | ---- | -------------------------------------------------------------------------------- | -------- | ----------------------- |
-| `body` | body | [codersdk.AWSInstanceIdentityToken](schemas.md#codersdkawsinstanceidentitytoken) | true     | Instance identity token |
-
-### Example responses
-
-> 200 Response
-
-```json
-{
-  "session_token": "string"
-}
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                                                                               |
-| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentAuthenticateResponse](schemas.md#codersdkworkspaceagentauthenticateresponse) |
-
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
-
-## Authenticate agent on Azure instance
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X POST http://coder-server:8080/api/v2/workspaceagents/azure-instance-identity \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`POST /workspaceagents/azure-instance-identity`
-
-> Body parameter
-
-```json
-{
-  "encoding": "string",
-  "signature": "string"
-}
-```
-
-### Parameters
-
-| Name   | In   | Type                                                                                 | Required | Description             |
-| ------ | ---- | ------------------------------------------------------------------------------------ | -------- | ----------------------- |
-| `body` | body | [codersdk.AzureInstanceIdentityToken](schemas.md#codersdkazureinstanceidentitytoken) | true     | Instance identity token |
-
-### Example responses
-
-> 200 Response
-
-```json
-{
-  "session_token": "string"
-}
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                                                                               |
-| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentAuthenticateResponse](schemas.md#codersdkworkspaceagentauthenticateresponse) |
-
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
-
-## Authenticate agent on Google Cloud instance
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X POST http://coder-server:8080/api/v2/workspaceagents/google-instance-identity \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`POST /workspaceagents/google-instance-identity`
-
-> Body parameter
-
-```json
-{
-  "json_web_token": "string"
-}
-```
-
-### Parameters
-
-| Name   | In   | Type                                                                                   | Required | Description             |
-| ------ | ---- | -------------------------------------------------------------------------------------- | -------- | ----------------------- |
-| `body` | body | [codersdk.GoogleInstanceIdentityToken](schemas.md#codersdkgoogleinstanceidentitytoken) | true     | Instance identity token |
-
-### Example responses
-
-> 200 Response
-
-```json
-{
-  "session_token": "string"
-}
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                                                                               |
-| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentAuthenticateResponse](schemas.md#codersdkworkspaceagentauthenticateresponse) |
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
 
@@ -527,8 +387,8 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
                 "url": "string"
               },
               "icon": "string",
-              "id": "string",
-              "sharing_level": "string",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "sharing_level": "owner",
               "slug": "string",
               "subdomain": true,
               "url": "string"
@@ -536,17 +396,17 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
           ],
           "architecture": "string",
           "connection_timeout_seconds": 0,
-          "created_at": "string",
+          "created_at": "2019-08-24T14:15:22Z",
           "directory": "string",
-          "disconnected_at": "string",
+          "disconnected_at": "2019-08-24T14:15:22Z",
           "environment_variables": {
             "property1": "string",
             "property2": "string"
           },
-          "first_connected_at": "string",
-          "id": "string",
+          "first_connected_at": "2019-08-24T14:15:22Z",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "instance_id": "string",
-          "last_connected_at": "string",
+          "last_connected_at": "2019-08-24T14:15:22Z",
           "latency": {
             "property1": {
               "latency_ms": 0,
@@ -559,11 +419,11 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
           },
           "name": "string",
           "operating_system": "string",
-          "resource_id": "string",
+          "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "startup_script": "string",
-          "status": "string",
+          "status": "connecting",
           "troubleshooting_url": "string",
-          "updated_at": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
           "version": "string"
         }
       ],
@@ -760,8 +620,8 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
               "url": "string"
             },
             "icon": "string",
-            "id": "string",
-            "sharing_level": "string",
+            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+            "sharing_level": "owner",
             "slug": "string",
             "subdomain": true,
             "url": "string"
@@ -769,17 +629,17 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
         ],
         "architecture": "string",
         "connection_timeout_seconds": 0,
-        "created_at": "string",
+        "created_at": "2019-08-24T14:15:22Z",
         "directory": "string",
-        "disconnected_at": "string",
+        "disconnected_at": "2019-08-24T14:15:22Z",
         "environment_variables": {
           "property1": "string",
           "property2": "string"
         },
-        "first_connected_at": "string",
-        "id": "string",
+        "first_connected_at": "2019-08-24T14:15:22Z",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "instance_id": "string",
-        "last_connected_at": "string",
+        "last_connected_at": "2019-08-24T14:15:22Z",
         "latency": {
           "property1": {
             "latency_ms": 0,
@@ -792,11 +652,11 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
         },
         "name": "string",
         "operating_system": "string",
-        "resource_id": "string",
+        "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
         "startup_script": "string",
-        "status": "string",
+        "status": "connecting",
         "troubleshooting_url": "string",
-        "updated_at": "string",
+        "updated_at": "2019-08-24T14:15:22Z",
         "version": "string"
       }
     ],
@@ -888,11 +748,18 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property               | Value    |
-| ---------------------- | -------- |
-| `workspace_transition` | `start`  |
-| `workspace_transition` | `stop`   |
-| `workspace_transition` | `delete` |
+| Property               | Value           |
+| ---------------------- | --------------- |
+| `sharing_level`        | `owner`         |
+| `sharing_level`        | `authenticated` |
+| `sharing_level`        | `public`        |
+| `status`               | `connecting`    |
+| `status`               | `connected`     |
+| `status`               | `disconnected`  |
+| `status`               | `timeout`       |
+| `workspace_transition` | `start`         |
+| `workspace_transition` | `stop`          |
+| `workspace_transition` | `delete`        |
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
 
@@ -960,8 +827,8 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
                 "url": "string"
               },
               "icon": "string",
-              "id": "string",
-              "sharing_level": "string",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "sharing_level": "owner",
               "slug": "string",
               "subdomain": true,
               "url": "string"
@@ -969,17 +836,17 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
           ],
           "architecture": "string",
           "connection_timeout_seconds": 0,
-          "created_at": "string",
+          "created_at": "2019-08-24T14:15:22Z",
           "directory": "string",
-          "disconnected_at": "string",
+          "disconnected_at": "2019-08-24T14:15:22Z",
           "environment_variables": {
             "property1": "string",
             "property2": "string"
           },
-          "first_connected_at": "string",
-          "id": "string",
+          "first_connected_at": "2019-08-24T14:15:22Z",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "instance_id": "string",
-          "last_connected_at": "string",
+          "last_connected_at": "2019-08-24T14:15:22Z",
           "latency": {
             "property1": {
               "latency_ms": 0,
@@ -992,11 +859,11 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
           },
           "name": "string",
           "operating_system": "string",
-          "resource_id": "string",
+          "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "startup_script": "string",
-          "status": "string",
+          "status": "connecting",
           "troubleshooting_url": "string",
-          "updated_at": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
           "version": "string"
         }
       ],
@@ -1128,8 +995,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                     "health": "string",
                     "healthcheck": {},
                     "icon": "string",
-                    "id": "string",
-                    "sharing_level": "string",
+                    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                    "sharing_level": "owner",
                     "slug": "string",
                     "subdomain": true,
                     "url": "string"
@@ -1137,17 +1004,17 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                 ],
                 "architecture": "string",
                 "connection_timeout_seconds": 0,
-                "created_at": "string",
+                "created_at": "2019-08-24T14:15:22Z",
                 "directory": "string",
-                "disconnected_at": "string",
+                "disconnected_at": "2019-08-24T14:15:22Z",
                 "environment_variables": {
                   "property1": "string",
                   "property2": "string"
                 },
-                "first_connected_at": "string",
-                "id": "string",
+                "first_connected_at": "2019-08-24T14:15:22Z",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "instance_id": "string",
-                "last_connected_at": "string",
+                "last_connected_at": "2019-08-24T14:15:22Z",
                 "latency": {
                   "property1": {
                     "latency_ms": 0,
@@ -1160,11 +1027,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                 },
                 "name": "string",
                 "operating_system": "string",
-                "resource_id": "string",
+                "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
                 "startup_script": "string",
-                "status": "string",
+                "status": "connecting",
                 "troubleshooting_url": "string",
-                "updated_at": "string",
+                "updated_at": "2019-08-24T14:15:22Z",
                 "version": "string"
               }
             ],
@@ -1290,8 +1157,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{id} \
                   "url": "string"
                 },
                 "icon": "string",
-                "id": "string",
-                "sharing_level": "string",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "sharing_level": "owner",
                 "slug": "string",
                 "subdomain": true,
                 "url": "string"
@@ -1299,17 +1166,17 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{id} \
             ],
             "architecture": "string",
             "connection_timeout_seconds": 0,
-            "created_at": "string",
+            "created_at": "2019-08-24T14:15:22Z",
             "directory": "string",
-            "disconnected_at": "string",
+            "disconnected_at": "2019-08-24T14:15:22Z",
             "environment_variables": {
               "property1": "string",
               "property2": "string"
             },
-            "first_connected_at": "string",
-            "id": "string",
+            "first_connected_at": "2019-08-24T14:15:22Z",
+            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "instance_id": "string",
-            "last_connected_at": "string",
+            "last_connected_at": "2019-08-24T14:15:22Z",
             "latency": {
               "property1": {
                 "latency_ms": 0,
@@ -1322,11 +1189,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{id} \
             },
             "name": "string",
             "operating_system": "string",
-            "resource_id": "string",
+            "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "startup_script": "string",
-            "status": "string",
+            "status": "connecting",
             "troubleshooting_url": "string",
-            "updated_at": "string",
+            "updated_at": "2019-08-24T14:15:22Z",
             "version": "string"
           }
         ],
