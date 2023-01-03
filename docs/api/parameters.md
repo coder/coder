@@ -37,14 +37,22 @@ curl -X GET http://coder-server:8080/api/v2/parameters/{scope}/{id} \
 ```json
 [
   {
+<<<<<<< HEAD
     "created_at": "string",
+=======
+    "created_at": "2019-08-24T14:15:22Z",
+>>>>>>> main
     "destination_scheme": "none",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string",
     "scope": "template",
     "scope_id": "5d3fe357-12dd-4f62-b004-6d1fb3b8454f",
     "source_scheme": "none",
+<<<<<<< HEAD
     "updated_at": "string"
+=======
+    "updated_at": "2019-08-24T14:15:22Z"
+>>>>>>> main
   }
 ]
 ```
@@ -59,6 +67,7 @@ curl -X GET http://coder-server:8080/api/v2/parameters/{scope}/{id} \
 
 Status Code **200**
 
+<<<<<<< HEAD
 | Name                   | Type   | Required | Restrictions | Description                                       |
 | ---------------------- | ------ | -------- | ------------ | ------------------------------------------------- |
 | `[array item]`         | array  | false    |              | [Parameter represents a set value for the scope.] |
@@ -70,6 +79,19 @@ Status Code **200**
 | `» scope_id`           | string | false    |              |                                                   |
 | `» source_scheme`      | string | false    |              |                                                   |
 | `» updated_at`         | string | false    |              |                                                   |
+=======
+| Name                   | Type              | Required | Restrictions | Description                                       |
+| ---------------------- | ----------------- | -------- | ------------ | ------------------------------------------------- |
+| `[array item]`         | array             | false    |              | [Parameter represents a set value for the scope.] |
+| `» created_at`         | string(date-time) | false    |              |                                                   |
+| `» destination_scheme` | string            | false    |              |                                                   |
+| `» id`                 | string(uuid)      | false    |              |                                                   |
+| `» name`               | string            | false    |              |                                                   |
+| `» scope`              | string            | false    |              |                                                   |
+| `» scope_id`           | string(uuid)      | false    |              |                                                   |
+| `» source_scheme`      | string            | false    |              |                                                   |
+| `» updated_at`         | string(date-time) | false    |              |                                                   |
+>>>>>>> main
 
 #### Enumerated Values
 
@@ -134,14 +156,22 @@ curl -X POST http://coder-server:8080/api/v2/parameters/{scope}/{id} \
 
 ```json
 {
+<<<<<<< HEAD
   "created_at": "string",
+=======
+  "created_at": "2019-08-24T14:15:22Z",
+>>>>>>> main
   "destination_scheme": "none",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "scope": "template",
   "scope_id": "5d3fe357-12dd-4f62-b004-6d1fb3b8454f",
   "source_scheme": "none",
+<<<<<<< HEAD
   "updated_at": "string"
+=======
+  "updated_at": "2019-08-24T14:15:22Z"
+>>>>>>> main
 }
 ```
 

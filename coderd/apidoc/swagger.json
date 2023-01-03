@@ -264,7 +264,11 @@
             "CoderSessionToken": []
           }
         ],
+<<<<<<< HEAD
         "description": "Notice: Swagger 2.0 doesn't support file upload with a `content-type` different than `application/x-www-form-urlencoded`.",
+=======
+        "description": "Swagger notice: Swagger 2.0 doesn't support file upload with a `content-type` different than `application/x-www-form-urlencoded`.",
+>>>>>>> main
         "consumes": ["application/x-tar"],
         "produces": ["application/json"],
         "tags": ["Files"],
@@ -1615,6 +1619,7 @@
         }
       }
     },
+<<<<<<< HEAD
     "codersdk.AWSInstanceIdentityToken": {
       "type": "object",
       "required": ["document", "signature"],
@@ -1679,6 +1684,8 @@
         }
       }
     },
+=======
+>>>>>>> main
     "codersdk.AuditDiff": {
       "type": "object",
       "additionalProperties": {
@@ -1950,6 +1957,7 @@
         }
       }
     },
+<<<<<<< HEAD
     "codersdk.CreateWorkspaceBuildRequest": {
       "type": "object",
       "required": ["transition"],
@@ -1983,6 +1991,8 @@
         }
       }
     },
+=======
+>>>>>>> main
     "codersdk.DERP": {
       "type": "object",
       "properties": {
@@ -2389,6 +2399,7 @@
         }
       }
     },
+<<<<<<< HEAD
     "codersdk.GoogleInstanceIdentityToken": {
       "type": "object",
       "required": ["json_web_token"],
@@ -2398,6 +2409,8 @@
         }
       }
     },
+=======
+>>>>>>> main
     "codersdk.Healthcheck": {
       "type": "object",
       "properties": {
@@ -2480,6 +2493,7 @@
       "type": "object",
       "properties": {
         "created_at": {
+<<<<<<< HEAD
           "type": "string"
         },
         "destination_scheme": {
@@ -2493,6 +2507,22 @@
         "name": {
           "type": "string"
         },
+=======
+          "type": "string",
+          "format": "date-time"
+        },
+        "destination_scheme": {
+          "type": "string",
+          "enum": ["none", "environment_variable", "provisioner_variable"]
+        },
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+>>>>>>> main
         "scope": {
           "type": "string",
           "enum": ["template", "workspace", "import_job"]
@@ -2506,6 +2536,7 @@
           "enum": ["none", "data"]
         },
         "updated_at": {
+<<<<<<< HEAD
           "type": "string"
         }
       }
@@ -2527,6 +2558,10 @@
           "additionalProperties": {
             "type": "string"
           }
+=======
+          "type": "string",
+          "format": "date-time"
+>>>>>>> main
         }
       }
     },
@@ -2884,7 +2919,12 @@
       "type": "object",
       "properties": {
         "hash": {
+<<<<<<< HEAD
           "type": "string"
+=======
+          "type": "string",
+          "format": "uuid"
+>>>>>>> main
         }
       }
     },
@@ -3351,6 +3391,7 @@
     },
     "netip.Addr": {
       "type": "object"
+<<<<<<< HEAD
     },
     "tailcfg.DERPMap": {
       "type": "object",
@@ -3452,6 +3493,8 @@
           "type": "string"
         }
       }
+=======
+>>>>>>> main
     }
   },
   "securityDefinitions": {

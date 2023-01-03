@@ -165,18 +165,18 @@ Status Code **200**
 | `»» [any property]`                  | `codersdk.TransitionStats`        | false    |              |                                            |
 | `»»» p50`                            | integer                           | false    |              |                                            |
 | `»»» p95`                            | integer                           | false    |              |                                            |
-| `» created_at`                       | string                            | false    |              |                                            |
-| `» created_by_id`                    | string                            | false    |              |                                            |
+| `» created_at`                       | string(date-time)                 | false    |              |                                            |
+| `» created_by_id`                    | string(uuid)                      | false    |              |                                            |
 | `» created_by_name`                  | string                            | false    |              |                                            |
 | `» default_ttl_ms`                   | integer                           | false    |              |                                            |
 | `» description`                      | string                            | false    |              |                                            |
 | `» display_name`                     | string                            | false    |              |                                            |
 | `» icon`                             | string                            | false    |              |                                            |
-| `» id`                               | string                            | false    |              |                                            |
+| `» id`                               | string(uuid)                      | false    |              |                                            |
 | `» name`                             | string                            | false    |              |                                            |
-| `» organization_id`                  | string                            | false    |              |                                            |
+| `» organization_id`                  | string(uuid)                      | false    |              |                                            |
 | `» provisioner`                      | string                            | false    |              |                                            |
-| `» updated_at`                       | string                            | false    |              |                                            |
+| `» updated_at`                       | string(date-time)                 | false    |              |                                            |
 | `» workspace_owner_count`            | integer                           | false    |              |                                            |
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.

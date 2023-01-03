@@ -310,7 +310,11 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+<<<<<<< HEAD
                 "description": "Notice: Swagger 2.0 doesn't support file upload with a ` + "`" + `content-type` + "`" + ` different than ` + "`" + `application/x-www-form-urlencoded` + "`" + `.",
+=======
+                "description": "Swagger notice: Swagger 2.0 doesn't support file upload with a ` + "`" + `content-type` + "`" + ` different than ` + "`" + `application/x-www-form-urlencoded` + "`" + `.",
+>>>>>>> main
                 "consumes": [
                     "application/x-tar"
                 ],
@@ -1848,6 +1852,7 @@ const docTemplate = `{
                 }
             }
         },
+<<<<<<< HEAD
         "codersdk.AWSInstanceIdentityToken": {
             "type": "object",
             "required": [
@@ -1915,6 +1920,8 @@ const docTemplate = `{
                 }
             }
         },
+=======
+>>>>>>> main
         "codersdk.AuditDiff": {
             "type": "object",
             "additionalProperties": {
@@ -2210,6 +2217,7 @@ const docTemplate = `{
                 }
             }
         },
+<<<<<<< HEAD
         "codersdk.CreateWorkspaceBuildRequest": {
             "type": "object",
             "required": [
@@ -2250,6 +2258,8 @@ const docTemplate = `{
                 }
             }
         },
+=======
+>>>>>>> main
         "codersdk.DERP": {
             "type": "object",
             "properties": {
@@ -2656,6 +2666,7 @@ const docTemplate = `{
                 }
             }
         },
+<<<<<<< HEAD
         "codersdk.GoogleInstanceIdentityToken": {
             "type": "object",
             "required": [
@@ -2667,6 +2678,8 @@ const docTemplate = `{
                 }
             }
         },
+=======
+>>>>>>> main
         "codersdk.Healthcheck": {
             "type": "object",
             "properties": {
@@ -2749,6 +2762,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "created_at": {
+<<<<<<< HEAD
                     "type": "string"
                 },
                 "destination_scheme": {
@@ -2766,6 +2780,26 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+=======
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "destination_scheme": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "environment_variable",
+                        "provisioner_variable"
+                    ]
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+>>>>>>> main
                 "scope": {
                     "type": "string",
                     "enum": [
@@ -2786,6 +2820,7 @@ const docTemplate = `{
                     ]
                 },
                 "updated_at": {
+<<<<<<< HEAD
                     "type": "string"
                 }
             }
@@ -2807,6 +2842,10 @@ const docTemplate = `{
                     "additionalProperties": {
                         "type": "string"
                     }
+=======
+                    "type": "string",
+                    "format": "date-time"
+>>>>>>> main
                 }
             }
         },
@@ -3172,7 +3211,12 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "hash": {
+<<<<<<< HEAD
                     "type": "string"
+=======
+                    "type": "string",
+                    "format": "uuid"
+>>>>>>> main
                 }
             }
         },
@@ -3668,6 +3712,7 @@ const docTemplate = `{
         },
         "netip.Addr": {
             "type": "object"
+<<<<<<< HEAD
         },
         "tailcfg.DERPMap": {
             "type": "object",
@@ -3769,6 +3814,8 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+=======
+>>>>>>> main
         }
     },
     "securityDefinitions": {

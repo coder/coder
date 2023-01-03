@@ -362,6 +362,7 @@
           "path": "./api/parameters.md"
         },
         {
+<<<<<<< HEAD
           "title": "Agents",
           "path": "./api/agents.md"
         },
@@ -370,6 +371,8 @@
           "path": "./api/builds.md"
         },
         {
+=======
+>>>>>>> main
           "title": "Schemas",
           "path": "./api/schemas.md"
         }
