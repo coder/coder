@@ -16,7 +16,6 @@
 | ------------ | ------ | -------- | ------------ | ----------- |
 | `csp-report` | object | false    |              |             |
 
-<<<<<<< HEAD
 ## codersdk.AWSInstanceIdentityToken
 
 ```json
@@ -91,8 +90,6 @@
 | ----------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------ |
 | `report_interval` | integer | false    |              | Report interval is the duration after which the agent should send stats again. |
 
-=======
->>>>>>> main
 ## codersdk.AuditDiff
 
 ```json
@@ -516,7 +513,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `resource_type` | `api_key`          |
 | `resource_type` | `group`            |
 
-<<<<<<< HEAD
 ## codersdk.CreateWorkspaceBuildRequest
 
 ```json
@@ -558,8 +554,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `transition` | `stop`   |
 | `transition` | `delete` |
 
-=======
->>>>>>> main
 ## codersdk.DERP
 
 ```json
@@ -1923,7 +1917,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `type`         | string          | false    |              |             |
 | `validate_url` | string          | false    |              |             |
 
-<<<<<<< HEAD
 ## codersdk.GoogleInstanceIdentityToken
 
 ```json
@@ -1938,8 +1931,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | ---------------- | ------ | -------- | ------------ | ----------- |
 | `json_web_token` | string | true     |              |             |
 
-=======
->>>>>>> main
 ## codersdk.Healthcheck
 
 ```json
@@ -2246,22 +2237,14 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ```json
 {
-<<<<<<< HEAD
-  "created_at": "string",
-=======
   "created_at": "2019-08-24T14:15:22Z",
->>>>>>> main
   "destination_scheme": "none",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "scope": "template",
   "scope_id": "5d3fe357-12dd-4f62-b004-6d1fb3b8454f",
   "source_scheme": "none",
-<<<<<<< HEAD
-  "updated_at": "string"
-=======
   "updated_at": "2019-08-24T14:15:22Z"
->>>>>>> main
 }
 ```
 
@@ -2293,7 +2276,6 @@ Parameter represents a set value for the scope.
 | `source_scheme`      | `none`                 |
 | `source_scheme`      | `data`                 |
 
-<<<<<<< HEAD
 ## codersdk.PostWorkspaceAgentVersionRequest
 
 ```json
@@ -2326,8 +2308,6 @@ Parameter represents a set value for the scope.
 | `healths`          | object | false    |              | Healths is a map of the workspace app name and the health of the app. |
 | » `[any property]` | string | false    |              |                                                                       |
 
-=======
->>>>>>> main
 ## codersdk.PprofConfig
 
 ```json
@@ -3002,11 +2982,7 @@ Parameter represents a set value for the scope.
 
 ```json
 {
-<<<<<<< HEAD
-  "hash": "string"
-=======
   "hash": "19686d84-b10d-4f90-b18e-84fd3fa038fd"
->>>>>>> main
 }
 ```
 
@@ -3913,7 +3889,6 @@ Parameter represents a set value for the scope.
 ### Properties
 
 _None_
-<<<<<<< HEAD
 
 ## tailcfg.DERPMap
 
@@ -4063,5 +4038,3 @@ It corresponds to the legacy derpN.tailscale.com hostnames used by older clients
 RegionIDs must be non-zero, positive, and guaranteed to fit in a JavaScript number.
 RegionIDs in range 900-999 are reserved for end users to run their own DERP nodes.|
 |`regionName`|string|false||Regionname is a long English name for the region: "New York City", "San Francisco", "Singapore", "Frankfurt", etc.|
-=======
->>>>>>> main

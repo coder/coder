@@ -16,11 +16,6 @@ curl -X POST http://coder-server:8080/api/v2/files \
 
 `POST /files`
 
-<<<<<<< HEAD
-Notice: Swagger 2.0 doesn't support file upload with a `content-type` different than `application/x-www-form-urlencoded`.
-
-=======
->>>>>>> main
 > Body parameter
 
 ```yaml
@@ -29,19 +24,11 @@ file: string
 
 ### Parameters
 
-<<<<<<< HEAD
-| Name           | In     | Type           | Required | Description                              |
-| -------------- | ------ | -------------- | -------- | ---------------------------------------- |
-| `Content-Type` | header | string         | true     | Content-Type must be `application/x-tar` |
-| `body`         | body   | object         | true     |                                          |
-| `» file`       | body   | string(binary) | true     | File to be uploaded                      |
-=======
 | Name           | In     | Type   | Required | Description                              |
 | -------------- | ------ | ------ | -------- | ---------------------------------------- |
 | `Content-Type` | header | string | true     | Content-Type must be `application/x-tar` |
 | `body`         | body   | object | true     |                                          |
 | `» file`       | body   | binary | true     | File to be uploaded                      |
->>>>>>> main
 
 ### Example responses
 
@@ -49,11 +36,7 @@ file: string
 
 ```json
 {
-<<<<<<< HEAD
-  "hash": "string"
-=======
   "hash": "19686d84-b10d-4f90-b18e-84fd3fa038fd"
->>>>>>> main
 }
 ```
 
