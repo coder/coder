@@ -10,7 +10,7 @@ import {
 } from "components/PageHeader/PageHeader"
 import { FC } from "react"
 import { StarterTemplateContext } from "xServices/starterTemplates/starterTemplateXService"
-import EyeIcon from "@material-ui/icons/VisibilityOutlined"
+import ViewCodeIcon from "@material-ui/icons/OpenInNewOutlined"
 import PlusIcon from "@material-ui/icons/AddOutlined"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { useTranslation } from "react-i18next"
@@ -50,7 +50,7 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
               target="_blank"
               href={starterTemplate.url}
               rel="noreferrer"
-              startIcon={<EyeIcon />}
+              startIcon={<ViewCodeIcon />}
             >
               {t("actions.viewSourceCode")}
             </Button>

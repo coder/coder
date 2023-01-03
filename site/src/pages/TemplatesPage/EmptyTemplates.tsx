@@ -1,7 +1,7 @@
 import Button from "@material-ui/core/Button"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
-import { Entitlements, TemplateExample } from "api/typesGenerated"
+import { TemplateExample } from "api/typesGenerated"
 import { CodeExample } from "components/CodeExample/CodeExample"
 import { Stack } from "components/Stack/Stack"
 import { TableEmpty } from "components/TableEmpty/TableEmpty"
@@ -22,19 +22,24 @@ const featuredExamples = [
 ]
 
 const findFeaturedExamples = (examples: TemplateExample[]) => {
-  return examples.filter((example) => featuredExamples.includes(example.id))
+  return featuredExamples.map((exampleId) => {
+    const example = examples.find((example) => example.id === exampleId)
+    if (!example) {
+      throw new Error(`Example not found ${exampleId} not found`)
+    }
+    return example
+  })
 }
 
 export const EmptyTemplates: FC<{
   permissions: Permissions
   examples: TemplateExample[]
-  entitlements: Entitlements
-}> = ({ permissions, examples, entitlements }) => {
+}> = ({ permissions, examples }) => {
   const styles = useStyles()
   const { t } = useTranslation("templatesPage")
   const featuredExamples = findFeaturedExamples(examples)
 
-  if (permissions.createTemplates && entitlements.experimental) {
+  if (permissions.createTemplates) {
     return (
       <TableEmpty
         message={t("empty.message")}
@@ -76,33 +81,6 @@ export const EmptyTemplates: FC<{
               View all starter templates
             </Button>
           </Stack>
-        }
-      />
-    )
-  }
-
-  if (permissions.createTemplates) {
-    return (
-      <TableEmpty
-        className={styles.withImage}
-        message={t("empty.message")}
-        description={
-          <>
-            To create a workspace you need to have a template. You can{" "}
-            <Link
-              target="_blank"
-              href="https://coder.com/docs/coder-oss/latest/templates"
-            >
-              create one from scratch
-            </Link>{" "}
-            or use a built-in template using the following Coder CLI command:
-          </>
-        }
-        cta={<CodeExample code="coder templates init" />}
-        image={
-          <div className={styles.emptyImage}>
-            <img src="/featured/templates.webp" alt="" />
-          </div>
         }
       />
     )
