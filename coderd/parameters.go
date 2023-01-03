@@ -18,6 +18,17 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+// @Summary Create parameter
+// @ID create-parameter
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Parameters
+// @Param request body codersdk.CreateParameterRequest true "Parameter request"
+// @Param scope path string true "Scope" Enums(template,workspace,import_job)
+// @Param id path string true "ID" format(uuid)
+// @Success 201 {object} codersdk.Parameter
+// @Router /parameters/{scope}/{id} [post]
 func (api *API) postParameter(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	scope, scopeID, valid := readScopeAndID(ctx, rw, r)
@@ -78,6 +89,15 @@ func (api *API) postParameter(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusCreated, convertParameterValue(parameterValue))
 }
 
+// @Summary Get parameters
+// @ID get-parameters
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Parameters
+// @Param scope path string true "Scope" Enums(template,workspace,import_job)
+// @Param id path string true "ID" format(uuid)
+// @Success 200 {array} codersdk.Parameter
+// @Router /parameters/{scope}/{id} [get]
 func (api *API) parameters(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	scope, scopeID, valid := readScopeAndID(ctx, rw, r)
@@ -116,6 +136,16 @@ func (api *API) parameters(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, apiParameterValues)
 }
 
+// @Summary Delete parameter
+// @ID delete-parameter
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Parameters
+// @Param scope path string true "Scope" Enums(template,workspace,import_job)
+// @Param id path string true "ID" format(uuid)
+// @Param name path string true "Name"
+// @Success 200 {object} codersdk.Response
+// @Router /parameters/{scope}/{id}/{name} [delete]
 func (api *API) deleteParameter(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	scope, scopeID, valid := readScopeAndID(ctx, rw, r)

@@ -338,8 +338,16 @@
           "path": "./api/applications.md"
         },
         {
+          "title": "Audit",
+          "path": "./api/audit.md"
+        },
+        {
           "title": "Authorization",
           "path": "./api/authorization.md"
+        },
+        {
+          "title": "Files",
+          "path": "./api/files.md"
         },
         {
           "title": "Templates",
@@ -348,6 +356,10 @@
         {
           "title": "Workspaces",
           "path": "./api/workspaces.md"
+        },
+        {
+          "title": "Parameters",
+          "path": "./api/parameters.md"
         },
         {
           "title": "Schemas",

@@ -36,10 +36,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
     "build_number": 0,
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
-    "deadline": {
-      "time": "string",
-      "valid": true
-    },
+    "deadline": "2019-08-24T14:15:22Z",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
@@ -200,10 +197,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
     "build_number": 0,
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
-    "deadline": {
-      "time": "string",
-      "valid": true
-    },
+    "deadline": "2019-08-24T14:15:22Z",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
@@ -387,10 +381,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
         "build_number": 0,
         "created_at": "2019-08-24T14:15:22Z",
         "daily_cost": 0,
-        "deadline": {
-          "time": "string",
-          "valid": true
-        },
+        "deadline": "2019-08-24T14:15:22Z",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
         "initiator_name": "string",
@@ -548,10 +539,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{id} \
     "build_number": 0,
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
-    "deadline": {
-      "time": "string",
-      "valid": true
-    },
+    "deadline": "2019-08-24T14:15:22Z",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
