@@ -95,6 +95,11 @@ Coder volume definitions.
   secret:
     secretName: {{ $secret.name | quote }}
 {{ end -}}
+{{ if .Values.coder.kubeConfig.secretName != null -}}
+- name: "kube-config"
+  secret:
+    secretName: {{ .Values.coder.kubeConfig.secretName }}
+{{ end -}}
 {{- end }}
 
 {{/*
@@ -122,6 +127,12 @@ Coder volume mounts.
 - name: "ca-cert-{{ $secret.name }}"
   mountPath: "/etc/ssl/certs/{{ $secret.name }}.crt"
   subPath: {{ $secret.key | quote }}
+  readOnly: true
+{{ end -}}
+{{ if .Values.coder.kubeConfig.secretName != null -}}
+- name: "kube-config"
+  mountPath: "/home/coder/.kube/config"
+  subPath: {{ .Values.coder.kubeConfig.keyName }}
   readOnly: true
 {{ end -}}
 {{- end }}
