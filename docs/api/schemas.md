@@ -407,7 +407,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "copy_from_parameter": "string",
+  "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
   "destination_scheme": "none",
   "name": "string",
   "source_scheme": "none",
@@ -449,7 +449,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   "name": "string",
   "parameter_values": [
     {
-      "copy_from_parameter": "string",
+      "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
       "destination_scheme": "none",
       "name": "string",
       "source_scheme": "none",
@@ -521,7 +521,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   "orphan": true,
   "parameter_values": [
     {
-      "copy_from_parameter": "string",
+      "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
       "destination_scheme": "none",
       "name": "string",
       "source_scheme": "none",
@@ -2291,6 +2291,62 @@ Parameter represents a set value for the scope.
 | `scope`              | `import_job`           |
 | `source_scheme`      | `none`                 |
 | `source_scheme`      | `data`                 |
+
+## codersdk.ParameterSchema
+
+```json
+{
+  "allow_override_destination": true,
+  "allow_override_source": true,
+  "created_at": "2019-08-24T14:15:22Z",
+  "default_destination_scheme": "none",
+  "default_refresh": "string",
+  "default_source_scheme": "none",
+  "default_source_value": "string",
+  "description": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+  "name": "string",
+  "redisplay_value": true,
+  "validation_condition": "string",
+  "validation_contains": ["string"],
+  "validation_error": "string",
+  "validation_type_system": "string",
+  "validation_value_type": "string"
+}
+```
+
+### Properties
+
+| Name                         | Type            | Required | Restrictions | Description                                                                                                             |
+| ---------------------------- | --------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `allow_override_destination` | boolean         | false    |              |                                                                                                                         |
+| `allow_override_source`      | boolean         | false    |              |                                                                                                                         |
+| `created_at`                 | string          | false    |              |                                                                                                                         |
+| `default_destination_scheme` | string          | false    |              |                                                                                                                         |
+| `default_refresh`            | string          | false    |              |                                                                                                                         |
+| `default_source_scheme`      | string          | false    |              |                                                                                                                         |
+| `default_source_value`       | string          | false    |              |                                                                                                                         |
+| `description`                | string          | false    |              |                                                                                                                         |
+| `id`                         | string          | false    |              |                                                                                                                         |
+| `job_id`                     | string          | false    |              |                                                                                                                         |
+| `name`                       | string          | false    |              |                                                                                                                         |
+| `redisplay_value`            | boolean         | false    |              |                                                                                                                         |
+| `validation_condition`       | string          | false    |              |                                                                                                                         |
+| `validation_contains`        | array of string | false    |              | This is a special array of items provided if the validation condition explicitly states the value must be one of a set. |
+| `validation_error`           | string          | false    |              |                                                                                                                         |
+| `validation_type_system`     | string          | false    |              |                                                                                                                         |
+| `validation_value_type`      | string          | false    |              |                                                                                                                         |
+
+#### Enumerated Values
+
+| Property                     | Value                  |
+| ---------------------------- | ---------------------- |
+| `default_destination_scheme` | `none`                 |
+| `default_destination_scheme` | `environment_variable` |
+| `default_destination_scheme` | `provisioner_variable` |
+| `default_source_scheme`      | `none`                 |
+| `default_source_scheme`      | `data`                 |
 
 ## codersdk.PostWorkspaceAgentVersionRequest
 

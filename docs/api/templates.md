@@ -28,7 +28,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization-id}/tem
   "name": "string",
   "parameter_values": [
     {
-      "copy_from_parameter": "string",
+      "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
       "destination_scheme": "none",
       "name": "string",
       "source_scheme": "none",
@@ -762,5 +762,169 @@ Status Code **200**
 | `status` | `canceling` |
 | `status` | `canceled`  |
 | `status` | `failed`    |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Get template version by ID
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/templateversions/{id} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /templateversions/{id}`
+
+### Parameters
+
+| Name | In   | Type         | Required | Description         |
+| ---- | ---- | ------------ | -------- | ------------------- |
+| `id` | path | string(uuid) | true     | Template version ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "created_by": {
+    "avatar_url": "http://example.com",
+    "created_at": "2019-08-24T14:15:22Z",
+    "email": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "last_seen_at": "2019-08-24T14:15:22Z",
+    "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+    "roles": [
+      {
+        "display_name": "string",
+        "name": "string"
+      }
+    ],
+    "status": "active",
+    "username": "string"
+  },
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "job": {
+    "canceled_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "created_at": "2019-08-24T14:15:22Z",
+    "error": "string",
+    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "started_at": "2019-08-24T14:15:22Z",
+    "status": "pending",
+    "tags": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+  },
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "readme": "string",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                         |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.TemplateVersion](schemas.md#codersdktemplateversion) |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Get template version schema by template version ID
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/templateversions/{id}/schema \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /templateversions/{id}/schema`
+
+### Parameters
+
+| Name | In   | Type         | Required | Description         |
+| ---- | ---- | ------------ | -------- | ------------------- |
+| `id` | path | string(uuid) | true     | Template version ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "allow_override_destination": true,
+    "allow_override_source": true,
+    "created_at": "2019-08-24T14:15:22Z",
+    "default_destination_scheme": "none",
+    "default_refresh": "string",
+    "default_source_scheme": "none",
+    "default_source_value": "string",
+    "description": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+    "name": "string",
+    "redisplay_value": true,
+    "validation_condition": "string",
+    "validation_contains": ["string"],
+    "validation_error": "string",
+    "validation_type_system": "string",
+    "validation_value_type": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                  |
+| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ParameterSchema](schemas.md#codersdkparameterschema) |
+
+<h3 id="get-template-version-schema-by-template-version-id-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                           | Type    | Required | Restrictions | Description                                                                                                                |
+| ------------------------------ | ------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `[array item]`                 | array   | false    |              |                                                                                                                            |
+| `» allow_override_destination` | boolean | false    |              |                                                                                                                            |
+| `» allow_override_source`      | boolean | false    |              |                                                                                                                            |
+| `» created_at`                 | string  | false    |              |                                                                                                                            |
+| `» default_destination_scheme` | string  | false    |              |                                                                                                                            |
+| `» default_refresh`            | string  | false    |              |                                                                                                                            |
+| `» default_source_scheme`      | string  | false    |              |                                                                                                                            |
+| `» default_source_value`       | string  | false    |              |                                                                                                                            |
+| `» description`                | string  | false    |              |                                                                                                                            |
+| `» id`                         | string  | false    |              |                                                                                                                            |
+| `» job_id`                     | string  | false    |              |                                                                                                                            |
+| `» name`                       | string  | false    |              |                                                                                                                            |
+| `» redisplay_value`            | boolean | false    |              |                                                                                                                            |
+| `» validation_condition`       | string  | false    |              |                                                                                                                            |
+| `» validation_contains`        | array   | false    |              | This is a special array of items provided if the validation condition<br>explicitly states the value must be one of a set. |
+| `» validation_error`           | string  | false    |              |                                                                                                                            |
+| `» validation_type_system`     | string  | false    |              |                                                                                                                            |
+| `» validation_value_type`      | string  | false    |              |                                                                                                                            |
+
+#### Enumerated Values
+
+| Property                     | Value                  |
+| ---------------------------- | ---------------------- |
+| `default_destination_scheme` | `none`                 |
+| `default_destination_scheme` | `environment_variable` |
+| `default_destination_scheme` | `provisioner_variable` |
+| `default_source_scheme`      | `none`                 |
+| `default_source_scheme`      | `data`                 |
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.

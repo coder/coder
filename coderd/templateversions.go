@@ -28,6 +28,14 @@ import (
 	"github.com/coder/coder/examples"
 )
 
+// @Summary Get template version by ID
+// @ID get-template-version-by-id
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Param id path string true "Template version ID" format(uuid)
+// @Success 200 {object} codersdk.TemplateVersion
+// @Router /templateversions/{id} [get]
 func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var (
@@ -116,6 +124,14 @@ func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Reque
 	})
 }
 
+// @Summary Get template version schema by template version ID
+// @ID get-template-version-schema-by-template-version-id
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Param id path string true "Template version ID" format(uuid)
+// @Success 200 {array} codersdk.ParameterSchema
+// @Router /templateversions/{id}/schema [get]
 func (api *API) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var (

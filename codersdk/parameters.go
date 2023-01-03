@@ -44,7 +44,7 @@ const (
 type ComputedParameter struct {
 	Parameter
 	SourceValue        string    `json:"source_value"`
-	SchemaID           uuid.UUID `json:"schema_id"`
+	SchemaID           uuid.UUID `json:"schema_id" format:"uuid"`
 	DefaultSourceValue bool      `json:"default_source_value"`
 }
 
@@ -63,15 +63,15 @@ type Parameter struct {
 }
 
 type ParameterSchema struct {
-	ID                       uuid.UUID                  `json:"id"`
-	CreatedAt                time.Time                  `json:"created_at"`
-	JobID                    uuid.UUID                  `json:"job_id"`
+	ID                       uuid.UUID                  `json:"id" format:"uuid"`
+	CreatedAt                time.Time                  `json:"created_at" format:"date-time"`
+	JobID                    uuid.UUID                  `json:"job_id" format:"uuid"`
 	Name                     string                     `json:"name"`
 	Description              string                     `json:"description"`
-	DefaultSourceScheme      ParameterSourceScheme      `json:"default_source_scheme"`
+	DefaultSourceScheme      ParameterSourceScheme      `json:"default_source_scheme" enums:"none,data"`
 	DefaultSourceValue       string                     `json:"default_source_value"`
 	AllowOverrideSource      bool                       `json:"allow_override_source"`
-	DefaultDestinationScheme ParameterDestinationScheme `json:"default_destination_scheme"`
+	DefaultDestinationScheme ParameterDestinationScheme `json:"default_destination_scheme" enums:"none,environment_variable,provisioner_variable"`
 	AllowOverrideDestination bool                       `json:"allow_override_destination"`
 	DefaultRefresh           string                     `json:"default_refresh"`
 	RedisplayValue           bool                       `json:"redisplay_value"`
@@ -94,7 +94,7 @@ type CreateParameterRequest struct {
 	// succeed.
 	// No other fields are required if using this, as all fields will be copied
 	// from the other parameter.
-	CloneID uuid.UUID `json:"copy_from_parameter,omitempty" validate:""`
+	CloneID uuid.UUID `json:"copy_from_parameter,omitempty" validate:"" format:"uuid"`
 
 	Name              string                     `json:"name" validate:"required"`
 	SourceValue       string                     `json:"source_value" validate:"required"`

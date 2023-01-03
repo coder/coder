@@ -971,6 +971,79 @@ const docTemplate = `{
                 }
             }
         },
+        "/templateversions/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get template version by ID",
+                "operationId": "get-template-version-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateVersion"
+                        }
+                    }
+                }
+            }
+        },
+        "/templateversions/{id}/schema": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get template version schema by template version ID",
+                "operationId": "get-template-version-schema-by-template-version-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ParameterSchema"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/updatecheck": {
             "get": {
                 "produces": [
@@ -2270,7 +2343,8 @@ const docTemplate = `{
             "properties": {
                 "copy_from_parameter": {
                     "description": "CloneID allows copying the value of another parameter.\nThe other param must be related to the same template_id for this to\nsucceed.\nNo other fields are required if using this, as all fields will be copied\nfrom the other parameter.",
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "destination_scheme": {
                     "type": "string",
@@ -2960,6 +3034,78 @@ const docTemplate = `{
                     ]
                 },
                 "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ParameterSchema": {
+            "type": "object",
+            "properties": {
+                "allow_override_destination": {
+                    "type": "boolean"
+                },
+                "allow_override_source": {
+                    "type": "boolean"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "default_destination_scheme": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "environment_variable",
+                        "provisioner_variable"
+                    ]
+                },
+                "default_refresh": {
+                    "type": "string"
+                },
+                "default_source_scheme": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "data"
+                    ]
+                },
+                "default_source_value": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "job_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "redisplay_value": {
+                    "type": "boolean"
+                },
+                "validation_condition": {
+                    "type": "string"
+                },
+                "validation_contains": {
+                    "description": "This is a special array of items provided if the validation condition\nexplicitly states the value must be one of a set.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "validation_error": {
+                    "type": "string"
+                },
+                "validation_type_system": {
+                    "type": "string"
+                },
+                "validation_value_type": {
                     "type": "string"
                 }
             }
