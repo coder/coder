@@ -1983,7 +1983,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "created_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "destination_scheme": {
                     "type": "string",
@@ -2020,7 +2021,8 @@ const docTemplate = `{
                     ]
                 },
                 "updated_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 }
             }
         },
@@ -2340,7 +2342,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "hash": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },

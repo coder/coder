@@ -1803,7 +1803,8 @@
       "type": "object",
       "properties": {
         "created_at": {
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         },
         "destination_scheme": {
           "type": "string",
@@ -1829,7 +1830,8 @@
           "enum": ["none", "data"]
         },
         "updated_at": {
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         }
       }
     },
@@ -2147,7 +2149,8 @@
       "type": "object",
       "properties": {
         "hash": {
-          "type": "string"
+          "type": "string",
+          "format": "uuid"
         }
       }
     },

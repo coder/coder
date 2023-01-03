@@ -38,7 +38,7 @@ file: string
 
 ```json
 {
-  "hash": "string"
+  "hash": "19686d84-b10d-4f90-b18e-84fd3fa038fd"
 }
 ```
 
