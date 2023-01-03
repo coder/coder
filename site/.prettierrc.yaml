@@ -12,7 +12,7 @@ overrides:
     options:
       proseWrap: preserve
   - files:
-      - "./**/*.yaml"
-      - "./**/*.yml"
+      - ./**/*.yaml
+      - ./**/*.yml
     options:
       proseWrap: always
