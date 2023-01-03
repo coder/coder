@@ -16,7 +16,7 @@ curl -X POST http://coder-server:8080/api/v2/files \
 
 `POST /files`
 
-Notice: Swagger 2.0 doesn't support file upload with a `content-type` different than `application/x-www-form-urlencoded`.
+Swagger notice: Swagger 2.0 doesn't support file upload with a `content-type` different than `application/x-www-form-urlencoded`.
 
 > Body parameter
 

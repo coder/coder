@@ -310,7 +310,7 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "description": "Notice: Swagger 2.0 doesn't support file upload with a ` + "`" + `content-type` + "`" + ` different than ` + "`" + `application/x-www-form-urlencoded` + "`" + `.",
+                "description": "Swagger notice: Swagger 2.0 doesn't support file upload with a ` + "`" + `content-type` + "`" + ` different than ` + "`" + `application/x-www-form-urlencoded` + "`" + `.",
                 "consumes": [
                     "application/x-tar"
                 ],
