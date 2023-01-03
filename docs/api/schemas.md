@@ -513,6 +513,47 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `resource_type` | `api_key`          |
 | `resource_type` | `group`            |
 
+## codersdk.CreateWorkspaceBuildRequest
+
+```json
+{
+  "dry_run": true,
+  "orphan": true,
+  "parameter_values": [
+    {
+      "copy_from_parameter": "string",
+      "destination_scheme": "none",
+      "name": "string",
+      "source_scheme": "none",
+      "source_value": "string"
+    }
+  ],
+  "state": [0],
+  "template_version_id": "string",
+  "transition": "create"
+}
+```
+
+### Properties
+
+| Name                  | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                                              |
+| --------------------- | --------------------------------------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dry_run`             | boolean                                                                     | false    |              |                                                                                                                                                                                                          |
+| `orphan`              | boolean                                                                     | false    |              | Orphan may be set for the Destroy transition.                                                                                                                                                            |
+| `parameter_values`    | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest) | false    |              | Parameter values are optional. It will write params to the 'workspace' scope. This will overwrite any existing parameters with the same name. This will not delete old params not included in this list. |
+| `state`               | array of integer                                                            | false    |              |                                                                                                                                                                                                          |
+| `template_version_id` | string                                                                      | false    |              |                                                                                                                                                                                                          |
+| `transition`          | string                                                                      | true     |              |                                                                                                                                                                                                          |
+
+#### Enumerated Values
+
+| Property     | Value    |
+| ------------ | -------- |
+| `transition` | `create` |
+| `transition` | `start`  |
+| `transition` | `stop`   |
+| `transition` | `delete` |
+
 ## codersdk.DERP
 
 ```json

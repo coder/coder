@@ -72,6 +72,18 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, apiBuild)
 }
 
+// @Summary Get workspace builds by workspace ID
+// @ID get-workspace-builds-by-workspace-id
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Builds
+// @Param id path string true "Workspace ID" format(uuid)
+// @Param after_id query string false "After ID" format(uuid)
+// @Param limit query int false "Page limit"
+// @Param offset query int false "Page offset"
+// @Param since query string false "Since timestamp" format(date-time)
+// @Success 200 {array} codersdk.WorkspaceBuild
+// @Router /workspaces/{id}/builds [get]
 func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
@@ -262,6 +274,19 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 	httpapi.Write(ctx, rw, http.StatusOK, apiBuild)
 }
 
+// @Summary Create workspace build
+// @ID create-workspace-build
+// @Security CoderSessionToken
+// @Accepts json
+// @Produce json
+// @Tags Builds
+// @Param id path string true "Workspace ID" format(uuid)
+// @Param request body codersdk.CreateWorkspaceBuildRequest true "Create workspace build request"
+// @Success 200 {object} codersdk.WorkspaceBuild
+// @Router /workspaces/{id}/builds [post]
+//
+// Azure supports instance identity verification:
+// https://docs.microsoft.com/en-us/azure/virtual-machines/windows/instance-metadata-service?tabs=linux#tabgroup_14
 func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
