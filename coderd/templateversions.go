@@ -454,6 +454,14 @@ func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Re
 	return job, true
 }
 
+// @Summary List template versions by template ID
+// @ID list-template-versions-by-template-ID
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Param id path string true "Template ID" format(uuid)
+// @Success 200 {array} codersdk.TemplateVersion
+// @Router /templates/{id}/versions [get]
 func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
@@ -551,6 +559,15 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 	httpapi.Write(ctx, rw, http.StatusOK, apiVersions)
 }
 
+// @Summary Get template version by template ID and name
+// @ID get-template-version-by-template-id-and-name
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Param id path string true "Template ID" format(uuid)
+// @Param name path string true "Template name"
+// @Success 200 {array} codersdk.TemplateVersion
+// @Router /templates/{id}/versions/{name} [get]
 func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
@@ -708,6 +725,16 @@ func (api *API) previousTemplateVersionByOrganizationAndName(rw http.ResponseWri
 	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(previousTemplateVersion, convertProvisionerJob(job), user))
 }
 
+// @Summary Update active template version by template ID
+// @ID update-active-template-version-by-template-ID
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Templates
+// @Param request body codersdk.UpdateActiveTemplateVersion true "Modified template version"
+// @Param id path string true "Template ID" format(uuid)
+// @Success 200 {object} codersdk.Response
+// @Router /templates/{id}/versions [patch]
 func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()

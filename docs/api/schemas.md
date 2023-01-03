@@ -163,19 +163,19 @@
   "status_code": 0,
   "time": "string",
   "user": {
-    "avatar_url": "string",
-    "created_at": "string",
+    "avatar_url": "http://example.com",
+    "created_at": "2019-08-24T14:15:22Z",
     "email": "string",
-    "id": "string",
-    "last_seen_at": "string",
-    "organization_ids": ["string"],
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "last_seen_at": "2019-08-24T14:15:22Z",
+    "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "roles": [
       {
         "display_name": "string",
         "name": "string"
       }
     ],
-    "status": "string",
+    "status": "active",
     "username": "string"
   },
   "user_agent": "string"
@@ -239,19 +239,19 @@
       "status_code": 0,
       "time": "string",
       "user": {
-        "avatar_url": "string",
-        "created_at": "string",
+        "avatar_url": "http://example.com",
+        "created_at": "2019-08-24T14:15:22Z",
         "email": "string",
-        "id": "string",
-        "last_seen_at": "string",
-        "organization_ids": ["string"],
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "last_seen_at": "2019-08-24T14:15:22Z",
+        "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
         "roles": [
           {
             "display_name": "string",
             "name": "string"
           }
         ],
-        "status": "string",
+        "status": "active",
         "username": "string"
       },
       "user_agent": "string"
@@ -553,6 +553,22 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `transition` | `start`  |
 | `transition` | `stop`   |
 | `transition` | `delete` |
+
+## codersdk.DAUEntry
+
+```json
+{
+  "amount": 0,
+  "date": "string"
+}
+```
+
+### Properties
+
+| Name     | Type    | Required | Restrictions | Description |
+| -------- | ------- | -------- | ------------ | ----------- |
+| `amount` | integer | false    |              |             |
+| `date`   | string  | false    |              |             |
 
 ## codersdk.DERP
 
@@ -2854,6 +2870,84 @@ Parameter represents a set value for the scope.
 | ---------------- | ---------------------------------------------------- | -------- | ------------ | ----------- |
 | `[any property]` | [codersdk.TransitionStats](#codersdktransitionstats) | false    |              |             |
 
+## codersdk.TemplateDAUsResponse
+
+```json
+{
+  "entries": [
+    {
+      "amount": 0,
+      "date": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                            | Required | Restrictions | Description |
+| --------- | ----------------------------------------------- | -------- | ------------ | ----------- |
+| `entries` | array of [codersdk.DAUEntry](#codersdkdauentry) | false    |              |             |
+
+## codersdk.TemplateVersion
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "created_by": {
+    "avatar_url": "http://example.com",
+    "created_at": "2019-08-24T14:15:22Z",
+    "email": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "last_seen_at": "2019-08-24T14:15:22Z",
+    "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+    "roles": [
+      {
+        "display_name": "string",
+        "name": "string"
+      }
+    ],
+    "status": "active",
+    "username": "string"
+  },
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "job": {
+    "canceled_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "created_at": "2019-08-24T14:15:22Z",
+    "error": "string",
+    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "started_at": "2019-08-24T14:15:22Z",
+    "status": "pending",
+    "tags": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+  },
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "readme": "string",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name              | Type                                               | Required | Restrictions | Description |
+| ----------------- | -------------------------------------------------- | -------- | ------------ | ----------- |
+| `created_at`      | string                                             | false    |              |             |
+| `created_by`      | [codersdk.User](#codersdkuser)                     | false    |              |             |
+| `id`              | string                                             | false    |              |             |
+| `job`             | [codersdk.ProvisionerJob](#codersdkprovisionerjob) | false    |              |             |
+| `name`            | string                                             | false    |              |             |
+| `organization_id` | string                                             | false    |              |             |
+| `readme`          | string                                             | false    |              |             |
+| `template_id`     | string                                             | false    |              |             |
+| `updated_at`      | string                                             | false    |              |             |
+
 ## codersdk.TraceConfig
 
 ```json
@@ -2917,6 +3011,20 @@ Parameter represents a set value for the scope.
 | ----- | ------- | -------- | ------------ | ----------- |
 | `p50` | integer | false    |              |             |
 | `p95` | integer | false    |              |             |
+
+## codersdk.UpdateActiveTemplateVersion
+
+```json
+{
+  "id": "string"
+}
+```
+
+### Properties
+
+| Name | Type   | Required | Restrictions | Description |
+| ---- | ------ | -------- | ------------ | ----------- |
+| `id` | string | true     |              |             |
 
 ## codersdk.UpdateCheckResponse
 
@@ -2996,19 +3104,19 @@ Parameter represents a set value for the scope.
 
 ```json
 {
-  "avatar_url": "string",
-  "created_at": "string",
+  "avatar_url": "http://example.com",
+  "created_at": "2019-08-24T14:15:22Z",
   "email": "string",
-  "id": "string",
-  "last_seen_at": "string",
-  "organization_ids": ["string"],
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "last_seen_at": "2019-08-24T14:15:22Z",
+  "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
   "roles": [
     {
       "display_name": "string",
       "name": "string"
     }
   ],
-  "status": "string",
+  "status": "active",
   "username": "string"
 }
 ```
@@ -3026,6 +3134,13 @@ Parameter represents a set value for the scope.
 | `roles`            | array of [codersdk.Role](#codersdkrole) | false    |              |             |
 | `status`           | string                                  | false    |              |             |
 | `username`         | string                                  | true     |              |             |
+
+#### Enumerated Values
+
+| Property | Value       |
+| -------- | ----------- |
+| `status` | `active`    |
+| `status` | `suspended` |
 
 ## codersdk.ValidationError
 

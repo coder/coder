@@ -599,6 +599,14 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(updated, count, createdByNameMap[updated.ID.String()]))
 }
 
+// @Summary Get template DAUs by ID
+// @ID get-template-daus-by-id
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Param id path string true "Template ID" format(uuid)
+// @Success 200 {object} codersdk.TemplateDAUsResponse
+// @Router /templates/{id}/daus [get]
 func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)

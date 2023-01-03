@@ -411,3 +411,356 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{id} \
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Template](schemas.md#codersdktemplate) |
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Get template DAUs by ID
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/templates/{id}/daus \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /templates/{id}/daus`
+
+### Parameters
+
+| Name | In   | Type         | Required | Description |
+| ---- | ---- | ------------ | -------- | ----------- |
+| `id` | path | string(uuid) | true     | Template ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "entries": [
+    {
+      "amount": 0,
+      "date": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                   |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.TemplateDAUsResponse](schemas.md#codersdktemplatedausresponse) |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## List template versions by template ID
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/templates/{id}/versions \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /templates/{id}/versions`
+
+### Parameters
+
+| Name | In   | Type         | Required | Description |
+| ---- | ---- | ------------ | -------- | ----------- |
+| `id` | path | string(uuid) | true     | Template ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by": {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+      "roles": [
+        {
+          "display_name": "string",
+          "name": "string"
+        }
+      ],
+      "status": "active",
+      "username": "string"
+    },
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "job": {
+      "canceled_at": "2019-08-24T14:15:22Z",
+      "completed_at": "2019-08-24T14:15:22Z",
+      "created_at": "2019-08-24T14:15:22Z",
+      "error": "string",
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "started_at": "2019-08-24T14:15:22Z",
+      "status": "pending",
+      "tags": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+    },
+    "name": "string",
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "readme": "string",
+    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+    "updated_at": "2019-08-24T14:15:22Z"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                  |
+| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.TemplateVersion](schemas.md#codersdktemplateversion) |
+
+<h3 id="list-template-versions-by-template-id-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                  | Type                      | Required | Restrictions | Description |
+| --------------------- | ------------------------- | -------- | ------------ | ----------- |
+| `[array item]`        | array                     | false    |              |             |
+| `» created_at`        | string                    | false    |              |             |
+| `» created_by`        | `codersdk.User`           | false    |              |             |
+| `»» avatar_url`       | string                    | false    |              |             |
+| `»» created_at`       | string                    | true     |              |             |
+| `»» email`            | string                    | true     |              |             |
+| `»» id`               | string                    | true     |              |             |
+| `»» last_seen_at`     | string                    | false    |              |             |
+| `»» organization_ids` | array                     | false    |              |             |
+| `»» roles`            | array                     | false    |              |             |
+| `»»» display_name`    | string                    | false    |              |             |
+| `»»» name`            | string                    | false    |              |             |
+| `»» status`           | string                    | false    |              |             |
+| `»» username`         | string                    | true     |              |             |
+| `» id`                | string                    | false    |              |             |
+| `» job`               | `codersdk.ProvisionerJob` | false    |              |             |
+| `»» canceled_at`      | string                    | false    |              |             |
+| `»» completed_at`     | string                    | false    |              |             |
+| `»» created_at`       | string                    | false    |              |             |
+| `»» error`            | string                    | false    |              |             |
+| `»» file_id`          | string                    | false    |              |             |
+| `»» id`               | string                    | false    |              |             |
+| `»» started_at`       | string                    | false    |              |             |
+| `»» status`           | string                    | false    |              |             |
+| `»» tags`             | object                    | false    |              |             |
+| `»»» [any property]`  | string                    | false    |              |             |
+| `»» worker_id`        | string                    | false    |              |             |
+| `» name`              | string                    | false    |              |             |
+| `» organization_id`   | string                    | false    |              |             |
+| `» readme`            | string                    | false    |              |             |
+| `» template_id`       | string                    | false    |              |             |
+| `» updated_at`        | string                    | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value       |
+| -------- | ----------- |
+| `status` | `active`    |
+| `status` | `suspended` |
+| `status` | `pending`   |
+| `status` | `running`   |
+| `status` | `succeeded` |
+| `status` | `canceling` |
+| `status` | `canceled`  |
+| `status` | `failed`    |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Update active template version by template ID
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/templates/{id}/versions \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /templates/{id}/versions`
+
+> Body parameter
+
+```json
+{
+  "id": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                   | Required | Description               |
+| ------ | ---- | -------------------------------------------------------------------------------------- | -------- | ------------------------- |
+| `id`   | path | string(uuid)                                                                           | true     | Template ID               |
+| `body` | body | [codersdk.UpdateActiveTemplateVersion](schemas.md#codersdkupdateactivetemplateversion) | true     | Modified template version |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Get template version by template ID and name
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/templates/{id}/versions/{name} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /templates/{id}/versions/{name}`
+
+### Parameters
+
+| Name   | In   | Type         | Required | Description   |
+| ------ | ---- | ------------ | -------- | ------------- |
+| `id`   | path | string(uuid) | true     | Template ID   |
+| `name` | path | string       | true     | Template name |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by": {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+      "roles": [
+        {
+          "display_name": "string",
+          "name": "string"
+        }
+      ],
+      "status": "active",
+      "username": "string"
+    },
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "job": {
+      "canceled_at": "2019-08-24T14:15:22Z",
+      "completed_at": "2019-08-24T14:15:22Z",
+      "created_at": "2019-08-24T14:15:22Z",
+      "error": "string",
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "started_at": "2019-08-24T14:15:22Z",
+      "status": "pending",
+      "tags": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+    },
+    "name": "string",
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "readme": "string",
+    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+    "updated_at": "2019-08-24T14:15:22Z"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                  |
+| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.TemplateVersion](schemas.md#codersdktemplateversion) |
+
+<h3 id="get-template-version-by-template-id-and-name-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                  | Type                      | Required | Restrictions | Description |
+| --------------------- | ------------------------- | -------- | ------------ | ----------- |
+| `[array item]`        | array                     | false    |              |             |
+| `» created_at`        | string                    | false    |              |             |
+| `» created_by`        | `codersdk.User`           | false    |              |             |
+| `»» avatar_url`       | string                    | false    |              |             |
+| `»» created_at`       | string                    | true     |              |             |
+| `»» email`            | string                    | true     |              |             |
+| `»» id`               | string                    | true     |              |             |
+| `»» last_seen_at`     | string                    | false    |              |             |
+| `»» organization_ids` | array                     | false    |              |             |
+| `»» roles`            | array                     | false    |              |             |
+| `»»» display_name`    | string                    | false    |              |             |
+| `»»» name`            | string                    | false    |              |             |
+| `»» status`           | string                    | false    |              |             |
+| `»» username`         | string                    | true     |              |             |
+| `» id`                | string                    | false    |              |             |
+| `» job`               | `codersdk.ProvisionerJob` | false    |              |             |
+| `»» canceled_at`      | string                    | false    |              |             |
+| `»» completed_at`     | string                    | false    |              |             |
+| `»» created_at`       | string                    | false    |              |             |
+| `»» error`            | string                    | false    |              |             |
+| `»» file_id`          | string                    | false    |              |             |
+| `»» id`               | string                    | false    |              |             |
+| `»» started_at`       | string                    | false    |              |             |
+| `»» status`           | string                    | false    |              |             |
+| `»» tags`             | object                    | false    |              |             |
+| `»»» [any property]`  | string                    | false    |              |             |
+| `»» worker_id`        | string                    | false    |              |             |
+| `» name`              | string                    | false    |              |             |
+| `» organization_id`   | string                    | false    |              |             |
+| `» readme`            | string                    | false    |              |             |
+| `» template_id`       | string                    | false    |              |             |
+| `» updated_at`        | string                    | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value       |
+| -------- | ----------- |
+| `status` | `active`    |
+| `status` | `suspended` |
+| `status` | `pending`   |
+| `status` | `running`   |
+| `status` | `succeeded` |
+| `status` | `canceling` |
+| `status` | `canceled`  |
+| `status` | `failed`    |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
