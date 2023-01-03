@@ -12,7 +12,7 @@ import { Link as RouterLink } from "react-router-dom"
 import { Permissions } from "xServices/auth/authXService"
 
 // Those are from https://github.com/coder/coder/tree/main/examples/templates
-const featuredExamples = [
+const featuredExampleIds = [
   "docker",
   "kubernetes",
   "aws-linux",
@@ -22,13 +22,18 @@ const featuredExamples = [
 ]
 
 const findFeaturedExamples = (examples: TemplateExample[]) => {
-  return featuredExamples.map((exampleId) => {
-    const example = examples.find((example) => example.id === exampleId)
-    if (!example) {
-      throw new Error(`Example not found ${exampleId} not found`)
-    }
-    return example
+  const featuredExamples: TemplateExample[] = []
+
+  // We loop the featuredExampleIds first to keep the order
+  featuredExampleIds.forEach((exampleId) => {
+    examples.forEach((example) => {
+      if (exampleId === example.id) {
+        featuredExamples.push(example)
+      }
+    })
   })
+
+  return featuredExamples
 }
 
 export const EmptyTemplates: FC<{
