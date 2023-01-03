@@ -1,6 +1,5 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { FC, ReactNode } from "react"
-import { Footer } from "../../components/Footer/Footer"
 
 export const useStyles = makeStyles((theme) => ({
   root: {
@@ -28,7 +27,7 @@ export const SignInLayout: FC<{ children: ReactNode }> = ({ children }) => {
     <div className={styles.root}>
       <div className={styles.layout}>
         <div className={styles.container}>{children}</div>
-        <Footer />
+        {`\u00a9 ${new Date().getFullYear()} Coder Technologies, Inc.`}
       </div>
     </div>
   )

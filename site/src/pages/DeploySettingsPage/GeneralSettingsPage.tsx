@@ -13,13 +13,11 @@ const GeneralSettingsPage: React.FC = () => {
       <Helmet>
         <title>{pageTitle("General Settings")}</title>
       </Helmet>
-
       <Header
         title="General"
         description="Information about your Coder deployment."
         docsHref="https://coder.com/docs/coder-oss/latest/admin/configure"
       />
-
       <OptionsTable
         options={{
           access_url: deploymentConfig.access_url,
