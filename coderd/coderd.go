@@ -409,7 +409,6 @@ func New(options *Options) *API {
 				apiKeyMiddleware,
 				httpmw.ExtractTemplateVersionParam(options.Database),
 			)
-
 			r.Get("/", api.templateVersion)
 			r.Patch("/cancel", api.patchCancelTemplateVersion)
 			r.Get("/schema", api.templateVersionSchema)

@@ -69,6 +69,14 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user))
 }
 
+// @Summary Cancel template version by ID
+// @ID cancel-template-version-by-id
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Param id path string true "Template version ID" format(uuid)
+// @Success 200 {object} codersdk.Response
+// @Router /templateversions/{id}/cancel [patch]
 func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var (
@@ -184,6 +192,14 @@ func (api *API) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, apiSchemas)
 }
 
+// @Summary Get template version schema by ID
+// @ID get-template-version-schema-by-id
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Param id path string true "Template version ID" format(uuid)
+// @Success 200 {array} parameter.ComputedValue
+// @Router /templateversions/{id}/schema [get]
 func (api *API) templateVersionParameters(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var (

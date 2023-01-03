@@ -4061,6 +4061,40 @@ Parameter represents a set value for the scope.
 
 _None_
 
+## parameter.ComputedValue
+
+```json
+{
+  "created_at": "string",
+  "default_source_value": true,
+  "destination_scheme": "string",
+  "id": "string",
+  "name": "string",
+  "schema_id": "string",
+  "scope": "string",
+  "scope_id": "string",
+  "source_scheme": "string",
+  "source_value": "string",
+  "updated_at": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description |
+| ---------------------- | ------- | -------- | ------------ | ----------- |
+| `created_at`           | string  | false    |              |             |
+| `default_source_value` | boolean | false    |              |             |
+| `destination_scheme`   | string  | false    |              |             |
+| `id`                   | string  | false    |              |             |
+| `name`                 | string  | false    |              |             |
+| `schema_id`            | string  | false    |              |             |
+| `scope`                | string  | false    |              |             |
+| `scope_id`             | string  | false    |              |             |
+| `source_scheme`        | string  | false    |              |             |
+| `source_value`         | string  | false    |              |             |
+| `updated_at`           | string  | false    |              |             |
+
 ## tailcfg.DERPMap
 
 ```json

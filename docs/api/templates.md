@@ -839,7 +839,51 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{id} \
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
 
-## Get template version schema by template version ID
+## Cancel template version by ID
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/templateversions/{id}/cancel \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /templateversions/{id}/cancel`
+
+### Parameters
+
+| Name | In   | Type         | Required | Description         |
+| ---- | ---- | ------------ | -------- | ------------------- |
+| `id` | path | string(uuid) | true     | Template version ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Get template version schema by ID
 
 ### Code samples
 
@@ -865,66 +909,44 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{id}/schema \
 ```json
 [
   {
-    "allow_override_destination": true,
-    "allow_override_source": true,
-    "created_at": "2019-08-24T14:15:22Z",
-    "default_destination_scheme": "none",
-    "default_refresh": "string",
-    "default_source_scheme": "none",
-    "default_source_value": "string",
-    "description": "string",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+    "created_at": "string",
+    "default_source_value": true,
+    "destination_scheme": "string",
+    "id": "string",
     "name": "string",
-    "redisplay_value": true,
-    "validation_condition": "string",
-    "validation_contains": ["string"],
-    "validation_error": "string",
-    "validation_type_system": "string",
-    "validation_value_type": "string"
+    "schema_id": "string",
+    "scope": "string",
+    "scope_id": "string",
+    "source_scheme": "string",
+    "source_value": "string",
+    "updated_at": "string"
   }
 ]
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                  |
-| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ParameterSchema](schemas.md#codersdkparameterschema) |
+| Status | Meaning                                                 | Description | Schema                                                                |
+| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [parameter.ComputedValue](schemas.md#parametercomputedvalue) |
 
-<h3 id="get-template-version-schema-by-template-version-id-responseschema">Response Schema</h3>
+<h3 id="get-template-version-schema-by-id-responseschema">Response Schema</h3>
 
 Status Code **200**
 
-| Name                           | Type    | Required | Restrictions | Description                                                                                                                |
-| ------------------------------ | ------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| `[array item]`                 | array   | false    |              |                                                                                                                            |
-| `» allow_override_destination` | boolean | false    |              |                                                                                                                            |
-| `» allow_override_source`      | boolean | false    |              |                                                                                                                            |
-| `» created_at`                 | string  | false    |              |                                                                                                                            |
-| `» default_destination_scheme` | string  | false    |              |                                                                                                                            |
-| `» default_refresh`            | string  | false    |              |                                                                                                                            |
-| `» default_source_scheme`      | string  | false    |              |                                                                                                                            |
-| `» default_source_value`       | string  | false    |              |                                                                                                                            |
-| `» description`                | string  | false    |              |                                                                                                                            |
-| `» id`                         | string  | false    |              |                                                                                                                            |
-| `» job_id`                     | string  | false    |              |                                                                                                                            |
-| `» name`                       | string  | false    |              |                                                                                                                            |
-| `» redisplay_value`            | boolean | false    |              |                                                                                                                            |
-| `» validation_condition`       | string  | false    |              |                                                                                                                            |
-| `» validation_contains`        | array   | false    |              | This is a special array of items provided if the validation condition<br>explicitly states the value must be one of a set. |
-| `» validation_error`           | string  | false    |              |                                                                                                                            |
-| `» validation_type_system`     | string  | false    |              |                                                                                                                            |
-| `» validation_value_type`      | string  | false    |              |                                                                                                                            |
-
-#### Enumerated Values
-
-| Property                     | Value                  |
-| ---------------------------- | ---------------------- |
-| `default_destination_scheme` | `none`                 |
-| `default_destination_scheme` | `environment_variable` |
-| `default_destination_scheme` | `provisioner_variable` |
-| `default_source_scheme`      | `none`                 |
-| `default_source_scheme`      | `data`                 |
+| Name                     | Type    | Required | Restrictions | Description |
+| ------------------------ | ------- | -------- | ------------ | ----------- |
+| `[array item]`           | array   | false    |              |             |
+| `» created_at`           | string  | false    |              |             |
+| `» default_source_value` | boolean | false    |              |             |
+| `» destination_scheme`   | string  | false    |              |             |
+| `» id`                   | string  | false    |              |             |
+| `» name`                 | string  | false    |              |             |
+| `» schema_id`            | string  | false    |              |             |
+| `» scope`                | string  | false    |              |             |
+| `» scope_id`             | string  | false    |              |             |
+| `» source_scheme`        | string  | false    |              |             |
+| `» source_value`         | string  | false    |              |             |
+| `» updated_at`           | string  | false    |              |             |
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.

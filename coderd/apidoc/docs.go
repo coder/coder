@@ -1006,6 +1006,41 @@ const docTemplate = `{
                 }
             }
         },
+        "/templateversions/{id}/cancel": {
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Cancel template version by ID",
+                "operationId": "cancel-template-version-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/templateversions/{id}/schema": {
             "get": {
                 "security": [
@@ -1019,8 +1054,8 @@ const docTemplate = `{
                 "tags": [
                     "Templates"
                 ],
-                "summary": "Get template version schema by template version ID",
-                "operationId": "get-template-version-schema-by-template-version-id",
+                "summary": "Get template version schema by ID",
+                "operationId": "get-template-version-schema-by-id",
                 "parameters": [
                     {
                         "type": "string",
@@ -1037,7 +1072,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.ParameterSchema"
+                                "$ref": "#/definitions/parameter.ComputedValue"
                             }
                         }
                     }
@@ -4056,6 +4091,44 @@ const docTemplate = `{
         },
         "netip.Addr": {
             "type": "object"
+        },
+        "parameter.ComputedValue": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "default_source_value": {
+                    "type": "boolean"
+                },
+                "destination_scheme": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "schema_id": {
+                    "type": "string"
+                },
+                "scope": {
+                    "type": "string"
+                },
+                "scope_id": {
+                    "type": "string"
+                },
+                "source_scheme": {
+                    "type": "string"
+                },
+                "source_value": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
         },
         "tailcfg.DERPMap": {
             "type": "object",
