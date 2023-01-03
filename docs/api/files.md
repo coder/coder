@@ -26,11 +26,11 @@ file: string
 
 ### Parameters
 
-| Name           | In     | Type           | Required | Description                              |
-| -------------- | ------ | -------------- | -------- | ---------------------------------------- |
-| `Content-Type` | header | string         | true     | Content-Type must be `application/x-tar` |
-| `body`         | body   | object         | true     |                                          |
-| `» file`       | body   | string(binary) | true     | File to be uploaded                      |
+| Name           | In     | Type   | Required | Description                              |
+| -------------- | ------ | ------ | -------- | ---------------------------------------- |
+| `Content-Type` | header | string | true     | Content-Type must be `application/x-tar` |
+| `body`         | body   | object | true     |                                          |
+| `» file`       | body   | binary | true     | File to be uploaded                      |
 
 ### Example responses
 

@@ -5,6 +5,9 @@
 		const href = aType.replace(".","").toLowerCase();
 		return "[" + aType + "](schemas.md#" + href + ")";
 	}
+	if (p.safeType == 'string(binary)') {
+		return 'binary';
+	}
 	return p.safeType;
   }
 }}
