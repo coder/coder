@@ -350,6 +350,10 @@
           "path": "./api/files.md"
         },
         {
+          "title": "Organizations",
+          "path": "./api/organizations.md"
+        },
+        {
           "title": "Templates",
           "path": "./api/templates.md"
         },

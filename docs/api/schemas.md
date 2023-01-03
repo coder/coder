@@ -403,6 +403,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `external_url` | string | false    |              | External URL references the current Coder version. For production builds, this will link directly to a release. For development builds, this will link to a commit. |
 | `version`      | string | false    |              | Version returns the semantic version of the build.                                                                                                                  |
 
+## codersdk.CreateOrganizationRequest
+
+```json
+{
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name   | Type   | Required | Restrictions | Description |
+| ------ | ------ | -------- | ------------ | ----------- |
+| `name` | string | true     |              |             |
+
 ## codersdk.CreateParameterRequest
 
 ```json
@@ -2272,6 +2286,26 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `ignore_email_verified` | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                 | false    |              |             |
 | `issuer_url`            | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
 | `scopes`                | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string) | false    |              |             |
+
+## codersdk.Organization
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+| ------------ | ------ | -------- | ------------ | ----------- |
+| `created_at` | string | true     |              |             |
+| `id`         | string | true     |              |             |
+| `name`       | string | true     |              |             |
+| `updated_at` | string | true     |              |             |
 
 ## codersdk.Parameter
 
