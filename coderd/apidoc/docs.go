@@ -1041,6 +1041,109 @@ const docTemplate = `{
                 }
             }
         },
+        "/templateversions/{id}/dry-run": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Create template version dry-run",
+                "operationId": "create-template-version-dry-run",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Dry-run request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateTemplateVersionDryRunRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ProvisionerJob"
+                        }
+                    }
+                }
+            }
+        },
+        "/templateversions/{id}/resources": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get template version logs by template version ID",
+                "operationId": "get-template-version-resources-by-template-version-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Before Unix timestamp",
+                        "name": "before",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "After Unix timestamp",
+                        "name": "after",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Follow log stream",
+                        "name": "follow",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ProvisionerJobLog"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/templateversions/{id}/schema": {
             "get": {
                 "security": [
@@ -1073,6 +1176,197 @@ const docTemplate = `{
                             "type": "array",
                             "items": {
                                 "$ref": "#/definitions/parameter.ComputedValue"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/templateversions/{templateversionid}/dry-run/{jobid}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get template version dry-run by job ID",
+                "operationId": "get-template-version-dry-run-by-job-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversionid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job ID",
+                        "name": "jobid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ProvisionerJob"
+                        }
+                    }
+                }
+            }
+        },
+        "/templateversions/{templateversionid}/dry-run/{jobid}/cancel": {
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Cancel template version dry-run by job ID",
+                "operationId": "cancel-template-version-dry-run-by-job-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/templateversions/{templateversionid}/dry-run/{jobid}/logs": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get template version dry-run logs by job ID",
+                "operationId": "get-template-version-dry-run-logs-by-job-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversionid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job ID",
+                        "name": "jobid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Before Unix timestamp",
+                        "name": "before",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "After Unix timestamp",
+                        "name": "after",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Follow log stream",
+                        "name": "follow",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ProvisionerJobLog"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/templateversions/{templateversionid}/dry-run/{jobid}/resources": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get template version dry-run resources by job ID",
+                "operationId": "get-template-version-dry-run-resources-by-job-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversionid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job ID",
+                        "name": "jobid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.WorkspaceResource"
                             }
                         }
                     }
@@ -2443,6 +2737,20 @@ const docTemplate = `{
                 },
                 "template_version_id": {
                     "description": "VersionID is an in-progress or completed job to use as an initial version\nof the template.\n\nThis is required on creation to enable a user-flow of validating a\ntemplate works. There is no reason the data-model cannot support empty\ntemplates, but it doesn't make sense for users.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.CreateTemplateVersionDryRunRequest": {
+            "type": "object",
+            "properties": {
+                "parameter_values": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.CreateParameterRequest"
+                    }
+                },
+                "workspace_name": {
                     "type": "string"
                 }
             }

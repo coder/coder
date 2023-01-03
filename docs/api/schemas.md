@@ -474,6 +474,30 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `template_version_id`                                                                                                                                                                     | string                                                                      | true     |              | Template version ID is an in-progress or completed job to use as an initial version of the template.       |
 | This is required on creation to enable a user-flow of validating a template works. There is no reason the data-model cannot support empty templates, but it doesn't make sense for users. |
 
+## codersdk.CreateTemplateVersionDryRunRequest
+
+```json
+{
+  "parameter_values": [
+    {
+      "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
+      "destination_scheme": "none",
+      "name": "string",
+      "source_scheme": "none",
+      "source_value": "string"
+    }
+  ],
+  "workspace_name": "string"
+}
+```
+
+### Properties
+
+| Name               | Type                                                                        | Required | Restrictions | Description                                                                        |
+| ------------------ | --------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------- |
+| `parameter_values` | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest) | false    |              | Parameter values is a structure used to create a new parameter value for a scope.] |
+| `workspace_name`   | string                                                                      | false    |              |                                                                                    |
+
 ## codersdk.CreateTestAuditLogRequest
 
 ```json
