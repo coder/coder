@@ -171,3 +171,9 @@ coder:
       # coder.ingress.tls.wildcardSecretName -- The name of the TLS secret to
       # use for the wildcard host.
       wildcardSecretName: ""
+
+  # A secret ref that contains a Kubernetes configuration file that will be mounted at
+  # ~/.kube/config on the Coder host.
+  kubeConfig:
+    secretName: null
+    keyName: config
