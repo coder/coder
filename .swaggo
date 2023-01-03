@@ -1,0 +1,2 @@
+// Replace all NullTime with string
+replace github.com/coder/coder/codersdk.NullTime string
