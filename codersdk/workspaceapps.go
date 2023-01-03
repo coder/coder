@@ -49,7 +49,7 @@ type WorkspaceApp struct {
 }
 
 type Healthcheck struct {
-	// URL specifies the url to check for the app health.
+	// URL specifies the endpoint to check for the app health.
 	URL string `json:"url"`
 	// Interval specifies the seconds between each health check.
 	Interval int32 `json:"interval"`

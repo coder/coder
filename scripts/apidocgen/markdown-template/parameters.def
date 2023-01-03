@@ -13,7 +13,7 @@
 
 |Name|In|Type|Required|Description|
 |---|---|---|---|---|
-{{~ data.parameters :p}}|{{=p.name}}|{{=p.in}}|{{= renderParameterType(p)}}|{{=p.required}}|{{=p.shortDesc||''}}|
+{{~ data.parameters :p}}|`{{=p.name}}`|{{=p.in}}|{{= renderParameterType(p)}}|{{=p.required}}|{{=p.shortDesc||''}}|
 {{~}}
 
 {{? data.longDescs }}
@@ -44,7 +44,7 @@
 
 |Parameter|Value|
 |---|---|
-{{~ data.enums :e}}|{{=e.name}}|{{=data.utils.toPrimitive(e.value)}}|
+{{~ data.enums :e}}|`{{=e.name}}`|`{{=data.utils.toPrimitive(e.value)}}`|
 {{~}}
 {{?}}
 {{= data.tags.endSection }}

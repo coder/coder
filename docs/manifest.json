@@ -330,6 +330,10 @@
           "path": "./api/authentication.md"
         },
         {
+          "title": "General",
+          "path": "./api/general.md"
+        },
+        {
           "title": "Applications",
           "path": "./api/applications.md"
         },

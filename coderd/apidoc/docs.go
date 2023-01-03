@@ -25,6 +25,26 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "API root handler",
+                "operationId": "api-root-handler",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/applications/auth-redirect": {
             "get": {
                 "security": [
@@ -112,6 +132,62 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.AuthorizationResponse"
                         }
+                    }
+                }
+            }
+        },
+        "/buildinfo": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Build info",
+                "operationId": "build-info",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.BuildInfoResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/csp/reports": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "text/plain"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Report CSP violations",
+                "operationId": "report-csp-violations",
+                "parameters": [
+                    {
+                        "description": "Violation report",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/coderd.cspViolation"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
                     }
                 }
             }
@@ -347,6 +423,26 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/updatecheck": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Update check",
+                "operationId": "update-check",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateCheckResponse"
                         }
                     }
                 }
@@ -730,6 +826,15 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "coderd.cspViolation": {
+            "type": "object",
+            "properties": {
+                "csp-report": {
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            }
+        },
         "codersdk.AuthorizationCheck": {
             "description": "AuthorizationCheck is used to check if the currently authenticated user (or the specified user) can do a given action to a given set of objects.",
             "type": "object",
@@ -762,7 +867,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "resource_id": {
-                    "description": "ResourceID (optional) reduces the set to a singular resource. This assigns\na resource ID to the resource type, eg: a single workspace.\nThe rbac library will not fetch the resource from the database, so if you\nare using this option, you should also set the ` + "`" + `OwnerID` + "`" + ` and ` + "`" + `OrganizationID` + "`" + `\nif possible. Be as specific as possible using all the fields relevant.",
+                    "description": "ResourceID (optional) reduces the set to a singular resource. This assigns\na resource ID to the resource type, eg: a single workspace.\nThe rbac library will not fetch the resource from the database, so if you\nare using this option, you should also set the owner ID and organization ID\nif possible. Be as specific as possible using all the fields relevant.",
                     "type": "string"
                 },
                 "resource_type": {
@@ -787,6 +892,19 @@ const docTemplate = `{
             "type": "object",
             "additionalProperties": {
                 "type": "boolean"
+            }
+        },
+        "codersdk.BuildInfoResponse": {
+            "type": "object",
+            "properties": {
+                "external_url": {
+                    "description": "ExternalURL references the current Coder version.\nFor production builds, this will link directly to a release. For development builds, this will link to a commit.",
+                    "type": "string"
+                },
+                "version": {
+                    "description": "Version returns the semantic version of the build.",
+                    "type": "string"
+                }
             }
         },
         "codersdk.CreateParameterRequest": {
@@ -899,7 +1017,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "url": {
-                    "description": "URL specifies the url to check for the app health.",
+                    "description": "URL specifies the endpoint to check for the app health.",
                     "type": "string"
                 }
             }
@@ -1063,6 +1181,23 @@ const docTemplate = `{
                 "p95": {
                     "type": "integer",
                     "example": 146
+                }
+            }
+        },
+        "codersdk.UpdateCheckResponse": {
+            "type": "object",
+            "properties": {
+                "current": {
+                    "description": "Current indicates whether the server version is the same as the latest.",
+                    "type": "boolean"
+                },
+                "url": {
+                    "description": "URL to download the latest release of Coder.",
+                    "type": "string"
+                },
+                "version": {
+                    "description": "Version is the semantic version for the latest release of Coder.",
+                    "type": "string"
                 }
             }
         },

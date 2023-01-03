@@ -28,12 +28,27 @@
 		return "`" + p.displayName + "`";
 	}
 
+	function correctLetterCase(description) {
+		const dictionary = ["id", "url"];
+
+		const words = description.split(' ');
+		var corrected = [];
+		words.forEach(word => {
+			if (dictionary.includes(word.toLowerCase())) {
+				corrected.push(word.toUpperCase());
+				return;
+			}
+			corrected.push(word);
+		});
+		return corrected.join(" ");
+	}
+
 	function renderDescription(p) {
 		if (!p.description) {
 			return "";
 		}
 
-		const description = p.description.replaceAll("<br><br>", "\n").replaceAll("<br>", " ");
+		let description = p.description.replaceAll("<br><br>", "\n").replaceAll("<br>", " ");
 		const words = description.split(' ');
 		if (words.length == 0) {
 			return "";
@@ -43,9 +58,9 @@
 		if (countUppercase > 1) {
 			let displayName = p.displayName.replaceAll("» **additionalProperties**", "It");
 			displayName = displayName.charAt(0).toUpperCase() + displayName.replaceAll("_", " ").toLowerCase().slice(1);
-			return displayName + " " + words.slice(1).join(' ');
+			description = displayName + " " + words.slice(1).join(' ');
 		}
-		return description;
+		return correctLetterCase(description);
 	}
 }}
 
@@ -140,7 +155,7 @@
 
 |Property|Value|
 |---|---|
-{{~ enums :e}}|{{=e.name}}|{{=data.utils.toPrimitive(e.value)}}|
+{{~ enums :e}}|`{{=e.name}}`|`{{=data.utils.toPrimitive(e.value)}}`|
 {{~}}
 
 {{= data.tags.endSection }}

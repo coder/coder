@@ -16,9 +16,9 @@ curl -X GET http://coder-server:8080/api/v2/applications/auth-redirect \
 
 ### Parameters
 
-| Name         | In    | Type   | Required | Description          |
-| ------------ | ----- | ------ | -------- | -------------------- |
-| redirect_uri | query | string | false    | Redirect destination |
+| Name           | In    | Type   | Required | Description          |
+| -------------- | ----- | ------ | -------- | -------------------- |
+| `redirect_uri` | query | string | false    | Redirect destination |
 
 ### Responses
 

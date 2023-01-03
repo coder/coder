@@ -2,6 +2,20 @@
 
 > This page is incomplete, stay tuned.
 
+## coderd.cspViolation
+
+```json
+{
+  "csp-report": {}
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+| ------------ | ------ | -------- | ------------ | ----------- |
+| `csp-report` | object | false    |              |             |
+
 ## codersdk.AuthorizationCheck
 
 ```json
@@ -27,12 +41,12 @@ AuthorizationCheck is used to check if the currently authenticated user (or the 
 
 #### Enumerated Values
 
-| Property | Value  |
-| -------- | ------ |
-| action   | create |
-| action   | read   |
-| action   | update |
-| action   | delete |
+| Property | Value    |
+| -------- | -------- |
+| `action` | `create` |
+| `action` | `read`   |
+| `action` | `update` |
+| `action` | `delete` |
 
 ## codersdk.AuthorizationObject
 
@@ -49,12 +63,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                            |
-| ----------------- | ------ | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `organization_id` | string | false    |              | Organization id (optional) adds the set constraint to all resources owned by a given organization.                                                                                                                                                                                                                                                                     |
-| `owner_id`        | string | false    |              | Owner id (optional) adds the set constraint to all resources owned by a given user.                                                                                                                                                                                                                                                                                    |
-| `resource_id`     | string | false    |              | Resource id (optional) reduces the set to a singular resource. This assigns a resource ID to the resource type, eg: a single workspace. The rbac library will not fetch the resource from the database, so if you are using this option, you should also set the `OwnerID` and `OrganizationID` if possible. Be as specific as possible using all the fields relevant. |
-| `resource_type`   | string | false    |              | Resource type is the name of the resource. `./coderd/rbac/object.go` has the list of valid resource types.                                                                                                                                                                                                                                                             |
+| Name              | Type   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                          |
+| ----------------- | ------ | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `organization_id` | string | false    |              | Organization ID (optional) adds the set constraint to all resources owned by a given organization.                                                                                                                                                                                                                                                                   |
+| `owner_id`        | string | false    |              | Owner ID (optional) adds the set constraint to all resources owned by a given user.                                                                                                                                                                                                                                                                                  |
+| `resource_id`     | string | false    |              | Resource ID (optional) reduces the set to a singular resource. This assigns a resource ID to the resource type, eg: a single workspace. The rbac library will not fetch the resource from the database, so if you are using this option, you should also set the owner ID and organization ID if possible. Be as specific as possible using all the fields relevant. |
+| `resource_type`   | string | false    |              | Resource type is the name of the resource. `./coderd/rbac/object.go` has the list of valid resource types.                                                                                                                                                                                                                                                           |
 
 ## codersdk.AuthorizationRequest
 
@@ -105,6 +119,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ---------------- | ------- | -------- | ------------ | ----------- |
 | `[any property]` | boolean | false    |              |             |
 
+## codersdk.BuildInfoResponse
+
+```json
+{
+  "external_url": "string",
+  "version": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description                                                                                                                                                         |
+| -------------- | ------ | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `external_url` | string | false    |              | External URL references the current Coder version. For production builds, this will link directly to a release. For development builds, this will link to a commit. |
+| `version`      | string | false    |              | Version returns the semantic version of the build.                                                                                                                  |
+
 ## codersdk.CreateParameterRequest
 
 ```json
@@ -131,11 +161,11 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 #### Enumerated Values
 
-| Property           | Value                |
-| ------------------ | -------------------- |
-| destination_scheme | environment_variable |
-| destination_scheme | provisioner_variable |
-| source_scheme      | data                 |
+| Property             | Value                  |
+| -------------------- | ---------------------- |
+| `destination_scheme` | `environment_variable` |
+| `destination_scheme` | `provisioner_variable` |
+| `source_scheme`      | `data`                 |
 
 ## codersdk.CreateTemplateRequest
 
@@ -171,7 +201,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `icon`                                                                                                                                                                                    | string                                                                      | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.           |
 | `name`                                                                                                                                                                                    | string                                                                      | true     |              | Name is the name of the template.                                                                          |
 | `parameter_values`                                                                                                                                                                        | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest) | false    |              | Parameter values is a structure used to create a new parameter value for a scope.]                         |
-| `template_version_id`                                                                                                                                                                     | string                                                                      | true     |              | Template version id is an in-progress or completed job to use as an initial version of the template.       |
+| `template_version_id`                                                                                                                                                                     | string                                                                      | true     |              | Template version ID is an in-progress or completed job to use as an initial version of the template.       |
 | This is required on creation to enable a user-flow of validating a template works. There is no reason the data-model cannot support empty templates, but it doesn't make sense for users. |
 
 ## codersdk.DERPRegion
@@ -220,7 +250,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | ----------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------ |
 | `interval`  | integer | false    |              | Interval specifies the seconds between each health check.                                        |
 | `threshold` | integer | false    |              | Threshold specifies the number of consecutive failed health checks before returning "unhealthy". |
-| `url`       | string  | false    |              | Url specifies the url to check for the app health.                                               |
+| `url`       | string  | false    |              | URL specifies the endpoint to check for the app health.                                          |
 
 ## codersdk.ProvisionerJob
 
@@ -386,6 +416,24 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | ----- | ------- | -------- | ------------ | ----------- |
 | `p50` | integer | false    |              |             |
 | `p95` | integer | false    |              |             |
+
+## codersdk.UpdateCheckResponse
+
+```json
+{
+  "current": true,
+  "url": "string",
+  "version": "string"
+}
+```
+
+### Properties
+
+| Name      | Type    | Required | Restrictions | Description                                                             |
+| --------- | ------- | -------- | ------------ | ----------------------------------------------------------------------- |
+| `current` | boolean | false    |              | Current indicates whether the server version is the same as the latest. |
+| `url`     | string  | false    |              | URL to download the latest release of Coder.                            |
+| `version` | string  | false    |              | Version is the semantic version for the latest release of Coder.        |
 
 ## codersdk.UpdateWorkspaceAutostartRequest
 
@@ -719,7 +767,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `sharing_level` | string                                       | false    |              |                                                                                                                                                                                                                                                |
 | `slug`          | string                                       | false    |              | Slug is a unique identifier within the agent.                                                                                                                                                                                                  |
 | `subdomain`     | boolean                                      | false    |              | Subdomain denotes whether the app should be accessed via a path on the `coder server` or via a hostname-based dev URL. If this is set to true and there is no app wildcard configured on the server, the app will not be accessible in the UI. |
-| `url`           | string                                       | false    |              | Url is the address being proxied to inside the workspace. If external is specified, this will be opened on the client.                                                                                                                         |
+| `url`           | string                                       | false    |              | URL is the address being proxied to inside the workspace. If external is specified, this will be opened on the client.                                                                                                                         |
 
 ## codersdk.WorkspaceBuild
 
@@ -863,21 +911,21 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 #### Enumerated Values
 
-| Property   | Value     |
-| ---------- | --------- |
-| status     | pending   |
-| status     | starting  |
-| status     | running   |
-| status     | stopping  |
-| status     | stopped   |
-| status     | failed    |
-| status     | canceling |
-| status     | canceled  |
-| status     | deleting  |
-| status     | deleted   |
-| transition | start     |
-| transition | stop      |
-| transition | delete    |
+| Property     | Value       |
+| ------------ | ----------- |
+| `status`     | `pending`   |
+| `status`     | `starting`  |
+| `status`     | `running`   |
+| `status`     | `stopping`  |
+| `status`     | `stopped`   |
+| `status`     | `failed`    |
+| `status`     | `canceling` |
+| `status`     | `canceled`  |
+| `status`     | `deleting`  |
+| `status`     | `deleted`   |
+| `transition` | `start`     |
+| `transition` | `stop`      |
+| `transition` | `delete`    |
 
 ## codersdk.WorkspaceResource
 
@@ -974,11 +1022,11 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 #### Enumerated Values
 
-| Property             | Value  |
-| -------------------- | ------ |
-| workspace_transition | start  |
-| workspace_transition | stop   |
-| workspace_transition | delete |
+| Property               | Value    |
+| ---------------------- | -------- |
+| `workspace_transition` | `start`  |
+| `workspace_transition` | `stop`   |
+| `workspace_transition` | `delete` |
 
 ## codersdk.WorkspaceResourceMetadata
 
