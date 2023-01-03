@@ -4,6 +4,7 @@ import TableCell from "@material-ui/core/TableCell"
 import TableRow from "@material-ui/core/TableRow"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { LastUsed } from "components/LastUsed/LastUsed"
+import { Pill } from "components/Pill/Pill"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import * as TypesGen from "../../api/typesGenerated"
@@ -136,9 +137,15 @@ export const UsersTableBody: FC<
                         }}
                       />
                     ) : (
-                      <>
-                        {userRoles.map((role) => role.display_name).join(", ")}
-                      </>
+                      <div className={styles.roles}>
+                        {userRoles.map((role) => (
+                          <Pill
+                            key={role.name}
+                            text={role.display_name}
+                            className={styles.rolePill}
+                          />
+                        ))}
+                      </div>
                     )}
                   </TableCell>
                   {canEditUsers && (
@@ -198,5 +205,14 @@ const useStyles = makeStyles((theme) => ({
     width: theme.spacing(4.5),
     height: theme.spacing(4.5),
     borderRadius: "100%",
+  },
+  roles: {
+    display: "flex",
+    gap: theme.spacing(1),
+    flexWrap: "wrap",
+  },
+  rolePill: {
+    backgroundColor: theme.palette.background.paperLight,
+    borderColor: theme.palette.divider,
   },
 }))
