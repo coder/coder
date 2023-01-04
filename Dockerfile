@@ -22,6 +22,10 @@ COPY --chown=1000:1000 --chmod=700 empty-dir /home/coder
 # The coder binary is injected by scripts/build_docker.sh.
 COPY --chown=1000:1000 --chmod=755 coder /opt/coder
 
+# For cases where the container is run as root, allow embedded postgres,
+# if enabled, to be de-elevated.
+ENV CODER_CONFIG_DIR=/home/coder/.config/coderv2 CODER_BUILTIN_POSTGRES_UID=1000 CODER_BUILTIN_POSTGRES_GID=1000
+
 USER 1000:1000
 ENV HOME=/home/coder
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt
