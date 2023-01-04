@@ -23,7 +23,6 @@ const GeneralSettingsPage: React.FC = () => {
       <OptionsTable
         options={{
           access_url: deploymentConfig.access_url,
-          address: deploymentConfig.address,
           wildcard_access_url: deploymentConfig.wildcard_access_url,
         }}
       />
