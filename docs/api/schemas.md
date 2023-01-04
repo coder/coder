@@ -1132,6 +1132,17 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "usage": "string",
     "value": "string"
   },
+  "postgres_builtin_user": {
+    "default": "string",
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": "string"
+  },
   "pprof": {
     "address": {
       "default": "string",
@@ -1525,6 +1536,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `oauth2`                             | [codersdk.OAuth2Config](#codersdkoauth2config)                                                                             | false    |              |             |
 | `oidc`                               | [codersdk.OIDCConfig](#codersdkoidcconfig)                                                                                 | false    |              |             |
 | `pg_connection_url`                  | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |             |
+| `postgres_builtin_user`              | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |             |
 | `pprof`                              | [codersdk.PprofConfig](#codersdkpprofconfig)                                                                               | false    |              |             |
 | `prometheus`                         | [codersdk.PrometheusConfig](#codersdkprometheusconfig)                                                                     | false    |              |             |
 | `provisioner`                        | [codersdk.ProvisionerConfig](#codersdkprovisionerconfig)                                                                   | false    |              |             |

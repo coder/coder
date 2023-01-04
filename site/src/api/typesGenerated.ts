@@ -288,6 +288,7 @@ export interface DeploymentConfig {
   readonly cache_directory: DeploymentConfigField<string>
   readonly in_memory_database: DeploymentConfigField<boolean>
   readonly pg_connection_url: DeploymentConfigField<string>
+  readonly postgres_builtin_user: DeploymentConfigField<string>
   readonly oauth2: OAuth2Config
   readonly oidc: OIDCConfig
   readonly telemetry: TelemetryConfig

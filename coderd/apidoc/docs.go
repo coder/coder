@@ -1615,6 +1615,9 @@ const docTemplate = `{
                 "pg_connection_url": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
                 },
+                "postgres_builtin_user": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
                 "pprof": {
                     "$ref": "#/definitions/codersdk.PprofConfig"
                 },
