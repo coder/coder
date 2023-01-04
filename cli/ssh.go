@@ -152,6 +152,10 @@ func ssh() *cobra.Command {
 			}
 
 			if forwardGPG {
+				if workspaceAgent.OperatingSystem == "windows" {
+					return xerrors.New("GPG forwarding is not supported for Windows workspaces")
+				}
+
 				err = uploadGPGKeys(ctx, sshClient)
 				if err != nil {
 					return xerrors.Errorf("upload GPG public keys and ownertrust to workspace: %w", err)
@@ -449,6 +453,18 @@ func runRemoteSSH(sshClient *gossh.Client, stdin io.Reader, cmd string) ([]byte,
 }
 
 func uploadGPGKeys(ctx context.Context, sshClient *gossh.Client) error {
+	// Check if the agent is running in the workspace already.
+	// Note: we don't support windows in the workspace for GPG forwarding so
+	//       using shell commands is fine.
+	agentSocketBytes, err := runRemoteSSH(sshClient, nil, "set -eux; agent_socket=$(gpgconf --list-dir agent-socket); echo $agent_socket; test ! -S $agent_socket")
+	agentSocket := strings.TrimSpace(string(agentSocketBytes))
+	if err != nil {
+		return xerrors.Errorf("check if agent socket is running (check if %q exists): %w", agentSocket, err)
+	}
+	if agentSocket == "" {
+		return xerrors.Errorf("agent socket path is empty, check the output of `gpgconf --list-dir agent-socket`")
+	}
+
 	// Read the user's public keys and ownertrust from GPG.
 	pubKeyExport, err := runLocal(ctx, nil, "gpg", "--armor", "--export")
 	if err != nil {
@@ -467,6 +483,13 @@ func uploadGPGKeys(ctx context.Context, sshClient *gossh.Client) error {
 	_, err = runRemoteSSH(sshClient, bytes.NewReader(ownerTrustExport), "gpg --import-ownertrust")
 	if err != nil {
 		return xerrors.Errorf("import ownertrust into workspace: %w", err)
+	}
+
+	// Kill the agent in the workspace if it was started by one of the above
+	// commands.
+	_, err = runRemoteSSH(sshClient, nil, fmt.Sprintf("gpgconf --kill gpg-agent && rm -f %q", agentSocket))
+	if err != nil {
+		return xerrors.Errorf("kill existing agent in workspace: %w", err)
 	}
 
 	return nil
@@ -497,11 +520,11 @@ type cookieAddr struct {
 	cookie []byte
 }
 
-// sshForward starts forwarding connections from a remote listener to a local
-// address via SSH in a goroutine.
+// sshForwardRemote starts forwarding connections from a remote listener to a
+// local address via SSH in a goroutine.
 //
 // Accepts a `cookieAddr` as the local address.
-func sshForward(ctx context.Context, stderr io.Writer, sshClient *gossh.Client, localAddr, remoteAddr net.Addr) (io.Closer, error) {
+func sshForwardRemote(ctx context.Context, stderr io.Writer, sshClient *gossh.Client, localAddr, remoteAddr net.Addr) (io.Closer, error) {
 	listener, err := sshClient.Listen(remoteAddr.Network(), remoteAddr.String())
 	if err != nil {
 		return nil, xerrors.Errorf("listen on remote SSH address %s: %w", remoteAddr.String(), err)

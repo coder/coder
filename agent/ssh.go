@@ -9,6 +9,7 @@ import (
 
 	"github.com/gliderlabs/ssh"
 	gossh "golang.org/x/crypto/ssh"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 )
@@ -23,6 +24,7 @@ type streamLocalForwardPayload struct {
 // channel request when a Unix connection is accepted by the listener.
 type forwardedStreamLocalPayload struct {
 	SocketPath string
+	Reserved   uint32
 }
 
 // forwardedUnixHandler is a clone of ssh.ForwardedTCPHandler that does
@@ -101,10 +103,12 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 			for {
 				c, err := ln.Accept()
 				if err != nil {
-					h.log.Warn(ctx, "accept on local Unix socket for SSH unix forward request",
-						slog.F("socket_path", addr),
-						slog.Error(err),
-					)
+					if !xerrors.Is(err, net.ErrClosed) {
+						h.log.Warn(ctx, "accept on local Unix socket for SSH unix forward request",
+							slog.F("socket_path", addr),
+							slog.Error(err),
+						)
+					}
 					break
 				}
 				payload := gossh.Marshal(&forwardedStreamLocalPayload{
@@ -112,7 +116,7 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 				})
 
 				go func() {
-					ch, reqs, err := conn.OpenChannel("forwardedTCPChannelType", payload)
+					ch, reqs, err := conn.OpenChannel("forwarded-streamlocal@openssh.com", payload)
 					if err != nil {
 						h.log.Warn(ctx, "open SSH channel to forward Unix connection to client",
 							slog.F("socket_path", addr),

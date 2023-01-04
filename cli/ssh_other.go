@@ -44,5 +44,5 @@ func forwardGPGAgent(ctx context.Context, stderr io.Writer, sshClient *gossh.Cli
 		Net:  "unix",
 	}
 
-	return sshForward(ctx, stderr, sshClient, localAddr, remoteAddr)
+	return sshForwardRemote(ctx, stderr, sshClient, localAddr, remoteAddr)
 }

@@ -495,16 +495,16 @@ func TestAgent_UnixRemoteForwarding(t *testing.T) {
 		}
 	}()
 
-	cmd := setupSSHCommand(t, []string{"-R", fmt.Sprintf("%s:%s", remoteSocketPath, localSocketPath)}, []string{"echo", "test"})
+	cmd := setupSSHCommand(t, []string{"-R", fmt.Sprintf("%s:%s", remoteSocketPath, localSocketPath)}, []string{"sleep", "10"})
 	err = cmd.Start()
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
-		_, err := os.Stat(localSocketPath)
+		_, err := os.Stat(remoteSocketPath)
 		return err == nil
 	}, testutil.WaitLong, testutil.IntervalFast)
 
-	conn, err := net.Dial("unix", localSocketPath)
+	conn, err := net.Dial("unix", remoteSocketPath)
 	require.NoError(t, err)
 	_, err = conn.Write([]byte("test"))
 	require.NoError(t, err)

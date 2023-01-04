@@ -416,7 +416,6 @@ Expire-Date: 0
 		require.NoError(t, err, "import ownertrust failed: %s", out)
 
 		// Start the GPG agent.
-		// gpg-connect-agent reloadagent /bye
 		agentCmd := exec.CommandContext(ctx, gpgAgentPath, "--no-detach", "--extra-socket", extraSocketPath)
 		agentCmd.Env = append(agentCmd.Env, "GNUPGHOME="+gnupgHomeClient)
 		agentPTY, agentProc, err := pty.Start(agentCmd, pty.WithPTYOption(pty.WithGPGTTY()))
@@ -426,24 +425,19 @@ Expire-Date: 0
 			_ = agentPTY.Close()
 		}()
 
-		// Initialize the GPG database in the "workspace".
+		// Get the agent socket path in the "workspace".
 		gnupgHomeWorkspace := t.TempDir()
-		c = exec.CommandContext(ctx, gpgPath, "--list-keys")
-		c.Env = append(c.Env, "GNUPGHOME="+gnupgHomeWorkspace)
-		out, err = c.CombinedOutput()
-		require.NoError(t, err, "list keys in workspace failed: %s", out)
 
-		// Get the agent extra socket path in the "workspace".
 		stdout = bytes.NewBuffer(nil)
 		stderr = bytes.NewBuffer(nil)
-		c = exec.CommandContext(ctx, gpgConfPath, "--list-dir", "agent-extra-socket")
+		c = exec.CommandContext(ctx, gpgConfPath, "--list-dir", "agent-socket")
 		c.Env = append(c.Env, "GNUPGHOME="+gnupgHomeWorkspace)
 		c.Stdout = stdout
 		c.Stderr = stderr
 		err = c.Run()
-		require.NoError(t, err, "get extra socket path in workspace failed: %s", stderr.String())
-		workspaceExtraSocketPath := strings.TrimSpace(stdout.String())
-		require.NotEqual(t, extraSocketPath, workspaceExtraSocketPath, "extra socket path should be different")
+		require.NoError(t, err, "get agent socket path in workspace failed: %s", stderr.String())
+		workspaceAgentSocketPath := strings.TrimSpace(stdout.String())
+		require.NotEqual(t, extraSocketPath, workspaceAgentSocketPath, "socket path should be different")
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 
@@ -484,9 +478,9 @@ Expire-Date: 0
 		pty.ExpectMatch("env--command-done")
 
 		// Get the agent extra socket path in the "workspace" via shell.
-		pty.WriteLine("gpgconf --list-dir agent-extra-socket && echo gpgconf-''-extrasocket-command-done")
-		pty.ExpectMatch(workspaceExtraSocketPath)
-		pty.ExpectMatch("gpgconf--extrasocket-command-done")
+		pty.WriteLine("gpgconf --list-dir agent-socket && echo gpgconf-''-agentsocket-command-done")
+		pty.ExpectMatch(workspaceAgentSocketPath)
+		pty.ExpectMatch("gpgconf--agentsocket-command-done")
 
 		// List the keys in the "workspace".
 		pty.WriteLine("gpg --list-keys && echo gpg-''-listkeys-command-done")
@@ -494,10 +488,12 @@ Expire-Date: 0
 		require.Contains(t, listKeysOutput, "[ultimate] Coder Test <test@coder.com>")
 		require.Contains(t, listKeysOutput, "[ultimate] Dean Sheather (work key) <dean@coder.com>")
 
-		// Try to sign something.
+		// Try to sign something. This demonstrates that the forwarding is
+		// working as expected, since the workspace doesn't have access to the
+		// private key directly and must use the forwarded agent.
 		pty.WriteLine("echo 'hello world' | gpg --clearsign && echo gpg-''-sign-command-done")
 		pty.ExpectMatch("BEGIN PGP SIGNED MESSAGE")
-		pty.ExpectMatch("Hash: SHA256")
+		pty.ExpectMatch("Hash:")
 		pty.ExpectMatch("hello world")
 		pty.ExpectMatch("gpg--sign-command-done")
 

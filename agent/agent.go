@@ -483,7 +483,7 @@ func (a *agent) init(ctx context.Context) {
 
 	sshLogger := a.logger.Named("ssh-server")
 	forwardHandler := &ssh.ForwardedTCPHandler{}
-	unixForwardHandler := &forwardedUnixHandler{}
+	unixForwardHandler := &forwardedUnixHandler{log: a.logger}
 
 	a.sshServer = &ssh.Server{
 		ChannelHandlers: map[string]ssh.ChannelHandler{
@@ -531,8 +531,8 @@ func (a *agent) init(ctx context.Context) {
 		RequestHandlers: map[string]ssh.RequestHandler{
 			"tcpip-forward":                          forwardHandler.HandleSSHRequest,
 			"cancel-tcpip-forward":                   forwardHandler.HandleSSHRequest,
-			"streamlocal-forward@openssh.com":        unixForwardHandler.HandleSSHRequest, // TODO: this
-			"cancel-streamlocal-forward@openssh.com": unixForwardHandler.HandleSSHRequest, // TODO: this
+			"streamlocal-forward@openssh.com":        unixForwardHandler.HandleSSHRequest,
+			"cancel-streamlocal-forward@openssh.com": unixForwardHandler.HandleSSHRequest,
 		},
 		ServerConfigCallback: func(ctx ssh.Context) *gossh.ServerConfig {
 			return &gossh.ServerConfig{
