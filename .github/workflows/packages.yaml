@@ -21,7 +21,6 @@ jobs:
         id: version
         run: |
           $version = $env:CODER_VERSION -replace "^v", ""
-          $version += ".0"
           echo "::set-output name=version::$version"
 
       - name: Submit updated manifest to winget-pkgs
@@ -40,6 +39,9 @@ jobs:
             --version "${{ steps.version.outputs.version }}" `
             --urls "$installer_url" `
             --token "${{ secrets.CDRCI_GITHUB_TOKEN }}"
+        
+        env:
+          GH_TOKEN: ${{ github.token }}  # Needed for gh cli to work inside github actions
 
       - name: Comment on PR
         run: |
@@ -48,4 +50,4 @@ jobs:
             ConvertFrom-Json`
           $pr_number = $pr_list[0].number
 
-          gh pr comment --repo microsoft/winget-pkgs "$pr_number" --body "🤖 cc: @deansheather"
+          gh pr comment --repo microsoft/winget-pkgs "$pr_number" --body "🤖 cc: @deansheather @matifali"
