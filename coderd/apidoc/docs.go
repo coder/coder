@@ -2796,6 +2796,7 @@ const docTemplate = `{
             }
         },
         "codersdk.PostWorkspaceAgentVersionRequest": {
+            "description": "x-apidocgen:skip",
             "type": "object",
             "properties": {
                 "version": {

@@ -2276,20 +2276,6 @@ Parameter represents a set value for the scope.
 | `source_scheme`      | `none`                 |
 | `source_scheme`      | `data`                 |
 
-## codersdk.PostWorkspaceAgentVersionRequest
-
-```json
-{
-  "version": "string"
-}
-```
-
-### Properties
-
-| Name      | Type   | Required | Restrictions | Description |
-| --------- | ------ | -------- | ------------ | ----------- |
-| `version` | string | false    |              |             |
-
 ## codersdk.PostWorkspaceAppHealthsRequest
 
 ```json

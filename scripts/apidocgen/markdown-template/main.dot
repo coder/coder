@@ -92,9 +92,14 @@
 
 > This page is incomplete, stay tuned.
 
-{{ for (var s in data.components.schemas) { }}
-{{ var origSchema = data.components.schemas[s]; }}
-{{ var schema = data.api.components.schemas[s]; }}
+{{ for (var s in data.components.schemas) {
+  var origSchema = data.components.schemas[s];
+  var schema = data.api.components.schemas[s];
+
+  if (schema.description && schema.description.startsWith("x-apidocgen:skip")) {
+	continue;
+  }
+}}
 
 {{= data.tags.section }}
 ## {{=s}}

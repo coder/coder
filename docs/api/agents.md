@@ -437,38 +437,3 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/report-stats \
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AgentStatsResponse](schemas.md#codersdkagentstatsresponse) |
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
-
-## Submit workspace agent version
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/version \
-  -H 'Content-Type: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`POST /workspaceagents/me/version`
-
-> Body parameter
-
-```json
-{
-  "version": "string"
-}
-```
-
-### Parameters
-
-| Name   | In   | Type                                                                                             | Required | Description     |
-| ------ | ---- | ------------------------------------------------------------------------------------------------ | -------- | --------------- |
-| `body` | body | [codersdk.PostWorkspaceAgentVersionRequest](schemas.md#codersdkpostworkspaceagentversionrequest) | true     | Version request |
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema |
-| ------ | ------------------------------------------------------- | ----------- | ------ |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
-
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
