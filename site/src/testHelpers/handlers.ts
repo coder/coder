@@ -282,4 +282,8 @@ export const handlers = [
   rest.get("/api/v2/workspace-quota/:userId", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(MockWorkspaceQuota))
   }),
+
+  rest.get("/api/v2/appearance", (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockAppearance))
+  }),
 ]

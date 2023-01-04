@@ -6,11 +6,7 @@ import Globe from "@material-ui/icons/Public"
 import VpnKeyOutlined from "@material-ui/icons/VpnKeyOutlined"
 import { GitIcon } from "components/Icons/GitIcon"
 import { Stack } from "components/Stack/Stack"
-import React, {
-  ElementType,
-  PropsWithChildren,
-  ReactNode
-} from "react"
+import React, { ElementType, PropsWithChildren, ReactNode } from "react"
 import { NavLink } from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
 
