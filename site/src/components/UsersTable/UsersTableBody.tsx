@@ -11,10 +11,14 @@ import * as TypesGen from "../../api/typesGenerated"
 import { combineClasses } from "../../util/combineClasses"
 import { AvatarData } from "../AvatarData/AvatarData"
 import { EmptyState } from "../EmptyState/EmptyState"
-import { RoleSelect } from "../RoleSelect/RoleSelect"
 import { TableLoader } from "../TableLoader/TableLoader"
 import { TableRowMenu } from "../TableRowMenu/TableRowMenu"
+import { EditRolesButton } from "components/EditRolesButton/EditRolesButton"
+import { Stack } from "components/Stack/Stack"
 
+const isAdminRole = (role: TypesGen.Role): boolean => {
+  return role.name === "owner" || role.name.includes("admin")
+}
 interface UsersTableBodyProps {
   users?: TypesGen.User[]
   roles?: TypesGen.AssignableRoles[]
@@ -109,6 +113,34 @@ export const UsersTableBody: FC<
                       }
                     />
                   </TableCell>
+                  <TableCell>
+                    <Stack direction="row" spacing={1}>
+                      {canEditUsers && (
+                        <EditRolesButton
+                          roles={roles ?? []}
+                          selectedRoles={userRoles}
+                          isLoading={Boolean(isUpdatingUserRoles)}
+                          onChange={(roles) => {
+                            // Remove the fallback role because it is only for the UI
+                            roles = roles.filter(
+                              (role) => role !== fallbackRole.name,
+                            )
+                            onUpdateUserRoles(user, roles)
+                          }}
+                        />
+                      )}
+                      {userRoles.map((role) => (
+                        <Pill
+                          key={role.name}
+                          text={role.display_name}
+                          className={combineClasses({
+                            [styles.rolePill]: true,
+                            [styles.rolePillAdmin]: isAdminRole(role),
+                          })}
+                        />
+                      ))}
+                    </Stack>
+                  </TableCell>
                   <TableCell
                     className={combineClasses([
                       styles.status,
@@ -121,32 +153,6 @@ export const UsersTableBody: FC<
                   </TableCell>
                   <TableCell>
                     <LastUsed lastUsedAt={user.last_seen_at} />
-                  </TableCell>
-                  <TableCell>
-                    {canEditUsers ? (
-                      <RoleSelect
-                        roles={roles ?? []}
-                        selectedRoles={userRoles}
-                        loading={isUpdatingUserRoles}
-                        onChange={(roles) => {
-                          // Remove the fallback role because it is only for the UI
-                          roles = roles.filter(
-                            (role) => role !== fallbackRole.name,
-                          )
-                          onUpdateUserRoles(user, roles)
-                        }}
-                      />
-                    ) : (
-                      <div className={styles.roles}>
-                        {userRoles.map((role) => (
-                          <Pill
-                            key={role.name}
-                            text={role.display_name}
-                            className={styles.rolePill}
-                          />
-                        ))}
-                      </div>
-                    )}
                   </TableCell>
                   {canEditUsers && (
                     <TableCell>
@@ -206,13 +212,12 @@ const useStyles = makeStyles((theme) => ({
     height: theme.spacing(4.5),
     borderRadius: "100%",
   },
-  roles: {
-    display: "flex",
-    gap: theme.spacing(1),
-    flexWrap: "wrap",
-  },
   rolePill: {
     backgroundColor: theme.palette.background.paperLight,
     borderColor: theme.palette.divider,
+  },
+  rolePillAdmin: {
+    backgroundColor: theme.palette.info.dark,
+    borderColor: theme.palette.info.light,
   },
 }))
