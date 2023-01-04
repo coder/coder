@@ -92,11 +92,7 @@
 
 > This page is incomplete, stay tuned.
 
-{{ for (var s in data.components.schemas) {
-	if (s == "codersdk.NullTime") {
-		continue;
-	}
-}}
+{{ for (var s in data.components.schemas) { }}
 {{ var origSchema = data.components.schemas[s]; }}
 {{ var schema = data.api.components.schemas[s]; }}
 
