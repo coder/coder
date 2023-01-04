@@ -429,11 +429,25 @@ func newConfig() *codersdk.DeploymentConfig {
 				Default: 10 * time.Minute,
 			},
 		},
-		APIRateLimit: &codersdk.DeploymentConfigField[int]{
-			Name:    "API Rate Limit",
-			Usage:   "Maximum number of requests per minute allowed to the API per user, or per IP address for unauthenticated users. Negative values mean no rate limit. Some API endpoints are always rate limited regardless of this value to prevent denial-of-service attacks.",
-			Flag:    "api-rate-limit",
-			Default: 512,
+		RateLimit: &codersdk.RateLimitConfig{
+			API: &codersdk.DeploymentConfigField[int]{
+				Name:    "API Rate Limit",
+				Usage:   "Maximum number of requests per minute allowed to the API per user, or per IP address for unauthenticated users. Negative values mean no rate limit. Some API endpoints have separate flags to control rate limits to help prevent denial-of-service attacks.",
+				Flag:    "api-rate-limit",
+				Default: 512,
+			},
+			Login: &codersdk.DeploymentConfigField[int]{
+				Name:    "Login Rate Limit",
+				Usage:   "Maximum number of requests per minute allowed to the login API per IP address. This rate limit is intentionally lower than the API rate limit to help prevent brute force attacks. Setting this to a value higher than the API rate limit or to a negative value will have no effect.",
+				Flag:    "login-api-rate-limit",
+				Default: 60,
+			},
+			Files: &codersdk.DeploymentConfigField[int]{
+				Name:    "Files API Rate Limit",
+				Usage:   "Maximum number of requests per minute allowed to the files API per user. This rate limit is intentionally lower than the API rate limit as the files API is database intensive. Setting this to a value higher than the API rate limit or to a negative value will have no effect.",
+				Flag:    "files-api-rate-limit",
+				Default: 12,
+			},
 		},
 		Experimental: &codersdk.DeploymentConfigField[bool]{
 			Name:  "Experimental",

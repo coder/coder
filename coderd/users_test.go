@@ -1397,7 +1397,7 @@ func TestWorkspacesByUser(t *testing.T) {
 func TestSuspendedPagination(t *testing.T) {
 	t.Parallel()
 	t.Skip("This fails when two users are created at the exact same time. The reason is unknown... See: https://github.com/coder/coder/actions/runs/3057047622/jobs/4931863163")
-	client := coderdtest.New(t, &coderdtest.Options{APIRateLimit: -1})
+	client := coderdtest.New(t, nil)
 	coderdtest.CreateFirstUser(t, client)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -1442,7 +1442,7 @@ func TestSuspendedPagination(t *testing.T) {
 // them using different page sizes.
 func TestPaginatedUsers(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t, &coderdtest.Options{APIRateLimit: -1})
+	client := coderdtest.New(t, nil)
 	coderdtest.CreateFirstUser(t, client)
 
 	// This test takes longer than a long time.

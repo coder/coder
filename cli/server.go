@@ -454,7 +454,9 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				AgentStatsRefreshInterval:   cfg.AgentStatRefreshInterval.Value,
 				DeploymentConfig:            cfg,
 				PrometheusRegistry:          prometheus.NewRegistry(),
-				APIRateLimit:                cfg.APIRateLimit.Value,
+				APIRateLimit:                cfg.RateLimit.API.Value,
+				LoginRateLimit:              cfg.RateLimit.Login.Value,
+				FilesRateLimit:              cfg.RateLimit.Files.Value,
 				HTTPClient:                  httpClient,
 			}
 			if tlsConfig != nil {
