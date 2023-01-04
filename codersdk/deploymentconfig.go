@@ -26,6 +26,7 @@ type DeploymentConfig struct {
 	CacheDirectory                  *DeploymentConfigField[string]          `json:"cache_directory" typescript:",notnull"`
 	InMemoryDatabase                *DeploymentConfigField[bool]            `json:"in_memory_database" typescript:",notnull"`
 	PostgresURL                     *DeploymentConfigField[string]          `json:"pg_connection_url" typescript:",notnull"`
+	PostgresBuiltinUser             *DeploymentConfigField[string]          `json:"postgres_builtin_user" typescript:",notnull"`
 	OAuth2                          *OAuth2Config                           `json:"oauth2" typescript:",notnull"`
 	OIDC                            *OIDCConfig                             `json:"oidc" typescript:",notnull"`
 	Telemetry                       *TelemetryConfig                        `json:"telemetry" typescript:",notnull"`

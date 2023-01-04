@@ -39,9 +39,8 @@ func startBuiltinPostgresAs(ctx context.Context, uid, gid uint32, stdout, stderr
 	}
 
 	// Fix privileges for the postgres directory, note that this will
-	// won't help if the coder config is located inside e.g. /root
-	// because the unprivileged user won't be able to access anything
-	// inside.
+	// not help if the coder config is located inside e.g. /root because
+	// the unprivileged user won't be able to access anything inside.
 	err = filepath.WalkDir(cfg.PostgresPath(), func(path string, _ fs.DirEntry, err error) error {
 		if err != nil {
 			return err

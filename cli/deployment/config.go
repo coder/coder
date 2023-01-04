@@ -168,6 +168,12 @@ func newConfig() *codersdk.DeploymentConfig {
 			Flag:   "postgres-url",
 			Secret: true,
 		},
+		PostgresBuiltinUser: &codersdk.DeploymentConfigField[string]{
+			Name:   "Postgres Built-in User",
+			Usage:  "The built-in PostgreSQL database will be run as this user (uid:gid) if the server is started as root. This allows the server to be run as root using the built-in PostgreSQL database.",
+			Flag:   "postgres-builtin-user",
+			Hidden: true,
+		},
 		OAuth2: &codersdk.OAuth2Config{
 			Github: &codersdk.OAuth2GithubConfig{
 				ClientID: &codersdk.DeploymentConfigField[string]{
