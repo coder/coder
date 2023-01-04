@@ -19,7 +19,7 @@ coder workspaces ls
 
 ## REST API
 
-You can review the [API reference](../api/index.md) to find the necessary routes and payload. Alternatively, you can enable the [Swagger](https://swagger.io/) endpoint to play with the API:
+You can review the [API reference](../api/index.md) to find the necessary routes and payload. Alternatively, you can enable the [Swagger](https://swagger.io/) endpoint to read the documentation and do requests against the API:
 
 ```console
 coder server --swagger-enable
