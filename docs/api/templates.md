@@ -397,7 +397,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
 
-## Get previous template version by organization and name
+## Get template version by organization and name
 
 ### Code samples
 
@@ -409,6 +409,81 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 ```
 
 `GET /organizations/{organization}/templateversions/{templateversionname}`
+
+### Parameters
+
+| Name                  | In   | Type         | Required | Description           |
+| --------------------- | ---- | ------------ | -------- | --------------------- |
+| `organization`        | path | string(uuid) | true     | Organization ID       |
+| `templateversionname` | path | string       | true     | Template version name |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "created_by": {
+    "avatar_url": "http://example.com",
+    "created_at": "2019-08-24T14:15:22Z",
+    "email": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "last_seen_at": "2019-08-24T14:15:22Z",
+    "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+    "roles": [
+      {
+        "display_name": "string",
+        "name": "string"
+      }
+    ],
+    "status": "active",
+    "username": "string"
+  },
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "job": {
+    "canceled_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "created_at": "2019-08-24T14:15:22Z",
+    "error": "string",
+    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "started_at": "2019-08-24T14:15:22Z",
+    "status": "pending",
+    "tags": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+  },
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "readme": "string",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                         |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.TemplateVersion](schemas.md#codersdktemplateversion) |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Get previous template version by organization and name
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templateversions/{templateversionname}/previous \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /organizations/{organization}/templateversions/{templateversionname}/previous`
 
 ### Parameters
 
@@ -1179,145 +1254,6 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{id}/dry-run \
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
 
-## Get template version logs by template version ID
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X GET http://coder-server:8080/api/v2/templateversions/{id}/resources \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`GET /templateversions/{id}/resources`
-
-### Parameters
-
-| Name     | In    | Type         | Required | Description           |
-| -------- | ----- | ------------ | -------- | --------------------- |
-| `id`     | path  | string(uuid) | true     | Template version ID   |
-| `before` | query | integer      | false    | Before Unix timestamp |
-| `after`  | query | integer      | false    | After Unix timestamp  |
-| `follow` | query | boolean      | false    | Follow log stream     |
-
-### Example responses
-
-> 200 Response
-
-```json
-[
-  {
-    "created_at": "2019-08-24T14:15:22Z",
-    "id": 0,
-    "log_level": "trace",
-    "log_source": "string",
-    "output": "string",
-    "stage": "string"
-  }
-]
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                                                      |
-| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ProvisionerJobLog](schemas.md#codersdkprovisionerjoblog) |
-
-<h3 id="get-template-version-logs-by-template-version-id-responseschema">Response Schema</h3>
-
-Status Code **200**
-
-| Name           | Type              | Required | Restrictions | Description |
-| -------------- | ----------------- | -------- | ------------ | ----------- |
-| `[array item]` | array             | false    |              |             |
-| `» created_at` | string(date-time) | false    |              |             |
-| `» id`         | integer           | false    |              |             |
-| `» log_level`  | string            | false    |              |             |
-| `» log_source` | string            | false    |              |             |
-| `» output`     | string            | false    |              |             |
-| `» stage`      | string            | false    |              |             |
-
-#### Enumerated Values
-
-| Property    | Value   |
-| ----------- | ------- |
-| `log_level` | `trace` |
-| `log_level` | `debug` |
-| `log_level` | `info`  |
-| `log_level` | `warn`  |
-| `log_level` | `error` |
-
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
-
-## Get template version schema by ID
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X GET http://coder-server:8080/api/v2/templateversions/{id}/schema \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`GET /templateversions/{id}/schema`
-
-### Parameters
-
-| Name | In   | Type         | Required | Description         |
-| ---- | ---- | ------------ | -------- | ------------------- |
-| `id` | path | string(uuid) | true     | Template version ID |
-
-### Example responses
-
-> 200 Response
-
-```json
-[
-  {
-    "created_at": "string",
-    "default_source_value": true,
-    "destination_scheme": "string",
-    "id": "string",
-    "name": "string",
-    "schema_id": "string",
-    "scope": "string",
-    "scope_id": "string",
-    "source_scheme": "string",
-    "source_value": "string",
-    "updated_at": "string"
-  }
-]
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                                                |
-| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [parameter.ComputedValue](schemas.md#parametercomputedvalue) |
-
-<h3 id="get-template-version-schema-by-id-responseschema">Response Schema</h3>
-
-Status Code **200**
-
-| Name                     | Type    | Required | Restrictions | Description |
-| ------------------------ | ------- | -------- | ------------ | ----------- |
-| `[array item]`           | array   | false    |              |             |
-| `» created_at`           | string  | false    |              |             |
-| `» default_source_value` | boolean | false    |              |             |
-| `» destination_scheme`   | string  | false    |              |             |
-| `» id`                   | string  | false    |              |             |
-| `» name`                 | string  | false    |              |             |
-| `» schema_id`            | string  | false    |              |             |
-| `» scope`                | string  | false    |              |             |
-| `» scope_id`             | string  | false    |              |             |
-| `» source_scheme`        | string  | false    |              |             |
-| `» source_value`         | string  | false    |              |             |
-| `» updated_at`           | string  | false    |              |             |
-
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
-
 ## Get template version dry-run by job ID
 
 ### Code samples
@@ -1665,5 +1601,417 @@ Status Code **200**
 | `workspace_transition` | `start`         |
 | `workspace_transition` | `stop`          |
 | `workspace_transition` | `delete`        |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Get logs by template version
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/logs \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /templateversions/{templateversion}/logs`
+
+### Parameters
+
+| Name              | In    | Type         | Required | Description           |
+| ----------------- | ----- | ------------ | -------- | --------------------- |
+| `templateversion` | path  | string(uuid) | true     | Template version ID   |
+| `before`          | query | integer      | false    | Before Unix timestamp |
+| `after`           | query | integer      | false    | After Unix timestamp  |
+| `follow`          | query | boolean      | false    | Follow log stream     |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "id": 0,
+    "log_level": "trace",
+    "log_source": "string",
+    "output": "string",
+    "stage": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                      |
+| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ProvisionerJobLog](schemas.md#codersdkprovisionerjoblog) |
+
+<h3 id="get-logs-by-template-version-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name           | Type              | Required | Restrictions | Description |
+| -------------- | ----------------- | -------- | ------------ | ----------- |
+| `[array item]` | array             | false    |              |             |
+| `» created_at` | string(date-time) | false    |              |             |
+| `» id`         | integer           | false    |              |             |
+| `» log_level`  | string            | false    |              |             |
+| `» log_source` | string            | false    |              |             |
+| `» output`     | string            | false    |              |             |
+| `» stage`      | string            | false    |              |             |
+
+#### Enumerated Values
+
+| Property    | Value   |
+| ----------- | ------- |
+| `log_level` | `trace` |
+| `log_level` | `debug` |
+| `log_level` | `info`  |
+| `log_level` | `warn`  |
+| `log_level` | `error` |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Get parameters by template version
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/parameters \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /templateversions/{templateversion}/parameters`
+
+### Parameters
+
+| Name              | In   | Type         | Required | Description         |
+| ----------------- | ---- | ------------ | -------- | ------------------- |
+| `templateversion` | path | string(uuid) | true     | Template version ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "created_at": "string",
+    "default_source_value": true,
+    "destination_scheme": "string",
+    "id": "string",
+    "name": "string",
+    "schema_id": "string",
+    "scope": "string",
+    "scope_id": "string",
+    "source_scheme": "string",
+    "source_value": "string",
+    "updated_at": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                |
+| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [parameter.ComputedValue](schemas.md#parametercomputedvalue) |
+
+<h3 id="get-parameters-by-template-version-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                     | Type    | Required | Restrictions | Description |
+| ------------------------ | ------- | -------- | ------------ | ----------- |
+| `[array item]`           | array   | false    |              |             |
+| `» created_at`           | string  | false    |              |             |
+| `» default_source_value` | boolean | false    |              |             |
+| `» destination_scheme`   | string  | false    |              |             |
+| `» id`                   | string  | false    |              |             |
+| `» name`                 | string  | false    |              |             |
+| `» schema_id`            | string  | false    |              |             |
+| `» scope`                | string  | false    |              |             |
+| `» scope_id`             | string  | false    |              |             |
+| `» source_scheme`        | string  | false    |              |             |
+| `» source_value`         | string  | false    |              |             |
+| `» updated_at`           | string  | false    |              |             |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Get resources by template version
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/resources \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /templateversions/{templateversion}/resources`
+
+### Parameters
+
+| Name              | In   | Type         | Required | Description         |
+| ----------------- | ---- | ------------ | -------- | ------------------- |
+| `templateversion` | path | string(uuid) | true     | Template version ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "agents": [
+      {
+        "apps": [
+          {
+            "command": "string",
+            "display_name": "string",
+            "external": true,
+            "health": "string",
+            "healthcheck": {
+              "interval": 0,
+              "threshold": 0,
+              "url": "string"
+            },
+            "icon": "string",
+            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+            "sharing_level": "owner",
+            "slug": "string",
+            "subdomain": true,
+            "url": "string"
+          }
+        ],
+        "architecture": "string",
+        "connection_timeout_seconds": 0,
+        "created_at": "2019-08-24T14:15:22Z",
+        "directory": "string",
+        "disconnected_at": "2019-08-24T14:15:22Z",
+        "environment_variables": {
+          "property1": "string",
+          "property2": "string"
+        },
+        "first_connected_at": "2019-08-24T14:15:22Z",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "instance_id": "string",
+        "last_connected_at": "2019-08-24T14:15:22Z",
+        "latency": {
+          "property1": {
+            "latency_ms": 0,
+            "preferred": true
+          },
+          "property2": {
+            "latency_ms": 0,
+            "preferred": true
+          }
+        },
+        "name": "string",
+        "operating_system": "string",
+        "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+        "startup_script": "string",
+        "status": "connecting",
+        "troubleshooting_url": "string",
+        "updated_at": "2019-08-24T14:15:22Z",
+        "version": "string"
+      }
+    ],
+    "created_at": "2019-08-24T14:15:22Z",
+    "daily_cost": 0,
+    "hide": true,
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+    "metadata": [
+      {
+        "key": "string",
+        "sensitive": true,
+        "value": "string"
+      }
+    ],
+    "name": "string",
+    "type": "string",
+    "workspace_transition": "start"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                      |
+| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.WorkspaceResource](schemas.md#codersdkworkspaceresource) |
+
+<h3 id="get-resources-by-template-version-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                            | Type                   | Required | Restrictions | Description                                                                                                                                                                                                                                             |
+| ------------------------------- | ---------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[array item]`                  | array                  | false    |              |                                                                                                                                                                                                                                                         |
+| `» agents`                      | array                  | false    |              |                                                                                                                                                                                                                                                         |
+| `»» apps`                       | array                  | false    |              |                                                                                                                                                                                                                                                         |
+| `»»» command`                   | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»»» display_name`              | string                 | false    |              | DisplayName is a friendly name for the app.                                                                                                                                                                                                             |
+| `»»» external`                  | boolean                | false    |              | External specifies whether the URL should be opened externally on<br>the client or not.                                                                                                                                                                 |
+| `»»» health`                    | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»»» healthcheck`               | `codersdk.Healthcheck` | false    |              |                                                                                                                                                                                                                                                         |
+| `»»»» interval`                 | integer                | false    |              | Interval specifies the seconds between each health check.                                                                                                                                                                                               |
+| `»»»» threshold`                | integer                | false    |              | Threshold specifies the number of consecutive failed health checks before returning "unhealthy".                                                                                                                                                        |
+| `»»»» url`                      | string                 | false    |              | URL specifies the endpoint to check for the app health.                                                                                                                                                                                                 |
+| `»»» icon`                      | string                 | false    |              | Icon is a relative path or external URL that specifies<br>an icon to be displayed in the dashboard.                                                                                                                                                     |
+| `»»» id`                        | string(uuid)           | false    |              |                                                                                                                                                                                                                                                         |
+| `»»» sharing_level`             | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»»» slug`                      | string                 | false    |              | Slug is a unique identifier within the agent.                                                                                                                                                                                                           |
+| `»»» subdomain`                 | boolean                | false    |              | Subdomain denotes whether the app should be accessed via a path on the<br>`coder server` or via a hostname-based dev URL. If this is set to true<br>and there is no app wildcard configured on the server, the app will not<br>be accessible in the UI. |
+| `»»» url`                       | string                 | false    |              | URL is the address being proxied to inside the workspace.<br>If external is specified, this will be opened on the client.                                                                                                                               |
+| `»» architecture`               | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»» connection_timeout_seconds` | integer                | false    |              |                                                                                                                                                                                                                                                         |
+| `»» created_at`                 | string(date-time)      | false    |              |                                                                                                                                                                                                                                                         |
+| `»» directory`                  | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»» disconnected_at`            | string(date-time)      | false    |              |                                                                                                                                                                                                                                                         |
+| `»» environment_variables`      | object                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»»» [any property]`            | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»» first_connected_at`         | string(date-time)      | false    |              |                                                                                                                                                                                                                                                         |
+| `»» id`                         | string(uuid)           | false    |              |                                                                                                                                                                                                                                                         |
+| `»» instance_id`                | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»» last_connected_at`          | string(date-time)      | false    |              |                                                                                                                                                                                                                                                         |
+| `»» latency`                    | object                 | false    |              | DERPLatency is mapped by region name (e.g. "New York City", "Seattle").                                                                                                                                                                                 |
+| `»»» [any property]`            | `codersdk.DERPRegion`  | false    |              |                                                                                                                                                                                                                                                         |
+| `»»»» latency_ms`               | number                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»»»» preferred`                | boolean                | false    |              |                                                                                                                                                                                                                                                         |
+| `»» name`                       | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»» operating_system`           | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»» resource_id`                | string(uuid)           | false    |              |                                                                                                                                                                                                                                                         |
+| `»» startup_script`             | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»» status`                     | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»» troubleshooting_url`        | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»» updated_at`                 | string(date-time)      | false    |              |                                                                                                                                                                                                                                                         |
+| `»» version`                    | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `» created_at`                  | string(date-time)      | false    |              |                                                                                                                                                                                                                                                         |
+| `» daily_cost`                  | integer                | false    |              |                                                                                                                                                                                                                                                         |
+| `» hide`                        | boolean                | false    |              |                                                                                                                                                                                                                                                         |
+| `» icon`                        | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `» id`                          | string(uuid)           | false    |              |                                                                                                                                                                                                                                                         |
+| `» job_id`                      | string(uuid)           | false    |              |                                                                                                                                                                                                                                                         |
+| `» metadata`                    | array                  | false    |              |                                                                                                                                                                                                                                                         |
+| `»» key`                        | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `»» sensitive`                  | boolean                | false    |              |                                                                                                                                                                                                                                                         |
+| `»» value`                      | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `» name`                        | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `» type`                        | string                 | false    |              |                                                                                                                                                                                                                                                         |
+| `» workspace_transition`        | string                 | false    |              |                                                                                                                                                                                                                                                         |
+
+#### Enumerated Values
+
+| Property               | Value           |
+| ---------------------- | --------------- |
+| `sharing_level`        | `owner`         |
+| `sharing_level`        | `authenticated` |
+| `sharing_level`        | `public`        |
+| `status`               | `connecting`    |
+| `status`               | `connected`     |
+| `status`               | `disconnected`  |
+| `status`               | `timeout`       |
+| `workspace_transition` | `start`         |
+| `workspace_transition` | `stop`          |
+| `workspace_transition` | `delete`        |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Get schema by template version
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/schema \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /templateversions/{templateversion}/schema`
+
+### Parameters
+
+| Name              | In   | Type         | Required | Description         |
+| ----------------- | ---- | ------------ | -------- | ------------------- |
+| `templateversion` | path | string(uuid) | true     | Template version ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "allow_override_destination": true,
+    "allow_override_source": true,
+    "created_at": "2019-08-24T14:15:22Z",
+    "default_destination_scheme": "none",
+    "default_refresh": "string",
+    "default_source_scheme": "none",
+    "default_source_value": "string",
+    "description": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+    "name": "string",
+    "redisplay_value": true,
+    "validation_condition": "string",
+    "validation_contains": ["string"],
+    "validation_error": "string",
+    "validation_type_system": "string",
+    "validation_value_type": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                  |
+| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ParameterSchema](schemas.md#codersdkparameterschema) |
+
+<h3 id="get-schema-by-template-version-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                           | Type              | Required | Restrictions | Description                                                                                                                |
+| ------------------------------ | ----------------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `[array item]`                 | array             | false    |              |                                                                                                                            |
+| `» allow_override_destination` | boolean           | false    |              |                                                                                                                            |
+| `» allow_override_source`      | boolean           | false    |              |                                                                                                                            |
+| `» created_at`                 | string(date-time) | false    |              |                                                                                                                            |
+| `» default_destination_scheme` | string            | false    |              |                                                                                                                            |
+| `» default_refresh`            | string            | false    |              |                                                                                                                            |
+| `» default_source_scheme`      | string            | false    |              |                                                                                                                            |
+| `» default_source_value`       | string            | false    |              |                                                                                                                            |
+| `» description`                | string            | false    |              |                                                                                                                            |
+| `» id`                         | string(uuid)      | false    |              |                                                                                                                            |
+| `» job_id`                     | string(uuid)      | false    |              |                                                                                                                            |
+| `» name`                       | string            | false    |              |                                                                                                                            |
+| `» redisplay_value`            | boolean           | false    |              |                                                                                                                            |
+| `» validation_condition`       | string            | false    |              |                                                                                                                            |
+| `» validation_contains`        | array             | false    |              | This is a special array of items provided if the validation condition<br>explicitly states the value must be one of a set. |
+| `» validation_error`           | string            | false    |              |                                                                                                                            |
+| `» validation_type_system`     | string            | false    |              |                                                                                                                            |
+| `» validation_value_type`      | string            | false    |              |                                                                                                                            |
+
+#### Enumerated Values
+
+| Property                     | Value                  |
+| ---------------------------- | ---------------------- |
+| `default_destination_scheme` | `none`                 |
+| `default_destination_scheme` | `environment_variable` |
+| `default_destination_scheme` | `provisioner_variable` |
+| `default_source_scheme`      | `none`                 |
+| `default_source_scheme`      | `data`                 |
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.

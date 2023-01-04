@@ -700,6 +700,44 @@
         ],
         "produces": ["application/json"],
         "tags": ["Templates"],
+        "summary": "Get template version by organization and name",
+        "operationId": "get-template-version-by-organization-and-name",
+        "parameters": [
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "Organization ID",
+            "name": "organization",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Template version name",
+            "name": "templateversionname",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/codersdk.TemplateVersion"
+            }
+          }
+        }
+      }
+    },
+    "/organizations/{organization}/templateversions/{templateversionname}/previous": {
+      "get": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Templates"],
         "summary": "Get previous template version by organization and name",
         "operationId": "get-previous-template-version-by-organization-and-name",
         "parameters": [
@@ -1201,92 +1239,6 @@
         }
       }
     },
-    "/templateversions/{id}/resources": {
-      "get": {
-        "security": [
-          {
-            "CoderSessionToken": []
-          }
-        ],
-        "produces": ["application/json"],
-        "tags": ["Templates"],
-        "summary": "Get template version logs by template version ID",
-        "operationId": "get-template-version-resources-by-template-version-id",
-        "parameters": [
-          {
-            "type": "string",
-            "format": "uuid",
-            "description": "Template version ID",
-            "name": "id",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "integer",
-            "description": "Before Unix timestamp",
-            "name": "before",
-            "in": "query"
-          },
-          {
-            "type": "integer",
-            "description": "After Unix timestamp",
-            "name": "after",
-            "in": "query"
-          },
-          {
-            "type": "boolean",
-            "description": "Follow log stream",
-            "name": "follow",
-            "in": "query"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "type": "array",
-              "items": {
-                "$ref": "#/definitions/codersdk.ProvisionerJobLog"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/templateversions/{id}/schema": {
-      "get": {
-        "security": [
-          {
-            "CoderSessionToken": []
-          }
-        ],
-        "produces": ["application/json"],
-        "tags": ["Templates"],
-        "summary": "Get template version schema by ID",
-        "operationId": "get-template-version-schema-by-id",
-        "parameters": [
-          {
-            "type": "string",
-            "format": "uuid",
-            "description": "Template version ID",
-            "name": "id",
-            "in": "path",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "type": "array",
-              "items": {
-                "$ref": "#/definitions/parameter.ComputedValue"
-              }
-            }
-          }
-        }
-      }
-    },
     "/templateversions/{templateversionid}/dry-run/{jobid}": {
       "get": {
         "security": [
@@ -1454,6 +1406,160 @@
               "type": "array",
               "items": {
                 "$ref": "#/definitions/codersdk.WorkspaceResource"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/templateversions/{templateversion}/logs": {
+      "get": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Templates"],
+        "summary": "Get logs by template version",
+        "operationId": "get-logs-by-template-version",
+        "parameters": [
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "Template version ID",
+            "name": "templateversion",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "integer",
+            "description": "Before Unix timestamp",
+            "name": "before",
+            "in": "query"
+          },
+          {
+            "type": "integer",
+            "description": "After Unix timestamp",
+            "name": "after",
+            "in": "query"
+          },
+          {
+            "type": "boolean",
+            "description": "Follow log stream",
+            "name": "follow",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/codersdk.ProvisionerJobLog"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/templateversions/{templateversion}/parameters": {
+      "get": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Templates"],
+        "summary": "Get parameters by template version",
+        "operationId": "get-parameters-by-template-version",
+        "parameters": [
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "Template version ID",
+            "name": "templateversion",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/parameter.ComputedValue"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/templateversions/{templateversion}/resources": {
+      "get": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Templates"],
+        "summary": "Get resources by template version",
+        "operationId": "get-resources-by-template-version",
+        "parameters": [
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "Template version ID",
+            "name": "templateversion",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/codersdk.WorkspaceResource"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/templateversions/{templateversion}/schema": {
+      "get": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Templates"],
+        "summary": "Get schema by template version",
+        "operationId": "get-schema-by-template-version",
+        "parameters": [
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "Template version ID",
+            "name": "templateversion",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/codersdk.ParameterSchema"
               }
             }
           }

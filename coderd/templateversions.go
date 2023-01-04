@@ -132,14 +132,14 @@ func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Reque
 	})
 }
 
-// @Summary Get template version schema by template version ID
-// @ID get-template-version-schema-by-template-version-id
+// @Summary Get schema by template version
+// @ID get-schema-by-template-version
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
-// @Param id path string true "Template version ID" format(uuid)
+// @Param templateversion path string true "Template version ID" format(uuid)
 // @Success 200 {array} codersdk.ParameterSchema
-// @Router /templateversions/{id}/schema [get]
+// @Router /templateversions/{templateversion}/schema [get]
 func (api *API) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var (
@@ -192,14 +192,14 @@ func (api *API) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, apiSchemas)
 }
 
-// @Summary Get template version schema by ID
-// @ID get-template-version-schema-by-id
+// @Summary Get parameters by template version
+// @ID get-parameters-by-template-version
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
-// @Param id path string true "Template version ID" format(uuid)
+// @Param templateversion path string true "Template version ID" format(uuid)
 // @Success 200 {array} parameter.ComputedValue
-// @Router /templateversions/{id}/schema [get]
+// @Router /templateversions/{templateversion}/parameters [get]
 func (api *API) templateVersionParameters(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var (
@@ -758,7 +758,7 @@ func (api *API) templateVersionByOrganizationAndName(rw http.ResponseWriter, r *
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param templateversionname path string true "Template version name"
 // @Success 200 {object} codersdk.TemplateVersion
-// @Router /organizations/{organization}/templateversions/{templateversionname} [get]
+// @Router /organizations/{organization}/templateversions/{templateversionname}/previous [get]
 func (api *API) previousTemplateVersionByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
@@ -1204,14 +1204,14 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 	httpapi.Write(ctx, rw, http.StatusCreated, convertTemplateVersion(templateVersion, convertProvisionerJob(provisionerJob), user))
 }
 
-// @Summary Get template version resources by template version ID
-// @ID get-template-version-resources-by-template-version-id
+// @Summary Get resources by template version
+// @ID get-resources-by-template-version
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
-// @Param id path string true "Template version ID" format(uuid)
+// @Param templateversion path string true "Template version ID" format(uuid)
 // @Success 200 {array} codersdk.WorkspaceResource
-// @Router /templateversions/{id}/resources [get]
+// @Router /templateversions/{templateversion}/resources [get]
 //
 // templateVersionResources returns the workspace agent resources associated
 // with a template version. A template can specify more than one resource to be
@@ -1241,17 +1241,17 @@ func (api *API) templateVersionResources(rw http.ResponseWriter, r *http.Request
 	api.provisionerJobResources(rw, r, job)
 }
 
-// @Summary Get template version logs by template version ID
-// @ID get-template-version-resources-by-template-version-id
+// @Summary Get logs by template version
+// @ID get-logs-by-template-version
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
-// @Param id path string true "Template version ID" format(uuid)
+// @Param templateversion path string true "Template version ID" format(uuid)
 // @Param before query int false "Before Unix timestamp"
 // @Param after query int false "After Unix timestamp"
 // @Param follow query bool false "Follow log stream"
 // @Success 200 {array} codersdk.ProvisionerJobLog
-// @Router /templateversions/{id}/resources [get]
+// @Router /templateversions/{templateversion}/logs [get]
 //
 // templateVersionLogs returns the logs returned by the provisioner for the given
 // template version. These logs are only associated with the template version,
