@@ -63,7 +63,7 @@ require (
 	github.com/bramvdbogaerde/go-scp v1.2.1-0.20221219230748-977ee74ac37b
 	github.com/briandowns/spinner v1.18.1
 	github.com/cakturk/go-netstat v0.0.0-20200220111822-e5b49efee7a5
-	github.com/charmbracelet/charm v0.12.1
+	github.com/charmbracelet/charm v0.8.6
 	github.com/charmbracelet/lipgloss v0.6.0
 	github.com/cli/safeexec v1.0.0
 	github.com/coder/retry v1.3.0
@@ -111,7 +111,7 @@ require (
 	github.com/mitchellh/go-wordwrap v1.0.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/moby/moby v20.10.21+incompatible
-	github.com/open-policy-agent/opa v0.44.0
+	github.com/open-policy-agent/opa v0.47.4
 	github.com/ory/dockertest/v3 v3.9.1
 	github.com/pion/udp v0.1.1
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
