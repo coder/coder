@@ -18,14 +18,15 @@ Example.args = {
   context: {},
 }
 
-const err = new Error("You are signed out or your session has expired. Please sign in again to continue.")
+const err = new Error(
+  "You are signed out or your session has expired. Please sign in again to continue.",
+)
 
 export const AuthError = Template.bind({})
 AuthError.args = {
   isLoading: false,
   onSignIn: action("onSignIn"),
   context: {
-    authError: err
+    authError: err,
   },
 }
-

@@ -99,7 +99,7 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
     textAlign: "left",
 
     "& span": {
-      paddingTop: `${theme.spacing(0.25)}px`
+      paddingTop: `${theme.spacing(0.25)}px`,
     },
 
     // targeting the alert icon rather than the expander icon
