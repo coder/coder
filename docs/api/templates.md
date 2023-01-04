@@ -2,93 +2,6 @@
 
 > This page is incomplete, stay tuned.
 
-## Create template by organization
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X POST http://coder-server:8080/api/v2/organizations/{organization-id}/templates/ \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`POST /organizations/{organization-id}/templates/`
-
-> Body parameter
-
-```json
-{
-  "allow_user_cancel_workspace_jobs": true,
-  "default_ttl_ms": 0,
-  "description": "string",
-  "display_name": "string",
-  "icon": "string",
-  "name": "string",
-  "parameter_values": [
-    {
-      "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
-      "destination_scheme": "none",
-      "name": "string",
-      "source_scheme": "none",
-      "source_value": "string"
-    }
-  ],
-  "template_version_id": "string"
-}
-```
-
-### Parameters
-
-| Name              | In   | Type                                                                       | Required | Description     |
-| ----------------- | ---- | -------------------------------------------------------------------------- | -------- | --------------- |
-| `organization-id` | path | string                                                                     | true     | Organization ID |
-| `body`            | body | [codersdk.CreateTemplateRequest](schemas.md#codersdkcreatetemplaterequest) | true     | Request body    |
-
-### Example responses
-
-> 200 Response
-
-```json
-{
-  "active_user_count": 0,
-  "active_version_id": "string",
-  "allow_user_cancel_workspace_jobs": true,
-  "build_time_stats": {
-    "property1": {
-      "p50": 123,
-      "p95": 146
-    },
-    "property2": {
-      "p50": 123,
-      "p95": 146
-    }
-  },
-  "created_at": "2019-08-24T14:15:22Z",
-  "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
-  "created_by_name": "string",
-  "default_ttl_ms": 0,
-  "description": "string",
-  "display_name": "string",
-  "icon": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "provisioner": "string",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "workspace_owner_count": 0
-}
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                           |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Template](schemas.md#codersdktemplate) |
-
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
-
 ## Get templates by organization
 
 ### Code samples
@@ -181,25 +94,49 @@ Status Code **200**
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
 
-## Get templates by organization and template name
+## Create template by organization
 
 ### Code samples
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templates/{template-name} \
+curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templates \
+  -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/templates/{template-name}`
+`POST /organizations/{organization}/templates`
+
+> Body parameter
+
+```json
+{
+  "allow_user_cancel_workspace_jobs": true,
+  "default_ttl_ms": 0,
+  "description": "string",
+  "display_name": "string",
+  "icon": "string",
+  "name": "string",
+  "parameter_values": [
+    {
+      "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
+      "destination_scheme": "none",
+      "name": "string",
+      "source_scheme": "none",
+      "source_value": "string"
+    }
+  ],
+  "template_version_id": "string"
+}
+```
 
 ### Parameters
 
-| Name            | In   | Type         | Required | Description     |
-| --------------- | ---- | ------------ | -------- | --------------- |
-| `organization`  | path | string(uuid) | true     | Organization ID |
-| `template-name` | path | string       | true     | Template name   |
+| Name           | In   | Type                                                                       | Required | Description     |
+| -------------- | ---- | -------------------------------------------------------------------------- | -------- | --------------- |
+| `organization` | path | string                                                                     | true     | Organization ID |
+| `body`         | body | [codersdk.CreateTemplateRequest](schemas.md#codersdkcreatetemplaterequest) | true     | Request body    |
 
 ### Example responses
 
@@ -241,6 +178,297 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 | Status | Meaning                                                 | Description | Schema                                           |
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Template](schemas.md#codersdktemplate) |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Get template examples by organization
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templates/examples \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /organizations/{organization}/templates/examples`
+
+### Parameters
+
+| Name           | In   | Type         | Required | Description     |
+| -------------- | ---- | ------------ | -------- | --------------- |
+| `organization` | path | string(uuid) | true     | Organization ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "description": "string",
+    "icon": "string",
+    "id": "string",
+    "markdown": "string",
+    "name": "string",
+    "tags": ["string"],
+    "url": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                  |
+| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.TemplateExample](schemas.md#codersdktemplateexample) |
+
+<h3 id="get-template-examples-by-organization-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name            | Type   | Required | Restrictions | Description |
+| --------------- | ------ | -------- | ------------ | ----------- |
+| `[array item]`  | array  | false    |              |             |
+| `» description` | string | false    |              |             |
+| `» icon`        | string | false    |              |             |
+| `» id`          | string | false    |              |             |
+| `» markdown`    | string | false    |              |             |
+| `» name`        | string | false    |              |             |
+| `» tags`        | array  | false    |              |             |
+| `» url`         | string | false    |              |             |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Get templates by organization and template name
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templates/{templatename} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /organizations/{organization}/templates/{templatename}`
+
+### Parameters
+
+| Name           | In   | Type         | Required | Description     |
+| -------------- | ---- | ------------ | -------- | --------------- |
+| `organization` | path | string(uuid) | true     | Organization ID |
+| `templatename` | path | string       | true     | Template name   |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "active_user_count": 0,
+  "active_version_id": "string",
+  "allow_user_cancel_workspace_jobs": true,
+  "build_time_stats": {
+    "property1": {
+      "p50": 123,
+      "p95": 146
+    },
+    "property2": {
+      "p50": 123,
+      "p95": 146
+    }
+  },
+  "created_at": "2019-08-24T14:15:22Z",
+  "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
+  "created_by_name": "string",
+  "default_ttl_ms": 0,
+  "description": "string",
+  "display_name": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "provisioner": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "workspace_owner_count": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Template](schemas.md#codersdktemplate) |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Create template version by organization
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templateversions \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /organizations/{organization}/templateversions`
+
+> Body parameter
+
+```json
+{
+  "parameter_values": [
+    {
+      "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
+      "destination_scheme": "none",
+      "name": "string",
+      "source_scheme": "none",
+      "source_value": "string"
+    }
+  ],
+  "workspace_name": "string"
+}
+```
+
+### Parameters
+
+| Name           | In   | Type                                                                                                 | Required | Description                     |
+| -------------- | ---- | ---------------------------------------------------------------------------------------------------- | -------- | ------------------------------- |
+| `organization` | path | string(uuid)                                                                                         | true     | Organization ID                 |
+| `body`         | body | [codersdk.CreateTemplateVersionDryRunRequest](schemas.md#codersdkcreatetemplateversiondryrunrequest) | true     | Create template version request |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "created_by": {
+    "avatar_url": "http://example.com",
+    "created_at": "2019-08-24T14:15:22Z",
+    "email": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "last_seen_at": "2019-08-24T14:15:22Z",
+    "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+    "roles": [
+      {
+        "display_name": "string",
+        "name": "string"
+      }
+    ],
+    "status": "active",
+    "username": "string"
+  },
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "job": {
+    "canceled_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "created_at": "2019-08-24T14:15:22Z",
+    "error": "string",
+    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "started_at": "2019-08-24T14:15:22Z",
+    "status": "pending",
+    "tags": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+  },
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "readme": "string",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                                         |
+| ------ | ------------------------------------------------------------ | ----------- | -------------------------------------------------------------- |
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.TemplateVersion](schemas.md#codersdktemplateversion) |
+
+To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+
+## Get previous template version by organization and name
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templateversions/{templateversionname} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /organizations/{organization}/templateversions/{templateversionname}`
+
+### Parameters
+
+| Name                  | In   | Type         | Required | Description           |
+| --------------------- | ---- | ------------ | -------- | --------------------- |
+| `organization`        | path | string(uuid) | true     | Organization ID       |
+| `templateversionname` | path | string       | true     | Template version name |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "created_by": {
+    "avatar_url": "http://example.com",
+    "created_at": "2019-08-24T14:15:22Z",
+    "email": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "last_seen_at": "2019-08-24T14:15:22Z",
+    "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+    "roles": [
+      {
+        "display_name": "string",
+        "name": "string"
+      }
+    ],
+    "status": "active",
+    "username": "string"
+  },
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "job": {
+    "canceled_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "created_at": "2019-08-24T14:15:22Z",
+    "error": "string",
+    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "started_at": "2019-08-24T14:15:22Z",
+    "status": "pending",
+    "tags": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+  },
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "readme": "string",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                         |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.TemplateVersion](schemas.md#codersdktemplateversion) |
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
 
@@ -642,19 +870,19 @@ To perform this operation, you must be authenticated by means of one of the foll
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/templates/{id}/versions/{name} \
+curl -X GET http://coder-server:8080/api/v2/templates/{id}/versions/{templateversionname} \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templates/{id}/versions/{name}`
+`GET /templates/{id}/versions/{templateversionname}`
 
 ### Parameters
 
-| Name   | In   | Type         | Required | Description   |
-| ------ | ---- | ------------ | -------- | ------------- |
-| `id`   | path | string(uuid) | true     | Template ID   |
-| `name` | path | string       | true     | Template name |
+| Name                  | In   | Type         | Required | Description           |
+| --------------------- | ---- | ------------ | -------- | --------------------- |
+| `id`                  | path | string(uuid) | true     | Template ID           |
+| `templateversionname` | path | string       | true     | Template version name |
 
 ### Example responses
 

@@ -90,6 +90,24 @@
 | ----------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------ |
 | `report_interval` | integer | false    |              | Report interval is the duration after which the agent should send stats again. |
 
+## codersdk.AssignableRoles
+
+```json
+{
+  "assignable": true,
+  "display_name": "string",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description |
+| -------------- | ------- | -------- | ------------ | ----------- |
+| `assignable`   | boolean | false    |              |             |
+| `display_name` | string  | false    |              |             |
+| `name`         | string  | false    |              |             |
+
 ## codersdk.AuditDiff
 
 ```json
@@ -2307,6 +2325,33 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `name`       | string | true     |              |             |
 | `updated_at` | string | true     |              |             |
 
+## codersdk.OrganizationMember
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "roles": [
+    {
+      "display_name": "string",
+      "name": "string"
+    }
+  ],
+  "updated_at": "2019-08-24T14:15:22Z",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Properties
+
+| Name              | Type                                    | Required | Restrictions | Description |
+| ----------------- | --------------------------------------- | -------- | ------------ | ----------- |
+| `created_at`      | string                                  | false    |              |             |
+| `organization_id` | string                                  | false    |              |             |
+| `roles`           | array of [codersdk.Role](#codersdkrole) | false    |              |             |
+| `updated_at`      | string                                  | false    |              |             |
+| `user_id`         | string                                  | false    |              |             |
+
 ## codersdk.Parameter
 
 ```json
@@ -2989,6 +3034,32 @@ Parameter represents a set value for the scope.
 | --------- | ----------------------------------------------- | -------- | ------------ | ----------- |
 | `entries` | array of [codersdk.DAUEntry](#codersdkdauentry) | false    |              |             |
 
+## codersdk.TemplateExample
+
+```json
+{
+  "description": "string",
+  "icon": "string",
+  "id": "string",
+  "markdown": "string",
+  "name": "string",
+  "tags": ["string"],
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name          | Type            | Required | Restrictions | Description |
+| ------------- | --------------- | -------- | ------------ | ----------- |
+| `description` | string          | false    |              |             |
+| `icon`        | string          | false    |              |             |
+| `id`          | string          | false    |              |             |
+| `markdown`    | string          | false    |              |             |
+| `name`        | string          | false    |              |             |
+| `tags`        | array of string | false    |              |             |
+| `url`         | string          | false    |              |             |
+
 ## codersdk.TemplateVersion
 
 ```json
@@ -3143,6 +3214,20 @@ Parameter represents a set value for the scope.
 | `current` | boolean | false    |              | Current indicates whether the server version is the same as the latest. |
 | `url`     | string  | false    |              | URL to download the latest release of Coder.                            |
 | `version` | string  | false    |              | Version is the semantic version for the latest release of Coder.        |
+
+## codersdk.UpdateRoles
+
+```json
+{
+  "roles": ["string"]
+}
+```
+
+### Properties
+
+| Name    | Type            | Required | Restrictions | Description |
+| ------- | --------------- | -------- | ------------ | ----------- |
+| `roles` | array of string | false    |              |             |
 
 ## codersdk.UpdateWorkspaceAutostartRequest
 

@@ -57,18 +57,18 @@ To perform this operation, you must be authenticated by means of one of the foll
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/organizations/{id} \
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization} \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{id}`
+`GET /organizations/{organization}`
 
 ### Parameters
 
-| Name | In   | Type         | Required | Description     |
-| ---- | ---- | ------------ | -------- | --------------- |
-| `id` | path | string(uuid) | true     | Organization ID |
+| Name           | In   | Type         | Required | Description     |
+| -------------- | ---- | ------------ | -------- | --------------- |
+| `organization` | path | string(uuid) | true     | Organization ID |
 
 ### Example responses
 

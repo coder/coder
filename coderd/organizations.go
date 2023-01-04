@@ -21,9 +21,9 @@ import (
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Organizations
-// @Param id path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization ID" format(uuid)
 // @Success 200 {object} codersdk.Organization
-// @Router /organizations/{id} [get]
+// @Router /organizations/{organization} [get]
 func (api *API) organization(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)

@@ -16,6 +16,17 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+// @Summary Assign role to organization member
+// @ID assign-role-to-organization-member
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Members
+// @Param request body codersdk.UpdateRoles true "Update roles request"
+// @Param organization path string true "Organization ID"
+// @Param user path string true "Username, UUID, or me"
+// @Success 200 {object} codersdk.OrganizationMember
+// @Router /organizations/{organization}/members/{user}/roles [put]
 func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx          = r.Context()

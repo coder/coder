@@ -646,9 +646,9 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 // @Produce json
 // @Tags Templates
 // @Param id path string true "Template ID" format(uuid)
-// @Param name path string true "Template name"
+// @Param templateversionname path string true "Template version name"
 // @Success 200 {array} codersdk.TemplateVersion
-// @Router /templates/{id}/versions/{name} [get]
+// @Router /templates/{id}/versions/{templateversionname} [get]
 func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
@@ -699,6 +699,15 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user))
 }
 
+// @Summary Get template version by organization and name
+// @ID get-template-version-by-organization-and-name
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param templateversionname path string true "Template version name"
+// @Success 200 {object} codersdk.TemplateVersion
+// @Router /organizations/{organization}/templateversions/{templateversionname} [get]
 func (api *API) templateVersionByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
@@ -741,6 +750,15 @@ func (api *API) templateVersionByOrganizationAndName(rw http.ResponseWriter, r *
 	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user))
 }
 
+// @Summary Get previous template version by organization and name
+// @ID get-previous-template-version-by-organization-and-name
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param templateversionname path string true "Template version name"
+// @Success 200 {object} codersdk.TemplateVersion
+// @Router /organizations/{organization}/templateversions/{templateversionname} [get]
 func (api *API) previousTemplateVersionByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
@@ -890,7 +908,18 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 	})
 }
 
-// Creates a new version of a template. An import job is queued to parse the storage method provided.
+// @Summary Create template version by organization
+// @ID create-template-version-by-organization
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Templates
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param request body codersdk.CreateTemplateVersionDryRunRequest true "Create template version request"
+// @Success 201 {object} codersdk.TemplateVersion
+// @Router /organizations/{organization}/templateversions [post]
+//
+// postTemplateVersionsByOrganization creates a new version of a template. An import job is queued to parse the storage method provided.
 func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()

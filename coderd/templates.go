@@ -149,9 +149,9 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Templates
 // @Param request body codersdk.CreateTemplateRequest true "Request body"
-// @Param organization-id path string true "Organization ID"
+// @Param organization path string true "Organization ID"
 // @Success 200 {object} codersdk.Template
-// @Router /organizations/{organization-id}/templates/ [post]
+// @Router /organizations/{organization}/templates [post]
 // Returns a single template.
 // Create a new template in an organization.
 func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Request) {
@@ -347,7 +347,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 // @Produce json
 // @Tags Templates
 // @Param organization path string true "Organization ID" format(uuid)
-// @Success 200 {object} []codersdk.Template
+// @Success 200 {array} codersdk.Template
 // @Router /organizations/{organization}/templates [get]
 func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -413,9 +413,9 @@ func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 // @Produce json
 // @Tags Templates
 // @Param organization path string true "Organization ID" format(uuid)
-// @Param template-name path string true "Template name"
+// @Param templatename path string true "Template name"
 // @Success 200 {object} codersdk.Template
-// @Router /organizations/{organization}/templates/{template-name} [get]
+// @Router /organizations/{organization}/templates/{templatename} [get]
 func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
@@ -625,6 +625,14 @@ func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
+// @Summary Get template examples by organization
+// @ID get-template-examples-by-organization
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Param organization path string true "Organization ID" format(uuid)
+// @Success 200 {array} codersdk.TemplateExample
+// @Router /organizations/{organization}/templates/examples [get]
 func (api *API) templateExamples(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx          = r.Context()

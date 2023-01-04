@@ -414,7 +414,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/organizations/{id}": {
+        "/organizations/{organization}": {
             "get": {
                 "security": [
                     {
@@ -434,7 +434,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Organization ID",
-                        "name": "id",
+                        "name": "organization",
                         "in": "path",
                         "required": true
                     }
@@ -449,8 +449,46 @@ const docTemplate = `{
                 }
             }
         },
-        "/organizations/{organization-id}/templates/": {
-            "post": {
+        "/organizations/{organization}/members/roles": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Members"
+                ],
+                "summary": "Get member roles by organization",
+                "operationId": "get-member-roles-by-organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.AssignableRoles"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/members/{user}/roles": {
+            "put": {
                 "security": [
                     {
                         "CoderSessionToken": []
@@ -463,24 +501,31 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Templates"
+                    "Members"
                 ],
-                "summary": "Create template by organization",
-                "operationId": "create-template-by-organization",
+                "summary": "Assign role to organization member",
+                "operationId": "assign-role-to-organization-member",
                 "parameters": [
                     {
-                        "description": "Request body",
+                        "description": "Update roles request",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.CreateTemplateRequest"
+                            "$ref": "#/definitions/codersdk.UpdateRoles"
                         }
                     },
                     {
                         "type": "string",
                         "description": "Organization ID",
-                        "name": "organization-id",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Username, UUID, or me",
+                        "name": "user",
                         "in": "path",
                         "required": true
                     }
@@ -489,7 +534,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.Template"
+                            "$ref": "#/definitions/codersdk.OrganizationMember"
                         }
                     }
                 }
@@ -508,8 +553,8 @@ const docTemplate = `{
                 "tags": [
                     "Workspaces"
                 ],
-                "summary": "Create workspace by organization",
-                "operationId": "create-workspace-by-organization",
+                "summary": "Create user workspace by organization",
+                "operationId": "create-user-workspace-by-organization",
                 "parameters": [
                     {
                         "type": "string",
@@ -521,7 +566,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Username",
+                        "description": "Username, UUID, or me",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -573,9 +618,91 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Create template by organization",
+                "operationId": "create-template-by-organization",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateTemplateRequest"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Template"
+                        }
+                    }
+                }
             }
         },
-        "/organizations/{organization}/templates/{template-name}": {
+        "/organizations/{organization}/templates/examples": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get template examples by organization",
+                "operationId": "get-template-examples-by-organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.TemplateExample"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/templates/{templatename}": {
             "get": {
                 "security": [
                     {
@@ -602,7 +729,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Template name",
-                        "name": "template-name",
+                        "name": "templatename",
                         "in": "path",
                         "required": true
                     }
@@ -612,6 +739,95 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Template"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/templateversions": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Create template version by organization",
+                "operationId": "create-template-version-by-organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Create template version request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateTemplateVersionDryRunRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateVersion"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/templateversions/{templateversionname}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get previous template version by organization and name",
+                "operationId": "get-previous-template-version-by-organization-and-name",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Template version name",
+                        "name": "templateversionname",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateVersion"
                         }
                     }
                 }
@@ -997,7 +1213,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/templates/{id}/versions/{name}": {
+        "/templates/{id}/versions/{templateversionname}": {
             "get": {
                 "security": [
                     {
@@ -1023,8 +1239,8 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Template name",
-                        "name": "name",
+                        "description": "Template version name",
+                        "name": "templateversionname",
                         "in": "path",
                         "required": true
                     }
@@ -2554,6 +2770,20 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AssignableRoles": {
+            "type": "object",
+            "properties": {
+                "assignable": {
+                    "type": "boolean"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.AuditDiff": {
             "type": "object",
             "additionalProperties": {
@@ -3446,6 +3676,33 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OrganizationMember": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Role"
+                    }
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "codersdk.Parameter": {
             "description": "Parameter represents a set value for the scope.",
             "type": "object",
@@ -3888,6 +4145,35 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.TemplateExample": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "markdown": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.TemplateVersion": {
             "type": "object",
             "properties": {
@@ -3977,6 +4263,17 @@ const docTemplate = `{
                 "version": {
                     "description": "Version is the semantic version for the latest release of Coder.",
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateRoles": {
+            "type": "object",
+            "properties": {
+                "roles": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
