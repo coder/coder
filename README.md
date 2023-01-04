@@ -39,7 +39,9 @@ Software development on your infrastructure. Offload your team's development fro
 
 ## Getting Started
 
-The easiest way to install Coder is to use our
+If you are exploring Coder for the first time, try using one of these [terraform blueprints](https://github.com/ElliotG/coder-oss-tf) maintained by the community. These templates are for exploratory and demo purposes but are a good way to get a feel for how Coder works on AWS, Azure, or GCloud.
+
+The easiest way to install Coder locally is to use our
 [install script](https://github.com/coder/coder/blob/main/install.sh) for Linux
 and macOS. For Windows, use the latest `..._installer.exe` file from GitHub
 Releases.
