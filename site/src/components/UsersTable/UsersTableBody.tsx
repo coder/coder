@@ -131,7 +131,7 @@ export const UsersTableBody: FC<
                           isLoading={Boolean(isUpdatingUserRoles)}
                           onChange={(roles) => {
                             // Remove the fallback role because it is only for the UI
-                            rolesWithoutFallback = roles.filter(
+                            const rolesWithoutFallback = roles.filter(
                               (role) => role !== fallbackRole.name,
                             )
                             onUpdateUserRoles(user, rolesWithoutFallback)
