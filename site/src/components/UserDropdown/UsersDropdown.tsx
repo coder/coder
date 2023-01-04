@@ -12,12 +12,13 @@ import { UserDropdownContent } from "../UserDropdownContent/UserDropdownContent"
 
 export interface UserDropdownProps {
   user: TypesGen.User
+  buildInfo?: TypesGen.BuildInfoResponse
   onSignOut: () => void
 }
 
 export const UserDropdown: React.FC<
   React.PropsWithChildren<UserDropdownProps>
-> = ({ user, onSignOut }: UserDropdownProps) => {
+> = ({ buildInfo, user, onSignOut }: UserDropdownProps) => {
   const styles = useStyles()
   const [anchorEl, setAnchorEl] = useState<HTMLElement | undefined>()
 
@@ -65,6 +66,7 @@ export const UserDropdown: React.FC<
       >
         <UserDropdownContent
           user={user}
+          buildInfo={buildInfo}
           onPopoverClose={onPopoverClose}
           onSignOut={onSignOut}
         />
