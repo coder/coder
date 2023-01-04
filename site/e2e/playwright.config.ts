@@ -15,6 +15,8 @@ const config: PlaywrightTestConfig = {
   use: {
     baseURL: `http://localhost:${basePort}`,
     video: "retain-on-failure",
+    // use stored login after first test
+    storageState: "e2e/storageState.json"
   },
 
   // `webServer` tells Playwright to launch a test server - more details here:

@@ -9,5 +9,8 @@ test("Login takes user to /workspaces", async ({ baseURL, page }) => {
   const signInPage = new SignInPage(baseURL, page)
   await signInPage.submitBuiltInAuthentication(email, password)
 
+  // Save login state so we don't have to log in for other tests
+  await page.context().storageState({ path: 'e2e/storageState.json' })
+
   await page.waitForSelector("text=Workspaces")
 })

@@ -24,6 +24,7 @@ site/build-storybook.log
 site/coverage/
 site/storybook-static/
 site/test-results/
+site/e2e/storageState.json
 
 # Make target for updating golden files.
 cli/testdata/.gen-golden
