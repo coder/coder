@@ -4,7 +4,7 @@ We recommend automating Coder deployments through the CLI. Examples include [upd
 
 ## Authentication
 
-Coder uses authentication tokens to grant machine users access to the REST API. Follow the [Authentication](../api/authentication.md) page to see how to generate long-lived tokens.
+Coder uses authentication tokens to grant machine users access to the REST API. Follow the [Authentication](../api/authentication.md) page to learn how to generate long-lived tokens.
 
 ## CLI
 
