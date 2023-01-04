@@ -104,6 +104,14 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				return xerrors.Errorf("either HTTP or TLS must be enabled")
 			}
 
+			// Disable rate limits if the `--dangerous-disable-rate-limits` flag
+			// was specified.
+			if cfg.RateLimit.DisableAll.Value {
+				cfg.RateLimit.API.Value = -1
+				cfg.RateLimit.Login.Value = -1
+				cfg.RateLimit.Files.Value = -1
+			}
+
 			printLogo(cmd)
 			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
 			if ok, _ := cmd.Flags().GetBool(varVerbose); ok {

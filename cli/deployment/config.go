@@ -430,6 +430,12 @@ func newConfig() *codersdk.DeploymentConfig {
 			},
 		},
 		RateLimit: &codersdk.RateLimitConfig{
+			DisableAll: &codersdk.DeploymentConfigField[bool]{
+				Name:    "Disable All Rate Limits",
+				Usage:   "Disables all rate limits. This is not recommended in production.",
+				Flag:    "dangerous-disable-rate-limits",
+				Default: false,
+			},
 			API: &codersdk.DeploymentConfigField[int]{
 				Name:    "API Rate Limit",
 				Usage:   "Maximum number of requests per minute allowed to the API per user, or per IP address for unauthenticated users. Negative values mean no rate limit. Some API endpoints have separate flags to control rate limits to help prevent denial-of-service attacks.",
