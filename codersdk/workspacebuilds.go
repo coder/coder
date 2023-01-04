@@ -67,7 +67,7 @@ type WorkspaceBuild struct {
 	Job                 ProvisionerJob      `json:"job"`
 	Reason              BuildReason         `db:"reason" json:"reason" enums:"initiator,autostart,autostop"`
 	Resources           []WorkspaceResource `json:"resources"`
-	Deadline            NullTime            `json:"deadline,omitempty" swaggertype:"string" format:"date-time"`
+	Deadline            NullTime            `json:"deadline,omitempty" format:"date-time"`
 	Status              WorkspaceStatus     `json:"status" enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted"`
 	DailyCost           int32               `json:"daily_cost"`
 }

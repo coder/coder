@@ -101,6 +101,7 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 	findTerraformResources(module)
 
 	// Find all agents!
+	agentNames := map[string]struct{}{}
 	for _, tfResource := range tfResourceByLabel {
 		if tfResource.Type != "coder_agent" {
 			continue
@@ -110,6 +111,12 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 		if err != nil {
 			return nil, xerrors.Errorf("decode agent attributes: %w", err)
 		}
+
+		if _, ok := agentNames[tfResource.Name]; ok {
+			return nil, xerrors.Errorf("duplicate agent name: %s", tfResource.Name)
+		}
+		agentNames[tfResource.Name] = struct{}{}
+
 		agent := &proto.Agent{
 			Name:                     tfResource.Name,
 			Id:                       attrs.ID,

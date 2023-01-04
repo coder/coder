@@ -310,7 +310,7 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "description": "Notice: Swagger 2.0 doesn't support file upload with a ` + "`" + `content-type` + "`" + ` different than ` + "`" + `application/x-www-form-urlencoded` + "`" + `.",
+                "description": "Swagger notice: Swagger 2.0 doesn't support file upload with a ` + "`" + `content-type` + "`" + ` different than ` + "`" + `application/x-www-form-urlencoded` + "`" + `.",
                 "consumes": [
                     "application/x-tar"
                 ],
@@ -1770,6 +1770,9 @@ const docTemplate = `{
                     "200": {
                         "description": "OK"
                     }
+                },
+                "x-apidocgen": {
+                    "skip": true
                 }
             }
         },
@@ -3340,7 +3343,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "created_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "destination_scheme": {
                     "type": "string",
@@ -3377,7 +3381,8 @@ const docTemplate = `{
                     ]
                 },
                 "updated_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 }
             }
         },
@@ -3454,6 +3459,7 @@ const docTemplate = `{
             }
         },
         "codersdk.PostWorkspaceAgentVersionRequest": {
+            "description": "x-apidocgen:skip",
             "type": "object",
             "properties": {
                 "version": {
@@ -3894,7 +3900,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "hash": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },

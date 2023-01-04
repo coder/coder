@@ -58,8 +58,8 @@ type Parameter struct {
 	Name              string                     `json:"name" table:"name"`
 	SourceScheme      ParameterSourceScheme      `json:"source_scheme" table:"source scheme" validate:"ne=none" enums:"none,data"`
 	DestinationScheme ParameterDestinationScheme `json:"destination_scheme" table:"destination scheme" validate:"ne=none" enums:"none,environment_variable,provisioner_variable"`
-	CreatedAt         time.Time                  `json:"created_at" table:"created at"`
-	UpdatedAt         time.Time                  `json:"updated_at" table:"updated at"`
+	CreatedAt         time.Time                  `json:"created_at" table:"created at" format:"date-time"`
+	UpdatedAt         time.Time                  `json:"updated_at" table:"updated at" format:"date-time"`
 }
 
 type ParameterSchema struct {

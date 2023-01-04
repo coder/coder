@@ -1,0 +1,10 @@
+# Helm templates contain variables that are invalid YAML and can't be formatted
+# by Prettier.
+helm/templates/*.yaml
+
+# Terraform state files used in tests, these are automatically generated.
+# Example: provisioner/terraform/testdata/instance-id/instance-id.tfstate.json
+**/testdata/**/*.tf*.json
+
+# Testdata shouldn't be formatted.
+scripts/apitypings/testdata/**/*.ts
