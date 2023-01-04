@@ -127,12 +127,12 @@ func New(ctx context.Context, options *Options) (*API, error) {
 				r.Get("/", api.workspaceQuota)
 			})
 		})
-		r.Route("/service-banner", func(r chi.Router) {
+		r.Route("/appearance", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
 			)
-			r.Get("/", api.serviceBanner)
-			r.Put("/", api.putServiceBanner)
+			r.Get("/", api.appearance)
+			r.Put("/", api.putAppearance)
 		})
 	})
 

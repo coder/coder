@@ -2980,6 +2980,17 @@ func (q *sqlQuerier) GetLastUpdateCheck(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getLogoURL = `-- name: GetLogoURL :one
+SELECT value FROM site_configs WHERE key = 'logo_url'
+`
+
+func (q *sqlQuerier) GetLogoURL(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getLogoURL)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
 const getServiceBanner = `-- name: GetServiceBanner :one
 SELECT value FROM site_configs WHERE key = 'service_banner'
 `
@@ -3016,6 +3027,16 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'last_update
 
 func (q *sqlQuerier) InsertOrUpdateLastUpdateCheck(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, insertOrUpdateLastUpdateCheck, value)
+	return err
+}
+
+const insertOrUpdateLogoURL = `-- name: InsertOrUpdateLogoURL :exec
+INSERT INTO site_configs (key, value) VALUES ('logo_url', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'logo_url'
+`
+
+func (q *sqlQuerier) InsertOrUpdateLogoURL(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, insertOrUpdateLogoURL, value)
 	return err
 }
 
