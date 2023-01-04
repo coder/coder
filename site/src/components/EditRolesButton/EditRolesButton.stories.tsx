@@ -21,6 +21,9 @@ Open.args = {
   roles: MockSiteRoles,
   selectedRoles: [MockUserAdminRole, MockOwnerRole],
 }
+Open.parameters = {
+  chromatic: { delay: 300 },
+}
 
 export const Loading = Template.bind({})
 Loading.args = {
@@ -28,4 +31,7 @@ Loading.args = {
   roles: MockSiteRoles,
   isLoading: true,
   selectedRoles: [MockUserAdminRole, MockOwnerRole],
+}
+Loading.parameters = {
+  chromatic: { delay: 300 },
 }

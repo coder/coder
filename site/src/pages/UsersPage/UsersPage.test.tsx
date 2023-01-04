@@ -7,7 +7,6 @@ import * as API from "../../api/api"
 import { Role } from "../../api/typesGenerated"
 import { Language as ResetPasswordDialogLanguage } from "../../components/Dialogs/ResetPasswordDialog/ResetPasswordDialog"
 import { GlobalSnackbar } from "../../components/GlobalSnackbar/GlobalSnackbar"
-import { Language as RoleSelectLanguage } from "../../components/RoleSelect/RoleSelect"
 import {
   MockAuditorRole,
   MockUser,
