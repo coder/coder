@@ -14,15 +14,14 @@ import (
 	"net/http/pprof"
 	"net/url"
 	"os"
-	"os/exec"
 	"os/signal"
 	"os/user"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -189,101 +188,11 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			builtinPostgres := false
 			// Only use built-in if PostgreSQL URL isn't specified!
 			if !cfg.InMemoryDatabase.Value && cfg.PostgresURL.Value == "" {
-				u, err := user.Current()
-				if err != nil {
-					return xerrors.Errorf("current user: %w", err)
-				}
+				cmd.Printf("Using built-in PostgreSQL (%s)\n", config.PostgresPath())
 				var closePostgres func() error
-				switch {
-				// This is a special case for the Docker image where the
-				// user is set to root to conveniently allow operations on
-				// e.g. the Docker socket.
-				case u.Uid == "0":
-					parseUint32 := func(s string) uint32 {
-						v, err := strconv.ParseUint(s, 10, 32)
-						if err != nil {
-							return 0
-						}
-						return uint32(v)
-					}
-					uid := parseUint32(os.Getenv("CODER_BUILTIN_POSTGRES_UID"))
-					gid := parseUint32(os.Getenv("CODER_BUILTIN_POSTGRES_GID"))
-					if uid == 0 || gid == 0 {
-						return xerrors.Errorf("CODER_BUILTIN_POSTGRES_UID and CODER_BUILTIN_POSTGRES_GID must be set when using built-in PostgreSQL and running as root")
-					}
-
-					cmd.Printf("Using built-in PostgreSQL (%s) as %d:%d\n", config.PostgresPath(), uid, gid)
-					cfg.PostgresURL.Value, err = embeddedPostgresURL(config)
-					if err != nil {
-						return err
-					}
-
-					// TODO(mafredri): Ensure all relevant configs / envs are
-					// propagated to serve.
-					pgCmd := exec.Command(os.Args[0], "server", "postgres-builtin-serve") //nolint:gosec
-					pgCmd.Stdout = cmd.OutOrStdout()
-					pgCmd.Stderr = cmd.ErrOrStderr()
-					pgCmd.Env = append([]string{}, os.Environ()...)
-
-					// TODO(mafredri): Embedded postgres will do os.MkdirAll,
-					// but that will fail if $HOME/.config doesn't have the
-					// right permissions, fix this.
-					os.MkdirAll(config.PostgresPath(), 0o750)
-					os.Chown(config.PostgresPath(), int(uid), int(gid))
-
-					pgCmd.Env = append(pgCmd.Env, "CODER_CONFIG_DIR="+string(config))
-					pgCmd.SysProcAttr = &syscall.SysProcAttr{
-						// Prevent Ctrl+C propagation via process group (handle manually).
-						Setpgid: true,
-						Pgid:    0,
-					}
-					pgCmd.SysProcAttr.Credential = &syscall.Credential{Uid: uid, Gid: gid}
-					err = pgCmd.Start()
-					if err != nil {
-						return xerrors.Errorf("start built-in PostgreSQL: %w", err)
-					}
-					defer func() {
-						err := pgCmd.Wait()
-						if err != nil {
-							cmd.Printf("Built-in PostgreSQL exited: %v", err)
-						}
-					}()
-					closePostgres = func() error {
-						return pgCmd.Process.Signal(os.Interrupt)
-					}
-					defer closePostgres() // Ensure this is called in case of error below.
-
-					// Wait for PostgreSQL to be ready.
-					for i := 0; ; i++ {
-						ok, err := func() (bool, error) {
-							sqlDB, err := sql.Open(sqlDriver, cfg.PostgresURL.Value)
-							if err != nil {
-								return false, err
-							}
-							defer sqlDB.Close()
-							err = sqlDB.PingContext(ctx)
-							if err != nil {
-								return false, err
-							}
-							return true, nil
-						}()
-						if xerrors.Is(err, context.Canceled) {
-							return err
-						}
-						if ok {
-							break
-						}
-						if i == 100 { // 50 * 100ms = 5s.
-							return xerrors.New("wait for built-in PostgreSQL timeout")
-						}
-						time.Sleep(50 * time.Millisecond)
-					}
-				default:
-					cmd.Printf("Using built-in PostgreSQL (%s)\n", config.PostgresPath())
-					cfg.PostgresURL.Value, closePostgres, err = startBuiltinPostgres(ctx, config, logger)
-					if err != nil {
-						return err
-					}
+				cfg.PostgresURL.Value, closePostgres, err = startBuiltinPostgres(ctx, cmd.OutOrStdout(), cmd.ErrOrStderr(), config, logger)
+				if err != nil {
+					return err
 				}
 				builtinPostgres = true
 				defer func() {
@@ -1045,7 +954,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			ctx, cancel := signal.NotifyContext(ctx, InterruptSignals...)
 			defer cancel()
 
-			url, closePg, err := startBuiltinPostgres(ctx, cfg, logger)
+			url, closePg, err := startBuiltinPostgres(ctx, cmd.OutOrStdout(), cmd.ErrOrStderr(), cfg, logger)
 			if err != nil {
 				return err
 			}
@@ -1487,13 +1396,53 @@ func embeddedPostgresURL(cfg config.Root) (string, error) {
 	return fmt.Sprintf("postgres://coder@localhost:%s/coder?sslmode=disable&password=%s", pgPort, pgPassword), nil
 }
 
-func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logger) (string, func() error, error) {
+func startBuiltinPostgres(ctx context.Context, stdout, stderr io.Writer, cfg config.Root, logger slog.Logger) (string, func() error, error) {
 	usr, err := user.Current()
 	if err != nil {
 		return "", nil, err
 	}
 	if usr.Uid == "0" {
-		return "", nil, xerrors.New("The built-in PostgreSQL cannot run as the root user. Create a non-root user and run again!")
+		if runtime.GOOS == "linux" && os.Getenv("CODER_BUILTIN_POSTGRES_USER") != "" {
+			// This is a special case for running Coder as root inside a Docker
+			// container. The builtin PostgreSQL does not support running as
+			// root, so we need to drop privileges to the user specified in the
+			// environment.
+			parseUint32 := func(s string) uint32 {
+				v, err := strconv.ParseUint(s, 10, 32)
+				if err != nil {
+					return 0
+				}
+				return uint32(v)
+			}
+
+			userEnv := strings.SplitN(os.Getenv("CODER_BUILTIN_POSTGRES_USER"), ":", 2)
+			uid := parseUint32(userEnv[0])
+			var gid uint32
+			if len(userEnv) == 2 {
+				gid = parseUint32(userEnv[1])
+			} else {
+				gid = uid
+			}
+			if uid == 0 || gid == 0 {
+				return "", nil, xerrors.Errorf("CODER_BUILTIN_POSTGRES_USER must be set when using built-in PostgreSQL and running as root")
+			}
+
+			// Mimic output during startup via `cmd.Printf` (no logging yet).
+			_, _ = fmt.Fprintf(stderr, "Starting built-in PostgreSQL as user %d:%d (non-root)\n", uid, gid)
+
+			connectionURL, err := embeddedPostgresURL(cfg)
+			if err != nil {
+				return "", nil, err
+			}
+			closer, err := startBuiltinPostgresAs(ctx, uid, gid, stdout, stderr, cfg, connectionURL)
+			if err != nil {
+				return "", nil, err
+			}
+
+			return connectionURL, closer, nil
+		}
+
+		return "", nil, xerrors.New("The built-in PostgreSQL cannot run as the root user. Create a non-root user and run again or set the CODER_BUILTIN_POSTGRES_USER environment variable to a non-root user")
 	}
 
 	// Ensure a password and port have been generated!
