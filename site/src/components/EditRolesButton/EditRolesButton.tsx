@@ -7,7 +7,7 @@ import Popover from "@material-ui/core/Popover"
 import { Stack } from "components/Stack/Stack"
 import Checkbox from "@material-ui/core/Checkbox"
 import UserIcon from "@material-ui/icons/PersonOutline"
-import { AssignableRoles, Role } from "api/typesGenerated"
+import { Role } from "api/typesGenerated"
 
 const Option: React.FC<{
   value: string
@@ -43,7 +43,7 @@ const Option: React.FC<{
 
 export const EditRolesButton: FC<{
   isLoading: boolean
-  roles: AssignableRoles[]
+  roles: Role[]
   selectedRoles: Role[]
   onChange: (roles: Role["name"][]) => void
 }> = ({ roles, selectedRoles, onChange, isLoading }) => {
@@ -92,44 +92,25 @@ export const EditRolesButton: FC<{
       >
         <fieldset className={styles.fieldset} disabled={isLoading}>
           <Stack className={styles.options} spacing={3}>
-            <Option
-              onChange={handleChange}
-              isChecked={selectedRoleNames.includes("owner")}
-              value="owner"
-              name="Owner"
-              description="Admin can manage all the coder resources including users and their permissions"
-            />
-            <Option
-              onChange={handleChange}
-              isChecked={selectedRoleNames.includes("user-admin")}
-              value="user-admin"
-              name="User admin"
-              description="Admin can manage all the coder resources including users and their permissions"
-            />
-            <Option
-              onChange={handleChange}
-              isChecked={selectedRoleNames.includes("template-admin")}
-              value="template-admin"
-              name="Template admin"
-              description="Admin can manage all the coder resources including users and their permissions"
-            />
-            <Option
-              onChange={handleChange}
-              isChecked={selectedRoleNames.includes("auditor")}
-              value="auditor"
-              name="Auditor"
-              description="Admin can manage all the coder resources including users and their permissions"
-            />
+            {roles.map((role) => (
+              <Option
+                key={role.name}
+                onChange={handleChange}
+                isChecked={selectedRoleNames.includes(role.name)}
+                value={role.name}
+                name={role.display_name}
+                description={t(`roleDescription.${role.name}`)}
+              />
+            ))}
           </Stack>
         </fieldset>
         <div className={styles.footer}>
           <Stack direction="row" alignItems="flex-start">
             <UserIcon className={styles.userIcon} />
             <Stack spacing={0.5}>
-              <strong>Member</strong>
+              <strong>{t("member")}</strong>
               <span className={styles.optionDescription}>
-                Everybody is a member. This is a shared and default role for all
-                the users.
+                {t("roleDescription.member")}
               </span>
             </Stack>
           </Stack>

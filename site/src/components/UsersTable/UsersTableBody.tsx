@@ -19,6 +19,15 @@ import { Stack } from "components/Stack/Stack"
 const isAdminRole = (role: TypesGen.Role): boolean => {
   return role.name === "owner" || role.name.includes("admin")
 }
+
+const roleOrder = ["owner", "user-admin", "template-admin", "auditor"]
+
+const sortRoles = (roles: TypesGen.Role[]) => {
+  return roles.slice(0).sort((a, b) => {
+    return roleOrder.indexOf(a.name) - roleOrder.indexOf(b.name)
+  })
+}
+
 interface UsersTableBodyProps {
   users?: TypesGen.User[]
   roles?: TypesGen.AssignableRoles[]
@@ -93,7 +102,7 @@ export const UsersTableBody: FC<
                 display_name: "Member",
               }
               const userRoles =
-                user.roles.length === 0 ? [fallbackRole] : user.roles
+                user.roles.length === 0 ? [fallbackRole] : sortRoles(user.roles)
 
               return (
                 <TableRow key={user.id}>
@@ -117,7 +126,7 @@ export const UsersTableBody: FC<
                     <Stack direction="row" spacing={1}>
                       {canEditUsers && (
                         <EditRolesButton
-                          roles={roles ?? []}
+                          roles={roles ? sortRoles(roles) : []}
                           selectedRoles={userRoles}
                           isLoading={Boolean(isUpdatingUserRoles)}
                           onChange={(roles) => {
