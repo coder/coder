@@ -6,9 +6,9 @@ const globalSetup = async (): Promise<void> => {
   axios.defaults.baseURL = `http://localhost:${constants.basePort}`
   await createFirstUser({
     email: constants.email,
-    organization: constants.organization,
     username: constants.username,
     password: constants.password,
+    trial: false
   })
 }
 
