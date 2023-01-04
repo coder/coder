@@ -1205,6 +1205,9 @@ const docTemplate = `{
                     "200": {
                         "description": "OK"
                     }
+                },
+                "x-apidocgen": {
+                    "skip": true
                 }
             }
         },

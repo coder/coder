@@ -1041,6 +1041,9 @@
           "200": {
             "description": "OK"
           }
+        },
+        "x-apidocgen": {
+          "skip": true
         }
       }
     },

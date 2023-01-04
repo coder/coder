@@ -154,6 +154,7 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 // @Param request body codersdk.PostWorkspaceAgentVersionRequest true "Version request"
 // @Success 200
 // @Router /workspaceagents/me/version [post]
+// @x-apidocgen {"skip": true}
 func (api *API) postWorkspaceAgentVersion(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
