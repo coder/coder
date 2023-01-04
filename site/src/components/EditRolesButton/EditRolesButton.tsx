@@ -82,11 +82,11 @@ export const EditRolesButton: FC<{
         onClose={() => setIsOpen(false)}
         anchorOrigin={{
           vertical: "bottom",
-          horizontal: "right",
+          horizontal: "left",
         }}
         transformOrigin={{
           vertical: "top",
-          horizontal: "right",
+          horizontal: "left",
         }}
         classes={{ paper: styles.popoverPaper }}
       >
