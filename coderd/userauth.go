@@ -198,7 +198,8 @@ type OIDCConfig struct {
 	// IgnoreEmailVerified allows ignoring the email_verified claim
 	// from an upstream OIDC provider. See #5065 for context.
 	IgnoreEmailVerified bool
-	// UsernameField selects the claim field to be used as username
+	// UsernameField selects the claim field to be used as the created user's
+	// username.
 	UsernameField string
 }
 

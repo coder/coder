@@ -249,8 +249,8 @@ func newConfig() *codersdk.DeploymentConfig {
 				Default: false,
 			},
 			UsernameField: &codersdk.DeploymentConfigField[string]{
-				Name:    "OIDC Username field",
-				Usage:   "OIDC claim filed to use as user-name.",
+				Name:    "OIDC Username Field",
+				Usage:   "OIDC claim field to use as the username.",
 				Flag:    "oidc-username-field",
 				Default: "preferred_username",
 			},
