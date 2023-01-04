@@ -112,7 +112,6 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
         target="_blank"
         rel="noreferrer"
         className={styles.link}
-        title="View Source"
       >
         <MenuItem className={styles.menuItem} onClick={onPopoverClose}>
           <ListItemIcon className={styles.icon}>
