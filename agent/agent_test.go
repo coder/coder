@@ -286,7 +286,7 @@ func TestAgent_TCPLocalForwarding(t *testing.T) {
 	defer local.Close()
 	tcpAddr, valid = local.Addr().(*net.TCPAddr)
 	require.True(t, valid)
-	localPort := tcpAddr.Port
+	remotePort := tcpAddr.Port
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -294,16 +294,47 @@ func TestAgent_TCPLocalForwarding(t *testing.T) {
 		if !assert.NoError(t, err) {
 			return
 		}
-		_ = conn.Close()
+		defer conn.Close()
+		b := make([]byte, 4)
+		_, err = conn.Read(b)
+		if !assert.NoError(t, err) {
+			return
+		}
+		_, err = conn.Write(b)
+		if !assert.NoError(t, err) {
+			return
+		}
 	}()
 
-	err = setupSSHCommand(t, []string{"-L", fmt.Sprintf("%d:127.0.0.1:%d", randomPort, localPort)}, []string{"echo", "test"}).Start()
+	cmd := setupSSHCommand(t, []string{"-L", fmt.Sprintf("%d:127.0.0.1:%d", randomPort, remotePort)}, []string{"sleep", "10"})
+	err = cmd.Start()
 	require.NoError(t, err)
 
-	conn, err := net.Dial("tcp", "127.0.0.1:"+strconv.Itoa(localPort))
-	require.NoError(t, err)
-	_ = conn.Close()
+	require.Eventually(t, func() bool {
+		conn, err := net.Dial("tcp", "127.0.0.1:"+strconv.Itoa(randomPort))
+		if err != nil {
+			return false
+		}
+		defer conn.Close()
+		_, err = conn.Write([]byte("test"))
+		if !assert.NoError(t, err) {
+			return false
+		}
+		b := make([]byte, 4)
+		_, err = conn.Read(b)
+		if !assert.NoError(t, err) {
+			return false
+		}
+		if !assert.Equal(t, "test", string(b)) {
+			return false
+		}
+
+		return true
+	}, testutil.WaitLong, testutil.IntervalSlow)
+
 	<-done
+
+	_ = cmd.Process.Kill()
 }
 
 //nolint:paralleltest // This test reserves a port.
@@ -321,6 +352,7 @@ func TestAgent_TCPRemoteForwarding(t *testing.T) {
 	tcpAddr, valid = l.Addr().(*net.TCPAddr)
 	require.True(t, valid)
 	localPort := tcpAddr.Port
+
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -329,6 +361,7 @@ func TestAgent_TCPRemoteForwarding(t *testing.T) {
 		if err != nil {
 			return
 		}
+		defer conn.Close()
 		b := make([]byte, 4)
 		_, err = conn.Read(b)
 		if !assert.NoError(t, err) {
@@ -340,7 +373,8 @@ func TestAgent_TCPRemoteForwarding(t *testing.T) {
 		}
 	}()
 
-	err = setupSSHCommand(t, []string{"-R", fmt.Sprintf("%d:%d", randomPort, localPort)}, []string{"echo", "test"}).Start()
+	cmd := setupSSHCommand(t, []string{"-R", fmt.Sprintf("127.0.0.1:%d:127.0.0.1:%d", randomPort, localPort)}, []string{"sleep", "10"})
+	err = cmd.Start()
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
@@ -350,16 +384,81 @@ func TestAgent_TCPRemoteForwarding(t *testing.T) {
 		}
 		defer conn.Close()
 		_, err = conn.Write([]byte("test"))
-		assert.NoError(t, err)
+		if !assert.NoError(t, err) {
+			return false
+		}
 		b := make([]byte, 4)
 		_, err = conn.Read(b)
-		assert.NoError(t, err)
-		assert.Equal(t, "test", string(b))
+		if !assert.NoError(t, err) {
+			return false
+		}
+		if !assert.Equal(t, "test", string(b)) {
+			return false
+		}
 
 		return true
 	}, testutil.WaitLong, testutil.IntervalSlow)
 
 	<-done
+
+	_ = cmd.Process.Kill()
+}
+
+func TestAgent_UnixLocalForwarding(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("unix domain sockets are not fully supported on Windows")
+	}
+
+	tmpdir := t.TempDir()
+	remoteSocketPath := filepath.Join(tmpdir, "remote-socket")
+	localSocketPath := filepath.Join(tmpdir, "local-socket")
+
+	l, err := net.Listen("unix", remoteSocketPath)
+	require.NoError(t, err)
+	defer l.Close()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+
+		conn, err := l.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		b := make([]byte, 4)
+		_, err = conn.Read(b)
+		if !assert.NoError(t, err) {
+			return
+		}
+		_, err = conn.Write(b)
+		if !assert.NoError(t, err) {
+			return
+		}
+	}()
+
+	cmd := setupSSHCommand(t, []string{"-L", fmt.Sprintf("%s:%s", localSocketPath, remoteSocketPath)}, []string{"sleep", "10"})
+	err = cmd.Start()
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(localSocketPath)
+		return err == nil
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	conn, err := net.Dial("unix", localSocketPath)
+	require.NoError(t, err)
+	_, err = conn.Write([]byte("test"))
+	require.NoError(t, err)
+	b := make([]byte, 4)
+	_, err = conn.Read(b)
+	require.NoError(t, err)
+	require.Equal(t, "test", string(b))
+	_ = conn.Close()
+	<-done
+
+	_ = cmd.Process.Kill()
 }
 
 func TestAgent_UnixRemoteForwarding(t *testing.T) {
@@ -384,6 +483,7 @@ func TestAgent_UnixRemoteForwarding(t *testing.T) {
 		if err != nil {
 			return
 		}
+		defer conn.Close()
 		b := make([]byte, 4)
 		_, err = conn.Read(b)
 		if !assert.NoError(t, err) {
@@ -395,7 +495,8 @@ func TestAgent_UnixRemoteForwarding(t *testing.T) {
 		}
 	}()
 
-	err = setupSSHCommand(t, []string{"-R", fmt.Sprintf("%s:%s", remoteSocketPath, localSocketPath)}, []string{"echo", "test"}).Start()
+	cmd := setupSSHCommand(t, []string{"-R", fmt.Sprintf("%s:%s", remoteSocketPath, localSocketPath)}, []string{"echo", "test"})
+	err = cmd.Start()
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
@@ -405,15 +506,17 @@ func TestAgent_UnixRemoteForwarding(t *testing.T) {
 
 	conn, err := net.Dial("unix", localSocketPath)
 	require.NoError(t, err)
-	defer conn.Close()
 	_, err = conn.Write([]byte("test"))
 	require.NoError(t, err)
 	b := make([]byte, 4)
 	_, err = conn.Read(b)
 	require.NoError(t, err)
 	require.Equal(t, "test", string(b))
+	_ = conn.Close()
 
 	<-done
+
+	_ = cmd.Process.Kill()
 }
 
 func TestAgent_SFTP(t *testing.T) {
@@ -843,7 +946,10 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exe
 	args := append(beforeArgs,
 		"-o", "HostName "+tcpAddr.IP.String(),
 		"-o", "Port "+strconv.Itoa(tcpAddr.Port),
-		"-o", "StrictHostKeyChecking=no", "host")
+		"-o", "StrictHostKeyChecking=no",
+		"-o", "UserKnownHostsFile=/dev/null",
+		"host",
+	)
 	args = append(args, afterArgs...)
 	return exec.Command("ssh", args...)
 }
