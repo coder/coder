@@ -16,6 +16,7 @@ import { UserDropdown } from "../UserDropdown/UsersDropdown"
 export interface NavbarViewProps {
   logo_url?: string
   user?: TypesGen.User
+  buildInfo?: TypesGen.BuildInfoResponse
   onSignOut: () => void
   canViewAuditLog: boolean
   canViewDeployment: boolean
@@ -85,6 +86,7 @@ const NavItems: React.FC<
 export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
   user,
   logo_url,
+  buildInfo,
   onSignOut,
   canViewAuditLog,
   canViewDeployment,
@@ -140,7 +142,13 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
         />
 
         <div className={styles.profileButton}>
-          {user && <UserDropdown user={user} onSignOut={onSignOut} />}
+          {user && (
+            <UserDropdown
+              user={user}
+              buildInfo={buildInfo}
+              onSignOut={onSignOut}
+            />
+          )}
         </div>
       </div>
     </nav>

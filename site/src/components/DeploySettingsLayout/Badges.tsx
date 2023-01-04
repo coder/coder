@@ -1,6 +1,7 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { Stack } from "components/Stack/Stack"
 import React, { PropsWithChildren } from "react"
+import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 import { combineClasses } from "util/combineClasses"
 
 export const EnabledBadge: React.FC = () => {
@@ -35,6 +36,17 @@ export const EnterpriseBadge: React.FC = () => {
   return (
     <span className={combineClasses([styles.badge, styles.enterpriseBadge])}>
       Enterprise
+    </span>
+  )
+}
+
+export const VersionBadge: React.FC<{
+  version: string
+}> = ({ version }) => {
+  const styles = useStyles()
+  return (
+    <span className={combineClasses([styles.badge, styles.versionBadge])}>
+      Version: {version}
     </span>
   )
 }
@@ -74,6 +86,16 @@ const useStyles = makeStyles((theme) => ({
   enterpriseBadge: {
     backgroundColor: theme.palette.info.dark,
     border: `1px solid ${theme.palette.info.light}`,
+  },
+
+  versionBadge: {
+    border: `1px solid ${theme.palette.success.light}`,
+    backgroundColor: theme.palette.success.dark,
+    textTransform: "none",
+    color: "white",
+    fontFamily: MONOSPACE_FONT_FAMILY,
+    textDecoration: "none",
+    fontSize: 12,
   },
 
   enabledBadge: {
