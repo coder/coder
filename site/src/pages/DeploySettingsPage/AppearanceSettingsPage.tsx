@@ -115,8 +115,13 @@ const AppearanceSettingsPage: React.FC = () => {
 
       <Fieldset
         title="Logo URL"
-        validation="We recommend a transparent image with 3:1 aspect ratio."
+        validation={
+          isEntitled
+            ? "We recommend a transparent image with 3:1 aspect ratio."
+            : "This is an Enterprise only feature."
+        }
         onSubmit={logoForm.handleSubmit}
+        button={!isEntitled && <Button disabled>Submit</Button>}
       >
         <p>
           Specify a custom URL for your logo to be displayed in the top left
@@ -127,6 +132,7 @@ const AppearanceSettingsPage: React.FC = () => {
           defaultValue={appearance.logo_url}
           fullWidth
           placeholder="Leave empty to display the Coder logo."
+          disabled={!isEntitled}
           InputProps={{
             endAdornment: (
               <InputAdornment position="end" className={styles.logoAdornment}>
