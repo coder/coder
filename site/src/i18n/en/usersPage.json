@@ -9,11 +9,11 @@
   "editUserRolesTooltip": "Edit user roles",
   "fieldSetRolesTooltip": "Available roles",
   "roleDescription": {
-    "owner": "Owner can manage all the coder resources including users and their permissions",
-    "user-admin": "User admin can manage all the coder users and groups",
-    "template-admin": "Template admin can manage all the coder templates and permissions",
+    "owner": "Owner can manage all resources, including users and their permissions",
+    "user-admin": "User admin can manage all users and groups",
+    "template-admin": "Template admin can manage all templates and permissions",
     "auditor": "Auditor can access the audit logs",
-    "member": "Everybody is a member. This is a shared and default role for all the users"
+    "member": "Everybody is a member. This is a shared and default role for all users"
   },
   "member": "Member"
 }
