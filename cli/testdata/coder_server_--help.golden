@@ -112,6 +112,9 @@ Flags:
                                                      OIDC.
                                                      Consumes $CODER_OIDC_SCOPES (default
                                                      [openid,profile,email])
+      --oidc-username-field string                   OIDC claim field to use as the username.
+                                                     Consumes $CODER_OIDC_USERNAME_FIELD
+                                                     (default "preferred_username")
       --postgres-url string                          URL of a PostgreSQL database. If empty,
                                                      PostgreSQL binaries will be downloaded
                                                      from Maven
