@@ -1136,7 +1136,7 @@
         }
       }
     },
-    "/templateversions/{id}": {
+    "/templateversions/{templateversion}": {
       "get": {
         "security": [
           {
@@ -1152,7 +1152,7 @@
             "type": "string",
             "format": "uuid",
             "description": "Template version ID",
-            "name": "id",
+            "name": "templateversion",
             "in": "path",
             "required": true
           }
@@ -1167,7 +1167,7 @@
         }
       }
     },
-    "/templateversions/{id}/cancel": {
+    "/templateversions/{templateversion}/cancel": {
       "patch": {
         "security": [
           {
@@ -1183,7 +1183,7 @@
             "type": "string",
             "format": "uuid",
             "description": "Template version ID",
-            "name": "id",
+            "name": "templateversion",
             "in": "path",
             "required": true
           }
@@ -1198,7 +1198,7 @@
         }
       }
     },
-    "/templateversions/{id}/dry-run": {
+    "/templateversions/{templateversion}/dry-run": {
       "post": {
         "security": [
           {
@@ -1215,7 +1215,7 @@
             "type": "string",
             "format": "uuid",
             "description": "Template version ID",
-            "name": "id",
+            "name": "templateversion",
             "in": "path",
             "required": true
           },
@@ -1239,7 +1239,7 @@
         }
       }
     },
-    "/templateversions/{templateversionid}/dry-run/{jobid}": {
+    "/templateversions/{templateversion}/dry-run/{jobid}": {
       "get": {
         "security": [
           {
@@ -1256,7 +1256,7 @@
             "type": "string",
             "format": "uuid",
             "description": "Template version ID",
-            "name": "templateversionid",
+            "name": "templateversion",
             "in": "path",
             "required": true
           },
@@ -1279,7 +1279,7 @@
         }
       }
     },
-    "/templateversions/{templateversionid}/dry-run/{jobid}/cancel": {
+    "/templateversions/{templateversion}/dry-run/{jobid}/cancel": {
       "patch": {
         "security": [
           {
@@ -1295,7 +1295,7 @@
             "type": "string",
             "format": "uuid",
             "description": "Template version ID",
-            "name": "id",
+            "name": "templateversion",
             "in": "path",
             "required": true
           }
@@ -1310,7 +1310,7 @@
         }
       }
     },
-    "/templateversions/{templateversionid}/dry-run/{jobid}/logs": {
+    "/templateversions/{templateversion}/dry-run/{jobid}/logs": {
       "get": {
         "security": [
           {
@@ -1326,7 +1326,7 @@
             "type": "string",
             "format": "uuid",
             "description": "Template version ID",
-            "name": "templateversionid",
+            "name": "templateversion",
             "in": "path",
             "required": true
           },
@@ -1370,7 +1370,7 @@
         }
       }
     },
-    "/templateversions/{templateversionid}/dry-run/{jobid}/resources": {
+    "/templateversions/{templateversion}/dry-run/{jobid}/resources": {
       "get": {
         "security": [
           {
@@ -1386,7 +1386,7 @@
             "type": "string",
             "format": "uuid",
             "description": "Template version ID",
-            "name": "templateversionid",
+            "name": "templateversion",
             "in": "path",
             "required": true
           },

@@ -1300,7 +1300,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/templateversions/{id}": {
+        "/templateversions/{templateversion}": {
             "get": {
                 "security": [
                     {
@@ -1320,7 +1320,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Template version ID",
-                        "name": "id",
+                        "name": "templateversion",
                         "in": "path",
                         "required": true
                     }
@@ -1335,7 +1335,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/templateversions/{id}/cancel": {
+        "/templateversions/{templateversion}/cancel": {
             "patch": {
                 "security": [
                     {
@@ -1355,7 +1355,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Template version ID",
-                        "name": "id",
+                        "name": "templateversion",
                         "in": "path",
                         "required": true
                     }
@@ -1370,7 +1370,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/templateversions/{id}/dry-run": {
+        "/templateversions/{templateversion}/dry-run": {
             "post": {
                 "security": [
                     {
@@ -1393,7 +1393,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Template version ID",
-                        "name": "id",
+                        "name": "templateversion",
                         "in": "path",
                         "required": true
                     },
@@ -1417,7 +1417,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/templateversions/{templateversionid}/dry-run/{jobid}": {
+        "/templateversions/{templateversion}/dry-run/{jobid}": {
             "get": {
                 "security": [
                     {
@@ -1440,7 +1440,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Template version ID",
-                        "name": "templateversionid",
+                        "name": "templateversion",
                         "in": "path",
                         "required": true
                     },
@@ -1463,7 +1463,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/templateversions/{templateversionid}/dry-run/{jobid}/cancel": {
+        "/templateversions/{templateversion}/dry-run/{jobid}/cancel": {
             "patch": {
                 "security": [
                     {
@@ -1483,7 +1483,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Template version ID",
-                        "name": "id",
+                        "name": "templateversion",
                         "in": "path",
                         "required": true
                     }
@@ -1498,7 +1498,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/templateversions/{templateversionid}/dry-run/{jobid}/logs": {
+        "/templateversions/{templateversion}/dry-run/{jobid}/logs": {
             "get": {
                 "security": [
                     {
@@ -1518,7 +1518,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Template version ID",
-                        "name": "templateversionid",
+                        "name": "templateversion",
                         "in": "path",
                         "required": true
                     },
@@ -1562,7 +1562,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/templateversions/{templateversionid}/dry-run/{jobid}/resources": {
+        "/templateversions/{templateversion}/dry-run/{jobid}/resources": {
             "get": {
                 "security": [
                     {
@@ -1582,7 +1582,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Template version ID",
-                        "name": "templateversionid",
+                        "name": "templateversion",
                         "in": "path",
                         "required": true
                     },
