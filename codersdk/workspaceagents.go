@@ -115,6 +115,7 @@ type WorkspaceAgentConnectionInfo struct {
 }
 
 // @typescript-ignore PostWorkspaceAgentVersionRequest
+// @Description x-apidocgen:skip
 type PostWorkspaceAgentVersionRequest struct {
 	Version string `json:"version"`
 }

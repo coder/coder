@@ -1,0 +1,64 @@
+name: "CodeQL"
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    # The branches below must be a subset of the branches above
+    branches: ["main"]
+  schedule:
+    # run every week at 10:24 on Thursday
+    - cron: "24 10 * * 4"
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ["go", "javascript"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Setup Go
+        if: matrix.language == 'go'
+        uses: actions/setup-go@v3
+        with:
+          go-version: "~1.19"
+
+      - name: Go Cache Paths
+        if: matrix.language == 'go'
+        id: go-cache-paths
+        run: |
+          echo "::set-output name=go-mod::$(go env GOMODCACHE)"
+
+      - name: Go Mod Cache
+        if: matrix.language == 'go'
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          key: ${{ runner.os }}-release-go-mod-${{ hashFiles('**/go.sum') }}
+
+      - name: Remove Makefile # workaround to prevent CodeQL from building site
+        if: matrix.language == 'go'
+        run: |
+          # Disable Analysis step from trying to build the project.
+          rm Makefile
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+        with:
+          category: "/language:${{matrix.language}}"
