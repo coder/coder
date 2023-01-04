@@ -16,8 +16,8 @@ import { TableRowMenu } from "../TableRowMenu/TableRowMenu"
 import { EditRolesButton } from "components/EditRolesButton/EditRolesButton"
 import { Stack } from "components/Stack/Stack"
 
-const isAdminRole = (role: TypesGen.Role): boolean => {
-  return role.name === "owner" || role.name.includes("admin")
+const isOwnerRole = (role: TypesGen.Role): boolean => {
+  return role.name === "owner"
 }
 
 const roleOrder = ["owner", "user-admin", "template-admin", "auditor"]
@@ -144,7 +144,7 @@ export const UsersTableBody: FC<
                           text={role.display_name}
                           className={combineClasses({
                             [styles.rolePill]: true,
-                            [styles.rolePillAdmin]: isAdminRole(role),
+                            [styles.rolePillOwner]: isOwnerRole(role),
                           })}
                         />
                       ))}
@@ -225,7 +225,7 @@ const useStyles = makeStyles((theme) => ({
     backgroundColor: theme.palette.background.paperLight,
     borderColor: theme.palette.divider,
   },
-  rolePillAdmin: {
+  rolePillOwner: {
     backgroundColor: theme.palette.info.dark,
     borderColor: theme.palette.info.light,
   },

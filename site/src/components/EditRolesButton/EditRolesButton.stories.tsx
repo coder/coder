@@ -9,6 +9,11 @@ import { EditRolesButtonProps, EditRolesButton } from "./EditRolesButton"
 export default {
   title: "components/EditRolesButton",
   component: EditRolesButton,
+  argTypes: {
+    defaultIsOpen: {
+      defaultValue: true,
+    },
+  },
 } as ComponentMeta<typeof EditRolesButton>
 
 const Template: Story<EditRolesButtonProps> = (args) => (
@@ -17,7 +22,6 @@ const Template: Story<EditRolesButtonProps> = (args) => (
 
 export const Open = Template.bind({})
 Open.args = {
-  defaultIsOpen: true,
   roles: MockSiteRoles,
   selectedRoles: [MockUserAdminRole, MockOwnerRole],
 }
@@ -27,9 +31,8 @@ Open.parameters = {
 
 export const Loading = Template.bind({})
 Loading.args = {
-  defaultIsOpen: true,
-  roles: MockSiteRoles,
   isLoading: true,
+  roles: MockSiteRoles,
   selectedRoles: [MockUserAdminRole, MockOwnerRole],
 }
 Loading.parameters = {

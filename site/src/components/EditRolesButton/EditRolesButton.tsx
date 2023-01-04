@@ -99,7 +99,11 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
         }}
         classes={{ paper: styles.popoverPaper }}
       >
-        <fieldset className={styles.fieldset} disabled={isLoading}>
+        <fieldset
+          className={styles.fieldset}
+          disabled={isLoading}
+          title={t("fieldSetRolesTooltip")}
+        >
           <Stack className={styles.options} spacing={3}>
             {roles.map((role) => (
               <Option
