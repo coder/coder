@@ -8,11 +8,11 @@
   "resetPasswordMenuItem": "Reset password",
   "editUserRolesTooltip": "Edit user roles",
   "roleDescription": {
-    "owner": "Admin can manage all the coder resources including users and their permissions",
-    "user-admin": "Admin can manage all the coder resources including users and their permissions",
-    "template-admin": "Admin can manage all the coder resources including users and their permissions",
-    "auditor": "Admin can manage all the coder resources including users and their permissions",
-    "member": "Admin can manage all the coder resources including users and their permissions"
+    "owner": "Owner can manage all the coder resources including users and their permissions",
+    "user-admin": "User admin can manage all the coder users and groups",
+    "template-admin": "Template admin can manage all the coder templates and permissions",
+    "auditor": "Auditor can access the audit logs",
+    "member": "Everybody is a member. This is a shared and default role for all the users"
   },
   "member": "Member"
 }
