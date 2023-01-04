@@ -216,24 +216,38 @@ func ssh() *cobra.Command {
 					_ = sshSession.WindowChange(height, width)
 				}
 			}
-			err = sshSession.Wait()
-			if err != nil {
-				// If the connection drops unexpectedly, we get an ExitMissingError but no other
-				// error details, so try to at least give the user a better message
-				if errors.Is(err, &gossh.ExitMissingError{}) {
-					return xerrors.New("SSH connection ended unexpectedly")
+
+			// Wait for the context to be canceled, or the SSH session to end.
+			sshErr := make(chan error)
+			go func() {
+				defer close(sshErr)
+
+				err = sshSession.Wait()
+				if err != nil {
+					// If the connection drops unexpectedly, we get an ExitMissingError but no other
+					// error details, so try to at least give the user a better message
+					if errors.Is(err, &gossh.ExitMissingError{}) {
+						sshErr <- xerrors.New("SSH connection ended unexpectedly")
+						return
+					}
+					sshErr <- err
 				}
+			}()
+
+			select {
+			case <-ctx.Done():
+				_ = sshSession.Close()
+				return ctx.Err()
+			case err := <-sshErr:
 				return err
 			}
-
-			return nil
 		},
 	}
 	cliflag.BoolVarP(cmd.Flags(), &stdio, "stdio", "", "CODER_SSH_STDIO", false, "Specifies whether to emit SSH output over stdin/stdout.")
 	cliflag.BoolVarP(cmd.Flags(), &shuffle, "shuffle", "", "CODER_SSH_SHUFFLE", false, "Specifies whether to choose a random workspace")
 	_ = cmd.Flags().MarkHidden("shuffle")
 	cliflag.BoolVarP(cmd.Flags(), &forwardAgent, "forward-agent", "A", "CODER_SSH_FORWARD_AGENT", false, "Specifies whether to forward the SSH agent specified in $SSH_AUTH_SOCK")
-	cliflag.BoolVarP(cmd.Flags(), &forwardGPG, "forward-gpg", "G", "CODER_SSH_FORWARD_GPG", false, "Specifies whether to forward the GPG agent")
+	cliflag.BoolVarP(cmd.Flags(), &forwardGPG, "forward-gpg", "G", "CODER_SSH_FORWARD_GPG", false, "Specifies whether to forward the GPG agent. Unsupported on Windows workspaces, but supports all clients. Requires gnupg (gpg, gpgconf) on both the client and workspace. The GPG agent must already be running and will not be started for you.")
 	cliflag.StringVarP(cmd.Flags(), &identityAgent, "identity-agent", "", "CODER_SSH_IDENTITY_AGENT", "", "Specifies which identity agent to use (overrides $SSH_AUTH_SOCK), forward agent must also be enabled")
 	cliflag.DurationVarP(cmd.Flags(), &wsPollInterval, "workspace-poll-interval", "", "CODER_WORKSPACE_POLL_INTERVAL", workspacePollInterval, "Specifies how often to poll for workspace automated shutdown.")
 	return cmd
@@ -490,7 +504,7 @@ type cookieAddr struct {
 func sshForward(ctx context.Context, stderr io.Writer, sshClient *gossh.Client, localAddr, remoteAddr net.Addr) (io.Closer, error) {
 	listener, err := sshClient.Listen(remoteAddr.Network(), remoteAddr.String())
 	if err != nil {
-		return nil, xerrors.Errorf("listen on local address %s: %w", localAddr, err)
+		return nil, xerrors.Errorf("listen on remote SSH address %s: %w", remoteAddr.String(), err)
 	}
 
 	go func() {
@@ -498,20 +512,26 @@ func sshForward(ctx context.Context, stderr io.Writer, sshClient *gossh.Client, 
 			remoteConn, err := listener.Accept()
 			if err != nil {
 				if ctx.Err() == nil {
-					fmt.Fprintf(stderr, "Accept SSH listener connection: %+v\n", err)
+					_, _ = fmt.Fprintf(stderr, "Accept SSH listener connection: %+v\n", err)
 				}
 				return
 			}
 
 			localConn, err := net.Dial(localAddr.Network(), localAddr.String())
 			if err != nil {
-				fmt.Fprintf(stderr, "Dial local address %s: %+v\n", localAddr, err)
+				_, _ = fmt.Fprintf(stderr, "Dial local address %s: %+v\n", localAddr.String(), err)
 				_ = remoteConn.Close()
 				continue
 			}
 
 			if c, ok := localAddr.(cookieAddr); ok {
-				_, _ = localConn.Write(c.cookie)
+				_, err = localConn.Write(c.cookie)
+				if err != nil {
+					_, _ = fmt.Fprintf(stderr, "Write cookie to local connection: %+v\n", err)
+					_ = localConn.Close()
+					_ = remoteConn.Close()
+					continue
+				}
 			}
 
 			go agent.Bicopy(ctx, localConn, remoteConn)
