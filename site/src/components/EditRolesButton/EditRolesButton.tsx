@@ -41,16 +41,25 @@ const Option: React.FC<{
   )
 }
 
-export const EditRolesButton: FC<{
+export interface EditRolesButtonProps {
   isLoading: boolean
   roles: Role[]
   selectedRoles: Role[]
   onChange: (roles: Role["name"][]) => void
-}> = ({ roles, selectedRoles, onChange, isLoading }) => {
+  defaultIsOpen?: boolean
+}
+
+export const EditRolesButton: FC<EditRolesButtonProps> = ({
+  roles,
+  selectedRoles,
+  onChange,
+  isLoading,
+  defaultIsOpen = false,
+}) => {
   const styles = useStyles()
   const { t } = useTranslation("usersPage")
   const anchorRef = useRef<HTMLButtonElement>(null)
-  const [isOpen, setIsOpen] = useState(false)
+  const [isOpen, setIsOpen] = useState(defaultIsOpen)
   const id = isOpen ? "edit-roles-popover" : undefined
   const selectedRoleNames = selectedRoles.map((role) => role.name)
 
