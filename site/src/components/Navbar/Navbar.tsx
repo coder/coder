@@ -7,6 +7,7 @@ import { NavbarView } from "../NavbarView/NavbarView"
 
 export const Navbar: React.FC = () => {
   const xServices = useContext(XServiceContext)
+  const [appearanceState] = useActor(xServices.appearanceXService)
   const [authState, authSend] = useActor(xServices.authXService)
   const { me, permissions } = authState.context
   const featureVisibility = useSelector(
@@ -23,6 +24,7 @@ export const Navbar: React.FC = () => {
   return (
     <NavbarView
       user={me}
+      logo_url={appearanceState.context.appearance.logo_url}
       onSignOut={onSignOut}
       canViewAuditLog={canViewAuditLog}
       canViewDeployment={canViewDeployment}

@@ -14,6 +14,7 @@ import { Logo } from "../Icons/Logo"
 import { UserDropdown } from "../UserDropdown/UsersDropdown"
 
 export interface NavbarViewProps {
+  logo_url?: string
   user?: TypesGen.User
   onSignOut: () => void
   canViewAuditLog: boolean
@@ -83,6 +84,7 @@ const NavItems: React.FC<
 }
 export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
   user,
+  logo_url,
   onSignOut,
   canViewAuditLog,
   canViewDeployment,
@@ -110,7 +112,11 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
         >
           <div className={styles.drawer}>
             <div className={styles.drawerHeader}>
-              <Logo fill="white" opacity={1} width={125} />
+              {logo_url ? (
+                <img src={logo_url} alt="Custom Logo" />
+              ) : (
+                <Logo fill="white" opacity={1} width={125} />
+              )}
             </div>
             <NavItems
               canViewAuditLog={canViewAuditLog}
@@ -120,7 +126,11 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
         </Drawer>
 
         <NavLink className={styles.logo} to="/workspaces">
-          <Logo fill="white" opacity={1} width={125} />
+          {logo_url ? (
+            <img src={logo_url} alt="Custom Logo" />
+          ) : (
+            <Logo fill="white" opacity={1} width={125} />
+          )}
         </NavLink>
 
         <NavItems
@@ -191,8 +201,10 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     height: navHeight,
     paddingRight: theme.spacing(4),
-    "& svg": {
+    // svg is for the Coder logo, img is for custom images
+    "& svg, & img": {
       width: 109,
+      maxHeight: `calc(${navHeight}px)`,
     },
   },
   title: {
