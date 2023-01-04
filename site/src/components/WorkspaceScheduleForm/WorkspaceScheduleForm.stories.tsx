@@ -7,7 +7,7 @@ import {
   defaultSchedule,
   emptySchedule,
 } from "pages/WorkspaceSchedulePage/schedule"
-import { defaultTTL, emptyTTL } from "pages/WorkspaceSchedulePage/ttl"
+import { emptyTTL } from "pages/WorkspaceSchedulePage/ttl"
 import { makeMockApiError } from "testHelpers/entities"
 import {
   WorkspaceScheduleForm,
@@ -39,7 +39,7 @@ const defaultInitialValues = {
   autoStartEnabled: true,
   ...defaultSchedule(),
   autoStopEnabled: true,
-  ttl: defaultTTL,
+  ttl: 24,
 }
 
 export const AllDisabled = Template.bind({})

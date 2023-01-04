@@ -1,39 +1,32 @@
-###############################################################################
-#                                 NOTICE                                      #
-# If you change this file, kindly copy-pasta your change into .prettierignore #
-# and .eslintignore as well. See the following discussions to understand why  #
-# we have to resort to this duplication (at least for now):                   #
-#                                                                             #
-# https://github.com/prettier/prettier/issues/8048                            #
-# https://github.com/prettier/prettier/issues/8506                            #
-# https://github.com/prettier/prettier/issues/8679                            #
-###############################################################################
-
-node_modules
-vendor
+# Common ignore patterns, these rules applies in both root and subdirectories.
+.DS_Store
 .eslintcache
-yarn-error.log
+.gitpod.yml
+.idea
+**/*.swp
 gotests.coverage
 gotests.xml
 gotestsum.json
-.idea
-.gitpod.yml
-.DS_Store
+node_modules/
+vendor/
+yarn-error.log
+
+# VSCode settings.
+**/.vscode/*
+# Allow VSCode recommendations and default settings in project root.
+!/.vscode/extensions.json
+!/.vscode/settings.json
+
+# Front-end ignore patterns.
+.next/
+site/**/*.typegen.ts
+site/build-storybook.log
+site/coverage/
+site/storybook-static/
+site/test-results/
 
 # Make target for updating golden files.
 cli/testdata/.gen-golden
-
-# Front-end ignore
-.next/
-site/.eslintcache
-site/.next/
-site/node_modules/
-site/storybook-static/
-site/test-results/
-site/yarn-error.log
-coverage/
-site/**/*.typegen.ts
-site/build-storybook.log
 
 # Build
 /build/
@@ -46,10 +39,7 @@ site/out/
 *.lock.hcl
 .terraform/
 
-.vscode/*.log
-.vscode/launch.json
-**/*.swp
-.coderv2/*
+/.coderv2/*
 **/__debug_bin
 
 # direnv

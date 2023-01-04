@@ -38,7 +38,7 @@ updates:
       # Ignore patch updates for all dependencies
       - dependency-name: "*"
         update-types:
-        - version-update:semver-patch
+          - version-update:semver-patch
 
   - package-ecosystem: "npm"
     directory: "/site/"
@@ -53,7 +53,7 @@ updates:
       # Ignore patch updates for all dependencies
       - dependency-name: "*"
         update-types:
-        - version-update:semver-patch
+          - version-update:semver-patch
       # Ignore major updates to Node.js types, because they need to
       # correspond to the Node.js engine version
       - dependency-name: "@types/node"

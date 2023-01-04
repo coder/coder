@@ -54,7 +54,7 @@ type AuthorizationObject struct {
 	// ResourceID (optional) reduces the set to a singular resource. This assigns
 	// a resource ID to the resource type, eg: a single workspace.
 	// The rbac library will not fetch the resource from the database, so if you
-	// are using this option, you should also set the `OwnerID` and `OrganizationID`
+	// are using this option, you should also set the owner ID and organization ID
 	// if possible. Be as specific as possible using all the fields relevant.
 	ResourceID string `json:"resource_id,omitempty"`
 }

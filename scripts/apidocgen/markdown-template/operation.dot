@@ -1,7 +1,17 @@
 {{
 	function renderCodeSample(data) {
 		const originalCodeSample = data.utils.getCodeSamples(data);
-		return originalCodeSample.replace("\n```\n", "```\n")
+		return originalCodeSample.replace("\n```\n", "```\n");
+	}
+
+	function renderDescription(data) {
+		if (!data.operation.description) {
+			return "";
+		}
+		if (data.operation.description.startsWith("Swagger notice:")) {
+			return "";
+		}
+		return data.operation.description;
 	}
 }}
 {{= data.tags.section }}
@@ -27,7 +37,7 @@
 
 {{? data.operation.summary && !data.options.tocSummary}}*{{= data.operation.summary }}*{{?}}
 
-{{? data.operation.description}}{{= data.operation.description }}{{?}}
+{{= renderDescription(data)}}
 
 {{? data.operation.requestBody}}
 > Body parameter
@@ -48,7 +58,5 @@
 {{ data.security = data.operation.security ? data.operation.security : data.api.security; }}
 {{? data.security && data.security.length }}
 {{#def.authentication}}
-{{??}}
-{{#def.authentication_none}}
 {{?}}
 {{= data.tags.endSection }}

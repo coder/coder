@@ -17,6 +17,7 @@ This lets you quickly test out Coder in a self-contained environment.
 - You can use the configuration as-is, or edit it to your liking.
 
 This will:
+
 - Start an Ubuntu 22.04 VM
 - Install Docker and Terraform from the official repos
 - Install Coder using the [installation script](https://coder.com/docs/coder-oss/latest/install#installsh)

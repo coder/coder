@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
-	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -22,7 +21,6 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
-	"nhooyr.io/websocket/wsjson"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
@@ -826,135 +824,6 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AgentStatsResponse{
 		ReportInterval: api.AgentStatsRefreshInterval,
 	})
-}
-
-func (api *API) workspaceAgentReportStatsWebsocket(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	api.WebsocketWaitMutex.Lock()
-	api.WebsocketWaitGroup.Add(1)
-	api.WebsocketWaitMutex.Unlock()
-	defer api.WebsocketWaitGroup.Done()
-
-	workspaceAgent := httpmw.WorkspaceAgent(r)
-	workspace, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to get workspace.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
-		CompressionMode: websocket.CompressionDisabled,
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to accept websocket.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	go httpapi.Heartbeat(ctx, conn)
-
-	defer conn.Close(websocket.StatusGoingAway, "")
-
-	var lastReport codersdk.AgentStatsReportResponse
-	latestStat, err := api.Database.GetLatestAgentStat(ctx, workspaceAgent.ID)
-	if err == nil {
-		err = json.Unmarshal(latestStat.Payload, &lastReport)
-		if err != nil {
-			api.Logger.Debug(ctx, "unmarshal stat payload", slog.Error(err))
-			conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("unmarshal stat payload: %s", err))
-			return
-		}
-	}
-
-	// Allow overriding the stat interval for debugging and testing purposes.
-	timer := time.NewTicker(api.AgentStatsRefreshInterval)
-	defer timer.Stop()
-
-	go func() {
-		for {
-			err := wsjson.Write(ctx, conn, codersdk.AgentStatsReportRequest{})
-			if err != nil {
-				conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("write report request: %s", err))
-				return
-			}
-
-			select {
-			case <-timer.C:
-				continue
-			case <-ctx.Done():
-				conn.Close(websocket.StatusNormalClosure, "")
-				return
-			}
-		}
-	}()
-
-	for {
-		var rep codersdk.AgentStatsReportResponse
-		err = wsjson.Read(ctx, conn, &rep)
-		if err != nil {
-			conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("read report response: %s", err))
-			return
-		}
-
-		repJSON, err := json.Marshal(rep)
-		if err != nil {
-			api.Logger.Debug(ctx, "marshal stat json", slog.Error(err))
-			conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("marshal stat json: %s", err))
-			return
-		}
-
-		// Avoid inserting duplicate rows to preserve DB space.
-		// We will see duplicate reports when on idle connections
-		// (e.g. web terminal left open) or when there are no connections at
-		// all.
-		// We also don't want to update the workspace last used at on duplicate
-		// reports.
-		updateDB := !reflect.DeepEqual(lastReport, rep)
-
-		api.Logger.Debug(ctx, "read stats report",
-			slog.F("interval", api.AgentStatsRefreshInterval),
-			slog.F("agent", workspaceAgent.ID),
-			slog.F("workspace", workspace.ID),
-			slog.F("update_db", updateDB),
-			slog.F("payload", rep),
-		)
-
-		if updateDB {
-			go activityBumpWorkspace(api.Logger.Named("activity_bump"), api.Database, workspace.ID)
-
-			lastReport = rep
-
-			_, err = api.Database.InsertAgentStat(ctx, database.InsertAgentStatParams{
-				ID:          uuid.New(),
-				CreatedAt:   database.Now(),
-				AgentID:     workspaceAgent.ID,
-				WorkspaceID: workspace.ID,
-				UserID:      workspace.OwnerID,
-				TemplateID:  workspace.TemplateID,
-				Payload:     json.RawMessage(repJSON),
-			})
-			if err != nil {
-				api.Logger.Debug(ctx, "insert agent stat", slog.Error(err))
-				conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("insert agent stat: %s", err))
-				return
-			}
-
-			err = api.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
-				ID:         workspace.ID,
-				LastUsedAt: database.Now(),
-			})
-			if err != nil {
-				api.Logger.Debug(ctx, "update workspace last used at", slog.Error(err))
-				conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("update workspace last used at: %s", err))
-				return
-			}
-		}
-	}
 }
 
 func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) {

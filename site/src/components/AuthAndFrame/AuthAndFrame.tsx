@@ -3,7 +3,6 @@ import { useActor } from "@xstate/react"
 import { Loader } from "components/Loader/Loader"
 import { FC, Suspense, useContext, useEffect } from "react"
 import { XServiceContext } from "../../xServices/StateContext"
-import { Footer } from "../Footer/Footer"
 import { Navbar } from "../Navbar/Navbar"
 import { RequireAuth } from "../RequireAuth/RequireAuth"
 import { UpdateCheckBanner } from "components/UpdateCheckBanner/UpdateCheckBanner"
@@ -20,7 +19,6 @@ export const AuthAndFrame: FC<AuthAndFrameProps> = ({ children }) => {
   const styles = useStyles()
   const xServices = useContext(XServiceContext)
   const [authState] = useActor(xServices.authXService)
-  const [buildInfoState] = useActor(xServices.buildInfoXService)
   const [updateCheckState, updateCheckSend] = useActor(
     xServices.updateCheckXService,
   )
@@ -51,7 +49,6 @@ export const AuthAndFrame: FC<AuthAndFrameProps> = ({ children }) => {
         <div className={styles.siteContent}>
           <Suspense fallback={<Loader />}>{children}</Suspense>
         </div>
-        <Footer buildInfo={buildInfoState.context.buildInfo} />
       </div>
     </RequireAuth>
   )
