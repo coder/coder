@@ -1119,6 +1119,17 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "shorthand": "string",
       "usage": "string",
       "value": "string"
+    },
+    "username_field": {
+      "default": "string",
+      "enterprise": true,
+      "flag": "string",
+      "hidden": true,
+      "name": "string",
+      "secret": true,
+      "shorthand": "string",
+      "usage": "string",
+      "value": "string"
     }
   },
   "pg_connection_url": {
@@ -2072,6 +2083,17 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "shorthand": "string",
     "usage": "string",
     "value": "string"
+  },
+  "username_field": {
+    "default": "string",
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": "string"
   }
 }
 ```
@@ -2087,6 +2109,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `ignore_email_verified` | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                 | false    |              |             |
 | `issuer_url`            | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
 | `scopes`                | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string) | false    |              |             |
+| `username_field`        | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
 
 ## codersdk.Parameter
 

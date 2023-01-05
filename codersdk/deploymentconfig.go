@@ -99,6 +99,7 @@ type OIDCConfig struct {
 	IssuerURL           *DeploymentConfigField[string]   `json:"issuer_url" typescript:",notnull"`
 	Scopes              *DeploymentConfigField[[]string] `json:"scopes" typescript:",notnull"`
 	IgnoreEmailVerified *DeploymentConfigField[bool]     `json:"ignore_email_verified" typescript:",notnull"`
+	UsernameField       *DeploymentConfigField[string]   `json:"username_field" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {

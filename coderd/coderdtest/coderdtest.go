@@ -880,6 +880,7 @@ func (o *OIDCConfig) OIDCConfig() *coderd.OIDCConfig {
 		}, &oidc.Config{
 			SkipClientIDCheck: true,
 		}),
+		UsernameField: "preferred_username",
 	}
 }
 

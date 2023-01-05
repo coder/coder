@@ -1975,6 +1975,9 @@ const docTemplate = `{
                 },
                 "scopes": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
+                },
+                "username_field": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
                 }
             }
         },

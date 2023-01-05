@@ -31,6 +31,12 @@ export interface AgentStatsReportResponse {
   readonly tx_bytes: number
 }
 
+// From codersdk/appearance.go
+export interface AppearanceConfig {
+  readonly logo_url: string
+  readonly service_banner: ServiceBannerConfig
+}
+
 // From codersdk/roles.go
 export interface AssignableRoles extends Role {
   readonly assignable: boolean
@@ -452,6 +458,7 @@ export interface OIDCConfig {
   readonly issuer_url: DeploymentConfigField<string>
   readonly scopes: DeploymentConfigField<string[]>
   readonly ignore_email_verified: DeploymentConfigField<boolean>
+  readonly username_field: DeploymentConfigField<string>
 }
 
 // From codersdk/organizations.go
@@ -610,8 +617,8 @@ export interface ServerSentEvent {
   readonly data: any
 }
 
-// From codersdk/servicebanner.go
-export interface ServiceBanner {
+// From codersdk/appearance.go
+export interface ServiceBannerConfig {
   readonly enabled: boolean
   readonly message?: string
   readonly background_color?: string
@@ -736,6 +743,11 @@ export interface TransitionStats {
 // From codersdk/templates.go
 export interface UpdateActiveTemplateVersion {
   readonly id: string
+}
+
+// From codersdk/branding.go
+export interface UpdateBrandingRequest {
+  readonly logo_url: string
 }
 
 // From codersdk/updatecheck.go
