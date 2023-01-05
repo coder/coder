@@ -71,7 +71,10 @@ const SettingsGroupPage = lazy(
   () => import("./pages/GroupsPage/SettingsGroupPage"),
 )
 const GeneralSettingsPage = lazy(
-  () => import("./pages/DeploySettingsPage/GeneralSettingsPage"),
+  () =>
+    import(
+      "./pages/DeploySettingsPage/GeneralSettingsPage/GeneralSettingsPage"
+    ),
 )
 const SecuritySettingsPage = lazy(
   () => import("./pages/DeploySettingsPage/SecuritySettingsPage"),

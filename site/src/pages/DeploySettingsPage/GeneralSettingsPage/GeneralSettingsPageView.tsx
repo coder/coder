@@ -1,18 +1,15 @@
-import { useDeploySettings } from "components/DeploySettingsLayout/DeploySettingsLayout"
+import { DeploymentConfig } from "api/typesGenerated"
 import { Header } from "components/DeploySettingsLayout/Header"
 import OptionsTable from "components/DeploySettingsLayout/OptionsTable"
-import React from "react"
-import { Helmet } from "react-helmet-async"
-import { pageTitle } from "util/page"
 
-const GeneralSettingsPage: React.FC = () => {
-  const { deploymentConfig: deploymentConfig } = useDeploySettings()
-
+export type GeneralSettingsPageViewProps = {
+  deploymentConfig: Pick<DeploymentConfig, "access_url" | "wildcard_access_url">
+}
+export const GeneralSettingsPageView = ({
+  deploymentConfig,
+}: GeneralSettingsPageViewProps): JSX.Element => {
   return (
     <>
-      <Helmet>
-        <title>{pageTitle("General Settings")}</title>
-      </Helmet>
       <Header
         title="General"
         description="Information about your Coder deployment."
@@ -27,5 +24,3 @@ const GeneralSettingsPage: React.FC = () => {
     </>
   )
 }
-
-export default GeneralSettingsPage
