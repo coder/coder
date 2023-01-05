@@ -58,6 +58,12 @@ provision:
       systemctl restart docker
       # In case a user forgets to set the arch correctly, just install binfmt
       docker run --privileged --rm tonistiigi/binfmt --install all
+      # Also ensure that the Lima user has access to the Docker daemon without sudo.
+      # The 'right' way to to do this is with the Docker group, but Lima keeps the
+      # SSH session around. We don't want users to have to manually delete ~/.lima/$VM/ssh.sock
+      # so we're just instead going to modify the perms on the Docker socket.
+      # See: https://github.com/lima-vm/lima/issues/528
+      chmod a+rwx /var/run/docker.sock
   - mode: system
     script: |
       #!/bin/bash
