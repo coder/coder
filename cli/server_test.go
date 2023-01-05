@@ -685,7 +685,7 @@ func TestServer(t *testing.T) {
 		)
 		err := root.ExecuteContext(ctx)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "either HTTP or TLS must be enabled")
+		require.ErrorContains(t, err, "TLS is disabled. Enable with --tls-enable or specify a HTTP address")
 	})
 
 	t.Run("NoTLSAddress", func(t *testing.T) {
