@@ -55,7 +55,7 @@ Usage:
       Specifies the remote shell for remote installation. Defaults to ssh.
 
   --with-terraform
-	  Installs Terraform binary from https://releases.hashicorp.com/terraform/1.3.4/ source
+	  Installs Terraform binary from https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/ source
 	  alongside coder.
 	  This is great for if you are having issues with Coder installing terraform, or if you
 	  just want it on your base system aswell.
@@ -157,7 +157,7 @@ main() {
 	if [ "${TRACE-}" ]; then
 		set -x
 	fi
-
+	TERRAFORM_VERSION="1.3.4"
 	unset \
 		DRY_RUN \
 		METHOD \
@@ -222,7 +222,7 @@ main() {
 			exit 0
 			;;
 		--with-terraform)
-			METHOD=install_terraform
+			METHOD=with_terraform
 			;;
 		--)
 			shift
@@ -253,7 +253,7 @@ main() {
 	fi
 
 	METHOD="${METHOD-detect}"
-	if [ "$METHOD" != detect ] && [ "$METHOD" != install_terraform ] && [ "$METHOD" != standalone ]; then
+	if [ "$METHOD" != detect ] && [ "$METHOD" != with_terraform ] && [ "$METHOD" != standalone ]; then
 		echoerr "Unknown install method \"$METHOD\""
 		echoerr "Run with --help to see usage."
 		exit 1
@@ -290,9 +290,9 @@ main() {
 			exit 1
 		fi
 	fi
-	if [ "$METHOD" = install_terraform ]; then
-		# Install terraform then contine the script
-		install_terraform
+	if [ "$METHOD" = with_terraform ]; then
+		# Install terraform then continue the script
+		with_terraform
 	fi
 
 	# DISTRO can be overridden for testing but shouldn't normally be used as it
@@ -369,7 +369,7 @@ fetch() {
 	sh_c mv "$FILE.incomplete" "$FILE"
 }
 
-install_terraform() {
+with_terraform() {
 	# Check if the unzip package is installed. If not error peacefully.
 	if !(command_exists unzip); then
 		echoh
@@ -377,12 +377,11 @@ install_terraform() {
 		echoerr "Please install unzip to use this function"
 		exit 1
 	fi
-	TERRAFORM_VERSION="1.3.4"
-	echoh "Installing Terraform version $TERRAFORM_VERSION $TERRAFORM_ARCH package from Hashicorp Source."
+	echoh "Installing Terraform version $TERRAFORM_VERSION $TERRAFORM_ARCH from the HashiCorp release repository."
 	echoh
 
-	# Download from offical source and save it to cache
-	fetch "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_1.3.4_${OS}_${TERRAFORM_ARCH}.zip" \
+	# Download from official source and save it to cache
+	fetch "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_${OS}_${TERRAFORM_ARCH}.zip" \
 		"$CACHE_DIR/terraform_${TERRAFORM_VERSION}_${OS}_${TERRAFORM_ARCH}.zip"
 
 	sh_c mkdir -p "$TERRAFORM_INSTALL_PREFIX" 2>/dev/null || true
@@ -393,7 +392,7 @@ install_terraform() {
 	fi
 	# Prepare /usr/local/bin/ and the binary for copying
 	"$sh_c" mkdir -p "$TERRAFORM_INSTALL_PREFIX/bin"
-	"$sh_c" unzip -d "$CACHE_DIR" -o "$CACHE_DIR/terraform_1.3.4_${OS}_${ARCH}.zip"
+	"$sh_c" unzip -d "$CACHE_DIR" -o "$CACHE_DIR/terraform_${TERRAFORM_VERSION}_${OS}_${ARCH}.zip"
 	COPY_LOCATION="$TERRAFORM_INSTALL_PREFIX/bin/terraform"
 
 	# Remove the file if it already exists to
@@ -578,8 +577,8 @@ arch() {
 	esac
 }
 
-# The following is to change the naming, that way people with armv7 won't recieve a error
-# List of binaries can be found here: https://releases.hashicorp.com/terraform/1.3.4/
+# The following is to change the naming, that way people with armv7 won't receive a error
+# List of binaries can be found here: https://releases.hashicorp.com/terraform/
 terraform_arch() {
 	uname_m=$(uname -m)
 	case $uname_m in
