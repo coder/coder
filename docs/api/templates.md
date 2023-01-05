@@ -75,7 +75,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization-id}/tem
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "provisioner": "string",
+  "provisioner": "echo",
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_owner_count": 0
 }
@@ -138,7 +138,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-    "provisioner": "string",
+    "provisioner": "echo",
     "updated_at": "2019-08-24T14:15:22Z",
     "workspace_owner_count": 0
   }
@@ -175,9 +175,16 @@ Status Code **200**
 | `» id`                               | string(uuid)                      | false    |              |                                            |
 | `» name`                             | string                            | false    |              |                                            |
 | `» organization_id`                  | string(uuid)                      | false    |              |                                            |
-| `» provisioner`                      | string                            | false    |              |                                            |
+| `» provisioner`                      | `codersdk.ProvisionerType`        | false    |              |                                            |
 | `» updated_at`                       | string(date-time)                 | false    |              |                                            |
 | `» workspace_owner_count`            | integer                           | false    |              |                                            |
+
+#### Enumerated Values
+
+| Property      | Value       |
+| ------------- | ----------- |
+| `provisioner` | `echo`      |
+| `provisioner` | `terraform` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -230,7 +237,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "provisioner": "string",
+  "provisioner": "echo",
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_owner_count": 0
 }
@@ -292,7 +299,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{id} \
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "provisioner": "string",
+  "provisioner": "echo",
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_owner_count": 0
 }
@@ -398,7 +405,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{id} \
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "provisioner": "string",
+  "provisioner": "echo",
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_owner_count": 0
 }
