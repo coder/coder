@@ -151,17 +151,6 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
     "usage": "string",
     "value": true
   },
-  "auto_import_templates": {
-    "default": ["string"],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
   "autobuild_poll_interval": {
     "default": 0,
     "enterprise": true,
@@ -527,6 +516,17 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
     },
     "scopes": {
       "default": ["string"],
+      "enterprise": true,
+      "flag": "string",
+      "hidden": true,
+      "name": "string",
+      "secret": true,
+      "shorthand": "string",
+      "usage": "string",
+      "value": "string"
+    },
+    "username_field": {
+      "default": "string",
       "enterprise": true,
       "flag": "string",
       "hidden": true,
@@ -923,7 +923,7 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.DeploymentConfig](schemas.md#codersdkdeploymentconfig) |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Report CSP violations
 
@@ -958,7 +958,7 @@ curl -X POST http://coder-server:8080/api/v2/csp/reports \
 | ------ | ------------------------------------------------------- | ----------- | ------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Update check
 

@@ -96,6 +96,11 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
     borderRadius: theme.shape.borderRadius,
     padding: `${theme.spacing(1)}px ${theme.spacing(2)}px`,
     backgroundColor: `${colors.gray[16]}`,
+    textAlign: "left",
+
+    "& span": {
+      paddingTop: `${theme.spacing(0.25)}px`,
+    },
 
     // targeting the alert icon rather than the expander icon
     "& svg:nth-child(2)": {

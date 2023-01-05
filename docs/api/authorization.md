@@ -66,4 +66,4 @@ curl -X POST http://coder-server:8080/api/v2/authcheck \
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AuthorizationResponse](schemas.md#codersdkauthorizationresponse) |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).

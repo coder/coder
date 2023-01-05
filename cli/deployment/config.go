@@ -248,6 +248,12 @@ func newConfig() *codersdk.DeploymentConfig {
 				Flag:    "oidc-ignore-email-verified",
 				Default: false,
 			},
+			UsernameField: &codersdk.DeploymentConfigField[string]{
+				Name:    "OIDC Username Field",
+				Usage:   "OIDC claim field to use as the username.",
+				Flag:    "oidc-username-field",
+				Default: "preferred_username",
+			},
 		},
 
 		Telemetry: &codersdk.TelemetryConfig{
@@ -355,12 +361,6 @@ func newConfig() *codersdk.DeploymentConfig {
 			Usage:   "The algorithm to use for generating ssh keys. Accepted values are \"ed25519\", \"ecdsa\", or \"rsa4096\".",
 			Flag:    "ssh-keygen-algorithm",
 			Default: "ed25519",
-		},
-		AutoImportTemplates: &codersdk.DeploymentConfigField[[]string]{
-			Name:   "Auto Import Templates",
-			Usage:  "Templates to auto-import. Available auto-importable templates are: kubernetes",
-			Flag:   "auto-import-template",
-			Hidden: true,
 		},
 		MetricsCacheRefreshInterval: &codersdk.DeploymentConfigField[time.Duration]{
 			Name:    "Metrics Cache Refresh Interval",
