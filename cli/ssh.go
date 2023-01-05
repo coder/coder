@@ -221,30 +221,18 @@ func ssh() *cobra.Command {
 				}
 			}
 
-			// Wait for the context to be canceled, or the SSH session to end.
-			sshErr := make(chan error)
-			go func() {
-				defer close(sshErr)
-
-				err = sshSession.Wait()
-				if err != nil {
-					// If the connection drops unexpectedly, we get an ExitMissingError but no other
-					// error details, so try to at least give the user a better message
-					if errors.Is(err, &gossh.ExitMissingError{}) {
-						sshErr <- xerrors.New("SSH connection ended unexpectedly")
-						return
-					}
-					sshErr <- err
+			err = sshSession.Wait()
+			if err != nil {
+				// If the connection drops unexpectedly, we get an
+				// ExitMissingError but no other error details, so try to at
+				// least give the user a better message
+				if errors.Is(err, &gossh.ExitMissingError{}) {
+					return xerrors.New("SSH connection ended unexpectedly")
 				}
-			}()
-
-			select {
-			case <-ctx.Done():
-				_ = sshSession.Close()
-				return ctx.Err()
-			case err := <-sshErr:
 				return err
 			}
+
+			return nil
 		},
 	}
 	cliflag.BoolVarP(cmd.Flags(), &stdio, "stdio", "", "CODER_SSH_STDIO", false, "Specifies whether to emit SSH output over stdin/stdout.")
@@ -456,7 +444,12 @@ func uploadGPGKeys(ctx context.Context, sshClient *gossh.Client) error {
 	// Check if the agent is running in the workspace already.
 	// Note: we don't support windows in the workspace for GPG forwarding so
 	//       using shell commands is fine.
-	agentSocketBytes, err := runRemoteSSH(sshClient, nil, "set -eux; agent_socket=$(gpgconf --list-dir agent-socket); echo $agent_socket; test ! -S $agent_socket")
+	agentSocketBytes, err := runRemoteSSH(sshClient, nil, `
+set -eux
+agent_socket=$(gpgconf --list-dir agent-socket)
+echo "$agent_socket"
+test ! -S "$agent_socket"
+`)
 	agentSocket := strings.TrimSpace(string(agentSocketBytes))
 	if err != nil {
 		return xerrors.Errorf("check if agent socket is running (check if %q exists): %w", agentSocket, err)
@@ -540,24 +533,30 @@ func sshForwardRemote(ctx context.Context, stderr io.Writer, sshClient *gossh.Cl
 				return
 			}
 
-			localConn, err := net.Dial(localAddr.Network(), localAddr.String())
-			if err != nil {
-				_, _ = fmt.Fprintf(stderr, "Dial local address %s: %+v\n", localAddr.String(), err)
-				_ = remoteConn.Close()
-				continue
-			}
-
-			if c, ok := localAddr.(cookieAddr); ok {
-				_, err = localConn.Write(c.cookie)
-				if err != nil {
-					_, _ = fmt.Fprintf(stderr, "Write cookie to local connection: %+v\n", err)
-					_ = localConn.Close()
+			go func() {
+				defer func() {
 					_ = remoteConn.Close()
-					continue
-				}
-			}
+				}()
 
-			go agent.Bicopy(ctx, localConn, remoteConn)
+				localConn, err := net.Dial(localAddr.Network(), localAddr.String())
+				if err != nil {
+					_, _ = fmt.Fprintf(stderr, "Dial local address %s: %+v\n", localAddr.String(), err)
+					return
+				}
+				defer func() {
+					_ = localConn.Close()
+				}()
+
+				if c, ok := localAddr.(cookieAddr); ok {
+					_, err = localConn.Write(c.cookie)
+					if err != nil {
+						_, _ = fmt.Fprintf(stderr, "Write cookie to local connection: %+v\n", err)
+						return
+					}
+				}
+
+				agent.Bicopy(ctx, localConn, remoteConn)
+			}()
 		}
 	}()
 

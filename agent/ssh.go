@@ -44,7 +44,7 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 	conn, ok := ctx.Value(ssh.ContextKeyConn).(*gossh.ServerConn)
 	if !ok {
 		h.log.Warn(ctx, "SSH unix forward request from client with no gossh connection")
-		return false, []byte{}
+		return false, nil
 	}
 
 	switch req.Type {
@@ -53,7 +53,7 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 		err := gossh.Unmarshal(req.Payload, &reqPayload)
 		if err != nil {
 			h.log.Warn(ctx, "parse streamlocal-forward@openssh.com request payload from client", slog.Error(err))
-			return false, []byte{}
+			return false, nil
 		}
 
 		addr := reqPayload.SocketPath
@@ -64,7 +64,7 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 			h.log.Warn(ctx, "SSH unix forward request for socket path that is already being forwarded (maybe to another client?)",
 				slog.F("socket_path", addr),
 			)
-			return false, []byte{}
+			return false, nil
 		}
 
 		// Create socket parent dir if not exists.
@@ -76,7 +76,7 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 				slog.F("socket_path", addr),
 				slog.Error(err),
 			)
-			return false, []byte{}
+			return false, nil
 		}
 
 		ln, err := net.Listen("unix", addr)
@@ -85,19 +85,20 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 				slog.F("socket_path", addr),
 				slog.Error(err),
 			)
-			return false, []byte{}
+			return false, nil
 		}
+
+		// The listener needs to successfully start before it can be added to
+		// the map, so we don't have to worry about checking for an existing
+		// listener.
+		//
+		// This is also what the upstream TCP version of this code does.
 		h.Lock()
 		h.forwards[addr] = ln
 		h.Unlock()
 		go func() {
 			<-ctx.Done()
-			h.Lock()
-			ln, ok := h.forwards[addr]
-			h.Unlock()
-			if ok {
-				_ = ln.Close()
-			}
+			_ = ln.Close()
 		}()
 		go func() {
 			for {
@@ -109,6 +110,7 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 							slog.Error(err),
 						)
 					}
+					// closed below
 					break
 				}
 				payload := gossh.Marshal(&forwardedStreamLocalPayload{
@@ -129,9 +131,14 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 					Bicopy(ctx, ch, c)
 				}()
 			}
+
 			h.Lock()
-			delete(h.forwards, addr)
+			ln2, ok := h.forwards[addr]
+			if ok && ln2 == ln {
+				delete(h.forwards, addr)
+			}
 			h.Unlock()
+			_ = ln.Close()
 		}()
 
 		return true, nil
