@@ -470,7 +470,6 @@ export const workspaceMachine = createMachine(
               src: workspaceScheduleBannerMachine,
               data: {
                 workspace: (context: WorkspaceContext) => context.workspace,
-                template: (context: WorkspaceContext) => context.template,
               },
             },
           },

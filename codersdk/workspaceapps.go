@@ -23,6 +23,12 @@ const (
 
 type WorkspaceApp struct {
 	ID uuid.UUID `json:"id"`
+	// URL is the address being proxied to inside the workspace.
+	// If external is specified, this will be opened on the client.
+	URL string `json:"url"`
+	// External specifies whether the URL should be opened externally on
+	// the client or not.
+	External bool `json:"external"`
 	// Slug is a unique identifier within the agent.
 	Slug string `json:"slug"`
 	// DisplayName is a friendly name for the app.
@@ -43,7 +49,7 @@ type WorkspaceApp struct {
 }
 
 type Healthcheck struct {
-	// URL specifies the url to check for the app health.
+	// URL specifies the endpoint to check for the app health.
 	URL string `json:"url"`
 	// Interval specifies the seconds between each health check.
 	Interval int32 `json:"interval"`

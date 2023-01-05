@@ -201,7 +201,7 @@ func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 }
 
 // Generates a new ID and secret for an API key.
-func generateAPIKeyIDSecret() (id string, secret string, err error) {
+func GenerateAPIKeyIDSecret() (id string, secret string, err error) {
 	// Length of an API Key ID.
 	id, err = cryptorand.String(10)
 	if err != nil {
@@ -239,7 +239,7 @@ func (api *API) validateAPIKeyLifetime(lifetime time.Duration) error {
 }
 
 func (api *API) createAPIKey(ctx context.Context, params createAPIKeyParams) (*http.Cookie, error) {
-	keyID, keySecret, err := generateAPIKeyIDSecret()
+	keyID, keySecret, err := GenerateAPIKeyIDSecret()
 	if err != nil {
 		return nil, xerrors.Errorf("generate API key: %w", err)
 	}

@@ -26,7 +26,7 @@ var (
 
 func main() {
 	flag.StringVar(&metricsFile, "metrics-file", "scripts/metricsdocgen/metrics", "Path to Prometheus metrics file")
-	flag.StringVar(&prometheusDocFile, "prometheus-doc-file", "docs/admin/prometheus.md", "Path to prometheus doc file")
+	flag.StringVar(&prometheusDocFile, "prometheus-doc-file", "docs/admin/prometheus.md", "Path to Prometheus doc file")
 	flag.BoolVar(&dryRun, "dry-run", false, "Dry run")
 	flag.Parse()
 

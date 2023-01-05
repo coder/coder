@@ -54,6 +54,7 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({ logs }) => {
         const lines = logs.map((log) => ({
           time: log.created_at,
           output: log.output,
+          level: log.log_level,
         }))
         const duration = getStageDurationInSeconds(logs)
         const shouldDisplayDuration = duration !== undefined
@@ -68,7 +69,7 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({ logs }) => {
                 </div>
               )}
             </div>
-            {!isEmpty && <Logs lines={lines} className={styles.codeBlock} />}
+            {!isEmpty && <Logs lines={lines} />}
           </Fragment>
         )
       })}
@@ -86,8 +87,8 @@ const useStyles = makeStyles((theme) => ({
   header: {
     fontSize: 14,
     padding: theme.spacing(2),
-    paddingLeft: theme.spacing(4),
-    paddingRight: theme.spacing(4),
+    paddingLeft: theme.spacing(3),
+    paddingRight: theme.spacing(3),
     borderBottom: `1px solid ${theme.palette.divider}`,
     backgroundColor: theme.palette.background.paper,
     display: "flex",
@@ -111,10 +112,5 @@ const useStyles = makeStyles((theme) => ({
     marginLeft: "auto",
     color: theme.palette.text.secondary,
     fontSize: theme.typography.body2.fontSize,
-  },
-
-  codeBlock: {
-    padding: theme.spacing(2),
-    paddingLeft: theme.spacing(4),
   },
 }))

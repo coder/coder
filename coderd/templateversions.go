@@ -878,21 +878,39 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		// upload a copy of the template tar as a file in the database
 		hashBytes := sha256.Sum256(tar)
 		hash := hex.EncodeToString(hashBytes[:])
-		file, err = api.Database.InsertFile(ctx, database.InsertFileParams{
-			ID:        uuid.New(),
+		// Check if the file already exists.
+		file, err := api.Database.GetFileByHashAndCreator(ctx, database.GetFileByHashAndCreatorParams{
 			Hash:      hash,
 			CreatedBy: apiKey.UserID,
-			CreatedAt: database.Now(),
-			Mimetype:  tarMimeType,
-			Data:      tar,
 		})
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error creating file.",
-				Detail:  err.Error(),
+			if !errors.Is(err, sql.ErrNoRows) {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error fetching file.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+
+			// If the example tar file doesn't exist, create it.
+			file, err = api.Database.InsertFile(ctx, database.InsertFileParams{
+				ID:        uuid.New(),
+				Hash:      hash,
+				CreatedBy: apiKey.UserID,
+				CreatedAt: database.Now(),
+				Mimetype:  tarMimeType,
+				Data:      tar,
 			})
-			return
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error creating file.",
+					Detail:  err.Error(),
+				})
+				return
+			}
 		}
+
+		req.FileID = file.ID
 	}
 
 	if req.FileID != uuid.Nil {
@@ -1051,12 +1069,12 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 
 // templateVersionResources returns the workspace agent resources associated
 // with a template version. A template can specify more than one resource to be
-// provisioned, each resource can have an agent that dials back to coderd.
-// The agents returned are informative of the template version, and do not
-// return agents associated with any particular workspace.
+// provisioned, each resource can have an agent that dials back to coderd. The
+// agents returned are informative of the template version, and do not return
+// agents associated with any particular workspace.
 func (api *API) templateVersionResources(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
 	var (
+		ctx             = r.Context()
 		templateVersion = httpmw.TemplateVersionParam(r)
 		template        = httpmw.TemplateParam(r)
 	)
@@ -1082,8 +1100,8 @@ func (api *API) templateVersionResources(rw http.ResponseWriter, r *http.Request
 // and not any build logs for a workspace.
 // Eg: Logs returned from 'terraform plan' when uploading a new terraform file.
 func (api *API) templateVersionLogs(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
 	var (
+		ctx             = r.Context()
 		templateVersion = httpmw.TemplateVersionParam(r)
 		template        = httpmw.TemplateParam(r)
 	)

@@ -76,8 +76,8 @@ const GeneralSettingsPage = lazy(
 const SecuritySettingsPage = lazy(
   () => import("./pages/DeploySettingsPage/SecuritySettingsPage"),
 )
-const ServiceBannerSettingsPage = lazy(
-  () => import("./pages/DeploySettingsPage/ServiceBannerSettingsPage"),
+const AppearanceSettingsPage = lazy(
+  () => import("./pages/DeploySettingsPage/AppearanceSettingsPage"),
 )
 const UserAuthSettingsPage = lazy(
   () => import("./pages/DeploySettingsPage/UserAuthSettingsPage"),
@@ -91,6 +91,15 @@ const NetworkSettingsPage = lazy(
 const GitAuthPage = lazy(() => import("./pages/GitAuthPage/GitAuthPage"))
 const TemplateVersionPage = lazy(
   () => import("./pages/TemplateVersionPage/TemplateVersionPage"),
+)
+const StarterTemplatesPage = lazy(
+  () => import("./pages/StarterTemplatesPage/StarterTemplatesPage"),
+)
+const StarterTemplatePage = lazy(
+  () => import("pages/StarterTemplatePage/StarterTemplatePage"),
+)
+const CreateTemplatePage = lazy(
+  () => import("./pages/CreateTemplatePage/CreateTemplatePage"),
 )
 
 export const AppRouter: FC = () => {
@@ -141,6 +150,26 @@ export const AppRouter: FC = () => {
           }
         />
 
+        <Route path="starter-templates">
+          <Route
+            index
+            element={
+              <AuthAndFrame>
+                <StarterTemplatesPage />
+              </AuthAndFrame>
+            }
+          />
+
+          <Route
+            path=":exampleId"
+            element={
+              <AuthAndFrame>
+                <StarterTemplatePage />
+              </AuthAndFrame>
+            }
+          ></Route>
+        </Route>
+
         <Route path="templates">
           <Route
             index
@@ -148,6 +177,15 @@ export const AppRouter: FC = () => {
               <AuthAndFrame>
                 <TemplatesPage />
               </AuthAndFrame>
+            }
+          />
+
+          <Route
+            path="new"
+            element={
+              <RequireAuth>
+                <CreateTemplatePage />
+              </RequireAuth>
             }
           />
 
@@ -307,14 +345,14 @@ export const AppRouter: FC = () => {
             }
           />
           <Route
-            path="service-banner"
+            path="appearance"
             element={
               <AuthAndFrame>
                 <RequirePermission
                   isFeatureVisible={Boolean(permissions?.viewDeploymentConfig)}
                 >
                   <DeploySettingsLayout>
-                    <ServiceBannerSettingsPage />
+                    <AppearanceSettingsPage />
                   </DeploySettingsLayout>
                 </RequirePermission>
               </AuthAndFrame>

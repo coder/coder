@@ -11,9 +11,11 @@ import (
 
 // DeploymentConfig is the central configuration for the coder server.
 type DeploymentConfig struct {
-	AccessURL                       *DeploymentConfigField[string]          `json:"access_url" typescript:",notnull"`
-	WildcardAccessURL               *DeploymentConfigField[string]          `json:"wildcard_access_url" typescript:",notnull"`
+	AccessURL         *DeploymentConfigField[string] `json:"access_url" typescript:",notnull"`
+	WildcardAccessURL *DeploymentConfigField[string] `json:"wildcard_access_url" typescript:",notnull"`
+	// DEPRECATED: Use HTTPAddress or TLS.Address instead.
 	Address                         *DeploymentConfigField[string]          `json:"address" typescript:",notnull"`
+	HTTPAddress                     *DeploymentConfigField[string]          `json:"http_address" typescript:",notnull"`
 	AutobuildPollInterval           *DeploymentConfigField[time.Duration]   `json:"autobuild_poll_interval" typescript:",notnull"`
 	DERP                            *DERP                                   `json:"derp" typescript:",notnull"`
 	GitAuth                         *DeploymentConfigField[[]GitAuthConfig] `json:"gitauth" typescript:",notnull"`
@@ -42,6 +44,7 @@ type DeploymentConfig struct {
 	Experimental                    *DeploymentConfigField[bool]            `json:"experimental" typescript:",notnull"`
 	UpdateCheck                     *DeploymentConfigField[bool]            `json:"update_check" typescript:",notnull"`
 	MaxTokenLifetime                *DeploymentConfigField[time.Duration]   `json:"max_token_lifetime" typescript:",notnull"`
+	Swagger                         *SwaggerConfig                          `json:"swagger" typescript:",notnull"`
 }
 
 type DERP struct {
@@ -95,6 +98,7 @@ type OIDCConfig struct {
 	IssuerURL           *DeploymentConfigField[string]   `json:"issuer_url" typescript:",notnull"`
 	Scopes              *DeploymentConfigField[[]string] `json:"scopes" typescript:",notnull"`
 	IgnoreEmailVerified *DeploymentConfigField[bool]     `json:"ignore_email_verified" typescript:",notnull"`
+	UsernameField       *DeploymentConfigField[string]   `json:"username_field" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -105,6 +109,8 @@ type TelemetryConfig struct {
 
 type TLSConfig struct {
 	Enable         *DeploymentConfigField[bool]     `json:"enable" typescript:",notnull"`
+	Address        *DeploymentConfigField[string]   `json:"address" typescript:",notnull"`
+	RedirectHTTP   *DeploymentConfigField[bool]     `json:"redirect_http" typescript:",notnull"`
 	CertFiles      *DeploymentConfigField[[]string] `json:"cert_file" typescript:",notnull"`
 	ClientAuth     *DeploymentConfigField[string]   `json:"client_auth" typescript:",notnull"`
 	ClientCAFile   *DeploymentConfigField[string]   `json:"client_ca_file" typescript:",notnull"`
@@ -138,6 +144,10 @@ type ProvisionerConfig struct {
 	DaemonPollInterval  *DeploymentConfigField[time.Duration] `json:"daemon_poll_interval" typescript:",notnull"`
 	DaemonPollJitter    *DeploymentConfigField[time.Duration] `json:"daemon_poll_jitter" typescript:",notnull"`
 	ForceCancelInterval *DeploymentConfigField[time.Duration] `json:"force_cancel_interval" typescript:",notnull"`
+}
+
+type SwaggerConfig struct {
+	Enable *DeploymentConfigField[bool] `json:"enable" typescript:",notnull"`
 }
 
 type Flaggable interface {

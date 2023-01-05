@@ -27,7 +27,9 @@ func TestRename(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	want := workspace.Name + "-test"
+	// Only append one letter because it's easy to exceed maximum length:
+	// E.g. "compassionate-chandrasekhar82" + "t".
+	want := workspace.Name + "t"
 	cmd, root := clitest.New(t, "rename", workspace.Name, want, "--yes")
 	clitest.SetupConfig(t, client, root)
 	pty := ptytest.New(t)

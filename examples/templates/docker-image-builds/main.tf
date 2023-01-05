@@ -3,7 +3,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.6.0"
+      version = "0.6.6"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -28,7 +28,7 @@ resource "coder_agent" "main" {
     #!/bin/bash
 
     # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh  | tee code-server-install.log
+    curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3 | tee code-server-install.log
     code-server --auth none --port 13337 | tee code-server-install.log &
   EOT
 }

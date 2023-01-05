@@ -2,17 +2,18 @@ import { screen } from "@testing-library/react"
 import { rest } from "msw"
 import * as CreateDayString from "util/createDayString"
 import { MockTemplate } from "../../testHelpers/entities"
-import { history, render } from "../../testHelpers/renderHelpers"
+import { renderWithAuth } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
 import { TemplatesPage } from "./TemplatesPage"
-import { Language } from "./TemplatesPageView"
+import i18next from "i18next"
+
+const { t } = i18next
 
 describe("TemplatesPage", () => {
   beforeEach(() => {
     // Mocking the dayjs module within the createDayString file
     const mock = jest.spyOn(CreateDayString, "createDayString")
     mock.mockImplementation(() => "a minute ago")
-    history.replace("/workspaces")
   })
 
   it("renders an empty templates page", async () => {
@@ -35,15 +36,24 @@ describe("TemplatesPage", () => {
     )
 
     // When
-    render(<TemplatesPage />)
+    renderWithAuth(<TemplatesPage />, {
+      route: `/templates`,
+      path: "/templates",
+    })
 
     // Then
-    await screen.findByText(Language.emptyMessage)
+    const emptyMessage = t("empty.message", {
+      ns: "templatesPage",
+    })
+    await screen.findByText(emptyMessage)
   })
 
   it("renders a filled templates page", async () => {
     // When
-    render(<TemplatesPage />)
+    renderWithAuth(<TemplatesPage />, {
+      route: `/templates`,
+      path: "/templates",
+    })
 
     // Then
     await screen.findByText(MockTemplate.display_name)
@@ -68,9 +78,14 @@ describe("TemplatesPage", () => {
     )
 
     // When
-    render(<TemplatesPage />)
-
+    renderWithAuth(<TemplatesPage />, {
+      route: `/templates`,
+      path: "/templates",
+    })
     // Then
-    await screen.findByText(Language.emptyViewNoPerms)
+    const emptyMessage = t("empty.descriptionWithoutPermissions", {
+      ns: "templatesPage",
+    })
+    await screen.findByText(emptyMessage)
   })
 })

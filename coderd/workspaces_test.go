@@ -1770,17 +1770,14 @@ func TestWorkspaceResource(t *testing.T) {
 		require.NoError(t, err)
 		metadata := workspace.LatestBuild.Resources[0].Metadata
 		require.Equal(t, []codersdk.WorkspaceResourceMetadata{{
-			Key: "empty",
-		}, {
 			Key:   "foo",
 			Value: "bar",
+		}, {
+			Key: "empty",
 		}, {
 			Key:       "secret",
 			Value:     "squirrel",
 			Sensitive: true,
-		}, {
-			Key:   "type",
-			Value: "example",
 		}}, metadata)
 	})
 }

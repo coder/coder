@@ -1,0 +1,53 @@
+{{
+  function renderParameterType(p) {
+	if (p.schema['x-widdershins-oldRef']) {
+		const aType = p.schema['x-widdershins-oldRef'].replace("#/components/schemas/","");
+		const href = aType.replace(".","").toLowerCase();
+		return "[" + aType + "](schemas.md#" + href + ")";
+	}
+	if (p.safeType == 'string(binary)') {
+		return 'binary';
+	}
+	return p.safeType;
+  }
+}}
+{{= data.tags.section }}
+### Parameters
+
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+{{~ data.parameters :p}}|`{{=p.name}}`|{{=p.in}}|{{= renderParameterType(p)}}|{{=p.required}}|{{=p.shortDesc||''}}|
+{{~}}
+
+{{? data.longDescs }}
+#### Detailed descriptions
+{{~ data.parameters :p}}{{? p.shortDesc !== p.description}}
+**{{=p.name}}**: {{=p.description}}{{?}}
+{{~}}
+{{?}}
+
+{{~ data.parameters :p}}
+
+{{? p.schema && p.schema.enum }}
+{{~ p.schema.enum :e}}
+{{ var entry = {}; entry.name = p.name; entry.value = e; data.enums.push(entry); }}
+{{~}}
+{{?}}
+
+{{? p.schema && p.schema.items && p.schema.items.enum }}
+{{~ p.schema.items.enum :e}}
+{{ var entry = {}; entry.name = p.name; entry.value = e; data.enums.push(entry); }}
+{{~}}
+{{?}}
+
+{{~}}
+
+{{? data.enums && data.enums.length }}
+#### Enumerated Values
+
+|Parameter|Value|
+|---|---|
+{{~ data.enums :e}}|`{{=e.name}}`|`{{=data.utils.toPrimitive(e.value)}}`|
+{{~}}
+{{?}}
+{{= data.tags.endSection }}

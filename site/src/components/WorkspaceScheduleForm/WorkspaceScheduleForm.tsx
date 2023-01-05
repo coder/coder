@@ -21,7 +21,6 @@ import {
   defaultSchedule,
   emptySchedule,
 } from "pages/WorkspaceSchedulePage/schedule"
-import { defaultTTL } from "pages/WorkspaceSchedulePage/ttl"
 import { ChangeEvent, FC } from "react"
 import * as Yup from "yup"
 import { getFormHelpers } from "../../util/formUtils"
@@ -81,6 +80,7 @@ export interface WorkspaceScheduleFormProps {
   onSubmit: (values: WorkspaceScheduleFormValues) => void
   // for storybook
   initialTouched?: FormikTouched<WorkspaceScheduleFormValues>
+  defaultTTL: number
 }
 
 export interface WorkspaceScheduleFormValues {
@@ -192,6 +192,7 @@ export const WorkspaceScheduleForm: FC<
   onCancel,
   onSubmit,
   initialTouched,
+  defaultTTL,
 }) => {
   const styles = useStyles()
 

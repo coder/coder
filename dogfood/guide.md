@@ -51,17 +51,17 @@ The following explains how to do certain things related to dogfooding.
 7.  To create your own template, you can do: `./scripts/coder-dev.sh templates init` and choose your preferred option.
     For example, choosing “Develop in Docker” will create a new folder `docker` that contains the bare bones for starting a Docker workspace template.
     Then, enter the folder that was just created and customize as you wish.
-        <aside>
-        💡 **For all Docker templates:**
-        This step depends on whether you are developing on a Coder v1 workspace, versus a Coder v2 workspace, versus a VM, versus locally. In any case, check the output of the command `docker context ls` to determine where your Docker daemon is listening. Then open `./docker/main.tf` and check inside the block  `provider "docker"` that the variable `"host"` is set correctly.
 
-        </aside>
+      <aside>
+      💡 **For all Docker templates:**
+      This step depends on whether you are developing on a Coder v1 workspace, versus a Coder v2 workspace, versus a VM, versus locally. In any case, check the output of the command `docker context ls` to determine where your Docker daemon is listening. Then open `./docker/main.tf` and check inside the block `provider "docker"` that the variable `"host"` is set correctly.
+      </aside>
 
 ## Troubleshooting
 
 ### My Docker containers keep failing and I have no idea what's going on!
 
-```shell
+```console
 ✔ Queued [236ms]
 ✔ Setting up [5ms]
 ⧗  Starting workspace
@@ -89,7 +89,7 @@ Check the output of `docker ps -a`
 
 Enable verbose container logging for Docker:
 
-```shell
+```console
 sudo cp /etc/docker/daemon.json /etc/docker/daemon.json.orig
 sudo cat > /etc/docker/daemon.json << EOF
 {

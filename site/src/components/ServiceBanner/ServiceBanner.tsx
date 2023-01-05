@@ -1,20 +1,14 @@
 import { useActor } from "@xstate/react"
-import { useContext, useEffect } from "react"
+import { useContext } from "react"
 import { XServiceContext } from "xServices/StateContext"
 import { ServiceBannerView } from "./ServiceBannerView"
 
 export const ServiceBanner: React.FC = () => {
   const xServices = useContext(XServiceContext)
-  const [serviceBannerState, serviceBannerSend] = useActor(
-    xServices.serviceBannerXService,
-  )
+  const [appearanceState] = useActor(xServices.appearanceXService)
 
   const { message, background_color, enabled } =
-    serviceBannerState.context.serviceBanner
-
-  useEffect(() => {
-    serviceBannerSend("GET_BANNER")
-  }, [serviceBannerSend])
+    appearanceState.context.appearance.service_banner
 
   if (!enabled) {
     return null
@@ -25,7 +19,7 @@ export const ServiceBanner: React.FC = () => {
       <ServiceBannerView
         message={message}
         backgroundColor={background_color}
-        preview={serviceBannerState.context.preview}
+        preview={appearanceState.context.preview}
       />
     )
   } else {

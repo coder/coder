@@ -71,7 +71,7 @@ func speedtest() *cobra.Command {
 						return ctx.Err()
 					case <-ticker.C:
 					}
-					dur, err := conn.Ping(ctx)
+					dur, p2p, err := conn.Ping(ctx)
 					if err != nil {
 						continue
 					}
@@ -80,7 +80,7 @@ func speedtest() *cobra.Command {
 						continue
 					}
 					peer := status.Peer[status.Peers()[0]]
-					if peer.CurAddr == "" && direct {
+					if !p2p && direct {
 						cmd.Printf("Waiting for a direct connection... (%dms via %s)\n", dur.Milliseconds(), peer.Relay)
 						continue
 					}

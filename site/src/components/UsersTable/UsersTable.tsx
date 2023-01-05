@@ -54,15 +54,16 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
       <Table>
         <TableHead>
           <TableRow>
-            <TableCell width="50%">{Language.usernameLabel}</TableCell>
-            <TableCell width="25%">{Language.statusLabel}</TableCell>
-            <TableCell width="50%">{Language.lastSeenLabel}</TableCell>
-            <TableCell width="25%">
+            <TableCell width="30%">{Language.usernameLabel}</TableCell>
+            <TableCell width="40%">
               <Stack direction="row" spacing={1} alignItems="center">
                 <span>{Language.rolesLabel}</span>
                 <UserRoleHelpTooltip />
               </Stack>
             </TableCell>
+            <TableCell width="15%">{Language.statusLabel}</TableCell>
+            <TableCell width="15%">{Language.lastSeenLabel}</TableCell>
+
             {/* 1% is a trick to make the table cell width fit the content */}
             {canEditUsers && <TableCell width="1%" />}
           </TableRow>
