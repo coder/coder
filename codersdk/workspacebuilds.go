@@ -65,13 +65,15 @@ type WorkspaceBuild struct {
 	InitiatorID         uuid.UUID           `json:"initiator_id" format:"uuid"`
 	InitiatorUsername   string              `json:"initiator_name"`
 	Job                 ProvisionerJob      `json:"job"`
-	Reason              BuildReason         `db:"reason" json:"reason"`
+	Reason              BuildReason         `db:"reason" json:"reason" enums:"initiator,autostart,autostop"`
 	Resources           []WorkspaceResource `json:"resources"`
 	Deadline            NullTime            `json:"deadline,omitempty" format:"date-time"`
 	Status              WorkspaceStatus     `json:"status" enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted"`
 	DailyCost           int32               `json:"daily_cost"`
 }
 
+// WorkspaceResource describes resources used to create a workspace, for instance:
+// containers, images, volumes.
 type WorkspaceResource struct {
 	ID         uuid.UUID                   `json:"id" format:"uuid"`
 	CreatedAt  time.Time                   `json:"created_at" format:"date-time"`
@@ -86,6 +88,7 @@ type WorkspaceResource struct {
 	DailyCost  int32                       `json:"daily_cost"`
 }
 
+// WorkspaceResourceMetadata annotates the workspace resource with custom key-value pairs.
 type WorkspaceResourceMetadata struct {
 	Key       string `json:"key"`
 	Value     string `json:"value"`

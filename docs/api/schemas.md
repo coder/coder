@@ -16,6 +16,80 @@
 | ------------ | ------ | -------- | ------------ | ----------- |
 | `csp-report` | object | false    |              |             |
 
+## codersdk.AWSInstanceIdentityToken
+
+```json
+{
+  "document": "string",
+  "signature": "string"
+}
+```
+
+### Properties
+
+| Name        | Type   | Required | Restrictions | Description |
+| ----------- | ------ | -------- | ------------ | ----------- |
+| `document`  | string | true     |              |             |
+| `signature` | string | true     |              |             |
+
+## codersdk.AgentGitSSHKey
+
+```json
+{
+  "private_key": "string",
+  "public_key": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+| ------------- | ------ | -------- | ------------ | ----------- |
+| `private_key` | string | false    |              |             |
+| `public_key`  | string | false    |              |             |
+
+## codersdk.AgentStats
+
+```json
+{
+  "conns_by_proto": {
+    "property1": 0,
+    "property2": 0
+  },
+  "num_comms": 0,
+  "rx_bytes": 0,
+  "rx_packets": 0,
+  "tx_bytes": 0,
+  "tx_packets": 0
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description                                                  |
+| ------------------ | ------- | -------- | ------------ | ------------------------------------------------------------ |
+| `conns_by_proto`   | object  | false    |              | Conns by proto is a count of connections by protocol.        |
+| » `[any property]` | integer | false    |              |                                                              |
+| `num_comms`        | integer | false    |              | Num comms is the number of connections received by an agent. |
+| `rx_bytes`         | integer | false    |              | Rx bytes is the number of received bytes.                    |
+| `rx_packets`       | integer | false    |              | Rx packets is the number of received packets.                |
+| `tx_bytes`         | integer | false    |              | Tx bytes is the number of transmitted bytes.                 |
+| `tx_packets`       | integer | false    |              | Tx packets is the number of transmitted bytes.               |
+
+## codersdk.AgentStatsResponse
+
+```json
+{
+  "report_interval": 0
+}
+```
+
+### Properties
+
+| Name              | Type    | Required | Restrictions | Description                                                                    |
+| ----------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------ |
+| `report_interval` | integer | false    |              | Report interval is the duration after which the agent should send stats again. |
+
 ## codersdk.AuditDiff
 
 ```json
@@ -297,6 +371,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ---------------- | ------- | -------- | ------------ | ----------- |
 | `[any property]` | boolean | false    |              |             |
 
+## codersdk.AzureInstanceIdentityToken
+
+```json
+{
+  "encoding": "string",
+  "signature": "string"
+}
+```
+
+### Properties
+
+| Name        | Type   | Required | Restrictions | Description |
+| ----------- | ------ | -------- | ------------ | ----------- |
+| `encoding`  | string | true     |              |             |
+| `signature` | string | true     |              |             |
+
 ## codersdk.BuildInfoResponse
 
 ```json
@@ -422,6 +512,47 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `resource_type` | `git_ssh_key`      |
 | `resource_type` | `api_key`          |
 | `resource_type` | `group`            |
+
+## codersdk.CreateWorkspaceBuildRequest
+
+```json
+{
+  "dry_run": true,
+  "orphan": true,
+  "parameter_values": [
+    {
+      "copy_from_parameter": "string",
+      "destination_scheme": "none",
+      "name": "string",
+      "source_scheme": "none",
+      "source_value": "string"
+    }
+  ],
+  "state": [0],
+  "template_version_id": "string",
+  "transition": "create"
+}
+```
+
+### Properties
+
+| Name                  | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                                              |
+| --------------------- | --------------------------------------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dry_run`             | boolean                                                                     | false    |              |                                                                                                                                                                                                          |
+| `orphan`              | boolean                                                                     | false    |              | Orphan may be set for the Destroy transition.                                                                                                                                                            |
+| `parameter_values`    | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest) | false    |              | Parameter values are optional. It will write params to the 'workspace' scope. This will overwrite any existing parameters with the same name. This will not delete old params not included in this list. |
+| `state`               | array of integer                                                            | false    |              |                                                                                                                                                                                                          |
+| `template_version_id` | string                                                                      | false    |              |                                                                                                                                                                                                          |
+| `transition`          | string                                                                      | true     |              |                                                                                                                                                                                                          |
+
+#### Enumerated Values
+
+| Property     | Value    |
+| ------------ | -------- |
+| `transition` | `create` |
+| `transition` | `start`  |
+| `transition` | `stop`   |
+| `transition` | `delete` |
 
 ## codersdk.DERP
 
@@ -1785,6 +1916,20 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `type`         | string          | false    |              |             |
 | `validate_url` | string          | false    |              |             |
 
+## codersdk.GoogleInstanceIdentityToken
+
+```json
+{
+  "json_web_token": "string"
+}
+```
+
+### Properties
+
+| Name             | Type   | Required | Restrictions | Description |
+| ---------------- | ------ | -------- | ------------ | ----------- |
+| `json_web_token` | string | true     |              |             |
+
 ## codersdk.Healthcheck
 
 ```json
@@ -2142,6 +2287,24 @@ Parameter represents a set value for the scope.
 | `source_scheme`      | `none`                 |
 | `source_scheme`      | `data`                 |
 
+## codersdk.PostWorkspaceAppHealthsRequest
+
+```json
+{
+  "healths": {
+    "property1": "string",
+    "property2": "string"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description                                                           |
+| ------------------ | ------ | -------- | ------------ | --------------------------------------------------------------------- |
+| `healths`          | object | false    |              | Healths is a map of the workspace app name and the health of the app. |
+| » `[any property]` | string | false    |              |                                                                       |
+
 ## codersdk.PprofConfig
 
 ```json
@@ -2278,19 +2441,19 @@ Parameter represents a set value for the scope.
 
 ```json
 {
-  "canceled_at": "string",
-  "completed_at": "string",
-  "created_at": "string",
+  "canceled_at": "2019-08-24T14:15:22Z",
+  "completed_at": "2019-08-24T14:15:22Z",
+  "created_at": "2019-08-24T14:15:22Z",
   "error": "string",
-  "file_id": "string",
-  "id": "string",
-  "started_at": "string",
-  "status": "string",
+  "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "started_at": "2019-08-24T14:15:22Z",
+  "status": "pending",
   "tags": {
     "property1": "string",
     "property2": "string"
   },
-  "worker_id": "string"
+  "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
 }
 ```
 
@@ -2309,6 +2472,51 @@ Parameter represents a set value for the scope.
 | `tags`             | object | false    |              |             |
 | » `[any property]` | string | false    |              |             |
 | `worker_id`        | string | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value       |
+| -------- | ----------- |
+| `status` | `pending`   |
+| `status` | `running`   |
+| `status` | `succeeded` |
+| `status` | `canceling` |
+| `status` | `canceled`  |
+| `status` | `failed`    |
+
+## codersdk.ProvisionerJobLog
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": 0,
+  "log_level": "trace",
+  "log_source": "string",
+  "output": "string",
+  "stage": "string"
+}
+```
+
+### Properties
+
+| Name         | Type    | Required | Restrictions | Description |
+| ------------ | ------- | -------- | ------------ | ----------- |
+| `created_at` | string  | false    |              |             |
+| `id`         | integer | false    |              |             |
+| `log_level`  | string  | false    |              |             |
+| `log_source` | string  | false    |              |             |
+| `output`     | string  | false    |              |             |
+| `stage`      | string  | false    |              |             |
+
+#### Enumerated Values
+
+| Property    | Value   |
+| ----------- | ------- |
+| `log_level` | `trace` |
+| `log_level` | `debug` |
+| `log_level` | `info`  |
+| `log_level` | `warn`  |
+| `log_level` | `error` |
 
 ## codersdk.PutExtendWorkspaceRequest
 
@@ -2849,21 +3057,21 @@ Parameter represents a set value for the scope.
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
     "job": {
-      "canceled_at": "string",
-      "completed_at": "string",
-      "created_at": "string",
+      "canceled_at": "2019-08-24T14:15:22Z",
+      "completed_at": "2019-08-24T14:15:22Z",
+      "created_at": "2019-08-24T14:15:22Z",
       "error": "string",
-      "file_id": "string",
-      "id": "string",
-      "started_at": "string",
-      "status": "string",
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "started_at": "2019-08-24T14:15:22Z",
+      "status": "pending",
       "tags": {
         "property1": "string",
         "property2": "string"
       },
-      "worker_id": "string"
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
     },
-    "reason": "string",
+    "reason": "initiator",
     "resources": [
       {
         "agents": [
@@ -2880,8 +3088,8 @@ Parameter represents a set value for the scope.
                   "url": "string"
                 },
                 "icon": "string",
-                "id": "string",
-                "sharing_level": "string",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "sharing_level": "owner",
                 "slug": "string",
                 "subdomain": true,
                 "url": "string"
@@ -2889,17 +3097,17 @@ Parameter represents a set value for the scope.
             ],
             "architecture": "string",
             "connection_timeout_seconds": 0,
-            "created_at": "string",
+            "created_at": "2019-08-24T14:15:22Z",
             "directory": "string",
-            "disconnected_at": "string",
+            "disconnected_at": "2019-08-24T14:15:22Z",
             "environment_variables": {
               "property1": "string",
               "property2": "string"
             },
-            "first_connected_at": "string",
-            "id": "string",
+            "first_connected_at": "2019-08-24T14:15:22Z",
+            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "instance_id": "string",
-            "last_connected_at": "string",
+            "last_connected_at": "2019-08-24T14:15:22Z",
             "latency": {
               "property1": {
                 "latency_ms": 0,
@@ -2912,11 +3120,11 @@ Parameter represents a set value for the scope.
             },
             "name": "string",
             "operating_system": "string",
-            "resource_id": "string",
+            "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "startup_script": "string",
-            "status": "string",
+            "status": "connecting",
             "troubleshooting_url": "string",
-            "updated_at": "string",
+            "updated_at": "2019-08-24T14:15:22Z",
             "version": "string"
           }
         ],
@@ -2999,8 +3207,8 @@ Parameter represents a set value for the scope.
         "url": "string"
       },
       "icon": "string",
-      "id": "string",
-      "sharing_level": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "sharing_level": "owner",
       "slug": "string",
       "subdomain": true,
       "url": "string"
@@ -3008,17 +3216,17 @@ Parameter represents a set value for the scope.
   ],
   "architecture": "string",
   "connection_timeout_seconds": 0,
-  "created_at": "string",
+  "created_at": "2019-08-24T14:15:22Z",
   "directory": "string",
-  "disconnected_at": "string",
+  "disconnected_at": "2019-08-24T14:15:22Z",
   "environment_variables": {
     "property1": "string",
     "property2": "string"
   },
-  "first_connected_at": "string",
-  "id": "string",
+  "first_connected_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "instance_id": "string",
-  "last_connected_at": "string",
+  "last_connected_at": "2019-08-24T14:15:22Z",
   "latency": {
     "property1": {
       "latency_ms": 0,
@@ -3031,11 +3239,11 @@ Parameter represents a set value for the scope.
   },
   "name": "string",
   "operating_system": "string",
-  "resource_id": "string",
+  "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "startup_script": "string",
-  "status": "string",
+  "status": "connecting",
   "troubleshooting_url": "string",
-  "updated_at": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
   "version": "string"
 }
 ```
@@ -3067,6 +3275,147 @@ Parameter represents a set value for the scope.
 | `updated_at`                 | string                                                  | false    |              |                                                                     |
 | `version`                    | string                                                  | false    |              |                                                                     |
 
+#### Enumerated Values
+
+| Property | Value          |
+| -------- | -------------- |
+| `status` | `connecting`   |
+| `status` | `connected`    |
+| `status` | `disconnected` |
+| `status` | `timeout`      |
+
+## codersdk.WorkspaceAgentAuthenticateResponse
+
+```json
+{
+  "session_token": "string"
+}
+```
+
+### Properties
+
+| Name            | Type   | Required | Restrictions | Description |
+| --------------- | ------ | -------- | ------------ | ----------- |
+| `session_token` | string | false    |              |             |
+
+## codersdk.WorkspaceAgentGitAuthResponse
+
+```json
+{
+  "password": "string",
+  "url": "string",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description |
+| ---------- | ------ | -------- | ------------ | ----------- |
+| `password` | string | false    |              |             |
+| `url`      | string | false    |              |             |
+| `username` | string | false    |              |             |
+
+## codersdk.WorkspaceAgentMetadata
+
+```json
+{
+  "apps": [
+    {
+      "command": "string",
+      "display_name": "string",
+      "external": true,
+      "health": "string",
+      "healthcheck": {
+        "interval": 0,
+        "threshold": 0,
+        "url": "string"
+      },
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "sharing_level": "owner",
+      "slug": "string",
+      "subdomain": true,
+      "url": "string"
+    }
+  ],
+  "derpmap": {
+    "omitDefaultRegions": true,
+    "regions": {
+      "property1": {
+        "avoid": true,
+        "embeddedRelay": true,
+        "nodes": [
+          {
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          }
+        ],
+        "regionCode": "string",
+        "regionID": 0,
+        "regionName": "string"
+      },
+      "property2": {
+        "avoid": true,
+        "embeddedRelay": true,
+        "nodes": [
+          {
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          }
+        ],
+        "regionCode": "string",
+        "regionID": 0,
+        "regionName": "string"
+      }
+    }
+  },
+  "directory": "string",
+  "environment_variables": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "git_auth_configs": 0,
+  "motd_file": "string",
+  "startup_script": "string",
+  "vscode_port_proxy_uri": "string"
+}
+```
+
+### Properties
+
+| Name                    | Type                                                    | Required | Restrictions | Description                                                                                                                                                |
+| ----------------------- | ------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps`                  | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp) | false    |              |                                                                                                                                                            |
+| `derpmap`               | [tailcfg.DERPMap](#tailcfgderpmap)                      | false    |              |                                                                                                                                                            |
+| `directory`             | string                                                  | false    |              |                                                                                                                                                            |
+| `environment_variables` | object                                                  | false    |              |                                                                                                                                                            |
+| » `[any property]`      | string                                                  | false    |              |                                                                                                                                                            |
+| `git_auth_configs`      | integer                                                 | false    |              | Git auth configs stores the number of Git configurations the Coder deployment has. If this number is >0, we set up special configuration in the workspace. |
+| `motd_file`             | string                                                  | false    |              |                                                                                                                                                            |
+| `startup_script`        | string                                                  | false    |              |                                                                                                                                                            |
+| `vscode_port_proxy_uri` | string                                                  | false    |              |                                                                                                                                                            |
+
 ## codersdk.WorkspaceApp
 
 ```json
@@ -3081,8 +3430,8 @@ Parameter represents a set value for the scope.
     "url": "string"
   },
   "icon": "string",
-  "id": "string",
-  "sharing_level": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "sharing_level": "owner",
   "slug": "string",
   "subdomain": true,
   "url": "string"
@@ -3105,6 +3454,14 @@ Parameter represents a set value for the scope.
 | `subdomain`     | boolean                                      | false    |              | Subdomain denotes whether the app should be accessed via a path on the `coder server` or via a hostname-based dev URL. If this is set to true and there is no app wildcard configured on the server, the app will not be accessible in the UI. |
 | `url`           | string                                       | false    |              | URL is the address being proxied to inside the workspace. If external is specified, this will be opened on the client.                                                                                                                         |
 
+#### Enumerated Values
+
+| Property        | Value           |
+| --------------- | --------------- |
+| `sharing_level` | `owner`         |
+| `sharing_level` | `authenticated` |
+| `sharing_level` | `public`        |
+
 ## codersdk.WorkspaceBuild
 
 ```json
@@ -3117,21 +3474,21 @@ Parameter represents a set value for the scope.
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "initiator_name": "string",
   "job": {
-    "canceled_at": "string",
-    "completed_at": "string",
-    "created_at": "string",
+    "canceled_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "created_at": "2019-08-24T14:15:22Z",
     "error": "string",
-    "file_id": "string",
-    "id": "string",
-    "started_at": "string",
-    "status": "string",
+    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "started_at": "2019-08-24T14:15:22Z",
+    "status": "pending",
     "tags": {
       "property1": "string",
       "property2": "string"
     },
-    "worker_id": "string"
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
   },
-  "reason": "string",
+  "reason": "initiator",
   "resources": [
     {
       "agents": [
@@ -3148,8 +3505,8 @@ Parameter represents a set value for the scope.
                 "url": "string"
               },
               "icon": "string",
-              "id": "string",
-              "sharing_level": "string",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "sharing_level": "owner",
               "slug": "string",
               "subdomain": true,
               "url": "string"
@@ -3157,17 +3514,17 @@ Parameter represents a set value for the scope.
           ],
           "architecture": "string",
           "connection_timeout_seconds": 0,
-          "created_at": "string",
+          "created_at": "2019-08-24T14:15:22Z",
           "directory": "string",
-          "disconnected_at": "string",
+          "disconnected_at": "2019-08-24T14:15:22Z",
           "environment_variables": {
             "property1": "string",
             "property2": "string"
           },
-          "first_connected_at": "string",
-          "id": "string",
+          "first_connected_at": "2019-08-24T14:15:22Z",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "instance_id": "string",
-          "last_connected_at": "string",
+          "last_connected_at": "2019-08-24T14:15:22Z",
           "latency": {
             "property1": {
               "latency_ms": 0,
@@ -3180,11 +3537,11 @@ Parameter represents a set value for the scope.
           },
           "name": "string",
           "operating_system": "string",
-          "resource_id": "string",
+          "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "startup_script": "string",
-          "status": "string",
+          "status": "connecting",
           "troubleshooting_url": "string",
-          "updated_at": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
           "version": "string"
         }
       ],
@@ -3246,6 +3603,9 @@ Parameter represents a set value for the scope.
 
 | Property     | Value       |
 | ------------ | ----------- |
+| `reason`     | `initiator` |
+| `reason`     | `autostart` |
+| `reason`     | `autostop`  |
 | `status`     | `pending`   |
 | `status`     | `starting`  |
 | `status`     | `running`   |
@@ -3278,8 +3638,8 @@ Parameter represents a set value for the scope.
             "url": "string"
           },
           "icon": "string",
-          "id": "string",
-          "sharing_level": "string",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "sharing_level": "owner",
           "slug": "string",
           "subdomain": true,
           "url": "string"
@@ -3287,17 +3647,17 @@ Parameter represents a set value for the scope.
       ],
       "architecture": "string",
       "connection_timeout_seconds": 0,
-      "created_at": "string",
+      "created_at": "2019-08-24T14:15:22Z",
       "directory": "string",
-      "disconnected_at": "string",
+      "disconnected_at": "2019-08-24T14:15:22Z",
       "environment_variables": {
         "property1": "string",
         "property2": "string"
       },
-      "first_connected_at": "string",
-      "id": "string",
+      "first_connected_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "instance_id": "string",
-      "last_connected_at": "string",
+      "last_connected_at": "2019-08-24T14:15:22Z",
       "latency": {
         "property1": {
           "latency_ms": 0,
@@ -3310,11 +3670,11 @@ Parameter represents a set value for the scope.
       },
       "name": "string",
       "operating_system": "string",
-      "resource_id": "string",
+      "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
       "startup_script": "string",
-      "status": "string",
+      "status": "connecting",
       "troubleshooting_url": "string",
-      "updated_at": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
       "version": "string"
     }
   ],
@@ -3399,21 +3759,21 @@ Parameter represents a set value for the scope.
         "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
         "initiator_name": "string",
         "job": {
-          "canceled_at": "string",
-          "completed_at": "string",
-          "created_at": "string",
+          "canceled_at": "2019-08-24T14:15:22Z",
+          "completed_at": "2019-08-24T14:15:22Z",
+          "created_at": "2019-08-24T14:15:22Z",
           "error": "string",
-          "file_id": "string",
-          "id": "string",
-          "started_at": "string",
-          "status": "string",
+          "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "started_at": "2019-08-24T14:15:22Z",
+          "status": "pending",
           "tags": {
             "property1": "string",
             "property2": "string"
           },
-          "worker_id": "string"
+          "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
         },
-        "reason": "string",
+        "reason": "initiator",
         "resources": [
           {
             "agents": [
@@ -3426,8 +3786,8 @@ Parameter represents a set value for the scope.
                     "health": "string",
                     "healthcheck": {},
                     "icon": "string",
-                    "id": "string",
-                    "sharing_level": "string",
+                    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                    "sharing_level": "owner",
                     "slug": "string",
                     "subdomain": true,
                     "url": "string"
@@ -3435,17 +3795,17 @@ Parameter represents a set value for the scope.
                 ],
                 "architecture": "string",
                 "connection_timeout_seconds": 0,
-                "created_at": "string",
+                "created_at": "2019-08-24T14:15:22Z",
                 "directory": "string",
-                "disconnected_at": "string",
+                "disconnected_at": "2019-08-24T14:15:22Z",
                 "environment_variables": {
                   "property1": "string",
                   "property2": "string"
                 },
-                "first_connected_at": "string",
-                "id": "string",
+                "first_connected_at": "2019-08-24T14:15:22Z",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "instance_id": "string",
-                "last_connected_at": "string",
+                "last_connected_at": "2019-08-24T14:15:22Z",
                 "latency": {
                   "property1": {
                     "latency_ms": 0,
@@ -3458,11 +3818,11 @@ Parameter represents a set value for the scope.
                 },
                 "name": "string",
                 "operating_system": "string",
-                "resource_id": "string",
+                "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
                 "startup_script": "string",
-                "status": "string",
+                "status": "connecting",
                 "troubleshooting_url": "string",
-                "updated_at": "string",
+                "updated_at": "2019-08-24T14:15:22Z",
                 "version": "string"
               }
             ],
@@ -3526,3 +3886,152 @@ Parameter represents a set value for the scope.
 ### Properties
 
 _None_
+
+## tailcfg.DERPMap
+
+```json
+{
+  "omitDefaultRegions": true,
+  "regions": {
+    "property1": {
+      "avoid": true,
+      "embeddedRelay": true,
+      "nodes": [
+        {
+          "certName": "string",
+          "derpport": 0,
+          "forceHTTP": true,
+          "hostName": "string",
+          "insecureForTests": true,
+          "ipv4": "string",
+          "ipv6": "string",
+          "name": "string",
+          "regionID": 0,
+          "stunonly": true,
+          "stunport": 0,
+          "stuntestIP": "string"
+        }
+      ],
+      "regionCode": "string",
+      "regionID": 0,
+      "regionName": "string"
+    },
+    "property2": {
+      "avoid": true,
+      "embeddedRelay": true,
+      "nodes": [
+        {
+          "certName": "string",
+          "derpport": 0,
+          "forceHTTP": true,
+          "hostName": "string",
+          "insecureForTests": true,
+          "ipv4": "string",
+          "ipv6": "string",
+          "name": "string",
+          "regionID": 0,
+          "stunonly": true,
+          "stunport": 0,
+          "stuntestIP": "string"
+        }
+      ],
+      "regionCode": "string",
+      "regionID": 0,
+      "regionName": "string"
+    }
+  }
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description                                                                                                                                                                    |
+| -------------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `omitDefaultRegions` | boolean | false    |              | Omitdefaultregions specifies to not use Tailscale's DERP servers, and only use those specified in this DERPMap. If there are none set outside of the defaults, this is a noop. |
+| `regions`            | object  | false    |              | Regions is the set of geographic regions running DERP node(s).                                                                                                                 |
+
+It's keyed by the DERPRegion.RegionID.
+The numbers are not necessarily contiguous.|
+|» `[any property]`|[tailcfg.DERPRegion](#tailcfgderpregion)|false|||
+
+## tailcfg.DERPNode
+
+```json
+{
+  "certName": "string",
+  "derpport": 0,
+  "forceHTTP": true,
+  "hostName": "string",
+  "insecureForTests": true,
+  "ipv4": "string",
+  "ipv6": "string",
+  "name": "string",
+  "regionID": 0,
+  "stunonly": true,
+  "stunport": 0,
+  "stuntestIP": "string"
+}
+```
+
+### Properties
+
+| Name                                                                                                                  | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                       |
+| --------------------------------------------------------------------------------------------------------------------- | ------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `certName`                                                                                                            | string  | false    |              | Certname optionally specifies the expected TLS cert common name. If empty, HostName is used. If CertName is non-empty, HostName is only used for the TCP dial (if IPv4/IPv6 are not present) + TLS ClientHello.                                                   |
+| `derpport`                                                                                                            | integer | false    |              | Derpport optionally provides an alternate TLS port number for the DERP HTTPS server.                                                                                                                                                                              |
+| If zero, 443 is used.                                                                                                 |
+| `forceHTTP`                                                                                                           | boolean | false    |              | Forcehttp is used by unit tests to force HTTP. It should not be set by users.                                                                                                                                                                                     |
+| `hostName`                                                                                                            | string  | false    |              | Hostname is the DERP node's hostname.                                                                                                                                                                                                                             |
+| It is required but need not be unique; multiple nodes may have the same HostName but vary in configuration otherwise. |
+| `insecureForTests`                                                                                                    | boolean | false    |              | Insecurefortests is used by unit tests to disable TLS verification. It should not be set by users.                                                                                                                                                                |
+| `ipv4`                                                                                                                | string  | false    |              | Ipv4 optionally forces an IPv4 address to use, instead of using DNS. If empty, A record(s) from DNS lookups of HostName are used. If the string is not an IPv4 address, IPv4 is not used; the conventional string to disable IPv4 (and not use DNS) is "none".    |
+| `ipv6`                                                                                                                | string  | false    |              | Ipv6 optionally forces an IPv6 address to use, instead of using DNS. If empty, AAAA record(s) from DNS lookups of HostName are used. If the string is not an IPv6 address, IPv6 is not used; the conventional string to disable IPv6 (and not use DNS) is "none". |
+| `name`                                                                                                                | string  | false    |              | Name is a unique node name (across all regions). It is not a host name. It's typically of the form "1b", "2a", "3b", etc. (region ID + suffix within that region)                                                                                                 |
+| `regionID`                                                                                                            | integer | false    |              | Regionid is the RegionID of the DERPRegion that this node is running in.                                                                                                                                                                                          |
+| `stunonly`                                                                                                            | boolean | false    |              | Stunonly marks a node as only a STUN server and not a DERP server.                                                                                                                                                                                                |
+| `stunport`                                                                                                            | integer | false    |              | Port optionally specifies a STUN port to use. Zero means 3478. To disable STUN on this node, use -1.                                                                                                                                                              |
+| `stuntestIP`                                                                                                          | string  | false    |              | Stuntestip is used in tests to override the STUN server's IP. If empty, it's assumed to be the same as the DERP server.                                                                                                                                           |
+
+## tailcfg.DERPRegion
+
+```json
+{
+  "avoid": true,
+  "embeddedRelay": true,
+  "nodes": [
+    {
+      "certName": "string",
+      "derpport": 0,
+      "forceHTTP": true,
+      "hostName": "string",
+      "insecureForTests": true,
+      "ipv4": "string",
+      "ipv6": "string",
+      "name": "string",
+      "regionID": 0,
+      "stunonly": true,
+      "stunport": 0,
+      "stuntestIP": "string"
+    }
+  ],
+  "regionCode": "string",
+  "regionID": 0,
+  "regionName": "string"
+}
+```
+
+### Properties
+
+| Name                                                                                                                                                                                                                                                                                                        | Type                                          | Required | Restrictions | Description                                                                                                                                                                                                                                        |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `avoid`                                                                                                                                                                                                                                                                                                     | boolean                                       | false    |              | Avoid is whether the client should avoid picking this as its home region. The region should only be used if a peer is there. Clients already using this region as their home should migrate away to a new region without Avoid set.                |
+| `embeddedRelay`                                                                                                                                                                                                                                                                                             | boolean                                       | false    |              | Embeddedrelay is true when the region is bundled with the Coder control plane.                                                                                                                                                                     |
+| `nodes`                                                                                                                                                                                                                                                                                                     | array of [tailcfg.DERPNode](#tailcfgderpnode) | false    |              | Nodes are the DERP nodes running in this region, in priority order for the current client. Client TLS connections should ideally only go to the first entry (falling back to the second if necessary). STUN packets should go to the first 1 or 2. |
+| If nodes within a region route packets amongst themselves, but not to other regions. That said, each user/domain should get a the same preferred node order, so if all nodes for a user/network pick the first one (as they should, when things are healthy), the inter-cluster routing is minimal to zero. |
+| `regionCode`                                                                                                                                                                                                                                                                                                | string                                        | false    |              | Regioncode is a short name for the region. It's usually a popular city or airport code in the region: "nyc", "sf", "sin", "fra", etc.                                                                                                              |
+| `regionID`                                                                                                                                                                                                                                                                                                  | integer                                       | false    |              | Regionid is a unique integer for a geographic region.                                                                                                                                                                                              |
+
+It corresponds to the legacy derpN.tailscale.com hostnames used by older clients. (Older clients will continue to resolve derpN.tailscale.com when contacting peers, rather than use the server-provided DERPMap)
+RegionIDs must be non-zero, positive, and guaranteed to fit in a JavaScript number.
+RegionIDs in range 900-999 are reserved for end users to run their own DERP nodes.|
+|`regionName`|string|false||Regionname is a long English name for the region: "New York City", "San Francisco", "Singapore", "Frankfurt", etc.|

@@ -46,7 +46,7 @@ file: string
 | ------ | ------------------------------------------------------------ | ----------- | ------------------------------------------------------------ |
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.UploadResponse](schemas.md#codersdkuploadresponse) |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get file by ID
 
@@ -72,4 +72,4 @@ curl -X GET http://coder-server:8080/api/v2/files/{fileID} \
 | ------ | ------------------------------------------------------- | ----------- | ------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
