@@ -1,21 +1,14 @@
 import { makeStyles } from "@material-ui/core/styles"
+import Brush from "@material-ui/icons/Brush"
 import LaunchOutlined from "@material-ui/icons/LaunchOutlined"
 import LockRounded from "@material-ui/icons/LockRounded"
 import Globe from "@material-ui/icons/Public"
 import VpnKeyOutlined from "@material-ui/icons/VpnKeyOutlined"
-import Info from "@material-ui/icons/Info"
-import { useSelector } from "@xstate/react"
 import { GitIcon } from "components/Icons/GitIcon"
 import { Stack } from "components/Stack/Stack"
-import React, {
-  ElementType,
-  PropsWithChildren,
-  ReactNode,
-  useContext,
-} from "react"
+import React, { ElementType, PropsWithChildren, ReactNode } from "react"
 import { NavLink } from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
-import { XServiceContext } from "../../xServices/StateContext"
 
 const SidebarNavItem: React.FC<
   PropsWithChildren<{ href: string; icon: ReactNode }>
@@ -48,11 +41,6 @@ const SidebarNavItemIcon: React.FC<{ icon: ElementType }> = ({
 
 export const Sidebar: React.FC = () => {
   const styles = useStyles()
-  const xServices = useContext(XServiceContext)
-  const experimental = useSelector(
-    xServices.entitlementsXService,
-    (state) => state.context.entitlements.experimental,
-  )
 
   return (
     <nav className={styles.sidebar}>
@@ -63,19 +51,23 @@ export const Sidebar: React.FC = () => {
         General
       </SidebarNavItem>
       <SidebarNavItem
+        href="../appearance"
+        icon={<SidebarNavItemIcon icon={Brush} />}
+      >
+        Appearance
+      </SidebarNavItem>
+      <SidebarNavItem
         href="../userauth"
         icon={<SidebarNavItemIcon icon={VpnKeyOutlined} />}
       >
         User Authentication
       </SidebarNavItem>
-      {experimental && (
-        <SidebarNavItem
-          href="../gitauth"
-          icon={<SidebarNavItemIcon icon={GitIcon} />}
-        >
-          Git Authentication
-        </SidebarNavItem>
-      )}
+      <SidebarNavItem
+        href="../gitauth"
+        icon={<SidebarNavItemIcon icon={GitIcon} />}
+      >
+        Git Authentication
+      </SidebarNavItem>
       <SidebarNavItem
         href="../network"
         icon={<SidebarNavItemIcon icon={Globe} />}
@@ -87,12 +79,6 @@ export const Sidebar: React.FC = () => {
         icon={<SidebarNavItemIcon icon={LockRounded} />}
       >
         Security
-      </SidebarNavItem>
-      <SidebarNavItem
-        href="../service-banner"
-        icon={<SidebarNavItemIcon icon={Info} />}
-      >
-        Service Banner
       </SidebarNavItem>
     </nav>
   )

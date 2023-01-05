@@ -101,12 +101,6 @@ to log in and manage templates.
        - name: CODER_ACCESS_URL
          value: "https://coder.example.com"
 
-       # This env variable controls whether or not to auto-import the
-       # "kubernetes" template on first startup. This will not work unless
-       # coder.serviceAccount.workspacePerms is true.
-       - name: CODER_AUTO_IMPORT_TEMPLATES
-         value: "kubernetes"
-
      #tls:
      #  secretNames:
      #    - my-tls-secret-name
