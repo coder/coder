@@ -54,7 +54,7 @@ Usage:
   --rsh <bin>
       Specifies the remote shell for remote installation. Defaults to ssh.
 
-  --install-terraform
+  --with-terraform
 	  Installs Terraform binary from https://releases.hashicorp.com/terraform/1.3.4/ source
 	  alongside coder.
 	  This is great for if you are having issues with Coder installing terraform, or if you
@@ -221,7 +221,7 @@ main() {
 			usage
 			exit 0
 			;;
-		--install-terraform)
+		--with-terraform)
 			METHOD=install_terraform
 			;;
 		--)
@@ -270,7 +270,7 @@ main() {
 	# result in a broken coder.
 	OS=${OS:-$(os)}
 	ARCH=${ARCH:-$(arch)}
-	TERRA_ARCH=${TERRA_ARCH:-$(terra_arch)}
+	TERRAFORM_ARCH=${TERRAFORM_ARCH:-$(terraform_arch)}
 
 	distro_name
 
@@ -377,13 +377,13 @@ install_terraform() {
 		echoerr "Please install unzip to use this function"
 		exit 1
 	fi
-
-	echoh "Installing Terraform version 1.3.4 $TERRA_ARCH package from Hashicorp Source."
+	TERRAFORM_VERSION="1.3.4"
+	echoh "Installing Terraform version $TERRAFORM_VERSION $TERRAFORM_ARCH package from Hashicorp Source."
 	echoh
 
 	# Download from offical source and save it to cache
-	fetch "https://releases.hashicorp.com/terraform/1.3.4/terraform_1.3.4_${OS}_${TERRA_ARCH}.zip" \
-		"$CACHE_DIR/terraform_1.3.4_${OS}_${TERRA_ARCH}.zip"
+	fetch "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_1.3.4_${OS}_${TERRAFORM_ARCH}.zip" \
+		"$CACHE_DIR/terraform_${TERRAFORM_VERSION}_${OS}_${TERRAFORM_ARCH}.zip"
 
 	sh_c mkdir -p "$TERRAFORM_INSTALL_PREFIX" 2>/dev/null || true
 
@@ -580,7 +580,7 @@ arch() {
 
 # The following is to change the naming, that way people with armv7 won't recieve a error
 # List of binaries can be found here: https://releases.hashicorp.com/terraform/1.3.4/
-terra_arch() {
+terraform_arch() {
 	uname_m=$(uname -m)
 	case $uname_m in
 	aarch64) echo arm64 ;;
