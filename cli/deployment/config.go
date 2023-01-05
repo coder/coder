@@ -600,6 +600,9 @@ func readSliceFromViper[T any](vip *viper.Viper, key string, value any) []T {
 
 			// Ensure the env entry for this key is registered
 			// before checking value.
+			//
+			// We don't support DeploymentConfigField[].EnvOverride for array flags so
+			// this is fine to just use `formatEnv` here.
 			vip.MustBindEnv(configKey, formatEnv(configKey))
 
 			value := vip.Get(configKey)
@@ -709,7 +712,7 @@ func setFlags(prefix string, flagset *pflag.FlagSet, vip *viper.Viper, target in
 
 		// Allow currently set environment variables
 		// to override default values in help output.
-		vip.MustBindEnv(prefix, formatEnv(prefix))
+		vip.MustBindEnv(prefix, env)
 
 		switch value.(type) {
 		case string:
