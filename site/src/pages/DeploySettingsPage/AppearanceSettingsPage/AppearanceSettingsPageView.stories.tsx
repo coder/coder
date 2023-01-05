@@ -22,7 +22,9 @@ export default {
       defaultValue: false,
     },
     updateAppearance: {
-      defaultValue: () => {},
+      defaultValue: () => {
+        return undefined
+      },
     },
   },
 } as ComponentMeta<typeof AppearanceSettingsPageView>

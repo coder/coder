@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import { useState } from "react"
 import { Header } from "components/DeploySettingsLayout/Header"
 import {
   Badges,
@@ -25,13 +25,16 @@ import { useTheme } from "@material-ui/core/styles"
 export type AppearanceSettingsPageViewProps = {
   appearance: AppearanceConfig
   isEntitled: boolean
-  updateAppearance: any
+  updateAppearance: (
+    newConfig: Partial<AppearanceConfig>,
+    preview: boolean,
+  ) => void
 }
 export const AppearanceSettingsPageView = ({
   appearance,
   isEntitled,
   updateAppearance,
-}: AppearanceSettingsPageViewProps) => {
+}: AppearanceSettingsPageViewProps): JSX.Element => {
   const styles = useStyles()
   const theme = useTheme()
   const [t] = useTranslation("appearanceSettings")

@@ -77,7 +77,10 @@ const SecuritySettingsPage = lazy(
   () => import("./pages/DeploySettingsPage/SecuritySettingsPage"),
 )
 const AppearanceSettingsPage = lazy(
-  () => import("./pages/DeploySettingsPage/AppearanceSettingsPage"),
+  () =>
+    import(
+      "./pages/DeploySettingsPage/AppearanceSettingsPage/AppearanceSettingsPage"
+    ),
 )
 const UserAuthSettingsPage = lazy(
   () => import("./pages/DeploySettingsPage/UserAuthSettingsPage"),
