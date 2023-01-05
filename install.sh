@@ -154,10 +154,10 @@ EOF
 }
 
 main() {
+	TERRAFORM_VERSION="1.3.4"
 	if [ "${TRACE-}" ]; then
 		set -x
 	fi
-	TERRAFORM_VERSION="1.3.4"
 	unset \
 		DRY_RUN \
 		METHOD \
