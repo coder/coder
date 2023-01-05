@@ -439,13 +439,6 @@ install_apk() {
 }
 
 install_standalone() {
-	# Check if the unzip package is installed. If not error peacefully.
-	if !(command_exists unzip); then
-		echoh
-		echoerr "This script needs the unzip package to run."
-		echoerr "Please install unzip to use this function"
-		exit 1
-	fi
 	echoh "Installing v$VERSION of the $ARCH release from GitHub."
 	echoh
 
