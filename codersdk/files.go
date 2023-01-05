@@ -16,7 +16,7 @@ const (
 
 // UploadResponse contains the hash to reference the uploaded file.
 type UploadResponse struct {
-	ID uuid.UUID `json:"hash"`
+	ID uuid.UUID `json:"hash" format:"uuid"`
 }
 
 // Upload uploads an arbitrary file with the content type provided.

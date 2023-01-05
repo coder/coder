@@ -8,14 +8,14 @@ import (
 	"sort"
 	"testing"
 
+	protobuf "github.com/golang/protobuf/proto"
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/terraform"
 	"github.com/coder/coder/provisionersdk/proto"
-
-	protobuf "github.com/golang/protobuf/proto"
 )
 
 func TestConvertResources(t *testing.T) {
@@ -165,6 +165,53 @@ func TestConvertResources(t *testing.T) {
 				Sensitive: true,
 			}},
 		}},
+		// Tests that resources with the same id correctly get metadata applied
+		// to them.
+		"kubernetes-metadata": {{
+			Name: "coder_workspace",
+			Type: "kubernetes_service_account",
+		}, {
+			Name: "coder_workspace",
+			Type: "kubernetes_config_map",
+		}, {
+			Name: "coder_workspace",
+			Type: "kubernetes_role",
+		}, {
+			Name: "coder_workspace",
+			Type: "kubernetes_role_binding",
+		}, {
+			Name: "coder_workspace",
+			Type: "kubernetes_secret",
+		}, {
+			Name: "main",
+			Type: "kubernetes_pod",
+			Metadata: []*proto.Resource_Metadata{{
+				Key:   "cpu",
+				Value: "1",
+			}, {
+				Key:   "memory",
+				Value: "1Gi",
+			}, {
+				Key:   "gpu",
+				Value: "1",
+			}},
+			Agents: []*proto.Agent{{
+				Name:            "main",
+				OperatingSystem: "linux",
+				Architecture:    "amd64",
+				StartupScript:   "    #!/bin/bash\n    # home folder can be empty, so copying default bash settings\n    if [ ! -f ~/.profile ]; then\n      cp /etc/skel/.profile $HOME\n    fi\n    if [ ! -f ~/.bashrc ]; then\n      cp /etc/skel/.bashrc $HOME\n    fi\n    # install and start code-server\n    curl -fsSL https://code-server.dev/install.sh | sh  | tee code-server-install.log\n    code-server --auth none --port 13337 | tee code-server-install.log &\n",
+				Apps: []*proto.App{
+					{
+						Icon:        "/icon/code.svg",
+						Slug:        "code-server",
+						DisplayName: "code-server",
+						Url:         "http://localhost:13337?folder=/home/coder",
+					},
+				},
+				Auth:                     &proto.Agent_Token{},
+				ConnectionTimeoutSeconds: 120,
+			}},
+		}},
 	} {
 		folderName := folderName
 		expected := expected
@@ -210,6 +257,17 @@ func TestConvertResources(t *testing.T) {
 				err = json.Unmarshal(data, &resourcesMap)
 				require.NoError(t, err)
 
+				slices.SortFunc(expectedNoMetadataMap, func(a, b map[string]interface{}) bool {
+					//nolint:forcetypeassert
+					return a["name"].(string)+a["type"].(string) <
+						b["name"].(string)+b["type"].(string)
+				})
+				slices.SortFunc(resourcesMap, func(a, b map[string]interface{}) bool {
+					//nolint:forcetypeassert
+					return a["name"].(string)+a["type"].(string) <
+						b["name"].(string)+b["type"].(string)
+				})
+
 				require.Equal(t, expectedNoMetadataMap, resourcesMap)
 			})
 
@@ -250,6 +308,17 @@ func TestConvertResources(t *testing.T) {
 				var resourcesMap []map[string]interface{}
 				err = json.Unmarshal(data, &resourcesMap)
 				require.NoError(t, err)
+
+				slices.SortFunc(expectedMap, func(a, b map[string]interface{}) bool {
+					//nolint:forcetypeassert
+					return a["name"].(string)+a["type"].(string) <
+						b["name"].(string)+b["type"].(string)
+				})
+				slices.SortFunc(resourcesMap, func(a, b map[string]interface{}) bool {
+					//nolint:forcetypeassert
+					return a["name"].(string)+a["type"].(string) <
+						b["name"].(string)+b["type"].(string)
+				})
 
 				require.Equal(t, expectedMap, resourcesMap)
 			})

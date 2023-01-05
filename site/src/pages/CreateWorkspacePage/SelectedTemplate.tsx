@@ -1,12 +1,12 @@
 import Avatar from "@material-ui/core/Avatar"
 import { makeStyles } from "@material-ui/core/styles"
-import { Template } from "api/typesGenerated"
+import { Template, TemplateExample } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
 import React, { FC } from "react"
 import { firstLetter } from "util/firstLetter"
 
 export interface SelectedTemplateProps {
-  template: Template
+  template: Template | TemplateExample
 }
 
 export const SelectedTemplate: FC<SelectedTemplateProps> = ({ template }) => {
@@ -28,7 +28,7 @@ export const SelectedTemplate: FC<SelectedTemplateProps> = ({ template }) => {
       </div>
       <Stack direction="column" spacing={0.5}>
         <span className={styles.templateName}>
-          {template.display_name.length > 0
+          {"display_name" in template && template.display_name.length > 0
             ? template.display_name
             : template.name}
         </span>

@@ -4,15 +4,29 @@ import TableCell from "@material-ui/core/TableCell"
 import TableRow from "@material-ui/core/TableRow"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { LastUsed } from "components/LastUsed/LastUsed"
+import { Pill } from "components/Pill/Pill"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import * as TypesGen from "../../api/typesGenerated"
 import { combineClasses } from "../../util/combineClasses"
 import { AvatarData } from "../AvatarData/AvatarData"
 import { EmptyState } from "../EmptyState/EmptyState"
-import { RoleSelect } from "../RoleSelect/RoleSelect"
 import { TableLoader } from "../TableLoader/TableLoader"
 import { TableRowMenu } from "../TableRowMenu/TableRowMenu"
+import { EditRolesButton } from "components/EditRolesButton/EditRolesButton"
+import { Stack } from "components/Stack/Stack"
+
+const isOwnerRole = (role: TypesGen.Role): boolean => {
+  return role.name === "owner"
+}
+
+const roleOrder = ["owner", "user-admin", "template-admin", "auditor"]
+
+const sortRoles = (roles: TypesGen.Role[]) => {
+  return roles.slice(0).sort((a, b) => {
+    return roleOrder.indexOf(a.name) - roleOrder.indexOf(b.name)
+  })
+}
 
 interface UsersTableBodyProps {
   users?: TypesGen.User[]
@@ -88,7 +102,7 @@ export const UsersTableBody: FC<
                 display_name: "Member",
               }
               const userRoles =
-                user.roles.length === 0 ? [fallbackRole] : user.roles
+                user.roles.length === 0 ? [fallbackRole] : sortRoles(user.roles)
 
               return (
                 <TableRow key={user.id}>
@@ -108,6 +122,34 @@ export const UsersTableBody: FC<
                       }
                     />
                   </TableCell>
+                  <TableCell>
+                    <Stack direction="row" spacing={1}>
+                      {canEditUsers && (
+                        <EditRolesButton
+                          roles={roles ? sortRoles(roles) : []}
+                          selectedRoles={userRoles}
+                          isLoading={Boolean(isUpdatingUserRoles)}
+                          onChange={(roles) => {
+                            // Remove the fallback role because it is only for the UI
+                            const rolesWithoutFallback = roles.filter(
+                              (role) => role !== fallbackRole.name,
+                            )
+                            onUpdateUserRoles(user, rolesWithoutFallback)
+                          }}
+                        />
+                      )}
+                      {userRoles.map((role) => (
+                        <Pill
+                          key={role.name}
+                          text={role.display_name}
+                          className={combineClasses({
+                            [styles.rolePill]: true,
+                            [styles.rolePillOwner]: isOwnerRole(role),
+                          })}
+                        />
+                      ))}
+                    </Stack>
+                  </TableCell>
                   <TableCell
                     className={combineClasses([
                       styles.status,
@@ -120,26 +162,6 @@ export const UsersTableBody: FC<
                   </TableCell>
                   <TableCell>
                     <LastUsed lastUsedAt={user.last_seen_at} />
-                  </TableCell>
-                  <TableCell>
-                    {canEditUsers ? (
-                      <RoleSelect
-                        roles={roles ?? []}
-                        selectedRoles={userRoles}
-                        loading={isUpdatingUserRoles}
-                        onChange={(roles) => {
-                          // Remove the fallback role because it is only for the UI
-                          roles = roles.filter(
-                            (role) => role !== fallbackRole.name,
-                          )
-                          onUpdateUserRoles(user, roles)
-                        }}
-                      />
-                    ) : (
-                      <>
-                        {userRoles.map((role) => role.display_name).join(", ")}
-                      </>
-                    )}
                   </TableCell>
                   {canEditUsers && (
                     <TableCell>
@@ -198,5 +220,13 @@ const useStyles = makeStyles((theme) => ({
     width: theme.spacing(4.5),
     height: theme.spacing(4.5),
     borderRadius: "100%",
+  },
+  rolePill: {
+    backgroundColor: theme.palette.background.paperLight,
+    borderColor: theme.palette.divider,
+  },
+  rolePillOwner: {
+    backgroundColor: theme.palette.info.dark,
+    borderColor: theme.palette.info.light,
   },
 }))

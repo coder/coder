@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -270,7 +269,7 @@ func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
 		return "", ctx.Err()
 	}
 
-	var out bytes.Buffer
+	var out strings.Builder
 	cmd := exec.CommandContext(killCtx, e.binaryPath, "graph") // #nosec
 	cmd.Stdout = &out
 	cmd.Dir = e.workdir
@@ -289,14 +288,13 @@ func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
 	return out.String(), nil
 }
 
-// revive:disable-next-line:flag-parameter
 func (e *executor) apply(
 	ctx, killCtx context.Context, plan []byte, env []string, logr logSink,
 ) (*proto.Provision_Response, error) {
 	e.mut.Lock()
 	defer e.mut.Unlock()
 
-	planFile, err := ioutil.TempFile("", "coder-terrafrom-plan")
+	planFile, err := os.CreateTemp("", "coder-terrafrom-plan")
 	if err != nil {
 		return nil, xerrors.Errorf("create plan file: %w", err)
 	}

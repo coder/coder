@@ -48,14 +48,14 @@ export const Markdown: FC<{ children: string }> = ({ children }) => {
             <SyntaxHighlighter
               style={darcula}
               // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- this can be undefined
-              language={match[1] ?? "language-shell"}
+              language={match[1].toLowerCase() ?? "language-shell"}
               useInlineStyles={false}
               // Use inline styles does not work correctly
               // https://github.com/react-syntax-highlighter/react-syntax-highlighter/issues/329
               codeTagProps={{ style: {} }}
               {...props}
             >
-              {String(children).replace(/\n$/, "")}
+              {String(children)}
             </SyntaxHighlighter>
           ) : (
             <code className={styles.codeWithoutLanguage} {...props}>
@@ -135,19 +135,24 @@ const useStyles = makeStyles((theme) => ({
       background: theme.palette.background.paperLight,
       borderRadius: theme.shape.borderRadius,
       padding: theme.spacing(2, 3),
+      overflowX: "auto",
 
       "& code": {
         color: theme.palette.text.secondary,
       },
 
-      "& .key, & .property": {
+      "& .key, & .property, & .inserted, .keyword": {
         color: colors.turquoise[7],
+      },
+
+      "& .deleted": {
+        color: theme.palette.error.light,
       },
     },
   },
 
   codeWithoutLanguage: {
-    padding: theme.spacing(0.5, 1),
+    padding: theme.spacing(0.125, 0.5),
     background: theme.palette.divider,
     borderRadius: 4,
     color: theme.palette.text.primary,

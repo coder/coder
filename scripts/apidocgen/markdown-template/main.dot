@@ -5,9 +5,6 @@
 		}
 
 		const pRef = p.$ref.replace("#/components/schemas/","");
-		if (pRef == "codersdk.NullTime") {
-			return "string(time) or `null`";
-		}
 		return "[" + pRef + "](#" + pRef.replace(".","").toLowerCase() + ")";
 	}
 
@@ -28,28 +25,39 @@
 		return "`" + p.displayName + "`";
 	}
 
+	function correctLetterCase(description) {
+		const dictionary = ["id", "url"];
+
+		const words = description.split(' ');
+		var corrected = [];
+		words.forEach(word => {
+			if (dictionary.includes(word.toLowerCase())) {
+				corrected.push(word.toUpperCase());
+				return;
+			}
+			corrected.push(word);
+		});
+		return corrected.join(" ");
+	}
+
 	function renderDescription(p) {
 		if (!p.description) {
-			return "none";
+			return "";
 		}
 
-		const toSnakeCase = str =>
-			str
-				.match(/[A-Z]{2,}(?=[A-Z][a-z]+[0-9]*|\b)|[A-Z]?[a-z]+[0-9]*|[A-Z]|[0-9]+/g)
-				.map(x => x.toLowerCase())
-				.join('_');
-
-		const words = p.description.split(' ');
+		let description = p.description.replaceAll("<br><br>", "\n").replaceAll("<br>", " ");
+		const words = description.split(' ');
 		if (words.length == 0) {
-			return "none";
+			return "";
 		}
 
 		const countUppercase = words[0].length - words[0].replace(/[A-Z]/g, '').length;
 		if (countUppercase > 1) {
-			const displayName = p.displayName.charAt(0).toUpperCase() + p.displayName.replaceAll("_", " ").toLowerCase().slice(1);
-			return displayName + " " + words.slice(1).join(' ');
+			let displayName = p.displayName.replaceAll("» **additionalProperties**", "It");
+			displayName = displayName.charAt(0).toUpperCase() + displayName.replaceAll("_", " ").toLowerCase().slice(1);
+			description = displayName + " " + words.slice(1).join(' ');
 		}
-		return p.description;
+		return correctLetterCase(description);
 	}
 }}
 
@@ -130,7 +138,7 @@
 
 {{? block.rows.length}}|Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|{{?}}
-{{~ block.rows :p}}|{{= renderDisplayName(p)}}|{{= renderPropertyType(p)}}|{{=p.required}}|{{=p.restrictions||'none'}}|{{= renderDescription(p)}}|
+{{~ block.rows :p}}|{{= renderDisplayName(p)}}|{{= renderPropertyType(p)}}|{{=p.required}}|{{=p.restrictions||''}}|{{= renderDescription(p)}}|
 {{~}}
 {{~}}
 {{? (blocks[0].rows.length === 0) && (blocks.length === 1) }}
@@ -144,7 +152,7 @@
 
 |Property|Value|
 |---|---|
-{{~ enums :e}}|{{=e.name}}|{{=data.utils.toPrimitive(e.value)}}|
+{{~ enums :e}}|`{{=e.name}}`|`{{=data.utils.toPrimitive(e.value)}}`|
 {{~}}
 
 {{= data.tags.endSection }}

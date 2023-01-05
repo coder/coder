@@ -65,7 +65,8 @@ coder:
 
   # coder.resources -- The resources to request for Coder. These are optional
   # and are not set by default.
-  resources: {}
+  resources:
+    {}
     # limits:
     #   cpu: 100m
     #   memory: 128Mi
@@ -81,7 +82,8 @@ coder:
     #
     # The given key in each secret is mounted at
     # `/etc/ssl/certs/{secret_name}.crt`.
-    secrets: []
+    secrets:
+      []
       # - name: "my-ca-bundle"
       #   key: "ca-bundle.crt"
 
@@ -103,7 +105,8 @@ coder:
 
   # coder.tolerations -- Tolerations for tainted nodes.
   # See: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
-  tolerations: {}
+  tolerations:
+    {}
     # - key: "key"
     #   operator: "Equal"
     #   value: "value"

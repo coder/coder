@@ -564,7 +564,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 // @Summary Update workspace metadata by ID
 // @ID update-workspace-metadata-by-id
 // @Security CoderSessionToken
-// @Consume json
+// @Accept json
 // @Produce json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
@@ -654,7 +654,7 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Summary Update workspace autostart schedule by ID
 // @ID update-workspace-autostart-schedule-by-id
 // @Security CoderSessionToken
-// @Consume json
+// @Accept json
 // @Produce json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
@@ -717,7 +717,7 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 // @Summary Update workspace TTL by ID
 // @ID update-workspace-ttl-by-id
 // @Security CoderSessionToken
-// @Consume json
+// @Accept json
 // @Produce json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
@@ -793,7 +793,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 // @Summary Extend workspace deadline by ID
 // @ID extend-workspace-deadline-by-id
 // @Security CoderSessionToken
-// @Consume json
+// @Accept json
 // @Produce json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)

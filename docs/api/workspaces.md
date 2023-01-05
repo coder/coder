@@ -11,17 +11,16 @@
 curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/members/{user}/workspaces \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `POST /organizations/{organization}/members/{user}/workspaces`
 
 ### Parameters
 
-| Name         | In   | Type         | Required | Description     |
-| ------------ | ---- | ------------ | -------- | --------------- |
-| organization | path | string(uuid) | true     | Organization ID |
-| user         | path | string       | true     | Username        |
+| Name           | In   | Type         | Required | Description     |
+| -------------- | ---- | ------------ | -------- | --------------- |
+| `organization` | path | string(uuid) | true     | Organization ID |
+| `user`         | path | string       | true     | Username        |
 
 ### Example responses
 
@@ -37,10 +36,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
     "build_number": 0,
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
-    "deadline": {
-      "time": "string",
-      "valid": true
-    },
+    "deadline": "2019-08-24T14:15:22Z",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
@@ -175,18 +171,17 @@ To perform this operation, you must be authenticated by means of one of the foll
 curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacename} \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `GET /users/{user}/workspace/{workspacename}`
 
 ### Parameters
 
-| Name            | In    | Type    | Required | Description                                                 |
-| --------------- | ----- | ------- | -------- | ----------------------------------------------------------- |
-| user            | path  | string  | true     | Owner username                                              |
-| workspacename   | path  | string  | true     | Workspace name                                              |
-| include_deleted | query | boolean | false    | Return data instead of HTTP 404 if the workspace is deleted |
+| Name              | In    | Type    | Required | Description                                                 |
+| ----------------- | ----- | ------- | -------- | ----------------------------------------------------------- |
+| `user`            | path  | string  | true     | Owner username                                              |
+| `workspacename`   | path  | string  | true     | Workspace name                                              |
+| `include_deleted` | query | boolean | false    | Return data instead of HTTP 404 if the workspace is deleted |
 
 ### Example responses
 
@@ -202,10 +197,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
     "build_number": 0,
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
-    "deadline": {
-      "time": "string",
-      "valid": true
-    },
+    "deadline": "2019-08-24T14:15:22Z",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
@@ -340,38 +332,37 @@ To perform this operation, you must be authenticated by means of one of the foll
 curl -X GET http://coder-server:8080/api/v2/workspaces \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `GET /workspaces`
 
 ### Parameters
 
-| Name      | In    | Type   | Required | Description                                 |
-| --------- | ----- | ------ | -------- | ------------------------------------------- |
-| owner     | query | string | false    | Filter by owner username                    |
-| template  | query | string | false    | Filter by template name                     |
-| name      | query | string | false    | Filter with partial-match by workspace name |
-| status    | query | string | false    | Filter by workspace status                  |
-| has_agent | query | string | false    | Filter by agent status                      |
+| Name        | In    | Type   | Required | Description                                 |
+| ----------- | ----- | ------ | -------- | ------------------------------------------- |
+| `owner`     | query | string | false    | Filter by owner username                    |
+| `template`  | query | string | false    | Filter by template name                     |
+| `name`      | query | string | false    | Filter with partial-match by workspace name |
+| `status`    | query | string | false    | Filter by workspace status                  |
+| `has_agent` | query | string | false    | Filter by agent status                      |
 
 #### Enumerated Values
 
-| Parameter | Value        |
-| --------- | ------------ |
-| status    | pending      |
-| status    | running      |
-| status    | stopping     |
-| status    | stopped      |
-| status    | failed       |
-| status    | canceling    |
-| status    | canceled     |
-| status    | deleted      |
-| status    | deleting     |
-| has_agent | connected    |
-| has_agent | connecting   |
-| has_agent | disconnected |
-| has_agent | timeout      |
+| Parameter   | Value          |
+| ----------- | -------------- |
+| `status`    | `pending`      |
+| `status`    | `running`      |
+| `status`    | `stopping`     |
+| `status`    | `stopped`      |
+| `status`    | `failed`       |
+| `status`    | `canceling`    |
+| `status`    | `canceled`     |
+| `status`    | `deleted`      |
+| `status`    | `deleting`     |
+| `has_agent` | `connected`    |
+| `has_agent` | `connecting`   |
+| `has_agent` | `disconnected` |
+| `has_agent` | `timeout`      |
 
 ### Example responses
 
@@ -390,10 +381,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
         "build_number": 0,
         "created_at": "2019-08-24T14:15:22Z",
         "daily_cost": 0,
-        "deadline": {
-          "time": "string",
-          "valid": true
-        },
+        "deadline": "2019-08-24T14:15:22Z",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
         "initiator_name": "string",
@@ -526,17 +514,16 @@ To perform this operation, you must be authenticated by means of one of the foll
 curl -X GET http://coder-server:8080/api/v2/workspaces/{id} \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `GET /workspaces/{id}`
 
 ### Parameters
 
-| Name            | In    | Type         | Required | Description                                                 |
-| --------------- | ----- | ------------ | -------- | ----------------------------------------------------------- |
-| id              | path  | string(uuid) | true     | Workspace ID                                                |
-| include_deleted | query | boolean      | false    | Return data instead of HTTP 404 if the workspace is deleted |
+| Name              | In    | Type         | Required | Description                                                 |
+| ----------------- | ----- | ------------ | -------- | ----------------------------------------------------------- |
+| `id`              | path  | string(uuid) | true     | Workspace ID                                                |
+| `include_deleted` | query | boolean      | false    | Return data instead of HTTP 404 if the workspace is deleted |
 
 ### Example responses
 
@@ -552,10 +539,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{id} \
     "build_number": 0,
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
-    "deadline": {
-      "time": "string",
-      "valid": true
-    },
+    "deadline": "2019-08-24T14:15:22Z",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
@@ -690,7 +674,6 @@ To perform this operation, you must be authenticated by means of one of the foll
 curl -X PATCH http://coder-server:8080/api/v2/workspaces/{workspace} \
   -H 'Content-Type: application/json' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `PATCH /workspaces/{workspace}`
@@ -705,16 +688,16 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaces/{workspace} \
 
 ### Parameters
 
-| Name      | In   | Type                                                                         | Required | Description             |
-| --------- | ---- | ---------------------------------------------------------------------------- | -------- | ----------------------- |
-| workspace | path | string(uuid)                                                                 | true     | Workspace ID            |
-| body      | body | [codersdk.UpdateWorkspaceRequest](schemas.md#codersdkupdateworkspacerequest) | true     | Metadata update request |
+| Name        | In   | Type                                                                         | Required | Description             |
+| ----------- | ---- | ---------------------------------------------------------------------------- | -------- | ----------------------- |
+| `workspace` | path | string(uuid)                                                                 | true     | Workspace ID            |
+| `body`      | body | [codersdk.UpdateWorkspaceRequest](schemas.md#codersdkupdateworkspacerequest) | true     | Metadata update request |
 
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema    |
-| ------ | --------------------------------------------------------------- | ----------- | --------- |
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  | no schema |
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
 
@@ -727,7 +710,6 @@ To perform this operation, you must be authenticated by means of one of the foll
 curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/autostart \
   -H 'Content-Type: application/json' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `PUT /workspaces/{workspace}/autostart`
@@ -742,16 +724,16 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/autostart \
 
 ### Parameters
 
-| Name      | In   | Type                                                                                           | Required | Description             |
-| --------- | ---- | ---------------------------------------------------------------------------------------------- | -------- | ----------------------- |
-| workspace | path | string(uuid)                                                                                   | true     | Workspace ID            |
-| body      | body | [codersdk.UpdateWorkspaceAutostartRequest](schemas.md#codersdkupdateworkspaceautostartrequest) | true     | Schedule update request |
+| Name        | In   | Type                                                                                           | Required | Description             |
+| ----------- | ---- | ---------------------------------------------------------------------------------------------- | -------- | ----------------------- |
+| `workspace` | path | string(uuid)                                                                                   | true     | Workspace ID            |
+| `body`      | body | [codersdk.UpdateWorkspaceAutostartRequest](schemas.md#codersdkupdateworkspaceautostartrequest) | true     | Schedule update request |
 
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema    |
-| ------ | --------------------------------------------------------------- | ----------- | --------- |
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  | no schema |
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
 
@@ -765,7 +747,6 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/extend \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `PUT /workspaces/{workspace}/extend`
@@ -780,10 +761,10 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/extend \
 
 ### Parameters
 
-| Name      | In   | Type                                                                               | Required | Description                    |
-| --------- | ---- | ---------------------------------------------------------------------------------- | -------- | ------------------------------ |
-| workspace | path | string(uuid)                                                                       | true     | Workspace ID                   |
-| body      | body | [codersdk.PutExtendWorkspaceRequest](schemas.md#codersdkputextendworkspacerequest) | true     | Extend deadline update request |
+| Name        | In   | Type                                                                               | Required | Description                    |
+| ----------- | ---- | ---------------------------------------------------------------------------------- | -------- | ------------------------------ |
+| `workspace` | path | string(uuid)                                                                       | true     | Workspace ID                   |
+| `body`      | body | [codersdk.PutExtendWorkspaceRequest](schemas.md#codersdkputextendworkspacerequest) | true     | Extend deadline update request |
 
 ### Example responses
 
@@ -819,7 +800,6 @@ To perform this operation, you must be authenticated by means of one of the foll
 curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/ttl \
   -H 'Content-Type: application/json' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `PUT /workspaces/{workspace}/ttl`
@@ -834,16 +814,16 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/ttl \
 
 ### Parameters
 
-| Name      | In   | Type                                                                               | Required | Description                  |
-| --------- | ---- | ---------------------------------------------------------------------------------- | -------- | ---------------------------- |
-| workspace | path | string(uuid)                                                                       | true     | Workspace ID                 |
-| body      | body | [codersdk.UpdateWorkspaceTTLRequest](schemas.md#codersdkupdateworkspacettlrequest) | true     | Workspace TTL update request |
+| Name        | In   | Type                                                                               | Required | Description                  |
+| ----------- | ---- | ---------------------------------------------------------------------------------- | -------- | ---------------------------- |
+| `workspace` | path | string(uuid)                                                                       | true     | Workspace ID                 |
+| `body`      | body | [codersdk.UpdateWorkspaceTTLRequest](schemas.md#codersdkupdateworkspacettlrequest) | true     | Workspace TTL update request |
 
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema    |
-| ------ | --------------------------------------------------------------- | ----------- | --------- |
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  | no schema |
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
 
@@ -856,16 +836,15 @@ To perform this operation, you must be authenticated by means of one of the foll
 curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/watch \
   -H 'Accept: text/event-stream' \
   -H 'Coder-Session-Token: API_KEY'
-
 ```
 
 `GET /workspaces/{workspace}/watch`
 
 ### Parameters
 
-| Name      | In   | Type         | Required | Description  |
-| --------- | ---- | ------------ | -------- | ------------ |
-| workspace | path | string(uuid) | true     | Workspace ID |
+| Name        | In   | Type         | Required | Description  |
+| ----------- | ---- | ------------ | -------- | ------------ |
+| `workspace` | path | string(uuid) | true     | Workspace ID |
 
 ### Example responses
 
