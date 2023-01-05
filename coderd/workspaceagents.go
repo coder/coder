@@ -983,6 +983,9 @@ func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) 
 	httpapi.Write(ctx, rw, http.StatusOK, nil)
 }
 
+// workspaceAgentsGitAuth returns a username and password for use
+// with GIT_ASKPASS.
+//
 // @Summary Get workspace agent Git auth
 // @ID get-workspace-agent-git-auth
 // @Security CoderSessionToken
@@ -993,9 +996,6 @@ func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) 
 // @Param listen query bool false "Wait for a new token to be issued"
 // @Success 200 {object} codersdk.WorkspaceAgentGitAuthResponse
 // @Router /workspaceagents/me/gitauth [get]
-//
-// workspaceAgentsGitAuth returns a username and password for use
-// with GIT_ASKPASS.
 func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	gitURL := r.URL.Query().Get("url")
