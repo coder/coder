@@ -7,8 +7,10 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"io"
 	"net"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -230,7 +232,7 @@ func TestSSH(t *testing.T) {
 		})
 
 		// Start up ssh agent listening on unix socket.
-		tmpdir := t.TempDir()
+		tmpdir := tempDirUnixSocket(t)
 		agentSock := filepath.Join(tmpdir, "agent.sock")
 		l, err := net.Listen("unix", agentSock)
 		require.NoError(t, err)
@@ -370,7 +372,7 @@ p7KeSZdlk47pMBGOfnvEmoQ=
 		}
 
 		// Setup GPG home directory on the "client".
-		gnupgHomeClient := t.TempDir()
+		gnupgHomeClient := tempDirUnixSocket(t)
 		t.Setenv("GNUPGHOME", gnupgHomeClient)
 
 		// Get the agent extra socket path.
@@ -426,7 +428,7 @@ Expire-Date: 0
 		}()
 
 		// Get the agent socket path in the "workspace".
-		gnupgHomeWorkspace := t.TempDir()
+		gnupgHomeWorkspace := tempDirUnixSocket(t)
 
 		stdout = bytes.NewBuffer(nil)
 		stderr = bytes.NewBuffer(nil)
@@ -473,9 +475,8 @@ Expire-Date: 0
 
 		// Check the GNUPGHOME was correctly inherited via shell.
 		pty.WriteLine("env && echo env-''-command-done")
-		pty.ExpectMatch("GNUPGHOME=")
-		require.Equal(t, pty.ReadLine(), gnupgHomeWorkspace)
-		pty.ExpectMatch("env--command-done")
+		match := pty.ExpectMatch("env--command-done")
+		require.Contains(t, match, "GNUPGHOME="+gnupgHomeWorkspace, match)
 
 		// Get the agent extra socket path in the "workspace" via shell.
 		pty.WriteLine("gpgconf --list-dir agent-socket && echo gpgconf-''-agentsocket-command-done")
@@ -573,4 +574,26 @@ func (*stdioConn) SetReadDeadline(_ time.Time) error {
 
 func (*stdioConn) SetWriteDeadline(_ time.Time) error {
 	return nil
+}
+
+// tempDirUnixSocket returns a temporary directory that can safely hold unix
+// sockets (probably).
+//
+// During tests on darwin we hit the max path length limit for unix sockets
+// pretty easily in the default location, so this function uses /tmp instead to
+// get shorter paths.
+func tempDirUnixSocket(t *testing.T) string {
+	if runtime.GOOS == "darwin" {
+		testName := strings.ReplaceAll(t.Name(), "/", "_")
+		dir, err := os.MkdirTemp("/tmp", fmt.Sprintf("coder-test-%s-", testName))
+		require.NoError(t, err, "create temp dir for gpg test")
+
+		t.Cleanup(func() {
+			err := os.RemoveAll(dir)
+			assert.NoError(t, err, "remove temp dir", dir)
+		})
+		return dir
+	}
+
+	return t.TempDir()
 }

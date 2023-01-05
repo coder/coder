@@ -410,7 +410,7 @@ func TestAgent_UnixLocalForwarding(t *testing.T) {
 		t.Skip("unix domain sockets are not fully supported on Windows")
 	}
 
-	tmpdir := t.TempDir()
+	tmpdir := tempDirUnixSocket(t)
 	remoteSocketPath := filepath.Join(tmpdir, "remote-socket")
 	localSocketPath := filepath.Join(tmpdir, "local-socket")
 
@@ -467,7 +467,7 @@ func TestAgent_UnixRemoteForwarding(t *testing.T) {
 		t.Skip("unix domain sockets are not fully supported on Windows")
 	}
 
-	tmpdir := t.TempDir()
+	tmpdir := tempDirUnixSocket(t)
 	remoteSocketPath := filepath.Join(tmpdir, "remote-socket")
 	localSocketPath := filepath.Join(tmpdir, "local-socket")
 
@@ -1134,4 +1134,26 @@ func (*client) PostWorkspaceAgentAppHealth(_ context.Context, _ codersdk.PostWor
 
 func (*client) PostWorkspaceAgentVersion(_ context.Context, _ string) error {
 	return nil
+}
+
+// tempDirUnixSocket returns a temporary directory that can safely hold unix
+// sockets (probably).
+//
+// During tests on darwin we hit the max path length limit for unix sockets
+// pretty easily in the default location, so this function uses /tmp instead to
+// get shorter paths.
+func tempDirUnixSocket(t *testing.T) string {
+	if runtime.GOOS == "darwin" {
+		testName := strings.ReplaceAll(t.Name(), "/", "_")
+		dir, err := os.MkdirTemp("/tmp", fmt.Sprintf("coder-test-%s-", testName))
+		require.NoError(t, err, "create temp dir for gpg test")
+
+		t.Cleanup(func() {
+			err := os.RemoveAll(dir)
+			assert.NoError(t, err, "remove temp dir", dir)
+		})
+		return dir
+	}
+
+	return t.TempDir()
 }
