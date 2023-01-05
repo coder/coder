@@ -52,7 +52,7 @@ Status Code **200**
 | `» display_name` | string  | false    |              |             |
 | `» name`         | string  | false    |              |             |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Assign role to organization member
 
@@ -109,4 +109,4 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OrganizationMember](schemas.md#codersdkorganizationmember) |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).

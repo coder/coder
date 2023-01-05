@@ -25,24 +25,24 @@ func TestServiceBanners(t *testing.T) {
 	adminUser := coderdtest.CreateFirstUser(t, adminClient)
 
 	// Even without a license, the banner should return as disabled.
-	sb, err := adminClient.ServiceBanner(ctx)
+	sb, err := adminClient.Appearance(ctx)
 	require.NoError(t, err)
-	require.False(t, sb.Enabled)
+	require.False(t, sb.ServiceBanner.Enabled)
 
 	coderdenttest.AddLicense(t, adminClient, coderdenttest.LicenseOptions{
 		ServiceBanners: true,
 	})
 
 	// Default state
-	sb, err = adminClient.ServiceBanner(ctx)
+	sb, err = adminClient.Appearance(ctx)
 	require.NoError(t, err)
-	require.False(t, sb.Enabled)
+	require.False(t, sb.ServiceBanner.Enabled)
 
 	basicUserClient := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
 
 	// Regular user should be unable to set the banner
-	sb.Enabled = true
-	err = basicUserClient.SetServiceBanner(ctx, sb)
+	sb.ServiceBanner.Enabled = true
+	err = basicUserClient.UpdateAppearance(ctx, sb)
 	require.Error(t, err)
 	var sdkError *codersdk.Error
 	require.True(t, errors.As(err, &sdkError))
@@ -50,17 +50,17 @@ func TestServiceBanners(t *testing.T) {
 
 	// But an admin can
 	wantBanner := sb
-	wantBanner.Enabled = true
-	wantBanner.Message = "Hey"
-	wantBanner.BackgroundColor = "#00FF00"
-	err = adminClient.SetServiceBanner(ctx, wantBanner)
+	wantBanner.ServiceBanner.Enabled = true
+	wantBanner.ServiceBanner.Message = "Hey"
+	wantBanner.ServiceBanner.BackgroundColor = "#00FF00"
+	err = adminClient.UpdateAppearance(ctx, wantBanner)
 	require.NoError(t, err)
-	gotBanner, err := adminClient.ServiceBanner(ctx)
+	gotBanner, err := adminClient.Appearance(ctx)
 	require.NoError(t, err)
 	require.Equal(t, wantBanner, gotBanner)
 
 	// But even an admin can't give a bad color
-	wantBanner.BackgroundColor = "#bad color"
-	err = adminClient.SetServiceBanner(ctx, wantBanner)
+	wantBanner.ServiceBanner.BackgroundColor = "#bad color"
+	err = adminClient.UpdateAppearance(ctx, wantBanner)
 	require.Error(t, err)
 }

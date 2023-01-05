@@ -26,7 +26,7 @@ curl -X GET http://coder-server:8080/api/v2/applications/auth-redirect \
 | ------ | ----------------------------------------------------------------------- | ------------------ | ------ |
 | 307    | [Temporary Redirect](https://tools.ietf.org/html/rfc7231#section-6.4.7) | Temporary Redirect |        |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get applications host
 
@@ -57,4 +57,4 @@ curl -X GET http://coder-server:8080/api/v2/applications/host \
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GetAppHostResponse](schemas.md#codersdkgetapphostresponse) |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).

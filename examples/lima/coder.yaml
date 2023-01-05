@@ -8,12 +8,12 @@
 # This example requires Lima v0.8.3 or later.
 images:
   # Try to use release-yyyyMMdd image if available. Note that release-yyyyMMdd will be removed after several months.
-  - location: "https://cloud-images.ubuntu.com/releases/22.04/release-20220420/ubuntu-22.04-server-cloudimg-amd64.img"
+  - location: "https://cloud-images.ubuntu.com/releases/22.04/release-20221201/ubuntu-22.04-server-cloudimg-amd64.img"
     arch: "x86_64"
-    digest: "sha256:de5e632e17b8965f2baf4ea6d2b824788e154d9a65df4fd419ec4019898e15cd"
-  - location: "https://cloud-images.ubuntu.com/releases/22.04/release-20220420/ubuntu-22.04-server-cloudimg-arm64.img"
+    digest: "sha256:8a814737df484d9e2f4cb2c04c91629aea2fced6799fc36f77376f0da91dba65"
+  - location: "https://cloud-images.ubuntu.com/releases/22.04/release-20221201/ubuntu-22.04-server-cloudimg-arm64.img"
     arch: "aarch64"
-    digest: "sha256:66224c7fed99ff5a5539eda406c87bbfefe8af6ff6b47d92df3187832b5b5d4f"
+    digest: "sha256:8a0477adcbdadefd58ae5c0625b53bbe618aedfe69983b824da8d02be0a8c961"
   # Fallback to the latest release image.
   # Hint: run `limactl prune` to invalidate the cache
   - location: "https://cloud-images.ubuntu.com/releases/22.04/release/ubuntu-22.04-server-cloudimg-amd64.img"
@@ -58,6 +58,13 @@ provision:
       systemctl restart docker
       # In case a user forgets to set the arch correctly, just install binfmt
       docker run --privileged --rm tonistiigi/binfmt --install all
+      # Also ensure that the Lima user has access to the Docker daemon without sudo.
+      # The 'right' way to to do this is with the Docker group, but Lima keeps the
+      # SSH session around. We don't want users to have to manually delete ~/.lima/$VM/ssh.sock
+      # so we're just instead going to modify the perms on the Docker socket.
+      # See: https://github.com/lima-vm/lima/issues/528
+      chown ${LIMA_CIDATA_USER} /var/run/docker.sock
+      chmod og+rwx /var/run/docker.sock
   - mode: system
     script: |
       #!/bin/bash
@@ -81,6 +88,8 @@ provision:
       usermod -aG docker coder
       # Ensure coder listens on all interfaces
       sed -i 's/CODER_ADDRESS=.*/CODER_ADDRESS=0.0.0.0:3000/' /etc/coder.d/coder.env
+      # Also set the access URL to host.lima.internal for fast deployments
+      sed -i 's#CODER_ACCESS_URL=.*#CODER_ACCESS_URL=http://host.lima.internal:3000#' /etc/coder.d/coder.env
       # Ensure coder starts on boot
       systemctl enable coder
       systemctl start coder

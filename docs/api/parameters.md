@@ -84,7 +84,7 @@ Status Code **200**
 | `source_scheme`      | `none`                 |
 | `source_scheme`      | `data`                 |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Create parameter
 
@@ -151,7 +151,7 @@ curl -X POST http://coder-server:8080/api/v2/parameters/{scope}/{id} \
 | ------ | ------------------------------------------------------------ | ----------- | -------------------------------------------------- |
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.Parameter](schemas.md#codersdkparameter) |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Delete parameter
 
@@ -205,4 +205,4 @@ curl -X DELETE http://coder-server:8080/api/v2/parameters/{scope}/{id}/{name} \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).

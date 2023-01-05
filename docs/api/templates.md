@@ -92,7 +92,7 @@ Status Code **200**
 | `» updated_at`                       | string(date-time)                 | false    |              |                                            |
 | `» workspace_owner_count`            | integer                           | false    |              |                                            |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Create template by organization
 
@@ -179,7 +179,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Template](schemas.md#codersdktemplate) |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get template examples by organization
 
@@ -239,7 +239,7 @@ Status Code **200**
 | `» tags`        | array  | false    |              |             |
 | `» url`         | string | false    |              |             |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get templates by organization and template name
 
@@ -302,7 +302,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Template](schemas.md#codersdktemplate) |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Create template version by organization
 
@@ -395,7 +395,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
 | ------ | ------------------------------------------------------------ | ----------- | -------------------------------------------------------------- |
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.TemplateVersion](schemas.md#codersdktemplateversion) |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get template version by organization and name
 
@@ -470,7 +470,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.TemplateVersion](schemas.md#codersdktemplateversion) |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get previous template version by organization and name
 
@@ -545,7 +545,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.TemplateVersion](schemas.md#codersdktemplateversion) |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get template metadata by ID
 
@@ -607,7 +607,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{id} \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Template](schemas.md#codersdktemplate) |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Delete template by ID
 
@@ -651,7 +651,7 @@ curl -X DELETE http://coder-server:8080/api/v2/templates/{id} \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Update template metadata by ID
 
@@ -713,7 +713,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{id} \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Template](schemas.md#codersdktemplate) |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get template DAUs by ID
 
@@ -755,7 +755,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{id}/daus \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.TemplateDAUsResponse](schemas.md#codersdktemplatedausresponse) |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## List template versions by template ID
 
@@ -883,7 +883,7 @@ Status Code **200**
 | `status` | `canceled`  |
 | `status` | `failed`    |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Update active template version by template ID
 
@@ -937,7 +937,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{id}/versions \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get template version by template ID and name
 
@@ -1066,7 +1066,7 @@ Status Code **200**
 | `status` | `canceled`  |
 | `status` | `failed`    |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get template version by ID
 
@@ -1140,7 +1140,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion} \
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.TemplateVersion](schemas.md#codersdktemplateversion) |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Cancel template version by ID
 
@@ -1184,7 +1184,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Create template version dry-run
 
@@ -1252,7 +1252,7 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
 | ------ | ------------------------------------------------------------ | ----------- | ------------------------------------------------------------ |
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.ProvisionerJob](schemas.md#codersdkprovisionerjob) |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get template version dry-run by job ID
 
@@ -1302,7 +1302,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ProvisionerJob](schemas.md#codersdkprovisionerjob) |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Cancel template version dry-run by job ID
 
@@ -1346,7 +1346,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get template version dry-run logs by job ID
 
@@ -1418,7 +1418,7 @@ Status Code **200**
 | `log_level` | `warn`  |
 | `log_level` | `error` |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get template version dry-run resources by job ID
 
@@ -1602,7 +1602,7 @@ Status Code **200**
 | `workspace_transition` | `stop`          |
 | `workspace_transition` | `delete`        |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get logs by template version
 
@@ -1673,7 +1673,7 @@ Status Code **200**
 | `log_level` | `warn`  |
 | `log_level` | `error` |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get parameters by template version
 
@@ -1741,7 +1741,7 @@ Status Code **200**
 | `» source_value`         | string  | false    |              |             |
 | `» updated_at`           | string  | false    |              |             |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get resources by template version
 
@@ -1924,7 +1924,7 @@ Status Code **200**
 | `workspace_transition` | `stop`          |
 | `workspace_transition` | `delete`        |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get schema by template version
 
@@ -2014,4 +2014,4 @@ Status Code **200**
 | `default_source_scheme`      | `none`                 |
 | `default_source_scheme`      | `data`                 |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).

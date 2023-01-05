@@ -39,7 +39,6 @@ import {
 } from "../../components/Tooltips/HelpTooltip/HelpTooltip"
 import { EmptyTemplates } from "./EmptyTemplates"
 import { TemplatesContext } from "xServices/templates/templatesXService"
-import { Entitlements } from "api/typesGenerated"
 
 export const Language = {
   developerCount: (activeCount: number): string => {
@@ -74,12 +73,11 @@ const TemplateHelpTooltip: React.FC = () => {
 
 export interface TemplatesPageViewProps {
   context: TemplatesContext
-  entitlements: Entitlements
 }
 
 export const TemplatesPageView: FC<
   React.PropsWithChildren<TemplatesPageViewProps>
-> = ({ context, entitlements }) => {
+> = ({ context }) => {
   const styles = useStyles()
   const navigate = useNavigate()
   const theme: Theme = useTheme()
@@ -91,9 +89,7 @@ export const TemplatesPageView: FC<
     <Margins>
       <PageHeader
         actions={
-          <Maybe
-            condition={entitlements.experimental && permissions.createTemplates}
-          >
+          <Maybe condition={permissions.createTemplates}>
             <Button component={RouterLink} to="/starter-templates">
               Starter templates
             </Button>
@@ -158,7 +154,6 @@ export const TemplatesPageView: FC<
                     <EmptyTemplates
                       permissions={permissions}
                       examples={examples ?? []}
-                      entitlements={entitlements}
                     />
                   </Cond>
 

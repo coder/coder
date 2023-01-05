@@ -33,7 +33,6 @@ type DeploymentConfig struct {
 	Trace                           *TraceConfig                            `json:"trace" typescript:",notnull"`
 	SecureAuthCookie                *DeploymentConfigField[bool]            `json:"secure_auth_cookie" typescript:",notnull"`
 	SSHKeygenAlgorithm              *DeploymentConfigField[string]          `json:"ssh_keygen_algorithm" typescript:",notnull"`
-	AutoImportTemplates             *DeploymentConfigField[[]string]        `json:"auto_import_templates" typescript:",notnull"`
 	MetricsCacheRefreshInterval     *DeploymentConfigField[time.Duration]   `json:"metrics_cache_refresh_interval" typescript:",notnull"`
 	AgentStatRefreshInterval        *DeploymentConfigField[time.Duration]   `json:"agent_stat_refresh_interval" typescript:",notnull"`
 	AgentFallbackTroubleshootingURL *DeploymentConfigField[string]          `json:"agent_fallback_troubleshooting_url" typescript:",notnull"`
@@ -99,6 +98,7 @@ type OIDCConfig struct {
 	IssuerURL           *DeploymentConfigField[string]   `json:"issuer_url" typescript:",notnull"`
 	Scopes              *DeploymentConfigField[[]string] `json:"scopes" typescript:",notnull"`
 	IgnoreEmailVerified *DeploymentConfigField[bool]     `json:"ignore_email_verified" typescript:",notnull"`
+	UsernameField       *DeploymentConfigField[string]   `json:"username_field" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
