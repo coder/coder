@@ -106,10 +106,12 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 
 			// Disable rate limits if the `--dangerous-disable-rate-limits` flag
 			// was specified.
+			loginRateLimit := 60
+			filesRateLimit := 12
 			if cfg.RateLimit.DisableAll.Value {
 				cfg.RateLimit.API.Value = -1
-				cfg.RateLimit.Login.Value = -1
-				cfg.RateLimit.Files.Value = -1
+				loginRateLimit = -1
+				filesRateLimit = -1
 			}
 
 			printLogo(cmd)
@@ -441,8 +443,8 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				DeploymentConfig:            cfg,
 				PrometheusRegistry:          prometheus.NewRegistry(),
 				APIRateLimit:                cfg.RateLimit.API.Value,
-				LoginRateLimit:              cfg.RateLimit.Login.Value,
-				FilesRateLimit:              cfg.RateLimit.Files.Value,
+				LoginRateLimit:              loginRateLimit,
+				FilesRateLimit:              filesRateLimit,
 				HTTPClient:                  httpClient,
 			}
 			if tlsConfig != nil {

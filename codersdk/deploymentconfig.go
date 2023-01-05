@@ -149,8 +149,6 @@ type ProvisionerConfig struct {
 type RateLimitConfig struct {
 	DisableAll *DeploymentConfigField[bool] `json:"disable_all" typescript:",notnull"`
 	API        *DeploymentConfigField[int]  `json:"api" typescript:",notnull"`
-	Files      *DeploymentConfigField[int]  `json:"files" typescript:",notnull"`
-	Login      *DeploymentConfigField[int]  `json:"login" typescript:",notnull"`
 }
 
 type SwaggerConfig struct {
