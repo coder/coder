@@ -160,15 +160,21 @@ type Flaggable interface {
 }
 
 type DeploymentConfigField[T Flaggable] struct {
-	Name       string `json:"name"`
-	Usage      string `json:"usage"`
-	Flag       string `json:"flag"`
-	Shorthand  string `json:"shorthand"`
-	Enterprise bool   `json:"enterprise"`
-	Hidden     bool   `json:"hidden"`
-	Secret     bool   `json:"secret"`
-	Default    T      `json:"default"`
-	Value      T      `json:"value"`
+	Name  string `json:"name"`
+	Usage string `json:"usage"`
+	Flag  string `json:"flag"`
+	// EnvOverride will override the automatically generated environment
+	// variable name. Useful if you're moving values around but need to keep
+	// backwards compatibility with old environment variable names.
+	//
+	// NOTE: this is not supported for array flags.
+	EnvOverride string `json:"-"`
+	Shorthand   string `json:"shorthand"`
+	Enterprise  bool   `json:"enterprise"`
+	Hidden      bool   `json:"hidden"`
+	Secret      bool   `json:"secret"`
+	Default     T      `json:"default"`
+	Value       T      `json:"value"`
 }
 
 // MarshalJSON removes the Value field from the JSON output of any fields marked Secret.
