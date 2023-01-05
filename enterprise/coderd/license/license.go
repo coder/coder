@@ -123,8 +123,8 @@ func Entitlements(
 				Enabled:     true,
 			}
 		}
-		if claims.Features.ServiceBanners > 0 {
-			entitlements.Features[codersdk.FeatureServiceBanners] = codersdk.Feature{
+		if claims.Features.Appearance > 0 {
+			entitlements.Features[codersdk.FeatureAppearance] = codersdk.Feature{
 				Entitlement: entitlement,
 				Enabled:     true,
 			}
@@ -258,7 +258,7 @@ type Features struct {
 	HighAvailability           int64 `json:"high_availability"`
 	MultipleGitAuth            int64 `json:"multiple_git_auth"`
 	ExternalProvisionerDaemons int64 `json:"external_provisioner_daemons"`
-	ServiceBanners             int64 `json:"service_banners"`
+	Appearance                 int64 `json:"appearance"`
 }
 
 type Claims struct {

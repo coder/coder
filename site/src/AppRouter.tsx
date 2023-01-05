@@ -76,8 +76,11 @@ const GeneralSettingsPage = lazy(
 const SecuritySettingsPage = lazy(
   () => import("./pages/DeploySettingsPage/SecuritySettingsPage"),
 )
-const ServiceBannerSettingsPage = lazy(
-  () => import("./pages/DeploySettingsPage/ServiceBannerSettingsPage"),
+const AppearanceSettingsPage = lazy(
+  () =>
+    import(
+      "./pages/DeploySettingsPage/AppearanceSettingsPage/AppearanceSettingsPage"
+    ),
 )
 const UserAuthSettingsPage = lazy(
   () => import("./pages/DeploySettingsPage/UserAuthSettingsPage"),
@@ -345,14 +348,14 @@ export const AppRouter: FC = () => {
             }
           />
           <Route
-            path="service-banner"
+            path="appearance"
             element={
               <AuthAndFrame>
                 <RequirePermission
                   isFeatureVisible={Boolean(permissions?.viewDeploymentConfig)}
                 >
                   <DeploySettingsLayout>
-                    <ServiceBannerSettingsPage />
+                    <AppearanceSettingsPage />
                   </DeploySettingsLayout>
                 </RequirePermission>
               </AuthAndFrame>

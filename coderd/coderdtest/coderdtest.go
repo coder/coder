@@ -92,14 +92,17 @@ type Options struct {
 	OIDCConfig           *coderd.OIDCConfig
 	GoogleTokenValidator *idtoken.Validator
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
-	APIRateLimit         int
-	AutoImportTemplates  []coderd.AutoImportTemplate
 	AutobuildTicker      <-chan time.Time
 	AutobuildStats       chan<- executor.Stats
 	Auditor              audit.Auditor
 	TLSCertificates      []tls.Certificate
 	GitAuthConfigs       []*gitauth.Config
 	TrialGenerator       func(context.Context, string) error
+
+	// All rate limits default to -1 (unlimited) in tests if not set.
+	APIRateLimit   int
+	LoginRateLimit int
+	FilesRateLimit int
 
 	// IncludeProvisionerDaemon when true means to start an in-memory provisionerD
 	IncludeProvisionerDaemon    bool
@@ -176,6 +179,17 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 	}
 	if options.DeploymentConfig == nil {
 		options.DeploymentConfig = DeploymentConfig(t)
+	}
+
+	// If no ratelimits are set, disable all rate limiting for tests.
+	if options.APIRateLimit == 0 {
+		options.APIRateLimit = -1
+	}
+	if options.LoginRateLimit == 0 {
+		options.LoginRateLimit = -1
+	}
+	if options.FilesRateLimit == 0 {
+		options.FilesRateLimit = -1
 	}
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -271,6 +285,8 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			SSHKeygenAlgorithm:   options.SSHKeygenAlgorithm,
 			DERPServer:           derpServer,
 			APIRateLimit:         options.APIRateLimit,
+			LoginRateLimit:       options.LoginRateLimit,
+			FilesRateLimit:       options.FilesRateLimit,
 			Authorizer:           options.Authorizer,
 			Telemetry:            telemetry.NewNoop(),
 			TLSCertificates:      options.TLSCertificates,
@@ -294,7 +310,6 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 					},
 				},
 			},
-			AutoImportTemplates:         options.AutoImportTemplates,
 			MetricsCacheRefreshInterval: options.MetricsCacheRefreshInterval,
 			AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
 			DeploymentConfig:            options.DeploymentConfig,
@@ -880,6 +895,7 @@ func (o *OIDCConfig) OIDCConfig() *coderd.OIDCConfig {
 		}, &oidc.Config{
 			SkipClientIDCheck: true,
 		}),
+		UsernameField: "preferred_username",
 	}
 }
 

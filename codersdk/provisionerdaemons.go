@@ -66,24 +66,26 @@ const (
 	ProvisionerJobFailed    ProvisionerJobStatus = "failed"
 )
 
+// ProvisionerJob describes the job executed by the provisioning daemon.
 type ProvisionerJob struct {
-	ID          uuid.UUID            `json:"id"`
-	CreatedAt   time.Time            `json:"created_at"`
-	StartedAt   *time.Time           `json:"started_at,omitempty"`
-	CompletedAt *time.Time           `json:"completed_at,omitempty"`
-	CanceledAt  *time.Time           `json:"canceled_at,omitempty"`
+	ID          uuid.UUID            `json:"id" format:"uuid"`
+	CreatedAt   time.Time            `json:"created_at" format:"date-time"`
+	StartedAt   *time.Time           `json:"started_at,omitempty" format:"date-time"`
+	CompletedAt *time.Time           `json:"completed_at,omitempty" format:"date-time"`
+	CanceledAt  *time.Time           `json:"canceled_at,omitempty" format:"date-time"`
 	Error       string               `json:"error,omitempty"`
-	Status      ProvisionerJobStatus `json:"status"`
-	WorkerID    *uuid.UUID           `json:"worker_id,omitempty"`
-	FileID      uuid.UUID            `json:"file_id"`
+	Status      ProvisionerJobStatus `json:"status" enums:"pending,running,succeeded,canceling,canceled,failed"`
+	WorkerID    *uuid.UUID           `json:"worker_id,omitempty" format:"uuid"`
+	FileID      uuid.UUID            `json:"file_id" format:"uuid"`
 	Tags        map[string]string    `json:"tags"`
 }
 
+// ProvisionerJobLog represents the provisioner log entry annotated with source and level.
 type ProvisionerJobLog struct {
 	ID        int64     `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
+	CreatedAt time.Time `json:"created_at" format:"date-time"`
 	Source    LogSource `json:"log_source"`
-	Level     LogLevel  `json:"log_level"`
+	Level     LogLevel  `json:"log_level" enums:"trace,debug,info,warn,error"`
 	Stage     string    `json:"stage"`
 	Output    string    `json:"output"`
 }

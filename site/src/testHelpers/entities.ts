@@ -1097,3 +1097,10 @@ export const MockPermissions: Permissions = {
   viewAuditLog: true,
   viewDeploymentConfig: true,
 }
+
+export const MockAppearance: TypesGen.AppearanceConfig = {
+  logo_url: "",
+  service_banner: {
+    enabled: false,
+  },
+}

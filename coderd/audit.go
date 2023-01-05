@@ -24,6 +24,17 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+// @Summary Get audit logs
+// @ID get-audit-logs
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Audit
+// @Param q query string true "Search query"
+// @Param after_id query string false "After ID" format(uuid)
+// @Param limit query int false "Page limit"
+// @Param offset query int false "Page offset"
+// @Success 200 {object} codersdk.AuditLogResponse
+// @Router /audit [get]
 func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceAuditLog) {
@@ -77,6 +88,14 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary Generate fake audit log
+// @ID generate-fake-audit-logs
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Audit
+// @Param request body codersdk.CreateTestAuditLogRequest true "Audit log request"
+// @Success 204
+// @Router /audit/testgenerate [post]
 func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceAuditLog) {

@@ -63,6 +63,14 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, apiAgent)
 }
 
+// @Summary Get authorized workspace agent metadata
+// @ID get-authorized-workspace-agent-metadata
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Agents
+// @Success 200 {object} codersdk.WorkspaceAgentMetadata
+// @Router /workspaceagents/me/metadata [get]
 func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
@@ -138,6 +146,15 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 	})
 }
 
+// @Summary Submit workspace agent version
+// @ID submit-workspace-workspace-agent-version
+// @Security CoderSessionToken
+// @Produce application/json
+// @Tags Agents
+// @Param request body codersdk.PostWorkspaceAgentVersionRequest true "Version request"
+// @Success 200
+// @Router /workspaceagents/me/version [post]
+// @x-apidocgen {"skip": true}
 func (api *API) postWorkspaceAgentVersion(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
@@ -438,6 +455,15 @@ func (api *API) workspaceAgentConnection(rw http.ResponseWriter, r *http.Request
 	})
 }
 
+// @Summary Coordinate workspace agent via Tailnet
+// @Description It accepts a WebSocket connection to an agent that listens to
+// @Description incoming connections and publishes node updates.
+// @ID get-workspace-agent-git-ssh-key-via-tailnet
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Agents
+// @Success 101
+// @Router /workspaceagents/me/coordinate [get]
 func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -757,6 +783,14 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 	return workspaceAgent, nil
 }
 
+// @Summary Submit workspace agent stats
+// @ID submit-workspace-workspace-agent-stats
+// @Security CoderSessionToken
+// @Produce application/json
+// @Tags Agents
+// @Param request body codersdk.AgentStats true "Stats request"
+// @Success 200 {object} codersdk.AgentStatsResponse
+// @Router /workspaceagents/me/report-stats [post]
 func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -826,6 +860,14 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 	})
 }
 
+// @Summary Submit workspace application health
+// @ID submit-workspace-workspace-agent-health
+// @Security CoderSessionToken
+// @Produce application/json
+// @Tags Agents
+// @Param request body codersdk.PostWorkspaceAppHealthsRequest true "Application health request"
+// @Success 200
+// @Router /workspaceagents/me/app-health [post]
 func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
@@ -941,8 +983,19 @@ func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) 
 	httpapi.Write(ctx, rw, http.StatusOK, nil)
 }
 
-// postWorkspaceAgentsGitAuth returns a username and password for use
+// workspaceAgentsGitAuth returns a username and password for use
 // with GIT_ASKPASS.
+//
+// @Summary Get workspace agent Git auth
+// @ID get-workspace-agent-git-auth
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Agents
+// @Param url query string true "Git URL" format(uri)
+// @Param listen query bool false "Wait for a new token to be issued"
+// @Success 200 {object} codersdk.WorkspaceAgentGitAuthResponse
+// @Router /workspaceagents/me/gitauth [get]
 func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	gitURL := r.URL.Query().Get("url")

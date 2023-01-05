@@ -27,12 +27,6 @@ const Template: Story<BorderedMenuProps> = (args: BorderedMenuProps) => (
   </BorderedMenu>
 )
 
-export const AdminVariant = Template.bind({})
-AdminVariant.args = {
-  variant: "admin-dropdown",
-  open: true,
-}
-
 export const UserVariant = Template.bind({})
 UserVariant.args = {
   variant: "user-dropdown",

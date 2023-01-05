@@ -104,6 +104,16 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				return xerrors.Errorf("either HTTP or TLS must be enabled")
 			}
 
+			// Disable rate limits if the `--dangerous-disable-rate-limits` flag
+			// was specified.
+			loginRateLimit := 60
+			filesRateLimit := 12
+			if cfg.RateLimit.DisableAll.Value {
+				cfg.RateLimit.API.Value = -1
+				loginRateLimit = -1
+				filesRateLimit = -1
+			}
+
 			printLogo(cmd)
 			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
 			if ok, _ := cmd.Flags().GetBool(varVerbose); ok {
@@ -371,27 +381,6 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				return xerrors.Errorf("parse ssh keygen algorithm %s: %w", cfg.SSHKeygenAlgorithm.Value, err)
 			}
 
-			// Validate provided auto-import templates.
-			var (
-				validatedAutoImportTemplates     = make([]coderd.AutoImportTemplate, len(cfg.AutoImportTemplates.Value))
-				seenValidatedAutoImportTemplates = make(map[coderd.AutoImportTemplate]struct{}, len(cfg.AutoImportTemplates.Value))
-			)
-			for i, autoImportTemplate := range cfg.AutoImportTemplates.Value {
-				var v coderd.AutoImportTemplate
-				switch autoImportTemplate {
-				case "kubernetes":
-					v = coderd.AutoImportTemplateKubernetes
-				default:
-					return xerrors.Errorf("auto import template %q is not supported", autoImportTemplate)
-				}
-
-				if _, ok := seenValidatedAutoImportTemplates[v]; ok {
-					return xerrors.Errorf("auto import template %q is specified more than once", v)
-				}
-				seenValidatedAutoImportTemplates[v] = struct{}{}
-				validatedAutoImportTemplates[i] = v
-			}
-
 			defaultRegion := &tailcfg.DERPRegion{
 				EmbeddedRelay: true,
 				RegionID:      cfg.DERP.Server.RegionID.Value,
@@ -449,12 +438,13 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
 				TracerProvider:              tracerProvider,
 				Telemetry:                   telemetry.NewNoop(),
-				AutoImportTemplates:         validatedAutoImportTemplates,
 				MetricsCacheRefreshInterval: cfg.MetricsCacheRefreshInterval.Value,
 				AgentStatsRefreshInterval:   cfg.AgentStatRefreshInterval.Value,
 				DeploymentConfig:            cfg,
 				PrometheusRegistry:          prometheus.NewRegistry(),
-				APIRateLimit:                cfg.APIRateLimit.Value,
+				APIRateLimit:                cfg.RateLimit.API.Value,
+				LoginRateLimit:              loginRateLimit,
+				FilesRateLimit:              filesRateLimit,
 				HTTPClient:                  httpClient,
 			}
 			if tlsConfig != nil {
@@ -526,8 +516,9 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					Verifier: oidcProvider.Verifier(&oidc.Config{
 						ClientID: cfg.OIDC.ClientID.Value,
 					}),
-					EmailDomain:  cfg.OIDC.EmailDomain.Value,
-					AllowSignups: cfg.OIDC.AllowSignups.Value,
+					EmailDomain:   cfg.OIDC.EmailDomain.Value,
+					AllowSignups:  cfg.OIDC.AllowSignups.Value,
+					UsernameField: cfg.OIDC.UsernameField.Value,
 				}
 			}
 

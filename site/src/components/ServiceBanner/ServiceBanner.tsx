@@ -5,16 +5,18 @@ import { ServiceBannerView } from "./ServiceBannerView"
 
 export const ServiceBanner: React.FC = () => {
   const xServices = useContext(XServiceContext)
-  const [serviceBannerState, serviceBannerSend] = useActor(
-    xServices.serviceBannerXService,
+  const [appearanceState, appearanceSend] = useActor(
+    xServices.appearanceXService,
   )
-
+  const [authState] = useActor(xServices.authXService)
   const { message, background_color, enabled } =
-    serviceBannerState.context.serviceBanner
+    appearanceState.context.appearance.service_banner
 
   useEffect(() => {
-    serviceBannerSend("GET_BANNER")
-  }, [serviceBannerSend])
+    if (authState.matches("signedIn")) {
+      appearanceSend("GET_APPEARANCE")
+    }
+  }, [appearanceSend, authState])
 
   if (!enabled) {
     return null
@@ -25,7 +27,7 @@ export const ServiceBanner: React.FC = () => {
       <ServiceBannerView
         message={message}
         backgroundColor={background_color}
-        preview={serviceBannerState.context.preview}
+        preview={appearanceState.context.preview}
       />
     )
   } else {

@@ -23,3 +23,10 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'service_ban
 
 -- name: GetServiceBanner :one
 SELECT value FROM site_configs WHERE key = 'service_banner';
+
+-- name: InsertOrUpdateLogoURL :exec
+INSERT INTO site_configs (key, value) VALUES ('logo_url', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'logo_url';
+
+-- name: GetLogoURL :one
+SELECT value FROM site_configs WHERE key = 'logo_url';
