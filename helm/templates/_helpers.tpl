@@ -95,10 +95,8 @@ Coder volume definitions.
   secret:
     secretName: {{ $secret.name | quote }}
 {{ end -}}
-{{ if .Values.coder.kubeConfig.secretName != null -}}
-- name: "kube-config"
-  secret:
-    secretName: {{ .Values.coder.kubeConfig.secretName }}
+{{ if gt (len .Values.coder.volumes) 0 -}}
+{{ toYaml .Values.coder.volumes }}
 {{ end -}}
 {{- end }}
 
@@ -129,11 +127,8 @@ Coder volume mounts.
   subPath: {{ $secret.key | quote }}
   readOnly: true
 {{ end -}}
-{{ if .Values.coder.kubeConfig.secretName != null -}}
-- name: "kube-config"
-  mountPath: "/home/coder/.kube/config"
-  subPath: {{ .Values.coder.kubeConfig.keyName }}
-  readOnly: true
+{{ if gt (len .Values.coder.volumeMounts) 0 -}}
+{{ toYaml .Values.coder.volumeMounts }}
 {{ end -}}
 {{- end }}
 
