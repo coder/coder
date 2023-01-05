@@ -923,7 +923,7 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.DeploymentConfig](schemas.md#codersdkdeploymentconfig) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md)
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Report CSP violations
 
@@ -958,7 +958,7 @@ curl -X POST http://coder-server:8080/api/v2/csp/reports \
 | ------ | ------------------------------------------------------- | ----------- | ------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md)
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Update check
 
