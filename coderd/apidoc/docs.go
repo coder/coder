@@ -1798,6 +1798,173 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/authmethods": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get authentication methods",
+                "operationId": "get-authentication-methods",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AuthMethods"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/first": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Check initial user created",
+                "operationId": "check-initial-user-created",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Create initial user",
+                "operationId": "create-initial-user",
+                "parameters": [
+                    {
+                        "description": "First user request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateFirstUserRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateFirstUserResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/login": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Log in user",
+                "operationId": "log-in-user",
+                "parameters": [
+                    {
+                        "description": "Login request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.LoginWithPasswordRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.LoginWithPasswordResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/oauth2/github/callback": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "OAuth 2.0 GitHub Callback",
+                "operationId": "oauth2-github-callback",
+                "responses": {
+                    "307": {
+                        "description": "Temporary Redirect"
+                    }
+                }
+            }
+        },
+        "/users/oidc/callback": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "OpenID Connect Callback",
+                "operationId": "oidc-callback",
+                "responses": {
+                    "307": {
+                        "description": "Temporary Redirect"
+                    }
+                }
+            }
+        },
         "/users/{user}/workspace/{workspacename}": {
             "get": {
                 "security": [
@@ -2995,6 +3162,20 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AuthMethods": {
+            "type": "object",
+            "properties": {
+                "github": {
+                    "type": "boolean"
+                },
+                "oidc": {
+                    "type": "boolean"
+                },
+                "password": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.AuthorizationCheck": {
             "description": "AuthorizationCheck is used to check if the currently authenticated user (or the specified user) can do a given action to a given set of objects.",
             "type": "object",
@@ -3079,6 +3260,41 @@ const docTemplate = `{
                 "version": {
                     "description": "Version returns the semantic version of the build.",
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.CreateFirstUserRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "password",
+                "username"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                },
+                "trial": {
+                    "type": "boolean"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.CreateFirstUserResponse": {
+            "type": "object",
+            "properties": {
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -3704,6 +3920,32 @@ const docTemplate = `{
                 },
                 "url": {
                     "description": "URL specifies the endpoint to check for the app health.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.LoginWithPasswordRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "password"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.LoginWithPasswordResponse": {
+            "type": "object",
+            "required": [
+                "session_token"
+            ],
+            "properties": {
+                "session_token": {
                     "type": "string"
                 }
             }

@@ -286,6 +286,24 @@
 | `audit_logs` | array of [codersdk.AuditLog](#codersdkauditlog) | false    |              |             |
 | `count`      | integer                                         | false    |              |             |
 
+## codersdk.AuthMethods
+
+```json
+{
+  "github": true,
+  "oidc": true,
+  "password": true
+}
+```
+
+### Properties
+
+| Name       | Type    | Required | Restrictions | Description |
+| ---------- | ------- | -------- | ------------ | ----------- |
+| `github`   | boolean | false    |              |             |
+| `oidc`     | boolean | false    |              |             |
+| `password` | boolean | false    |              |             |
+
 ## codersdk.AuthorizationCheck
 
 ```json
@@ -420,6 +438,42 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | -------------- | ------ | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `external_url` | string | false    |              | External URL references the current Coder version. For production builds, this will link directly to a release. For development builds, this will link to a commit. |
 | `version`      | string | false    |              | Version returns the semantic version of the build.                                                                                                                  |
+
+## codersdk.CreateFirstUserRequest
+
+```json
+{
+  "email": "string",
+  "password": "string",
+  "trial": true,
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name       | Type    | Required | Restrictions | Description |
+| ---------- | ------- | -------- | ------------ | ----------- |
+| `email`    | string  | true     |              |             |
+| `password` | string  | true     |              |             |
+| `trial`    | boolean | false    |              |             |
+| `username` | string  | true     |              |             |
+
+## codersdk.CreateFirstUserResponse
+
+```json
+{
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Properties
+
+| Name              | Type   | Required | Restrictions | Description |
+| ----------------- | ------ | -------- | ------------ | ----------- |
+| `organization_id` | string | false    |              |             |
+| `user_id`         | string | false    |              |             |
 
 ## codersdk.CreateOrganizationRequest
 
@@ -2020,6 +2074,36 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `interval`  | integer | false    |              | Interval specifies the seconds between each health check.                                        |
 | `threshold` | integer | false    |              | Threshold specifies the number of consecutive failed health checks before returning "unhealthy". |
 | `url`       | string  | false    |              | URL specifies the endpoint to check for the app health.                                          |
+
+## codersdk.LoginWithPasswordRequest
+
+```json
+{
+  "email": "string",
+  "password": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description |
+| ---------- | ------ | -------- | ------------ | ----------- |
+| `email`    | string | true     |              |             |
+| `password` | string | true     |              |             |
+
+## codersdk.LoginWithPasswordResponse
+
+```json
+{
+  "session_token": "string"
+}
+```
+
+### Properties
+
+| Name            | Type   | Required | Restrictions | Description |
+| --------------- | ------ | -------- | ------------ | ----------- |
+| `session_token` | string | true     |              |             |
 
 ## codersdk.OAuth2Config
 
