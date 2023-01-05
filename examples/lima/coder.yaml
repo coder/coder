@@ -63,7 +63,8 @@ provision:
       # SSH session around. We don't want users to have to manually delete ~/.lima/$VM/ssh.sock
       # so we're just instead going to modify the perms on the Docker socket.
       # See: https://github.com/lima-vm/lima/issues/528
-      chmod a+rwx /var/run/docker.sock
+      chown ${LIMA_CIDATA_USER} /var/run/docker.sock
+      chmod og+rwx /var/run/docker.sock
   - mode: system
     script: |
       #!/bin/bash
