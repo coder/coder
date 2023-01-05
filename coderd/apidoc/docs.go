@@ -1573,9 +1573,6 @@ const docTemplate = `{
                 "audit_logging": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
                 },
-                "auto_import_templates": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
-                },
                 "autobuild_poll_interval": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-time_Duration"
                 },

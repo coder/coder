@@ -735,17 +735,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "usage": "string",
     "value": true
   },
-  "auto_import_templates": {
-    "default": ["string"],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
   "autobuild_poll_interval": {
     "default": 0,
     "enterprise": true,
@@ -1522,7 +1511,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `agent_stat_refresh_interval`        | [codersdk.DeploymentConfigField-time_Duration](#codersdkdeploymentconfigfield-time_duration)                               | false    |              |             |
 | `api_rate_limit`                     | [codersdk.DeploymentConfigField-int](#codersdkdeploymentconfigfield-int)                                                   | false    |              |             |
 | `audit_logging`                      | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |             |
-| `auto_import_templates`              | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string)                                 | false    |              |             |
 | `autobuild_poll_interval`            | [codersdk.DeploymentConfigField-time_Duration](#codersdkdeploymentconfigfield-time_duration)                               | false    |              |             |
 | `browser_only`                       | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |             |
 | `cache_directory`                    | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |             |

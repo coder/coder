@@ -33,7 +33,6 @@ type DeploymentConfig struct {
 	Trace                           *TraceConfig                            `json:"trace" typescript:",notnull"`
 	SecureAuthCookie                *DeploymentConfigField[bool]            `json:"secure_auth_cookie" typescript:",notnull"`
 	SSHKeygenAlgorithm              *DeploymentConfigField[string]          `json:"ssh_keygen_algorithm" typescript:",notnull"`
-	AutoImportTemplates             *DeploymentConfigField[[]string]        `json:"auto_import_templates" typescript:",notnull"`
 	MetricsCacheRefreshInterval     *DeploymentConfigField[time.Duration]   `json:"metrics_cache_refresh_interval" typescript:",notnull"`
 	AgentStatRefreshInterval        *DeploymentConfigField[time.Duration]   `json:"agent_stat_refresh_interval" typescript:",notnull"`
 	AgentFallbackTroubleshootingURL *DeploymentConfigField[string]          `json:"agent_fallback_troubleshooting_url" typescript:",notnull"`
