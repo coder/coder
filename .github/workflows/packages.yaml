@@ -29,7 +29,7 @@ jobs:
             ConvertFrom-Json
 
           $installer_url = $release_assets.assets | `
-            Where-Object name -Match ".*_windows_amd64_installer.exe$" | `
+            Where-Object name -Match ".*_windows_amd64_win64_installer.exe$" | `
             Select -ExpandProperty url
 
           echo "Installer URL: $installer_url"
@@ -39,7 +39,7 @@ jobs:
             --version "${{ steps.version.outputs.version }}" `
             --urls "$installer_url" `
             --token "${{ secrets.CDRCI_GITHUB_TOKEN }}"
-        
+
         env:
           GH_TOKEN: ${{ github.token }}  # Needed for gh cli to work inside github actions
 

@@ -267,8 +267,13 @@ $(CODER_ALL_PACKAGES): $(CODER_PACKAGE_DEPS)
 		--output "$@" \
 		"build/coder_$(VERSION)_$${os}_$${arch}"
 
-# This task builds a Windows amd64 installer. Depends on makensis.
-build/coder_$(VERSION)_windows_amd64_installer.exe: build/coder_$(VERSION)_windows_amd64.exe
+# This task builds a Windows amd64 installer. The installer has `win64` as well
+# as `amd64` in the name due to `winget-create` sniffing the architecture from
+# the filename (and not detecting `amd64`):
+# https://github.com/microsoft/winget-create/blob/7c61f3e877f95f6c8ab60ed4e3a34d9449d7e774/src/WingetCreateCore/Common/PackageParser.cs#L466
+#
+# Depends on makensis.
+build/coder_$(VERSION)_windows_amd64_win64_installer.exe: build/coder_$(VERSION)_windows_amd64.exe
 	./scripts/build_windows_installer.sh \
 		--version "$(VERSION)" \
 		--output "$@" \
