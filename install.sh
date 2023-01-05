@@ -371,7 +371,7 @@ fetch() {
 
 with_terraform() {
 	# Check if the unzip package is installed. If not error peacefully.
-	if !(command_exists unzip); then
+	if ! (command_exists unzip); then
 		echoh
 		echoerr "This script needs the unzip package to run."
 		echoerr "Please install unzip to use this function"
