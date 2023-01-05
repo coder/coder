@@ -12,7 +12,7 @@ import { useDeploySettings } from "components/DeploySettingsLayout/DeploySetting
 import { Header } from "components/DeploySettingsLayout/Header"
 
 export type GitAuthSettingsPageViewProps = {
-  deploymentConfig: DeploymentConfig
+  deploymentConfig: Pick<DeploymentConfig, 'gitauth'>
 }
 
 export const GitAuthSettingsPageView = ({
