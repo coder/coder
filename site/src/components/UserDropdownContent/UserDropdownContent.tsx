@@ -121,21 +121,24 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 
 const useStyles = makeStyles((theme) => ({
   info: {
-    padding: theme.spacing(2),
+    padding: theme.spacing(2.5),
   },
   userName: {
     fontWeight: 600,
   },
   userEmail: {
     color: theme.palette.text.secondary,
+    width: "100%",
+    textOverflow: "ellipsis",
+    overflow: "hidden",
   },
   link: {
     textDecoration: "none",
     color: "inherit",
   },
   menuItem: {
-    gap: theme.spacing(2),
-    padding: theme.spacing(1, 2),
+    gap: theme.spacing(2.5),
+    padding: theme.spacing(1, 2.5),
 
     "&:hover": {
       backgroundColor: theme.palette.action.hover,
