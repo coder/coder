@@ -8,7 +8,6 @@ export type GeneralSettingsPageViewProps = {
 export const GeneralSettingsPageView = ({
   deploymentConfig,
 }: GeneralSettingsPageViewProps): JSX.Element => {
-  console.log(deploymentConfig, " is this")
   return (
     <>
       <Header
