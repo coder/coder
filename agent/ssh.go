@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
@@ -96,11 +97,15 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 		h.Lock()
 		h.forwards[addr] = ln
 		h.Unlock()
+
+		ctx, cancel := context.WithCancel(ctx)
 		go func() {
 			<-ctx.Done()
 			_ = ln.Close()
 		}()
 		go func() {
+			defer cancel()
+
 			for {
 				c, err := ln.Accept()
 				if err != nil {
