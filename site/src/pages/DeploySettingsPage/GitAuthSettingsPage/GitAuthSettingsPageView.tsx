@@ -8,11 +8,10 @@ import TableRow from "@material-ui/core/TableRow"
 import { DeploymentConfig } from "api/typesGenerated"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { EnterpriseBadge } from "components/DeploySettingsLayout/Badges"
-import { useDeploySettings } from "components/DeploySettingsLayout/DeploySettingsLayout"
 import { Header } from "components/DeploySettingsLayout/Header"
 
 export type GitAuthSettingsPageViewProps = {
-  deploymentConfig: Pick<DeploymentConfig, 'gitauth'>
+  deploymentConfig: Pick<DeploymentConfig, "gitauth">
 }
 
 export const GitAuthSettingsPageView = ({
