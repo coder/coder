@@ -45,7 +45,7 @@ Usage:
       Sets the prefix used by standalone release archives. Defaults to /usr/local
       and the binary is copied into /usr/local/bin
       To install in \$HOME, pass ---prefix=\$HOME/.local
-	
+
   --binary-name <name>
 	  Sets the name for the CLI in standalone release archives. Defaults to "coder"
 	  To use the CLI as coder2, pass --binary-name=coder2
@@ -53,6 +53,15 @@ Usage:
 
   --rsh <bin>
       Specifies the remote shell for remote installation. Defaults to ssh.
+
+  --with-terraform
+	  Installs Terraform binary from https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/ source
+	  alongside coder.
+	  This is great for if you are having issues with Coder installing terraform, or if you
+	  just want it on your base system aswell.
+	  This supports most systems, however if you are unsure yours is supported you can check
+	  the link above.
+
 
 The detection method works as follows:
   - Debian, Ubuntu, Raspbian: install the deb package from GitHub.
@@ -145,10 +154,10 @@ EOF
 }
 
 main() {
+	TERRAFORM_VERSION="1.3.4"
 	if [ "${TRACE-}" ]; then
 		set -x
 	fi
-
 	unset \
 		DRY_RUN \
 		METHOD \
@@ -212,6 +221,9 @@ main() {
 			usage
 			exit 0
 			;;
+		--with-terraform)
+			METHOD=with_terraform
+			;;
 		--)
 			shift
 			# We remove the -- added above.
@@ -241,7 +253,7 @@ main() {
 	fi
 
 	METHOD="${METHOD-detect}"
-	if [ "$METHOD" != detect ] && [ "$METHOD" != standalone ]; then
+	if [ "$METHOD" != detect ] && [ "$METHOD" != with_terraform ] && [ "$METHOD" != standalone ]; then
 		echoerr "Unknown install method \"$METHOD\""
 		echoerr "Run with --help to see usage."
 		exit 1
@@ -251,12 +263,14 @@ main() {
 	# releases in order to download and unpack the right release.
 	CACHE_DIR=$(echo_cache_dir)
 	STANDALONE_INSTALL_PREFIX=${STANDALONE_INSTALL_PREFIX:-/usr/local}
+	TERRAFORM_INSTALL_PREFIX=${TERRAFORM_INSTALL_PREFIX:-/usr/local}
 	STANDALONE_BINARY_NAME=${STANDALONE_BINARY_NAME:-coder}
 	VERSION=${VERSION:-$(echo_latest_version)}
 	# These can be overridden for testing but shouldn't normally be used as it can
 	# result in a broken coder.
 	OS=${OS:-$(os)}
 	ARCH=${ARCH:-$(arch)}
+	TERRAFORM_ARCH=${TERRAFORM_ARCH:-$(terraform_arch)}
 
 	distro_name
 
@@ -275,6 +289,10 @@ main() {
 			echoerr "Please try again without '--method standalone'"
 			exit 1
 		fi
+	fi
+	if [ "$METHOD" = with_terraform ]; then
+		# Install terraform then continue the script
+		with_terraform
 	fi
 
 	# DISTRO can be overridden for testing but shouldn't normally be used as it
@@ -349,6 +367,42 @@ fetch() {
 		-C - \
 		"$URL"
 	sh_c mv "$FILE.incomplete" "$FILE"
+}
+
+with_terraform() {
+	# Check if the unzip package is installed. If not error peacefully.
+	if ! (command_exists unzip); then
+		echoh
+		echoerr "This script needs the unzip package to run."
+		echoerr "Please install unzip to use this function"
+		exit 1
+	fi
+	echoh "Installing Terraform version $TERRAFORM_VERSION $TERRAFORM_ARCH from the HashiCorp release repository."
+	echoh
+
+	# Download from official source and save it to cache
+	fetch "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_${OS}_${TERRAFORM_ARCH}.zip" \
+		"$CACHE_DIR/terraform_${TERRAFORM_VERSION}_${OS}_${TERRAFORM_ARCH}.zip"
+
+	sh_c mkdir -p "$TERRAFORM_INSTALL_PREFIX" 2>/dev/null || true
+
+	sh_c="sh_c"
+	if [ ! -w "$TERRAFORM_INSTALL_PREFIX" ]; then
+		sh_c="sudo_sh_c"
+	fi
+	# Prepare /usr/local/bin/ and the binary for copying
+	"$sh_c" mkdir -p "$TERRAFORM_INSTALL_PREFIX/bin"
+	"$sh_c" unzip -d "$CACHE_DIR" -o "$CACHE_DIR/terraform_${TERRAFORM_VERSION}_${OS}_${ARCH}.zip"
+	COPY_LOCATION="$TERRAFORM_INSTALL_PREFIX/bin/terraform"
+
+	# Remove the file if it already exists to
+	# avoid https://github.com/coder/coder/issues/2086
+	if [ -f "$COPY_LOCATION" ]; then
+		"$sh_c" rm "$COPY_LOCATION"
+	fi
+
+	# Copy the binary to the correct location.
+	"$sh_c" cp "$CACHE_DIR/terraform" "$COPY_LOCATION"
 }
 
 install_deb() {
@@ -431,7 +485,7 @@ install_standalone() {
 has_standalone() {
 	case $ARCH in
 	amd64) return 0 ;;
-	ard64) return 0 ;;
+	arm64) return 0 ;;
 	armv7)
 		[ "$(distro)" != darwin ]
 		return
@@ -512,6 +566,18 @@ arch() {
 	aarch64) echo arm64 ;;
 	x86_64) echo amd64 ;;
 	armv7l) echo armv7 ;;
+	*) echo "$uname_m" ;;
+	esac
+}
+
+# The following is to change the naming, that way people with armv7 won't receive a error
+# List of binaries can be found here: https://releases.hashicorp.com/terraform/
+terraform_arch() {
+	uname_m=$(uname -m)
+	case $uname_m in
+	aarch64) echo arm64 ;;
+	x86_64) echo amd64 ;;
+	armv7l) echo arm ;;
 	*) echo "$uname_m" ;;
 	esac
 }
