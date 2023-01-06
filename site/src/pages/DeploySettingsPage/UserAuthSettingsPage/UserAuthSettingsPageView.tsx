@@ -8,7 +8,7 @@ import { Header } from "components/DeploySettingsLayout/Header"
 import OptionsTable from "components/DeploySettingsLayout/OptionsTable"
 import { Stack } from "components/Stack/Stack"
 
-type UserAuthSettingsPageViewProps = {
+export type UserAuthSettingsPageViewProps = {
   deploymentConfig: Pick<DeploymentConfig, "oidc" | "oauth2">
 }
 
