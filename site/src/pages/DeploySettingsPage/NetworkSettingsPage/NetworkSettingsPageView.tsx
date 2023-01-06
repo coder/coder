@@ -2,7 +2,7 @@ import { DeploymentConfig } from "api/typesGenerated"
 import { Header } from "components/DeploySettingsLayout/Header"
 import OptionsTable from "components/DeploySettingsLayout/OptionsTable"
 
-type NetworkSettingsPageViewProps = {
+export type NetworkSettingsPageViewProps = {
   deploymentConfig: Pick<DeploymentConfig, "derp">
 }
 
