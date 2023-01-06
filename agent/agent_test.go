@@ -449,6 +449,7 @@ func TestAgent_UnixLocalForwarding(t *testing.T) {
 
 	conn, err := net.Dial("unix", localSocketPath)
 	require.NoError(t, err)
+	defer conn.Close()
 	_, err = conn.Write([]byte("test"))
 	require.NoError(t, err)
 	b := make([]byte, 4)
@@ -506,6 +507,7 @@ func TestAgent_UnixRemoteForwarding(t *testing.T) {
 
 	conn, err := net.Dial("unix", remoteSocketPath)
 	require.NoError(t, err)
+	defer conn.Close()
 	_, err = conn.Write([]byte("test"))
 	require.NoError(t, err)
 	b := make([]byte, 4)
@@ -1143,6 +1145,7 @@ func (*client) PostWorkspaceAgentVersion(_ context.Context, _ string) error {
 // pretty easily in the default location, so this function uses /tmp instead to
 // get shorter paths.
 func tempDirUnixSocket(t *testing.T) string {
+	t.Helper()
 	if runtime.GOOS == "darwin" {
 		testName := strings.ReplaceAll(t.Name(), "/", "_")
 		dir, err := os.MkdirTemp("/tmp", fmt.Sprintf("coder-test-%s-", testName))

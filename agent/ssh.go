@@ -153,7 +153,7 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 		err := gossh.Unmarshal(req.Payload, &reqPayload)
 		if err != nil {
 			h.log.Warn(ctx, "parse cancel-streamlocal-forward@openssh.com request payload from client", slog.Error(err))
-			return false, []byte{}
+			return false, nil
 		}
 		h.Lock()
 		ln, ok := h.forwards[reqPayload.SocketPath]

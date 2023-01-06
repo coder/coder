@@ -442,8 +442,12 @@ func runRemoteSSH(sshClient *gossh.Client, stdin io.Reader, cmd string) ([]byte,
 
 func uploadGPGKeys(ctx context.Context, sshClient *gossh.Client) error {
 	// Check if the agent is running in the workspace already.
+	//
 	// Note: we don't support windows in the workspace for GPG forwarding so
 	//       using shell commands is fine.
+	//
+	// Note: we sleep after killing the agent because it doesn't always die
+	//       immediately.
 	agentSocketBytes, err := runRemoteSSH(sshClient, nil, `
 set -eux
 agent_socket=$(gpgconf --list-dir agent-socket)
@@ -452,7 +456,7 @@ if [ -S "$agent_socket" ]; then
   echo "agent socket exists, attempting to kill it" >&2
   gpgconf --kill gpg-agent
   rm -f "$agent_socket"
-  sleep 2
+  sleep 1
 fi
 
 test ! -S "$agent_socket"
@@ -541,18 +545,14 @@ func sshForwardRemote(ctx context.Context, stderr io.Writer, sshClient *gossh.Cl
 			}
 
 			go func() {
-				defer func() {
-					_ = remoteConn.Close()
-				}()
+				defer remoteConn.Close()
 
 				localConn, err := net.Dial(localAddr.Network(), localAddr.String())
 				if err != nil {
 					_, _ = fmt.Fprintf(stderr, "Dial local address %s: %+v\n", localAddr.String(), err)
 					return
 				}
-				defer func() {
-					_ = localConn.Close()
-				}()
+				defer localConn.Close()
 
 				if c, ok := localAddr.(cookieAddr); ok {
 					_, err = localConn.Write(c.cookie)

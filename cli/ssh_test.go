@@ -468,6 +468,11 @@ Expire-Date: 0
 			err := cmd.ExecuteContext(ctx)
 			assert.NoError(t, err, "ssh command failed")
 		})
+		// Prevent the test from hanging if the asserts below kill the test
+		// early. This will cause the command to exit with an error, which will
+		// let the t.Cleanup'd `<-done` inside of `tGo` exit and not hang.
+		// Without this, the test will hang forever on failure, preventing the
+		// real error from being printed.
 		t.Cleanup(cancel)
 
 		pty.WriteLine("echo hello 'world'")
@@ -583,6 +588,7 @@ func (*stdioConn) SetWriteDeadline(_ time.Time) error {
 // pretty easily in the default location, so this function uses /tmp instead to
 // get shorter paths.
 func tempDirUnixSocket(t *testing.T) string {
+	t.Helper()
 	if runtime.GOOS == "darwin" {
 		testName := strings.ReplaceAll(t.Name(), "/", "_")
 		dir, err := os.MkdirTemp("/tmp", fmt.Sprintf("coder-test-%s-", testName))
