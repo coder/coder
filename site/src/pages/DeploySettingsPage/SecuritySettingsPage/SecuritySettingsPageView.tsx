@@ -11,7 +11,7 @@ import { Stack } from "components/Stack/Stack"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "util/page"
 
-type SecuritySettingsPageViewProps = {
+export type SecuritySettingsPageViewProps = {
   deploymentConfig: Pick<
     DeploymentConfig,
     "tls" | "ssh_keygen_algorithm" | "secure_auth_cookie"
@@ -25,9 +25,6 @@ export const SecuritySettingsPageView = ({
   featureBrowserOnlyEnabled,
 }: SecuritySettingsPageViewProps): JSX.Element => (
   <>
-    <Helmet>
-      <title>{pageTitle("Security Settings")}</title>
-    </Helmet>
     <Stack direction="column" spacing={6}>
       <div>
         <Header
