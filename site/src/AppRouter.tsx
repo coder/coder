@@ -95,7 +95,10 @@ const GitAuthSettingsPage = lazy(
     ),
 )
 const NetworkSettingsPage = lazy(
-  () => import("./pages/DeploySettingsPage/NetworkSettingsPage"),
+  () =>
+    import(
+      "./pages/DeploySettingsPage/NetworkSettingsPage/NetworkSettingsPage"
+    ),
 )
 const GitAuthPage = lazy(() => import("./pages/GitAuthPage/GitAuthPage"))
 const TemplateVersionPage = lazy(
