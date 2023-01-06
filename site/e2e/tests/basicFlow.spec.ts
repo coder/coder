@@ -1,7 +1,7 @@
 import { test } from "@playwright/test"
 import { email, password } from "../constants"
 import { SignInPage } from "../pom"
-import { clickButtonByText, buttons, urls } from "../helpers";
+import { clickButtonByText, buttons, urls, fillInput } from "../helpers";
 
 test("Basic flow", async ({ baseURL, page }) => {
   await page.goto(baseURL + "/", { waitUntil: "networkidle" })
@@ -16,12 +16,22 @@ test("Basic flow", async ({ baseURL, page }) => {
   await page.goto(urls.templates);
   await clickButtonByText(page, buttons.starterTemplates)
 
-  await page.goto(urls.starterTemplates);
   await clickButtonByText(page, buttons.dockerTemplate)
 
-  await page.goto(urls.dockerTemplate);
   await clickButtonByText(page, buttons.useTemplate)
 
-  await page.goto(urls.createDockerTemplate);
   await clickButtonByText(page, buttons.createTemplate)
+
+  // create workspace
+  await page.click('span:has-text("docker")')
+  await clickButtonByText(page, buttons.createWorkspace)
+
+  await fillInput(page, "Workspace Name", "my-workspace")
+  await clickButtonByText(page, buttons.submitCreateWorkspace)
+
+  // stop workspace
+  await clickButtonByText(page, buttons.stopWorkspace)
+
+  // start workspace
+  await clickButtonByText(page, buttons.startWorkspace)
 })
