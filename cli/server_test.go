@@ -575,14 +575,17 @@ func TestServer(t *testing.T) {
 				ctx, cancelFunc := context.WithCancel(context.Background())
 				defer cancelFunc()
 
+				httpListenAddr := ""
+				if c.httpListener {
+					httpListenAddr = ":0"
+				}
+
 				certPath, keyPath := generateTLSCertificate(t)
 				flags := []string{
 					"server",
 					"--in-memory",
 					"--cache-dir", t.TempDir(),
-				}
-				if c.httpListener {
-					flags = append(flags, "--http-address", ":0")
+					"--http-address", httpListenAddr,
 				}
 				if c.tlsListener {
 					flags = append(flags,
