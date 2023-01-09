@@ -68,6 +68,7 @@ mapfile -t commits < <(git log --no-merges --pretty=format:"%ct %h %s" "${old_ve
 # NOTE(mafredri): These need to be supported in check_commit_metadata.sh as well.
 declare -a section_order=(
 	breaking
+	security
 	feat
 	fix
 	docs
@@ -83,6 +84,7 @@ declare -a section_order=(
 
 declare -A section_titles=(
 	[breaking]='BREAKING CHANGES'
+	[security]='SECURITY'
 	[feat]='Features'
 	[fix]='Bug Fixes'
 	[docs]='Documentation'
