@@ -17,7 +17,6 @@ const OptionsTable: React.FC<{
   options: Record<string, DeploymentConfigField<Flaggable>>
 }> = ({ options }) => {
   const styles = useStyles()
-  console.log(options, "options")
 
   return (
     <TableContainer>
