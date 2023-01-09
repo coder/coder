@@ -24,6 +24,7 @@ export const Open = Template.bind({})
 Open.args = {
   roles: MockSiteRoles,
   selectedRoles: [MockUserAdminRole, MockOwnerRole],
+  defaultIsOpen: true,
 }
 Open.parameters = {
   chromatic: { delay: 300 },
