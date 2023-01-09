@@ -10,6 +10,14 @@ import (
 )
 
 // replicas returns the number of replicas that are active in Coder.
+//
+// @Summary Get active replicas
+// @ID get-active-replicas
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Success 200 {array} codersdk.Replica
+// @Router /replicas [get]
 func (api *API) replicas(rw http.ResponseWriter, r *http.Request) {
 	if !api.AGPL.Authorize(r, rbac.ActionRead, rbac.ResourceReplicas) {
 		httpapi.ResourceNotFound(rw)

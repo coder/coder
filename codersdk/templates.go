@@ -60,12 +60,12 @@ type TemplateACL struct {
 
 type TemplateGroup struct {
 	Group
-	Role TemplateRole `json:"role"`
+	Role TemplateRole `json:"role" enums:"admin,use"`
 }
 
 type TemplateUser struct {
 	User
-	Role TemplateRole `json:"role"`
+	Role TemplateRole `json:"role" enums:"admin,use"`
 }
 
 type UpdateTemplateACL struct {

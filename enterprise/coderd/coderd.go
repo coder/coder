@@ -81,7 +81,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 				httpmw.ExtractOrganizationParam(api.Database),
 			)
 			r.Post("/", api.postGroupByOrganization)
-			r.Get("/", api.groups)
+			r.Get("/", api.groupsByOrganization)
 			r.Route("/{groupName}", func(r chi.Router) {
 				r.Use(
 					httpmw.ExtractGroupByNameParam(api.Database),
