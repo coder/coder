@@ -2173,6 +2173,26 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `type`         | string          | false    |              |             |
 | `validate_url` | string          | false    |              |             |
 
+## codersdk.GitSSHKey
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "public_key": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+| ------------ | ------ | -------- | ------------ | ----------- |
+| `created_at` | string | false    |              |             |
+| `public_key` | string | false    |              |             |
+| `updated_at` | string | false    |              |             |
+| `user_id`    | string | false    |              |             |
+
 ## codersdk.GoogleInstanceIdentityToken
 
 ```json
