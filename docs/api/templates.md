@@ -29,7 +29,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 [
   {
     "active_user_count": 0,
-    "active_version_id": "string",
+    "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
     "allow_user_cancel_workspace_jobs": true,
     "build_time_stats": {
       "property1": {
@@ -72,7 +72,7 @@ Status Code **200**
 | ------------------------------------ | --------------------------------- | -------- | ------------ | ------------------------------------------ |
 | `[array item]`                       | array                             | false    |              |                                            |
 | `» active_user_count`                | integer                           | false    |              | ActiveUserCount is set to -1 when loading. |
-| `» active_version_id`                | string                            | false    |              |                                            |
+| `» active_version_id`                | string(uuid)                      | false    |              |                                            |
 | `» allow_user_cancel_workspace_jobs` | boolean                           | false    |              |                                            |
 | `» build_time_stats`                 | `codersdk.TemplateBuildTimeStats` | false    |              |                                            |
 | `»» [any property]`                  | `codersdk.TransitionStats`        | false    |              |                                            |
@@ -145,7 +145,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
 ```json
 {
   "active_user_count": 0,
-  "active_version_id": "string",
+  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
   "allow_user_cancel_workspace_jobs": true,
   "build_time_stats": {
     "property1": {
@@ -209,7 +209,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   {
     "description": "string",
     "icon": "string",
-    "id": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "markdown": "string",
     "name": "string",
     "tags": ["string"],
@@ -228,16 +228,16 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 Status Code **200**
 
-| Name            | Type   | Required | Restrictions | Description |
-| --------------- | ------ | -------- | ------------ | ----------- |
-| `[array item]`  | array  | false    |              |             |
-| `» description` | string | false    |              |             |
-| `» icon`        | string | false    |              |             |
-| `» id`          | string | false    |              |             |
-| `» markdown`    | string | false    |              |             |
-| `» name`        | string | false    |              |             |
-| `» tags`        | array  | false    |              |             |
-| `» url`         | string | false    |              |             |
+| Name            | Type         | Required | Restrictions | Description |
+| --------------- | ------------ | -------- | ------------ | ----------- |
+| `[array item]`  | array        | false    |              |             |
+| `» description` | string       | false    |              |             |
+| `» icon`        | string       | false    |              |             |
+| `» id`          | string(uuid) | false    |              |             |
+| `» markdown`    | string       | false    |              |             |
+| `» name`        | string       | false    |              |             |
+| `» tags`        | array        | false    |              |             |
+| `» url`         | string       | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -268,7 +268,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 ```json
 {
   "active_user_count": 0,
-  "active_version_id": "string",
+  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
   "allow_user_cancel_workspace_jobs": true,
   "build_time_stats": {
     "property1": {
@@ -573,7 +573,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{id} \
 ```json
 {
   "active_user_count": 0,
-  "active_version_id": "string",
+  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
   "allow_user_cancel_workspace_jobs": true,
   "build_time_stats": {
     "property1": {
@@ -679,7 +679,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{id} \
 ```json
 {
   "active_user_count": 0,
-  "active_version_id": "string",
+  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
   "allow_user_cancel_workspace_jobs": true,
   "build_time_stats": {
     "property1": {
@@ -903,7 +903,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{id}/versions \
 
 ```json
 {
-  "id": "string"
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
 }
 ```
 

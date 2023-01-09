@@ -3788,7 +3788,8 @@
           "type": "integer"
         },
         "active_version_id": {
-          "type": "string"
+          "type": "string",
+          "format": "uuid"
         },
         "allow_user_cancel_workspace_jobs": {
           "type": "boolean"
@@ -3869,7 +3870,8 @@
           "type": "string"
         },
         "id": {
-          "type": "string"
+          "type": "string",
+          "format": "uuid"
         },
         "markdown": {
           "type": "string"
@@ -3957,7 +3959,8 @@
       "required": ["id"],
       "properties": {
         "id": {
-          "type": "string"
+          "type": "string",
+          "format": "uuid"
         }
       }
     },

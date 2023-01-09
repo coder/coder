@@ -4192,7 +4192,8 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "active_version_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "allow_user_cancel_workspace_jobs": {
                     "type": "boolean"
@@ -4273,7 +4274,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "markdown": {
                     "type": "string"
@@ -4363,7 +4365,8 @@ const docTemplate = `{
             ],
             "properties": {
                 "id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },

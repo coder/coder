@@ -2955,7 +2955,7 @@ Parameter represents a set value for the scope.
 ```json
 {
   "active_user_count": 0,
-  "active_version_id": "string",
+  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
   "allow_user_cancel_workspace_jobs": true,
   "build_time_stats": {
     "property1": {
@@ -3051,7 +3051,7 @@ Parameter represents a set value for the scope.
 {
   "description": "string",
   "icon": "string",
-  "id": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "markdown": "string",
   "name": "string",
   "tags": ["string"],
@@ -3198,7 +3198,7 @@ Parameter represents a set value for the scope.
 
 ```json
 {
-  "id": "string"
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
 }
 ```
 
