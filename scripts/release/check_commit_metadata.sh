@@ -45,6 +45,9 @@ main() {
 	breaking_label=release/breaking
 	breaking_category=breaking
 
+	# Security related changes are labeled `security`.
+	security_label=security
+
 	# Get abbreviated and full commit hashes and titles for each commit.
 	mapfile -t commits < <(git log --no-merges --pretty=format:"%h %H %s" "$range")
 
@@ -99,6 +102,9 @@ main() {
 		if [[ $commit_prefix =~ $breaking_title ]] || [[ ${labels[$commit_sha_long]} = *"label:$breaking_label"* ]]; then
 			COMMIT_METADATA_CATEGORY[$commit_sha_short]=$breaking_category
 			COMMIT_METADATA_BREAKING=1
+			continue
+		elif [[ ${labels[$commit_sha_long]} = *"label:$security_label"* ]]; then
+			COMMIT_METADATA_CATEGORY[$commit_sha_short]=$security_label
 			continue
 		fi
 
