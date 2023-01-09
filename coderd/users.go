@@ -153,6 +153,17 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary Get users
+// @ID get-users
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param q query string false "Search query"
+// @Param after_id query string false "After ID" format(uuid)
+// @Param limit query int false "Page limit"
+// @Param offset query int false "Page offset"
+// @Success 200 {object} codersdk.GetUsersResponse
+// @Router /users [get]
 func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	query := r.URL.Query().Get("q")
@@ -232,6 +243,16 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 }
 
 // Creates a new user.
+//
+// @Summary Create new user
+// @ID create-new-user
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Users
+// @Param request body codersdk.CreateUserRequest true "Create user request"
+// @Success 201 {object} codersdk.User
+// @Router /users [post]
 func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	auditor := *api.Auditor.Load()

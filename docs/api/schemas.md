@@ -183,7 +183,7 @@
   "user": {
     "avatar_url": "http://example.com",
     "created_at": "2019-08-24T14:15:22Z",
-    "email": "string",
+    "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_seen_at": "2019-08-24T14:15:22Z",
     "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
@@ -259,7 +259,7 @@
       "user": {
         "avatar_url": "http://example.com",
         "created_at": "2019-08-24T14:15:22Z",
-        "email": "string",
+        "email": "user@example.com",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "last_seen_at": "2019-08-24T14:15:22Z",
         "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
@@ -622,6 +622,26 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `resource_type` | `git_ssh_key`      |
 | `resource_type` | `api_key`          |
 | `resource_type` | `group`            |
+
+## codersdk.CreateUserRequest
+
+```json
+{
+  "email": "user@example.com",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "password": "string",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name              | Type   | Required | Restrictions | Description |
+| ----------------- | ------ | -------- | ------------ | ----------- |
+| `email`           | string | true     |              |             |
+| `organization_id` | string | true     |              |             |
+| `password`        | string | true     |              |             |
+| `username`        | string | true     |              |             |
 
 ## codersdk.CreateWorkspaceBuildRequest
 
@@ -2012,6 +2032,39 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | ------ | ------ | -------- | ------------ | ------------------------------------------------------------- |
 | `host` | string | false    |              | Host is the externally accessible URL for the Coder instance. |
 
+## codersdk.GetUsersResponse
+
+```json
+{
+  "count": 0,
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+      "roles": [
+        {
+          "display_name": "string",
+          "name": "string"
+        }
+      ],
+      "status": "active",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                    | Required | Restrictions | Description |
+| ------- | --------------------------------------- | -------- | ------------ | ----------- |
+| `count` | integer                                 | false    |              |             |
+| `users` | array of [codersdk.User](#codersdkuser) | false    |              |             |
+
 ## codersdk.GitAuthConfig
 
 ```json
@@ -3163,7 +3216,7 @@ Parameter represents a set value for the scope.
   "created_by": {
     "avatar_url": "http://example.com",
     "created_at": "2019-08-24T14:15:22Z",
-    "email": "string",
+    "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_seen_at": "2019-08-24T14:15:22Z",
     "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
@@ -3386,7 +3439,7 @@ Parameter represents a set value for the scope.
 {
   "avatar_url": "http://example.com",
   "created_at": "2019-08-24T14:15:22Z",
-  "email": "string",
+  "email": "user@example.com",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
   "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],

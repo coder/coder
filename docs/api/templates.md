@@ -352,7 +352,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "created_by": {
     "avatar_url": "http://example.com",
     "created_at": "2019-08-24T14:15:22Z",
-    "email": "string",
+    "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_seen_at": "2019-08-24T14:15:22Z",
     "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
@@ -427,7 +427,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "created_by": {
     "avatar_url": "http://example.com",
     "created_at": "2019-08-24T14:15:22Z",
-    "email": "string",
+    "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_seen_at": "2019-08-24T14:15:22Z",
     "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
@@ -502,7 +502,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "created_by": {
     "avatar_url": "http://example.com",
     "created_at": "2019-08-24T14:15:22Z",
-    "email": "string",
+    "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_seen_at": "2019-08-24T14:15:22Z",
     "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
@@ -772,9 +772,12 @@ curl -X GET http://coder-server:8080/api/v2/templates/{id}/versions \
 
 ### Parameters
 
-| Name | In   | Type         | Required | Description |
-| ---- | ---- | ------------ | -------- | ----------- |
-| `id` | path | string(uuid) | true     | Template ID |
+| Name       | In    | Type         | Required | Description |
+| ---------- | ----- | ------------ | -------- | ----------- |
+| `id`       | path  | string(uuid) | true     | Template ID |
+| `after_id` | query | string(uuid) | false    | After ID    |
+| `limit`    | query | integer      | false    | Page limit  |
+| `offset`   | query | integer      | false    | Page offset |
 
 ### Example responses
 
@@ -787,7 +790,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{id}/versions \
     "created_by": {
       "avatar_url": "http://example.com",
       "created_at": "2019-08-24T14:15:22Z",
-      "email": "string",
+      "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
@@ -842,7 +845,7 @@ Status Code **200**
 | `» created_by`        | `codersdk.User`           | false    |              |             |
 | `»» avatar_url`       | string(uri)               | false    |              |             |
 | `»» created_at`       | string(date-time)         | true     |              |             |
-| `»» email`            | string                    | true     |              |             |
+| `»» email`            | string(email)             | true     |              |             |
 | `»» id`               | string(uuid)              | true     |              |             |
 | `»» last_seen_at`     | string(date-time)         | false    |              |             |
 | `»» organization_ids` | array                     | false    |              |             |
@@ -970,7 +973,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{id}/versions/{templatever
     "created_by": {
       "avatar_url": "http://example.com",
       "created_at": "2019-08-24T14:15:22Z",
-      "email": "string",
+      "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
@@ -1025,7 +1028,7 @@ Status Code **200**
 | `» created_by`        | `codersdk.User`           | false    |              |             |
 | `»» avatar_url`       | string(uri)               | false    |              |             |
 | `»» created_at`       | string(date-time)         | true     |              |             |
-| `»» email`            | string                    | true     |              |             |
+| `»» email`            | string(email)             | true     |              |             |
 | `»» id`               | string(uuid)              | true     |              |             |
 | `»» last_seen_at`     | string(date-time)         | false    |              |             |
 | `»» organization_ids` | array                     | false    |              |             |
@@ -1097,7 +1100,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion} \
   "created_by": {
     "avatar_url": "http://example.com",
     "created_at": "2019-08-24T14:15:22Z",
-    "email": "string",
+    "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_seen_at": "2019-08-24T14:15:22Z",
     "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],

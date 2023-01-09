@@ -1195,6 +1195,25 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "After ID",
+                        "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1793,6 +1812,95 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.UpdateCheckResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/users": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get users",
+                "operationId": "get-users",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search query",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "After ID",
+                        "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GetUsersResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Create new user",
+                "operationId": "create-new-user",
+                "parameters": [
+                    {
+                        "description": "Create user request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateUserRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.User"
                         }
                     }
                 }
@@ -3439,6 +3547,31 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateUserRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "organization_id",
+                "password",
+                "username"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "format": "email"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "password": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.CreateWorkspaceBuildRequest": {
             "type": "object",
             "required": [
@@ -3855,6 +3988,20 @@ const docTemplate = `{
                 "host": {
                     "description": "Host is the externally accessible URL for the Coder instance.",
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.GetUsersResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.User"
+                    }
                 }
             }
         },
@@ -4691,7 +4838,8 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "email": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "email"
                 },
                 "id": {
                     "type": "string",
