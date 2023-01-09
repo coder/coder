@@ -100,7 +100,7 @@ declare -A section_titles=(
 # vice-versa.
 for cat in "${section_order[@]}"; do
 	if [[ " ${!section_titles[*]} " != *" $cat "* ]]; then
-		error "BUG: ategory $cat does not exist in section_titles"
+		error "BUG: category $cat does not exist in section_titles"
 	fi
 done
 for cat in "${!section_titles[@]}"; do
