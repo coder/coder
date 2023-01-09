@@ -19,7 +19,7 @@ jobs:
         run: |
           $release_assets = gh release view --repo coder/coder "$env:CODER_VERSION" --json assets | `
             ConvertFrom-Json
-
+          # Get the installer URL from the release assets.
           $installer_url = $release_assets.assets | `
             Where-Object name -Match ".*_windows_amd64_installer.exe$" | `
             Select -ExpandProperty url
@@ -28,8 +28,8 @@ jobs:
 
           # The package version is the same as the tag minus the leading "v".
           $version = $env:CODER_VERSION -replace "^v", ""
-          
-          echo "Package vesion: $version"
+
+          echo "Package version: $version"
 
           # The URL "|X64" suffix forces the architecture as it cannot be
           # sniffed properly from the URL. wingetcreate checks both the URL and
