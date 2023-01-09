@@ -1,9 +1,5 @@
 import { Page } from "@playwright/test"
 
-export const urls = {
-  templates: "/templates",
-}
-
 export const buttons = {
   starterTemplates: "Starter templates",
   dockerTemplate: "Develop in Docker",
@@ -15,8 +11,8 @@ export const buttons = {
   startWorkspace: "Start"
 }
 
-export const clickButtonByText = async (page: Page, text: string): Promise<void> => {
-  await page.click(`button:has-text("${text}")`)
+export const clickButton = async (page: Page, name: string): Promise<void> => {
+  await page.getByRole("button", { name, exact: true }).click()
 }
 
 export const fillInput = async (page: Page, label: string, value: string): Promise<void> => {

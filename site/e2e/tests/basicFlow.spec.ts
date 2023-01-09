@@ -1,37 +1,39 @@
 import { test } from "@playwright/test"
 import { email, password } from "../constants"
 import { SignInPage } from "../pom"
-import { clickButtonByText, buttons, urls, fillInput } from "../helpers";
+import { clickButton, buttons, fillInput } from "../helpers";
 
 test("Basic flow", async ({ baseURL, page }) => {
+  test.slow()
   await page.goto(baseURL + "/", { waitUntil: "networkidle" })
 
   // Log-in with the default credentials we set up in the development server
   const signInPage = new SignInPage(baseURL, page)
   await signInPage.submitBuiltInAuthentication(email, password)
 
-  await page.waitForSelector("text=Workspaces")
-
   // create Docker template
-  await page.goto(urls.templates);
-  await clickButtonByText(page, buttons.starterTemplates)
+  await page.waitForSelector("text=Templates")
+  await page.click("text=Templates")
 
-  await clickButtonByText(page, buttons.dockerTemplate)
+  await clickButton(page, buttons.starterTemplates)
 
-  await clickButtonByText(page, buttons.useTemplate)
+  await page.click(`text=${buttons.dockerTemplate}`)
 
-  await clickButtonByText(page, buttons.createTemplate)
+  await clickButton(page, buttons.useTemplate)
+
+  await clickButton(page, buttons.createTemplate)
 
   // create workspace
-  await page.click('span:has-text("docker")')
-  await clickButtonByText(page, buttons.createWorkspace)
+  await clickButton(page, buttons.createWorkspace)
 
   await fillInput(page, "Workspace Name", "my-workspace")
-  await clickButtonByText(page, buttons.submitCreateWorkspace)
+  await clickButton(page, buttons.submitCreateWorkspace)
 
   // stop workspace
-  await clickButtonByText(page, buttons.stopWorkspace)
+  await page.waitForSelector("text=Started")
+  await clickButton(page, buttons.stopWorkspace)
 
   // start workspace
-  await clickButtonByText(page, buttons.startWorkspace)
+  await page.waitForSelector("text=Stopped")
+  await clickButton(page, buttons.startWorkspace)
 })
