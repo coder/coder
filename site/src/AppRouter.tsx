@@ -86,7 +86,10 @@ const AppearanceSettingsPage = lazy(
     ),
 )
 const UserAuthSettingsPage = lazy(
-  () => import("./pages/DeploySettingsPage/UserAuthSettingsPage"),
+  () =>
+    import(
+      "./pages/DeploySettingsPage/UserAuthSettingsPage/UserAuthSettingsPage"
+    ),
 )
 const GitAuthSettingsPage = lazy(
   () =>
