@@ -132,7 +132,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get API key
-// @ID get-user-tokens
+// @ID get-api-key
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users

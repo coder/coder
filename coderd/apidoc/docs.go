@@ -2384,7 +2384,7 @@ const docTemplate = `{
                     "Users"
                 ],
                 "summary": "Get API key",
-                "operationId": "get-user-tokens",
+                "operationId": "get-api-key",
                 "parameters": [
                     {
                         "type": "string",
@@ -2445,6 +2445,84 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/users/{user}/organizations": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get organizations by user",
+                "operationId": "get-organizations-by-users",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Organization"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{user}/organizations/{organizationname}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get organization by user and organization name",
+                "operationId": "get-organization-by-user-and-organization-name",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization name",
+                        "name": "organizationname",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Organization"
+                        }
                     }
                 }
             }
@@ -2691,12 +2769,12 @@ const docTemplate = `{
                 "tags": [
                     "Workspaces"
                 ],
-                "summary": "Get workspace metadata by owner and workspace name",
-                "operationId": "get-workspace-metadata-by-owner-and-workspace-name",
+                "summary": "Get workspace metadata by user and workspace name",
+                "operationId": "get-workspace-metadata-by-user-and-workspace-name",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Owner username",
+                        "description": "User ID, name, or me",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -2720,6 +2798,55 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Workspace"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{user}/workspace/{workspacename}/builds/{buildnumber}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Builds"
+                ],
+                "summary": "Get workspace build by user, workspace name, and build number",
+                "operationId": "get-workspace-build-by-user-workspace-name-and-build-number",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Workspace name",
+                        "name": "workspacename",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "number",
+                        "description": "Build number",
+                        "name": "buildnumber",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceBuild"
                         }
                     }
                 }

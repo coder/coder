@@ -906,6 +906,15 @@ func (api *API) updateSiteUserRoles(ctx context.Context, args database.UpdateUse
 }
 
 // Returns organizations the parameterized user has access to.
+//
+// @Summary Get organizations by user
+// @ID get-organizations-by-users
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Success 200 {array} codersdk.Organization
+// @Router /users/{user}/organizations [get]
 func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
@@ -941,6 +950,15 @@ func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, publicOrganizations)
 }
 
+// @Summary Get organization by user and organization name
+// @ID get-organization-by-user-and-organization-name
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Param organizationname path string true "Organization name"
+// @Success 200 {object} codersdk.Organization
+// @Router /users/{user}/organizations/{organizationname} [get]
 func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organizationName := chi.URLParam(r, "organizationname")

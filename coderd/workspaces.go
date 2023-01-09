@@ -192,12 +192,12 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// @Summary Get workspace metadata by owner and workspace name
-// @ID get-workspace-metadata-by-owner-and-workspace-name
+// @Summary Get workspace metadata by user and workspace name
+// @ID get-workspace-metadata-by-user-and-workspace-name
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
-// @Param user path string true "Owner username"
+// @Param user path string true "User ID, name, or me"
 // @Param workspacename path string true "Workspace name"
 // @Param include_deleted query bool false "Return data instead of HTTP 404 if the workspace is deleted"
 // @Success 200 {object} codersdk.Workspace

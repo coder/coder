@@ -378,12 +378,12 @@
           "path": "./api/authentication.md"
         },
         {
-          "title": "Agents",
-          "path": "./api/agents.md"
-        },
-        {
           "title": "Builds",
           "path": "./api/builds.md"
+        },
+        {
+          "title": "Agents",
+          "path": "./api/agents.md"
         },
         {
           "title": "Schemas",

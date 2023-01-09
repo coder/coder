@@ -734,6 +734,101 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user}/keys/{keyid} \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get organizations by user
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/users/{user}/organizations \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /users/{user}/organizations`
+
+### Parameters
+
+| Name   | In   | Type   | Required | Description          |
+| ------ | ---- | ------ | -------- | -------------------- |
+| `user` | path | string | true     | User ID, name, or me |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "updated_at": "2019-08-24T14:15:22Z"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                            |
+| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.Organization](schemas.md#codersdkorganization) |
+
+<h3 id="get-organizations-by-user-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name           | Type              | Required | Restrictions | Description |
+| -------------- | ----------------- | -------- | ------------ | ----------- |
+| `[array item]` | array             | false    |              |             |
+| `» created_at` | string(date-time) | true     |              |             |
+| `» id`         | string(uuid)      | true     |              |             |
+| `» name`       | string            | true     |              |             |
+| `» updated_at` | string(date-time) | true     |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get organization by user and organization name
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/users/{user}/organizations/{organizationname} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /users/{user}/organizations/{organizationname}`
+
+### Parameters
+
+| Name               | In   | Type   | Required | Description          |
+| ------------------ | ---- | ------ | -------- | -------------------- |
+| `user`             | path | string | true     | User ID, name, or me |
+| `organizationname` | path | string | true     | Organization name    |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                   |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Organization](schemas.md#codersdkorganization) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Update user password
 
 ### Code samples
