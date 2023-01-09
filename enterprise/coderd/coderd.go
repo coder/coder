@@ -331,6 +331,13 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	return nil
 }
 
+// @Summary Get entitlements
+// @ID get-entitlements
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Success 200 {object} codersdk.Entitlements
+// @Router /entitlements [get]
 func (api *API) serveEntitlements(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	api.entitlementsMu.RLock()

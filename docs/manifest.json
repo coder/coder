@@ -346,6 +346,10 @@
           "path": "./api/authorization.md"
         },
         {
+          "title": "Enterprise",
+          "path": "./api/enterprise.md"
+        },
+        {
           "title": "Files",
           "path": "./api/files.md"
         },

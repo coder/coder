@@ -2082,6 +2082,64 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `usage`      | string  | false    |              |             |
 | `value`      | integer | false    |              |             |
 
+## codersdk.Entitlements
+
+```json
+{
+  "errors": ["string"],
+  "experimental": true,
+  "features": {
+    "property1": {
+      "actual": 0,
+      "enabled": true,
+      "entitlement": "string",
+      "limit": 0
+    },
+    "property2": {
+      "actual": 0,
+      "enabled": true,
+      "entitlement": "string",
+      "limit": 0
+    }
+  },
+  "has_license": true,
+  "trial": true,
+  "warnings": ["string"]
+}
+```
+
+### Properties
+
+| Name               | Type                                 | Required | Restrictions | Description |
+| ------------------ | ------------------------------------ | -------- | ------------ | ----------- |
+| `errors`           | array of string                      | false    |              |             |
+| `experimental`     | boolean                              | false    |              |             |
+| `features`         | object                               | false    |              |             |
+| » `[any property]` | [codersdk.Feature](#codersdkfeature) | false    |              |             |
+| `has_license`      | boolean                              | false    |              |             |
+| `trial`            | boolean                              | false    |              |             |
+| `warnings`         | array of string                      | false    |              |             |
+
+## codersdk.Feature
+
+```json
+{
+  "actual": 0,
+  "enabled": true,
+  "entitlement": "string",
+  "limit": 0
+}
+```
+
+### Properties
+
+| Name          | Type    | Required | Restrictions | Description |
+| ------------- | ------- | -------- | ------------ | ----------- |
+| `actual`      | integer | false    |              |             |
+| `enabled`     | boolean | false    |              |             |
+| `entitlement` | string  | false    |              |             |
+| `limit`       | integer | false    |              |             |
+
 ## codersdk.GenerateAPIKeyResponse
 
 ```json

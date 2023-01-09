@@ -483,7 +483,7 @@ docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/me
 	cd site
 	yarn run format:write:only ../docs/admin/prometheus.md
 
-coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen -not \( -path './scripts/apidocgen/node_modules' -prune \) -type f) $(wildcard coderd/*.go) $(wildcard codersdk/*.go) .swaggo
+coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen -not \( -path './scripts/apidocgen/node_modules' -prune \) -type f) $(wildcard coderd/*.go) $(wildcard enterprise/coderd/*.go) $(wildcard codersdk/*.go) .swaggo
 	./scripts/apidocgen/generate.sh
 	cd site
 	yarn run format:write:only ../docs/api ../docs/manifest.json ../coderd/apidoc/swagger.json

@@ -257,6 +257,27 @@
         }
       }
     },
+    "/entitlements": {
+      "get": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Enterprise"],
+        "summary": "Get entitlements",
+        "operationId": "get-entitlements",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/codersdk.Entitlements"
+            }
+          }
+        }
+      }
+    },
     "/files": {
       "post": {
         "security": [
@@ -4275,6 +4296,55 @@
           "type": "string"
         },
         "value": {
+          "type": "integer"
+        }
+      }
+    },
+    "codersdk.Entitlements": {
+      "type": "object",
+      "properties": {
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "experimental": {
+          "type": "boolean"
+        },
+        "features": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/codersdk.Feature"
+          }
+        },
+        "has_license": {
+          "type": "boolean"
+        },
+        "trial": {
+          "type": "boolean"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "codersdk.Feature": {
+      "type": "object",
+      "properties": {
+        "actual": {
+          "type": "integer"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "entitlement": {
+          "type": "string"
+        },
+        "limit": {
           "type": "integer"
         }
       }
