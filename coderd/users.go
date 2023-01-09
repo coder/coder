@@ -542,7 +542,7 @@ func (api *API) putSuspendUserAccount() func(rw http.ResponseWriter, r *http.Req
 // @Success 200 {object} codersdk.User
 // @Router /users/{user}/status/activate [put]
 func (api *API) putActivateUserAccount() func(rw http.ResponseWriter, r *http.Request) {
-	return api.putUserStatus(database.UserStatusSuspended)
+	return api.putUserStatus(database.UserStatusActive)
 }
 
 func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseWriter, r *http.Request) {
