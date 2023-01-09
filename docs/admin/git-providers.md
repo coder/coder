@@ -2,6 +2,8 @@
 
 Coder integrates with git providers so developers can authenticate with repositories within their workspace.
 
+> Git authentication is free up to 20 users. [Upgrade to Enterprise](../enterprise.md) to remove this limit.
+
 ## How it works
 
 When developers use `git` inside their workspace, they are first prompted to authenticate. After that, Coder will store/refresh tokens for future operations.

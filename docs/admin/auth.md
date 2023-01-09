@@ -2,7 +2,9 @@
 
 By default, Coder is accessible via password authentication.
 
-The following steps explain how to set up GitHub OAuth or OpenID Connect.
+The following steps explain how to set up GitHub OAuth or OpenID Connect. 
+
+> OIDC is free up to 20 users. [Upgrade to Enterprise](../enterprise.md) to remove this limit.
 
 ## GitHub
 
