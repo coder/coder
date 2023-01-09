@@ -1,7 +1,7 @@
 import { test } from "@playwright/test"
 import { email, password } from "../constants"
 import { SignInPage } from "../pom"
-import { clickButton, buttons, fillInput } from "../helpers";
+import { clickButton, buttons, fillInput } from "../helpers"
 
 test("Basic flow", async ({ baseURL, page }) => {
   test.slow()

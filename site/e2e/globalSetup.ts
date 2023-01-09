@@ -9,7 +9,7 @@ const globalSetup = async (): Promise<void> => {
     email: constants.email,
     username: constants.username,
     password: constants.password,
-    trial: false
+    trial: false,
   })
 }
 
