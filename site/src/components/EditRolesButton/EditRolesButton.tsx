@@ -135,7 +135,9 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
 
 const useStyles = makeStyles((theme) => ({
   editButton: {
-    color: theme.palette.text.secondary,
+    // TODO@jsjoeio - don't forget to remove
+    // testing purposes only
+    color: theme.palette.text.primary,
 
     "& .MuiSvgIcon-root": {
       width: theme.spacing(2),
