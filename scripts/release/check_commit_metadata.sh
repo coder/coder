@@ -106,7 +106,8 @@ main() {
 			commit_prefix=${BASH_REMATCH[1]}
 		fi
 		case $commit_prefix in
-		feat | fix)
+		# From: https://github.com/commitizen/conventional-commit-types
+		feat | fix | docs | style | refactor | perf | test | build | ci | chore | revert)
 			COMMIT_METADATA_CATEGORY[$commit_sha_short]=$commit_prefix
 			;;
 		*)
