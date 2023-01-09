@@ -970,6 +970,14 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 }
 
 // Clear the user's session cookie.
+//
+// @Summary Log out user
+// @ID log-out-user
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Success 200 {object} codersdk.Response
+// @Router /users/logout [post]
 func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	// Get a blank token cookie.
