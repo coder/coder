@@ -226,6 +226,20 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 				defer httpListener.Close()
 
+				listenAddrStr := httpListener.Addr().String()
+				// For some reason if 0.0.0.0:x is provided as the http address,
+				// httpListener.Addr().String() likes to return it as an ipv6
+				// address (i.e. [::]:x). If the input ip is 0.0.0.0, try to
+				// coerce the output back to ipv4 to make it less confusing.
+				if strings.Contains(cfg.HTTPAddress.Value, "0.0.0.0") {
+					listenAddrStr = strings.ReplaceAll(listenAddrStr, "[::]", "0.0.0.0")
+				}
+
+				// We want to print out the address the user supplied, not the
+				// loopback device.
+				cmd.Println("Started HTTP listener at", (&url.URL{Scheme: "http", Host: listenAddrStr}).String())
+
+				// Set the http URL we want to use when connecting to ourselves.
 				tcpAddr, tcpAddrValid := httpListener.Addr().(*net.TCPAddr)
 				if !tcpAddrValid {
 					return xerrors.Errorf("invalid TCP address type %T", httpListener.Addr())
@@ -237,7 +251,6 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					Scheme: "http",
 					Host:   tcpAddr.String(),
 				}
-				cmd.Println("Started HTTP listener at " + httpURL.String())
 			}
 
 			var (
@@ -269,6 +282,22 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				httpsListener = tls.NewListener(httpsListenerInner, tlsConfig)
 				defer httpsListener.Close()
 
+				listenAddrStr := httpsListener.Addr().String()
+				// For some reason if 0.0.0.0:x is provided as the https
+				// address, httpsListener.Addr().String() likes to return it as
+				// an ipv6 address (i.e. [::]:x). If the input ip is 0.0.0.0,
+				// try to coerce the output back to ipv4 to make it less
+				// confusing.
+				if strings.Contains(cfg.HTTPAddress.Value, "0.0.0.0") {
+					listenAddrStr = strings.ReplaceAll(listenAddrStr, "[::]", "0.0.0.0")
+				}
+
+				// We want to print out the address the user supplied, not the
+				// loopback device.
+				cmd.Println("Started TLS/HTTPS listener at", (&url.URL{Scheme: "https", Host: listenAddrStr}).String())
+
+				// Set the https URL we want to use when connecting to
+				// ourselves.
 				tcpAddr, tcpAddrValid := httpsListener.Addr().(*net.TCPAddr)
 				if !tcpAddrValid {
 					return xerrors.Errorf("invalid TCP address type %T", httpsListener.Addr())
@@ -280,7 +309,6 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					Scheme: "https",
 					Host:   tcpAddr.String(),
 				}
-				cmd.Println("Started TLS/HTTPS listener at " + httpsURL.String())
 			}
 
 			// Sanity check that at least one listener was started.
