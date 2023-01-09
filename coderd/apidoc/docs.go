@@ -2192,6 +2192,118 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/{user}/keys": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Create new session key",
+                "operationId": "create-new-session-key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GenerateAPIKeyResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{user}/keys/tokens": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get user tokens",
+                "operationId": "get-user-tokens",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.APIKey"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Create token API key",
+                "operationId": "create-token-api-key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Create token request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateTokenRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GenerateAPIKeyResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/users/{user}/password": {
             "put": {
                 "security": [
@@ -3444,6 +3556,65 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.APIKey": {
+            "type": "object",
+            "required": [
+                "created_at",
+                "expires_at",
+                "id",
+                "last_used",
+                "lifetime_seconds",
+                "login_type",
+                "scope",
+                "updated_at",
+                "user_id"
+            ],
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "expires_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "last_used": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "lifetime_seconds": {
+                    "type": "integer"
+                },
+                "login_type": {
+                    "type": "string",
+                    "enum": [
+                        "password",
+                        "github",
+                        "oidc",
+                        "token"
+                    ]
+                },
+                "scope": {
+                    "type": "string",
+                    "enum": [
+                        "all",
+                        "application_connect"
+                    ]
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "user_id": {
+                    "description": "NOTE: do not ever return the HashedSecret",
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "codersdk.AWSInstanceIdentityToken": {
             "type": "object",
             "required": [
@@ -3895,6 +4066,21 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateTokenRequest": {
+            "type": "object",
+            "properties": {
+                "lifetime": {
+                    "type": "integer"
+                },
+                "scope": {
+                    "type": "string",
+                    "enum": [
+                        "all",
+                        "application_connect"
+                    ]
+                }
+            }
+        },
         "codersdk.CreateUserRequest": {
             "type": "object",
             "required": [
@@ -4327,6 +4513,14 @@ const docTemplate = `{
                 },
                 "value": {
                     "type": "integer"
+                }
+            }
+        },
+        "codersdk.GenerateAPIKeyResponse": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string"
                 }
             }
         },

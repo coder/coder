@@ -421,6 +421,166 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user} \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Create new session key
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/users/{user}/keys \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /users/{user}/keys`
+
+### Parameters
+
+| Name   | In   | Type   | Required | Description          |
+| ------ | ---- | ------ | -------- | -------------------- |
+| `user` | path | string | true     | User ID, name, or me |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "key": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                                                       |
+| ------ | ------------------------------------------------------------ | ----------- | ---------------------------------------------------------------------------- |
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.GenerateAPIKeyResponse](schemas.md#codersdkgenerateapikeyresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get user tokens
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /users/{user}/keys/tokens`
+
+### Parameters
+
+| Name   | In   | Type   | Required | Description          |
+| ------ | ---- | ------ | -------- | -------------------- |
+| `user` | path | string | true     | User ID, name, or me |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "expires_at": "2019-08-24T14:15:22Z",
+    "id": "string",
+    "last_used": "2019-08-24T14:15:22Z",
+    "lifetime_seconds": 0,
+    "login_type": "password",
+    "scope": "all",
+    "updated_at": "2019-08-24T14:15:22Z",
+    "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                |
+| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.APIKey](schemas.md#codersdkapikey) |
+
+<h3 id="get-user-tokens-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                 | Type              | Required | Restrictions | Description                               |
+| -------------------- | ----------------- | -------- | ------------ | ----------------------------------------- |
+| `[array item]`       | array             | false    |              |                                           |
+| `» created_at`       | string(date-time) | true     |              |                                           |
+| `» expires_at`       | string(date-time) | true     |              |                                           |
+| `» id`               | string            | true     |              |                                           |
+| `» last_used`        | string(date-time) | true     |              |                                           |
+| `» lifetime_seconds` | integer           | true     |              |                                           |
+| `» login_type`       | string            | true     |              |                                           |
+| `» scope`            | string            | true     |              |                                           |
+| `» updated_at`       | string(date-time) | true     |              |                                           |
+| `» user_id`          | string(uuid)      | true     |              | NOTE: do not ever return the HashedSecret |
+
+#### Enumerated Values
+
+| Property     | Value                 |
+| ------------ | --------------------- |
+| `login_type` | `password`            |
+| `login_type` | `github`              |
+| `login_type` | `oidc`                |
+| `login_type` | `token`               |
+| `scope`      | `all`                 |
+| `scope`      | `application_connect` |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Create token API key
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/users/{user}/keys/tokens \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /users/{user}/keys/tokens`
+
+> Body parameter
+
+```json
+{
+  "lifetime": 0,
+  "scope": "all"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                 | Required | Description          |
+| ------ | ---- | -------------------------------------------------------------------- | -------- | -------------------- |
+| `user` | path | string                                                               | true     | User ID, name, or me |
+| `body` | body | [codersdk.CreateTokenRequest](schemas.md#codersdkcreatetokenrequest) | true     | Create token request |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "key": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                                                       |
+| ------ | ------------------------------------------------------------ | ----------- | ---------------------------------------------------------------------------- |
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.GenerateAPIKeyResponse](schemas.md#codersdkgenerateapikeyresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Update user password
 
 ### Code samples

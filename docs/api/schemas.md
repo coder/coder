@@ -16,6 +16,47 @@
 | ------------ | ------ | -------- | ------------ | ----------- |
 | `csp-report` | object | false    |              |             |
 
+## codersdk.APIKey
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "expires_at": "2019-08-24T14:15:22Z",
+  "id": "string",
+  "last_used": "2019-08-24T14:15:22Z",
+  "lifetime_seconds": 0,
+  "login_type": "password",
+  "scope": "all",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description                                 |
+| ------------------ | ------- | -------- | ------------ | ------------------------------------------- |
+| `created_at`       | string  | true     |              |                                             |
+| `expires_at`       | string  | true     |              |                                             |
+| `id`               | string  | true     |              |                                             |
+| `last_used`        | string  | true     |              |                                             |
+| `lifetime_seconds` | integer | true     |              |                                             |
+| `login_type`       | string  | true     |              |                                             |
+| `scope`            | string  | true     |              |                                             |
+| `updated_at`       | string  | true     |              |                                             |
+| `user_id`          | string  | true     |              | User ID do not ever return the HashedSecret |
+
+#### Enumerated Values
+
+| Property     | Value                 |
+| ------------ | --------------------- |
+| `login_type` | `password`            |
+| `login_type` | `github`              |
+| `login_type` | `oidc`                |
+| `login_type` | `token`               |
+| `scope`      | `all`                 |
+| `scope`      | `application_connect` |
+
 ## codersdk.AWSInstanceIdentityToken
 
 ```json
@@ -622,6 +663,29 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `resource_type` | `git_ssh_key`      |
 | `resource_type` | `api_key`          |
 | `resource_type` | `group`            |
+
+## codersdk.CreateTokenRequest
+
+```json
+{
+  "lifetime": 0,
+  "scope": "all"
+}
+```
+
+### Properties
+
+| Name       | Type    | Required | Restrictions | Description |
+| ---------- | ------- | -------- | ------------ | ----------- |
+| `lifetime` | integer | false    |              |             |
+| `scope`    | string  | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value                 |
+| -------- | --------------------- |
+| `scope`  | `all`                 |
+| `scope`  | `application_connect` |
 
 ## codersdk.CreateUserRequest
 
@@ -2017,6 +2081,20 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `shorthand`  | string  | false    |              |             |
 | `usage`      | string  | false    |              |             |
 | `value`      | integer | false    |              |             |
+
+## codersdk.GenerateAPIKeyResponse
+
+```json
+{
+  "key": "string"
+}
+```
+
+### Properties
+
+| Name  | Type   | Required | Restrictions | Description |
+| ----- | ------ | -------- | ------------ | ----------- |
+| `key` | string | false    |              |             |
 
 ## codersdk.GetAppHostResponse
 
