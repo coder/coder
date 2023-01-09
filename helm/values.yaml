@@ -52,7 +52,24 @@ coder:
   # - CODER_TLS_KEY_FILE: set if tls.secretName is not empty.
   # - CODER_PROMETHEUS_ADDRESS: set to 0.0.0.0:6060 and cannot be changed.
   #   Prometheus must still be enabled by setting CODER_PROMETHEUS_ENABLE.
+  # - KUBE_POD_IP
+  # - CODER_DERP_SERVER_RELAY_URL
+  #
+  # We will additionally set CODER_ACCESS_URL if unset to the cluster service
+  # URL.
   env: []
+  # - name: "CODER_ACCESS_URL"
+  #   value: "https://coder.example.com"
+
+  # coder.volumes -- A list of extra volumes to add to the Coder pod.
+  volumes: []
+  # - name: "my-volume"
+  #   emptyDir: {}
+
+  # coder.volumeMounts -- A list of extra volume mounts to add to the Coder pod.
+  volumeMounts: []
+  # - name: "my-volume"
+  #   mountPath: "/mnt/my-volume"
 
   # coder.tls -- The TLS configuration for Coder.
   tls:

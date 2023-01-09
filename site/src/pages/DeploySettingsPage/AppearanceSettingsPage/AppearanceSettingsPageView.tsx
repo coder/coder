@@ -1,70 +1,43 @@
-import Button from "@material-ui/core/Button"
-import FormControlLabel from "@material-ui/core/FormControlLabel"
-import FormHelperText from "@material-ui/core/FormHelperText"
-import InputAdornment from "@material-ui/core/InputAdornment"
-import { useTheme } from "@material-ui/core/styles"
-import makeStyles from "@material-ui/core/styles/makeStyles"
-import Switch from "@material-ui/core/Switch"
-import TextField from "@material-ui/core/TextField"
-import { useActor } from "@xstate/react"
-import { FeatureNames } from "api/types"
-import { AppearanceConfig } from "api/typesGenerated"
+import { useState } from "react"
+import { Header } from "components/DeploySettingsLayout/Header"
 import {
   Badges,
   DisabledBadge,
   EnterpriseBadge,
   EntitledBadge,
 } from "components/DeploySettingsLayout/Badges"
+import InputAdornment from "@material-ui/core/InputAdornment"
 import { Fieldset } from "components/DeploySettingsLayout/Fieldset"
-import { Header } from "components/DeploySettingsLayout/Header"
+import { getFormHelpers } from "util/formUtils"
+import Button from "@material-ui/core/Button"
+import FormControlLabel from "@material-ui/core/FormControlLabel"
+import FormHelperText from "@material-ui/core/FormHelperText"
+import { BlockPicker } from "react-color"
+import { useTranslation } from "react-i18next"
+import makeStyles from "@material-ui/core/styles/makeStyles"
+import Switch from "@material-ui/core/Switch"
+import TextField from "@material-ui/core/TextField"
+import { AppearanceConfig } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
 import { useFormik } from "formik"
-import React, { useContext, useState } from "react"
-import { BlockPicker } from "react-color"
-import { Helmet } from "react-helmet-async"
-import { useTranslation } from "react-i18next"
-import { getFormHelpers } from "util/formUtils"
-import { pageTitle } from "util/page"
-import { XServiceContext } from "xServices/StateContext"
+import { useTheme } from "@material-ui/core/styles"
 
-// ServiceBanner is unlike the other Deployment Settings pages because it
-// implements a form, whereas the others are read-only. We make this
-// exception because the Service Banner is visual, and configuring it from
-// the command line would be a significantly worse user experience.
-const AppearanceSettingsPage: React.FC = () => {
-  const xServices = useContext(XServiceContext)
-  const [appearanceXService, appearanceSend] = useActor(
-    xServices.appearanceXService,
-  )
-  const [entitlementsState] = useActor(xServices.entitlementsXService)
-  const appearance = appearanceXService.context.appearance
-  const styles = useStyles()
-
-  const isEntitled =
-    entitlementsState.context.entitlements.features[FeatureNames.Appearance]
-      .entitlement !== "not_entitled"
-
-  const updateAppearance = (
+export type AppearanceSettingsPageViewProps = {
+  appearance: AppearanceConfig
+  isEntitled: boolean
+  updateAppearance: (
     newConfig: Partial<AppearanceConfig>,
     preview: boolean,
-  ) => {
-    const newAppearance = {
-      ...appearance,
-      ...newConfig,
-    }
-    if (preview) {
-      appearanceSend({
-        type: "SET_PREVIEW_APPEARANCE",
-        appearance: newAppearance,
-      })
-      return
-    }
-    appearanceSend({
-      type: "SET_APPEARANCE",
-      appearance: newAppearance,
-    })
-  }
-
+  ) => void
+}
+export const AppearanceSettingsPageView = ({
+  appearance,
+  isEntitled,
+  updateAppearance,
+}: AppearanceSettingsPageViewProps): JSX.Element => {
+  const styles = useStyles()
+  const theme = useTheme()
+  const [t] = useTranslation("appearanceSettings")
   const logoForm = useFormik<{
     logo_url: string
   }>({
@@ -93,16 +66,8 @@ const AppearanceSettingsPage: React.FC = () => {
   const [backgroundColor, setBackgroundColor] = useState(
     serviceBannerForm.values.background_color,
   )
-
-  const theme = useTheme()
-  const [t] = useTranslation("appearanceSettings")
-
   return (
     <>
-      <Helmet>
-        <title>{pageTitle("Appearance Settings")}</title>
-      </Helmet>
-
       <Header
         title="Appearance"
         description="Customize the look and feel of your Coder deployment."
@@ -280,5 +245,3 @@ const useStyles = makeStyles((theme) => ({
     },
   },
 }))
-
-export default AppearanceSettingsPage
