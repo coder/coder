@@ -65,7 +65,7 @@
 			return "";
 		}
 
-		let description = p.description.replaceAll("<br><br>", "\n").replaceAll("<br>", " ");
+		let description = p.description.replace(/<br><br>/g, "\n").replace(/<br>/g, " ");
 		const words = description.split(' ');
 		if (words.length == 0) {
 			return "";
@@ -73,8 +73,8 @@
 
 		const countUppercase = words[0].length - words[0].replace(/[A-Z]/g, '').length;
 		if (countUppercase > 1) {
-			let displayName = p.displayName.replaceAll("» **additionalProperties**", "It").replace("» ", "");
-			displayName = displayName.charAt(0).toUpperCase() + displayName.replaceAll("_", " ").toLowerCase().slice(1);
+			let displayName = p.displayName.replace(/» \*\*additionalProperties\*\*/g, "It").replace("» ", "");
+			displayName = displayName.charAt(0).toUpperCase() + displayName.replace(/_/g, " ").toLowerCase().slice(1);
 			description = displayName + " " + words.slice(1).join(' ');
 		}
 		return correctLetterCase(description);
