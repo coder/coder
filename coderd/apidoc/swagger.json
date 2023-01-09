@@ -33,6 +33,57 @@
         }
       }
     },
+    "/appearance": {
+      "get": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Enterprise"],
+        "summary": "Get appearance",
+        "operationId": "get-appearance",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/codersdk.AppearanceConfig"
+            }
+          }
+        }
+      },
+      "put": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Enterprise"],
+        "summary": "Update appearance",
+        "operationId": "update-appearance",
+        "parameters": [
+          {
+            "description": "Update appearance request",
+            "name": "request",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/codersdk.AppearanceConfig"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/codersdk.AppearanceConfig"
+            }
+          }
+        }
+      }
+    },
     "/applications/auth-redirect": {
       "get": {
         "security": [
@@ -619,44 +670,6 @@
         "responses": {
           "201": {
             "description": "Created",
-            "schema": {
-              "$ref": "#/definitions/codersdk.Group"
-            }
-          }
-        }
-      }
-    },
-    "/organizations/{organization}/groups/{groupName}": {
-      "get": {
-        "security": [
-          {
-            "CoderSessionToken": []
-          }
-        ],
-        "produces": ["application/json"],
-        "tags": ["Enterprise"],
-        "summary": "Get group by organization and name",
-        "operationId": "get-group-by-organization-and-name",
-        "parameters": [
-          {
-            "type": "string",
-            "format": "uuid",
-            "description": "Organization ID",
-            "name": "organization",
-            "in": "path",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Group name",
-            "name": "groupName",
-            "in": "path",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
             "schema": {
               "$ref": "#/definitions/codersdk.Group"
             }
@@ -1260,6 +1273,104 @@
               "items": {
                 "$ref": "#/definitions/codersdk.Replica"
               }
+            }
+          }
+        }
+      }
+    },
+    "/scim/v2/Users": {
+      "post": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Enterprise"],
+        "summary": "SCIM 2.0: Create new user",
+        "operationId": "scim-create-new-user",
+        "parameters": [
+          {
+            "description": "New user",
+            "name": "request",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/coderd.SCIMUser"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/coderd.SCIMUser"
+            }
+          }
+        }
+      }
+    },
+    "/scim/v2/Users/{id}": {
+      "get": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/scim+json"],
+        "tags": ["Enterprise"],
+        "summary": "SCIM 2.0: Get user by ID",
+        "operationId": "scim-get-user-by-id",
+        "parameters": [
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "User ID",
+            "name": "id",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      },
+      "patch": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/scim+json"],
+        "tags": ["Enterprise"],
+        "summary": "SCIM 2.0: Update user account",
+        "operationId": "scim-update-user-status",
+        "parameters": [
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "User ID",
+            "name": "id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "description": "Update user request",
+            "name": "request",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/coderd.SCIMUser"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/codersdk.User"
             }
           }
         }
@@ -2949,6 +3060,36 @@
         }
       }
     },
+    "/workspace-quota/{user}": {
+      "get": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Enterprise"],
+        "summary": "Get workspace quota by user",
+        "operationId": "get-workspace-quota-by-user",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "User ID, name, or me",
+            "name": "user",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/codersdk.WorkspaceQuota"
+            }
+          }
+        }
+      }
+    },
     "/workspaceagents/aws-instance-identity": {
       "post": {
         "security": [
@@ -3801,6 +3942,70 @@
     }
   },
   "definitions": {
+    "coderd.SCIMUser": {
+      "type": "object",
+      "properties": {
+        "active": {
+          "type": "boolean"
+        },
+        "emails": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "display": {
+                "type": "string"
+              },
+              "primary": {
+                "type": "boolean"
+              },
+              "type": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string",
+                "format": "email"
+              }
+            }
+          }
+        },
+        "groups": {
+          "type": "array",
+          "items": {}
+        },
+        "id": {
+          "type": "string"
+        },
+        "meta": {
+          "type": "object",
+          "properties": {
+            "resourceType": {
+              "type": "string"
+            }
+          }
+        },
+        "name": {
+          "type": "object",
+          "properties": {
+            "familyName": {
+              "type": "string"
+            },
+            "givenName": {
+              "type": "string"
+            }
+          }
+        },
+        "schemas": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "userName": {
+          "type": "string"
+        }
+      }
+    },
     "coderd.cspViolation": {
       "type": "object",
       "properties": {
@@ -3931,6 +4136,17 @@
         "report_interval": {
           "description": "ReportInterval is the duration after which the agent should send stats\nagain.",
           "type": "integer"
+        }
+      }
+    },
+    "codersdk.AppearanceConfig": {
+      "type": "object",
+      "properties": {
+        "logo_url": {
+          "type": "string"
+        },
+        "service_banner": {
+          "$ref": "#/definitions/codersdk.ServiceBannerConfig"
         }
       }
     },
@@ -5426,6 +5642,20 @@
         }
       }
     },
+    "codersdk.ServiceBannerConfig": {
+      "type": "object",
+      "properties": {
+        "background_color": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    },
     "codersdk.SwaggerConfig": {
       "type": "object",
       "properties": {
@@ -6207,6 +6437,17 @@
         },
         "workspace_owner_name": {
           "type": "string"
+        }
+      }
+    },
+    "codersdk.WorkspaceQuota": {
+      "type": "object",
+      "properties": {
+        "budget": {
+          "type": "integer"
+        },
+        "credits_consumed": {
+          "type": "integer"
         }
       }
     },

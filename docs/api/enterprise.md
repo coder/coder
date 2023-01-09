@@ -2,6 +2,98 @@
 
 > This page is incomplete, stay tuned.
 
+## Get appearance
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/appearance \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /appearance`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "logo_url": "string",
+  "service_banner": {
+    "background_color": "string",
+    "enabled": true,
+    "message": "string"
+  }
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                           |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AppearanceConfig](schemas.md#codersdkappearanceconfig) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update appearance
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/appearance \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /appearance`
+
+> Body parameter
+
+```json
+{
+  "logo_url": "string",
+  "service_banner": {
+    "background_color": "string",
+    "enabled": true,
+    "message": "string"
+  }
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                             | Required | Description               |
+| ------ | ---- | ---------------------------------------------------------------- | -------- | ------------------------- |
+| `body` | body | [codersdk.AppearanceConfig](schemas.md#codersdkappearanceconfig) | true     | Update appearance request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "logo_url": "string",
+  "service_banner": {
+    "background_color": "string",
+    "enabled": true,
+    "message": "string"
+  }
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                           |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AppearanceConfig](schemas.md#codersdkappearanceconfig) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get entitlements
 
 ### Code samples
@@ -370,66 +462,6 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get group by organization and name
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/{groupName} \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`GET /organizations/{organization}/groups/{groupName}`
-
-### Parameters
-
-| Name           | In   | Type         | Required | Description     |
-| -------------- | ---- | ------------ | -------- | --------------- |
-| `organization` | path | string(uuid) | true     | Organization ID |
-| `groupName`    | path | string       | true     | Group name      |
-
-### Example responses
-
-> 200 Response
-
-```json
-{
-  "avatar_url": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "members": [
-    {
-      "avatar_url": "http://example.com",
-      "created_at": "2019-08-24T14:15:22Z",
-      "email": "user@example.com",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "last_seen_at": "2019-08-24T14:15:22Z",
-      "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-      "roles": [
-        {
-          "display_name": "string",
-          "name": "string"
-        }
-      ],
-      "status": "active",
-      "username": "string"
-    }
-  ],
-  "name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "quota_allowance": 0
-}
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                     |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------ |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Group](schemas.md#codersdkgroup) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## Get provisioner daemons
 
 ### Code samples
@@ -577,6 +609,195 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## SCIM 2.0: Create new user
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/scim/v2/Users \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /scim/v2/Users`
+
+> Body parameter
+
+```json
+{
+  "active": true,
+  "emails": [
+    {
+      "display": "string",
+      "primary": true,
+      "type": "string",
+      "value": "user@example.com"
+    }
+  ],
+  "groups": [null],
+  "id": "string",
+  "meta": {
+    "resourceType": "string"
+  },
+  "name": {
+    "familyName": "string",
+    "givenName": "string"
+  },
+  "schemas": ["string"],
+  "userName": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                         | Required | Description |
+| ------ | ---- | -------------------------------------------- | -------- | ----------- |
+| `body` | body | [coderd.SCIMUser](schemas.md#coderdscimuser) | true     | New user    |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "active": true,
+  "emails": [
+    {
+      "display": "string",
+      "primary": true,
+      "type": "string",
+      "value": "user@example.com"
+    }
+  ],
+  "groups": [null],
+  "id": "string",
+  "meta": {
+    "resourceType": "string"
+  },
+  "name": {
+    "familyName": "string",
+    "givenName": "string"
+  },
+  "schemas": ["string"],
+  "userName": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                       |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [coderd.SCIMUser](schemas.md#coderdscimuser) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## SCIM 2.0: Get user by ID
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/scim/v2/Users/{id} \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /scim/v2/Users/{id}`
+
+### Parameters
+
+| Name | In   | Type         | Required | Description |
+| ---- | ---- | ------------ | -------- | ----------- |
+| `id` | path | string(uuid) | true     | User ID     |
+
+### Responses
+
+| Status | Meaning                                                        | Description | Schema |
+| ------ | -------------------------------------------------------------- | ----------- | ------ |
+| 404    | [Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4) | Not Found   |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## SCIM 2.0: Update user account
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/scim/v2/Users/{id} \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/scim+json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /scim/v2/Users/{id}`
+
+> Body parameter
+
+```json
+{
+  "active": true,
+  "emails": [
+    {
+      "display": "string",
+      "primary": true,
+      "type": "string",
+      "value": "user@example.com"
+    }
+  ],
+  "groups": [null],
+  "id": "string",
+  "meta": {
+    "resourceType": "string"
+  },
+  "name": {
+    "familyName": "string",
+    "givenName": "string"
+  },
+  "schemas": ["string"],
+  "userName": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                         | Required | Description         |
+| ------ | ---- | -------------------------------------------- | -------- | ------------------- |
+| `id`   | path | string(uuid)                                 | true     | User ID             |
+| `body` | body | [coderd.SCIMUser](schemas.md#coderdscimuser) | true     | Update user request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "created_at": "2019-08-24T14:15:22Z",
+  "email": "user@example.com",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "last_seen_at": "2019-08-24T14:15:22Z",
+  "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+  "roles": [
+    {
+      "display_name": "string",
+      "name": "string"
+    }
+  ],
+  "status": "active",
+  "username": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                   |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.User](schemas.md#codersdkuser) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get template ACLs
 
 ### Code samples
@@ -717,5 +938,43 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template}/acl \
 | Status | Meaning                                                 | Description | Schema                                           |
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get workspace quota by user
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspace-quota/{user} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspace-quota/{user}`
+
+### Parameters
+
+| Name   | In   | Type   | Required | Description          |
+| ------ | ---- | ------ | -------- | -------------------- |
+| `user` | path | string | true     | User ID, name, or me |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "budget": 0,
+  "credits_consumed": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                       |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceQuota](schemas.md#codersdkworkspacequota) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

@@ -2,6 +2,53 @@
 
 > This page is incomplete, stay tuned.
 
+## coderd.SCIMUser
+
+```json
+{
+  "active": true,
+  "emails": [
+    {
+      "display": "string",
+      "primary": true,
+      "type": "string",
+      "value": "user@example.com"
+    }
+  ],
+  "groups": [null],
+  "id": "string",
+  "meta": {
+    "resourceType": "string"
+  },
+  "name": {
+    "familyName": "string",
+    "givenName": "string"
+  },
+  "schemas": ["string"],
+  "userName": "string"
+}
+```
+
+### Properties
+
+| Name             | Type               | Required | Restrictions | Description |
+| ---------------- | ------------------ | -------- | ------------ | ----------- |
+| `active`         | boolean            | false    |              |             |
+| `emails`         | array of object    | false    |              |             |
+| `» display`      | string             | false    |              |             |
+| `» primary`      | boolean            | false    |              |             |
+| `» type`         | string             | false    |              |             |
+| `» value`        | string             | false    |              |             |
+| `groups`         | array of undefined | false    |              |             |
+| `id`             | string             | false    |              |             |
+| `meta`           | object             | false    |              |             |
+| `» resourceType` | string             | false    |              |             |
+| `name`           | object             | false    |              |             |
+| `» familyName`   | string             | false    |              |             |
+| `» givenName`    | string             | false    |              |             |
+| `schemas`        | array of string    | false    |              |             |
+| `userName`       | string             | false    |              |             |
+
 ## coderd.cspViolation
 
 ```json
@@ -144,6 +191,26 @@
 | Name              | Type    | Required | Restrictions | Description                                                                    |
 | ----------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------ |
 | `report_interval` | integer | false    |              | Report interval is the duration after which the agent should send stats again. |
+
+## codersdk.AppearanceConfig
+
+```json
+{
+  "logo_url": "string",
+  "service_banner": {
+    "background_color": "string",
+    "enabled": true,
+    "message": "string"
+  }
+}
+```
+
+### Properties
+
+| Name             | Type                                                         | Required | Restrictions | Description |
+| ---------------- | ------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `logo_url`       | string                                                       | false    |              |             |
+| `service_banner` | [codersdk.ServiceBannerConfig](#codersdkservicebannerconfig) | false    |              |             |
 
 ## codersdk.AssignableRoles
 
@@ -3189,6 +3256,24 @@ Parameter represents a set value for the scope.
 | `display_name` | string | false    |              |             |
 | `name`         | string | false    |              |             |
 
+## codersdk.ServiceBannerConfig
+
+```json
+{
+  "background_color": "string",
+  "enabled": true,
+  "message": "string"
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description |
+| ------------------ | ------- | -------- | ------------ | ----------- |
+| `background_color` | string  | false    |              |             |
+| `enabled`          | boolean | false    |              |             |
+| `message`          | string  | false    |              |             |
+
 ## codersdk.SwaggerConfig
 
 ```json
@@ -4485,6 +4570,22 @@ Parameter represents a set value for the scope.
 | `transition` | `start`     |
 | `transition` | `stop`      |
 | `transition` | `delete`    |
+
+## codersdk.WorkspaceQuota
+
+```json
+{
+  "budget": 0,
+  "credits_consumed": 0
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description |
+| ------------------ | ------- | -------- | ------------ | ----------- |
+| `budget`           | integer | false    |              |             |
+| `credits_consumed` | integer | false    |              |             |
 
 ## codersdk.WorkspaceResource
 

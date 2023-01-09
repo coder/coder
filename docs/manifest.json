@@ -334,6 +334,10 @@
           "path": "./api/general.md"
         },
         {
+          "title": "Enterprise",
+          "path": "./api/enterprise.md"
+        },
+        {
           "title": "Applications",
           "path": "./api/applications.md"
         },
@@ -344,10 +348,6 @@
         {
           "title": "Authorization",
           "path": "./api/authorization.md"
-        },
-        {
-          "title": "Enterprise",
-          "path": "./api/enterprise.md"
         },
         {
           "title": "Files",

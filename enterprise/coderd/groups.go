@@ -274,19 +274,6 @@ func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// @Summary Get group by organization and name
-// @ID get-group-by-organization-and-name
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Enterprise
-// @Param organization path string true "Organization ID" format(uuid)
-// @Param groupName path string true "Group name"
-// @Success 200 {object} codersdk.Group
-// @Router /organizations/{organization}/groups/{groupName} [get]
-func (api *API) groupByOrganization(rw http.ResponseWriter, r *http.Request) {
-	api.group(rw, r)
-}
-
 // @Summary Get group by name
 // @ID get-group-by-name
 // @Security CoderSessionToken
