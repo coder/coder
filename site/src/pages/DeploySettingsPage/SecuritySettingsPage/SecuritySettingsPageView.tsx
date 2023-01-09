@@ -8,8 +8,6 @@ import {
 import { Header } from "components/DeploySettingsLayout/Header"
 import OptionsTable from "components/DeploySettingsLayout/OptionsTable"
 import { Stack } from "components/Stack/Stack"
-import { Helmet } from "react-helmet-async"
-import { pageTitle } from "util/page"
 
 export type SecuritySettingsPageViewProps = {
   deploymentConfig: Pick<
