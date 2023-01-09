@@ -1,4 +1,5 @@
-import { within, waitFor, expect } from '@storybook/testing-library';
+import { within, waitFor } from '@storybook/testing-library';
+import { expect } from '@storybook/jest';
 import { ComponentMeta, Story } from "@storybook/react"
 import {
   MockOwnerRole,
@@ -35,7 +36,7 @@ Open.play = async ({ canvasElement }) => {
   //👇 This is especially useful when you have an asynchronous action or component that you want to wait for
   await waitFor(() => {
     //👇 This assertion will pass if a DOM element with the matching id exists
-    expect(canvas.getByTitle("Available roles")).toBeInTheDocument();
+    expect(canvas.getByText("User Admin")).toBeInTheDocument();
   });
 };
 

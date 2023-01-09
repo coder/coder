@@ -87,7 +87,6 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
       <Popover
         id={id}
         open={isOpen}
-        anchorEl={anchorRef.current}
         onClose={() => setIsOpen(false)}
         anchorOrigin={{
           vertical: "bottom",

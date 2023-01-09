@@ -22,6 +22,7 @@ module.exports = {
         actions: false,
       },
     },
+    '@storybook/addon-interactions' // Use to wait for animations
   ],
 
   // SEE: https://storybook.js.org/docs/react/configure/babel
