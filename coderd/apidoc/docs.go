@@ -6207,7 +6207,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "created_at": {
-                    "description": "CreatedAt is when the replica was first seen.",
+                    "description": "CreatedAt is the timestamp when the replica was first seen.",
                     "type": "string",
                     "format": "date-time"
                 },
@@ -6216,7 +6216,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "error": {
-                    "description": "Error is the error.",
+                    "description": "Error is the replica error.",
                     "type": "string"
                 },
                 "hostname": {

@@ -359,13 +359,13 @@ curl -X GET http://coder-server:8080/api/v2/licenses \
 
 Status Code **200**
 
-| Name            | Type              | Required | Restrictions | Description                                                                                                                                                                                                     |
-| --------------- | ----------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `[array item]`  | array             | false    |              |                                                                                                                                                                                                                 |
-| `» claims`      | object            | false    |              | Claims are the JWT claims asserted by the license. Here we use<br>a generic string map to ensure that all data from the server is<br>parsed verbatim, not just the fields this version of Coder<br>understands. |
-| `» id`          | integer           | false    |              |                                                                                                                                                                                                                 |
-| `» uploaded_at` | string(date-time) | false    |              |                                                                                                                                                                                                                 |
-| `» uuid`        | string(uuid)      | false    |              |                                                                                                                                                                                                                 |
+| Name            | Type              | Required | Restrictions | Description                                                                                                                                                                                            |
+| --------------- | ----------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `[array item]`  | array             | false    |              |                                                                                                                                                                                                        |
+| `» claims`      | object            | false    |              | Claims are the JWT claims asserted by the license. Here we use a generic string map to ensure that all data from the server is parsed verbatim, not just the fields this version of Coder understands. |
+| `» id`          | integer           | false    |              |                                                                                                                                                                                                        |
+| `» uploaded_at` | string(date-time) | false    |              |                                                                                                                                                                                                        |
+| `» uuid`        | string(uuid)      | false    |              |                                                                                                                                                                                                        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -596,16 +596,16 @@ curl -X GET http://coder-server:8080/api/v2/replicas \
 
 Status Code **200**
 
-| Name                 | Type              | Required | Restrictions | Description                                                       |
-| -------------------- | ----------------- | -------- | ------------ | ----------------------------------------------------------------- |
-| `[array item]`       | array             | false    |              |                                                                   |
-| `» created_at`       | string(date-time) | false    |              | CreatedAt is when the replica was first seen.                     |
-| `» database_latency` | integer           | false    |              | DatabaseLatency is the latency in microseconds to the database.   |
-| `» error`            | string            | false    |              | Error is the error.                                               |
-| `» hostname`         | string            | false    |              | Hostname is the hostname of the replica.                          |
-| `» id`               | string(uuid)      | false    |              | ID is the unique identifier for the replica.                      |
-| `» region_id`        | integer           | false    |              | RegionID is the region of the replica.                            |
-| `» relay_address`    | string            | false    |              | RelayAddress is the accessible address to relay DERP connections. |
+| Name                 | Type              | Required | Restrictions | Description                                                        |
+| -------------------- | ----------------- | -------- | ------------ | ------------------------------------------------------------------ |
+| `[array item]`       | array             | false    |              |                                                                    |
+| `» created_at`       | string(date-time) | false    |              | Created at is the timestamp when the replica was first seen.       |
+| `» database_latency` | integer           | false    |              | Database latency is the latency in microseconds to the database.   |
+| `» error`            | string            | false    |              | Error is the replica error.                                        |
+| `» hostname`         | string            | false    |              | Hostname is the hostname of the replica.                           |
+| `» id`               | string(uuid)      | false    |              | ID is the unique identifier for the replica.                       |
+| `» region_id`        | integer           | false    |              | Region ID is the region of the replica.                            |
+| `» relay_address`    | string            | false    |              | Relay address is the accessible address to relay DERP connections. |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

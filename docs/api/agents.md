@@ -192,9 +192,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/coordinate \
 
 `GET /workspaceagents/me/coordinate`
 
-It accepts a WebSocket connection to an agent that listens to
-incoming connections and publishes node updates.
-
 ### Responses
 
 | Status | Meaning                                                                  | Description         | Schema |

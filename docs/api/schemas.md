@@ -3209,9 +3209,9 @@ Parameter represents a set value for the scope.
 
 | Name               | Type    | Required | Restrictions | Description                                                        |
 | ------------------ | ------- | -------- | ------------ | ------------------------------------------------------------------ |
-| `created_at`       | string  | false    |              | Created at is when the replica was first seen.                     |
+| `created_at`       | string  | false    |              | Created at is the timestamp when the replica was first seen.       |
 | `database_latency` | integer | false    |              | Database latency is the latency in microseconds to the database.   |
-| `error`            | string  | false    |              | Error is the error.                                                |
+| `error`            | string  | false    |              | Error is the replica error.                                        |
 | `hostname`         | string  | false    |              | Hostname is the hostname of the replica.                           |
 | `id`               | string  | false    |              | ID is the unique identifier for the replica.                       |
 | `region_id`        | integer | false    |              | Region ID is the region of the replica.                            |
