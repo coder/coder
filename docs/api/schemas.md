@@ -3377,6 +3377,20 @@ Parameter represents a set value for the scope.
 | ------- | --------------- | -------- | ------------ | ----------- |
 | `roles` | array of string | false    |              |             |
 
+## codersdk.UpdateUserProfileRequest
+
+```json
+{
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description |
+| ---------- | ------ | -------- | ------------ | ----------- |
+| `username` | string | true     |              |             |
+
 ## codersdk.UpdateWorkspaceAutostartRequest
 
 ```json
