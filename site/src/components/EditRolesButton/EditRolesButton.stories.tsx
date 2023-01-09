@@ -27,7 +27,7 @@ Open.args = {
   defaultIsOpen: true,
 }
 Open.parameters = {
-  chromatic: { delay: 300 },
+  chromatic: { delay: 1500 },
 }
 
 export const Loading = Template.bind({})
