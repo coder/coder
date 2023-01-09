@@ -507,13 +507,11 @@ const docTemplate = `{
                 "operationId": "assign-role-to-organization-member",
                 "parameters": [
                     {
-                        "description": "Update roles request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateRoles"
-                        }
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
                     },
                     {
                         "type": "string",
@@ -523,11 +521,13 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "type": "string",
-                        "description": "Username, UUID, or me",
-                        "name": "user",
-                        "in": "path",
-                        "required": true
+                        "description": "Update roles request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateRoles"
+                        }
                     }
                 ],
                 "responses": {
@@ -2127,7 +2127,7 @@ const docTemplate = `{
             }
         },
         "/users/{user}": {
-            "delete": {
+            "get": {
                 "security": [
                     {
                         "CoderSessionToken": []
@@ -2156,6 +2156,78 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.User"
                         }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Delete user",
+                "operationId": "delete-user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.User"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{user}/password": {
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Update user password",
+                "operationId": "update-user-password",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update password request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateUserPasswordRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 }
             }
@@ -2190,6 +2262,84 @@ const docTemplate = `{
                         "required": true,
                         "schema": {
                             "$ref": "#/definitions/codersdk.UpdateUserProfileRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.User"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{user}/roles": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get user roles",
+                "operationId": "get-user-roles",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.User"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Assign role to user",
+                "operationId": "assign-role-to-user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update roles request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateRoles"
                         }
                     }
                 ],
@@ -4982,6 +5132,20 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "codersdk.UpdateUserPasswordRequest": {
+            "type": "object",
+            "required": [
+                "password"
+            ],
+            "properties": {
+                "old_password": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
                 }
             }
         },

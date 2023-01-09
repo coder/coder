@@ -3377,6 +3377,22 @@ Parameter represents a set value for the scope.
 | ------- | --------------- | -------- | ------------ | ----------- |
 | `roles` | array of string | false    |              |             |
 
+## codersdk.UpdateUserPasswordRequest
+
+```json
+{
+  "old_password": "string",
+  "password": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `old_password` | string | false    |              |             |
+| `password`     | string | true     |              |             |
+
 ## codersdk.UpdateUserProfileRequest
 
 ```json

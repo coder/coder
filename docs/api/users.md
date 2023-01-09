@@ -327,6 +327,56 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
+curl -X GET http://coder-server:8080/api/v2/users/{user} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /users/{user}`
+
+### Parameters
+
+| Name   | In   | Type   | Required | Description          |
+| ------ | ---- | ------ | -------- | -------------------- |
+| `user` | path | string | true     | User ID, name, or me |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "created_at": "2019-08-24T14:15:22Z",
+  "email": "user@example.com",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "last_seen_at": "2019-08-24T14:15:22Z",
+  "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+  "roles": [
+    {
+      "display_name": "string",
+      "name": "string"
+    }
+  ],
+  "status": "active",
+  "username": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                   |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.User](schemas.md#codersdkuser) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete user
+
+### Code samples
+
+```shell
+# Example request using curl
 curl -X DELETE http://coder-server:8080/api/v2/users/{user} \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
@@ -371,6 +421,43 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user} \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Update user password
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/users/{user}/password \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /users/{user}/password`
+
+> Body parameter
+
+```json
+{
+  "old_password": "string",
+  "password": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                               | Required | Description             |
+| ------ | ---- | ---------------------------------------------------------------------------------- | -------- | ----------------------- |
+| `user` | path | string                                                                             | true     | User ID, name, or me    |
+| `body` | body | [codersdk.UpdateUserPasswordRequest](schemas.md#codersdkupdateuserpasswordrequest) | true     | Update password request |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Update user profile
 
 ### Code samples
@@ -399,6 +486,116 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/profile \
 | ------ | ---- | -------------------------------------------------------------------------------- | -------- | -------------------- |
 | `user` | path | string                                                                           | true     | User ID, name, or me |
 | `body` | body | [codersdk.UpdateUserProfileRequest](schemas.md#codersdkupdateuserprofilerequest) | true     | Updated profile      |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "created_at": "2019-08-24T14:15:22Z",
+  "email": "user@example.com",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "last_seen_at": "2019-08-24T14:15:22Z",
+  "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+  "roles": [
+    {
+      "display_name": "string",
+      "name": "string"
+    }
+  ],
+  "status": "active",
+  "username": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                   |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.User](schemas.md#codersdkuser) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get user roles
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/users/{user}/roles \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /users/{user}/roles`
+
+### Parameters
+
+| Name   | In   | Type   | Required | Description          |
+| ------ | ---- | ------ | -------- | -------------------- |
+| `user` | path | string | true     | User ID, name, or me |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "created_at": "2019-08-24T14:15:22Z",
+  "email": "user@example.com",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "last_seen_at": "2019-08-24T14:15:22Z",
+  "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+  "roles": [
+    {
+      "display_name": "string",
+      "name": "string"
+    }
+  ],
+  "status": "active",
+  "username": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                   |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.User](schemas.md#codersdkuser) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Assign role to user
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/users/{user}/roles \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /users/{user}/roles`
+
+> Body parameter
+
+```json
+{
+  "roles": ["string"]
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                   | Required | Description          |
+| ------ | ---- | ------------------------------------------------------ | -------- | -------------------- |
+| `user` | path | string                                                 | true     | User ID, name, or me |
+| `body` | body | [codersdk.UpdateRoles](schemas.md#codersdkupdateroles) | true     | Update roles request |
 
 ### Example responses
 

@@ -410,7 +410,7 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
 // @Success 200 {object} codersdk.User
-// @Router /users/{user} [delete]
+// @Router /users/{user} [get]
 func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
@@ -614,6 +614,15 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 	}
 }
 
+// @Summary Update user password
+// @ID update-user-password
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Param request body codersdk.UpdateUserPasswordRequest true "Update password request"
+// @Success 204
+// @Router /users/{user}/password [put]
 func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -731,6 +740,14 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
 }
 
+// @Summary Get user roles
+// @ID get-user-roles
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Success 200 {object} codersdk.User
+// @Router /users/{user}/roles [get]
 func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
@@ -774,6 +791,16 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
+// @Summary Assign role to user
+// @ID assign-role-to-user
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Param request body codersdk.UpdateRoles true "Update roles request"
+// @Success 200 {object} codersdk.User
+// @Router /users/{user}/roles [put]
 func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx = r.Context()
