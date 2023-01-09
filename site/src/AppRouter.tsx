@@ -77,7 +77,10 @@ const GeneralSettingsPage = lazy(
     ),
 )
 const SecuritySettingsPage = lazy(
-  () => import("./pages/DeploySettingsPage/SecuritySettingsPage"),
+  () =>
+    import(
+      "./pages/DeploySettingsPage/SecuritySettingsPage/SecuritySettingsPage"
+    ),
 )
 const AppearanceSettingsPage = lazy(
   () =>
