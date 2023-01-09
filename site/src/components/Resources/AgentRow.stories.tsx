@@ -76,3 +76,11 @@ Timeout.args = {
   applicationsHost: "",
   showApps: true,
 }
+
+export const ShowingPortForward = Template.bind({})
+ShowingPortForward.args = {
+  agent: MockWorkspaceAgent,
+  workspace: MockWorkspace,
+  applicationsHost: "https://coder.com",
+  showApps: true,
+}
