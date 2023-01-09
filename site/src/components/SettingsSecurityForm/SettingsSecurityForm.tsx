@@ -77,7 +77,6 @@ export const SecurityForm: React.FC<SecurityFormProps> = ({
           )}
           <TextField
             {...getFieldHelpers("old_password")}
-            onChange={onChangeTrimmed(form)}
             autoComplete="old_password"
             fullWidth
             label={Language.oldPasswordLabel}
@@ -86,7 +85,6 @@ export const SecurityForm: React.FC<SecurityFormProps> = ({
           />
           <TextField
             {...getFieldHelpers("password")}
-            onChange={onChangeTrimmed(form)}
             autoComplete="password"
             fullWidth
             label={Language.newPasswordLabel}
@@ -95,7 +93,6 @@ export const SecurityForm: React.FC<SecurityFormProps> = ({
           />
           <TextField
             {...getFieldHelpers("confirm_password")}
-            onChange={onChangeTrimmed(form)}
             autoComplete="confirm_password"
             fullWidth
             label={Language.confirmPasswordLabel}
