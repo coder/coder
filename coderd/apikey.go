@@ -125,7 +125,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// We intentionally do not set the cookie on the response here.
-	// Setting the cookie will couple the browser sesion to the API
+	// Setting the cookie will couple the browser session to the API
 	// key we return here, meaning logging out of the website would
 	// invalid your CLI key.
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.GenerateAPIKeyResponse{Key: cookie.Value})
