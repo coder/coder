@@ -26,9 +26,10 @@ Open.args = {
   selectedRoles: [MockUserAdminRole, MockOwnerRole],
   defaultIsOpen: true,
 }
-Open.parameters = {
-  chromatic: { delay: 1500 },
-}
+Open.play = async () => {
+  //👇 This sets a timeout of 2s
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+};
 
 export const Loading = Template.bind({})
 Loading.args = {
