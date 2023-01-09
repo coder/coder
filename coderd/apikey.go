@@ -131,6 +131,15 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.GenerateAPIKeyResponse{Key: cookie.Value})
 }
 
+// @Summary Get API key
+// @ID get-user-tokens
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Param keyid path string true "Key ID" format(uuid)
+// @Success 200 {object} codersdk.APIKey
+// @Router /users/{user}/keys/{keyid} [get]
 func (api *API) apiKey(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx  = r.Context()
@@ -199,6 +208,15 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, apiKeys)
 }
 
+// @Summary Delete API key
+// @ID delete-user-tokens
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Param keyid path string true "Key ID" format(uuid)
+// @Success 204
+// @Router /users/{user}/keys/{keyid} [delete]
 func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx  = r.Context()

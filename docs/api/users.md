@@ -581,6 +581,79 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/keys/tokens \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get API key
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/{keyid} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /users/{user}/keys/{keyid}`
+
+### Parameters
+
+| Name    | In   | Type         | Required | Description          |
+| ------- | ---- | ------------ | -------- | -------------------- |
+| `user`  | path | string       | true     | User ID, name, or me |
+| `keyid` | path | string(uuid) | true     | Key ID               |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "expires_at": "2019-08-24T14:15:22Z",
+  "id": "string",
+  "last_used": "2019-08-24T14:15:22Z",
+  "lifetime_seconds": 0,
+  "login_type": "password",
+  "scope": "all",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                       |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.APIKey](schemas.md#codersdkapikey) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete API key
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/users/{user}/keys/{keyid} \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /users/{user}/keys/{keyid}`
+
+### Parameters
+
+| Name    | In   | Type         | Required | Description          |
+| ------- | ---- | ------------ | -------- | -------------------- |
+| `user`  | path | string       | true     | User ID, name, or me |
+| `keyid` | path | string(uuid) | true     | Key ID               |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Update user password
 
 ### Code samples
