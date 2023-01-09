@@ -370,6 +370,14 @@
           "path": "./api/parameters.md"
         },
         {
+          "title": "Users",
+          "path": "./api/users.md"
+        },
+        {
+          "title": "Authentication",
+          "path": "./api/authentication.md"
+        },
+        {
           "title": "Agents",
           "path": "./api/agents.md"
         },

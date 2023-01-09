@@ -28,6 +28,14 @@ import (
 )
 
 // Returns whether the initial user has been created or not.
+//
+// @Summary Check initial user created
+// @ID check-initial-user-created
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Success 200 {object} codersdk.Response
+// @Router /users/first [get]
 func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	userCount, err := api.Database.GetUserCount(ctx)
@@ -52,6 +60,16 @@ func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
 }
 
 // Creates the initial user for a Coder deployment.
+//
+// @Summary Create initial user
+// @ID create-initial-user
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Users
+// @Param request body codersdk.CreateFirstUserRequest true "First user request"
+// @Success 201 {object} codersdk.CreateFirstUserResponse
+// @Router /users/first [post]
 func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var createUser codersdk.CreateFirstUserRequest
@@ -852,6 +870,15 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 }
 
 // Authenticates the user with an email and password.
+//
+// @Summary Log in user
+// @ID log-in-user
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Authentication
+// @Param request body codersdk.LoginWithPasswordRequest true "Login request"
+// @Success 201 {object} codersdk.LoginWithPasswordResponse
+// @Router /users/login [post]
 func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var loginWithPassword codersdk.LoginWithPasswordRequest
