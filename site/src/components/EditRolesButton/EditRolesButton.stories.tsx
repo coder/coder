@@ -1,3 +1,4 @@
+import { within, waitFor } from '@storybook/testing-library';
 import { ComponentMeta, Story } from "@storybook/react"
 import {
   MockOwnerRole,
@@ -26,9 +27,16 @@ Open.args = {
   selectedRoles: [MockUserAdminRole, MockOwnerRole],
   defaultIsOpen: true,
 }
-Open.play = async () => {
-  //👇 This sets a timeout of 2s
-  await new Promise((resolve) => setTimeout(resolve, 2000));
+Open.play = async ({ canvasElement }) => {
+  // Assigns canvas to the component root element
+  const canvas = within(canvasElement);
+
+  //   Wait for the below assertion not throwing an error anymore (default timeout is 1000ms)
+  //👇 This is especially useful when you have an asynchronous action or component that you want to wait for
+  await waitFor(() => {
+    //👇 This assertion will pass if a DOM element with the matching id exists
+    expect(canvas.getByTitle("Available roles")).toBeInTheDocument();
+  });
 };
 
 export const Loading = Template.bind({})
