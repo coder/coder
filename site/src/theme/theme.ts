@@ -17,14 +17,14 @@ const makeTheme = (palette: PaletteOptions) => {
     props,
   })
 
+  theme.overrides = getOverrides(theme)
+
   // We want to disable transitions during chromatic snapshots
   // https://www.chromatic.com/docs/animations#javascript-animations
   // https://github.com/mui/material-ui/issues/10560#issuecomment-439147374
   if (isChromatic()) {
     theme.transitions.create = () => "none"
   }
-
-  theme.overrides = getOverrides(theme)
 
   return theme
 }
