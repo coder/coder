@@ -1935,6 +1935,66 @@
         }
       }
     },
+    "/users/{user}/status/activate": {
+      "put": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Users"],
+        "summary": "Activate user account",
+        "operationId": "activate-user-account",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "User ID, name, or me",
+            "name": "user",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/codersdk.User"
+            }
+          }
+        }
+      }
+    },
+    "/users/{user}/status/suspend": {
+      "put": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Users"],
+        "summary": "Suspend user account",
+        "operationId": "suspend-user-account",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "User ID, name, or me",
+            "name": "user",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/codersdk.User"
+            }
+          }
+        }
+      }
+    },
     "/users/{user}/workspace/{workspacename}": {
       "get": {
         "security": [

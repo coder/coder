@@ -430,3 +430,103 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/profile \
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.User](schemas.md#codersdkuser) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Activate user account
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/users/{user}/status/activate \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /users/{user}/status/activate`
+
+### Parameters
+
+| Name   | In   | Type   | Required | Description          |
+| ------ | ---- | ------ | -------- | -------------------- |
+| `user` | path | string | true     | User ID, name, or me |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "created_at": "2019-08-24T14:15:22Z",
+  "email": "user@example.com",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "last_seen_at": "2019-08-24T14:15:22Z",
+  "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+  "roles": [
+    {
+      "display_name": "string",
+      "name": "string"
+    }
+  ],
+  "status": "active",
+  "username": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                   |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.User](schemas.md#codersdkuser) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Suspend user account
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/users/{user}/status/suspend \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /users/{user}/status/suspend`
+
+### Parameters
+
+| Name   | In   | Type   | Required | Description          |
+| ------ | ---- | ------ | -------- | -------------------- |
+| `user` | path | string | true     | User ID, name, or me |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "created_at": "2019-08-24T14:15:22Z",
+  "email": "user@example.com",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "last_seen_at": "2019-08-24T14:15:22Z",
+  "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+  "roles": [
+    {
+      "display_name": "string",
+      "name": "string"
+    }
+  ],
+  "status": "active",
+  "username": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                   |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.User](schemas.md#codersdkuser) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).

@@ -521,6 +521,30 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, convertUser(updatedUserProfile, organizationIDs))
 }
 
+// @Summary Suspend user account
+// @ID suspend-user-account
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Success 200 {object} codersdk.User
+// @Router /users/{user}/status/suspend [put]
+func (api *API) putSuspendUserAccount() func(rw http.ResponseWriter, r *http.Request) {
+	return api.putUserStatus(database.UserStatusSuspended)
+}
+
+// @Summary Activate user account
+// @ID activate-user-account
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Success 200 {object} codersdk.User
+// @Router /users/{user}/status/activate [put]
+func (api *API) putActivateUserAccount() func(rw http.ResponseWriter, r *http.Request) {
+	return api.putUserStatus(database.UserStatusSuspended)
+}
+
 func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseWriter, r *http.Request) {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		var (
