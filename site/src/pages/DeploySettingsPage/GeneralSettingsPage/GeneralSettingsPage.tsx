@@ -1,10 +1,10 @@
 import { useDeploySettings } from "components/DeploySettingsLayout/DeploySettingsLayout"
-import React from "react"
+import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "util/page"
 import { GeneralSettingsPageView } from "./GeneralSettingsPageView"
 
-const GeneralSettingsPage: React.FC = () => {
+const GeneralSettingsPage: FC = () => {
   const { deploymentConfig: deploymentConfig } = useDeploySettings()
 
   return (

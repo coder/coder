@@ -122,6 +122,15 @@ rules:
   react/jsx-uses-react: "off"
   react/react-in-jsx-scope: "off"
   "unicorn/explicit-length-check": "error"
+  # https://github.com/jsx-eslint/eslint-plugin-react/issues/2628#issuecomment-984160944
+  no-restricted-syntax:
+    [
+      "error",
+      {
+        selector: "ImportDeclaration[source.value='react'][specifiers.0.type='ImportDefaultSpecifier']",
+        message: "Default React import not allowed",
+      },
+    ]
 settings:
   react:
     version: detect

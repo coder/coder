@@ -1,11 +1,11 @@
 import { shallowEqual, useActor, useSelector } from "@xstate/react"
 import { FeatureNames } from "api/types"
-import React, { useContext } from "react"
+import { useContext, FC } from "react"
 import { selectFeatureVisibility } from "xServices/entitlements/entitlementsSelectors"
 import { XServiceContext } from "../../xServices/StateContext"
 import { NavbarView } from "../NavbarView/NavbarView"
 
-export const Navbar: React.FC = () => {
+export const Navbar: FC = () => {
   const xServices = useContext(XServiceContext)
   const [appearanceState] = useActor(xServices.appearanceXService)
   const [authState, authSend] = useActor(xServices.authXService)

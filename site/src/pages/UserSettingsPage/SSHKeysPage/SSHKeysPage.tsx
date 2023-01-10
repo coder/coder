@@ -1,5 +1,5 @@
 import { useActor } from "@xstate/react"
-import React, { useContext, useEffect } from "react"
+import { useContext, useEffect, PropsWithChildren, FC } from "react"
 import { ConfirmDialog } from "../../../components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { Section } from "../../../components/Section/Section"
 import { XServiceContext } from "../../../xServices/StateContext"
@@ -23,7 +23,7 @@ export const Language = {
   cancelLabel: "Cancel",
 }
 
-export const SSHKeysPage: React.FC<React.PropsWithChildren<unknown>> = () => {
+export const SSHKeysPage: FC<PropsWithChildren<unknown>> = () => {
   const xServices = useContext(XServiceContext)
   const [authState, authSend] = useActor(xServices.authXService)
   const { sshKey, getSSHKeyError, regenerateSSHKeyError } = authState.context

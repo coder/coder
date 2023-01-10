@@ -1,10 +1,10 @@
 import { useDeploySettings } from "components/DeploySettingsLayout/DeploySettingsLayout"
-import React from "react"
+import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "util/page"
 import { NetworkSettingsPageView } from "./NetworkSettingsPageView"
 
-const NetworkSettingsPage: React.FC = () => {
+const NetworkSettingsPage: FC = () => {
   const { deploymentConfig: deploymentConfig } = useDeploySettings()
 
   return (

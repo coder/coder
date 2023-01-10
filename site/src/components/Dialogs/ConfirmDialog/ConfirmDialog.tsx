@@ -1,7 +1,7 @@
 import DialogActions from "@material-ui/core/DialogActions"
 import { alpha, makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
-import React, { ReactNode } from "react"
+import { ReactNode, FC, PropsWithChildren } from "react"
 import {
   Dialog,
   DialogActionButtons,
@@ -37,7 +37,7 @@ export interface ConfirmDialogProps
     DialogActionButtonsProps,
     "color" | "confirmDialog" | "onCancel"
   > {
-  readonly description?: React.ReactNode
+  readonly description?: ReactNode
   /**
    * hideCancel hides the cancel button when set true, and shows the cancel
    * button when set to false. When undefined:
@@ -88,9 +88,7 @@ const useStyles = makeStyles((theme) => ({
  * Quick-use version of the Dialog component with slightly alternative styles,
  * great to use for dialogs that don't have any interaction beyond yes / no.
  */
-export const ConfirmDialog: React.FC<
-  React.PropsWithChildren<ConfirmDialogProps>
-> = ({
+export const ConfirmDialog: FC<PropsWithChildren<ConfirmDialogProps>> = ({
   cancelText,
   confirmLoading,
   confirmText,
