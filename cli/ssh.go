@@ -256,7 +256,7 @@ func getWorkspaceAndAgent(ctx context.Context, cmd *cobra.Command, client *coder
 	)
 	if shuffle {
 		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			Owner: codersdk.Me,
+			Owner: userID,
 		})
 		if err != nil {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
