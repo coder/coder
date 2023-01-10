@@ -152,4 +152,28 @@ gh workflow run release.yaml \
 	-F snapshot=false \
 	"${args[@]}"
 
-log "Release process started, you can watch the release via: gh run watch --exit-status <run-id>"
+read -p "Watch release? (y/n)" -n 1 -r watch
+if ! [[ $watch =~ ^[Yy]$ ]]; then
+	exit 0
+fi
+
+log 'Waiting for job to become "in_progress"...'
+
+# Wait at most 3 minutes (3*60)/3 = 60 for the job to start.
+for _ in $(seq 1 60); do
+	mapfile -t run < <(
+		# 3886828508 in_progress
+		gh run list -w release.yaml \
+			--limit 1 \
+			--json status,databaseId \
+			--jq '.[] | (.databaseId | tostring) + " " + .status'
+	)
+	if [[ ${run[1]} != "in_progress" ]]; then
+		sleep 3
+		continue
+	fi
+	gh run watch --exit-status "${run[0]}"
+	exit 0
+done
+
+error "Waiting for job to start timed out."
