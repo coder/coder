@@ -2,7 +2,7 @@ import { Story } from "@storybook/react"
 import {
   MockWorkspace,
   MockWorkspaceAgent,
-} from "../../testHelpers/renderHelpers"
+} from "testHelpers/renderHelpers"
 import {
   VSCodeDesktopButton,
   VSCodeDesktopButtonProps,
