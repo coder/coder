@@ -3,13 +3,13 @@ import VpnKeyOutlined from "@material-ui/icons/VpnKeyOutlined"
 import { User } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
 import { UserAvatar } from "components/UserAvatar/UserAvatar"
-import React, { ElementType, PropsWithChildren, ReactNode } from "react"
+import { FC, ElementType, PropsWithChildren, ReactNode } from "react"
 import { NavLink } from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
 import AccountIcon from "@material-ui/icons/Person"
 import SecurityIcon from "@material-ui/icons/LockOutlined"
 
-const SidebarNavItem: React.FC<
+const SidebarNavItem: FC<
   PropsWithChildren<{ href: string; icon: ReactNode }>
 > = ({ children, href, icon }) => {
   const styles = useStyles()
