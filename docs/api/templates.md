@@ -155,29 +155,29 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 Status Code **200**
 
-| Name                                 | Type                              | Required | Restrictions | Description                                |
-| ------------------------------------ | --------------------------------- | -------- | ------------ | ------------------------------------------ |
-| `[array item]`                       | array                             | false    |              |                                            |
-| `» active_user_count`                | integer                           | false    |              | ActiveUserCount is set to -1 when loading. |
-| `» active_version_id`                | string                            | false    |              |                                            |
-| `» allow_user_cancel_workspace_jobs` | boolean                           | false    |              |                                            |
-| `» build_time_stats`                 | `codersdk.TemplateBuildTimeStats` | false    |              |                                            |
-| `»» [any property]`                  | `codersdk.TransitionStats`        | false    |              |                                            |
-| `»»» p50`                            | integer                           | false    |              |                                            |
-| `»»» p95`                            | integer                           | false    |              |                                            |
-| `» created_at`                       | string(date-time)                 | false    |              |                                            |
-| `» created_by_id`                    | string(uuid)                      | false    |              |                                            |
-| `» created_by_name`                  | string                            | false    |              |                                            |
-| `» default_ttl_ms`                   | integer                           | false    |              |                                            |
-| `» description`                      | string                            | false    |              |                                            |
-| `» display_name`                     | string                            | false    |              |                                            |
-| `» icon`                             | string                            | false    |              |                                            |
-| `» id`                               | string(uuid)                      | false    |              |                                            |
-| `» name`                             | string                            | false    |              |                                            |
-| `» organization_id`                  | string(uuid)                      | false    |              |                                            |
-| `» provisioner`                      | string                            | false    |              |                                            |
-| `» updated_at`                       | string(date-time)                 | false    |              |                                            |
-| `» workspace_owner_count`            | integer                           | false    |              |                                            |
+| Name                                 | Type                                                                         | Required | Restrictions | Description                                |
+| ------------------------------------ | ---------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------ |
+| `[array item]`                       | array                                                                        | false    |              |                                            |
+| `» active_user_count`                | integer                                                                      | false    |              | ActiveUserCount is set to -1 when loading. |
+| `» active_version_id`                | string                                                                       | false    |              |                                            |
+| `» allow_user_cancel_workspace_jobs` | boolean                                                                      | false    |              |                                            |
+| `» build_time_stats`                 | [codersdk.TemplateBuildTimeStats](schemas.md#codersdktemplatebuildtimestats) | false    |              |                                            |
+| `»» [any property]`                  | [codersdk.TransitionStats](schemas.md#codersdktransitionstats)               | false    |              |                                            |
+| `»»» p50`                            | integer                                                                      | false    |              |                                            |
+| `»»» p95`                            | integer                                                                      | false    |              |                                            |
+| `» created_at`                       | string(date-time)                                                            | false    |              |                                            |
+| `» created_by_id`                    | string(uuid)                                                                 | false    |              |                                            |
+| `» created_by_name`                  | string                                                                       | false    |              |                                            |
+| `» default_ttl_ms`                   | integer                                                                      | false    |              |                                            |
+| `» description`                      | string                                                                       | false    |              |                                            |
+| `» display_name`                     | string                                                                       | false    |              |                                            |
+| `» icon`                             | string                                                                       | false    |              |                                            |
+| `» id`                               | string(uuid)                                                                 | false    |              |                                            |
+| `» name`                             | string                                                                       | false    |              |                                            |
+| `» organization_id`                  | string(uuid)                                                                 | false    |              |                                            |
+| `» provisioner`                      | string                                                                       | false    |              |                                            |
+| `» updated_at`                       | string(date-time)                                                            | false    |              |                                            |
+| `» workspace_owner_count`            | integer                                                                      | false    |              |                                            |
 
 #### Enumerated Values
 
