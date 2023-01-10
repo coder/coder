@@ -72,7 +72,7 @@ provision:
       command -v coder >/dev/null 2>&1 && exit 0
       export DEBIAN_FRONTEND=noninteractive
       export HOME=/root
-      # Install some dependencies
+      # Using install.sh --with-terraform requires unzip to be available.
       apt-get install -qqy unzip
       curl -fsSL https://coder.com/install.sh | sh -s -- --with-terraform
       # Ensure Coder has permissions on /var/run/docker.socket
@@ -122,16 +122,6 @@ probes:
       set -eux -o pipefail
       if ! timeout 30s bash -c "until command -v coder >/dev/null 2>&1; do sleep 3; done"; then
         echo >&2 "coder is not installed yet"
-        exit 1
-      fi
-    hint: |
-      See "/var/log/cloud-init-output.log" in the guest.
-  - description: "terraform to be installed"
-    script: |
-      #!/bin/bash
-      set -eux -o pipefail
-      if ! timeout 30s bash -c "until command -v terraform >/dev/null 2>&1; do sleep 3; done"; then
-        echo >&2 "terraform is not installed yet"
         exit 1
       fi
     hint: |
