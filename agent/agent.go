@@ -304,7 +304,9 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 			if err != nil {
 				return
 			}
-			go a.sshServer.HandleConn(conn)
+			_ = a.trackConnGoroutine(func() {
+				a.sshServer.HandleConn(conn)
+			})
 		}
 	}); err != nil {
 		return nil, err
