@@ -299,21 +299,21 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 		}
 	}()
 	if err = a.trackConnGoroutine(func() {
-		select {
-		case <-network.Closed():
-		case <-a.closed:
-		}
-		_ = sshListener.Close()
-	}); err != nil {
-		return nil, err
-	}
-	if err = a.trackConnGoroutine(func() {
 		for {
 			conn, err := sshListener.Accept()
 			if err != nil {
 				return
 			}
+			closed := make(chan struct{})
 			_ = a.trackConnGoroutine(func() {
+				select {
+				case <-network.Closed():
+				case <-closed:
+				}
+				_ = conn.Close()
+			})
+			_ = a.trackConnGoroutine(func() {
+				defer close(closed)
 				a.sshServer.HandleConn(conn)
 			})
 		}
