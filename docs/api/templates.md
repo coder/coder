@@ -75,7 +75,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization-id}/tem
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "provisioner": "string",
+  "provisioner": "terraform",
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_owner_count": 0
 }
@@ -138,7 +138,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-    "provisioner": "string",
+    "provisioner": "terraform",
     "updated_at": "2019-08-24T14:15:22Z",
     "workspace_owner_count": 0
   }
@@ -155,29 +155,35 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 Status Code **200**
 
-| Name                                 | Type                              | Required | Restrictions | Description                                |
-| ------------------------------------ | --------------------------------- | -------- | ------------ | ------------------------------------------ |
-| `[array item]`                       | array                             | false    |              |                                            |
-| `» active_user_count`                | integer                           | false    |              | ActiveUserCount is set to -1 when loading. |
-| `» active_version_id`                | string                            | false    |              |                                            |
-| `» allow_user_cancel_workspace_jobs` | boolean                           | false    |              |                                            |
-| `» build_time_stats`                 | `codersdk.TemplateBuildTimeStats` | false    |              |                                            |
-| `»» [any property]`                  | `codersdk.TransitionStats`        | false    |              |                                            |
-| `»»» p50`                            | integer                           | false    |              |                                            |
-| `»»» p95`                            | integer                           | false    |              |                                            |
-| `» created_at`                       | string(date-time)                 | false    |              |                                            |
-| `» created_by_id`                    | string(uuid)                      | false    |              |                                            |
-| `» created_by_name`                  | string                            | false    |              |                                            |
-| `» default_ttl_ms`                   | integer                           | false    |              |                                            |
-| `» description`                      | string                            | false    |              |                                            |
-| `» display_name`                     | string                            | false    |              |                                            |
-| `» icon`                             | string                            | false    |              |                                            |
-| `» id`                               | string(uuid)                      | false    |              |                                            |
-| `» name`                             | string                            | false    |              |                                            |
-| `» organization_id`                  | string(uuid)                      | false    |              |                                            |
-| `» provisioner`                      | string                            | false    |              |                                            |
-| `» updated_at`                       | string(date-time)                 | false    |              |                                            |
-| `» workspace_owner_count`            | integer                           | false    |              |                                            |
+| Name                                 | Type                                                                         | Required | Restrictions | Description                                |
+| ------------------------------------ | ---------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------ |
+| `[array item]`                       | array                                                                        | false    |              |                                            |
+| `» active_user_count`                | integer                                                                      | false    |              | ActiveUserCount is set to -1 when loading. |
+| `» active_version_id`                | string                                                                       | false    |              |                                            |
+| `» allow_user_cancel_workspace_jobs` | boolean                                                                      | false    |              |                                            |
+| `» build_time_stats`                 | [codersdk.TemplateBuildTimeStats](schemas.md#codersdktemplatebuildtimestats) | false    |              |                                            |
+| `»» [any property]`                  | [codersdk.TransitionStats](schemas.md#codersdktransitionstats)               | false    |              |                                            |
+| `»»» p50`                            | integer                                                                      | false    |              |                                            |
+| `»»» p95`                            | integer                                                                      | false    |              |                                            |
+| `» created_at`                       | string(date-time)                                                            | false    |              |                                            |
+| `» created_by_id`                    | string(uuid)                                                                 | false    |              |                                            |
+| `» created_by_name`                  | string                                                                       | false    |              |                                            |
+| `» default_ttl_ms`                   | integer                                                                      | false    |              |                                            |
+| `» description`                      | string                                                                       | false    |              |                                            |
+| `» display_name`                     | string                                                                       | false    |              |                                            |
+| `» icon`                             | string                                                                       | false    |              |                                            |
+| `» id`                               | string(uuid)                                                                 | false    |              |                                            |
+| `» name`                             | string                                                                       | false    |              |                                            |
+| `» organization_id`                  | string(uuid)                                                                 | false    |              |                                            |
+| `» provisioner`                      | string                                                                       | false    |              |                                            |
+| `» updated_at`                       | string(date-time)                                                            | false    |              |                                            |
+| `» workspace_owner_count`            | integer                                                                      | false    |              |                                            |
+
+#### Enumerated Values
+
+| Property      | Value       |
+| ------------- | ----------- |
+| `provisioner` | `terraform` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -230,7 +236,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "provisioner": "string",
+  "provisioner": "terraform",
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_owner_count": 0
 }
@@ -292,7 +298,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{id} \
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "provisioner": "string",
+  "provisioner": "terraform",
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_owner_count": 0
 }
@@ -398,7 +404,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{id} \
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "provisioner": "string",
+  "provisioner": "terraform",
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_owner_count": 0
 }

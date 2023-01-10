@@ -32,7 +32,7 @@ curl -X GET http://coder-server:8080/api/v2/audit?q=string \
 {
   "audit_logs": [
     {
-      "action": "string",
+      "action": "create",
       "additional_fields": [0],
       "description": "string",
       "diff": {
@@ -48,7 +48,7 @@ curl -X GET http://coder-server:8080/api/v2/audit?q=string \
         }
       },
       "id": "string",
-      "ip": {},
+      "ip": "string",
       "is_deleted": true,
       "organization_id": "string",
       "request_id": "string",
@@ -56,7 +56,7 @@ curl -X GET http://coder-server:8080/api/v2/audit?q=string \
       "resource_id": "string",
       "resource_link": "string",
       "resource_target": "string",
-      "resource_type": "string",
+      "resource_type": "organization",
       "status_code": 0,
       "time": "string",
       "user": {
@@ -72,7 +72,7 @@ curl -X GET http://coder-server:8080/api/v2/audit?q=string \
             "name": "string"
           }
         ],
-        "status": "string",
+        "status": "active",
         "username": "string"
       },
       "user_agent": "string"

@@ -160,8 +160,8 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/app-health \
 ```json
 {
   "healths": {
-    "property1": "string",
-    "property2": "string"
+    "property1": "disabled",
+    "property2": "disabled"
   }
 }
 ```
@@ -299,7 +299,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/metadata \
       "command": "string",
       "display_name": "string",
       "external": true,
-      "health": "string",
+      "health": "disabled",
       "healthcheck": {
         "interval": 0,
         "threshold": 0,
