@@ -129,17 +129,6 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
     "usage": "string",
     "value": -9223372036854776000
   },
-  "api_rate_limit": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
   "audit_logging": {
     "default": true,
     "enterprise": true,
@@ -665,6 +654,30 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
     "shorthand": "string",
     "usage": "string",
     "value": ["string"]
+  },
+  "rate_limit": {
+    "api": {
+      "default": 0,
+      "enterprise": true,
+      "flag": "string",
+      "hidden": true,
+      "name": "string",
+      "secret": true,
+      "shorthand": "string",
+      "usage": "string",
+      "value": 0
+    },
+    "disable_all": {
+      "default": true,
+      "enterprise": true,
+      "flag": "string",
+      "hidden": true,
+      "name": "string",
+      "secret": true,
+      "shorthand": "string",
+      "usage": "string",
+      "value": true
+    }
   },
   "scim_api_key": {
     "default": "string",

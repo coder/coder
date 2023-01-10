@@ -2387,9 +2387,6 @@ const docTemplate = `{
                 "agent_stat_refresh_interval": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-time_Duration"
                 },
-                "api_rate_limit": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-int"
-                },
                 "audit_logging": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
                 },
@@ -2446,6 +2443,9 @@ const docTemplate = `{
                 },
                 "proxy_trusted_origins": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
+                },
+                "rate_limit": {
+                    "$ref": "#/definitions/codersdk.RateLimitConfig"
                 },
                 "scim_api_key": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
@@ -3130,6 +3130,17 @@ const docTemplate = `{
             "properties": {
                 "deadline": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.RateLimitConfig": {
+            "type": "object",
+            "properties": {
+                "api": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-int"
+                },
+                "disable_all": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
                 }
             }
         },
