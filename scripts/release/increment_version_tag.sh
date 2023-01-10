@@ -122,6 +122,5 @@ new_version="v${version_parts[0]}.${version_parts[1]}.${version_parts[2]}"
 log "Old version: $old_version"
 log "New version: $new_version"
 maybedryrun "$dry_run" git tag -a "$new_version" -m "Release $new_version" "$ref"
-maybedryrun "$dry_run" git push --quiet origin "$new_version"
 
 echo "$new_version"

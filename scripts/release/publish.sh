@@ -134,6 +134,9 @@ popd
 log
 log
 
+log "Pushing git tag"
+maybedryrun "$dry_run" git push --quiet origin "$new_tag"
+
 args=()
 if ((draft)); then
 	args+=(--draft)
