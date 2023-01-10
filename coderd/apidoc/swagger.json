@@ -2788,11 +2788,6 @@
         "ProvisionerJobFailed"
       ]
     },
-    "codersdk.ProvisionerType": {
-      "type": "string",
-      "enum": ["echo", "terraform"],
-      "x-enum-varnames": ["ProvisionerTypeEcho", "ProvisionerTypeTerraform"]
-    },
     "codersdk.PutExtendWorkspaceRequest": {
       "type": "object",
       "required": ["deadline"],
@@ -2977,7 +2972,8 @@
           "format": "uuid"
         },
         "provisioner": {
-          "$ref": "#/definitions/codersdk.ProvisionerType"
+          "type": "string",
+          "enum": ["terraform"]
         },
         "updated_at": {
           "type": "string",

@@ -3107,17 +3107,6 @@ const docTemplate = `{
                 "ProvisionerJobFailed"
             ]
         },
-        "codersdk.ProvisionerType": {
-            "type": "string",
-            "enum": [
-                "echo",
-                "terraform"
-            ],
-            "x-enum-varnames": [
-                "ProvisionerTypeEcho",
-                "ProvisionerTypeTerraform"
-            ]
-        },
         "codersdk.PutExtendWorkspaceRequest": {
             "type": "object",
             "required": [
@@ -3304,7 +3293,10 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "provisioner": {
-                    "$ref": "#/definitions/codersdk.ProvisionerType"
+                    "type": "string",
+                    "enum": [
+                        "terraform"
+                    ]
                 },
                 "updated_at": {
                     "type": "string",
