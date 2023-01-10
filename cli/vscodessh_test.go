@@ -56,7 +56,9 @@ func TestVSCodeSSH(t *testing.T) {
 	go func() {
 		//nolint // The above seems reasonable for a one-off test.
 		err := cmd.ExecuteContext(context.WithValue(ctx, "fs", fs))
-		assert.NoError(t, err)
+		if err != nil {
+			assert.ErrorIs(t, err, context.Canceled)
+		}
 		close(done)
 	}()
 	require.Eventually(t, func() bool {
