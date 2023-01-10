@@ -118,9 +118,9 @@ source "$SCRIPT_DIR/release/check_commit_metadata.sh" "$old_version" "$ref"
 new_version="$(execrelative ./release/tag_version.sh --dry-run --ref "$ref" --"$increment")"
 release_notes="$(execrelative ./release/generate_release_notes.sh --old-version "$old_version" --new-version "$new_version" --ref "$ref")"
 
-echo
+log
 read -p "Preview release notes? (y/n) " -n 1 -r show_reply
-echo
+log
 if [[ $show_reply =~ ^[Yy]$ ]]; then
 	echo -e "$release_notes\n"
 fi
@@ -133,7 +133,7 @@ if ((dry_run)); then
 	create_message+=" (DRYRUN)"
 fi
 read -p "$create_message? (y/n) " -n 1 -r create
-echo
+log
 if ! [[ $create =~ ^[Yy]$ ]]; then
 	exit 0
 fi
@@ -146,13 +146,16 @@ if ((dry_run)); then
 	args+=(-F dry_run=true)
 fi
 
+log
 gh workflow run release.yaml \
 	--ref "$branch" \
 	-F increment="$increment" \
 	-F snapshot=false \
 	"${args[@]}"
+log
 
-read -p "Watch release? (y/n)" -n 1 -r watch
+read -p "Watch release? (y/n) " -n 1 -r watch
+log
 if ! [[ $watch =~ ^[Yy]$ ]]; then
 	exit 0
 fi
