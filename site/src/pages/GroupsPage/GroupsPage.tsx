@@ -2,13 +2,13 @@ import { useMachine } from "@xstate/react"
 import { useFeatureVisibility } from "hooks/useFeatureVisibility"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import { usePermissions } from "hooks/usePermissions"
-import React from "react"
+import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "util/page"
 import { groupsMachine } from "xServices/groups/groupsXService"
 import GroupsPageView from "./GroupsPageView"
 
-export const GroupsPage: React.FC = () => {
+export const GroupsPage: FC = () => {
   const organizationId = useOrganizationId()
   const [state] = useMachine(groupsMachine, {
     context: {

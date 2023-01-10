@@ -1,13 +1,13 @@
 import { useMachine } from "@xstate/react"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import { usePermissions } from "hooks/usePermissions"
-import React from "react"
+import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "../../util/page"
 import { templatesMachine } from "../../xServices/templates/templatesXService"
 import { TemplatesPageView } from "./TemplatesPageView"
 
-export const TemplatesPage: React.FC = () => {
+export const TemplatesPage: FC = () => {
   const organizationId = useOrganizationId()
   const permissions = usePermissions()
   const [templatesState] = useMachine(templatesMachine, {

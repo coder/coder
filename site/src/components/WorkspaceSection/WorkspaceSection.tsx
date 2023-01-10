@@ -1,7 +1,7 @@
 import Paper from "@material-ui/core/Paper"
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
-import React, { HTMLProps } from "react"
+import { HTMLProps, ReactNode, FC, PropsWithChildren } from "react"
 import { CardPadding } from "../../theme/constants"
 import { combineClasses } from "../../util/combineClasses"
 
@@ -9,14 +9,17 @@ export interface WorkspaceSectionProps {
   /**
    * action appears in the top right of the section card
    */
-  action?: React.ReactNode
+  action?: ReactNode
   contentsProps?: HTMLProps<HTMLDivElement>
   title?: string | JSX.Element
 }
 
-export const WorkspaceSection: React.FC<
-  React.PropsWithChildren<WorkspaceSectionProps>
-> = ({ action, children, contentsProps, title }) => {
+export const WorkspaceSection: FC<PropsWithChildren<WorkspaceSectionProps>> = ({
+  action,
+  children,
+  contentsProps,
+  title,
+}) => {
   const styles = useStyles()
 
   return (

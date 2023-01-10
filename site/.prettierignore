@@ -26,7 +26,10 @@ yarn-error.log
 build-storybook.log
 coverage/
 storybook-static/
-test-results/
+test-results/*
+e2e/test-results/*
+e2e/storageState.json
+playwright-report/*
 
 # Make target for updating golden files.
 ../cli/testdata/.gen-golden

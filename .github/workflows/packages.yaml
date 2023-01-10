@@ -27,7 +27,7 @@ jobs:
           echo "Installer URL: $installer_url"
 
           # The package version is the same as the tag minus the leading "v".
-          $version = $env:CODER_VERSION -replace "^v", ""
+          $version = $env:CODER_VERSION.Trim('v')
 
           echo "Package version: $version"
 

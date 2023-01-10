@@ -3,19 +3,19 @@
   "form": {
     "generalInfo": {
       "title": "General info",
-      "description": "The name is used to identify the template on the URL and also API. It has to be unique across your organization."
+      "description": "The name is used to identify the template in URLs and the API. It must be unique within your organization."
     },
     "displayInfo": {
       "title": "Display info",
-      "description": "Set the name that you want to use to display your template, a helpful description and icon."
+      "description": "Give your template a friendly name, description, and icon."
     },
     "schedule": {
       "title": "Schedule",
-      "description": "Define when a workspace created from this template is going to stop."
+      "description": "Define when workspaces created from this template automatically stop."
     },
     "operations": {
       "title": "Operations",
-      "description": "Allow or disallow users to run specific actions on the workspace."
+      "description": "Regulate actions allowed on workspaces created from this template."
     },
     "parameters": {
       "title": "Template params",
@@ -31,7 +31,7 @@
     },
     "helperText": {
       "autoStop": "Time in hours",
-      "allowUsersToCancel": "Not recommended"
+      "allowUsersToCancel": "If checked, users may be able to corrupt their workspace."
     },
     "upload": {
       "removeTitle": "Remove file",

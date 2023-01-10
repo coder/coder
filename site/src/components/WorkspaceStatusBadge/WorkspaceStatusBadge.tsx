@@ -5,10 +5,10 @@ import PlayIcon from "@material-ui/icons/PlayArrowOutlined"
 import { WorkspaceBuild } from "api/typesGenerated"
 import { Pill } from "components/Pill/Pill"
 import i18next from "i18next"
-import React from "react"
+import { FC, ReactNode, PropsWithChildren } from "react"
 import { PaletteIndex } from "theme/palettes"
 
-const LoadingIcon: React.FC = () => {
+const LoadingIcon: FC = () => {
   return <CircularProgress size={10} style={{ color: "#FFF" }} />
 }
 
@@ -17,7 +17,7 @@ export const getStatus = (
 ): {
   type?: PaletteIndex
   text: string
-  icon: React.ReactNode
+  icon: ReactNode
 } => {
   const { t } = i18next
 
@@ -95,8 +95,8 @@ export type WorkspaceStatusBadgeProps = {
   className?: string
 }
 
-export const WorkspaceStatusBadge: React.FC<
-  React.PropsWithChildren<WorkspaceStatusBadgeProps>
+export const WorkspaceStatusBadge: FC<
+  PropsWithChildren<WorkspaceStatusBadgeProps>
 > = ({ build, className }) => {
   const { text, icon, type } = getStatus(build)
   return <Pill className={className} icon={icon} text={text} type={type} />
