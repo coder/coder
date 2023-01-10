@@ -36,4 +36,5 @@ test("Basic flow", async ({ baseURL, page }) => {
   // start workspace
   await page.waitForSelector("text=Stopped")
   await clickButton(page, buttons.startWorkspace)
+  await page.waitForSelector("text=Started")
 })
