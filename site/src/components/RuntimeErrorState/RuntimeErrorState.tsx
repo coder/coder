@@ -2,7 +2,7 @@ import Box from "@material-ui/core/Box"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import ErrorOutlineIcon from "@material-ui/icons/ErrorOutline"
-import React, { useEffect, useReducer } from "react"
+import { useEffect, useReducer, FC } from "react"
 import { mapStackTrace } from "sourcemapped-stacktrace"
 import { Margins } from "../Margins/Margins"
 import { Section } from "../Section/Section"
@@ -61,9 +61,7 @@ const ErrorStateDescription = ({ emailBody }: { emailBody?: string }) => {
 /**
  * An error UI that is displayed when our error boundary (ErrorBoundary.tsx) is triggered
  */
-export const RuntimeErrorState: React.FC<RuntimeErrorStateProps> = ({
-  error,
-}) => {
+export const RuntimeErrorState: FC<RuntimeErrorStateProps> = ({ error }) => {
   const styles = useStyles()
   const [reportState, dispatch] = useReducer(reducer, {
     error,

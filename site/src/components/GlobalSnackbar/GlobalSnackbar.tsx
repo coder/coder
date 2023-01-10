@@ -1,5 +1,5 @@
 import { makeStyles } from "@material-ui/core/styles"
-import React, { useCallback, useState } from "react"
+import { useCallback, useState, FC } from "react"
 import { useCustomEvent } from "../../hooks/events"
 import { CustomEventListener } from "../../util/events"
 import { EnterpriseSnackbar } from "../EnterpriseSnackbar/EnterpriseSnackbar"
@@ -25,7 +25,7 @@ const variantFromMsgType = (type: MsgType) => {
   }
 }
 
-export const GlobalSnackbar: React.FC = () => {
+export const GlobalSnackbar: FC = () => {
   const styles = useStyles()
   const [open, setOpen] = useState<boolean>(false)
   const [notification, setNotification] = useState<NotificationMsg>()

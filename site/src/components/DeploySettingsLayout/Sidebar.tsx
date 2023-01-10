@@ -6,11 +6,11 @@ import Globe from "@material-ui/icons/PublicOutlined"
 import VpnKeyOutlined from "@material-ui/icons/VpnKeyOutlined"
 import { GitIcon } from "components/Icons/GitIcon"
 import { Stack } from "components/Stack/Stack"
-import React, { ElementType, PropsWithChildren, ReactNode } from "react"
+import { ElementType, PropsWithChildren, ReactNode, FC } from "react"
 import { NavLink } from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
 
-const SidebarNavItem: React.FC<
+const SidebarNavItem: FC<
   PropsWithChildren<{ href: string; icon: ReactNode }>
 > = ({ children, href, icon }) => {
   const styles = useStyles()
@@ -32,9 +32,7 @@ const SidebarNavItem: React.FC<
   )
 }
 
-const SidebarNavItemIcon: React.FC<{ icon: ElementType }> = ({
-  icon: Icon,
-}) => {
+const SidebarNavItemIcon: FC<{ icon: ElementType }> = ({ icon: Icon }) => {
   const styles = useStyles()
   return <Icon className={styles.sidebarNavItemIcon} />
 }

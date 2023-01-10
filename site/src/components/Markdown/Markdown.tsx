@@ -6,7 +6,7 @@ import TableCell from "@material-ui/core/TableCell"
 import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
-import React, { FC } from "react"
+import { FC, memo } from "react"
 import ReactMarkdown from "react-markdown"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import gfm from "remark-gfm"
@@ -98,7 +98,7 @@ export const Markdown: FC<{ children: string }> = ({ children }) => {
   )
 }
 
-export const MemoizedMarkdown = React.memo(Markdown)
+export const MemoizedMarkdown = memo(Markdown)
 
 const useStyles = makeStyles((theme) => ({
   markdown: {
