@@ -2042,7 +2042,7 @@ const docTemplate = `{
                     ]
                 },
                 "object": {
-                    "description": "Object can represent a \"set\" of objects, such as:\n\t- All workspaces in an organization\n\t- All workspaces owned by me\n\t- All workspaces across the entire product\nWhen defining an object, use the most specific language when possible to\nproduce the smallest set. Meaning to set as many fields on 'Object' as\nyou can. Example, if you want to check if you can update all workspaces\nowned by 'me', try to also add an 'OrganizationID' to the settings.\nOmitting the 'OrganizationID' could produce the incorrect value, as\nworkspaces have both ` + "`" + `user` + "`" + ` and ` + "`" + `organization` + "`" + ` owners.",
+                    "description": "Object can represent a \"set\" of objects, such as: all workspaces in an organization, all workspaces owned by me, and all workspaces across the entire product.\nWhen defining an object, use the most specific language when possible to\nproduce the smallest set. Meaning to set as many fields on 'Object' as\nyou can. Example, if you want to check if you can update all workspaces\nowned by 'me', try to also add an 'OrganizationID' to the settings.\nOmitting the 'OrganizationID' could produce the incorrect value, as\nworkspaces have both ` + "`" + `user` + "`" + ` and ` + "`" + `organization` + "`" + ` owners.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.AuthorizationObject"
