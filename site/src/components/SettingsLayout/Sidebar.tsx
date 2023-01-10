@@ -1,14 +1,13 @@
 import { makeStyles } from "@material-ui/core/styles"
-import Brush from "@material-ui/icons/Brush"
-import LaunchOutlined from "@material-ui/icons/LaunchOutlined"
-import LockRounded from "@material-ui/icons/LockOutlined"
-import Globe from "@material-ui/icons/PublicOutlined"
 import VpnKeyOutlined from "@material-ui/icons/VpnKeyOutlined"
-import { GitIcon } from "components/Icons/GitIcon"
+import { User } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
-import { ElementType, PropsWithChildren, ReactNode, FC } from "react"
+import { UserAvatar } from "components/UserAvatar/UserAvatar"
+import { FC, ElementType, PropsWithChildren, ReactNode } from "react"
 import { NavLink } from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
+import AccountIcon from "@material-ui/icons/Person"
+import SecurityIcon from "@material-ui/icons/LockOutlined"
 
 const SidebarNavItem: FC<
   PropsWithChildren<{ href: string; icon: ReactNode }>
@@ -32,51 +31,43 @@ const SidebarNavItem: FC<
   )
 }
 
-const SidebarNavItemIcon: FC<{ icon: ElementType }> = ({ icon: Icon }) => {
+const SidebarNavItemIcon: React.FC<{ icon: ElementType }> = ({
+  icon: Icon,
+}) => {
   const styles = useStyles()
   return <Icon className={styles.sidebarNavItemIcon} />
 }
 
-export const Sidebar: React.FC = () => {
+export const Sidebar: React.FC<{ user: User }> = ({ user }) => {
   const styles = useStyles()
 
   return (
     <nav className={styles.sidebar}>
+      <Stack direction="row" alignItems="center" className={styles.userInfo}>
+        <UserAvatar username={user.username} avatarURL={user.avatar_url} />
+        <Stack spacing={0} className={styles.userData}>
+          <span className={styles.username}>{user.username}</span>
+          <span className={styles.email}>{user.email}</span>
+        </Stack>
+      </Stack>
+
       <SidebarNavItem
-        href="../general"
-        icon={<SidebarNavItemIcon icon={LaunchOutlined} />}
+        href="../account"
+        icon={<SidebarNavItemIcon icon={AccountIcon} />}
       >
-        General
-      </SidebarNavItem>
-      <SidebarNavItem
-        href="../appearance"
-        icon={<SidebarNavItemIcon icon={Brush} />}
-      >
-        Appearance
-      </SidebarNavItem>
-      <SidebarNavItem
-        href="../userauth"
-        icon={<SidebarNavItemIcon icon={VpnKeyOutlined} />}
-      >
-        User Authentication
-      </SidebarNavItem>
-      <SidebarNavItem
-        href="../gitauth"
-        icon={<SidebarNavItemIcon icon={GitIcon} />}
-      >
-        Git Authentication
-      </SidebarNavItem>
-      <SidebarNavItem
-        href="../network"
-        icon={<SidebarNavItemIcon icon={Globe} />}
-      >
-        Network
+        Account
       </SidebarNavItem>
       <SidebarNavItem
         href="../security"
-        icon={<SidebarNavItemIcon icon={LockRounded} />}
+        icon={<SidebarNavItemIcon icon={SecurityIcon} />}
       >
         Security
+      </SidebarNavItem>
+      <SidebarNavItem
+        href="../ssh-keys"
+        icon={<SidebarNavItemIcon icon={VpnKeyOutlined} />}
+      >
+        SSH Keys
       </SidebarNavItem>
     </nav>
   )
@@ -85,8 +76,8 @@ export const Sidebar: React.FC = () => {
 const useStyles = makeStyles((theme) => ({
   sidebar: {
     width: 245,
+    flexShrink: 0,
   },
-
   sidebarNavItem: {
     color: "inherit",
     display: "block",
@@ -102,7 +93,6 @@ const useStyles = makeStyles((theme) => ({
       backgroundColor: theme.palette.action.hover,
     },
   },
-
   sidebarNavItemActive: {
     backgroundColor: theme.palette.action.hover,
 
@@ -119,9 +109,25 @@ const useStyles = makeStyles((theme) => ({
       borderBottomLeftRadius: theme.shape.borderRadius,
     },
   },
-
   sidebarNavItemIcon: {
     width: theme.spacing(2),
     height: theme.spacing(2),
+  },
+  userInfo: {
+    marginBottom: theme.spacing(2),
+  },
+  userData: {
+    overflow: "hidden",
+  },
+  username: {
+    fontWeight: 600,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  email: {
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
 }))

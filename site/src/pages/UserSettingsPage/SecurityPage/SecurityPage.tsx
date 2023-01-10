@@ -2,7 +2,7 @@ import { useMachine } from "@xstate/react"
 import { useMe } from "hooks/useMe"
 import { FC } from "react"
 import { userSecuritySettingsMachine } from "xServices/userSecuritySettings/userSecuritySettingsXService"
-import { Section } from "../../../components/Section/Section"
+import { Section } from "../../../components/SettingsLayout/Section"
 import { SecurityForm } from "../../../components/SettingsSecurityForm/SettingsSecurityForm"
 
 export const Language = {
@@ -22,7 +22,7 @@ export const SecurityPage: FC = () => {
   const { error } = securityState.context
 
   return (
-    <Section title={Language.title}>
+    <Section title={Language.title} description="Update your account password">
       <SecurityForm
         updateSecurityError={error}
         isLoading={securityState.matches("updatingSecurity")}

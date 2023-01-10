@@ -1,6 +1,6 @@
 import { useActor } from "@xstate/react"
-import { useContext, FC } from "react"
-import { Section } from "../../../components/Section/Section"
+import { FC, useContext } from "react"
+import { Section } from "../../../components/SettingsLayout/Section"
 import { AccountForm } from "../../../components/SettingsAccountForm/SettingsAccountForm"
 import { XServiceContext } from "../../../xServices/StateContext"
 
@@ -19,7 +19,7 @@ export const AccountPage: FC = () => {
   }
 
   return (
-    <Section title={Language.title}>
+    <Section title={Language.title} description="Update your account info">
       <AccountForm
         editable={Boolean(canEditUsers)}
         email={me.email}
