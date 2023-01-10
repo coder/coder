@@ -115,7 +115,7 @@ old_version=${versions[0]}
 # shellcheck source=scripts/release/check_commit_metadata.sh
 source "$SCRIPT_DIR/release/check_commit_metadata.sh" "$old_version" "$ref"
 
-new_version="$(execrelative ./release/increment_version_tag.sh --dry-run --ref "$ref" --"$increment")"
+new_version="$(execrelative ./release/tag_version.sh --dry-run --ref "$ref" --"$increment")"
 release_notes="$(execrelative ./release/generate_release_notes.sh --old-version "$old_version" --new-version "$new_version" --ref "$ref")"
 
 echo

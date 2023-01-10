@@ -129,7 +129,7 @@ jobs:
 
           # Create new release tag.
           version="$(
-            ./scripts/release/increment_version_tag.sh \
+            ./scripts/release/tag_version.sh \
               ${{ (github.event.inputs.dry_run || github.event.inputs.snapshot) && '--dry-run' }} \
               --ref "$ref" \
               --${{ github.event.inputs.increment }}

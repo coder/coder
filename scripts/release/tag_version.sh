@@ -7,7 +7,7 @@ cdroot
 
 usage() {
 	cat <<EOH
-Usage: ./increment_version_tag.sh [--dry-run] [--ref <ref>] <--major | --minor | --patch>
+Usage: ./version_tag.sh [--dry-run] [--ref <ref>] <--major | --minor | --patch>
 
 This script should be called to tag a new release. It will take the suggested
 increment (major, minor, patch) and optionally promote e.g. patch -> minor if
