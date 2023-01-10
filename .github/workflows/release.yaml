@@ -35,6 +35,7 @@ permissions:
 
 env:
   CODER_RELEASE: ${{ github.event.inputs.snapshot && 'false' || 'true' }}
+  DRY_RUN: ${{ (github.event.inputs.dry_run || github.event.inputs.snapshot) && 'true' || 'false' }}
 
 jobs:
   release:
@@ -114,6 +115,11 @@ jobs:
         run: |
           ref=HEAD
           old_version="$(git describe --abbrev=0 "$ref^1")"
+
+          if [[ $DRY_RUN == true ]]; then
+            # Allow dry-run of branches to pass.
+            export CODER_IGNORE_MISSING_COMMIT_METADATA=1
+          fi
 
           # Cache commit metadata.
           . ./scripts/release/check_commit_metadata.sh "$old_version" "$ref"
