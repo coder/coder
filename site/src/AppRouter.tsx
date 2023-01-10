@@ -71,22 +71,40 @@ const SettingsGroupPage = lazy(
   () => import("./pages/GroupsPage/SettingsGroupPage"),
 )
 const GeneralSettingsPage = lazy(
-  () => import("./pages/DeploySettingsPage/GeneralSettingsPage"),
+  () =>
+    import(
+      "./pages/DeploySettingsPage/GeneralSettingsPage/GeneralSettingsPage"
+    ),
 )
 const SecuritySettingsPage = lazy(
-  () => import("./pages/DeploySettingsPage/SecuritySettingsPage"),
+  () =>
+    import(
+      "./pages/DeploySettingsPage/SecuritySettingsPage/SecuritySettingsPage"
+    ),
 )
 const AppearanceSettingsPage = lazy(
-  () => import("./pages/DeploySettingsPage/AppearanceSettingsPage"),
+  () =>
+    import(
+      "./pages/DeploySettingsPage/AppearanceSettingsPage/AppearanceSettingsPage"
+    ),
 )
 const UserAuthSettingsPage = lazy(
-  () => import("./pages/DeploySettingsPage/UserAuthSettingsPage"),
+  () =>
+    import(
+      "./pages/DeploySettingsPage/UserAuthSettingsPage/UserAuthSettingsPage"
+    ),
 )
 const GitAuthSettingsPage = lazy(
-  () => import("./pages/DeploySettingsPage/GitAuthSettingsPage"),
+  () =>
+    import(
+      "./pages/DeploySettingsPage/GitAuthSettingsPage/GitAuthSettingsPage"
+    ),
 )
 const NetworkSettingsPage = lazy(
-  () => import("./pages/DeploySettingsPage/NetworkSettingsPage"),
+  () =>
+    import(
+      "./pages/DeploySettingsPage/NetworkSettingsPage/NetworkSettingsPage"
+    ),
 )
 const GitAuthPage = lazy(() => import("./pages/GitAuthPage/GitAuthPage"))
 const TemplateVersionPage = lazy(

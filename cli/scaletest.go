@@ -265,7 +265,7 @@ func requireAdmin(ctx context.Context, client *codersdk.Client) (codersdk.User, 
 	// Only owners can do scaletests. This isn't a very strong check but there's
 	// not much else we can do. Ratelimits are enforced for non-owners so
 	// hopefully that limits the damage if someone disables this check and runs
-	// it against a non-owner account.
+	// it against a non-owner account on a production deployment.
 	ok := false
 	for _, role := range me.Roles {
 		if role.Name == "owner" {
@@ -488,7 +488,9 @@ func scaletestCreateWorkspaces() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "create-workspaces",
 		Short: "Creates many workspaces and waits for them to be ready",
-		Long:  "Creates many users, then creates a workspace for each user and waits for them finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.",
+		Long: `Creates many users, then creates a workspace for each user and waits for them finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.
+
+It is recommended that all rate limits are disabled on the server before running this scaletest. This test generates many login events which will be rate limited against the (most likely single) IP.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			client, err := CreateClient(cmd)

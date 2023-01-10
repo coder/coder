@@ -35,7 +35,8 @@
 
 	function renderResponsePropertyType(p) {
 		if (p.$ref) {
-			return '`' + p.$ref + '`';
+			const href = p.$ref.replace(".","").toLowerCase();
+			return "[" + p.$ref + "](schemas.md#" + href + ")";
 		}
 
 		if (p.type == 'array') {

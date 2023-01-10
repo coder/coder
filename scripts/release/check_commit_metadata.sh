@@ -45,6 +45,9 @@ main() {
 	breaking_label=release/breaking
 	breaking_category=breaking
 
+	# Security related changes are labeled `security`.
+	security_label=security
+
 	# Get abbreviated and full commit hashes and titles for each commit.
 	mapfile -t commits < <(git log --no-merges --pretty=format:"%h %H %s" "$range")
 
@@ -100,13 +103,17 @@ main() {
 			COMMIT_METADATA_CATEGORY[$commit_sha_short]=$breaking_category
 			COMMIT_METADATA_BREAKING=1
 			continue
+		elif [[ ${labels[$commit_sha_long]} = *"label:$security_label"* ]]; then
+			COMMIT_METADATA_CATEGORY[$commit_sha_short]=$security_label
+			continue
 		fi
 
 		if [[ $commit_prefix =~ $prefix_pattern ]]; then
 			commit_prefix=${BASH_REMATCH[1]}
 		fi
 		case $commit_prefix in
-		feat | fix)
+		# From: https://github.com/commitizen/conventional-commit-types
+		feat | fix | docs | style | refactor | perf | test | build | ci | chore | revert)
 			COMMIT_METADATA_CATEGORY[$commit_sha_short]=$commit_prefix
 			;;
 		*)

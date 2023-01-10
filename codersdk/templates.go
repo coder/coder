@@ -20,7 +20,7 @@ type Template struct {
 	OrganizationID      uuid.UUID       `json:"organization_id" format:"uuid"`
 	Name                string          `json:"name"`
 	DisplayName         string          `json:"display_name"`
-	Provisioner         ProvisionerType `json:"provisioner"`
+	Provisioner         ProvisionerType `json:"provisioner" enums:"terraform"`
 	ActiveVersionID     uuid.UUID       `json:"active_version_id"`
 	WorkspaceOwnerCount uint32          `json:"workspace_owner_count"`
 	// ActiveUserCount is set to -1 when loading.

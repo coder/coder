@@ -49,9 +49,18 @@ func login() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "login <url>",
 		Short: "Authenticate with Coder deployment",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			rawURL := args[0]
+			rawURL := ""
+			if len(args) == 0 {
+				var err error
+				rawURL, err = cmd.Flags().GetString(varURL)
+				if err != nil {
+					return xerrors.Errorf("get global url flag")
+				}
+			} else {
+				rawURL = args[0]
+			}
 
 			if !strings.HasPrefix(rawURL, "http://") && !strings.HasPrefix(rawURL, "https://") {
 				scheme := "https"

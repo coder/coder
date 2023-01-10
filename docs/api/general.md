@@ -129,17 +129,6 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
     "usage": "string",
     "value": 0
   },
-  "api_rate_limit": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
   "audit_logging": {
     "default": true,
     "enterprise": true,
@@ -274,7 +263,7 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
         "secret": true,
         "shorthand": "string",
         "usage": "string",
-        "value": "string"
+        "value": ["string"]
       }
     }
   },
@@ -310,17 +299,19 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
     "secret": true,
     "shorthand": "string",
     "usage": "string",
-    "value": {
-      "auth_url": "string",
-      "client_id": "string",
-      "id": "string",
-      "no_refresh": true,
-      "regex": "string",
-      "scopes": ["string"],
-      "token_url": "string",
-      "type": "string",
-      "validate_url": "string"
-    }
+    "value": [
+      {
+        "auth_url": "string",
+        "client_id": "string",
+        "id": "string",
+        "no_refresh": true,
+        "regex": "string",
+        "scopes": ["string"],
+        "token_url": "string",
+        "type": "string",
+        "validate_url": "string"
+      }
+    ]
   },
   "http_address": {
     "default": "string",
@@ -399,7 +390,7 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
         "secret": true,
         "shorthand": "string",
         "usage": "string",
-        "value": "string"
+        "value": ["string"]
       },
       "allowed_teams": {
         "default": ["string"],
@@ -410,7 +401,7 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
         "secret": true,
         "shorthand": "string",
         "usage": "string",
-        "value": "string"
+        "value": ["string"]
       },
       "client_id": {
         "default": "string",
@@ -490,7 +481,7 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
       "secret": true,
       "shorthand": "string",
       "usage": "string",
-      "value": "string"
+      "value": ["string"]
     },
     "ignore_email_verified": {
       "default": true,
@@ -523,7 +514,7 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
       "secret": true,
       "shorthand": "string",
       "usage": "string",
-      "value": "string"
+      "value": ["string"]
     },
     "username_field": {
       "default": "string",
@@ -651,7 +642,7 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
     "secret": true,
     "shorthand": "string",
     "usage": "string",
-    "value": "string"
+    "value": ["string"]
   },
   "proxy_trusted_origins": {
     "default": ["string"],
@@ -662,7 +653,31 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
     "secret": true,
     "shorthand": "string",
     "usage": "string",
-    "value": "string"
+    "value": ["string"]
+  },
+  "rate_limit": {
+    "api": {
+      "default": 0,
+      "enterprise": true,
+      "flag": "string",
+      "hidden": true,
+      "name": "string",
+      "secret": true,
+      "shorthand": "string",
+      "usage": "string",
+      "value": 0
+    },
+    "disable_all": {
+      "default": true,
+      "enterprise": true,
+      "flag": "string",
+      "hidden": true,
+      "name": "string",
+      "secret": true,
+      "shorthand": "string",
+      "usage": "string",
+      "value": true
+    }
   },
   "scim_api_key": {
     "default": "string",
@@ -766,7 +781,7 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
       "secret": true,
       "shorthand": "string",
       "usage": "string",
-      "value": "string"
+      "value": ["string"]
     },
     "client_auth": {
       "default": "string",
@@ -832,7 +847,7 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
       "secret": true,
       "shorthand": "string",
       "usage": "string",
-      "value": "string"
+      "value": ["string"]
     },
     "min_version": {
       "default": "string",

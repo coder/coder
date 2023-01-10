@@ -105,7 +105,7 @@ export const AgentRow: FC<AgentRowProps> = ({
                 agentName={agent.name}
               />
             )}
-            {applicationsHost !== undefined && (
+            {applicationsHost !== undefined && applicationsHost !== "" && (
               <PortForwardButton
                 host={applicationsHost}
                 workspaceName={workspace.name}
