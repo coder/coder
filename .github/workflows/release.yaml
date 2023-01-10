@@ -113,6 +113,7 @@ jobs:
 
       - name: Create release tag and release notes
         run: |
+          set -eu
           ref=HEAD
           old_version="$(git describe --abbrev=0 "$ref^1")"
 
