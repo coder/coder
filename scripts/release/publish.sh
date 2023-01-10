@@ -34,15 +34,25 @@ if [[ "${CI:-}" == "" ]]; then
 fi
 
 version=""
+release_notes=""
+draft=0
 dry_run=0
 
-args="$(getopt -o "" -l version:,dry-run -- "$@")"
+args="$(getopt -o "" -l version:,release-notes:,draft,dry-run -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
 	--version)
 		version="$2"
 		shift 2
+		;;
+	--release-notes)
+		release_notes="$2"
+		shift 2
+		;;
+	--draft)
+		draft=1
+		shift
 		;;
 	--dry-run)
 		dry_run=1
@@ -65,6 +75,10 @@ dependencies gh
 version="${version#v}"
 if [[ "$version" == "" ]]; then
 	version="$(execrelative ./version.sh)"
+fi
+
+if [[ -z $release_notes ]]; then
+	error "No release notes specified, use --release-notes."
 fi
 
 # realpath-ify all input files so we can cdroot below.
@@ -96,22 +110,6 @@ if [[ "$(git describe --always)" != "$new_tag" ]]; then
 	log "The provided version does not match the current git tag, but --dry-run was supplied so continuing..."
 fi
 
-# This returns the tag before the current tag.
-old_tag="$(git describe --abbrev=0 HEAD^1)"
-
-# For dry-run builds we want to use the SHA instead of the tag, because the new
-# tag probably doesn't exist.
-new_ref="$new_tag"
-if [[ "$dry_run" == 1 ]]; then
-	new_ref="$(git rev-parse --short HEAD)"
-fi
-
-# shellcheck source=scripts/release/check_commit_metadata.sh
-source "$SCRIPT_DIR/release/check_commit_metadata.sh" "$old_tag" "$new_ref"
-
-# Craft the release notes.
-release_notes="$(execrelative ./release/generate_release_notes.sh --old-version "$old_tag" --new-version "$new_tag" --ref "$new_ref")"
-
 release_notes_file="$(mktemp)"
 echo "$release_notes" >"$release_notes_file"
 
@@ -127,7 +125,7 @@ pushd "$temp_dir"
 sha256sum ./* | sed -e 's/\.\///' - >"coder_${version}_checksums.txt"
 popd
 
-log "--- Creating release $new_tag"
+log "--- Publishing release $new_tag on GitHub"
 log
 log "Description:"
 echo "$release_notes" | sed -e 's/^/\t/' - 1>&2
@@ -139,11 +137,17 @@ popd
 log
 log
 
+args=()
+if ((draft)); then
+	args+=(--draft)
+fi
+
 # We pipe `true` into `gh` so that it never tries to be interactive.
 true |
 	maybedryrun "$dry_run" gh release create \
 		--title "$new_tag" \
 		--notes-file "$release_notes_file" \
+		"${args[@]}" \
 		"$new_tag" \
 		"$temp_dir"/*
 

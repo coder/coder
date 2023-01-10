@@ -59,10 +59,10 @@ if [[ -z $ref ]]; then
 fi
 
 # shellcheck source=scripts/release/check_commit_metadata.sh
-source "$SCRIPT_DIR/release/check_commit_metadata.sh" "${old_version}" "${ref}"
+source "$SCRIPT_DIR/release/check_commit_metadata.sh" "$old_version" "$ref"
 
 # Sort commits by title prefix, then by date, only return sha at the end.
-mapfile -t commits < <(git log --no-merges --pretty=format:"%ct %h %s" "${old_version}..${ref}" | sort -k3,3 -k1,1n | cut -d' ' -f2)
+mapfile -t commits < <(git log --no-merges --pretty=format:"%ct %h %s" "$old_version..$ref" | sort -k3,3 -k1,1n | cut -d' ' -f2)
 
 # From: https://github.com/commitizen/conventional-commit-types
 # NOTE(mafredri): These need to be supported in check_commit_metadata.sh as well.
@@ -140,7 +140,7 @@ image_tag="$(execrelative ./image_tag.sh --version "$new_version")"
 echo -e "## Changelog
 $changelog
 
-Compare: [\`${old_version}...${new_version}\`](https://github.com/coder/coder/compare/${old_version}...${new_version})
+Compare: [\`$old_version...$new_version\`](https://github.com/coder/coder/compare/$old_version...$new_version)
 
 ## Container image
 

@@ -1,11 +1,21 @@
 # GitHub release workflow.
-name: release
+name: New Release
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
+      increment:
+        description: Preferred version increment (release script may promote e.g. patch to minor depending on changes).
+        type: choice
+        required: true
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+      draft:
+        description: Create a draft release (for manually editing release notes before publishing).
+        type: boolean
+        required: true
       snapshot:
         description: Force a dev version to be generated, implies dry_run.
         type: boolean
@@ -100,6 +110,31 @@ jobs:
           AC_CERTIFICATE_PASSWORD: ${{ secrets.AC_CERTIFICATE_PASSWORD }}
           AC_APIKEY_P8_BASE64: ${{ secrets.AC_APIKEY_P8_BASE64 }}
 
+      - name: Create release tag and release notes
+        run: |
+          ref=HEAD
+          old_version="$(git describe --abbrev=0 "$ref^1")"
+
+          # Cache commit metadata.
+          . ./scripts/release/check_commit_metadata.sh "$old_version" "$ref"
+
+          # Create new release tag.
+          version="$(
+            ./scripts/release/increment_version_tag.sh \
+              ${{ (github.event.inputs.dry_run || github.event.inputs.snapshot) && '--dry-run' }} \
+              --ref "$ref" \
+              --${{ github.event.inputs.increment }}
+          )"
+
+          # Generate notes.
+          release_notes="$(./scripts/release/generate_release_notes.sh --old-version "$old_version" --new-version "$version" --ref "$ref")"
+          echo 'CODER_RELEASE_NOTES<<RN_EOF' >> $GITHUB_ENV
+          echo "$release_notes" >> $GITHUB_ENV
+          echo 'RN_EOF' >> $GITHUB_ENV
+
+      - name: Echo release notes
+        run: echo "$CODER_RELEASE_NOTES"
+
       - name: Build binaries
         run: |
           set -euo pipefail
@@ -158,7 +193,9 @@ jobs:
       - name: Publish release
         run: |
           ./scripts/release/publish.sh \
+            ${{ github.event.inputs.draft && '--draft' }} \
             ${{ (github.event.inputs.dry_run || github.event.inputs.snapshot) && '--dry-run' }} \
+            --release-notes "$CODER_RELEASE_NOTES" \
             ./build/*_installer.exe \
             ./build/*.zip \
             ./build/*.tar.gz \
@@ -195,6 +232,7 @@ jobs:
         with:
           name: release-artifacts
           path: |
+            ./build/*_installer.exe
             ./build/*.zip
             ./build/*.tar.gz
             ./build/*.tgz
