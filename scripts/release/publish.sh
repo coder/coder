@@ -34,11 +34,11 @@ if [[ "${CI:-}" == "" ]]; then
 fi
 
 version=""
-release_notes=""
+release_notes_file=""
 draft=0
 dry_run=0
 
-args="$(getopt -o "" -l version:,release-notes:,draft,dry-run -- "$@")"
+args="$(getopt -o "" -l version:,release-notes-file:,draft,dry-run -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -46,8 +46,8 @@ while true; do
 		version="$2"
 		shift 2
 		;;
-	--release-notes)
-		release_notes="$2"
+	--release-notes-file)
+		release_notes_file="$2"
 		shift 2
 		;;
 	--draft)
@@ -110,9 +110,6 @@ if [[ "$(git describe --always)" != "$new_tag" ]]; then
 	log "The provided version does not match the current git tag, but --dry-run was supplied so continuing..."
 fi
 
-release_notes_file="$(mktemp)"
-echo "$release_notes" >"$release_notes_file"
-
 # Create temporary release folder so we can generate checksums. Both the
 # sha256sum and gh binaries support symlinks as input files so this works well.
 temp_dir="$(mktemp -d)"
@@ -128,7 +125,7 @@ popd
 log "--- Publishing release $new_tag on GitHub"
 log
 log "Description:"
-echo "$release_notes" | sed -e 's/^/\t/' - 1>&2
+sed -e 's/^/\t/' - <"$release_notes_file" 1>&2
 log
 log "Contents:"
 pushd "$temp_dir"

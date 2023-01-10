@@ -113,7 +113,7 @@ jobs:
 
       - name: Create release tag and release notes
         run: |
-          set -eu
+          set -euo pipefail
           ref=HEAD
           old_version="$(git describe --abbrev=0 "$ref^1")"
 
@@ -134,13 +134,14 @@ jobs:
           )"
 
           # Generate notes.
-          release_notes="$(./scripts/release/generate_release_notes.sh --old-version "$old_version" --new-version "$version" --ref "$ref")"
-          echo 'CODER_RELEASE_NOTES<<RN_EOF' >> $GITHUB_ENV
-          echo "$release_notes" >> $GITHUB_ENV
-          echo 'RN_EOF' >> $GITHUB_ENV
+          release_notes_file="$(mktemp -t release_notes.XXXXXX)"
+          ./scripts/release/generate_release_notes.sh --old-version "$old_version" --new-version "$version" --ref "$ref" >> "release_notes_file"
+          echo CODER_RELEASE_NOTES_FILE="$release_notes_file" >> $GITHUB_ENV
 
       - name: Echo release notes
-        run: echo "$CODER_RELEASE_NOTES"
+        run: |
+          set -euo pipefail
+          cat "$CODER_RELEASE_NOTES_FILE"
 
       - name: Build binaries
         run: |
@@ -199,10 +200,11 @@ jobs:
 
       - name: Publish release
         run: |
+          set -euo pipefail
           ./scripts/release/publish.sh \
             ${{ github.event.inputs.draft && '--draft' }} \
             ${{ (github.event.inputs.dry_run || github.event.inputs.snapshot) && '--dry-run' }} \
-            --release-notes "$CODER_RELEASE_NOTES" \
+            --release-notes-file "$CODER_RELEASE_NOTES_FILE" \
             ./build/*_installer.exe \
             ./build/*.zip \
             ./build/*.tar.gz \
