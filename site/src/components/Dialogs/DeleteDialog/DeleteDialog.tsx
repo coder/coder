@@ -4,7 +4,7 @@ import TextField from "@material-ui/core/TextField"
 import Typography from "@material-ui/core/Typography"
 import { Maybe } from "components/Conditionals/Maybe"
 import { Stack } from "components/Stack/Stack"
-import React, { ChangeEvent, useState } from "react"
+import { ChangeEvent, useState, PropsWithChildren, FC } from "react"
 import { useTranslation } from "react-i18next"
 import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog"
 
@@ -18,9 +18,15 @@ export interface DeleteDialogProps {
   confirmLoading?: boolean
 }
 
-export const DeleteDialog: React.FC<
-  React.PropsWithChildren<DeleteDialogProps>
-> = ({ isOpen, onCancel, onConfirm, entity, info, name, confirmLoading }) => {
+export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
+  isOpen,
+  onCancel,
+  onConfirm,
+  entity,
+  info,
+  name,
+  confirmLoading,
+}) => {
   const styles = useStyles()
   const { t } = useTranslation("common")
   const [nameValue, setNameValue] = useState("")

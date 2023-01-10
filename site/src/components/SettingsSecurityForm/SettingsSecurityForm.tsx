@@ -1,6 +1,6 @@
 import TextField from "@material-ui/core/TextField"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
-import React from "react"
+import { FC } from "react"
 import * as Yup from "yup"
 import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
 import { LoadingButton } from "../LoadingButton/LoadingButton"
@@ -49,7 +49,7 @@ export interface SecurityFormProps {
   initialTouched?: FormikTouched<SecurityFormValues>
 }
 
-export const SecurityForm: React.FC<SecurityFormProps> = ({
+export const SecurityForm: FC<SecurityFormProps> = ({
   isLoading,
   onSubmit,
   initialValues,

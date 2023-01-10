@@ -1,27 +1,25 @@
 import { makeStyles } from "@material-ui/core/styles"
-import React, { PropsWithChildren } from "react"
+import { PropsWithChildren, FC } from "react"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 import { DisabledBadge, EnabledBadge } from "./Badges"
 
-export const OptionName: React.FC<PropsWithChildren> = ({ children }) => {
+export const OptionName: FC<PropsWithChildren> = ({ children }) => {
   const styles = useStyles()
   return <span className={styles.optionName}>{children}</span>
 }
 
-export const OptionDescription: React.FC<PropsWithChildren> = ({
-  children,
-}) => {
+export const OptionDescription: FC<PropsWithChildren> = ({ children }) => {
   const styles = useStyles()
   return <span className={styles.optionDescription}>{children}</span>
 }
 
-const NotSet: React.FC = () => {
+const NotSet: FC = () => {
   const styles = useStyles()
 
   return <span className={styles.optionValue}>Not set</span>
 }
 
-export const OptionValue: React.FC<PropsWithChildren> = ({ children }) => {
+export const OptionValue: FC<PropsWithChildren> = ({ children }) => {
   const styles = useStyles()
 
   if (typeof children === "boolean") {

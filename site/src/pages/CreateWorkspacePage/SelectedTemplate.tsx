@@ -2,7 +2,7 @@ import Avatar from "@material-ui/core/Avatar"
 import { makeStyles } from "@material-ui/core/styles"
 import { Template, TemplateExample } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
-import React, { FC } from "react"
+import { FC } from "react"
 import { firstLetter } from "util/firstLetter"
 
 export interface SelectedTemplateProps {

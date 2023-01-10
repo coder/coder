@@ -1,6 +1,6 @@
 import { useMachine } from "@xstate/react"
 import { useMe } from "hooks/useMe"
-import React from "react"
+import { FC } from "react"
 import { userSecuritySettingsMachine } from "xServices/userSecuritySettings/userSecuritySettingsXService"
 import { Section } from "../../../components/Section/Section"
 import { SecurityForm } from "../../../components/SettingsSecurityForm/SettingsSecurityForm"
@@ -9,7 +9,7 @@ export const Language = {
   title: "Security",
 }
 
-export const SecurityPage: React.FC = () => {
+export const SecurityPage: FC = () => {
   const me = useMe()
   const [securityState, securitySend] = useMachine(
     userSecuritySettingsMachine,

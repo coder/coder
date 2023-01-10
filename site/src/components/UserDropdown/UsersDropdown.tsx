@@ -1,7 +1,7 @@
 import Badge from "@material-ui/core/Badge"
 import MenuItem from "@material-ui/core/MenuItem"
 import { makeStyles } from "@material-ui/core/styles"
-import React, { useState } from "react"
+import { useState, FC, PropsWithChildren, MouseEvent } from "react"
 import { colors } from "theme/colors"
 import * as TypesGen from "../../api/typesGenerated"
 import { navHeight } from "../../theme/constants"
@@ -16,13 +16,15 @@ export interface UserDropdownProps {
   onSignOut: () => void
 }
 
-export const UserDropdown: React.FC<
-  React.PropsWithChildren<UserDropdownProps>
-> = ({ buildInfo, user, onSignOut }: UserDropdownProps) => {
+export const UserDropdown: FC<PropsWithChildren<UserDropdownProps>> = ({
+  buildInfo,
+  user,
+  onSignOut,
+}: UserDropdownProps) => {
   const styles = useStyles()
   const [anchorEl, setAnchorEl] = useState<HTMLElement | undefined>()
 
-  const handleDropdownClick = (ev: React.MouseEvent<HTMLLIElement>): void => {
+  const handleDropdownClick = (ev: MouseEvent<HTMLLIElement>): void => {
     setAnchorEl(ev.currentTarget)
   }
   const onPopoverClose = () => {

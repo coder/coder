@@ -1,13 +1,13 @@
 import { useActor } from "@xstate/react"
 import { FeatureNames } from "api/types"
 import { useDeploySettings } from "components/DeploySettingsLayout/DeploySettingsLayout"
-import React, { useContext } from "react"
+import { useContext, FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "util/page"
 import { XServiceContext } from "xServices/StateContext"
 import { SecuritySettingsPageView } from "./SecuritySettingsPageView"
 
-const SecuritySettingsPage: React.FC = () => {
+const SecuritySettingsPage: FC = () => {
   const { deploymentConfig: deploymentConfig } = useDeploySettings()
   const xServices = useContext(XServiceContext)
   const [entitlementsState] = useActor(xServices.entitlementsXService)
