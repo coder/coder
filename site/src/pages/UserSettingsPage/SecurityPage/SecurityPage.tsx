@@ -2,7 +2,7 @@ import { useMachine } from "@xstate/react"
 import { useMe } from "hooks/useMe"
 import React from "react"
 import { userSecuritySettingsMachine } from "xServices/userSecuritySettings/userSecuritySettingsXService"
-import { Section } from "../../../components/Section/Section"
+import { Section } from "../../../components/SettingsLayout/Section"
 import { SecurityForm } from "../../../components/SettingsSecurityForm/SettingsSecurityForm"
 
 export const Language = {

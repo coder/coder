@@ -1,7 +1,7 @@
 import { useActor } from "@xstate/react"
 import React, { useContext, useEffect } from "react"
 import { ConfirmDialog } from "../../../components/Dialogs/ConfirmDialog/ConfirmDialog"
-import { Section } from "../../../components/Section/Section"
+import { Section } from "../../../components/SettingsLayout/Section"
 import { XServiceContext } from "../../../xServices/StateContext"
 import { SSHKeysPageView } from "./SSHKeysPageView"
 
