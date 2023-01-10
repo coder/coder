@@ -22,7 +22,7 @@ export const SecurityPage: React.FC = () => {
   const { error } = securityState.context
 
   return (
-    <Section title={Language.title}>
+    <Section title={Language.title} description="Update your account password">
       <SecurityForm
         updateSecurityError={error}
         isLoading={securityState.matches("updatingSecurity")}

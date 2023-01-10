@@ -1,7 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import Typography from "@material-ui/core/Typography"
 import { FC } from "react"
-import { combineClasses } from "../../util/combineClasses"
 import { SectionAction } from "../SectionAction/SectionAction"
 
 type SectionLayout = "fixed" | "fluid"
@@ -31,7 +30,7 @@ export const Section: SectionFC = ({
 }) => {
   const styles = useStyles({ layout })
   return (
-    <section className={combineClasses([styles.root, className])}>
+    <section className={className}>
       <div className={styles.inner}>
         {(title || description) && (
           <div className={styles.header}>
@@ -60,18 +59,6 @@ export const Section: SectionFC = ({
 Section.Action = SectionAction
 
 const useStyles = makeStyles((theme) => ({
-  root: {
-    backgroundColor: theme.palette.background.paper,
-    boxShadow: theme.shadows[6],
-    marginBottom: theme.spacing(1),
-    padding: theme.spacing(6),
-    borderRadius: theme.shape.borderRadius,
-    border: `1px solid ${theme.palette.divider}`,
-
-    [theme.breakpoints.down("sm")]: {
-      padding: theme.spacing(4, 3, 4, 3),
-    },
-  },
   inner: ({ layout }: { layout: SectionLayout }) => ({
     maxWidth: layout === "fluid" ? "100%" : 500,
   }),
@@ -79,7 +66,7 @@ const useStyles = makeStyles((theme) => ({
     marginBottom: theme.spacing(1),
   },
   header: {
-    marginBottom: theme.spacing(4),
+    marginBottom: theme.spacing(3),
     display: "flex",
     flexDirection: "row",
     justifyContent: "space-between",
@@ -87,6 +74,6 @@ const useStyles = makeStyles((theme) => ({
   description: {
     color: theme.palette.text.secondary,
     fontSize: 16,
-    marginTop: theme.spacing(2),
+    marginTop: theme.spacing(0.5),
   },
 }))

@@ -19,7 +19,7 @@ export const AccountPage: React.FC = () => {
   }
 
   return (
-    <Section title={Language.title}>
+    <Section title={Language.title} description="Update your account info">
       <AccountForm
         editable={Boolean(canEditUsers)}
         email={me.email}

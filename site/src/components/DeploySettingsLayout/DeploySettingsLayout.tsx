@@ -46,7 +46,7 @@ export const DeploySettingsLayout: React.FC<PropsWithChildren> = ({
 
   return (
     <Margins>
-      <Stack className={styles.wrapper} direction="row" spacing={5}>
+      <Stack className={styles.wrapper} direction="row" spacing={6}>
         <Sidebar />
         <main className={styles.content}>
           {deploymentConfig ? (
