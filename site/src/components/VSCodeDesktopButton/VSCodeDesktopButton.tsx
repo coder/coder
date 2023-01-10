@@ -1,7 +1,7 @@
 import Button from "@material-ui/core/Button"
 import { getApiKey } from "api/api"
 import { VSCodeIcon } from "components/Icons/VSCodeIcon"
-import React from "react"
+import { FC, PropsWithChildren, useState } from "react"
 
 export interface VSCodeDesktopButtonProps {
   userName: string
@@ -9,10 +9,10 @@ export interface VSCodeDesktopButtonProps {
   agentName?: string
 }
 
-export const VSCodeDesktopButton: React.FC<
-  React.PropsWithChildren<VSCodeDesktopButtonProps>
+export const VSCodeDesktopButton: FC<
+  PropsWithChildren<VSCodeDesktopButtonProps>
 > = ({ userName, workspaceName, agentName }) => {
-  const [loading, setLoading] = React.useState(false)
+  const [loading, setLoading] = useState(false)
 
   return (
     <Button
