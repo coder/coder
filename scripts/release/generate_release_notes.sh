@@ -86,16 +86,16 @@ declare -A section_titles=(
 	[breaking]='BREAKING CHANGES'
 	[security]='SECURITY'
 	[feat]='Features'
-	[fix]='Bug Fixes'
+	[fix]='Bug fixes'
 	[docs]='Documentation'
-	[refactor]='Code Refactoring'
-	[perf]='Performance Improvements'
+	[refactor]='Code refactoring'
+	[perf]='Performance improvements'
 	[test]='Tests'
 	[build]='Builds'
-	[ci]='Continuous Integration'
+	[ci]='Continuous integration'
 	[chore]='Chores'
 	[revert]='Reverts'
-	[other]='Other Changes'
+	[other]='Other changes'
 )
 
 # Verify that all items in section_order exist as keys in section_titles and
@@ -142,7 +142,7 @@ $changelog
 
 Compare: [\`${old_version}...${new_version}\`](https://github.com/coder/coder/compare/${old_version}...${new_version})
 
-## Container Image
+## Container image
 
 - \`docker pull $image_tag\`
 "
