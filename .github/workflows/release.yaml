@@ -37,6 +37,8 @@ env:
   CODER_RELEASE: ${{ github.event.inputs.snapshot && 'false' || 'true' }}
   DRY_RUN: ${{ (github.event.inputs.dry_run || github.event.inputs.snapshot) && 'true' || 'false' }}
 
+concurrency: ci-release
+
 jobs:
   release:
     runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
