@@ -426,7 +426,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/report-stats \
 
 ```json
 {
-  "report_interval": -9223372036854776000
+  "report_interval": 0
 }
 ```
 

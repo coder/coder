@@ -1,2 +1,4 @@
 // Replace all NullTime with string
 replace github.com/coder/coder/codersdk.NullTime string
+// Prevent swaggo from rendering enums for time.Duration
+replace time.Duration int64

@@ -119,7 +119,7 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
     "value": "string"
   },
   "agent_stat_refresh_interval": {
-    "default": -9223372036854776000,
+    "default": 0,
     "enterprise": true,
     "flag": "string",
     "hidden": true,
@@ -127,7 +127,7 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
     "secret": true,
     "shorthand": "string",
     "usage": "string",
-    "value": -9223372036854776000
+    "value": 0
   },
   "audit_logging": {
     "default": true,
@@ -141,7 +141,7 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
     "value": true
   },
   "autobuild_poll_interval": {
-    "default": -9223372036854776000,
+    "default": 0,
     "enterprise": true,
     "flag": "string",
     "hidden": true,
@@ -149,7 +149,7 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
     "secret": true,
     "shorthand": "string",
     "usage": "string",
-    "value": -9223372036854776000
+    "value": 0
   },
   "browser_only": {
     "default": true,
@@ -336,7 +336,7 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
     "value": true
   },
   "max_token_lifetime": {
-    "default": -9223372036854776000,
+    "default": 0,
     "enterprise": true,
     "flag": "string",
     "hidden": true,
@@ -344,10 +344,10 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
     "secret": true,
     "shorthand": "string",
     "usage": "string",
-    "value": -9223372036854776000
+    "value": 0
   },
   "metrics_cache_refresh_interval": {
-    "default": -9223372036854776000,
+    "default": 0,
     "enterprise": true,
     "flag": "string",
     "hidden": true,
@@ -355,7 +355,7 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
     "secret": true,
     "shorthand": "string",
     "usage": "string",
-    "value": -9223372036854776000
+    "value": 0
   },
   "oauth2": {
     "github": {
@@ -589,7 +589,7 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
   },
   "provisioner": {
     "daemon_poll_interval": {
-      "default": -9223372036854776000,
+      "default": 0,
       "enterprise": true,
       "flag": "string",
       "hidden": true,
@@ -597,10 +597,10 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
       "secret": true,
       "shorthand": "string",
       "usage": "string",
-      "value": -9223372036854776000
+      "value": 0
     },
     "daemon_poll_jitter": {
-      "default": -9223372036854776000,
+      "default": 0,
       "enterprise": true,
       "flag": "string",
       "hidden": true,
@@ -608,7 +608,7 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
       "secret": true,
       "shorthand": "string",
       "usage": "string",
-      "value": -9223372036854776000
+      "value": 0
     },
     "daemons": {
       "default": 0,
@@ -622,7 +622,7 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
       "value": 0
     },
     "force_cancel_interval": {
-      "default": -9223372036854776000,
+      "default": 0,
       "enterprise": true,
       "flag": "string",
       "hidden": true,
@@ -630,7 +630,7 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
       "secret": true,
       "shorthand": "string",
       "usage": "string",
-      "value": -9223372036854776000
+      "value": 0
     }
   },
   "proxy_trusted_headers": {

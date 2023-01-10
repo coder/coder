@@ -80,15 +80,15 @@
 
 ```json
 {
-  "report_interval": -9223372036854776000
+  "report_interval": 0
 }
 ```
 
 ### Properties
 
-| Name              | Type                           | Required | Restrictions | Description                                                                    |
-| ----------------- | ------------------------------ | -------- | ------------ | ------------------------------------------------------------------------------ |
-| `report_interval` | [time.Duration](#timeduration) | false    |              | Report interval is the duration after which the agent should send stats again. |
+| Name              | Type    | Required | Restrictions | Description                                                                    |
+| ----------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------ |
+| `report_interval` | integer | false    |              | Report interval is the duration after which the agent should send stats again. |
 
 ## codersdk.AuditAction
 
@@ -876,7 +876,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "value": "string"
   },
   "agent_stat_refresh_interval": {
-    "default": -9223372036854776000,
+    "default": 0,
     "enterprise": true,
     "flag": "string",
     "hidden": true,
@@ -884,7 +884,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "secret": true,
     "shorthand": "string",
     "usage": "string",
-    "value": -9223372036854776000
+    "value": 0
   },
   "audit_logging": {
     "default": true,
@@ -898,7 +898,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "value": true
   },
   "autobuild_poll_interval": {
-    "default": -9223372036854776000,
+    "default": 0,
     "enterprise": true,
     "flag": "string",
     "hidden": true,
@@ -906,7 +906,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "secret": true,
     "shorthand": "string",
     "usage": "string",
-    "value": -9223372036854776000
+    "value": 0
   },
   "browser_only": {
     "default": true,
@@ -1093,7 +1093,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "value": true
   },
   "max_token_lifetime": {
-    "default": -9223372036854776000,
+    "default": 0,
     "enterprise": true,
     "flag": "string",
     "hidden": true,
@@ -1101,10 +1101,10 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "secret": true,
     "shorthand": "string",
     "usage": "string",
-    "value": -9223372036854776000
+    "value": 0
   },
   "metrics_cache_refresh_interval": {
-    "default": -9223372036854776000,
+    "default": 0,
     "enterprise": true,
     "flag": "string",
     "hidden": true,
@@ -1112,7 +1112,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "secret": true,
     "shorthand": "string",
     "usage": "string",
-    "value": -9223372036854776000
+    "value": 0
   },
   "oauth2": {
     "github": {
@@ -1346,7 +1346,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   },
   "provisioner": {
     "daemon_poll_interval": {
-      "default": -9223372036854776000,
+      "default": 0,
       "enterprise": true,
       "flag": "string",
       "hidden": true,
@@ -1354,10 +1354,10 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "secret": true,
       "shorthand": "string",
       "usage": "string",
-      "value": -9223372036854776000
+      "value": 0
     },
     "daemon_poll_jitter": {
-      "default": -9223372036854776000,
+      "default": 0,
       "enterprise": true,
       "flag": "string",
       "hidden": true,
@@ -1365,7 +1365,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "secret": true,
       "shorthand": "string",
       "usage": "string",
-      "value": -9223372036854776000
+      "value": 0
     },
     "daemons": {
       "default": 0,
@@ -1379,7 +1379,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "value": 0
     },
     "force_cancel_interval": {
-      "default": -9223372036854776000,
+      "default": 0,
       "enterprise": true,
       "flag": "string",
       "hidden": true,
@@ -1387,7 +1387,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "secret": true,
       "shorthand": "string",
       "usage": "string",
-      "value": -9223372036854776000
+      "value": 0
     }
   },
   "proxy_trusted_headers": {
@@ -1905,7 +1905,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ```json
 {
-  "default": -9223372036854776000,
+  "default": 0,
   "enterprise": true,
   "flag": "string",
   "hidden": true,
@@ -1913,23 +1913,23 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   "secret": true,
   "shorthand": "string",
   "usage": "string",
-  "value": -9223372036854776000
+  "value": 0
 }
 ```
 
 ### Properties
 
-| Name         | Type                           | Required | Restrictions | Description |
-| ------------ | ------------------------------ | -------- | ------------ | ----------- |
-| `default`    | [time.Duration](#timeduration) | false    |              |             |
-| `enterprise` | boolean                        | false    |              |             |
-| `flag`       | string                         | false    |              |             |
-| `hidden`     | boolean                        | false    |              |             |
-| `name`       | string                         | false    |              |             |
-| `secret`     | boolean                        | false    |              |             |
-| `shorthand`  | string                         | false    |              |             |
-| `usage`      | string                         | false    |              |             |
-| `value`      | [time.Duration](#timeduration) | false    |              |             |
+| Name         | Type    | Required | Restrictions | Description |
+| ------------ | ------- | -------- | ------------ | ----------- |
+| `default`    | integer | false    |              |             |
+| `enterprise` | boolean | false    |              |             |
+| `flag`       | string  | false    |              |             |
+| `hidden`     | boolean | false    |              |             |
+| `name`       | string  | false    |              |             |
+| `secret`     | boolean | false    |              |             |
+| `shorthand`  | string  | false    |              |             |
+| `usage`      | string  | false    |              |             |
+| `value`      | integer | false    |              |             |
 
 ## codersdk.GetAppHostResponse
 
@@ -2541,7 +2541,7 @@ Parameter represents a set value for the scope.
 ```json
 {
   "daemon_poll_interval": {
-    "default": -9223372036854776000,
+    "default": 0,
     "enterprise": true,
     "flag": "string",
     "hidden": true,
@@ -2549,10 +2549,10 @@ Parameter represents a set value for the scope.
     "secret": true,
     "shorthand": "string",
     "usage": "string",
-    "value": -9223372036854776000
+    "value": 0
   },
   "daemon_poll_jitter": {
-    "default": -9223372036854776000,
+    "default": 0,
     "enterprise": true,
     "flag": "string",
     "hidden": true,
@@ -2560,7 +2560,7 @@ Parameter represents a set value for the scope.
     "secret": true,
     "shorthand": "string",
     "usage": "string",
-    "value": -9223372036854776000
+    "value": 0
   },
   "daemons": {
     "default": 0,
@@ -2574,7 +2574,7 @@ Parameter represents a set value for the scope.
     "value": 0
   },
   "force_cancel_interval": {
-    "default": -9223372036854776000,
+    "default": 0,
     "enterprise": true,
     "flag": "string",
     "hidden": true,
@@ -2582,7 +2582,7 @@ Parameter represents a set value for the scope.
     "secret": true,
     "shorthand": "string",
     "usage": "string",
-    "value": -9223372036854776000
+    "value": 0
   }
 }
 ```
@@ -4426,60 +4426,3 @@ It corresponds to the legacy derpN.tailscale.com hostnames used by older clients
 RegionIDs must be non-zero, positive, and guaranteed to fit in a JavaScript number.
 RegionIDs in range 900-999 are reserved for end users to run their own DERP nodes.|
 |`regionName`|string|false||Regionname is a long English name for the region: "New York City", "San Francisco", "Singapore", "Frankfurt", etc.|
-
-## time.Duration
-
-```json
--9223372036854776000
-```
-
-### Properties
-
-| Name          | Type    | Required | Restrictions | Description |
-| ------------- | ------- | -------- | ------------ | ----------- |
-| `*anonymous*` | integer | false    |              |             |
-
-#### Enumerated Values
-
-| Property      | Value                  |
-| ------------- | ---------------------- |
-| `*anonymous*` | `-9223372036854776000` |
-| `*anonymous*` | `9223372036854776000`  |
-| `*anonymous*` | `1`                    |
-| `*anonymous*` | `1000`                 |
-| `*anonymous*` | `1000000`              |
-| `*anonymous*` | `1000000000`           |
-| `*anonymous*` | `60000000000`          |
-| `*anonymous*` | `3600000000000`        |
-| `*anonymous*` | `-9223372036854776000` |
-| `*anonymous*` | `9223372036854776000`  |
-| `*anonymous*` | `1`                    |
-| `*anonymous*` | `1000`                 |
-| `*anonymous*` | `1000000`              |
-| `*anonymous*` | `1000000000`           |
-| `*anonymous*` | `60000000000`          |
-| `*anonymous*` | `3600000000000`        |
-| `*anonymous*` | `-9223372036854776000` |
-| `*anonymous*` | `9223372036854776000`  |
-| `*anonymous*` | `1`                    |
-| `*anonymous*` | `1000`                 |
-| `*anonymous*` | `1000000`              |
-| `*anonymous*` | `1000000000`           |
-| `*anonymous*` | `60000000000`          |
-| `*anonymous*` | `3600000000000`        |
-| `*anonymous*` | `-9223372036854776000` |
-| `*anonymous*` | `9223372036854776000`  |
-| `*anonymous*` | `1`                    |
-| `*anonymous*` | `1000`                 |
-| `*anonymous*` | `1000000`              |
-| `*anonymous*` | `1000000000`           |
-| `*anonymous*` | `60000000000`          |
-| `*anonymous*` | `3600000000000`        |
-| `*anonymous*` | `-9223372036854776000` |
-| `*anonymous*` | `9223372036854776000`  |
-| `*anonymous*` | `1`                    |
-| `*anonymous*` | `1000`                 |
-| `*anonymous*` | `1000000`              |
-| `*anonymous*` | `1000000000`           |
-| `*anonymous*` | `60000000000`          |
-| `*anonymous*` | `3600000000000`        |
