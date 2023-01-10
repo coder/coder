@@ -97,7 +97,7 @@ func Core() []*cobra.Command {
 		update(),
 		users(),
 		versionCmd(),
-		vscodeipcCmd(),
+		vscodeSSH(),
 		workspaceAgent(),
 	}
 }

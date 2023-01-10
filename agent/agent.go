@@ -304,7 +304,18 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 			if err != nil {
 				return
 			}
-			go a.sshServer.HandleConn(conn)
+			closed := make(chan struct{})
+			_ = a.trackConnGoroutine(func() {
+				select {
+				case <-network.Closed():
+				case <-closed:
+				}
+				_ = conn.Close()
+			})
+			_ = a.trackConnGoroutine(func() {
+				defer close(closed)
+				a.sshServer.HandleConn(conn)
+			})
 		}
 	}); err != nil {
 		return nil, err
