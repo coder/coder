@@ -19,7 +19,7 @@ dry_run=0
 ref=HEAD
 increment=
 
-args="$(getopt -o n -l dry-run,ref:,major,minor,patch -- "$@")"
+args="$(getopt -o '' -l dry-run,ref:,major,minor,patch -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
