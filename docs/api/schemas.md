@@ -98,19 +98,15 @@
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-| ------------- | ------ | -------- | ------------ | ----------- |
-| `*anonymous*` | string | false    |              |             |
-
 #### Enumerated Values
 
-| Property      | Value    |
-| ------------- | -------- |
-| `*anonymous*` | `create` |
-| `*anonymous*` | `write`  |
-| `*anonymous*` | `delete` |
-| `*anonymous*` | `start`  |
-| `*anonymous*` | `stop`   |
+| Value    |
+| -------- |
+| `create` |
+| `write`  |
+| `delete` |
+| `start`  |
+| `stop`   |
 
 ## codersdk.AuditDiff
 
@@ -433,17 +429,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-| ------------- | ------ | -------- | ------------ | ----------- |
-| `*anonymous*` | string | false    |              |             |
-
 #### Enumerated Values
 
-| Property      | Value       |
-| ------------- | ----------- |
-| `*anonymous*` | `initiator` |
-| `*anonymous*` | `autostart` |
-| `*anonymous*` | `autostop`  |
+| Value       |
+| ----------- |
+| `initiator` |
+| `autostart` |
+| `autostop`  |
 
 ## codersdk.CreateParameterRequest
 
@@ -2015,19 +2007,15 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-| ------------- | ------ | -------- | ------------ | ----------- |
-| `*anonymous*` | string | false    |              |             |
-
 #### Enumerated Values
 
-| Property      | Value   |
-| ------------- | ------- |
-| `*anonymous*` | `trace` |
-| `*anonymous*` | `debug` |
-| `*anonymous*` | `info`  |
-| `*anonymous*` | `warn`  |
-| `*anonymous*` | `error` |
+| Value   |
+| ------- |
+| `trace` |
+| `debug` |
+| `info`  |
+| `warn`  |
+| `error` |
 
 ## codersdk.LogSource
 
@@ -2037,16 +2025,12 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-| ------------- | ------ | -------- | ------------ | ----------- |
-| `*anonymous*` | string | false    |              |             |
-
 #### Enumerated Values
 
-| Property      | Value                |
-| ------------- | -------------------- |
-| `*anonymous*` | `provisioner_daemon` |
-| `*anonymous*` | `provisioner`        |
+| Value                |
+| -------------------- |
+| `provisioner_daemon` |
+| `provisioner`        |
 
 ## codersdk.OAuth2Config
 
@@ -2395,17 +2379,13 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-| ------------- | ------ | -------- | ------------ | ----------- |
-| `*anonymous*` | string | false    |              |             |
-
 #### Enumerated Values
 
-| Property      | Value                  |
-| ------------- | ---------------------- |
-| `*anonymous*` | `none`                 |
-| `*anonymous*` | `environment_variable` |
-| `*anonymous*` | `provisioner_variable` |
+| Value                  |
+| ---------------------- |
+| `none`                 |
+| `environment_variable` |
+| `provisioner_variable` |
 
 ## codersdk.ParameterScope
 
@@ -2415,17 +2395,13 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-| ------------- | ------ | -------- | ------------ | ----------- |
-| `*anonymous*` | string | false    |              |             |
-
 #### Enumerated Values
 
-| Property      | Value        |
-| ------------- | ------------ |
-| `*anonymous*` | `template`   |
-| `*anonymous*` | `workspace`  |
-| `*anonymous*` | `import_job` |
+| Value        |
+| ------------ |
+| `template`   |
+| `workspace`  |
+| `import_job` |
 
 ## codersdk.ParameterSourceScheme
 
@@ -2435,16 +2411,12 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-| ------------- | ------ | -------- | ------------ | ----------- |
-| `*anonymous*` | string | false    |              |             |
-
 #### Enumerated Values
 
-| Property      | Value  |
-| ------------- | ------ |
-| `*anonymous*` | `none` |
-| `*anonymous*` | `data` |
+| Value  |
+| ------ |
+| `none` |
+| `data` |
 
 ## codersdk.PostWorkspaceAppHealthsRequest
 
@@ -2685,20 +2657,16 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-| ------------- | ------ | -------- | ------------ | ----------- |
-| `*anonymous*` | string | false    |              |             |
-
 #### Enumerated Values
 
-| Property      | Value       |
-| ------------- | ----------- |
-| `*anonymous*` | `pending`   |
-| `*anonymous*` | `running`   |
-| `*anonymous*` | `succeeded` |
-| `*anonymous*` | `canceling` |
-| `*anonymous*` | `canceled`  |
-| `*anonymous*` | `failed`    |
+| Value       |
+| ----------- |
+| `pending`   |
+| `running`   |
+| `succeeded` |
+| `canceling` |
+| `canceled`  |
+| `failed`    |
 
 ## codersdk.PutExtendWorkspaceRequest
 
@@ -2758,23 +2726,19 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-| ------------- | ------ | -------- | ------------ | ----------- |
-| `*anonymous*` | string | false    |              |             |
-
 #### Enumerated Values
 
-| Property      | Value              |
-| ------------- | ------------------ |
-| `*anonymous*` | `organization`     |
-| `*anonymous*` | `template`         |
-| `*anonymous*` | `template_version` |
-| `*anonymous*` | `user`             |
-| `*anonymous*` | `workspace`        |
-| `*anonymous*` | `workspace_build`  |
-| `*anonymous*` | `git_ssh_key`      |
-| `*anonymous*` | `api_key`          |
-| `*anonymous*` | `group`            |
+| Value              |
+| ------------------ |
+| `organization`     |
+| `template`         |
+| `template_version` |
+| `user`             |
+| `workspace`        |
+| `workspace_build`  |
+| `git_ssh_key`      |
+| `api_key`          |
+| `group`            |
 
 ## codersdk.Response
 
@@ -3282,16 +3246,12 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-| ------------- | ------ | -------- | ------------ | ----------- |
-| `*anonymous*` | string | false    |              |             |
-
 #### Enumerated Values
 
-| Property      | Value       |
-| ------------- | ----------- |
-| `*anonymous*` | `active`    |
-| `*anonymous*` | `suspended` |
+| Value       |
+| ----------- |
+| `active`    |
+| `suspended` |
 
 ## codersdk.ValidationError
 
@@ -3693,18 +3653,14 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-| ------------- | ------ | -------- | ------------ | ----------- |
-| `*anonymous*` | string | false    |              |             |
-
 #### Enumerated Values
 
-| Property      | Value          |
-| ------------- | -------------- |
-| `*anonymous*` | `connecting`   |
-| `*anonymous*` | `connected`    |
-| `*anonymous*` | `disconnected` |
-| `*anonymous*` | `timeout`      |
+| Value          |
+| -------------- |
+| `connecting`   |
+| `connected`    |
+| `disconnected` |
+| `timeout`      |
 
 ## codersdk.WorkspaceApp
 
@@ -3760,18 +3716,14 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-| ------------- | ------ | -------- | ------------ | ----------- |
-| `*anonymous*` | string | false    |              |             |
-
 #### Enumerated Values
 
-| Property      | Value          |
-| ------------- | -------------- |
-| `*anonymous*` | `disabled`     |
-| `*anonymous*` | `initializing` |
-| `*anonymous*` | `healthy`      |
-| `*anonymous*` | `unhealthy`    |
+| Value          |
+| -------------- |
+| `disabled`     |
+| `initializing` |
+| `healthy`      |
+| `unhealthy`    |
 
 ## codersdk.WorkspaceAppSharingLevel
 
@@ -3781,17 +3733,13 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-| ------------- | ------ | -------- | ------------ | ----------- |
-| `*anonymous*` | string | false    |              |             |
-
 #### Enumerated Values
 
-| Property      | Value           |
-| ------------- | --------------- |
-| `*anonymous*` | `owner`         |
-| `*anonymous*` | `authenticated` |
-| `*anonymous*` | `public`        |
+| Value           |
+| --------------- |
+| `owner`         |
+| `authenticated` |
+| `public`        |
 
 ## codersdk.WorkspaceBuild
 
@@ -4078,24 +4026,20 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-| ------------- | ------ | -------- | ------------ | ----------- |
-| `*anonymous*` | string | false    |              |             |
-
 #### Enumerated Values
 
-| Property      | Value       |
-| ------------- | ----------- |
-| `*anonymous*` | `pending`   |
-| `*anonymous*` | `starting`  |
-| `*anonymous*` | `running`   |
-| `*anonymous*` | `stopping`  |
-| `*anonymous*` | `stopped`   |
-| `*anonymous*` | `failed`    |
-| `*anonymous*` | `canceling` |
-| `*anonymous*` | `canceled`  |
-| `*anonymous*` | `deleting`  |
-| `*anonymous*` | `deleted`   |
+| Value       |
+| ----------- |
+| `pending`   |
+| `starting`  |
+| `running`   |
+| `stopping`  |
+| `stopped`   |
+| `failed`    |
+| `canceling` |
+| `canceled`  |
+| `deleting`  |
+| `deleted`   |
 
 ## codersdk.WorkspaceTransition
 
@@ -4105,17 +4049,13 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-| ------------- | ------ | -------- | ------------ | ----------- |
-| `*anonymous*` | string | false    |              |             |
-
 #### Enumerated Values
 
-| Property      | Value    |
-| ------------- | -------- |
-| `*anonymous*` | `start`  |
-| `*anonymous*` | `stop`   |
-| `*anonymous*` | `delete` |
+| Value    |
+| -------- |
+| `start`  |
+| `stop`   |
+| `delete` |
 
 ## codersdk.WorkspacesResponse
 

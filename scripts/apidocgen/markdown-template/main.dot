@@ -133,10 +133,10 @@
 
 {{? block===blocks[0] }}
 {{= data.tags.section }}
-
 ### Properties
 {{?}}
 
+{{? block.rows.length > 0 && block.rows[0].displayName != "*anonymous*"}}
 {{? block.rows.length}}|Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|{{?}}
 {{~ block.rows :p}}|{{= renderDisplayName(p)}}|{{= renderPropertyType(p)}}|{{=p.required}}|{{=p.restrictions||''}}|{{= renderDescription(p)}}|
@@ -145,16 +145,24 @@
 {{? (blocks[0].rows.length === 0) && (blocks.length === 1) }}
 *None*
 {{?}}
+{{?}}
 
 {{? enums.length > 0 }}
 {{= data.tags.section }}
 
 #### Enumerated Values
 
+{{? block.rows.length > 0 && block.rows[0].displayName != "*anonymous*"}}
 |Property|Value|
 |---|---|
 {{~ enums :e}}|`{{=e.name}}`|`{{=data.utils.toPrimitive(e.value)}}`|
 {{~}}
+{{??}}
+|Value|
+|---|
+{{~ enums :e}}|`{{=data.utils.toPrimitive(e.value)}}`|
+{{~}}
+{{?}}
 
 {{= data.tags.endSection }}
 {{?}}
