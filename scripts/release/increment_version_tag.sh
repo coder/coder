@@ -1,25 +1,29 @@
 #!/usr/bin/env bash
 
-# This script should be called to tag a new release. It will take the suggested
-# increment (major, minor, patch) and optionally promote e.g. patch -> minor if
-# there are breaking changes between the previous version and the given --ref
-# (or HEAD).
-#
-# Usage: ./increment_version_tag.sh [--dry-run] [--ref <ref>] <--major | --minor | --patch>
-#
-# This script will create a git tag, so it should only be run in CI (or via
-# --dry-run).
-
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "$(dirname "${BASH_SOURCE[0]}")")/lib.sh"
 cdroot
 
+usage() {
+	cat <<EOH
+Usage: ./increment_version_tag.sh [--dry-run] [--ref <ref>] <--major | --minor | --patch>
+
+This script should be called to tag a new release. It will take the suggested
+increment (major, minor, patch) and optionally promote e.g. patch -> minor if
+there are breaking changes between the previous version and the given --ref
+(or HEAD).
+
+This script will create a git tag, so it should only be run in CI (or via
+--dry-run).
+EOH
+}
+
 dry_run=0
 ref=HEAD
 increment=
 
-args="$(getopt -o '' -l dry-run,ref:,major,minor,patch -- "$@")"
+args="$(getopt -o h -l dry-run,help,ref:,major,minor,patch -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -30,6 +34,10 @@ while true; do
 	--ref)
 		ref="$2"
 		shift 2
+		;;
+	-h | --help)
+		usage
+		exit 0
 		;;
 	--major | --minor | --patch)
 		if [[ -n $increment ]]; then
