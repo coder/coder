@@ -1973,7 +1973,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "ip": {
-                    "$ref": "#/definitions/netip.Addr"
+                    "type": "string"
                 },
                 "is_deleted": {
                     "type": "boolean"
@@ -4001,9 +4001,6 @@ const docTemplate = `{
                     }
                 }
             }
-        },
-        "netip.Addr": {
-            "type": "object"
         },
         "tailcfg.DERPMap": {
             "type": "object",

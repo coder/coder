@@ -1731,7 +1731,7 @@
           "type": "string"
         },
         "ip": {
-          "$ref": "#/definitions/netip.Addr"
+          "type": "string"
         },
         "is_deleted": {
           "type": "boolean"
@@ -3625,9 +3625,6 @@
           }
         }
       }
-    },
-    "netip.Addr": {
-      "type": "object"
     },
     "tailcfg.DERPMap": {
       "type": "object",

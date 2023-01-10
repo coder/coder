@@ -169,7 +169,7 @@
     }
   },
   "id": "string",
-  "ip": {},
+  "ip": "string",
   "is_deleted": true,
   "organization_id": "string",
   "request_id": "string",
@@ -209,7 +209,7 @@
 | `description`       | string                                         | false    |              |                                              |
 | `diff`              | [codersdk.AuditDiff](#codersdkauditdiff)       | false    |              |                                              |
 | `id`                | string                                         | false    |              |                                              |
-| `ip`                | [netip.Addr](#netipaddr)                       | false    |              |                                              |
+| `ip`                | string                                         | false    |              |                                              |
 | `is_deleted`        | boolean                                        | false    |              |                                              |
 | `organization_id`   | string                                         | false    |              |                                              |
 | `request_id`        | string                                         | false    |              |                                              |
@@ -245,7 +245,7 @@
         }
       },
       "id": "string",
-      "ip": {},
+      "ip": "string",
       "is_deleted": true,
       "organization_id": "string",
       "request_id": "string",
@@ -4194,16 +4194,6 @@ Parameter represents a set value for the scope.
 | ------------ | ------------------------------------------------- | -------- | ------------ | ----------- |
 | `count`      | integer                                           | false    |              |             |
 | `workspaces` | array of [codersdk.Workspace](#codersdkworkspace) | false    |              |             |
-
-## netip.Addr
-
-```json
-{}
-```
-
-### Properties
-
-_None_
 
 ## tailcfg.DERPMap
 

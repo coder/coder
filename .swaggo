@@ -4,3 +4,5 @@ replace github.com/coder/coder/codersdk.NullTime string
 replace time.Duration int64
 // Do not expose "echo" provider
 replace github.com/coder/coder/codersdk.ProvisionerType string
+// Do not render netip.Addr
+replace netip.Addr string

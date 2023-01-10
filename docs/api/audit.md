@@ -48,7 +48,7 @@ curl -X GET http://coder-server:8080/api/v2/audit?q=string \
         }
       },
       "id": "string",
-      "ip": {},
+      "ip": "string",
       "is_deleted": true,
       "organization_id": "string",
       "request_id": "string",
