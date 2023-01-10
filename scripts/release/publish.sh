@@ -77,8 +77,8 @@ if [[ "$version" == "" ]]; then
 	version="$(execrelative ./version.sh)"
 fi
 
-if [[ -z $release_notes ]]; then
-	error "No release notes specified, use --release-notes."
+if [[ -z $release_notes_file ]]; then
+	error "No release notes files specified, use --release-notes-file."
 fi
 
 # realpath-ify all input files so we can cdroot below.
