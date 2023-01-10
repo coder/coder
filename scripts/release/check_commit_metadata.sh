@@ -26,11 +26,6 @@ if [[ -z $to_ref ]]; then
 	error "No to_ref specified"
 fi
 
-ignore_missing_metadata=${CODER_IGNORE_MISSING_COMMIT_METADATA:-0}
-if [[ $ignore_missing_metadata == 1 ]]; then
-	log "WARNING: Ignoring missing commit metadata, breaking changes may be missed."
-fi
-
 range="$from_ref..$to_ref"
 
 # Check dependencies.
