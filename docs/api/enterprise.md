@@ -119,13 +119,13 @@ curl -X GET http://coder-server:8080/api/v2/entitlements \
     "property1": {
       "actual": 0,
       "enabled": true,
-      "entitlement": "string",
+      "entitlement": "entitled",
       "limit": 0
     },
     "property2": {
       "actual": 0,
       "enabled": true,
-      "entitlement": "string",
+      "entitlement": "entitled",
       "limit": 0
     }
   },
@@ -206,26 +206,26 @@ curl -X GET http://coder-server:8080/api/v2/groups \
 
 Status Code **200**
 
-| Name                  | Type              | Required | Restrictions | Description |
-| --------------------- | ----------------- | -------- | ------------ | ----------- |
-| `[array item]`        | array             | false    |              |             |
-| `» avatar_url`        | string            | false    |              |             |
-| `» id`                | string(uuid)      | false    |              |             |
-| `» members`           | array             | false    |              |             |
-| `»» avatar_url`       | string(uri)       | false    |              |             |
-| `»» created_at`       | string(date-time) | true     |              |             |
-| `»» email`            | string(email)     | true     |              |             |
-| `»» id`               | string(uuid)      | true     |              |             |
-| `»» last_seen_at`     | string(date-time) | false    |              |             |
-| `»» organization_ids` | array             | false    |              |             |
-| `»» roles`            | array             | false    |              |             |
-| `»»» display_name`    | string            | false    |              |             |
-| `»»» name`            | string            | false    |              |             |
-| `»» status`           | string            | false    |              |             |
-| `»» username`         | string            | true     |              |             |
-| `» name`              | string            | false    |              |             |
-| `» organization_id`   | string(uuid)      | false    |              |             |
-| `» quota_allowance`   | integer           | false    |              |             |
+| Name                  | Type                                                 | Required | Restrictions | Description |
+| --------------------- | ---------------------------------------------------- | -------- | ------------ | ----------- |
+| `[array item]`        | array                                                | false    |              |             |
+| `» avatar_url`        | string                                               | false    |              |             |
+| `» id`                | string(uuid)                                         | false    |              |             |
+| `» members`           | array                                                | false    |              |             |
+| `»» avatar_url`       | string(uri)                                          | false    |              |             |
+| `»» created_at`       | string(date-time)                                    | true     |              |             |
+| `»» email`            | string(email)                                        | true     |              |             |
+| `»» id`               | string(uuid)                                         | true     |              |             |
+| `»» last_seen_at`     | string(date-time)                                    | false    |              |             |
+| `»» organization_ids` | array                                                | false    |              |             |
+| `»» roles`            | array                                                | false    |              |             |
+| `»»» display_name`    | string                                               | false    |              |             |
+| `»»» name`            | string                                               | false    |              |             |
+| `»» status`           | [codersdk.UserStatus](schemas.md#codersdkuserstatus) | false    |              |             |
+| `»» username`         | string                                               | true     |              |             |
+| `» name`              | string                                               | false    |              |             |
+| `» organization_id`   | string(uuid)                                         | false    |              |             |
+| `» quota_allowance`   | integer                                              | false    |              |             |
 
 #### Enumerated Values
 
@@ -432,26 +432,26 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups 
 
 Status Code **200**
 
-| Name                  | Type              | Required | Restrictions | Description |
-| --------------------- | ----------------- | -------- | ------------ | ----------- |
-| `[array item]`        | array             | false    |              |             |
-| `» avatar_url`        | string            | false    |              |             |
-| `» id`                | string(uuid)      | false    |              |             |
-| `» members`           | array             | false    |              |             |
-| `»» avatar_url`       | string(uri)       | false    |              |             |
-| `»» created_at`       | string(date-time) | true     |              |             |
-| `»» email`            | string(email)     | true     |              |             |
-| `»» id`               | string(uuid)      | true     |              |             |
-| `»» last_seen_at`     | string(date-time) | false    |              |             |
-| `»» organization_ids` | array             | false    |              |             |
-| `»» roles`            | array             | false    |              |             |
-| `»»» display_name`    | string            | false    |              |             |
-| `»»» name`            | string            | false    |              |             |
-| `»» status`           | string            | false    |              |             |
-| `»» username`         | string            | true     |              |             |
-| `» name`              | string            | false    |              |             |
-| `» organization_id`   | string(uuid)      | false    |              |             |
-| `» quota_allowance`   | integer           | false    |              |             |
+| Name                  | Type                                                 | Required | Restrictions | Description |
+| --------------------- | ---------------------------------------------------- | -------- | ------------ | ----------- |
+| `[array item]`        | array                                                | false    |              |             |
+| `» avatar_url`        | string                                               | false    |              |             |
+| `» id`                | string(uuid)                                         | false    |              |             |
+| `» members`           | array                                                | false    |              |             |
+| `»» avatar_url`       | string(uri)                                          | false    |              |             |
+| `»» created_at`       | string(date-time)                                    | true     |              |             |
+| `»» email`            | string(email)                                        | true     |              |             |
+| `»» id`               | string(uuid)                                         | true     |              |             |
+| `»» last_seen_at`     | string(date-time)                                    | false    |              |             |
+| `»» organization_ids` | array                                                | false    |              |             |
+| `»» roles`            | array                                                | false    |              |             |
+| `»»» display_name`    | string                                               | false    |              |             |
+| `»»» name`            | string                                               | false    |              |             |
+| `»» status`           | [codersdk.UserStatus](schemas.md#codersdkuserstatus) | false    |              |             |
+| `»» username`         | string                                               | true     |              |             |
+| `» name`              | string                                               | false    |              |             |
+| `» organization_id`   | string(uuid)                                         | false    |              |             |
+| `» quota_allowance`   | integer                                              | false    |              |             |
 
 #### Enumerated Values
 
@@ -514,18 +514,18 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 Status Code **200**
 
-| Name                | Type              | Required | Restrictions | Description                       |
-| ------------------- | ----------------- | -------- | ------------ | --------------------------------- |
-| `[array item]`      | array             | false    |              |                                   |
-| `» created_at`      | string(date-time) | false    |              |                                   |
-| `» id`              | string(uuid)      | false    |              |                                   |
-| `» name`            | string            | false    |              |                                   |
-| `» provisioners`    | array             | false    |              |                                   |
-| `» tags`            | object            | false    |              |                                   |
-| `»» [any property]` | string            | false    |              |                                   |
-| `» updated_at`      | `sql.NullTime`    | false    |              |                                   |
-| `»» time`           | string            | false    |              |                                   |
-| `»» valid`          | boolean           | false    |              | Valid is true if Time is not NULL |
+| Name                | Type                                   | Required | Restrictions | Description                       |
+| ------------------- | -------------------------------------- | -------- | ------------ | --------------------------------- |
+| `[array item]`      | array                                  | false    |              |                                   |
+| `» created_at`      | string(date-time)                      | false    |              |                                   |
+| `» id`              | string(uuid)                           | false    |              |                                   |
+| `» name`            | string                                 | false    |              |                                   |
+| `» provisioners`    | array                                  | false    |              |                                   |
+| `» tags`            | object                                 | false    |              |                                   |
+| `»» [any property]` | string                                 | false    |              |                                   |
+| `» updated_at`      | [sql.NullTime](schemas.md#sqlnulltime) | false    |              |                                   |
+| `»» time`           | string                                 | false    |              |                                   |
+| `»» valid`          | boolean                                | false    |              | Valid is true if Time is not NULL |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -853,21 +853,21 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl \
 
 Status Code **200**
 
-| Name                 | Type              | Required | Restrictions | Description |
-| -------------------- | ----------------- | -------- | ------------ | ----------- |
-| `[array item]`       | array             | false    |              |             |
-| `» avatar_url`       | string(uri)       | false    |              |             |
-| `» created_at`       | string(date-time) | true     |              |             |
-| `» email`            | string(email)     | true     |              |             |
-| `» id`               | string(uuid)      | true     |              |             |
-| `» last_seen_at`     | string(date-time) | false    |              |             |
-| `» organization_ids` | array             | false    |              |             |
-| `» role`             | string            | false    |              |             |
-| `» roles`            | array             | false    |              |             |
-| `»» display_name`    | string            | false    |              |             |
-| `»» name`            | string            | false    |              |             |
-| `» status`           | string            | false    |              |             |
-| `» username`         | string            | true     |              |             |
+| Name                 | Type                                                     | Required | Restrictions | Description |
+| -------------------- | -------------------------------------------------------- | -------- | ------------ | ----------- |
+| `[array item]`       | array                                                    | false    |              |             |
+| `» avatar_url`       | string(uri)                                              | false    |              |             |
+| `» created_at`       | string(date-time)                                        | true     |              |             |
+| `» email`            | string(email)                                            | true     |              |             |
+| `» id`               | string(uuid)                                             | true     |              |             |
+| `» last_seen_at`     | string(date-time)                                        | false    |              |             |
+| `» organization_ids` | array                                                    | false    |              |             |
+| `» role`             | [codersdk.TemplateRole](schemas.md#codersdktemplaterole) | false    |              |             |
+| `» roles`            | array                                                    | false    |              |             |
+| `»» display_name`    | string                                                   | false    |              |             |
+| `»» name`            | string                                                   | false    |              |             |
+| `» status`           | [codersdk.UserStatus](schemas.md#codersdkuserstatus)     | false    |              |             |
+| `» username`         | string                                                   | true     |              |             |
 
 #### Enumerated Values
 

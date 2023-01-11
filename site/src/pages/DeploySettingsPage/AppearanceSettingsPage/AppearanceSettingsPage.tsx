@@ -1,7 +1,7 @@
 import { useActor } from "@xstate/react"
 import { FeatureNames } from "api/types"
 import { AppearanceConfig } from "api/typesGenerated"
-import React, { useContext } from "react"
+import { useContext, FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "util/page"
 import { XServiceContext } from "xServices/StateContext"
@@ -11,7 +11,7 @@ import { AppearanceSettingsPageView } from "./AppearanceSettingsPageView"
 // implements a form, whereas the others are read-only. We make this
 // exception because the Service Banner is visual, and configuring it from
 // the command line would be a significantly worse user experience.
-const AppearanceSettingsPage: React.FC = () => {
+const AppearanceSettingsPage: FC = () => {
   const xServices = useContext(XServiceContext)
   const [appearanceXService, appearanceSend] = useActor(
     xServices.appearanceXService,

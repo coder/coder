@@ -587,18 +587,18 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens \
 
 Status Code **200**
 
-| Name                 | Type              | Required | Restrictions | Description                                 |
-| -------------------- | ----------------- | -------- | ------------ | ------------------------------------------- |
-| `[array item]`       | array             | false    |              |                                             |
-| `» created_at`       | string(date-time) | true     |              |                                             |
-| `» expires_at`       | string(date-time) | true     |              |                                             |
-| `» id`               | string            | true     |              |                                             |
-| `» last_used`        | string(date-time) | true     |              |                                             |
-| `» lifetime_seconds` | integer           | true     |              |                                             |
-| `» login_type`       | string            | true     |              |                                             |
-| `» scope`            | string            | true     |              |                                             |
-| `» updated_at`       | string(date-time) | true     |              |                                             |
-| `» user_id`          | string(uuid)      | true     |              | User ID do not ever return the HashedSecret |
+| Name                 | Type                                                   | Required | Restrictions | Description                                 |
+| -------------------- | ------------------------------------------------------ | -------- | ------------ | ------------------------------------------- |
+| `[array item]`       | array                                                  | false    |              |                                             |
+| `» created_at`       | string(date-time)                                      | true     |              |                                             |
+| `» expires_at`       | string(date-time)                                      | true     |              |                                             |
+| `» id`               | string                                                 | true     |              |                                             |
+| `» last_used`        | string(date-time)                                      | true     |              |                                             |
+| `» lifetime_seconds` | integer                                                | true     |              |                                             |
+| `» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)     | true     |              |                                             |
+| `» scope`            | [codersdk.APIKeyScope](schemas.md#codersdkapikeyscope) | true     |              |                                             |
+| `» updated_at`       | string(date-time)                                      | true     |              |                                             |
+| `» user_id`          | string(uuid)                                           | true     |              | User ID do not ever return the HashedSecret |
 
 #### Enumerated Values
 

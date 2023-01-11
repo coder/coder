@@ -80,8 +80,8 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 
 | Name           | In   | Type                                                   | Required | Description          |
 | -------------- | ---- | ------------------------------------------------------ | -------- | -------------------- |
-| `user`         | path | string                                                 | true     | User ID, name, or me |
 | `organization` | path | string                                                 | true     | Organization ID      |
+| `user`         | path | string                                                 | true     | User ID, name, or me |
 | `body`         | body | [codersdk.UpdateRoles](schemas.md#codersdkupdateroles) | true     | Update roles request |
 
 ### Example responses

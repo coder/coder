@@ -1,50 +1,14 @@
 # Authentication
 
-> This page is incomplete, stay tuned.
+Long-lived tokens can be generated to perform actions on behalf of your user account:
 
-## Log in user
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X POST http://coder-server:8080/api/v2/users/login \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
+```console
+coder tokens create
 ```
 
-`POST /users/login`
+You can use tokens with the Coder's REST API using the `Coder-Session-Token` HTTP header.
 
-> Body parameter
-
-```json
-{
-  "email": "string",
-  "password": "string"
-}
+```console
+curl 'http://coder-server:8080/api/v2/workspaces' \
+  -H 'Coder-Session-Token: *****'
 ```
-
-### Parameters
-
-| Name   | In   | Type                                                                             | Required | Description   |
-| ------ | ---- | -------------------------------------------------------------------------------- | -------- | ------------- |
-| `body` | body | [codersdk.LoginWithPasswordRequest](schemas.md#codersdkloginwithpasswordrequest) | true     | Login request |
-
-### Example responses
-
-> 201 Response
-
-```json
-{
-  "session_token": "string"
-}
-```
-
-### Responses
-
-| Status | Meaning                                                      | Description | Schema                                                                             |
-| ------ | ------------------------------------------------------------ | ----------- | ---------------------------------------------------------------------------------- |
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.LoginWithPasswordResponse](schemas.md#codersdkloginwithpasswordresponse) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).

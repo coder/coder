@@ -2,9 +2,9 @@ import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
 import LaunchOutlined from "@material-ui/icons/LaunchOutlined"
 import { Stack } from "components/Stack/Stack"
-import React from "react"
+import { FC } from "react"
 
-export const Header: React.FC<{
+export const Header: FC<{
   title: string | JSX.Element
   description?: string | JSX.Element
   secondary?: boolean

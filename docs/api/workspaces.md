@@ -65,7 +65,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
                 "command": "string",
                 "display_name": "string",
                 "external": true,
-                "health": "string",
+                "health": "disabled",
                 "healthcheck": {
                   "interval": 0,
                   "threshold": 0,
@@ -226,7 +226,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
                 "command": "string",
                 "display_name": "string",
                 "external": true,
-                "health": "string",
+                "health": "disabled",
                 "healthcheck": {
                   "interval": 0,
                   "threshold": 0,
@@ -410,7 +410,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                     "command": "string",
                     "display_name": "string",
                     "external": true,
-                    "health": "string",
+                    "health": "disabled",
                     "healthcheck": {},
                     "icon": "string",
                     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -568,7 +568,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{id} \
                 "command": "string",
                 "display_name": "string",
                 "external": true,
-                "health": "string",
+                "health": "disabled",
                 "healthcheck": {
                   "interval": 0,
                   "threshold": 0,

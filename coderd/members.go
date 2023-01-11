@@ -22,8 +22,8 @@ import (
 // @Accept json
 // @Produce json
 // @Tags Members
-// @Param user path string true "User ID, name, or me"
 // @Param organization path string true "Organization ID"
+// @Param user path string true "User ID, name, or me"
 // @Param request body codersdk.UpdateRoles true "Update roles request"
 // @Success 200 {object} codersdk.OrganizationMember
 // @Router /organizations/{organization}/members/{user}/roles [put]

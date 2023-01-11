@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/google/uuid"
@@ -185,7 +186,9 @@ func (o *scaleTestOutput) write(res harness.Results, stdout io.Writer) error {
 	// Sync the file to disk if it's a file.
 	if s, ok := w.(interface{ Sync() error }); ok {
 		err := s.Sync()
-		if err != nil {
+		// On Linux, EINVAL is returned when calling fsync on /dev/stdout. We
+		// can safely ignore this error.
+		if err != nil && !xerrors.Is(err, syscall.EINVAL) {
 			return xerrors.Errorf("flush output file: %w", err)
 		}
 	}

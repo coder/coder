@@ -1,5 +1,8 @@
 name: "CodeQL"
 
+permissions:
+  security-events: write
+
 on:
   push:
     branches: ["main"]

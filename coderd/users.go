@@ -991,7 +991,7 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 // @ID log-in-user
 // @Security CoderSessionToken
 // @Produce json
-// @Tags Authentication
+// @Tags Authorization
 // @Param request body codersdk.LoginWithPasswordRequest true "Login request"
 // @Success 201 {object} codersdk.LoginWithPasswordResponse
 // @Router /users/login [post]

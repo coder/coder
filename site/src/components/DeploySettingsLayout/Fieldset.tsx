@@ -1,13 +1,13 @@
 import { makeStyles } from "@material-ui/core/styles"
-import React from "react"
+import { FC, ReactNode, FormEventHandler } from "react"
 import Button from "@material-ui/core/Button"
 
-export const Fieldset: React.FC<{
-  children: React.ReactNode
+export const Fieldset: FC<{
+  children: ReactNode
   title: string | JSX.Element
   validation?: string | JSX.Element | false
   button?: JSX.Element | false
-  onSubmit: React.FormEventHandler<HTMLFormElement>
+  onSubmit: FormEventHandler<HTMLFormElement>
   isSubmitting?: boolean
 }> = ({ title, children, validation, button, onSubmit, isSubmitting }) => {
   const styles = useStyles()

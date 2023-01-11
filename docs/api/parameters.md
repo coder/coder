@@ -59,17 +59,17 @@ curl -X GET http://coder-server:8080/api/v2/parameters/{scope}/{id} \
 
 Status Code **200**
 
-| Name                   | Type              | Required | Restrictions | Description                                       |
-| ---------------------- | ----------------- | -------- | ------------ | ------------------------------------------------- |
-| `[array item]`         | array             | false    |              | [Parameter represents a set value for the scope.] |
-| `» created_at`         | string(date-time) | false    |              |                                                   |
-| `» destination_scheme` | string            | false    |              |                                                   |
-| `» id`                 | string(uuid)      | false    |              |                                                   |
-| `» name`               | string            | false    |              |                                                   |
-| `» scope`              | string            | false    |              |                                                   |
-| `» scope_id`           | string(uuid)      | false    |              |                                                   |
-| `» source_scheme`      | string            | false    |              |                                                   |
-| `» updated_at`         | string(date-time) | false    |              |                                                   |
+| Name                   | Type                                                                                 | Required | Restrictions | Description                                       |
+| ---------------------- | ------------------------------------------------------------------------------------ | -------- | ------------ | ------------------------------------------------- |
+| `[array item]`         | array                                                                                | false    |              | [Parameter represents a set value for the scope.] |
+| `» created_at`         | string(date-time)                                                                    | false    |              |                                                   |
+| `» destination_scheme` | [codersdk.ParameterDestinationScheme](schemas.md#codersdkparameterdestinationscheme) | false    |              |                                                   |
+| `» id`                 | string(uuid)                                                                         | false    |              |                                                   |
+| `» name`               | string                                                                               | false    |              |                                                   |
+| `» scope`              | [codersdk.ParameterScope](schemas.md#codersdkparameterscope)                         | false    |              |                                                   |
+| `» scope_id`           | string(uuid)                                                                         | false    |              |                                                   |
+| `» source_scheme`      | [codersdk.ParameterSourceScheme](schemas.md#codersdkparametersourcescheme)           | false    |              |                                                   |
+| `» updated_at`         | string(date-time)                                                                    | false    |              |                                                   |
 
 #### Enumerated Values
 

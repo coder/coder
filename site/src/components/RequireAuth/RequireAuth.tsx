@@ -1,5 +1,5 @@
 import { useActor } from "@xstate/react"
-import React, { useContext } from "react"
+import { useContext, FC, PropsWithChildren } from "react"
 import { Navigate, useLocation } from "react-router"
 import { embedRedirect } from "../../util/redirect"
 import { XServiceContext } from "../../xServices/StateContext"
@@ -9,9 +9,9 @@ export interface RequireAuthProps {
   children: JSX.Element
 }
 
-export const RequireAuth: React.FC<
-  React.PropsWithChildren<RequireAuthProps>
-> = ({ children }) => {
+export const RequireAuth: FC<PropsWithChildren<RequireAuthProps>> = ({
+  children,
+}) => {
   const xServices = useContext(XServiceContext)
   const [authState] = useActor(xServices.authXService)
   const location = useLocation()

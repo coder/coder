@@ -122,7 +122,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-    "provisioner": "string",
+    "provisioner": "terraform",
     "updated_at": "2019-08-24T14:15:22Z",
     "workspace_owner_count": 0
   }
@@ -139,29 +139,35 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 Status Code **200**
 
-| Name                                 | Type                              | Required | Restrictions | Description                                  |
-| ------------------------------------ | --------------------------------- | -------- | ------------ | -------------------------------------------- |
-| `[array item]`                       | array                             | false    |              |                                              |
-| `» active_user_count`                | integer                           | false    |              | Active user count is set to -1 when loading. |
-| `» active_version_id`                | string(uuid)                      | false    |              |                                              |
-| `» allow_user_cancel_workspace_jobs` | boolean                           | false    |              |                                              |
-| `» build_time_stats`                 | `codersdk.TemplateBuildTimeStats` | false    |              |                                              |
-| `»» [any property]`                  | `codersdk.TransitionStats`        | false    |              |                                              |
-| `»»» p50`                            | integer                           | false    |              |                                              |
-| `»»» p95`                            | integer                           | false    |              |                                              |
-| `» created_at`                       | string(date-time)                 | false    |              |                                              |
-| `» created_by_id`                    | string(uuid)                      | false    |              |                                              |
-| `» created_by_name`                  | string                            | false    |              |                                              |
-| `» default_ttl_ms`                   | integer                           | false    |              |                                              |
-| `» description`                      | string                            | false    |              |                                              |
-| `» display_name`                     | string                            | false    |              |                                              |
-| `» icon`                             | string                            | false    |              |                                              |
-| `» id`                               | string(uuid)                      | false    |              |                                              |
-| `» name`                             | string                            | false    |              |                                              |
-| `» organization_id`                  | string(uuid)                      | false    |              |                                              |
-| `» provisioner`                      | string                            | false    |              |                                              |
-| `» updated_at`                       | string(date-time)                 | false    |              |                                              |
-| `» workspace_owner_count`            | integer                           | false    |              |                                              |
+| Name                                 | Type                                                                         | Required | Restrictions | Description                                  |
+| ------------------------------------ | ---------------------------------------------------------------------------- | -------- | ------------ | -------------------------------------------- |
+| `[array item]`                       | array                                                                        | false    |              |                                              |
+| `» active_user_count`                | integer                                                                      | false    |              | Active user count is set to -1 when loading. |
+| `» active_version_id`                | string(uuid)                                                                 | false    |              |                                              |
+| `» allow_user_cancel_workspace_jobs` | boolean                                                                      | false    |              |                                              |
+| `» build_time_stats`                 | [codersdk.TemplateBuildTimeStats](schemas.md#codersdktemplatebuildtimestats) | false    |              |                                              |
+| `»» [any property]`                  | [codersdk.TransitionStats](schemas.md#codersdktransitionstats)               | false    |              |                                              |
+| `»»» p50`                            | integer                                                                      | false    |              |                                              |
+| `»»» p95`                            | integer                                                                      | false    |              |                                              |
+| `» created_at`                       | string(date-time)                                                            | false    |              |                                              |
+| `» created_by_id`                    | string(uuid)                                                                 | false    |              |                                              |
+| `» created_by_name`                  | string                                                                       | false    |              |                                              |
+| `» default_ttl_ms`                   | integer                                                                      | false    |              |                                              |
+| `» description`                      | string                                                                       | false    |              |                                              |
+| `» display_name`                     | string                                                                       | false    |              |                                              |
+| `» icon`                             | string                                                                       | false    |              |                                              |
+| `» id`                               | string(uuid)                                                                 | false    |              |                                              |
+| `» name`                             | string                                                                       | false    |              |                                              |
+| `» organization_id`                  | string(uuid)                                                                 | false    |              |                                              |
+| `» provisioner`                      | string                                                                       | false    |              |                                              |
+| `» updated_at`                       | string(date-time)                                                            | false    |              |                                              |
+| `» workspace_owner_count`            | integer                                                                      | false    |              |                                              |
+
+#### Enumerated Values
+
+| Property      | Value       |
+| ------------- | ----------- |
+| `provisioner` | `terraform` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -238,7 +244,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "provisioner": "string",
+  "provisioner": "terraform",
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_owner_count": 0
 }
@@ -361,7 +367,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "provisioner": "string",
+  "provisioner": "terraform",
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_owner_count": 0
 }
@@ -666,7 +672,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{id} \
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "provisioner": "string",
+  "provisioner": "terraform",
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_owner_count": 0
 }
@@ -772,7 +778,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{id} \
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "provisioner": "string",
+  "provisioner": "terraform",
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_owner_count": 0
 }
@@ -909,40 +915,40 @@ curl -X GET http://coder-server:8080/api/v2/templates/{id}/versions \
 
 Status Code **200**
 
-| Name                  | Type                      | Required | Restrictions | Description |
-| --------------------- | ------------------------- | -------- | ------------ | ----------- |
-| `[array item]`        | array                     | false    |              |             |
-| `» created_at`        | string(date-time)         | false    |              |             |
-| `» created_by`        | `codersdk.User`           | false    |              |             |
-| `»» avatar_url`       | string(uri)               | false    |              |             |
-| `»» created_at`       | string(date-time)         | true     |              |             |
-| `»» email`            | string(email)             | true     |              |             |
-| `»» id`               | string(uuid)              | true     |              |             |
-| `»» last_seen_at`     | string(date-time)         | false    |              |             |
-| `»» organization_ids` | array                     | false    |              |             |
-| `»» roles`            | array                     | false    |              |             |
-| `»»» display_name`    | string                    | false    |              |             |
-| `»»» name`            | string                    | false    |              |             |
-| `»» status`           | string                    | false    |              |             |
-| `»» username`         | string                    | true     |              |             |
-| `» id`                | string(uuid)              | false    |              |             |
-| `» job`               | `codersdk.ProvisionerJob` | false    |              |             |
-| `»» canceled_at`      | string(date-time)         | false    |              |             |
-| `»» completed_at`     | string(date-time)         | false    |              |             |
-| `»» created_at`       | string(date-time)         | false    |              |             |
-| `»» error`            | string                    | false    |              |             |
-| `»» file_id`          | string(uuid)              | false    |              |             |
-| `»» id`               | string(uuid)              | false    |              |             |
-| `»» started_at`       | string(date-time)         | false    |              |             |
-| `»» status`           | string                    | false    |              |             |
-| `»» tags`             | object                    | false    |              |             |
-| `»»» [any property]`  | string                    | false    |              |             |
-| `»» worker_id`        | string(uuid)              | false    |              |             |
-| `» name`              | string                    | false    |              |             |
-| `» organization_id`   | string(uuid)              | false    |              |             |
-| `» readme`            | string                    | false    |              |             |
-| `» template_id`       | string(uuid)              | false    |              |             |
-| `» updated_at`        | string(date-time)         | false    |              |             |
+| Name                  | Type                                                                     | Required | Restrictions | Description |
+| --------------------- | ------------------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `[array item]`        | array                                                                    | false    |              |             |
+| `» created_at`        | string(date-time)                                                        | false    |              |             |
+| `» created_by`        | [codersdk.User](schemas.md#codersdkuser)                                 | false    |              |             |
+| `»» avatar_url`       | string(uri)                                                              | false    |              |             |
+| `»» created_at`       | string(date-time)                                                        | true     |              |             |
+| `»» email`            | string(email)                                                            | true     |              |             |
+| `»» id`               | string(uuid)                                                             | true     |              |             |
+| `»» last_seen_at`     | string(date-time)                                                        | false    |              |             |
+| `»» organization_ids` | array                                                                    | false    |              |             |
+| `»» roles`            | array                                                                    | false    |              |             |
+| `»»» display_name`    | string                                                                   | false    |              |             |
+| `»»» name`            | string                                                                   | false    |              |             |
+| `»» status`           | [codersdk.UserStatus](schemas.md#codersdkuserstatus)                     | false    |              |             |
+| `»» username`         | string                                                                   | true     |              |             |
+| `» id`                | string(uuid)                                                             | false    |              |             |
+| `» job`               | [codersdk.ProvisionerJob](schemas.md#codersdkprovisionerjob)             | false    |              |             |
+| `»» canceled_at`      | string(date-time)                                                        | false    |              |             |
+| `»» completed_at`     | string(date-time)                                                        | false    |              |             |
+| `»» created_at`       | string(date-time)                                                        | false    |              |             |
+| `»» error`            | string                                                                   | false    |              |             |
+| `»» file_id`          | string(uuid)                                                             | false    |              |             |
+| `»» id`               | string(uuid)                                                             | false    |              |             |
+| `»» started_at`       | string(date-time)                                                        | false    |              |             |
+| `»» status`           | [codersdk.ProvisionerJobStatus](schemas.md#codersdkprovisionerjobstatus) | false    |              |             |
+| `»» tags`             | object                                                                   | false    |              |             |
+| `»»» [any property]`  | string                                                                   | false    |              |             |
+| `»» worker_id`        | string(uuid)                                                             | false    |              |             |
+| `» name`              | string                                                                   | false    |              |             |
+| `» organization_id`   | string(uuid)                                                             | false    |              |             |
+| `» readme`            | string                                                                   | false    |              |             |
+| `» template_id`       | string(uuid)                                                             | false    |              |             |
+| `» updated_at`        | string(date-time)                                                        | false    |              |             |
 
 #### Enumerated Values
 
@@ -1092,40 +1098,40 @@ curl -X GET http://coder-server:8080/api/v2/templates/{id}/versions/{templatever
 
 Status Code **200**
 
-| Name                  | Type                      | Required | Restrictions | Description |
-| --------------------- | ------------------------- | -------- | ------------ | ----------- |
-| `[array item]`        | array                     | false    |              |             |
-| `» created_at`        | string(date-time)         | false    |              |             |
-| `» created_by`        | `codersdk.User`           | false    |              |             |
-| `»» avatar_url`       | string(uri)               | false    |              |             |
-| `»» created_at`       | string(date-time)         | true     |              |             |
-| `»» email`            | string(email)             | true     |              |             |
-| `»» id`               | string(uuid)              | true     |              |             |
-| `»» last_seen_at`     | string(date-time)         | false    |              |             |
-| `»» organization_ids` | array                     | false    |              |             |
-| `»» roles`            | array                     | false    |              |             |
-| `»»» display_name`    | string                    | false    |              |             |
-| `»»» name`            | string                    | false    |              |             |
-| `»» status`           | string                    | false    |              |             |
-| `»» username`         | string                    | true     |              |             |
-| `» id`                | string(uuid)              | false    |              |             |
-| `» job`               | `codersdk.ProvisionerJob` | false    |              |             |
-| `»» canceled_at`      | string(date-time)         | false    |              |             |
-| `»» completed_at`     | string(date-time)         | false    |              |             |
-| `»» created_at`       | string(date-time)         | false    |              |             |
-| `»» error`            | string                    | false    |              |             |
-| `»» file_id`          | string(uuid)              | false    |              |             |
-| `»» id`               | string(uuid)              | false    |              |             |
-| `»» started_at`       | string(date-time)         | false    |              |             |
-| `»» status`           | string                    | false    |              |             |
-| `»» tags`             | object                    | false    |              |             |
-| `»»» [any property]`  | string                    | false    |              |             |
-| `»» worker_id`        | string(uuid)              | false    |              |             |
-| `» name`              | string                    | false    |              |             |
-| `» organization_id`   | string(uuid)              | false    |              |             |
-| `» readme`            | string                    | false    |              |             |
-| `» template_id`       | string(uuid)              | false    |              |             |
-| `» updated_at`        | string(date-time)         | false    |              |             |
+| Name                  | Type                                                                     | Required | Restrictions | Description |
+| --------------------- | ------------------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `[array item]`        | array                                                                    | false    |              |             |
+| `» created_at`        | string(date-time)                                                        | false    |              |             |
+| `» created_by`        | [codersdk.User](schemas.md#codersdkuser)                                 | false    |              |             |
+| `»» avatar_url`       | string(uri)                                                              | false    |              |             |
+| `»» created_at`       | string(date-time)                                                        | true     |              |             |
+| `»» email`            | string(email)                                                            | true     |              |             |
+| `»» id`               | string(uuid)                                                             | true     |              |             |
+| `»» last_seen_at`     | string(date-time)                                                        | false    |              |             |
+| `»» organization_ids` | array                                                                    | false    |              |             |
+| `»» roles`            | array                                                                    | false    |              |             |
+| `»»» display_name`    | string                                                                   | false    |              |             |
+| `»»» name`            | string                                                                   | false    |              |             |
+| `»» status`           | [codersdk.UserStatus](schemas.md#codersdkuserstatus)                     | false    |              |             |
+| `»» username`         | string                                                                   | true     |              |             |
+| `» id`                | string(uuid)                                                             | false    |              |             |
+| `» job`               | [codersdk.ProvisionerJob](schemas.md#codersdkprovisionerjob)             | false    |              |             |
+| `»» canceled_at`      | string(date-time)                                                        | false    |              |             |
+| `»» completed_at`     | string(date-time)                                                        | false    |              |             |
+| `»» created_at`       | string(date-time)                                                        | false    |              |             |
+| `»» error`            | string                                                                   | false    |              |             |
+| `»» file_id`          | string(uuid)                                                             | false    |              |             |
+| `»» id`               | string(uuid)                                                             | false    |              |             |
+| `»» started_at`       | string(date-time)                                                        | false    |              |             |
+| `»» status`           | [codersdk.ProvisionerJobStatus](schemas.md#codersdkprovisionerjobstatus) | false    |              |             |
+| `»» tags`             | object                                                                   | false    |              |             |
+| `»»» [any property]`  | string                                                                   | false    |              |             |
+| `»» worker_id`        | string(uuid)                                                             | false    |              |             |
+| `» name`              | string                                                                   | false    |              |             |
+| `» organization_id`   | string(uuid)                                                             | false    |              |             |
+| `» readme`            | string                                                                   | false    |              |             |
+| `» template_id`       | string(uuid)                                                             | false    |              |             |
+| `» updated_at`        | string(date-time)                                                        | false    |              |             |
 
 #### Enumerated Values
 
@@ -1455,7 +1461,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
     "created_at": "2019-08-24T14:15:22Z",
     "id": 0,
     "log_level": "trace",
-    "log_source": "string",
+    "log_source": "provisioner_daemon",
     "output": "string",
     "stage": "string"
   }
@@ -1472,25 +1478,27 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
 
 Status Code **200**
 
-| Name           | Type              | Required | Restrictions | Description |
-| -------------- | ----------------- | -------- | ------------ | ----------- |
-| `[array item]` | array             | false    |              |             |
-| `» created_at` | string(date-time) | false    |              |             |
-| `» id`         | integer           | false    |              |             |
-| `» log_level`  | string            | false    |              |             |
-| `» log_source` | string            | false    |              |             |
-| `» output`     | string            | false    |              |             |
-| `» stage`      | string            | false    |              |             |
+| Name           | Type                                               | Required | Restrictions | Description |
+| -------------- | -------------------------------------------------- | -------- | ------------ | ----------- |
+| `[array item]` | array                                              | false    |              |             |
+| `» created_at` | string(date-time)                                  | false    |              |             |
+| `» id`         | integer                                            | false    |              |             |
+| `» log_level`  | [codersdk.LogLevel](schemas.md#codersdkloglevel)   | false    |              |             |
+| `» log_source` | [codersdk.LogSource](schemas.md#codersdklogsource) | false    |              |             |
+| `» output`     | string                                             | false    |              |             |
+| `» stage`      | string                                             | false    |              |             |
 
 #### Enumerated Values
 
-| Property    | Value   |
-| ----------- | ------- |
-| `log_level` | `trace` |
-| `log_level` | `debug` |
-| `log_level` | `info`  |
-| `log_level` | `warn`  |
-| `log_level` | `error` |
+| Property     | Value                |
+| ------------ | -------------------- |
+| `log_level`  | `trace`              |
+| `log_level`  | `debug`              |
+| `log_level`  | `info`               |
+| `log_level`  | `warn`               |
+| `log_level`  | `error`              |
+| `log_source` | `provisioner_daemon` |
+| `log_source` | `provisioner`        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1528,7 +1536,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
             "command": "string",
             "display_name": "string",
             "external": true,
-            "health": "string",
+            "health": "disabled",
             "healthcheck": {
               "interval": 0,
               "threshold": 0,
@@ -1605,66 +1613,70 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
 
 Status Code **200**
 
-| Name                            | Type                   | Required | Restrictions | Description                                                                                                                                                                                                                                    |
-| ------------------------------- | ---------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `[array item]`                  | array                  | false    |              |                                                                                                                                                                                                                                                |
-| `» agents`                      | array                  | false    |              |                                                                                                                                                                                                                                                |
-| `»» apps`                       | array                  | false    |              |                                                                                                                                                                                                                                                |
-| `»»» command`                   | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `»»» display_name`              | string                 | false    |              | »»display name is a friendly name for the app.                                                                                                                                                                                                 |
-| `»»» external`                  | boolean                | false    |              | External specifies whether the URL should be opened externally on the client or not.                                                                                                                                                           |
-| `»»» health`                    | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `»»» healthcheck`               | `codersdk.Healthcheck` | false    |              |                                                                                                                                                                                                                                                |
-| `»»»» interval`                 | integer                | false    |              | Interval specifies the seconds between each health check.                                                                                                                                                                                      |
-| `»»»» threshold`                | integer                | false    |              | Threshold specifies the number of consecutive failed health checks before returning "unhealthy".                                                                                                                                               |
-| `»»»» url`                      | string                 | false    |              | »»»url specifies the endpoint to check for the app health.                                                                                                                                                                                     |
-| `»»» icon`                      | string                 | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                               |
-| `»»» id`                        | string(uuid)           | false    |              |                                                                                                                                                                                                                                                |
-| `»»» sharing_level`             | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `»»» slug`                      | string                 | false    |              | Slug is a unique identifier within the agent.                                                                                                                                                                                                  |
-| `»»» subdomain`                 | boolean                | false    |              | Subdomain denotes whether the app should be accessed via a path on the `coder server` or via a hostname-based dev URL. If this is set to true and there is no app wildcard configured on the server, the app will not be accessible in the UI. |
-| `»»» url`                       | string                 | false    |              | »»url is the address being proxied to inside the workspace. If external is specified, this will be opened on the client.                                                                                                                       |
-| `»» architecture`               | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `»» connection_timeout_seconds` | integer                | false    |              |                                                                                                                                                                                                                                                |
-| `»» created_at`                 | string(date-time)      | false    |              |                                                                                                                                                                                                                                                |
-| `»» directory`                  | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `»» disconnected_at`            | string(date-time)      | false    |              |                                                                                                                                                                                                                                                |
-| `»» environment_variables`      | object                 | false    |              |                                                                                                                                                                                                                                                |
-| `»»» [any property]`            | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `»» first_connected_at`         | string(date-time)      | false    |              |                                                                                                                                                                                                                                                |
-| `»» id`                         | string(uuid)           | false    |              |                                                                                                                                                                                                                                                |
-| `»» instance_id`                | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `»» last_connected_at`          | string(date-time)      | false    |              |                                                                                                                                                                                                                                                |
-| `»» latency`                    | object                 | false    |              | »latency is mapped by region name (e.g. "New York City", "Seattle").                                                                                                                                                                           |
-| `»»» [any property]`            | `codersdk.DERPRegion`  | false    |              |                                                                                                                                                                                                                                                |
-| `»»»» latency_ms`               | number                 | false    |              |                                                                                                                                                                                                                                                |
-| `»»»» preferred`                | boolean                | false    |              |                                                                                                                                                                                                                                                |
-| `»» name`                       | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `»» operating_system`           | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `»» resource_id`                | string(uuid)           | false    |              |                                                                                                                                                                                                                                                |
-| `»» startup_script`             | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `»» status`                     | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `»» troubleshooting_url`        | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `»» updated_at`                 | string(date-time)      | false    |              |                                                                                                                                                                                                                                                |
-| `»» version`                    | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `» created_at`                  | string(date-time)      | false    |              |                                                                                                                                                                                                                                                |
-| `» daily_cost`                  | integer                | false    |              |                                                                                                                                                                                                                                                |
-| `» hide`                        | boolean                | false    |              |                                                                                                                                                                                                                                                |
-| `» icon`                        | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `» id`                          | string(uuid)           | false    |              |                                                                                                                                                                                                                                                |
-| `» job_id`                      | string(uuid)           | false    |              |                                                                                                                                                                                                                                                |
-| `» metadata`                    | array                  | false    |              |                                                                                                                                                                                                                                                |
-| `»» key`                        | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `»» sensitive`                  | boolean                | false    |              |                                                                                                                                                                                                                                                |
-| `»» value`                      | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `» name`                        | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `» type`                        | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `» workspace_transition`        | string                 | false    |              |                                                                                                                                                                                                                                                |
+| Name                            | Type                                                                             | Required | Restrictions | Description                                                                                                                                                                                                                                    |
+| ------------------------------- | -------------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[array item]`                  | array                                                                            | false    |              |                                                                                                                                                                                                                                                |
+| `» agents`                      | array                                                                            | false    |              |                                                                                                                                                                                                                                                |
+| `»» apps`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                |
+| `»»» command`                   | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» display_name`              | string                                                                           | false    |              | »»display name is a friendly name for the app.                                                                                                                                                                                                 |
+| `»»» external`                  | boolean                                                                          | false    |              | External specifies whether the URL should be opened externally on the client or not.                                                                                                                                                           |
+| `»»» health`                    | [codersdk.WorkspaceAppHealth](schemas.md#codersdkworkspaceapphealth)             | false    |              |                                                                                                                                                                                                                                                |
+| `»»» healthcheck`               | [codersdk.Healthcheck](schemas.md#codersdkhealthcheck)                           | false    |              | Healthcheck specifies the configuration for checking app health.                                                                                                                                                                               |
+| `»»»» interval`                 | integer                                                                          | false    |              | Interval specifies the seconds between each health check.                                                                                                                                                                                      |
+| `»»»» threshold`                | integer                                                                          | false    |              | Threshold specifies the number of consecutive failed health checks before returning "unhealthy".                                                                                                                                               |
+| `»»»» url`                      | string                                                                           | false    |              | »»»url specifies the endpoint to check for the app health.                                                                                                                                                                                     |
+| `»»» icon`                      | string                                                                           | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                               |
+| `»»» id`                        | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
+| `»»» sharing_level`             | [codersdk.WorkspaceAppSharingLevel](schemas.md#codersdkworkspaceappsharinglevel) | false    |              |                                                                                                                                                                                                                                                |
+| `»»» slug`                      | string                                                                           | false    |              | Slug is a unique identifier within the agent.                                                                                                                                                                                                  |
+| `»»» subdomain`                 | boolean                                                                          | false    |              | Subdomain denotes whether the app should be accessed via a path on the `coder server` or via a hostname-based dev URL. If this is set to true and there is no app wildcard configured on the server, the app will not be accessible in the UI. |
+| `»»» url`                       | string                                                                           | false    |              | »»url is the address being proxied to inside the workspace. If external is specified, this will be opened on the client.                                                                                                                       |
+| `»» architecture`               | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» connection_timeout_seconds` | integer                                                                          | false    |              |                                                                                                                                                                                                                                                |
+| `»» created_at`                 | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»» directory`                  | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» disconnected_at`            | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»» environment_variables`      | object                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» [any property]`            | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» first_connected_at`         | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»» id`                         | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
+| `»» instance_id`                | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» last_connected_at`          | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»» latency`                    | object                                                                           | false    |              | »latency is mapped by region name (e.g. "New York City", "Seattle").                                                                                                                                                                           |
+| `»»» [any property]`            | [codersdk.DERPRegion](schemas.md#codersdkderpregion)                             | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» latency_ms`               | number                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» preferred`                | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                |
+| `»» name`                       | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» operating_system`           | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» resource_id`                | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
+| `»» startup_script`             | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» status`                     | [codersdk.WorkspaceAgentStatus](schemas.md#codersdkworkspaceagentstatus)         | false    |              |                                                                                                                                                                                                                                                |
+| `»» troubleshooting_url`        | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» updated_at`                 | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»» version`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `» created_at`                  | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `» daily_cost`                  | integer                                                                          | false    |              |                                                                                                                                                                                                                                                |
+| `» hide`                        | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                |
+| `» icon`                        | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `» id`                          | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
+| `» job_id`                      | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
+| `» metadata`                    | array                                                                            | false    |              |                                                                                                                                                                                                                                                |
+| `»» key`                        | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» sensitive`                  | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                |
+| `»» value`                      | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `» name`                        | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `» type`                        | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `» workspace_transition`        | [codersdk.WorkspaceTransition](schemas.md#codersdkworkspacetransition)           | false    |              |                                                                                                                                                                                                                                                |
 
 #### Enumerated Values
 
 | Property               | Value           |
 | ---------------------- | --------------- |
+| `health`               | `disabled`      |
+| `health`               | `initializing`  |
+| `health`               | `healthy`       |
+| `health`               | `unhealthy`     |
 | `sharing_level`        | `owner`         |
 | `sharing_level`        | `authenticated` |
 | `sharing_level`        | `public`        |
@@ -1710,7 +1722,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/l
     "created_at": "2019-08-24T14:15:22Z",
     "id": 0,
     "log_level": "trace",
-    "log_source": "string",
+    "log_source": "provisioner_daemon",
     "output": "string",
     "stage": "string"
   }
@@ -1727,25 +1739,27 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/l
 
 Status Code **200**
 
-| Name           | Type              | Required | Restrictions | Description |
-| -------------- | ----------------- | -------- | ------------ | ----------- |
-| `[array item]` | array             | false    |              |             |
-| `» created_at` | string(date-time) | false    |              |             |
-| `» id`         | integer           | false    |              |             |
-| `» log_level`  | string            | false    |              |             |
-| `» log_source` | string            | false    |              |             |
-| `» output`     | string            | false    |              |             |
-| `» stage`      | string            | false    |              |             |
+| Name           | Type                                               | Required | Restrictions | Description |
+| -------------- | -------------------------------------------------- | -------- | ------------ | ----------- |
+| `[array item]` | array                                              | false    |              |             |
+| `» created_at` | string(date-time)                                  | false    |              |             |
+| `» id`         | integer                                            | false    |              |             |
+| `» log_level`  | [codersdk.LogLevel](schemas.md#codersdkloglevel)   | false    |              |             |
+| `» log_source` | [codersdk.LogSource](schemas.md#codersdklogsource) | false    |              |             |
+| `» output`     | string                                             | false    |              |             |
+| `» stage`      | string                                             | false    |              |             |
 
 #### Enumerated Values
 
-| Property    | Value   |
-| ----------- | ------- |
-| `log_level` | `trace` |
-| `log_level` | `debug` |
-| `log_level` | `info`  |
-| `log_level` | `warn`  |
-| `log_level` | `error` |
+| Property     | Value                |
+| ------------ | -------------------- |
+| `log_level`  | `trace`              |
+| `log_level`  | `debug`              |
+| `log_level`  | `info`               |
+| `log_level`  | `warn`               |
+| `log_level`  | `error`              |
+| `log_source` | `provisioner_daemon` |
+| `log_source` | `provisioner`        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1777,13 +1791,13 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/p
   {
     "created_at": "string",
     "default_source_value": true,
-    "destination_scheme": "string",
+    "destination_scheme": "none",
     "id": "string",
     "name": "string",
     "schema_id": "string",
-    "scope": "string",
+    "scope": "template",
     "scope_id": "string",
-    "source_scheme": "string",
+    "source_scheme": "none",
     "source_value": "string",
     "updated_at": "string"
   }
@@ -1800,20 +1814,33 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/p
 
 Status Code **200**
 
-| Name                     | Type    | Required | Restrictions | Description |
-| ------------------------ | ------- | -------- | ------------ | ----------- |
-| `[array item]`           | array   | false    |              |             |
-| `» created_at`           | string  | false    |              |             |
-| `» default_source_value` | boolean | false    |              |             |
-| `» destination_scheme`   | string  | false    |              |             |
-| `» id`                   | string  | false    |              |             |
-| `» name`                 | string  | false    |              |             |
-| `» schema_id`            | string  | false    |              |             |
-| `» scope`                | string  | false    |              |             |
-| `» scope_id`             | string  | false    |              |             |
-| `» source_scheme`        | string  | false    |              |             |
-| `» source_value`         | string  | false    |              |             |
-| `» updated_at`           | string  | false    |              |             |
+| Name                     | Type                                                                                 | Required | Restrictions | Description |
+| ------------------------ | ------------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `[array item]`           | array                                                                                | false    |              |             |
+| `» created_at`           | string                                                                               | false    |              |             |
+| `» default_source_value` | boolean                                                                              | false    |              |             |
+| `» destination_scheme`   | [database.ParameterDestinationScheme](schemas.md#databaseparameterdestinationscheme) | false    |              |             |
+| `» id`                   | string                                                                               | false    |              |             |
+| `» name`                 | string                                                                               | false    |              |             |
+| `» schema_id`            | string                                                                               | false    |              |             |
+| `» scope`                | [database.ParameterScope](schemas.md#databaseparameterscope)                         | false    |              |             |
+| `» scope_id`             | string                                                                               | false    |              |             |
+| `» source_scheme`        | [database.ParameterSourceScheme](schemas.md#databaseparametersourcescheme)           | false    |              |             |
+| `» source_value`         | string                                                                               | false    |              |             |
+| `» updated_at`           | string                                                                               | false    |              |             |
+
+#### Enumerated Values
+
+| Property             | Value                  |
+| -------------------- | ---------------------- |
+| `destination_scheme` | `none`                 |
+| `destination_scheme` | `environment_variable` |
+| `destination_scheme` | `provisioner_variable` |
+| `scope`              | `template`             |
+| `scope`              | `import_job`           |
+| `scope`              | `workspace`            |
+| `source_scheme`      | `none`                 |
+| `source_scheme`      | `data`                 |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1850,7 +1877,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
             "command": "string",
             "display_name": "string",
             "external": true,
-            "health": "string",
+            "health": "disabled",
             "healthcheck": {
               "interval": 0,
               "threshold": 0,
@@ -1927,66 +1954,70 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
 
 Status Code **200**
 
-| Name                            | Type                   | Required | Restrictions | Description                                                                                                                                                                                                                                    |
-| ------------------------------- | ---------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `[array item]`                  | array                  | false    |              |                                                                                                                                                                                                                                                |
-| `» agents`                      | array                  | false    |              |                                                                                                                                                                                                                                                |
-| `»» apps`                       | array                  | false    |              |                                                                                                                                                                                                                                                |
-| `»»» command`                   | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `»»» display_name`              | string                 | false    |              | »»display name is a friendly name for the app.                                                                                                                                                                                                 |
-| `»»» external`                  | boolean                | false    |              | External specifies whether the URL should be opened externally on the client or not.                                                                                                                                                           |
-| `»»» health`                    | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `»»» healthcheck`               | `codersdk.Healthcheck` | false    |              |                                                                                                                                                                                                                                                |
-| `»»»» interval`                 | integer                | false    |              | Interval specifies the seconds between each health check.                                                                                                                                                                                      |
-| `»»»» threshold`                | integer                | false    |              | Threshold specifies the number of consecutive failed health checks before returning "unhealthy".                                                                                                                                               |
-| `»»»» url`                      | string                 | false    |              | »»»url specifies the endpoint to check for the app health.                                                                                                                                                                                     |
-| `»»» icon`                      | string                 | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                               |
-| `»»» id`                        | string(uuid)           | false    |              |                                                                                                                                                                                                                                                |
-| `»»» sharing_level`             | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `»»» slug`                      | string                 | false    |              | Slug is a unique identifier within the agent.                                                                                                                                                                                                  |
-| `»»» subdomain`                 | boolean                | false    |              | Subdomain denotes whether the app should be accessed via a path on the `coder server` or via a hostname-based dev URL. If this is set to true and there is no app wildcard configured on the server, the app will not be accessible in the UI. |
-| `»»» url`                       | string                 | false    |              | »»url is the address being proxied to inside the workspace. If external is specified, this will be opened on the client.                                                                                                                       |
-| `»» architecture`               | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `»» connection_timeout_seconds` | integer                | false    |              |                                                                                                                                                                                                                                                |
-| `»» created_at`                 | string(date-time)      | false    |              |                                                                                                                                                                                                                                                |
-| `»» directory`                  | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `»» disconnected_at`            | string(date-time)      | false    |              |                                                                                                                                                                                                                                                |
-| `»» environment_variables`      | object                 | false    |              |                                                                                                                                                                                                                                                |
-| `»»» [any property]`            | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `»» first_connected_at`         | string(date-time)      | false    |              |                                                                                                                                                                                                                                                |
-| `»» id`                         | string(uuid)           | false    |              |                                                                                                                                                                                                                                                |
-| `»» instance_id`                | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `»» last_connected_at`          | string(date-time)      | false    |              |                                                                                                                                                                                                                                                |
-| `»» latency`                    | object                 | false    |              | »latency is mapped by region name (e.g. "New York City", "Seattle").                                                                                                                                                                           |
-| `»»» [any property]`            | `codersdk.DERPRegion`  | false    |              |                                                                                                                                                                                                                                                |
-| `»»»» latency_ms`               | number                 | false    |              |                                                                                                                                                                                                                                                |
-| `»»»» preferred`                | boolean                | false    |              |                                                                                                                                                                                                                                                |
-| `»» name`                       | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `»» operating_system`           | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `»» resource_id`                | string(uuid)           | false    |              |                                                                                                                                                                                                                                                |
-| `»» startup_script`             | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `»» status`                     | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `»» troubleshooting_url`        | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `»» updated_at`                 | string(date-time)      | false    |              |                                                                                                                                                                                                                                                |
-| `»» version`                    | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `» created_at`                  | string(date-time)      | false    |              |                                                                                                                                                                                                                                                |
-| `» daily_cost`                  | integer                | false    |              |                                                                                                                                                                                                                                                |
-| `» hide`                        | boolean                | false    |              |                                                                                                                                                                                                                                                |
-| `» icon`                        | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `» id`                          | string(uuid)           | false    |              |                                                                                                                                                                                                                                                |
-| `» job_id`                      | string(uuid)           | false    |              |                                                                                                                                                                                                                                                |
-| `» metadata`                    | array                  | false    |              |                                                                                                                                                                                                                                                |
-| `»» key`                        | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `»» sensitive`                  | boolean                | false    |              |                                                                                                                                                                                                                                                |
-| `»» value`                      | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `» name`                        | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `» type`                        | string                 | false    |              |                                                                                                                                                                                                                                                |
-| `» workspace_transition`        | string                 | false    |              |                                                                                                                                                                                                                                                |
+| Name                            | Type                                                                             | Required | Restrictions | Description                                                                                                                                                                                                                                    |
+| ------------------------------- | -------------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[array item]`                  | array                                                                            | false    |              |                                                                                                                                                                                                                                                |
+| `» agents`                      | array                                                                            | false    |              |                                                                                                                                                                                                                                                |
+| `»» apps`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                |
+| `»»» command`                   | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» display_name`              | string                                                                           | false    |              | »»display name is a friendly name for the app.                                                                                                                                                                                                 |
+| `»»» external`                  | boolean                                                                          | false    |              | External specifies whether the URL should be opened externally on the client or not.                                                                                                                                                           |
+| `»»» health`                    | [codersdk.WorkspaceAppHealth](schemas.md#codersdkworkspaceapphealth)             | false    |              |                                                                                                                                                                                                                                                |
+| `»»» healthcheck`               | [codersdk.Healthcheck](schemas.md#codersdkhealthcheck)                           | false    |              | Healthcheck specifies the configuration for checking app health.                                                                                                                                                                               |
+| `»»»» interval`                 | integer                                                                          | false    |              | Interval specifies the seconds between each health check.                                                                                                                                                                                      |
+| `»»»» threshold`                | integer                                                                          | false    |              | Threshold specifies the number of consecutive failed health checks before returning "unhealthy".                                                                                                                                               |
+| `»»»» url`                      | string                                                                           | false    |              | »»»url specifies the endpoint to check for the app health.                                                                                                                                                                                     |
+| `»»» icon`                      | string                                                                           | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                               |
+| `»»» id`                        | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
+| `»»» sharing_level`             | [codersdk.WorkspaceAppSharingLevel](schemas.md#codersdkworkspaceappsharinglevel) | false    |              |                                                                                                                                                                                                                                                |
+| `»»» slug`                      | string                                                                           | false    |              | Slug is a unique identifier within the agent.                                                                                                                                                                                                  |
+| `»»» subdomain`                 | boolean                                                                          | false    |              | Subdomain denotes whether the app should be accessed via a path on the `coder server` or via a hostname-based dev URL. If this is set to true and there is no app wildcard configured on the server, the app will not be accessible in the UI. |
+| `»»» url`                       | string                                                                           | false    |              | »»url is the address being proxied to inside the workspace. If external is specified, this will be opened on the client.                                                                                                                       |
+| `»» architecture`               | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» connection_timeout_seconds` | integer                                                                          | false    |              |                                                                                                                                                                                                                                                |
+| `»» created_at`                 | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»» directory`                  | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» disconnected_at`            | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»» environment_variables`      | object                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» [any property]`            | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» first_connected_at`         | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»» id`                         | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
+| `»» instance_id`                | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» last_connected_at`          | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»» latency`                    | object                                                                           | false    |              | »latency is mapped by region name (e.g. "New York City", "Seattle").                                                                                                                                                                           |
+| `»»» [any property]`            | [codersdk.DERPRegion](schemas.md#codersdkderpregion)                             | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» latency_ms`               | number                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» preferred`                | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                |
+| `»» name`                       | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» operating_system`           | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» resource_id`                | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
+| `»» startup_script`             | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» status`                     | [codersdk.WorkspaceAgentStatus](schemas.md#codersdkworkspaceagentstatus)         | false    |              |                                                                                                                                                                                                                                                |
+| `»» troubleshooting_url`        | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» updated_at`                 | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»» version`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `» created_at`                  | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `» daily_cost`                  | integer                                                                          | false    |              |                                                                                                                                                                                                                                                |
+| `» hide`                        | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                |
+| `» icon`                        | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `» id`                          | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
+| `» job_id`                      | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
+| `» metadata`                    | array                                                                            | false    |              |                                                                                                                                                                                                                                                |
+| `»» key`                        | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» sensitive`                  | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                |
+| `»» value`                      | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `» name`                        | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `» type`                        | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `» workspace_transition`        | [codersdk.WorkspaceTransition](schemas.md#codersdkworkspacetransition)           | false    |              |                                                                                                                                                                                                                                                |
 
 #### Enumerated Values
 
 | Property               | Value           |
 | ---------------------- | --------------- |
+| `health`               | `disabled`      |
+| `health`               | `initializing`  |
+| `health`               | `healthy`       |
+| `health`               | `unhealthy`     |
 | `sharing_level`        | `owner`         |
 | `sharing_level`        | `authenticated` |
 | `sharing_level`        | `public`        |
@@ -2057,26 +2088,26 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/s
 
 Status Code **200**
 
-| Name                           | Type              | Required | Restrictions | Description                                                                                                             |
-| ------------------------------ | ----------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| `[array item]`                 | array             | false    |              |                                                                                                                         |
-| `» allow_override_destination` | boolean           | false    |              |                                                                                                                         |
-| `» allow_override_source`      | boolean           | false    |              |                                                                                                                         |
-| `» created_at`                 | string(date-time) | false    |              |                                                                                                                         |
-| `» default_destination_scheme` | string            | false    |              |                                                                                                                         |
-| `» default_refresh`            | string            | false    |              |                                                                                                                         |
-| `» default_source_scheme`      | string            | false    |              |                                                                                                                         |
-| `» default_source_value`       | string            | false    |              |                                                                                                                         |
-| `» description`                | string            | false    |              |                                                                                                                         |
-| `» id`                         | string(uuid)      | false    |              |                                                                                                                         |
-| `» job_id`                     | string(uuid)      | false    |              |                                                                                                                         |
-| `» name`                       | string            | false    |              |                                                                                                                         |
-| `» redisplay_value`            | boolean           | false    |              |                                                                                                                         |
-| `» validation_condition`       | string            | false    |              |                                                                                                                         |
-| `» validation_contains`        | array             | false    |              | This is a special array of items provided if the validation condition explicitly states the value must be one of a set. |
-| `» validation_error`           | string            | false    |              |                                                                                                                         |
-| `» validation_type_system`     | string            | false    |              |                                                                                                                         |
-| `» validation_value_type`      | string            | false    |              |                                                                                                                         |
+| Name                           | Type                                                                                 | Required | Restrictions | Description                                                                                                             |
+| ------------------------------ | ------------------------------------------------------------------------------------ | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `[array item]`                 | array                                                                                | false    |              |                                                                                                                         |
+| `» allow_override_destination` | boolean                                                                              | false    |              |                                                                                                                         |
+| `» allow_override_source`      | boolean                                                                              | false    |              |                                                                                                                         |
+| `» created_at`                 | string(date-time)                                                                    | false    |              |                                                                                                                         |
+| `» default_destination_scheme` | [codersdk.ParameterDestinationScheme](schemas.md#codersdkparameterdestinationscheme) | false    |              |                                                                                                                         |
+| `» default_refresh`            | string                                                                               | false    |              |                                                                                                                         |
+| `» default_source_scheme`      | [codersdk.ParameterSourceScheme](schemas.md#codersdkparametersourcescheme)           | false    |              |                                                                                                                         |
+| `» default_source_value`       | string                                                                               | false    |              |                                                                                                                         |
+| `» description`                | string                                                                               | false    |              |                                                                                                                         |
+| `» id`                         | string(uuid)                                                                         | false    |              |                                                                                                                         |
+| `» job_id`                     | string(uuid)                                                                         | false    |              |                                                                                                                         |
+| `» name`                       | string                                                                               | false    |              |                                                                                                                         |
+| `» redisplay_value`            | boolean                                                                              | false    |              |                                                                                                                         |
+| `» validation_condition`       | string                                                                               | false    |              |                                                                                                                         |
+| `» validation_contains`        | array                                                                                | false    |              | This is a special array of items provided if the validation condition explicitly states the value must be one of a set. |
+| `» validation_error`           | string                                                                               | false    |              |                                                                                                                         |
+| `» validation_type_system`     | string                                                                               | false    |              |                                                                                                                         |
+| `» validation_value_type`      | string                                                                               | false    |              |                                                                                                                         |
 
 #### Enumerated Values
 

@@ -23,7 +23,10 @@ site/**/*.typegen.ts
 site/build-storybook.log
 site/coverage/
 site/storybook-static/
-site/test-results/
+site/test-results/*
+site/e2e/test-results/*
+site/e2e/storageState.json
+site/playwright-report/*
 
 # Make target for updating golden files.
 cli/testdata/.gen-golden

@@ -1,10 +1,10 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { Stack } from "components/Stack/Stack"
-import React, { PropsWithChildren } from "react"
+import { PropsWithChildren, FC } from "react"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 import { combineClasses } from "util/combineClasses"
 
-export const EnabledBadge: React.FC = () => {
+export const EnabledBadge: FC = () => {
   const styles = useStyles()
   return (
     <span className={combineClasses([styles.badge, styles.enabledBadge])}>
@@ -13,7 +13,7 @@ export const EnabledBadge: React.FC = () => {
   )
 }
 
-export const EntitledBadge: React.FC = () => {
+export const EntitledBadge: FC = () => {
   const styles = useStyles()
   return (
     <span className={combineClasses([styles.badge, styles.enabledBadge])}>
@@ -22,7 +22,7 @@ export const EntitledBadge: React.FC = () => {
   )
 }
 
-export const DisabledBadge: React.FC = () => {
+export const DisabledBadge: FC = () => {
   const styles = useStyles()
   return (
     <span className={combineClasses([styles.badge, styles.disabledBadge])}>
@@ -31,7 +31,7 @@ export const DisabledBadge: React.FC = () => {
   )
 }
 
-export const EnterpriseBadge: React.FC = () => {
+export const EnterpriseBadge: FC = () => {
   const styles = useStyles()
   return (
     <span className={combineClasses([styles.badge, styles.enterpriseBadge])}>
@@ -40,7 +40,7 @@ export const EnterpriseBadge: React.FC = () => {
   )
 }
 
-export const VersionBadge: React.FC<{
+export const VersionBadge: FC<{
   version: string
 }> = ({ version }) => {
   const styles = useStyles()
@@ -51,7 +51,7 @@ export const VersionBadge: React.FC<{
   )
 }
 
-export const Badges: React.FC<PropsWithChildren> = ({ children }) => {
+export const Badges: FC<PropsWithChildren> = ({ children }) => {
   const styles = useStyles()
   return (
     <Stack

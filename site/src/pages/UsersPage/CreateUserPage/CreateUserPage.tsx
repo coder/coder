@@ -1,6 +1,6 @@
 import { useMachine } from "@xstate/react"
 import { useOrganizationId } from "hooks/useOrganizationId"
-import React from "react"
+import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { useNavigate } from "react-router"
 import { createUserMachine } from "xServices/users/createUserXService"
@@ -13,7 +13,7 @@ export const Language = {
   unknownError: "Oops, an unknown error occurred.",
 }
 
-export const CreateUserPage: React.FC = () => {
+export const CreateUserPage: FC = () => {
   const myOrgId = useOrganizationId()
   const navigate = useNavigate()
   const [createUserState, createUserSend] = useMachine(createUserMachine, {

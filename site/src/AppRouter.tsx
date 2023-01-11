@@ -77,7 +77,10 @@ const GeneralSettingsPage = lazy(
     ),
 )
 const SecuritySettingsPage = lazy(
-  () => import("./pages/DeploySettingsPage/SecuritySettingsPage"),
+  () =>
+    import(
+      "./pages/DeploySettingsPage/SecuritySettingsPage/SecuritySettingsPage"
+    ),
 )
 const AppearanceSettingsPage = lazy(
   () =>
@@ -86,7 +89,10 @@ const AppearanceSettingsPage = lazy(
     ),
 )
 const UserAuthSettingsPage = lazy(
-  () => import("./pages/DeploySettingsPage/UserAuthSettingsPage"),
+  () =>
+    import(
+      "./pages/DeploySettingsPage/UserAuthSettingsPage/UserAuthSettingsPage"
+    ),
 )
 const GitAuthSettingsPage = lazy(
   () =>
@@ -414,10 +420,37 @@ export const AppRouter: FC = () => {
           />
         </Route>
 
-        <Route path="settings" element={<SettingsLayout />}>
-          <Route path="account" element={<AccountPage />} />
-          <Route path="security" element={<SecurityPage />} />
-          <Route path="ssh-keys" element={<SSHKeysPage />} />
+        <Route path="settings">
+          <Route
+            path="account"
+            element={
+              <AuthAndFrame>
+                <SettingsLayout>
+                  <AccountPage />
+                </SettingsLayout>
+              </AuthAndFrame>
+            }
+          />
+          <Route
+            path="security"
+            element={
+              <AuthAndFrame>
+                <SettingsLayout>
+                  <SecurityPage />
+                </SettingsLayout>
+              </AuthAndFrame>
+            }
+          />
+          <Route
+            path="ssh-keys"
+            element={
+              <AuthAndFrame>
+                <SettingsLayout>
+                  <SSHKeysPage />
+                </SettingsLayout>
+              </AuthAndFrame>
+            }
+          />
         </Route>
 
         <Route path="/@:username">

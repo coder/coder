@@ -1,21 +1,12 @@
 import { useActor } from "@xstate/react"
-import React, { useContext, useEffect } from "react"
+import { useContext, useEffect, PropsWithChildren, FC } from "react"
 import { ConfirmDialog } from "../../../components/Dialogs/ConfirmDialog/ConfirmDialog"
-import { Section } from "../../../components/Section/Section"
+import { Section } from "../../../components/SettingsLayout/Section"
 import { XServiceContext } from "../../../xServices/StateContext"
 import { SSHKeysPageView } from "./SSHKeysPageView"
 
 export const Language = {
   title: "SSH keys",
-  description: (
-    <p>
-      The following public key is used to authenticate Git in workspaces. You
-      may add it to Git services (such as GitHub) that you need to access from
-      your workspace. <br />
-      <br />
-      Coder configures authentication via <code>$GIT_SSH_COMMAND</code>.
-    </p>
-  ),
   regenerateDialogTitle: "Regenerate SSH key?",
   regenerateDialogMessage:
     "You will need to replace the public SSH key on services you use it with, and you'll need to rebuild existing workspaces.",
@@ -23,7 +14,7 @@ export const Language = {
   cancelLabel: "Cancel",
 }
 
-export const SSHKeysPage: React.FC<React.PropsWithChildren<unknown>> = () => {
+export const SSHKeysPage: FC<PropsWithChildren<unknown>> = () => {
   const xServices = useContext(XServiceContext)
   const [authState, authSend] = useActor(xServices.authXService)
   const { sshKey, getSSHKeyError, regenerateSSHKeyError } = authState.context
@@ -41,7 +32,7 @@ export const SSHKeysPage: React.FC<React.PropsWithChildren<unknown>> = () => {
 
   return (
     <>
-      <Section title={Language.title} description={Language.description}>
+      <Section title={Language.title}>
         <SSHKeysPageView
           isLoading={isLoading}
           hasLoaded={hasLoaded}

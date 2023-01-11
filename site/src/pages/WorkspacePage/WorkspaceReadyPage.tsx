@@ -42,6 +42,10 @@ export const WorkspaceReadyPage = ({
     workspaceState.children["scheduleBannerMachine"],
   )
   const xServices = useContext(XServiceContext)
+  const experimental = useSelector(
+    xServices.entitlementsXService,
+    (state) => state.context.entitlements.experimental,
+  )
   const featureVisibility = useSelector(
     xServices.entitlementsXService,
     selectFeatureVisibility,
@@ -120,6 +124,9 @@ export const WorkspaceReadyPage = ({
         builds={builds}
         canUpdateWorkspace={canUpdateWorkspace}
         hideSSHButton={featureVisibility[FeatureNames.BrowserOnly]}
+        hideVSCodeDesktopButton={
+          !experimental || featureVisibility[FeatureNames.BrowserOnly]
+        }
         workspaceErrors={{
           [WorkspaceErrors.GET_RESOURCES_ERROR]: refreshWorkspaceWarning,
           [WorkspaceErrors.GET_BUILDS_ERROR]: getBuildsError,

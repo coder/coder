@@ -64,53 +64,80 @@ source "$SCRIPT_DIR/release/check_commit_metadata.sh" "${old_version}" "${ref}"
 # Sort commits by title prefix, then by date, only return sha at the end.
 mapfile -t commits < <(git log --no-merges --pretty=format:"%ct %h %s" "${old_version}..${ref}" | sort -k3,3 -k1,1n | cut -d' ' -f2)
 
-breaking_changelog=
-feat_changelog=
-fix_changelog=
-other_changelog=
+# From: https://github.com/commitizen/conventional-commit-types
+# NOTE(mafredri): These need to be supported in check_commit_metadata.sh as well.
+declare -a section_order=(
+	breaking
+	security
+	feat
+	fix
+	docs
+	refactor
+	perf
+	test
+	build
+	ci
+	chore
+	revert
+	other
+)
+
+declare -A section_titles=(
+	[breaking]='BREAKING CHANGES'
+	[security]='SECURITY'
+	[feat]='Features'
+	[fix]='Bug fixes'
+	[docs]='Documentation'
+	[refactor]='Code refactoring'
+	[perf]='Performance improvements'
+	[test]='Tests'
+	[build]='Builds'
+	[ci]='Continuous integration'
+	[chore]='Chores'
+	[revert]='Reverts'
+	[other]='Other changes'
+)
+
+# Verify that all items in section_order exist as keys in section_titles and
+# vice-versa.
+for cat in "${section_order[@]}"; do
+	if [[ " ${!section_titles[*]} " != *" $cat "* ]]; then
+		error "BUG: category $cat does not exist in section_titles"
+	fi
+done
+for cat in "${!section_titles[@]}"; do
+	if [[ " ${section_order[*]} " != *" $cat "* ]]; then
+		error "BUG: Category $cat does not exist in section_order"
+	fi
+done
 
 for commit in "${commits[@]}"; do
 	line="- $commit ${COMMIT_METADATA_TITLE[$commit]}\n"
 
-	case "${COMMIT_METADATA_CATEGORY[$commit]}" in
-	breaking)
-		breaking_changelog+="$line"
-		;;
-	feat)
-		feat_changelog+="$line"
-		;;
-	fix)
-		fix_changelog+="$line"
-		;;
-	*)
-		other_changelog+="$line"
-		;;
-	esac
+	# Default to "other" category.
+	cat=other
+	for c in "${!section_titles[@]}"; do
+		if [[ $c == "${COMMIT_METADATA_CATEGORY[$commit]}" ]]; then
+			cat=$c
+			break
+		fi
+	done
+	declare "$cat"_changelog+="$line"
 done
 
 changelog="$(
-	if ((${#breaking_changelog} > 0)); then
-		echo -e "### BREAKING CHANGES\n"
-		echo -e "$breaking_changelog"
-	fi
-	if ((${#feat_changelog} > 0)); then
-		echo -e "### Features\n"
-		echo -e "$feat_changelog"
-	fi
-	if ((${#fix_changelog} > 0)); then
-		echo -e "### Bug fixes\n"
-		echo -e "$fix_changelog"
-	fi
-	if ((${#other_changelog} > 0)); then
-		echo -e "### Other changes\n"
-		echo -e "$other_changelog"
-	fi
+	for cat in "${section_order[@]}"; do
+		changes="$(eval "echo -e \"\${${cat}_changelog:-}\"")"
+		if ((${#changes} > 0)); then
+			echo -e "\n### ${section_titles["$cat"]}\n"
+			echo -e "$changes"
+		fi
+	done
 )"
 
 image_tag="$(execrelative ./image_tag.sh --version "$new_version")"
 
 echo -e "## Changelog
-
 $changelog
 
 Compare: [\`${old_version}...${new_version}\`](https://github.com/coder/coder/compare/${old_version}...${new_version})

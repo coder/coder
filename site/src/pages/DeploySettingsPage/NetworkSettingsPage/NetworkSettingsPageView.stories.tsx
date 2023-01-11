@@ -39,6 +39,9 @@ export default {
             },
           },
         },
+        wildcard_access_url: {
+          value: "https://coder.com",
+        },
       },
     },
   },

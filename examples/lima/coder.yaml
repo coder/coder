@@ -69,21 +69,12 @@ provision:
     script: |
       #!/bin/bash
       set -eux -o pipefail
-      command -v terraform >/dev/null 2>&1 && exit 0
-      DEBIAN_FRONTEND=noninteractive apt-get install -qqy unzip
-      rm -fv /tmp/terraform.zip || true
-      wget -qO /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.3.0/terraform_1.3.0_linux_$(dpkg --print-architecture).zip"
-      unzip /tmp/terraform.zip -d /usr/local/bin/
-      chmod +x /usr/local/bin/terraform
-      rm -fv /tmp/terraform.zip || true
-  - mode: system
-    script: |
-      #!/bin/bash
-      set -eux -o pipefail
       command -v coder >/dev/null 2>&1 && exit 0
       export DEBIAN_FRONTEND=noninteractive
       export HOME=/root
-      curl -fsSL https://coder.com/install.sh | sh
+      # Using install.sh --with-terraform requires unzip to be available.
+      apt-get install -qqy unzip
+      curl -fsSL https://coder.com/install.sh | sh -s -- --with-terraform
       # Ensure Coder has permissions on /var/run/docker.socket
       usermod -aG docker coder
       # Ensure coder listens on all interfaces
@@ -93,10 +84,8 @@ provision:
       # Ensure coder starts on boot
       systemctl enable coder
       systemctl start coder
-      # Wait for Coder to have downloaded Terraform
-      timeout 60s bash -c 'until /var/cache/coder/terraform version >/dev/null 2>&1; do sleep 1; done'
-      # Coder restarts after downloading Terraform, wait for it to become available
-      timeout 60s bash -c 'until nc -z localhost 3000 > /dev/null 2>&1; do sleep 1; done'
+      # Wait for Terraform to be installed
+      timeout 60s bash -c 'until /usr/local/bin/terraform version >/dev/null 2>&1; do sleep 1; done'
   - mode: user
     script: |
       #!/bin/bash
@@ -141,10 +130,10 @@ message: |
   All Done! Your Coder instance is accessible at http://localhost:3000
 
   Username: "admin@coder.com"
-  Password: Run `LIMA_INSTANCE=coder lima cat /home/${USER}.linux/.config/coderv2/password` 🤫
+  Password: Run `LIMA_INSTANCE={{.Instance.Name}} lima cat /home/${USER}.linux/.config/coderv2/password` 🤫
 
   Get started creating your own template now:
   ------
-  limactl shell coder
+  limactl shell {{.Instance.Name}}
   cd && coder templates init
   ------

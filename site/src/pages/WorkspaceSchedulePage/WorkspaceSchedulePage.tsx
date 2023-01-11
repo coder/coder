@@ -6,7 +6,7 @@ import { Margins } from "components/Margins/Margins"
 import dayjs from "dayjs"
 import { scheduleToAutoStart } from "pages/WorkspaceSchedulePage/schedule"
 import { ttlMsToAutoStop } from "pages/WorkspaceSchedulePage/ttl"
-import React, { useEffect } from "react"
+import { useEffect, FC } from "react"
 import { useTranslation } from "react-i18next"
 import { Navigate, useNavigate, useParams } from "react-router-dom"
 import { scheduleChanged } from "util/schedule"
@@ -31,7 +31,7 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-export const WorkspaceSchedulePage: React.FC = () => {
+export const WorkspaceSchedulePage: FC = () => {
   const { t } = useTranslation("workspaceSchedulePage")
   const styles = useStyles()
   const { username: usernameQueryParam, workspace: workspaceQueryParam } =

@@ -1,30 +1,34 @@
-import { useActor } from "@xstate/react"
-import React, { useContext } from "react"
-import { Section } from "../../../components/Section/Section"
+import { useMachine } from "@xstate/react"
+import { useMe } from "hooks/useMe"
+import { FC } from "react"
+import { userSecuritySettingsMachine } from "xServices/userSecuritySettings/userSecuritySettingsXService"
+import { Section } from "../../../components/SettingsLayout/Section"
 import { SecurityForm } from "../../../components/SettingsSecurityForm/SettingsSecurityForm"
-import { XServiceContext } from "../../../xServices/StateContext"
 
 export const Language = {
   title: "Security",
 }
 
-export const SecurityPage: React.FC = () => {
-  const xServices = useContext(XServiceContext)
-  const [authState, authSend] = useActor(xServices.authXService)
-  const { me, updateSecurityError } = authState.context
-
-  if (!me) {
-    throw new Error("No current user found")
-  }
+export const SecurityPage: FC = () => {
+  const me = useMe()
+  const [securityState, securitySend] = useMachine(
+    userSecuritySettingsMachine,
+    {
+      context: {
+        userId: me.id,
+      },
+    },
+  )
+  const { error } = securityState.context
 
   return (
-    <Section title={Language.title}>
+    <Section title={Language.title} description="Update your account password">
       <SecurityForm
-        updateSecurityError={updateSecurityError}
-        isLoading={authState.matches("signedIn.security.updatingSecurity")}
+        updateSecurityError={error}
+        isLoading={securityState.matches("updatingSecurity")}
         initialValues={{ old_password: "", password: "", confirm_password: "" }}
         onSubmit={(data) => {
-          authSend({
+          securitySend({
             type: "UPDATE_SECURITY",
             data,
           })

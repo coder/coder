@@ -3,7 +3,6 @@ import * as API from "../../../api/api"
 import { GlobalSnackbar } from "../../../components/GlobalSnackbar/GlobalSnackbar"
 import * as SecurityForm from "../../../components/SettingsSecurityForm/SettingsSecurityForm"
 import { renderWithAuth } from "../../../testHelpers/renderHelpers"
-import * as AuthXService from "../../../xServices/auth/authXService"
 import { SecurityPage } from "./SecurityPage"
 import i18next from "i18next"
 
@@ -47,9 +46,10 @@ describe("SecurityPage", () => {
       const { user } = renderPage()
       await fillAndSubmitForm()
 
-      const successMessage = await screen.findByText(
-        AuthXService.Language.successSecurityUpdate,
-      )
+      const expectedMessage = t("securityUpdateSuccessMessage", {
+        ns: "userSettingsPage",
+      })
+      const successMessage = await screen.findByText(expectedMessage)
       expect(successMessage).toBeDefined()
       expect(API.updateUserPassword).toBeCalledTimes(1)
       expect(API.updateUserPassword).toBeCalledWith(user.id, newData)
