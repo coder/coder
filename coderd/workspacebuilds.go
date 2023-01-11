@@ -897,7 +897,8 @@ func (api *API) convertWorkspaceBuilds(
 		templateVersionByID[templateVersion.ID] = templateVersion
 	}
 
-	var apiBuilds []codersdk.WorkspaceBuild
+	// Should never be nil for API consistency
+	apiBuilds := []codersdk.WorkspaceBuild{}
 	for _, build := range workspaceBuilds {
 		job, exists := jobByID[build.JobID]
 		if !exists {

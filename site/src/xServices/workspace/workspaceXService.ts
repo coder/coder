@@ -717,11 +717,10 @@ export const workspaceMachine = createMachine(
         if (context.workspace) {
           // For now, we only retrieve the last month of builds to minimize
           // page bloat. We should add pagination in the future.
-          const builds = await API.getWorkspaceBuilds(
+          return await API.getWorkspaceBuilds(
             context.workspace.id,
             dayjs().add(-30, "day").toDate(),
           )
-          return builds ?? []
         } else {
           throw Error("Cannot get builds without id")
         }
