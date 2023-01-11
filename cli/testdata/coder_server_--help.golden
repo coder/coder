@@ -70,6 +70,12 @@ Flags:
                                                      disable the HTTP endpoint.
                                                      Consumes $CODER_HTTP_ADDRESS (default
                                                      "127.0.0.1:3000")
+      --human-log string                             Output human-readable logs to a given
+                                                     file.
+                                                     Consumes $CODER_LOGGING_HUMAN (default
+                                                     "/dev/stderr")
+      --json-log string                              Output JSON logs to a given file.
+                                                     Consumes $CODER_LOGGING_JSON
       --max-token-lifetime duration                  The maximum lifetime duration for any
                                                      user creating a token.
                                                      Consumes $CODER_MAX_TOKEN_LIFETIME
@@ -176,6 +182,9 @@ Flags:
                                                      "ecdsa", or "rsa4096".
                                                      Consumes $CODER_SSH_KEYGEN_ALGORITHM
                                                      (default "ed25519")
+      --stackdriver-log string                       Output Stackdriver compatible logs to a
+                                                     given file.
+                                                     Consumes $CODER_LOGGING_STACKDRIVER
       --swagger-enable                               Expose the swagger endpoint via /swagger.
                                                      Consumes $CODER_SWAGGER_ENABLE
       --telemetry                                    Whether telemetry is enabled or not.

@@ -46,6 +46,8 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"cdr.dev/slog/sloggers/slogjson"
+	"cdr.dev/slog/sloggers/slogstackdriver"
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
@@ -122,13 +124,11 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			}
 
 			printLogo(cmd)
-			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
-			if ok, _ := cmd.Flags().GetBool(varVerbose); ok {
-				logger = logger.Leveled(slog.LevelDebug)
+			logger, logCloser, err := makeLogger(cmd, cfg)
+			if err != nil {
+				return xerrors.Errorf("make logger: %w", err)
 			}
-			if cfg.Trace.CaptureLogs.Value {
-				logger = logger.AppendSinks(tracing.SlogSink{})
-			}
+			defer logCloser()
 
 			// Register signals early on so that graceful shutdown can't
 			// be interrupted by additional signals. Note that we avoid
@@ -1145,6 +1145,11 @@ func newProvisionerDaemon(
 
 // nolint: revive
 func printLogo(cmd *cobra.Command) {
+	// Only print the logo in TTYs.
+	if !isTTYOut(cmd) {
+		return
+	}
+
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s - Software development on your infrastucture\n", cliui.Styles.Bold.Render("Coder "+buildinfo.Version()))
 }
 
@@ -1511,4 +1516,65 @@ func redirectHTTPToAccessURL(handler http.Handler, accessURL *url.URL) http.Hand
 // be called with `u.Hostname()`.
 func isLocalhost(host string) bool {
 	return host == "localhost" || host == "127.0.0.1" || host == "::1"
+}
+
+func makeLogger(cmd *cobra.Command, cfg *codersdk.DeploymentConfig) (slog.Logger, func(), error) {
+	var (
+		sinks   = []slog.Sink{}
+		closers = []func() error{}
+	)
+
+	if cfg.Logging.Human.Value != "" {
+		if cfg.Logging.Human.Value == "/dev/stderr" {
+			sinks = append(sinks, sloghuman.Sink(cmd.ErrOrStderr()))
+		} else {
+			fi, err := os.OpenFile(cfg.Logging.Human.Value, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+			if err != nil {
+				return slog.Logger{}, nil, xerrors.Errorf("open human log %q: %w", cfg.Logging.Human.Value, err)
+			}
+			closers = append(closers, fi.Close)
+			sinks = append(sinks, sloghuman.Sink(fi))
+		}
+	}
+
+	if cfg.Logging.JSON.Value != "" {
+		if cfg.Logging.JSON.Value == "/dev/stderr" {
+			sinks = append(sinks, slogjson.Sink(cmd.ErrOrStderr()))
+		} else {
+			fi, err := os.OpenFile(cfg.Logging.JSON.Value, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+			if err != nil {
+				return slog.Logger{}, nil, xerrors.Errorf("open json log %q: %w", cfg.Logging.JSON.Value, err)
+			}
+			closers = append(closers, fi.Close)
+			sinks = append(sinks, slogjson.Sink(fi))
+		}
+	}
+
+	if cfg.Logging.Stackdriver.Value != "" {
+		if cfg.Logging.JSON.Value == "/dev/stderr" {
+			sinks = append(sinks, slogstackdriver.Sink(cmd.ErrOrStderr()))
+		} else {
+			fi, err := os.OpenFile(cfg.Logging.Stackdriver.Value, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+			if err != nil {
+				return slog.Logger{}, nil, xerrors.Errorf("open stackdriver log %q: %w", cfg.Logging.Stackdriver.Value, err)
+			}
+			closers = append(closers, fi.Close)
+			sinks = append(sinks, slogstackdriver.Sink(fi))
+		}
+	}
+
+	if cfg.Trace.CaptureLogs.Value {
+		sinks = append(sinks, tracing.SlogSink{})
+	}
+
+	level := slog.LevelInfo
+	if ok, _ := cmd.Flags().GetBool(varVerbose); ok {
+		level = slog.LevelDebug
+	}
+
+	return slog.Make(sinks...).Leveled(level), func() {
+		for _, closer := range closers {
+			_ = closer()
+		}
+	}, nil
 }
