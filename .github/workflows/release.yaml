@@ -236,7 +236,7 @@ jobs:
             publish_args+=(--draft)
           fi
           if [[ "${{ github.event.inputs.dry_run || github.event.inputs.snapshot }}" == *t* ]]; then
-            publish_args+=(--dry_run)
+            publish_args+=(--dry-run)
           fi
           declare -p publish_args
 
