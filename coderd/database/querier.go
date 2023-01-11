@@ -57,6 +57,7 @@ type sqlcQuerier interface {
 	GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceBuild, error)
 	GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuild, error)
 	GetLicenses(ctx context.Context) ([]License, error)
+	GetLogoURL(ctx context.Context) (string, error)
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationByName(ctx context.Context, name string) (Organization, error)
 	GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.UUID) ([]GetOrganizationIDsByMemberIDsRow, error)
@@ -146,6 +147,7 @@ type sqlcQuerier interface {
 	InsertGroupMember(ctx context.Context, arg InsertGroupMemberParams) error
 	InsertLicense(ctx context.Context, arg InsertLicenseParams) (License, error)
 	InsertOrUpdateLastUpdateCheck(ctx context.Context, value string) error
+	InsertOrUpdateLogoURL(ctx context.Context, value string) error
 	InsertOrUpdateServiceBanner(ctx context.Context, value string) error
 	InsertOrganization(ctx context.Context, arg InsertOrganizationParams) (Organization, error)
 	InsertOrganizationMember(ctx context.Context, arg InsertOrganizationMemberParams) (OrganizationMember, error)

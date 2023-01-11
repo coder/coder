@@ -17,9 +17,9 @@ type CreateGroupRequest struct {
 }
 
 type Group struct {
-	ID             uuid.UUID `json:"id"`
+	ID             uuid.UUID `json:"id" format:"uuid"`
 	Name           string    `json:"name"`
-	OrganizationID uuid.UUID `json:"organization_id"`
+	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
 	Members        []User    `json:"members"`
 	AvatarURL      string    `json:"avatar_url"`
 	QuotaAllowance int       `json:"quota_allowance"`

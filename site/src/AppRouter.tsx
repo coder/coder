@@ -71,26 +71,53 @@ const SettingsGroupPage = lazy(
   () => import("./pages/GroupsPage/SettingsGroupPage"),
 )
 const GeneralSettingsPage = lazy(
-  () => import("./pages/DeploySettingsPage/GeneralSettingsPage"),
+  () =>
+    import(
+      "./pages/DeploySettingsPage/GeneralSettingsPage/GeneralSettingsPage"
+    ),
 )
 const SecuritySettingsPage = lazy(
-  () => import("./pages/DeploySettingsPage/SecuritySettingsPage"),
+  () =>
+    import(
+      "./pages/DeploySettingsPage/SecuritySettingsPage/SecuritySettingsPage"
+    ),
 )
-const ServiceBannerSettingsPage = lazy(
-  () => import("./pages/DeploySettingsPage/ServiceBannerSettingsPage"),
+const AppearanceSettingsPage = lazy(
+  () =>
+    import(
+      "./pages/DeploySettingsPage/AppearanceSettingsPage/AppearanceSettingsPage"
+    ),
 )
 const UserAuthSettingsPage = lazy(
-  () => import("./pages/DeploySettingsPage/UserAuthSettingsPage"),
+  () =>
+    import(
+      "./pages/DeploySettingsPage/UserAuthSettingsPage/UserAuthSettingsPage"
+    ),
 )
 const GitAuthSettingsPage = lazy(
-  () => import("./pages/DeploySettingsPage/GitAuthSettingsPage"),
+  () =>
+    import(
+      "./pages/DeploySettingsPage/GitAuthSettingsPage/GitAuthSettingsPage"
+    ),
 )
 const NetworkSettingsPage = lazy(
-  () => import("./pages/DeploySettingsPage/NetworkSettingsPage"),
+  () =>
+    import(
+      "./pages/DeploySettingsPage/NetworkSettingsPage/NetworkSettingsPage"
+    ),
 )
 const GitAuthPage = lazy(() => import("./pages/GitAuthPage/GitAuthPage"))
 const TemplateVersionPage = lazy(
   () => import("./pages/TemplateVersionPage/TemplateVersionPage"),
+)
+const StarterTemplatesPage = lazy(
+  () => import("./pages/StarterTemplatesPage/StarterTemplatesPage"),
+)
+const StarterTemplatePage = lazy(
+  () => import("pages/StarterTemplatePage/StarterTemplatePage"),
+)
+const CreateTemplatePage = lazy(
+  () => import("./pages/CreateTemplatePage/CreateTemplatePage"),
 )
 
 export const AppRouter: FC = () => {
@@ -141,6 +168,26 @@ export const AppRouter: FC = () => {
           }
         />
 
+        <Route path="starter-templates">
+          <Route
+            index
+            element={
+              <AuthAndFrame>
+                <StarterTemplatesPage />
+              </AuthAndFrame>
+            }
+          />
+
+          <Route
+            path=":exampleId"
+            element={
+              <AuthAndFrame>
+                <StarterTemplatePage />
+              </AuthAndFrame>
+            }
+          ></Route>
+        </Route>
+
         <Route path="templates">
           <Route
             index
@@ -148,6 +195,15 @@ export const AppRouter: FC = () => {
               <AuthAndFrame>
                 <TemplatesPage />
               </AuthAndFrame>
+            }
+          />
+
+          <Route
+            path="new"
+            element={
+              <RequireAuth>
+                <CreateTemplatePage />
+              </RequireAuth>
             }
           />
 
@@ -307,14 +363,14 @@ export const AppRouter: FC = () => {
             }
           />
           <Route
-            path="service-banner"
+            path="appearance"
             element={
               <AuthAndFrame>
                 <RequirePermission
                   isFeatureVisible={Boolean(permissions?.viewDeploymentConfig)}
                 >
                   <DeploySettingsLayout>
-                    <ServiceBannerSettingsPage />
+                    <AppearanceSettingsPage />
                   </DeploySettingsLayout>
                 </RequirePermission>
               </AuthAndFrame>
@@ -364,10 +420,37 @@ export const AppRouter: FC = () => {
           />
         </Route>
 
-        <Route path="settings" element={<SettingsLayout />}>
-          <Route path="account" element={<AccountPage />} />
-          <Route path="security" element={<SecurityPage />} />
-          <Route path="ssh-keys" element={<SSHKeysPage />} />
+        <Route path="settings">
+          <Route
+            path="account"
+            element={
+              <AuthAndFrame>
+                <SettingsLayout>
+                  <AccountPage />
+                </SettingsLayout>
+              </AuthAndFrame>
+            }
+          />
+          <Route
+            path="security"
+            element={
+              <AuthAndFrame>
+                <SettingsLayout>
+                  <SecurityPage />
+                </SettingsLayout>
+              </AuthAndFrame>
+            }
+          />
+          <Route
+            path="ssh-keys"
+            element={
+              <AuthAndFrame>
+                <SettingsLayout>
+                  <SSHKeysPage />
+                </SettingsLayout>
+              </AuthAndFrame>
+            }
+          />
         </Route>
 
         <Route path="/@:username">

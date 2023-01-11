@@ -123,6 +123,7 @@ type data struct {
 	derpMeshKey     string
 	lastUpdateCheck []byte
 	serviceBanner   []byte
+	logoURL         string
 	lastLicenseID   int32
 }
 
@@ -3354,6 +3355,25 @@ func (q *fakeQuerier) GetServiceBanner(_ context.Context) (string, error) {
 	}
 
 	return string(q.serviceBanner), nil
+}
+
+func (q *fakeQuerier) InsertOrUpdateLogoURL(_ context.Context, data string) error {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	q.logoURL = data
+	return nil
+}
+
+func (q *fakeQuerier) GetLogoURL(_ context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if q.logoURL == "" {
+		return "", sql.ErrNoRows
+	}
+
+	return q.logoURL, nil
 }
 
 func (q *fakeQuerier) InsertLicense(

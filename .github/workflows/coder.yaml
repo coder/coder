@@ -222,6 +222,8 @@ jobs:
         run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.26
       - name: Install goimports
         run: go install golang.org/x/tools/cmd/goimports@latest
+      - name: Install yq
+        run: go run github.com/mikefarah/yq/v4@v4.30.6
 
       - name: Install Protoc
         run: |
@@ -313,7 +315,7 @@ jobs:
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Install gotestsum
-        uses: jaxxstorm/action-install-gh-release@v1.7.1
+        uses: jaxxstorm/action-install-gh-release@v1.9.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -416,7 +418,7 @@ jobs:
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Install gotestsum
-        uses: jaxxstorm/action-install-gh-release@v1.7.1
+        uses: jaxxstorm/action-install-gh-release@v1.9.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -497,7 +499,7 @@ jobs:
           service_account: coder-ci@coder-dogfood.iam.gserviceaccount.com
 
       - name: Set up Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v0
+        uses: google-github-actions/setup-gcloud@v1
 
       - uses: actions/setup-go@v3
         with:
@@ -736,18 +738,18 @@ jobs:
   markdown-link-check:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@master
-    # For the main branch:
-    - if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
-      uses: gaurav-nelson/github-action-markdown-link-check@v1
-      with:
+      - uses: actions/checkout@master
+      # For the main branch:
+      - if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
+        uses: gaurav-nelson/github-action-markdown-link-check@v1
+        with:
           use-quiet-mode: yes
           use-verbose-mode: yes
           config-file: .github/workflows/mlc_config.json
-    # For pull requests:
-    - if: github.ref != 'refs/heads/main' || github.event.pull_request.head.repo.fork
-      uses: gaurav-nelson/github-action-markdown-link-check@v1
-      with:
+      # For pull requests:
+      - if: github.ref != 'refs/heads/main' || github.event.pull_request.head.repo.fork
+        uses: gaurav-nelson/github-action-markdown-link-check@v1
+        with:
           use-quiet-mode: yes
           use-verbose-mode: yes
           check-modified-files-only: yes

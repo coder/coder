@@ -1,6 +1,6 @@
 import { useActor } from "@xstate/react"
-import React, { useContext } from "react"
-import { Section } from "../../../components/Section/Section"
+import { FC, useContext } from "react"
+import { Section } from "../../../components/SettingsLayout/Section"
 import { AccountForm } from "../../../components/SettingsAccountForm/SettingsAccountForm"
 import { XServiceContext } from "../../../xServices/StateContext"
 
@@ -8,7 +8,7 @@ export const Language = {
   title: "Account",
 }
 
-export const AccountPage: React.FC = () => {
+export const AccountPage: FC = () => {
   const xServices = useContext(XServiceContext)
   const [authState, authSend] = useActor(xServices.authXService)
   const { me, permissions, updateProfileError } = authState.context
@@ -19,7 +19,7 @@ export const AccountPage: React.FC = () => {
   }
 
   return (
-    <Section title={Language.title}>
+    <Section title={Language.title} description="Update your account info">
       <AccountForm
         editable={Boolean(canEditUsers)}
         email={me.email}

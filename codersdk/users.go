@@ -35,16 +35,16 @@ type UsersRequest struct {
 
 // User represents a user in Coder.
 type User struct {
-	ID         uuid.UUID `json:"id" validate:"required" table:"id"`
+	ID         uuid.UUID `json:"id" validate:"required" table:"id" format:"uuid"`
 	Username   string    `json:"username" validate:"required" table:"username"`
-	Email      string    `json:"email" validate:"required" table:"email"`
-	CreatedAt  time.Time `json:"created_at" validate:"required" table:"created at"`
-	LastSeenAt time.Time `json:"last_seen_at"`
+	Email      string    `json:"email" validate:"required" table:"email" format:"email"`
+	CreatedAt  time.Time `json:"created_at" validate:"required" table:"created at" format:"date-time"`
+	LastSeenAt time.Time `json:"last_seen_at" format:"date-time"`
 
-	Status          UserStatus  `json:"status" table:"status"`
-	OrganizationIDs []uuid.UUID `json:"organization_ids"`
+	Status          UserStatus  `json:"status" table:"status" enums:"active,suspended"`
+	OrganizationIDs []uuid.UUID `json:"organization_ids" format:"uuid"`
 	Roles           []Role      `json:"roles"`
-	AvatarURL       string      `json:"avatar_url"`
+	AvatarURL       string      `json:"avatar_url" format:"uri"`
 }
 
 type GetUsersResponse struct {
@@ -61,15 +61,15 @@ type CreateFirstUserRequest struct {
 
 // CreateFirstUserResponse contains IDs for newly created user info.
 type CreateFirstUserResponse struct {
-	UserID         uuid.UUID `json:"user_id"`
-	OrganizationID uuid.UUID `json:"organization_id"`
+	UserID         uuid.UUID `json:"user_id" format:"uuid"`
+	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
 }
 
 type CreateUserRequest struct {
-	Email          string    `json:"email" validate:"required,email"`
+	Email          string    `json:"email" validate:"required,email" format:"email"`
 	Username       string    `json:"username" validate:"required,username"`
 	Password       string    `json:"password" validate:"required"`
-	OrganizationID uuid.UUID `json:"organization_id" validate:"required"`
+	OrganizationID uuid.UUID `json:"organization_id" validate:"required" format:"uuid"`
 }
 
 type UpdateUserProfileRequest struct {
@@ -92,7 +92,7 @@ type UserRoles struct {
 
 // LoginWithPasswordRequest enables callers to authenticate with email and password.
 type LoginWithPasswordRequest struct {
-	Email    string `json:"email" validate:"required,email"`
+	Email    string `json:"email" validate:"required,email" format:"email"`
 	Password string `json:"password" validate:"required"`
 }
 

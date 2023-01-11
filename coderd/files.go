@@ -23,6 +23,17 @@ const (
 	tarMimeType = "application/x-tar"
 )
 
+// @Summary Upload file
+// @Description Swagger notice: Swagger 2.0 doesn't support file upload with a `content-type` different than `application/x-www-form-urlencoded`.
+// @ID update-file
+// @Security CoderSessionToken
+// @Produce json
+// @Accept application/x-tar
+// @Tags Files
+// @Param Content-Type header string true "Content-Type must be `application/x-tar`" default(application/x-tar)
+// @Param file formData file true "File to be uploaded"
+// @Success 201 {object} codersdk.UploadResponse
+// @Router /files [post]
 func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -88,6 +99,13 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary Get file by ID
+// @ID get-file-by-id
+// @Security CoderSessionToken
+// @Tags Files
+// @Param fileID path string true "File ID" format(uuid)
+// @Success 200
+// @Router /files/{fileID} [get]
 func (api *API) fileByID(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

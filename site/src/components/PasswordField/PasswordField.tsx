@@ -4,13 +4,14 @@ import { makeStyles } from "@material-ui/core/styles"
 import TextField, { TextFieldProps } from "@material-ui/core/TextField"
 import VisibilityOffOutlined from "@material-ui/icons/VisibilityOffOutlined"
 import VisibilityOutlined from "@material-ui/icons/VisibilityOutlined"
-import React, { useCallback, useState } from "react"
+import { useCallback, useState, FC, PropsWithChildren } from "react"
 
 type PasswordFieldProps = Omit<TextFieldProps, "InputProps" | "type">
 
-export const PasswordField: React.FC<
-  React.PropsWithChildren<PasswordFieldProps>
-> = ({ variant = "outlined", ...rest }) => {
+export const PasswordField: FC<PropsWithChildren<PasswordFieldProps>> = ({
+  variant = "outlined",
+  ...rest
+}) => {
   const styles = useStyles()
   const [showPassword, setShowPassword] = useState<boolean>(false)
 

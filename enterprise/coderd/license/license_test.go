@@ -27,7 +27,7 @@ func TestEntitlements(t *testing.T) {
 		codersdk.FeatureTemplateRBAC:               true,
 		codersdk.FeatureMultipleGitAuth:            true,
 		codersdk.FeatureExternalProvisionerDaemons: true,
-		codersdk.FeatureServiceBanners:             true,
+		codersdk.FeatureAppearance:                 true,
 	}
 
 	t.Run("Defaults", func(t *testing.T) {

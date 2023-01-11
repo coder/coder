@@ -54,7 +54,7 @@ resource "coder_agent" "dev" {
     sudo service docker start
     DOTFILES_URI=${var.dotfiles_uri}
     if [ -n "$DOTFILES_URI" ]; then
-      coder dotfiles var.dotfiles_uri -y 2>&1 | tee  ~/.personalize.log
+      coder dotfiles "$DOTFILES_URI" -y 2>&1 | tee  ~/.personalize.log
     fi
     EOF
 }

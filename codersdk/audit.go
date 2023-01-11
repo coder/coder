@@ -121,8 +121,8 @@ type AuditLogResponse struct {
 }
 
 type CreateTestAuditLogRequest struct {
-	Action       AuditAction  `json:"action,omitempty"`
-	ResourceType ResourceType `json:"resource_type,omitempty"`
+	Action       AuditAction  `json:"action,omitempty" enums:"create,write,delete,start,stop"`
+	ResourceType ResourceType `json:"resource_type,omitempty" enums:"organization,template,template_version,user,workspace,workspace_build,git_ssh_key,api_key,group"`
 	ResourceID   uuid.UUID    `json:"resource_id,omitempty"`
 	Time         time.Time    `json:"time,omitempty"`
 }

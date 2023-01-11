@@ -27,6 +27,9 @@ func startPty(cmd *exec.Cmd, opt ...StartOption) (retPTY *otherPty, proc Process
 	if opty.opts.sshReq != nil {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("SSH_TTY=%s", opty.Name()))
 	}
+	if opty.opts.setGPGTTY {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("GPG_TTY=%s", opty.Name()))
+	}
 
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setsid:  true,

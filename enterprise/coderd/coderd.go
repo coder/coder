@@ -81,7 +81,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 				httpmw.ExtractOrganizationParam(api.Database),
 			)
 			r.Post("/", api.postGroupByOrganization)
-			r.Get("/", api.groups)
+			r.Get("/", api.groupsByOrganization)
 			r.Route("/{groupName}", func(r chi.Router) {
 				r.Use(
 					httpmw.ExtractGroupByNameParam(api.Database),
@@ -127,12 +127,12 @@ func New(ctx context.Context, options *Options) (*API, error) {
 				r.Get("/", api.workspaceQuota)
 			})
 		})
-		r.Route("/service-banner", func(r chi.Router) {
+		r.Route("/appearance", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
 			)
-			r.Get("/", api.serviceBanner)
-			r.Put("/", api.putServiceBanner)
+			r.Get("/", api.appearance)
+			r.Put("/", api.putAppearance)
 		})
 	})
 
@@ -331,6 +331,13 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	return nil
 }
 
+// @Summary Get entitlements
+// @ID get-entitlements
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Success 200 {object} codersdk.Entitlements
+// @Router /entitlements [get]
 func (api *API) serveEntitlements(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	api.entitlementsMu.RLock()

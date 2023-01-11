@@ -118,6 +118,19 @@ func TestServer(t *testing.T) {
 
 		pty.ExpectMatch("psql")
 	})
+	t.Run("BuiltinPostgresURLRaw", func(t *testing.T) {
+		t.Parallel()
+		root, _ := clitest.New(t, "server", "postgres-builtin-url", "--raw-url")
+		pty := ptytest.New(t)
+		root.SetOutput(pty.Output())
+		err := root.Execute()
+		require.NoError(t, err)
+
+		got := pty.ReadLine()
+		if !strings.HasPrefix(got, "postgres://") {
+			t.Fatalf("expected postgres URL to start with \"postgres://\", got %q", got)
+		}
+	})
 
 	// Validate that a warning is printed that it may not be externally
 	// reachable.
@@ -562,14 +575,17 @@ func TestServer(t *testing.T) {
 				ctx, cancelFunc := context.WithCancel(context.Background())
 				defer cancelFunc()
 
+				httpListenAddr := ""
+				if c.httpListener {
+					httpListenAddr = ":0"
+				}
+
 				certPath, keyPath := generateTLSCertificate(t)
 				flags := []string{
 					"server",
 					"--in-memory",
 					"--cache-dir", t.TempDir(),
-				}
-				if c.httpListener {
-					flags = append(flags, "--http-address", ":0")
+					"--http-address", httpListenAddr,
 				}
 				if c.tlsListener {
 					flags = append(flags,
@@ -656,6 +672,58 @@ func TestServer(t *testing.T) {
 				}
 			})
 		}
+	})
+
+	t.Run("CanListenUnspecifiedv4", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
+
+		root, _ := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--http-address", "0.0.0.0:0",
+			"--access-url", "http://example.com",
+		)
+
+		pty := ptytest.New(t)
+		root.SetOutput(pty.Output())
+		root.SetErr(pty.Output())
+		errC := make(chan error, 1)
+		go func() {
+			errC <- root.ExecuteContext(ctx)
+		}()
+
+		pty.ExpectMatch("Started HTTP listener at http://0.0.0.0:")
+
+		cancelFunc()
+		require.NoError(t, <-errC)
+	})
+
+	t.Run("CanListenUnspecifiedv6", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
+
+		root, _ := clitest.New(t,
+			"server",
+			"--in-memory",
+			"--http-address", "[::]:0",
+			"--access-url", "http://example.com",
+		)
+
+		pty := ptytest.New(t)
+		root.SetOutput(pty.Output())
+		root.SetErr(pty.Output())
+		errC := make(chan error, 1)
+		go func() {
+			errC <- root.ExecuteContext(ctx)
+		}()
+
+		pty.ExpectMatch("Started HTTP listener at http://[::]:")
+
+		cancelFunc()
+		require.NoError(t, <-errC)
 	})
 
 	t.Run("NoAddress", func(t *testing.T) {

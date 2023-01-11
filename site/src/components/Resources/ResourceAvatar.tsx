@@ -1,6 +1,6 @@
 import Avatar from "@material-ui/core/Avatar"
 import { makeStyles } from "@material-ui/core/styles"
-import React from "react"
+import { FC } from "react"
 import { WorkspaceResource } from "../../api/typesGenerated"
 
 const FALLBACK_ICON = "/icon/widgets.svg"
@@ -34,7 +34,7 @@ const getIconPathResource = (resourceType: string): string => {
 
 export type ResourceAvatarProps = { resource: WorkspaceResource }
 
-export const ResourceAvatar: React.FC<ResourceAvatarProps> = ({ resource }) => {
+export const ResourceAvatar: FC<ResourceAvatarProps> = ({ resource }) => {
   const hasIcon = resource.icon && resource.icon !== ""
   const avatarSrc = hasIcon ? resource.icon : getIconPathResource(resource.type)
   const styles = useStyles()

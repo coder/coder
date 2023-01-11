@@ -192,7 +192,7 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 			TemplateRBAC:               rbacEnabled,
 			MultipleGitAuth:            multipleGitAuth,
 			ExternalProvisionerDaemons: externalProvisionerDaemons,
-			ServiceBanners:             serviceBanners,
+			Appearance:                 serviceBanners,
 		},
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodEdDSA, c)

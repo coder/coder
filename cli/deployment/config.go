@@ -248,6 +248,12 @@ func newConfig() *codersdk.DeploymentConfig {
 				Flag:    "oidc-ignore-email-verified",
 				Default: false,
 			},
+			UsernameField: &codersdk.DeploymentConfigField[string]{
+				Name:    "OIDC Username Field",
+				Usage:   "OIDC claim field to use as the username.",
+				Flag:    "oidc-username-field",
+				Default: "preferred_username",
+			},
 		},
 
 		Telemetry: &codersdk.TelemetryConfig{
@@ -303,7 +309,7 @@ func newConfig() *codersdk.DeploymentConfig {
 				Name:    "TLS Client Auth",
 				Usage:   "Policy the server will follow for TLS Client Authentication. Accepted values are \"none\", \"request\", \"require-any\", \"verify-if-given\", or \"require-and-verify\".",
 				Flag:    "tls-client-auth",
-				Default: "request",
+				Default: "none",
 			},
 			KeyFiles: &codersdk.DeploymentConfigField[[]string]{
 				Name:  "TLS Key Files",
@@ -355,12 +361,6 @@ func newConfig() *codersdk.DeploymentConfig {
 			Usage:   "The algorithm to use for generating ssh keys. Accepted values are \"ed25519\", \"ecdsa\", or \"rsa4096\".",
 			Flag:    "ssh-keygen-algorithm",
 			Default: "ed25519",
-		},
-		AutoImportTemplates: &codersdk.DeploymentConfigField[[]string]{
-			Name:   "Auto Import Templates",
-			Usage:  "Templates to auto-import. Available auto-importable templates are: kubernetes",
-			Flag:   "auto-import-template",
-			Hidden: true,
 		},
 		MetricsCacheRefreshInterval: &codersdk.DeploymentConfigField[time.Duration]{
 			Name:    "Metrics Cache Refresh Interval",
@@ -429,11 +429,22 @@ func newConfig() *codersdk.DeploymentConfig {
 				Default: 10 * time.Minute,
 			},
 		},
-		APIRateLimit: &codersdk.DeploymentConfigField[int]{
-			Name:    "API Rate Limit",
-			Usage:   "Maximum number of requests per minute allowed to the API per user, or per IP address for unauthenticated users. Negative values mean no rate limit. Some API endpoints are always rate limited regardless of this value to prevent denial-of-service attacks.",
-			Flag:    "api-rate-limit",
-			Default: 512,
+		RateLimit: &codersdk.RateLimitConfig{
+			DisableAll: &codersdk.DeploymentConfigField[bool]{
+				Name:    "Disable All Rate Limits",
+				Usage:   "Disables all rate limits. This is not recommended in production.",
+				Flag:    "dangerous-disable-rate-limits",
+				Default: false,
+			},
+			API: &codersdk.DeploymentConfigField[int]{
+				Name:  "API Rate Limit",
+				Usage: "Maximum number of requests per minute allowed to the API per user, or per IP address for unauthenticated users. Negative values mean no rate limit. Some API endpoints have separate strict rate limits regardless of this value to prevent denial-of-service or brute force attacks.",
+				// Change the env from the auto-generated CODER_RATE_LIMIT_API to the
+				// old value to avoid breaking existing deployments.
+				EnvOverride: "CODER_API_RATE_LIMIT",
+				Flag:        "api-rate-limit",
+				Default:     512,
+			},
 		},
 		Experimental: &codersdk.DeploymentConfigField[bool]{
 			Name:  "Experimental",
@@ -451,6 +462,14 @@ func newConfig() *codersdk.DeploymentConfig {
 			Usage:   "The maximum lifetime duration for any user creating a token.",
 			Flag:    "max-token-lifetime",
 			Default: 24 * 30 * time.Hour,
+		},
+		Swagger: &codersdk.SwaggerConfig{
+			Enable: &codersdk.DeploymentConfigField[bool]{
+				Name:    "Enable swagger endpoint",
+				Usage:   "Expose the swagger endpoint via /swagger.",
+				Flag:    "swagger-enable",
+				Default: false,
+			},
 		},
 	}
 }
@@ -490,21 +509,30 @@ func setConfig(prefix string, vip *viper.Viper, target interface{}) {
 	// assigned a value.
 	if strings.HasPrefix(typ.Name(), "DeploymentConfigField[") {
 		value := val.FieldByName("Value").Interface()
+
+		env, ok := val.FieldByName("EnvOverride").Interface().(string)
+		if !ok {
+			panic("DeploymentConfigField[].EnvOverride must be a string")
+		}
+		if env == "" {
+			env = formatEnv(prefix)
+		}
+
 		switch value.(type) {
 		case string:
-			vip.MustBindEnv(prefix, formatEnv(prefix))
+			vip.MustBindEnv(prefix, env)
 			val.FieldByName("Value").SetString(vip.GetString(prefix))
 		case bool:
-			vip.MustBindEnv(prefix, formatEnv(prefix))
+			vip.MustBindEnv(prefix, env)
 			val.FieldByName("Value").SetBool(vip.GetBool(prefix))
 		case int:
-			vip.MustBindEnv(prefix, formatEnv(prefix))
+			vip.MustBindEnv(prefix, env)
 			val.FieldByName("Value").SetInt(int64(vip.GetInt(prefix)))
 		case time.Duration:
-			vip.MustBindEnv(prefix, formatEnv(prefix))
+			vip.MustBindEnv(prefix, env)
 			val.FieldByName("Value").SetInt(int64(vip.GetDuration(prefix)))
 		case []string:
-			vip.MustBindEnv(prefix, formatEnv(prefix))
+			vip.MustBindEnv(prefix, env)
 			// As of October 21st, 2022 we supported delimiting a string
 			// with a comma, but Viper only supports with a space. This
 			// is a small hack around it!
@@ -572,6 +600,9 @@ func readSliceFromViper[T any](vip *viper.Viper, key string, value any) []T {
 
 			// Ensure the env entry for this key is registered
 			// before checking value.
+			//
+			// We don't support DeploymentConfigField[].EnvOverride for array flags so
+			// this is fine to just use `formatEnv` here.
 			vip.MustBindEnv(configKey, formatEnv(configKey))
 
 			value := vip.Get(configKey)
@@ -618,7 +649,7 @@ func setViperDefaults(prefix string, vip *viper.Viper, target interface{}) {
 	val := reflect.ValueOf(target).Elem()
 	val = reflect.Indirect(val)
 	typ := val.Type()
-	if strings.HasPrefix(typ.Name(), "DeploymentConfigField") {
+	if strings.HasPrefix(typ.Name(), "DeploymentConfigField[") {
 		value := val.FieldByName("Default").Interface()
 		vip.SetDefault(prefix, value)
 		return
@@ -655,7 +686,7 @@ func AttachFlags(flagset *pflag.FlagSet, vip *viper.Viper, enterprise bool) {
 func setFlags(prefix string, flagset *pflag.FlagSet, vip *viper.Viper, target interface{}, enterprise bool) {
 	val := reflect.Indirect(reflect.ValueOf(target))
 	typ := val.Type()
-	if strings.HasPrefix(typ.Name(), "DeploymentConfigField") {
+	if strings.HasPrefix(typ.Name(), "DeploymentConfigField[") {
 		isEnt := val.FieldByName("Enterprise").Bool()
 		if enterprise != isEnt {
 			return
@@ -664,15 +695,24 @@ func setFlags(prefix string, flagset *pflag.FlagSet, vip *viper.Viper, target in
 		if flg == "" {
 			return
 		}
+
+		env, ok := val.FieldByName("EnvOverride").Interface().(string)
+		if !ok {
+			panic("DeploymentConfigField[].EnvOverride must be a string")
+		}
+		if env == "" {
+			env = formatEnv(prefix)
+		}
+
 		usage := val.FieldByName("Usage").String()
-		usage = fmt.Sprintf("%s\n%s", usage, cliui.Styles.Placeholder.Render("Consumes $"+formatEnv(prefix)))
+		usage = fmt.Sprintf("%s\n%s", usage, cliui.Styles.Placeholder.Render("Consumes $"+env))
 		shorthand := val.FieldByName("Shorthand").String()
 		hidden := val.FieldByName("Hidden").Bool()
 		value := val.FieldByName("Default").Interface()
 
 		// Allow currently set environment variables
 		// to override default values in help output.
-		vip.MustBindEnv(prefix, formatEnv(prefix))
+		vip.MustBindEnv(prefix, env)
 
 		switch value.(type) {
 		case string:

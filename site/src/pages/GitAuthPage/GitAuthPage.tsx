@@ -2,10 +2,10 @@ import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
 import { SignInLayout } from "components/SignInLayout/SignInLayout"
 import { Welcome } from "components/Welcome/Welcome"
-import React from "react"
+import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 
-const GitAuthPage: React.FC = () => {
+const GitAuthPage: FC = () => {
   const styles = useStyles()
 
   return (

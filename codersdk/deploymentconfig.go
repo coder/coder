@@ -33,7 +33,6 @@ type DeploymentConfig struct {
 	Trace                           *TraceConfig                            `json:"trace" typescript:",notnull"`
 	SecureAuthCookie                *DeploymentConfigField[bool]            `json:"secure_auth_cookie" typescript:",notnull"`
 	SSHKeygenAlgorithm              *DeploymentConfigField[string]          `json:"ssh_keygen_algorithm" typescript:",notnull"`
-	AutoImportTemplates             *DeploymentConfigField[[]string]        `json:"auto_import_templates" typescript:",notnull"`
 	MetricsCacheRefreshInterval     *DeploymentConfigField[time.Duration]   `json:"metrics_cache_refresh_interval" typescript:",notnull"`
 	AgentStatRefreshInterval        *DeploymentConfigField[time.Duration]   `json:"agent_stat_refresh_interval" typescript:",notnull"`
 	AgentFallbackTroubleshootingURL *DeploymentConfigField[string]          `json:"agent_fallback_troubleshooting_url" typescript:",notnull"`
@@ -41,10 +40,11 @@ type DeploymentConfig struct {
 	BrowserOnly                     *DeploymentConfigField[bool]            `json:"browser_only" typescript:",notnull"`
 	SCIMAPIKey                      *DeploymentConfigField[string]          `json:"scim_api_key" typescript:",notnull"`
 	Provisioner                     *ProvisionerConfig                      `json:"provisioner" typescript:",notnull"`
-	APIRateLimit                    *DeploymentConfigField[int]             `json:"api_rate_limit" typescript:",notnull"`
+	RateLimit                       *RateLimitConfig                        `json:"rate_limit" typescript:",notnull"`
 	Experimental                    *DeploymentConfigField[bool]            `json:"experimental" typescript:",notnull"`
 	UpdateCheck                     *DeploymentConfigField[bool]            `json:"update_check" typescript:",notnull"`
 	MaxTokenLifetime                *DeploymentConfigField[time.Duration]   `json:"max_token_lifetime" typescript:",notnull"`
+	Swagger                         *SwaggerConfig                          `json:"swagger" typescript:",notnull"`
 }
 
 type DERP struct {
@@ -98,6 +98,7 @@ type OIDCConfig struct {
 	IssuerURL           *DeploymentConfigField[string]   `json:"issuer_url" typescript:",notnull"`
 	Scopes              *DeploymentConfigField[[]string] `json:"scopes" typescript:",notnull"`
 	IgnoreEmailVerified *DeploymentConfigField[bool]     `json:"ignore_email_verified" typescript:",notnull"`
+	UsernameField       *DeploymentConfigField[string]   `json:"username_field" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -145,20 +146,35 @@ type ProvisionerConfig struct {
 	ForceCancelInterval *DeploymentConfigField[time.Duration] `json:"force_cancel_interval" typescript:",notnull"`
 }
 
+type RateLimitConfig struct {
+	DisableAll *DeploymentConfigField[bool] `json:"disable_all" typescript:",notnull"`
+	API        *DeploymentConfigField[int]  `json:"api" typescript:",notnull"`
+}
+
+type SwaggerConfig struct {
+	Enable *DeploymentConfigField[bool] `json:"enable" typescript:",notnull"`
+}
+
 type Flaggable interface {
 	string | time.Duration | bool | int | []string | []GitAuthConfig
 }
 
 type DeploymentConfigField[T Flaggable] struct {
-	Name       string `json:"name"`
-	Usage      string `json:"usage"`
-	Flag       string `json:"flag"`
-	Shorthand  string `json:"shorthand"`
-	Enterprise bool   `json:"enterprise"`
-	Hidden     bool   `json:"hidden"`
-	Secret     bool   `json:"secret"`
-	Default    T      `json:"default"`
-	Value      T      `json:"value"`
+	Name  string `json:"name"`
+	Usage string `json:"usage"`
+	Flag  string `json:"flag"`
+	// EnvOverride will override the automatically generated environment
+	// variable name. Useful if you're moving values around but need to keep
+	// backwards compatibility with old environment variable names.
+	//
+	// NOTE: this is not supported for array flags.
+	EnvOverride string `json:"-"`
+	Shorthand   string `json:"shorthand"`
+	Enterprise  bool   `json:"enterprise"`
+	Hidden      bool   `json:"hidden"`
+	Secret      bool   `json:"secret"`
+	Default     T      `json:"default"`
+	Value       T      `json:"value"`
 }
 
 // MarshalJSON removes the Value field from the JSON output of any fields marked Secret.

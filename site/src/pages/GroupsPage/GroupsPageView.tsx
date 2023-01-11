@@ -17,7 +17,7 @@ import { EmptyState } from "components/EmptyState/EmptyState"
 import { Stack } from "components/Stack/Stack"
 import { TableLoader } from "components/TableLoader/TableLoader"
 import { UserAvatar } from "components/UserAvatar/UserAvatar"
-import React from "react"
+import { FC } from "react"
 import { Link as RouterLink, useNavigate } from "react-router-dom"
 import { Paywall } from "components/Paywall/Paywall"
 import { Group } from "api/typesGenerated"
@@ -29,7 +29,7 @@ export type GroupsPageViewProps = {
   isTemplateRBACEnabled: boolean
 }
 
-export const GroupsPageView: React.FC<GroupsPageViewProps> = ({
+export const GroupsPageView: FC<GroupsPageViewProps> = ({
   groups,
   canCreateGroup,
   isTemplateRBACEnabled,

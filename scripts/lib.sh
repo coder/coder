@@ -75,10 +75,22 @@ execrelative() {
 	return $rc
 }
 
+dependency_check() {
+	local dep=$1
+
+	# Special case for yq that can be yq or yq4.
+	if [[ $dep == yq ]]; then
+		[[ -n "${CODER_LIBSH_YQ:-}" ]]
+		return
+	fi
+
+	command -v "$dep" >/dev/null
+}
+
 dependencies() {
 	local fail=0
 	for dep in "$@"; do
-		if ! command -v "$dep" >/dev/null; then
+		if ! dependency_check "$dep"; then
 			log "ERROR: The '$dep' dependency is required, but is not available."
 			fail=1
 		fi
@@ -200,9 +212,25 @@ if [[ "${CODER_LIBSH_NO_CHECK_DEPENDENCIES:-}" != *t* ]]; then
 		log
 	fi
 
+	# Allow for yq to be installed as yq4.
+	if command -v yq4 >/dev/null; then
+		export CODER_LIBSH_YQ=yq4
+	elif command -v yq >/dev/null; then
+		if [[ $(yq --version) == *" v4."* ]]; then
+			export CODER_LIBSH_YQ=yq
+		fi
+	fi
+
 	if [[ "$libsh_bad_dependencies" == 1 ]]; then
 		error "Invalid dependencies, see above for more details."
 	fi
 
 	export CODER_LIBSH_NO_CHECK_DEPENDENCIES=true
+fi
+
+# Alias yq to the version we want by shadowing with a function.
+if [[ -n ${CODER_LIBSH_YQ:-} ]]; then
+	yq() {
+		command $CODER_LIBSH_YQ "$@"
+	}
 fi

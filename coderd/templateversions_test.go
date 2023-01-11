@@ -661,7 +661,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 			Type: "cool_resource_type",
 		}
 
-		client := coderdtest.New(t, &coderdtest.Options{APIRateLimit: -1, IncludeProvisionerDaemon: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
@@ -882,7 +882,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 func TestPaginatedTemplateVersions(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, &coderdtest.Options{APIRateLimit: -1})
+	client := coderdtest.New(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)

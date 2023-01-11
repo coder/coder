@@ -43,6 +43,13 @@ type GithubOAuth2Config struct {
 	AllowTeams         []GithubOAuth2Team
 }
 
+// @Summary Get authentication methods
+// @ID get-authentication-methods
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Success 200 {object} codersdk.AuthMethods
+// @Router /users/authmethods [get]
 func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AuthMethods{
 		Password: true,
@@ -51,6 +58,13 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary OAuth 2.0 GitHub Callback
+// @ID oauth2-github-callback
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Success 307
+// @Router /users/oauth2/github/callback [get]
 func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx   = r.Context()
@@ -198,8 +212,18 @@ type OIDCConfig struct {
 	// IgnoreEmailVerified allows ignoring the email_verified claim
 	// from an upstream OIDC provider. See #5065 for context.
 	IgnoreEmailVerified bool
+	// UsernameField selects the claim field to be used as the created user's
+	// username.
+	UsernameField string
 }
 
+// @Summary OpenID Connect Callback
+// @ID oidc-callback
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Success 307
+// @Router /users/oidc/callback [get]
 func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx   = r.Context()
@@ -236,7 +260,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	usernameRaw, ok := claims["preferred_username"]
+	usernameRaw, ok := claims[api.OIDCConfig.UsernameField]
 	var username string
 	if ok {
 		username, _ = usernameRaw.(string)

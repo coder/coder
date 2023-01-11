@@ -4,7 +4,6 @@ import Popover from "@material-ui/core/Popover"
 import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
 import OpenInNewOutlined from "@material-ui/icons/OpenInNewOutlined"
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Stack } from "components/Stack/Stack"
 import { useRef, useState, Fragment } from "react"
 import { colors } from "theme/colors"
@@ -42,7 +41,7 @@ const portForwardURL = (
   return `${location.protocol}//${host}`.replace("*", subdomain)
 }
 
-const EnabledView: React.FC<PortForwardButtonProps> = (props) => {
+const TooltipView: React.FC<PortForwardButtonProps> = (props) => {
   const { host, workspaceName, agentName, agentId, username } = props
   const styles = useStyles()
   const [port, setPort] = useState("3000")
@@ -137,40 +136,7 @@ const EnabledView: React.FC<PortForwardButtonProps> = (props) => {
   )
 }
 
-const DisabledView: React.FC<PortForwardButtonProps> = ({
-  workspaceName,
-  agentName,
-}) => {
-  const cliExample = `coder port-forward ${workspaceName}.${agentName} --tcp 3000`
-  const styles = useStyles()
-
-  return (
-    <>
-      <HelpTooltipText>
-        <strong>
-          Your deployment does not have web port forwarding enabled.
-        </strong>{" "}
-        See the docs for more details.
-      </HelpTooltipText>
-
-      <HelpTooltipText>
-        You can use the Coder CLI to forward ports from your workspace to your
-        local machine, as shown below.
-      </HelpTooltipText>
-
-      <CodeExample code={cliExample} className={styles.code} />
-
-      <HelpTooltipLinksGroup>
-        <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/networking/port-forwarding#dashboard">
-          Learn more about web port forwarding
-        </HelpTooltipLink>
-      </HelpTooltipLinksGroup>
-    </>
-  )
-}
-
 export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
-  const { host } = props
   const anchorRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(false)
   const id = isOpen ? "schedule-popover" : undefined
@@ -208,14 +174,7 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
         }}
       >
         <HelpTooltipTitle>Port forward</HelpTooltipTitle>
-        <ChooseOne>
-          <Cond condition={host !== ""}>
-            <EnabledView {...props} />
-          </Cond>
-          <Cond>
-            <DisabledView {...props} />
-          </Cond>
-        </ChooseOne>
+        <TooltipView {...props} />
       </Popover>
     </>
   )

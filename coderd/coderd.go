@@ -22,6 +22,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/prometheus/client_golang/prometheus"
+	httpSwagger "github.com/swaggo/http-swagger"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
@@ -34,6 +35,9 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/buildinfo"
+
+	// Used to serve the Swagger endpoint
+	_ "github.com/coder/coder/coderd/apidoc"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
@@ -55,6 +59,17 @@ import (
 	"github.com/coder/coder/site"
 	"github.com/coder/coder/tailnet"
 )
+
+// We must only ever instantiate one httpSwagger.Handler because of a data race
+// inside the handler. This issue is triggered by tests that create multiple
+// coderd instances.
+//
+// See https://github.com/swaggo/http-swagger/issues/78
+var globalHTTPSwaggerHandler http.HandlerFunc
+
+func init() {
+	globalHTTPSwaggerHandler = httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json"))
+}
 
 // Options are requires parameters for Coder to start.
 type Options struct {
@@ -78,39 +93,60 @@ type Options struct {
 	Auditor                        audit.Auditor
 	AgentConnectionUpdateFrequency time.Duration
 	AgentInactiveDisconnectTimeout time.Duration
-	// APIRateLimit is the minutely throughput rate limit per user or ip.
-	// Setting a rate limit <0 will disable the rate limiter across the entire
-	// app. Specific routes may have their own limiters.
-	APIRateLimit         int
-	AWSCertificates      awsidentity.Certificates
-	Authorizer           rbac.Authorizer
-	AzureCertificates    x509.VerifyOptions
-	GoogleTokenValidator *idtoken.Validator
-	GithubOAuth2Config   *GithubOAuth2Config
-	OIDCConfig           *OIDCConfig
-	PrometheusRegistry   *prometheus.Registry
-	SecureAuthCookie     bool
-	SSHKeygenAlgorithm   gitsshkey.Algorithm
-	Telemetry            telemetry.Reporter
-	TracerProvider       trace.TracerProvider
-	AutoImportTemplates  []AutoImportTemplate
-	GitAuthConfigs       []*gitauth.Config
-	RealIPConfig         *httpmw.RealIPConfig
-	TrialGenerator       func(ctx context.Context, email string) error
+	AWSCertificates                awsidentity.Certificates
+	Authorizer                     rbac.Authorizer
+	AzureCertificates              x509.VerifyOptions
+	GoogleTokenValidator           *idtoken.Validator
+	GithubOAuth2Config             *GithubOAuth2Config
+	OIDCConfig                     *OIDCConfig
+	PrometheusRegistry             *prometheus.Registry
+	SecureAuthCookie               bool
+	SSHKeygenAlgorithm             gitsshkey.Algorithm
+	Telemetry                      telemetry.Reporter
+	TracerProvider                 trace.TracerProvider
+	GitAuthConfigs                 []*gitauth.Config
+	RealIPConfig                   *httpmw.RealIPConfig
+	TrialGenerator                 func(ctx context.Context, email string) error
 	// TLSCertificates is used to mesh DERP servers securely.
 	TLSCertificates    []tls.Certificate
 	TailnetCoordinator tailnet.Coordinator
 	DERPServer         *derp.Server
 	DERPMap            *tailcfg.DERPMap
+	SwaggerEndpoint    bool
+
+	// APIRateLimit is the minutely throughput rate limit per user or ip.
+	// Setting a rate limit <0 will disable the rate limiter across the entire
+	// app. Some specific routes have their own configurable rate limits.
+	APIRateLimit   int
+	LoginRateLimit int
+	FilesRateLimit int
 
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
 	Experimental                bool
 	DeploymentConfig            *codersdk.DeploymentConfig
 	UpdateCheckOptions          *updatecheck.Options // Set non-nil to enable update checking.
-	HTTPClient                  *http.Client
+
+	HTTPClient *http.Client
 }
 
+// @title Coder API
+// @version 2.0
+// @description Coderd is the service created by running coder server. It is a thin API that connects workspaces, provisioners and users. coderd stores its state in Postgres and is the only service that communicates with Postgres.
+// @termsOfService https://coder.com/legal/terms-of-service
+
+// @contact.name API Support
+// @contact.url https://coder.com
+// @contact.email support@coder.com
+
+// @license.name AGPL-3.0
+// @license.url https://github.com/coder/coder/blob/main/LICENSE
+
+// @BasePath /api/v2
+
+// @securitydefinitions.apiKey CoderSessionToken
+// @in header
+// @name Coder-Session-Token
 // New constructs a Coder API handler.
 func New(options *Options) *API {
 	if options == nil {
@@ -134,6 +170,12 @@ func New(options *Options) *API {
 	}
 	if options.APIRateLimit == 0 {
 		options.APIRateLimit = 512
+	}
+	if options.LoginRateLimit == 0 {
+		options.LoginRateLimit = 60
+	}
+	if options.FilesRateLimit == 0 {
+		options.FilesRateLimit = 12
 	}
 	if options.Authorizer == nil {
 		options.Authorizer = rbac.NewAuthorizer()
@@ -208,6 +250,10 @@ func New(options *Options) *API {
 		Optional:        false,
 	})
 
+	// API rate limit middleware. The counter is local and not shared between
+	// replicas or instances of this middleware.
+	apiRateLimiter := httpmw.RateLimit(options.APIRateLimit, time.Minute)
+
 	r.Use(
 		httpmw.Recover(api.Logger),
 		tracing.StatusWriterMiddleware,
@@ -219,8 +265,8 @@ func New(options *Options) *API {
 		// handleSubdomainApplications checks if the first subdomain is a valid
 		// app URL. If it is, it will serve that application.
 		api.handleSubdomainApplications(
+			apiRateLimiter,
 			// Middleware to impose on the served application.
-			httpmw.RateLimit(options.APIRateLimit, time.Minute),
 			httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
 				DB:            options.Database,
 				OAuth2Configs: oauthConfigs,
@@ -246,7 +292,7 @@ func New(options *Options) *API {
 
 	apps := func(r chi.Router) {
 		r.Use(
-			httpmw.RateLimit(options.APIRateLimit, time.Minute),
+			apiRateLimiter,
 			httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
 				DB:            options.Database,
 				OAuth2Configs: oauthConfigs,
@@ -293,29 +339,16 @@ func New(options *Options) *API {
 
 		r.NotFound(func(rw http.ResponseWriter, r *http.Request) { httpapi.RouteNotFound(rw) })
 		r.Use(
-			// Specific routes can specify smaller limits.
-			httpmw.RateLimit(options.APIRateLimit, time.Minute),
+			// Specific routes can specify different limits, but every rate
+			// limit must be configurable by the admin.
+			apiRateLimiter,
 		)
-		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-			httpapi.Write(r.Context(), w, http.StatusOK, codersdk.Response{
-				//nolint:gocritic
-				Message: "👋",
-			})
-		})
+		r.Get("/", apiRoot)
 		// All CSP errors will be logged
 		r.Post("/csp/reports", api.logReportCSPViolations)
 
-		r.Route("/buildinfo", func(r chi.Router) {
-			r.Get("/", func(rw http.ResponseWriter, r *http.Request) {
-				httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.BuildInfoResponse{
-					ExternalURL: buildinfo.ExternalURL(),
-					Version:     buildinfo.Version(),
-				})
-			})
-		})
-		r.Route("/updatecheck", func(r chi.Router) {
-			r.Get("/", api.updateCheck)
-		})
+		r.Get("/buildinfo", buildInfo)
+		r.Get("/updatecheck", api.updateCheck)
 		r.Route("/config", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/deployment", api.deploymentConfig)
@@ -331,9 +364,7 @@ func New(options *Options) *API {
 		r.Route("/files", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				// This number is arbitrary, but reading/writing
-				// file content is expensive so it should be small.
-				httpmw.RateLimit(12, time.Minute),
+				httpmw.RateLimit(options.FilesRateLimit, time.Minute),
 			)
 			r.Get("/{fileID}", api.fileByID)
 			r.Post("/", api.postFile)
@@ -400,7 +431,6 @@ func New(options *Options) *API {
 				apiKeyMiddleware,
 				httpmw.ExtractTemplateVersionParam(options.Database),
 			)
-
 			r.Get("/", api.templateVersion)
 			r.Patch("/cancel", api.patchCancelTemplateVersion)
 			r.Get("/schema", api.templateVersionSchema)
@@ -418,25 +448,25 @@ func New(options *Options) *API {
 		r.Route("/users", func(r chi.Router) {
 			r.Get("/first", api.firstUser)
 			r.Post("/first", api.postFirstUser)
-			r.Group(func(r chi.Router) {
-				// We use a tight limit for password login to protect
-				// against audit-log write DoS, pbkdf2 DoS, and simple
-				// brute-force attacks.
-				//
-				// Making this too small can break tests.
-				r.Use(httpmw.RateLimit(60, time.Minute))
-				r.Post("/login", api.postLogin)
-			})
 			r.Get("/authmethods", api.userAuthMethods)
-			r.Route("/oauth2", func(r chi.Router) {
-				r.Route("/github", func(r chi.Router) {
-					r.Use(httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient))
-					r.Get("/callback", api.userOAuth2Github)
+			r.Group(func(r chi.Router) {
+				// We use a tight limit for password login to protect against
+				// audit-log write DoS, pbkdf2 DoS, and simple brute-force
+				// attacks.
+				//
+				// This value is intentionally increased during tests.
+				r.Use(httpmw.RateLimit(options.LoginRateLimit, time.Minute))
+				r.Post("/login", api.postLogin)
+				r.Route("/oauth2", func(r chi.Router) {
+					r.Route("/github", func(r chi.Router) {
+						r.Use(httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient))
+						r.Get("/callback", api.userOAuth2Github)
+					})
 				})
-			})
-			r.Route("/oidc/callback", func(r chi.Router) {
-				r.Use(httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient))
-				r.Get("/", api.userOIDC)
+				r.Route("/oidc/callback", func(r chi.Router) {
+					r.Use(httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient))
+					r.Get("/", api.userOIDC)
+				})
 			})
 			r.Group(func(r chi.Router) {
 				r.Use(
@@ -455,8 +485,8 @@ func New(options *Options) *API {
 					r.Get("/", api.userByName)
 					r.Put("/profile", api.putUserProfile)
 					r.Route("/status", func(r chi.Router) {
-						r.Put("/suspend", api.putUserStatus(database.UserStatusSuspended))
-						r.Put("/activate", api.putUserStatus(database.UserStatusActive))
+						r.Put("/suspend", api.putSuspendUserAccount())
+						r.Put("/activate", api.putActivateUserAccount())
 					})
 					r.Route("/password", func(r chi.Router) {
 						r.Put("/", api.putUserPassword)
@@ -503,9 +533,6 @@ func New(options *Options) *API {
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Get("/coordinate", api.workspaceAgentCoordinate)
 				r.Post("/report-stats", api.workspaceAgentReportStats)
-				// DEPRECATED in favor of the POST endpoint above.
-				// TODO: remove in January 2023
-				r.Get("/report-stats", api.workspaceAgentReportStatsWebsocket)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
@@ -577,6 +604,15 @@ func New(options *Options) *API {
 			})
 		})
 	})
+
+	if options.SwaggerEndpoint {
+		// Swagger UI requires the URL trailing slash. Otherwise, the browser tries to load /assets
+		// from http://localhost:8080/assets instead of http://localhost:8080/swagger/assets.
+		r.Get("/swagger", http.RedirectHandler("/swagger/", http.StatusTemporaryRedirect).ServeHTTP)
+		// See globalHTTPSwaggerHandler comment as to why we use a package
+		// global variable here.
+		r.Get("/swagger/*", globalHTTPSwaggerHandler)
+	}
 
 	r.NotFound(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP)).ServeHTTP)
 	return api

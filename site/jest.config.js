@@ -22,10 +22,14 @@ module.exports = {
       setupFilesAfterEnv: ["./jest.setup.ts"],
       transform: {
         "^.+\\.tsx?$": "ts-jest",
+        "\\.m?jsx?$": "jest-esm-transformer",
       },
       testEnvironment: "jsdom",
       testRegex: "(/__tests__/.*|(\\.|/)(test|spec))\\.tsx?$",
       testPathIgnorePatterns: ["/node_modules/", "/e2e/"],
+      transformIgnorePatterns: [
+        "<rootDir>/node_modules/@chartjs-adapter-date-fns",
+      ],
       moduleDirectories: ["node_modules", "<rootDir>/src"],
       moduleNameMapper: {
         "\\.css$": "<rootDir>/src/testHelpers/styleMock.ts",

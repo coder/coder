@@ -104,6 +104,16 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				return xerrors.Errorf("either HTTP or TLS must be enabled")
 			}
 
+			// Disable rate limits if the `--dangerous-disable-rate-limits` flag
+			// was specified.
+			loginRateLimit := 60
+			filesRateLimit := 12
+			if cfg.RateLimit.DisableAll.Value {
+				cfg.RateLimit.API.Value = -1
+				loginRateLimit = -1
+				filesRateLimit = -1
+			}
+
 			printLogo(cmd)
 			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
 			if ok, _ := cmd.Flags().GetBool(varVerbose); ok {
@@ -216,6 +226,20 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 				defer httpListener.Close()
 
+				listenAddrStr := httpListener.Addr().String()
+				// For some reason if 0.0.0.0:x is provided as the http address,
+				// httpListener.Addr().String() likes to return it as an ipv6
+				// address (i.e. [::]:x). If the input ip is 0.0.0.0, try to
+				// coerce the output back to ipv4 to make it less confusing.
+				if strings.Contains(cfg.HTTPAddress.Value, "0.0.0.0") {
+					listenAddrStr = strings.ReplaceAll(listenAddrStr, "[::]", "0.0.0.0")
+				}
+
+				// We want to print out the address the user supplied, not the
+				// loopback device.
+				cmd.Println("Started HTTP listener at", (&url.URL{Scheme: "http", Host: listenAddrStr}).String())
+
+				// Set the http URL we want to use when connecting to ourselves.
 				tcpAddr, tcpAddrValid := httpListener.Addr().(*net.TCPAddr)
 				if !tcpAddrValid {
 					return xerrors.Errorf("invalid TCP address type %T", httpListener.Addr())
@@ -227,7 +251,6 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					Scheme: "http",
 					Host:   tcpAddr.String(),
 				}
-				cmd.Println("Started HTTP listener at " + httpURL.String())
 			}
 
 			var (
@@ -259,6 +282,22 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				httpsListener = tls.NewListener(httpsListenerInner, tlsConfig)
 				defer httpsListener.Close()
 
+				listenAddrStr := httpsListener.Addr().String()
+				// For some reason if 0.0.0.0:x is provided as the https
+				// address, httpsListener.Addr().String() likes to return it as
+				// an ipv6 address (i.e. [::]:x). If the input ip is 0.0.0.0,
+				// try to coerce the output back to ipv4 to make it less
+				// confusing.
+				if strings.Contains(cfg.HTTPAddress.Value, "0.0.0.0") {
+					listenAddrStr = strings.ReplaceAll(listenAddrStr, "[::]", "0.0.0.0")
+				}
+
+				// We want to print out the address the user supplied, not the
+				// loopback device.
+				cmd.Println("Started TLS/HTTPS listener at", (&url.URL{Scheme: "https", Host: listenAddrStr}).String())
+
+				// Set the https URL we want to use when connecting to
+				// ourselves.
 				tcpAddr, tcpAddrValid := httpsListener.Addr().(*net.TCPAddr)
 				if !tcpAddrValid {
 					return xerrors.Errorf("invalid TCP address type %T", httpsListener.Addr())
@@ -270,7 +309,6 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					Scheme: "https",
 					Host:   tcpAddr.String(),
 				}
-				cmd.Println("Started TLS/HTTPS listener at " + httpsURL.String())
 			}
 
 			// Sanity check that at least one listener was started.
@@ -371,27 +409,6 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				return xerrors.Errorf("parse ssh keygen algorithm %s: %w", cfg.SSHKeygenAlgorithm.Value, err)
 			}
 
-			// Validate provided auto-import templates.
-			var (
-				validatedAutoImportTemplates     = make([]coderd.AutoImportTemplate, len(cfg.AutoImportTemplates.Value))
-				seenValidatedAutoImportTemplates = make(map[coderd.AutoImportTemplate]struct{}, len(cfg.AutoImportTemplates.Value))
-			)
-			for i, autoImportTemplate := range cfg.AutoImportTemplates.Value {
-				var v coderd.AutoImportTemplate
-				switch autoImportTemplate {
-				case "kubernetes":
-					v = coderd.AutoImportTemplateKubernetes
-				default:
-					return xerrors.Errorf("auto import template %q is not supported", autoImportTemplate)
-				}
-
-				if _, ok := seenValidatedAutoImportTemplates[v]; ok {
-					return xerrors.Errorf("auto import template %q is specified more than once", v)
-				}
-				seenValidatedAutoImportTemplates[v] = struct{}{}
-				validatedAutoImportTemplates[i] = v
-			}
-
 			defaultRegion := &tailcfg.DERPRegion{
 				EmbeddedRelay: true,
 				RegionID:      cfg.DERP.Server.RegionID.Value,
@@ -449,12 +466,13 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
 				TracerProvider:              tracerProvider,
 				Telemetry:                   telemetry.NewNoop(),
-				AutoImportTemplates:         validatedAutoImportTemplates,
 				MetricsCacheRefreshInterval: cfg.MetricsCacheRefreshInterval.Value,
 				AgentStatsRefreshInterval:   cfg.AgentStatRefreshInterval.Value,
 				DeploymentConfig:            cfg,
 				PrometheusRegistry:          prometheus.NewRegistry(),
-				APIRateLimit:                cfg.APIRateLimit.Value,
+				APIRateLimit:                cfg.RateLimit.API.Value,
+				LoginRateLimit:              loginRateLimit,
+				FilesRateLimit:              filesRateLimit,
 				HTTPClient:                  httpClient,
 			}
 			if tlsConfig != nil {
@@ -526,8 +544,9 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					Verifier: oidcProvider.Verifier(&oidc.Config{
 						ClientID: cfg.OIDC.ClientID.Value,
 					}),
-					EmailDomain:  cfg.OIDC.EmailDomain.Value,
-					AllowSignups: cfg.OIDC.AllowSignups.Value,
+					EmailDomain:   cfg.OIDC.EmailDomain.Value,
+					AllowSignups:  cfg.OIDC.AllowSignups.Value,
+					UsernameField: cfg.OIDC.UsernameField.Value,
 				}
 			}
 
@@ -541,6 +560,15 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					return xerrors.Errorf("dial postgres: %w", err)
 				}
 				defer sqlDB.Close()
+
+				pingCtx, pingCancel := context.WithTimeout(ctx, 15*time.Second)
+				defer pingCancel()
+
+				err = sqlDB.PingContext(pingCtx)
+				if err != nil {
+					return xerrors.Errorf("ping postgres: %w", err)
+				}
+
 				// Ensure the PostgreSQL version is >=13.0.0!
 				version, err := sqlDB.QueryContext(ctx, "SHOW server_version;")
 				if err != nil {
@@ -561,10 +589,6 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 				logger.Debug(ctx, "connected to postgresql", slog.F("version", versionStr))
 
-				err = sqlDB.Ping()
-				if err != nil {
-					return xerrors.Errorf("ping postgres: %w", err)
-				}
 				err = migrations.Up(sqlDB)
 				if err != nil {
 					return xerrors.Errorf("migrate up: %w", err)
@@ -678,6 +702,10 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				), cfg.Prometheus.Address.Value, "prometheus")()
 			}
 
+			if cfg.Swagger.Enable.Value {
+				options.SwaggerEndpoint = cfg.Swagger.Enable.Value
+			}
+
 			// We use a separate coderAPICloser so the Enterprise API
 			// can have it's own close functions. This is cleaner
 			// than abstracting the Coder API itself.
@@ -687,16 +715,17 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			}
 
 			client := codersdk.New(localURL)
-			if cfg.TLS.Enable.Value {
-				// Secure transport isn't needed for locally communicating!
+			if localURL.Scheme == "https" && isLocalhost(localURL.Hostname()) {
+				// The certificate will likely be self-signed or for a different
+				// hostname, so we need to skip verification.
 				client.HTTPClient.Transport = &http.Transport{
 					TLSClientConfig: &tls.Config{
 						//nolint:gosec
 						InsecureSkipVerify: true,
 					},
 				}
-				defer client.HTTPClient.CloseIdleConnections()
 			}
+			defer client.HTTPClient.CloseIdleConnections()
 
 			// This is helpful for tests, but can be silently ignored.
 			// Coder may be ran as users that don't have permission to write in the homedir,
@@ -797,9 +826,10 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			}()
 
 			hasFirstUser, err := client.HasFirstUser(ctx)
-			if !hasFirstUser && err == nil {
-				cmd.Println()
-				cmd.Println("Get started by creating the first user (in a new terminal):")
+			if err != nil {
+				cmd.Println("\nFailed to check for the first user: " + err.Error())
+			} else if !hasFirstUser {
+				cmd.Println("\nGet started by creating the first user (in a new terminal):")
 				cmd.Println(cliui.Styles.Code.Render("coder login " + accessURLParsed.String()))
 			}
 
@@ -916,7 +946,8 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 		},
 	}
 
-	root.AddCommand(&cobra.Command{
+	var pgRawURL bool
+	postgresBuiltinURLCmd := &cobra.Command{
 		Use:   "postgres-builtin-url",
 		Short: "Output the connection URL for the built-in PostgreSQL deployment.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -925,37 +956,49 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			if err != nil {
 				return err
 			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "psql %q\n", url)
+			if pgRawURL {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\n", url)
+			} else {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\n", cliui.Styles.Code.Render(fmt.Sprintf("psql %q", url)))
+			}
 			return nil
 		},
-	})
-
-	root.AddCommand(&cobra.Command{
+	}
+	postgresBuiltinServeCmd := &cobra.Command{
 		Use:   "postgres-builtin-serve",
 		Short: "Run the built-in PostgreSQL deployment.",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+
 			cfg := createConfig(cmd)
 			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
 			if ok, _ := cmd.Flags().GetBool(varVerbose); ok {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
-			url, closePg, err := startBuiltinPostgres(cmd.Context(), cfg, logger)
+			ctx, cancel := signal.NotifyContext(ctx, InterruptSignals...)
+			defer cancel()
+
+			url, closePg, err := startBuiltinPostgres(ctx, cfg, logger)
 			if err != nil {
 				return err
 			}
 			defer func() { _ = closePg() }()
 
-			cmd.Println(cliui.Styles.Code.Render("psql \"" + url + "\""))
+			if pgRawURL {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\n", url)
+			} else {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\n", cliui.Styles.Code.Render(fmt.Sprintf("psql %q", url)))
+			}
 
-			stopChan := make(chan os.Signal, 1)
-			defer signal.Stop(stopChan)
-			signal.Notify(stopChan, os.Interrupt)
-
-			<-stopChan
+			<-ctx.Done()
 			return nil
 		},
-	})
+	}
+	postgresBuiltinURLCmd.Flags().BoolVar(&pgRawURL, "raw-url", false, "Output the raw connection URL instead of a psql command.")
+	postgresBuiltinServeCmd.Flags().BoolVar(&pgRawURL, "raw-url", false, "Output the raw connection URL instead of a psql command.")
+
+	root.AddCommand(postgresBuiltinURLCmd, postgresBuiltinServeCmd)
 
 	deployment.AttachFlags(root.Flags(), vip, false)
 
@@ -1400,7 +1443,7 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	if err != nil {
 		return "", nil, xerrors.Errorf("read postgres port: %w", err)
 	}
-	pgPort, err := strconv.Atoi(pgPortRaw)
+	pgPort, err := strconv.ParseUint(pgPortRaw, 10, 16)
 	if err != nil {
 		return "", nil, xerrors.Errorf("parse postgres port: %w", err)
 	}
@@ -1460,4 +1503,10 @@ func redirectHTTPToAccessURL(handler http.Handler, accessURL *url.URL) http.Hand
 
 		handler.ServeHTTP(w, r)
 	})
+}
+
+// isLocalhost returns true if the host points to the local machine. Intended to
+// be called with `u.Hostname()`.
+func isLocalhost(host string) bool {
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }

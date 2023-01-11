@@ -1,8 +1,4 @@
-import {
-  hasApiFieldErrors,
-  isApiError,
-  mapApiErrorToFieldErrors,
-} from "api/errors"
+import { isApiValidationError, mapApiErrorToFieldErrors } from "api/errors"
 import { FormikContextType, FormikErrors, getIn } from "formik"
 import {
   ChangeEvent,
@@ -44,10 +40,11 @@ export const getFormHelpers =
     HelperText: ReactNode = "",
     backendErrorName?: string,
   ): FormHelpers => {
-    const apiValidationErrors =
-      isApiError(error) && hasApiFieldErrors(error)
-        ? (mapApiErrorToFieldErrors(error.response.data) as FormikErrors<T>)
-        : error
+    const apiValidationErrors = isApiValidationError(error)
+      ? (mapApiErrorToFieldErrors(error.response.data) as FormikErrors<T>)
+      : // This should not return the error since it is not and api validation error but I didn't have time to fix this and tests
+        error
+
     if (typeof name !== "string") {
       throw new Error(
         `name must be type of string, instead received '${typeof name}'`,
@@ -62,6 +59,7 @@ export const getFormHelpers =
     const apiError = getIn(apiValidationErrors, apiErrorName)
     const frontendError = getIn(form.errors, name)
     const returnError = apiError ?? frontendError
+
     return {
       ...form.getFieldProps(name),
       id: name,

@@ -77,6 +77,7 @@ func NewConn(options *Options) (*Conn, error) {
 	nodePublicKey := nodePrivateKey.Public()
 
 	netMap := &netmap.NetworkMap{
+		DERPMap:    options.DERPMap,
 		NodeKey:    nodePublicKey,
 		PrivateKey: nodePrivateKey,
 		Addresses:  options.Addresses,
@@ -407,24 +408,32 @@ func (c *Conn) Status() *ipnstate.Status {
 }
 
 // Ping sends a Disco ping to the Wireguard engine.
-func (c *Conn) Ping(ctx context.Context, ip netip.Addr) (time.Duration, error) {
+// The bool returned is true if the ping was performed P2P.
+func (c *Conn) Ping(ctx context.Context, ip netip.Addr) (time.Duration, bool, error) {
 	errCh := make(chan error, 1)
-	durCh := make(chan time.Duration, 1)
+	prChan := make(chan *ipnstate.PingResult, 1)
 	go c.wireguardEngine.Ping(ip, tailcfg.PingDisco, func(pr *ipnstate.PingResult) {
 		if pr.Err != "" {
 			errCh <- xerrors.New(pr.Err)
 			return
 		}
-		durCh <- time.Duration(pr.LatencySeconds * float64(time.Second))
+		prChan <- pr
 	})
 	select {
 	case err := <-errCh:
-		return 0, err
+		return 0, false, err
 	case <-ctx.Done():
-		return 0, ctx.Err()
-	case dur := <-durCh:
-		return dur, nil
+		return 0, false, ctx.Err()
+	case pr := <-prChan:
+		return time.Duration(pr.LatencySeconds * float64(time.Second)), pr.Endpoint != "", nil
 	}
+}
+
+// DERPMap returns the currently set DERP mapping.
+func (c *Conn) DERPMap() *tailcfg.DERPMap {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	return c.netMap.DERPMap
 }
 
 // AwaitReachable pings the provided IP continually until the
@@ -445,7 +454,7 @@ func (c *Conn) AwaitReachable(ctx context.Context, ip netip.Addr) bool {
 		ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 		defer cancel()
 
-		_, err := c.Ping(ctx, ip)
+		_, _, err := c.Ping(ctx, ip)
 		if err == nil {
 			completed()
 		}
@@ -523,20 +532,7 @@ func (c *Conn) sendNode() {
 		c.nodeChanged = true
 		return
 	}
-	node := &Node{
-		ID:            c.netMap.SelfNode.ID,
-		AsOf:          database.Now(),
-		Key:           c.netMap.SelfNode.Key,
-		Addresses:     c.netMap.SelfNode.Addresses,
-		AllowedIPs:    c.netMap.SelfNode.AllowedIPs,
-		DiscoKey:      c.magicConn.DiscoPublicKey(),
-		Endpoints:     c.lastEndpoints,
-		PreferredDERP: c.lastPreferredDERP,
-		DERPLatency:   c.lastDERPLatency,
-	}
-	if c.blockEndpoints {
-		node.Endpoints = nil
-	}
+	node := c.selfNode()
 	nodeCallback := c.nodeCallback
 	if nodeCallback == nil {
 		return
@@ -555,6 +551,31 @@ func (c *Conn) sendNode() {
 		}
 		c.lastMutex.Unlock()
 	}()
+}
+
+// Node returns the last node that was sent to the node callback.
+func (c *Conn) Node() *Node {
+	c.lastMutex.Lock()
+	defer c.lastMutex.Unlock()
+	return c.selfNode()
+}
+
+func (c *Conn) selfNode() *Node {
+	node := &Node{
+		ID:            c.netMap.SelfNode.ID,
+		AsOf:          database.Now(),
+		Key:           c.netMap.SelfNode.Key,
+		Addresses:     c.netMap.SelfNode.Addresses,
+		AllowedIPs:    c.netMap.SelfNode.AllowedIPs,
+		DiscoKey:      c.magicConn.DiscoPublicKey(),
+		Endpoints:     c.lastEndpoints,
+		PreferredDERP: c.lastPreferredDERP,
+		DERPLatency:   c.lastDERPLatency,
+	}
+	if c.blockEndpoints {
+		node.Endpoints = nil
+	}
+	return node
 }
 
 // This and below is taken _mostly_ verbatim from Tailscale:

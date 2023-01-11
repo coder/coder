@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"path"
+	"strings"
 	"sync"
 
 	"github.com/gohugoio/hugo/parser/pageparser"
@@ -162,28 +163,36 @@ func Archive(exampleID string) ([]byte, error) {
 			if err != nil {
 				return err
 			}
+			if path == "." {
+				// Tar files don't have a root directory.
+				return nil
+			}
 
 			info, err := entry.Info()
 			if err != nil {
 				return xerrors.Errorf("stat file: %w", err)
 			}
 
-			header, err := tar.FileInfoHeader(info, entry.Name())
+			header, err := tar.FileInfoHeader(info, "")
 			if err != nil {
 				return xerrors.Errorf("get file header: %w", err)
 			}
+			header.Name = strings.TrimPrefix(path, "./")
 			header.Mode = 0644
 
 			if entry.IsDir() {
-				header.Name = path + "/"
-
+				// Trailing slash on entry name is not required. Our tar
+				// creation code for tarring up a local directory doesn't
+				// include slashes so this we don't include them here for
+				// consistency.
+				// header.Name += "/"
+				header.Mode = 0755
+				header.Typeflag = tar.TypeDir
 				err = tarWriter.WriteHeader(header)
 				if err != nil {
 					return xerrors.Errorf("write file: %w", err)
 				}
 			} else {
-				header.Name = path
-
 				file, err := exampleFiles.Open(path)
 				if err != nil {
 					return xerrors.Errorf("open file %s: %w", path, err)

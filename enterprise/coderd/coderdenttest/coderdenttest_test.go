@@ -49,7 +49,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 
 	skipRoutes, assertRoute := coderdtest.AGPLRoutes(a)
 	skipRoutes["GET:/api/v2/organizations/{organization}/provisionerdaemons/serve"] = "This route checks for RBAC dependent on input parameters!"
-	skipRoutes["GET:/api/v2/service-banner/"] = "This route is available to all users"
+	skipRoutes["GET:/api/v2/appearance/"] = "This route is available to all users"
 
 	assertRoute["GET:/api/v2/entitlements"] = coderdtest.RouteCheck{
 		NoAuthorize: true,

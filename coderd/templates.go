@@ -2,9 +2,7 @@ package coderd
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
@@ -13,7 +11,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/audit"
@@ -26,14 +23,14 @@ import (
 	"github.com/coder/coder/examples"
 )
 
-// Auto-importable templates. These can be auto-imported after the first user
-// has been created.
-type AutoImportTemplate string
-
-const (
-	AutoImportTemplateKubernetes AutoImportTemplate = "kubernetes"
-)
-
+// @Summary Get template metadata by ID
+// @ID get-template-metadata-by-id
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Param id path string true "Template ID" format(uuid)
+// @Success 200 {object} codersdk.Template
+// @Router /templates/{id} [get]
 // Returns a single template.
 func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -73,6 +70,14 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(template, count, createdByNameMap[template.ID.String()]))
 }
 
+// @Summary Delete template by ID
+// @ID delete-template-by-id
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Param id path string true "Template ID" format(uuid)
+// @Success 200 {object} codersdk.Response
+// @Router /templates/{id} [delete]
 func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -126,6 +131,17 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary Create template by organization
+// @ID create-template-by-organization
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Templates
+// @Param request body codersdk.CreateTemplateRequest true "Request body"
+// @Param organization path string true "Organization ID"
+// @Success 200 {object} codersdk.Template
+// @Router /organizations/{organization}/templates [post]
+// Returns a single template.
 // Create a new template in an organization.
 func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -314,6 +330,14 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	httpapi.Write(ctx, rw, http.StatusCreated, template)
 }
 
+// @Summary Get templates by organization
+// @ID get-templates-by-organization
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Param organization path string true "Organization ID" format(uuid)
+// @Success 200 {array} codersdk.Template
+// @Router /organizations/{organization}/templates [get]
 func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
@@ -372,6 +396,15 @@ func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplates(templates, workspaceCounts, createdByNameMap))
 }
 
+// @Summary Get templates by organization and template name
+// @ID get-templates-by-organization-and-template-name
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param templatename path string true "Template name"
+// @Success 200 {object} codersdk.Template
+// @Router /organizations/{organization}/templates/{templatename} [get]
 func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
@@ -427,6 +460,14 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(template, count, createdByNameMap[template.ID.String()]))
 }
 
+// @Summary Update template metadata by ID
+// @ID update-template-metadata
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Param id path string true "Template ID" format(uuid)
+// @Success 200 {object} codersdk.Template
+// @Router /templates/{id} [patch]
 func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -547,6 +588,14 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(updated, count, createdByNameMap[updated.ID.String()]))
 }
 
+// @Summary Get template DAUs by ID
+// @ID get-template-daus-by-id
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Param id path string true "Template ID" format(uuid)
+// @Success 200 {object} codersdk.TemplateDAUsResponse
+// @Router /templates/{id}/daus [get]
 func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
@@ -565,6 +614,14 @@ func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
+// @Summary Get template examples by organization
+// @ID get-template-examples-by-organization
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Param organization path string true "Organization ID" format(uuid)
+// @Success 200 {array} codersdk.TemplateExample
+// @Router /organizations/{organization}/templates/examples [get]
 func (api *API) templateExamples(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx          = r.Context()
@@ -586,147 +643,6 @@ func (api *API) templateExamples(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, ex)
-}
-
-type autoImportTemplateOpts struct {
-	name    string
-	archive []byte
-	params  map[string]string
-	userID  uuid.UUID
-	orgID   uuid.UUID
-}
-
-func (api *API) autoImportTemplate(ctx context.Context, opts autoImportTemplateOpts) (database.Template, error) {
-	var template database.Template
-	err := api.Database.InTx(func(tx database.Store) error {
-		// Insert the archive into the files table.
-		var (
-			hash = sha256.Sum256(opts.archive)
-			now  = database.Now()
-		)
-		file, err := tx.InsertFile(ctx, database.InsertFileParams{
-			ID:        uuid.New(),
-			Hash:      hex.EncodeToString(hash[:]),
-			CreatedAt: now,
-			CreatedBy: opts.userID,
-			Mimetype:  "application/x-tar",
-			Data:      opts.archive,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert auto-imported template archive into files table: %w", err)
-		}
-
-		jobID := uuid.New()
-
-		// Insert parameters
-		for key, value := range opts.params {
-			_, err = tx.InsertParameterValue(ctx, database.InsertParameterValueParams{
-				ID:                uuid.New(),
-				Name:              key,
-				CreatedAt:         now,
-				UpdatedAt:         now,
-				Scope:             database.ParameterScopeImportJob,
-				ScopeID:           jobID,
-				SourceScheme:      database.ParameterSourceSchemeData,
-				SourceValue:       value,
-				DestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
-			})
-			if err != nil {
-				return xerrors.Errorf("insert job-scoped parameter %q with value %q: %w", key, value, err)
-			}
-		}
-
-		// Create provisioner job
-		job, err := tx.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-			ID:             jobID,
-			CreatedAt:      now,
-			UpdatedAt:      now,
-			OrganizationID: opts.orgID,
-			InitiatorID:    opts.userID,
-			Provisioner:    database.ProvisionerTypeTerraform,
-			StorageMethod:  database.ProvisionerStorageMethodFile,
-			FileID:         file.ID,
-			Type:           database.ProvisionerJobTypeTemplateVersionImport,
-			Input:          []byte{'{', '}'},
-		})
-		if err != nil {
-			return xerrors.Errorf("insert provisioner job: %w", err)
-		}
-
-		// Create template version
-		templateVersion, err := tx.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
-			ID: uuid.New(),
-			TemplateID: uuid.NullUUID{
-				UUID:  uuid.Nil,
-				Valid: false,
-			},
-			OrganizationID: opts.orgID,
-			CreatedAt:      now,
-			UpdatedAt:      now,
-			Name:           namesgenerator.GetRandomName(1),
-			Readme:         "",
-			JobID:          job.ID,
-			CreatedBy:      opts.userID,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert template version: %w", err)
-		}
-
-		// Create template
-		template, err = tx.InsertTemplate(ctx, database.InsertTemplateParams{
-			ID:              uuid.New(),
-			CreatedAt:       now,
-			UpdatedAt:       now,
-			OrganizationID:  opts.orgID,
-			Name:            opts.name,
-			Provisioner:     job.Provisioner,
-			ActiveVersionID: templateVersion.ID,
-			Description:     "This template was auto-imported by Coder.",
-			DefaultTTL:      0,
-			CreatedBy:       opts.userID,
-			UserACL:         database.TemplateACL{},
-			GroupACL: database.TemplateACL{
-				opts.orgID.String(): []rbac.Action{rbac.ActionRead},
-			},
-		})
-		if err != nil {
-			return xerrors.Errorf("insert template: %w", err)
-		}
-
-		// Update template version with template ID
-		err = tx.UpdateTemplateVersionByID(ctx, database.UpdateTemplateVersionByIDParams{
-			ID: templateVersion.ID,
-			TemplateID: uuid.NullUUID{
-				UUID:  template.ID,
-				Valid: true,
-			},
-		})
-		if err != nil {
-			return xerrors.Errorf("update template version to set template ID: %s", err)
-		}
-
-		// Insert parameters at the template scope
-		for key, value := range opts.params {
-			_, err = tx.InsertParameterValue(ctx, database.InsertParameterValueParams{
-				ID:                uuid.New(),
-				Name:              key,
-				CreatedAt:         now,
-				UpdatedAt:         now,
-				Scope:             database.ParameterScopeTemplate,
-				ScopeID:           template.ID,
-				SourceScheme:      database.ParameterSourceSchemeData,
-				SourceValue:       value,
-				DestinationScheme: database.ParameterDestinationSchemeProvisionerVariable,
-			})
-			if err != nil {
-				return xerrors.Errorf("insert template-scoped parameter %q with value %q: %w", key, value, err)
-			}
-		}
-
-		return nil
-	}, nil)
-
-	return template, err
 }
 
 func getCreatedByNamesByTemplateIDs(ctx context.Context, db database.Store, templates []database.Template) (map[string]string, error) {
