@@ -5,7 +5,7 @@ import { clickButton, buttons, fillInput } from "../helpers"
 
 test("Basic flow", async ({ baseURL, page }) => {
   // We're keeping entire flows in one test, which means the test needs extra time.
-  test.setTimeout(120000);
+  test.setTimeout(120000)
   await page.goto(baseURL + "/", { waitUntil: "networkidle" })
 
   // Log-in with the default credentials we set up in the development server
