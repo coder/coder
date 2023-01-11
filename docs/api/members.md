@@ -78,11 +78,11 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 
 ### Parameters
 
-| Name           | In   | Type                                                   | Required | Description           |
-| -------------- | ---- | ------------------------------------------------------ | -------- | --------------------- |
-| `organization` | path | string                                                 | true     | Organization ID       |
-| `user`         | path | string                                                 | true     | Username, UUID, or me |
-| `body`         | body | [codersdk.UpdateRoles](schemas.md#codersdkupdateroles) | true     | Update roles request  |
+| Name           | In   | Type                                                   | Required | Description          |
+| -------------- | ---- | ------------------------------------------------------ | -------- | -------------------- |
+| `organization` | path | string                                                 | true     | Organization ID      |
+| `user`         | path | string                                                 | true     | User ID, name, or me |
+| `body`         | body | [codersdk.UpdateRoles](schemas.md#codersdkupdateroles) | true     | Update roles request |
 
 ### Example responses
 
@@ -108,5 +108,51 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 | Status | Meaning                                                 | Description | Schema                                                               |
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OrganizationMember](schemas.md#codersdkorganizationmember) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get site member roles
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/users/roles \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /users/roles`
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "assignable": true,
+    "display_name": "string",
+    "name": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                  |
+| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.AssignableRoles](schemas.md#codersdkassignableroles) |
+
+<h3 id="get-site-member-roles-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name             | Type    | Required | Restrictions | Description |
+| ---------------- | ------- | -------- | ------------ | ----------- |
+| `[array item]`   | array   | false    |              |             |
+| `» assignable`   | boolean | false    |              |             |
+| `» display_name` | string  | false    |              |             |
+| `» name`         | string  | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

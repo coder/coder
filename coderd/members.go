@@ -22,9 +22,9 @@ import (
 // @Accept json
 // @Produce json
 // @Tags Members
-// @Param request body codersdk.UpdateRoles true "Update roles request"
 // @Param organization path string true "Organization ID"
-// @Param user path string true "Username, UUID, or me"
+// @Param user path string true "User ID, name, or me"
+// @Param request body codersdk.UpdateRoles true "Update roles request"
 // @Success 200 {object} codersdk.OrganizationMember
 // @Router /organizations/{organization}/members/{user}/roles [put]
 func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {

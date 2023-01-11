@@ -25,6 +25,16 @@ import (
 )
 
 // Creates a new token API key that effectively doesn't expire.
+//
+// @Summary Create token API key
+// @ID create-token-api-key
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Param request body codersdk.CreateTokenRequest true "Create token request"
+// @Success 201 {object} codersdk.GenerateAPIKeyResponse
+// @Router /users/{user}/keys/tokens [post]
 func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
@@ -78,6 +88,15 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 }
 
 // Creates a new session key, used for logging in via the CLI.
+//
+// @Summary Create new session key
+// @ID create-new-session-key
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Success 201 {object} codersdk.GenerateAPIKeyResponse
+// @Router /users/{user}/keys [post]
 func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
@@ -106,12 +125,21 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// We intentionally do not set the cookie on the response here.
-	// Setting the cookie will couple the browser sesion to the API
+	// Setting the cookie will couple the browser session to the API
 	// key we return here, meaning logging out of the website would
 	// invalid your CLI key.
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.GenerateAPIKeyResponse{Key: cookie.Value})
 }
 
+// @Summary Get API key
+// @ID get-api-key
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Param keyid path string true "Key ID" format(uuid)
+// @Success 200 {object} codersdk.APIKey
+// @Router /users/{user}/keys/{keyid} [get]
 func (api *API) apiKey(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx  = r.Context()
@@ -140,6 +168,14 @@ func (api *API) apiKey(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, convertAPIKey(key))
 }
 
+// @Summary Get user tokens
+// @ID get-user-tokens
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Success 200 {array} codersdk.APIKey
+// @Router /users/{user}/keys/tokens [get]
 func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx  = r.Context()
@@ -172,6 +208,15 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, apiKeys)
 }
 
+// @Summary Delete API key
+// @ID delete-user-tokens
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Param keyid path string true "Key ID" format(uuid)
+// @Success 204
+// @Router /users/{user}/keys/{keyid} [delete]
 func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx  = r.Context()

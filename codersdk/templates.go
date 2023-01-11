@@ -21,7 +21,7 @@ type Template struct {
 	Name                string          `json:"name"`
 	DisplayName         string          `json:"display_name"`
 	Provisioner         ProvisionerType `json:"provisioner" enums:"terraform"`
-	ActiveVersionID     uuid.UUID       `json:"active_version_id"`
+	ActiveVersionID     uuid.UUID       `json:"active_version_id" format:"uuid"`
 	WorkspaceOwnerCount uint32          `json:"workspace_owner_count"`
 	// ActiveUserCount is set to -1 when loading.
 	ActiveUserCount  int                    `json:"active_user_count"`
@@ -42,7 +42,7 @@ type TransitionStats struct {
 
 type TemplateBuildTimeStats map[WorkspaceTransition]TransitionStats
 type UpdateActiveTemplateVersion struct {
-	ID uuid.UUID `json:"id" validate:"required"`
+	ID uuid.UUID `json:"id" validate:"required" format:"uuid"`
 }
 
 type TemplateRole string
@@ -83,7 +83,7 @@ type UpdateTemplateMeta struct {
 }
 
 type TemplateExample struct {
-	ID          string   `json:"id"`
+	ID          string   `json:"id" format:"uuid"`
 	URL         string   `json:"url"`
 	Name        string   `json:"name"`
 	Description string   `json:"description"`

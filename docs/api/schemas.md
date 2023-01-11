@@ -16,6 +16,62 @@
 | ------------ | ------ | -------- | ------------ | ----------- |
 | `csp-report` | object | false    |              |             |
 
+## codersdk.APIKey
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "expires_at": "2019-08-24T14:15:22Z",
+  "id": "string",
+  "last_used": "2019-08-24T14:15:22Z",
+  "lifetime_seconds": 0,
+  "login_type": "password",
+  "scope": "all",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Properties
+
+| Name               | Type                                         | Required | Restrictions | Description                                 |
+| ------------------ | -------------------------------------------- | -------- | ------------ | ------------------------------------------- |
+| `created_at`       | string                                       | true     |              |                                             |
+| `expires_at`       | string                                       | true     |              |                                             |
+| `id`               | string                                       | true     |              |                                             |
+| `last_used`        | string                                       | true     |              |                                             |
+| `lifetime_seconds` | integer                                      | true     |              |                                             |
+| `login_type`       | [codersdk.LoginType](#codersdklogintype)     | true     |              |                                             |
+| `scope`            | [codersdk.APIKeyScope](#codersdkapikeyscope) | true     |              |                                             |
+| `updated_at`       | string                                       | true     |              |                                             |
+| `user_id`          | string                                       | true     |              | User ID do not ever return the HashedSecret |
+
+#### Enumerated Values
+
+| Property     | Value                 |
+| ------------ | --------------------- |
+| `login_type` | `password`            |
+| `login_type` | `github`              |
+| `login_type` | `oidc`                |
+| `login_type` | `token`               |
+| `scope`      | `all`                 |
+| `scope`      | `application_connect` |
+
+## codersdk.APIKeyScope
+
+```json
+"all"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value                 |
+| --------------------- |
+| `all`                 |
+| `application_connect` |
+
 ## codersdk.AWSInstanceIdentityToken
 
 ```json
@@ -201,7 +257,7 @@
   "user": {
     "avatar_url": "http://example.com",
     "created_at": "2019-08-24T14:15:22Z",
-    "email": "string",
+    "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_seen_at": "2019-08-24T14:15:22Z",
     "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
@@ -277,7 +333,7 @@
       "user": {
         "avatar_url": "http://example.com",
         "created_at": "2019-08-24T14:15:22Z",
-        "email": "string",
+        "email": "user@example.com",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "last_seen_at": "2019-08-24T14:15:22Z",
         "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
@@ -303,6 +359,24 @@
 | ------------ | ----------------------------------------------- | -------- | ------------ | ----------- |
 | `audit_logs` | array of [codersdk.AuditLog](#codersdkauditlog) | false    |              |             |
 | `count`      | integer                                         | false    |              |             |
+
+## codersdk.AuthMethods
+
+```json
+{
+  "github": true,
+  "oidc": true,
+  "password": true
+}
+```
+
+### Properties
+
+| Name       | Type    | Required | Restrictions | Description |
+| ---------- | ------- | -------- | ------------ | ----------- |
+| `github`   | boolean | false    |              |             |
+| `oidc`     | boolean | false    |              |             |
+| `password` | boolean | false    |              |             |
 
 ## codersdk.AuthorizationCheck
 
@@ -455,6 +529,42 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `autostart` |
 | `autostop`  |
 
+## codersdk.CreateFirstUserRequest
+
+```json
+{
+  "email": "string",
+  "password": "string",
+  "trial": true,
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name       | Type    | Required | Restrictions | Description |
+| ---------- | ------- | -------- | ------------ | ----------- |
+| `email`    | string  | true     |              |             |
+| `password` | string  | true     |              |             |
+| `trial`    | boolean | false    |              |             |
+| `username` | string  | true     |              |             |
+
+## codersdk.CreateFirstUserResponse
+
+```json
+{
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Properties
+
+| Name              | Type   | Required | Restrictions | Description |
+| ----------------- | ------ | -------- | ------------ | ----------- |
+| `organization_id` | string | false    |              |             |
+| `user_id`         | string | false    |              |             |
+
 ## codersdk.CreateOrganizationRequest
 
 ```json
@@ -602,6 +712,49 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `resource_type` | `git_ssh_key`      |
 | `resource_type` | `api_key`          |
 | `resource_type` | `group`            |
+
+## codersdk.CreateTokenRequest
+
+```json
+{
+  "lifetime": 0,
+  "scope": "all"
+}
+```
+
+### Properties
+
+| Name       | Type                                         | Required | Restrictions | Description |
+| ---------- | -------------------------------------------- | -------- | ------------ | ----------- |
+| `lifetime` | integer                                      | false    |              |             |
+| `scope`    | [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value                 |
+| -------- | --------------------- |
+| `scope`  | `all`                 |
+| `scope`  | `application_connect` |
+
+## codersdk.CreateUserRequest
+
+```json
+{
+  "email": "user@example.com",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "password": "string",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name              | Type   | Required | Restrictions | Description |
+| ----------------- | ------ | -------- | ------------ | ----------- |
+| `email`           | string | true     |              |             |
+| `organization_id` | string | true     |              |             |
+| `password`        | string | true     |              |             |
+| `username`        | string | true     |              |             |
 
 ## codersdk.CreateWorkspaceBuildRequest
 
@@ -1995,6 +2148,20 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `usage`      | string  | false    |              |             |
 | `value`      | integer | false    |              |             |
 
+## codersdk.GenerateAPIKeyResponse
+
+```json
+{
+  "key": "string"
+}
+```
+
+### Properties
+
+| Name  | Type   | Required | Restrictions | Description |
+| ----- | ------ | -------- | ------------ | ----------- |
+| `key` | string | false    |              |             |
+
 ## codersdk.GetAppHostResponse
 
 ```json
@@ -2008,6 +2175,39 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | Name   | Type   | Required | Restrictions | Description                                                   |
 | ------ | ------ | -------- | ------------ | ------------------------------------------------------------- |
 | `host` | string | false    |              | Host is the externally accessible URL for the Coder instance. |
+
+## codersdk.GetUsersResponse
+
+```json
+{
+  "count": 0,
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+      "roles": [
+        {
+          "display_name": "string",
+          "name": "string"
+        }
+      ],
+      "status": "active",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                    | Required | Restrictions | Description |
+| ------- | --------------------------------------- | -------- | ------------ | ----------- |
+| `count` | integer                                 | false    |              |             |
+| `users` | array of [codersdk.User](#codersdkuser) | false    |              |             |
 
 ## codersdk.GitAuthConfig
 
@@ -2038,6 +2238,26 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `token_url`    | string          | false    |              |             |
 | `type`         | string          | false    |              |             |
 | `validate_url` | string          | false    |              |             |
+
+## codersdk.GitSSHKey
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "public_key": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+| ------------ | ------ | -------- | ------------ | ----------- |
+| `created_at` | string | false    |              |             |
+| `public_key` | string | false    |              |             |
+| `updated_at` | string | false    |              |             |
+| `user_id`    | string | false    |              |             |
 
 ## codersdk.GoogleInstanceIdentityToken
 
@@ -2103,6 +2323,53 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | -------------------- |
 | `provisioner_daemon` |
 | `provisioner`        |
+
+## codersdk.LoginType
+
+```json
+"password"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value      |
+| ---------- |
+| `password` |
+| `github`   |
+| `oidc`     |
+| `token`    |
+
+## codersdk.LoginWithPasswordRequest
+
+```json
+{
+  "email": "user@example.com",
+  "password": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description |
+| ---------- | ------ | -------- | ------------ | ----------- |
+| `email`    | string | true     |              |             |
+| `password` | string | true     |              |             |
+
+## codersdk.LoginWithPasswordResponse
+
+```json
+{
+  "session_token": "string"
+}
+```
+
+### Properties
+
+| Name            | Type   | Required | Restrictions | Description |
+| --------------- | ------ | -------- | ------------ | ----------- |
+| `session_token` | string | true     |              |             |
 
 ## codersdk.OAuth2Config
 
@@ -3163,7 +3430,7 @@ Parameter represents a set value for the scope.
 ```json
 {
   "active_user_count": 0,
-  "active_version_id": "string",
+  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
   "allow_user_cancel_workspace_jobs": true,
   "build_time_stats": {
     "property1": {
@@ -3265,7 +3532,7 @@ Parameter represents a set value for the scope.
 {
   "description": "string",
   "icon": "string",
-  "id": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "markdown": "string",
   "name": "string",
   "tags": ["string"],
@@ -3293,7 +3560,7 @@ Parameter represents a set value for the scope.
   "created_by": {
     "avatar_url": "http://example.com",
     "created_at": "2019-08-24T14:15:22Z",
-    "email": "string",
+    "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_seen_at": "2019-08-24T14:15:22Z",
     "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
@@ -3412,7 +3679,7 @@ Parameter represents a set value for the scope.
 
 ```json
 {
-  "id": "string"
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
 }
 ```
 
@@ -3453,6 +3720,36 @@ Parameter represents a set value for the scope.
 | Name    | Type            | Required | Restrictions | Description |
 | ------- | --------------- | -------- | ------------ | ----------- |
 | `roles` | array of string | false    |              |             |
+
+## codersdk.UpdateUserPasswordRequest
+
+```json
+{
+  "old_password": "string",
+  "password": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `old_password` | string | false    |              |             |
+| `password`     | string | true     |              |             |
+
+## codersdk.UpdateUserProfileRequest
+
+```json
+{
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description |
+| ---------- | ------ | -------- | ------------ | ----------- |
+| `username` | string | true     |              |             |
 
 ## codersdk.UpdateWorkspaceAutostartRequest
 
@@ -3516,7 +3813,7 @@ Parameter represents a set value for the scope.
 {
   "avatar_url": "http://example.com",
   "created_at": "2019-08-24T14:15:22Z",
-  "email": "string",
+  "email": "user@example.com",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
   "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],

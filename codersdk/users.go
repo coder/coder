@@ -37,7 +37,7 @@ type UsersRequest struct {
 type User struct {
 	ID         uuid.UUID `json:"id" validate:"required" table:"id" format:"uuid"`
 	Username   string    `json:"username" validate:"required" table:"username"`
-	Email      string    `json:"email" validate:"required" table:"email"`
+	Email      string    `json:"email" validate:"required" table:"email" format:"email"`
 	CreatedAt  time.Time `json:"created_at" validate:"required" table:"created at" format:"date-time"`
 	LastSeenAt time.Time `json:"last_seen_at" format:"date-time"`
 
@@ -66,7 +66,7 @@ type CreateFirstUserResponse struct {
 }
 
 type CreateUserRequest struct {
-	Email          string    `json:"email" validate:"required,email"`
+	Email          string    `json:"email" validate:"required,email" format:"email"`
 	Username       string    `json:"username" validate:"required,username"`
 	Password       string    `json:"password" validate:"required"`
 	OrganizationID uuid.UUID `json:"organization_id" validate:"required" format:"uuid"`
@@ -92,7 +92,7 @@ type UserRoles struct {
 
 // LoginWithPasswordRequest enables callers to authenticate with email and password.
 type LoginWithPasswordRequest struct {
-	Email    string `json:"email" validate:"required,email"`
+	Email    string `json:"email" validate:"required,email" format:"email"`
 	Password string `json:"password" validate:"required"`
 }
 

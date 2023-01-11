@@ -191,6 +191,16 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, apiBuilds)
 }
 
+// @Summary Get workspace build by user, workspace name, and build number
+// @ID get-workspace-build-by-user-workspace-name-and-build-number
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Builds
+// @Param user path string true "User ID, name, or me"
+// @Param workspacename path string true "Workspace name"
+// @Param buildnumber path string true "Build number" format(number)
+// @Success 200 {object} codersdk.WorkspaceBuild
+// @Router /users/{user}/workspace/{workspacename}/builds/{buildnumber} [get]
 func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	owner := httpmw.UserParam(r)

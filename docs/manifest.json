@@ -370,12 +370,16 @@
           "path": "./api/parameters.md"
         },
         {
-          "title": "Agents",
-          "path": "./api/agents.md"
+          "title": "Users",
+          "path": "./api/users.md"
         },
         {
           "title": "Builds",
           "path": "./api/builds.md"
+        },
+        {
+          "title": "Agents",
+          "path": "./api/agents.md"
         },
         {
           "title": "Schemas",
