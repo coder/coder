@@ -37,6 +37,12 @@ specified branch as the release commit. This will also set --dry-run.
 EOH
 }
 
+# Warn if CODER_IGNORE_MISSING_COMMIT_METADATA is set any other way than via
+# --branch.
+if [[ ${CODER_IGNORE_MISSING_COMMIT_METADATA:-0} != 0 ]]; then
+	log "WARNING: CODER_IGNORE_MISSING_COMMIT_METADATA is enabled externally, we will ignore missing commit metadata."
+fi
+
 branch=main
 draft=0
 dry_run=0
@@ -112,8 +118,10 @@ fi
 mapfile -t versions < <(gh api -H "Accept: application/vnd.github+json" /repos/coder/coder/git/refs/tags -q '.[].ref | split("/") | .[2]' | grep '^v' | sort -r -V)
 old_version=${versions[0]}
 
+trap 'log "Check commit metadata failed, you can try to set \"export CODER_IGNORE_MISSING_COMMIT_METADATA=1\" and try again, if you know what you are doing."' EXIT
 # shellcheck source=scripts/release/check_commit_metadata.sh
 source "$SCRIPT_DIR/release/check_commit_metadata.sh" "$old_version" "$ref"
+trap - EXIT
 
 new_version="$(execrelative ./release/tag_version.sh --dry-run --ref "$ref" --"$increment")"
 release_notes="$(execrelative ./release/generate_release_notes.sh --old-version "$old_version" --new-version "$new_version" --ref "$ref")"
@@ -141,9 +149,19 @@ fi
 args=()
 if ((draft)); then
 	args+=(-F draft=true)
+else
+	args+=(-F draft=false)
 fi
 if ((dry_run)); then
 	args+=(-F dry_run=true)
+else
+	args+=(-F dry_run=false)
+
+	# We only set this on non-dry-run releases because it will show a
+	# warning in CI.
+	if [[ ${CODER_IGNORE_MISSING_COMMIT_METADATA:-0} == 1 ]]; then
+		args+=(-F ignore_missing_commit_metadata=true)
+	fi
 fi
 
 log

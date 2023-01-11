@@ -24,6 +24,10 @@ on:
         description: Perform a dry-run release.
         type: boolean
         required: true
+      ignore_missing_commit_metadata:
+        description: WARNING! This option disables the requirement that all commits have a PR. Not needed for dry_run.
+        type: boolean
+        default: false
 
 permissions:
   # Required to publish a release
@@ -36,6 +40,7 @@ permissions:
 env:
   CODER_RELEASE: ${{ github.event.inputs.snapshot && 'false' || 'true' }}
   DRY_RUN: ${{ (github.event.inputs.dry_run || github.event.inputs.snapshot) && 'true' || 'false' }}
+  CODER_IGNORE_MISSING_COMMIT_METADATA: ${{ github.event.inputs.ignore_missing_commit_metadata && '1' || '0' }}
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
@@ -64,6 +69,45 @@ jobs:
         run: |
           git config user.name "GitHub Actions Bot"
           git config user.email ""
+
+      - name: Create release tag and release notes
+        run: |
+          set -euo pipefail
+          ref=HEAD
+          old_version="$(git describe --abbrev=0 "$ref^1")"
+
+          # Warn if CODER_IGNORE_MISSING_COMMIT_METADATA is set any other way
+          # than via dry-run.
+          if [[ ${CODER_IGNORE_MISSING_COMMIT_METADATA:-0} != 0 ]]; then
+            echo "WARNING: CODER_IGNORE_MISSING_COMMIT_METADATA is enabled and we will ignore missing commit metadata." 1>&2
+          fi
+
+          if [[ $DRY_RUN == true ]]; then
+            # Allow dry-run of branches to pass.
+            export CODER_IGNORE_MISSING_COMMIT_METADATA=1
+          fi
+
+          # Cache commit metadata.
+          . ./scripts/release/check_commit_metadata.sh "$old_version" "$ref"
+
+          # Create new release tag (note that this tag is not pushed before
+          # release.sh is run).
+          version="$(
+            ./scripts/release/tag_version.sh \
+              ${{ (github.event.inputs.dry_run || github.event.inputs.snapshot) && '--dry-run' }} \
+              --ref "$ref" \
+              --${{ github.event.inputs.increment }}
+          )"
+
+          # Generate notes.
+          release_notes_file="$(mktemp -t release_notes.XXXXXX)"
+          ./scripts/release/generate_release_notes.sh --old-version "$old_version" --new-version "$version" --ref "$ref" >> "$release_notes_file"
+          echo CODER_RELEASE_NOTES_FILE="$release_notes_file" >> $GITHUB_ENV
+
+      - name: Echo release notes
+        run: |
+          set -euo pipefail
+          cat "$CODER_RELEASE_NOTES_FILE"
 
       - name: Docker Login
         uses: docker/login-action@v2
@@ -119,38 +163,6 @@ jobs:
           AC_CERTIFICATE_P12_BASE64: ${{ secrets.AC_CERTIFICATE_P12_BASE64 }}
           AC_CERTIFICATE_PASSWORD: ${{ secrets.AC_CERTIFICATE_PASSWORD }}
           AC_APIKEY_P8_BASE64: ${{ secrets.AC_APIKEY_P8_BASE64 }}
-
-      - name: Create release tag and release notes
-        run: |
-          set -euo pipefail
-          ref=HEAD
-          old_version="$(git describe --abbrev=0 "$ref^1")"
-
-          if [[ $DRY_RUN == true ]]; then
-            # Allow dry-run of branches to pass.
-            export CODER_IGNORE_MISSING_COMMIT_METADATA=1
-          fi
-
-          # Cache commit metadata.
-          . ./scripts/release/check_commit_metadata.sh "$old_version" "$ref"
-
-          # Create new release tag.
-          version="$(
-            ./scripts/release/tag_version.sh \
-              ${{ (github.event.inputs.dry_run || github.event.inputs.snapshot) && '--dry-run' }} \
-              --ref "$ref" \
-              --${{ github.event.inputs.increment }}
-          )"
-
-          # Generate notes.
-          release_notes_file="$(mktemp -t release_notes.XXXXXX)"
-          ./scripts/release/generate_release_notes.sh --old-version "$old_version" --new-version "$version" --ref "$ref" >> "$release_notes_file"
-          echo CODER_RELEASE_NOTES_FILE="$release_notes_file" >> $GITHUB_ENV
-
-      - name: Echo release notes
-        run: |
-          set -euo pipefail
-          cat "$CODER_RELEASE_NOTES_FILE"
 
       - name: Build binaries
         run: |
