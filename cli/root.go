@@ -713,7 +713,7 @@ func dumpHandler(ctx context.Context) {
 		_, err = f.Write(buf[:stacklen])
 		_ = f.Close()
 		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "failed to open dump file: %v\n", err.Error())
+			_, _ = fmt.Fprintf(os.Stderr, "failed to write dump file: %v\n", err.Error())
 			goto done
 		}
 
