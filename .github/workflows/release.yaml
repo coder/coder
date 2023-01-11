@@ -16,14 +16,16 @@ on:
         description: Create a draft release (for manually editing release notes before publishing).
         type: boolean
         required: true
-      snapshot:
-        description: Force a dev version to be generated, implies dry_run.
-        type: boolean
-        required: true
+        default: false
       dry_run:
         description: Perform a dry-run release.
         type: boolean
         required: true
+        default: false
+      snapshot:
+        description: Force a dev version to be generated, implies dry_run.
+        type: boolean
+        default: false
       ignore_missing_commit_metadata:
         description: WARNING! This option disables the requirement that all commits have a PR. Not needed for dry_run.
         type: boolean
@@ -38,9 +40,7 @@ permissions:
   id-token: write
 
 env:
-  CODER_RELEASE: ${{ github.event.inputs.snapshot && 'false' || 'true' }}
-  DRY_RUN: ${{ (github.event.inputs.dry_run || github.event.inputs.snapshot) && 'true' || 'false' }}
-  CODER_IGNORE_MISSING_COMMIT_METADATA: ${{ github.event.inputs.ignore_missing_commit_metadata && '1' || '0' }}
+  CODER_RELEASE: ${{ !github.event.inputs.snapshot }}
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
@@ -76,25 +76,33 @@ jobs:
           ref=HEAD
           old_version="$(git describe --abbrev=0 "$ref^1")"
 
+          if [[ "${{ github.event.inputs.ignore_missing_commit_metadata }}" == *t* ]]; then
+            export CODER_IGNORE_MISSING_COMMIT_METADATA=1
+          fi
+
           # Warn if CODER_IGNORE_MISSING_COMMIT_METADATA is set any other way
           # than via dry-run.
           if [[ ${CODER_IGNORE_MISSING_COMMIT_METADATA:-0} != 0 ]]; then
             echo "WARNING: CODER_IGNORE_MISSING_COMMIT_METADATA is enabled and we will ignore missing commit metadata." 1>&2
           fi
 
-          if [[ $DRY_RUN == true ]]; then
+          version_args=()
+          if [[ "${{ github.event.inputs.dry_run || github.event.inputs.snapshot }}" == *t* ]]; then
             # Allow dry-run of branches to pass.
             export CODER_IGNORE_MISSING_COMMIT_METADATA=1
+            version_args+=(--dry-run)
           fi
 
           # Cache commit metadata.
           . ./scripts/release/check_commit_metadata.sh "$old_version" "$ref"
 
+          declare -p version_args
+
           # Create new release tag (note that this tag is not pushed before
           # release.sh is run).
           version="$(
             ./scripts/release/tag_version.sh \
-              ${{ (github.event.inputs.dry_run || github.event.inputs.snapshot) && '--dry-run' }} \
+              "${version_args[@]}" \
               --ref "$ref" \
               --${{ github.event.inputs.increment }}
           )"
@@ -222,9 +230,18 @@ jobs:
       - name: Publish release
         run: |
           set -euo pipefail
+
+          publish_args=()
+          if [[ "${{ github.event.inputs.draft }}" == *t* ]]; then
+            publish_args+=(--draft)
+          fi
+          if [[ "${{ github.event.inputs.dry_run || github.event.inputs.snapshot }}" == *t* ]]; then
+            publish_args+=(--dry_run)
+          fi
+          declare -p publish_args
+
           ./scripts/release/publish.sh \
-            ${{ github.event.inputs.draft && '--draft' }} \
-            ${{ (github.event.inputs.dry_run || github.event.inputs.snapshot) && '--dry-run' }} \
+            "${publish_args[@]}" \
             --release-notes-file "$CODER_RELEASE_NOTES_FILE" \
             ./build/*_installer.exe \
             ./build/*.zip \
@@ -246,6 +263,7 @@ jobs:
         uses: "google-github-actions/setup-gcloud@v1"
 
       - name: Publish Helm Chart
+        if: ${{ !github.event.inputs.dry_run && !github.event.inputs.snapshot }}
         run: |
           set -euo pipefail
           version="$(./scripts/version.sh)"
