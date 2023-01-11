@@ -326,16 +326,8 @@
       "icon_path": "./images/icons/api.svg",
       "children": [
         {
-          "title": "Authentication",
-          "path": "./api/authentication.md"
-        },
-        {
-          "title": "General",
-          "path": "./api/general.md"
-        },
-        {
-          "title": "Enterprise",
-          "path": "./api/enterprise.md"
+          "title": "Agents",
+          "path": "./api/agents.md"
         },
         {
           "title": "Applications",
@@ -346,48 +338,56 @@
           "path": "./api/audit.md"
         },
         {
+          "title": "Authentication",
+          "path": "./api/authentication.md"
+        },
+        {
           "title": "Authorization",
           "path": "./api/authorization.md"
-        },
-        {
-          "title": "Files",
-          "path": "./api/files.md"
-        },
-        {
-          "title": "Organizations",
-          "path": "./api/organizations.md"
-        },
-        {
-          "title": "Templates",
-          "path": "./api/templates.md"
-        },
-        {
-          "title": "Members",
-          "path": "./api/members.md"
-        },
-        {
-          "title": "Workspaces",
-          "path": "./api/workspaces.md"
-        },
-        {
-          "title": "Parameters",
-          "path": "./api/parameters.md"
-        },
-        {
-          "title": "Users",
-          "path": "./api/users.md"
         },
         {
           "title": "Builds",
           "path": "./api/builds.md"
         },
         {
-          "title": "Agents",
-          "path": "./api/agents.md"
+          "title": "Enterprise",
+          "path": "./api/enterprise.md"
+        },
+        {
+          "title": "Files",
+          "path": "./api/files.md"
+        },
+        {
+          "title": "General",
+          "path": "./api/general.md"
+        },
+        {
+          "title": "Members",
+          "path": "./api/members.md"
+        },
+        {
+          "title": "Organizations",
+          "path": "./api/organizations.md"
+        },
+        {
+          "title": "Parameters",
+          "path": "./api/parameters.md"
         },
         {
           "title": "Schemas",
           "path": "./api/schemas.md"
+        },
+        {
+          "title": "Templates",
+          "path": "./api/templates.md"
+        },
+        {
+          "title": "Users",
+          "path": "./api/users.md"
+        },
+        {
+          "title": "Workspaces",
+          "path": "./api/workspaces.md"
         }
       ]
     }
