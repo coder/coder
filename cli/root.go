@@ -660,6 +660,8 @@ func dumpHandler(ctx context.Context) {
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, listenSignals...)
+	defer signal.Stop(sigs)
+
 	for {
 		sigStr := ""
 		select {
