@@ -364,7 +364,11 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 		if len(additionalFields.WorkspaceName) == 0 || len(additionalFields.BuildNumber) == 0 {
 			return ""
 		}
-		workspace, getWorkspaceErr := api.Database.GetWorkspaceByID(ctx, alog.ResourceID)
+		workspaceBuild, getWorkspaceBuildErr := api.Database.GetWorkspaceBuildByID(ctx, alog.ResourceID)
+		if getWorkspaceBuildErr != nil {
+			return ""
+		}
+		workspace, getWorkspaceErr := api.Database.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
 		if getWorkspaceErr != nil {
 			return ""
 		}
