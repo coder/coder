@@ -2004,7 +2004,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Authentication"
+                    "Authorization"
                 ],
                 "summary": "Log in user",
                 "operationId": "log-in-user",

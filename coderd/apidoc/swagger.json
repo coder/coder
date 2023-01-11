@@ -1761,7 +1761,7 @@
           }
         ],
         "produces": ["application/json"],
-        "tags": ["Authentication"],
+        "tags": ["Authorization"],
         "summary": "Log in user",
         "operationId": "log-in-user",
         "parameters": [
