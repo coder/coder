@@ -45,6 +45,65 @@ const docTemplate = `{
                 }
             }
         },
+        "/appearance": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get appearance",
+                "operationId": "get-appearance",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AppearanceConfig"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update appearance",
+                "operationId": "update-appearance",
+                "parameters": [
+                    {
+                        "description": "Update appearance request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AppearanceConfig"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AppearanceConfig"
+                        }
+                    }
+                }
+            }
+        },
         "/applications/auth-redirect": {
             "get": {
                 "security": [
@@ -303,6 +362,31 @@ const docTemplate = `{
                 }
             }
         },
+        "/entitlements": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get entitlements",
+                "operationId": "get-entitlements",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Entitlements"
+                        }
+                    }
+                }
+            }
+        },
         "/files": {
             "post": {
                 "security": [
@@ -378,6 +462,172 @@ const docTemplate = `{
                 }
             }
         },
+        "/groups": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get groups",
+                "operationId": "get-groups",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Group"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/groups/{groupName}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get group by name",
+                "operationId": "get-group-by-name",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Group name",
+                        "name": "groupName",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Group"
+                        }
+                    }
+                }
+            }
+        },
+        "/license/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Delete license",
+                "operationId": "delete-license",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "number",
+                        "description": "License ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/licenses": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get licenses",
+                "operationId": "get-licenses",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.License"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Add new license",
+                "operationId": "add-new-license",
+                "parameters": [
+                    {
+                        "description": "Add license request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AddLicenseRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.License"
+                        }
+                    }
+                }
+            }
+        },
         "/organizations": {
             "post": {
                 "security": [
@@ -444,6 +694,88 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Organization"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/groups": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get groups by organization",
+                "operationId": "get-groups-by-organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Group"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Create group for organization",
+                "operationId": "create-group-for-organization",
+                "parameters": [
+                    {
+                        "description": "Create group request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateGroupRequest"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Group"
                         }
                     }
                 }
@@ -578,6 +910,76 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.Workspace"
                         }
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/provisionerdaemons": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get provisioner daemons",
+                "operationId": "get-provisioner-daemons",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ProvisionerDaemon"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/provisionerdaemons/serve": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Serve provisioner daemon",
+                "operationId": "serve-provisioner-daemon",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
                     }
                 }
             }
@@ -1036,6 +1438,144 @@ const docTemplate = `{
                 }
             }
         },
+        "/replicas": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get active replicas",
+                "operationId": "get-active-replicas",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Replica"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/scim/v2/Users": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "SCIM 2.0: Create new user",
+                "operationId": "scim-create-new-user",
+                "parameters": [
+                    {
+                        "description": "New user",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/coderd.SCIMUser"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/coderd.SCIMUser"
+                        }
+                    }
+                }
+            }
+        },
+        "/scim/v2/Users/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/scim+json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "SCIM 2.0: Get user by ID",
+                "operationId": "scim-get-user-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "User ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "404": {
+                        "description": "Not Found"
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/scim+json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "SCIM 2.0: Update user account",
+                "operationId": "scim-update-user-status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "User ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update user request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/coderd.SCIMUser"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.User"
+                        }
+                    }
+                }
+            }
+        },
         "/templates/{id}": {
             "get": {
                 "security": [
@@ -1314,6 +1854,86 @@ const docTemplate = `{
                             "items": {
                                 "$ref": "#/definitions/codersdk.TemplateVersion"
                             }
+                        }
+                    }
+                }
+            }
+        },
+        "/templates/{template}/acl": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get template ACLs",
+                "operationId": "get-template-acls",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.TemplateUser"
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update template ACL",
+                "operationId": "update-template-acl",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update template request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateTemplateACL"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 }
@@ -2852,6 +3472,40 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspace-quota/{user}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get workspace quota by user",
+                "operationId": "get-workspace-quota-by-user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceQuota"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaceagents/aws-instance-identity": {
             "post": {
                 "security": [
@@ -3819,6 +4473,70 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "coderd.SCIMUser": {
+            "type": "object",
+            "properties": {
+                "active": {
+                    "type": "boolean"
+                },
+                "emails": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "display": {
+                                "type": "string"
+                            },
+                            "primary": {
+                                "type": "boolean"
+                            },
+                            "type": {
+                                "type": "string"
+                            },
+                            "value": {
+                                "type": "string",
+                                "format": "email"
+                            }
+                        }
+                    }
+                },
+                "groups": {
+                    "type": "array",
+                    "items": {}
+                },
+                "id": {
+                    "type": "string"
+                },
+                "meta": {
+                    "type": "object",
+                    "properties": {
+                        "resourceType": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "name": {
+                    "type": "object",
+                    "properties": {
+                        "familyName": {
+                            "type": "string"
+                        },
+                        "givenName": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "schemas": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "userName": {
+                    "type": "string"
+                }
+            }
+        },
         "coderd.cspViolation": {
             "type": "object",
             "properties": {
@@ -3889,7 +4607,6 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "user_id": {
-                    "description": "NOTE: do not ever return the HashedSecret",
                     "type": "string",
                     "format": "uuid"
                 }
@@ -3917,6 +4634,17 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "signature": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.AddLicenseRequest": {
+            "type": "object",
+            "required": [
+                "license"
+            ],
+            "properties": {
+                "license": {
                     "type": "string"
                 }
             }
@@ -3970,6 +4698,17 @@ const docTemplate = `{
                 "report_interval": {
                     "description": "ReportInterval is the duration after which the agent should send stats\nagain.",
                     "type": "integer"
+                }
+            }
+        },
+        "codersdk.AppearanceConfig": {
+            "type": "object",
+            "properties": {
+                "logo_url": {
+                    "type": "string"
+                },
+                "service_banner": {
+                    "$ref": "#/definitions/codersdk.ServiceBannerConfig"
                 }
             }
         },
@@ -4247,6 +4986,20 @@ const docTemplate = `{
                 "user_id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.CreateGroupRequest": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "quota_allowance": {
+                    "type": "integer"
                 }
             }
         },
@@ -4875,6 +5628,68 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.Entitlement": {
+            "type": "string",
+            "enum": [
+                "entitled",
+                "grace_period",
+                "not_entitled"
+            ],
+            "x-enum-varnames": [
+                "EntitlementEntitled",
+                "EntitlementGracePeriod",
+                "EntitlementNotEntitled"
+            ]
+        },
+        "codersdk.Entitlements": {
+            "type": "object",
+            "properties": {
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "experimental": {
+                    "type": "boolean"
+                },
+                "features": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.Feature"
+                    }
+                },
+                "has_license": {
+                    "type": "boolean"
+                },
+                "trial": {
+                    "type": "boolean"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "codersdk.Feature": {
+            "type": "object",
+            "properties": {
+                "actual": {
+                    "type": "integer"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "entitlement": {
+                    "$ref": "#/definitions/codersdk.Entitlement"
+                },
+                "limit": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.GenerateAPIKeyResponse": {
             "type": "object",
             "properties": {
@@ -4972,6 +5787,34 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.Group": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "members": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.User"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "quota_allowance": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.Healthcheck": {
             "type": "object",
             "properties": {
@@ -4986,6 +5829,27 @@ const docTemplate = `{
                 "url": {
                     "description": "URL specifies the endpoint to check for the app health.",
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.License": {
+            "type": "object",
+            "properties": {
+                "claims": {
+                    "description": "Claims are the JWT claims asserted by the license.  Here we use\na generic string map to ensure that all data from the server is\nparsed verbatim, not just the fields this version of Coder\nunderstands.",
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "uploaded_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "uuid": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -5412,6 +6276,42 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ProvisionerDaemon": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "provisioners": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "tags": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "updated_at": {
+                    "format": "date-time",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/sql.NullTime"
+                        }
+                    ]
+                }
+            }
+        },
         "codersdk.ProvisionerJob": {
             "type": "object",
             "properties": {
@@ -5545,6 +6445,41 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.Replica": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "description": "CreatedAt is the timestamp when the replica was first seen.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "database_latency": {
+                    "description": "DatabaseLatency is the latency in microseconds to the database.",
+                    "type": "integer"
+                },
+                "error": {
+                    "description": "Error is the replica error.",
+                    "type": "string"
+                },
+                "hostname": {
+                    "description": "Hostname is the hostname of the replica.",
+                    "type": "string"
+                },
+                "id": {
+                    "description": "ID is the unique identifier for the replica.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "region_id": {
+                    "description": "RegionID is the region of the replica.",
+                    "type": "integer"
+                },
+                "relay_address": {
+                    "description": "RelayAddress is the accessible address to relay DERP connections.",
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.ResourceType": {
             "type": "string",
             "enum": [
@@ -5597,6 +6532,20 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ServiceBannerConfig": {
+            "type": "object",
+            "properties": {
+                "background_color": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "message": {
                     "type": "string"
                 }
             }
@@ -5771,6 +6720,88 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.TemplateRole": {
+            "type": "string",
+            "enum": [
+                "admin",
+                "use",
+                ""
+            ],
+            "x-enum-varnames": [
+                "TemplateRoleAdmin",
+                "TemplateRoleUse",
+                "TemplateRoleDeleted"
+            ]
+        },
+        "codersdk.TemplateUser": {
+            "type": "object",
+            "required": [
+                "created_at",
+                "email",
+                "id",
+                "username"
+            ],
+            "properties": {
+                "avatar_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "email": {
+                    "type": "string",
+                    "format": "email"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "last_seen_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "organization_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "role": {
+                    "enum": [
+                        "admin",
+                        "use"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.TemplateRole"
+                        }
+                    ]
+                },
+                "roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Role"
+                    }
+                },
+                "status": {
+                    "enum": [
+                        "active",
+                        "suspended"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.UserStatus"
+                        }
+                    ]
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.TemplateVersion": {
             "type": "object",
             "properties": {
@@ -5871,6 +6902,23 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "type": "string"
+                    }
+                }
+            }
+        },
+        "codersdk.UpdateTemplateACL": {
+            "type": "object",
+            "properties": {
+                "group_perms": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.TemplateRole"
+                    }
+                },
+                "user_perms": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.TemplateRole"
                     }
                 }
             }
@@ -6435,6 +7483,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkspaceQuota": {
+            "type": "object",
+            "properties": {
+                "budget": {
+                    "type": "integer"
+                },
+                "credits_consumed": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.WorkspaceResource": {
             "type": "object",
             "properties": {
@@ -6631,6 +7690,18 @@ const docTemplate = `{
                 },
                 "updated_at": {
                     "type": "string"
+                }
+            }
+        },
+        "sql.NullTime": {
+            "type": "object",
+            "properties": {
+                "time": {
+                    "type": "string"
+                },
+                "valid": {
+                    "description": "Valid is true if Time is not NULL",
+                    "type": "boolean"
                 }
             }
         },

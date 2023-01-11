@@ -98,7 +98,7 @@ Status Code **{{=response.status}}**
 {{?}}
 |Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|
-{{~block.rows :p}}|`{{=renderDisplayName(p)}}`|{{=renderResponsePropertyType(p)}}|{{=p.required}}|{{=p.restrictions||''}}|{{=p.description||''}}|
+{{~block.rows :p}}|`{{=renderDisplayName(p)}}`|{{=renderResponsePropertyType(p)}}|{{=p.required}}|{{=p.restrictions||''}}|{{=data.functions.renderDescription(p)}}|
 {{~}}
 {{~}}
 {{?}}

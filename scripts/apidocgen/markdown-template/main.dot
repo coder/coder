@@ -53,12 +53,16 @@
 
 		const countUppercase = words[0].length - words[0].replace(/[A-Z]/g, '').length;
 		if (countUppercase > 1) {
-			let displayName = p.displayName.replace(/» \*\*additionalProperties\*\*/g, "It");
+			let displayName = p.displayName.replace(/» \*\*additionalProperties\*\*/g, "It").replace("» ", "");
 			displayName = displayName.charAt(0).toUpperCase() + displayName.replace(/_/g, " ").toLowerCase().slice(1);
 			description = displayName + " " + words.slice(1).join(' ');
 		}
 		return correctLetterCase(description);
 	}
+
+	/* Export functions that are used by other template partials. */
+	data.functions = {};
+	data.functions.renderDescription = renderDescription;
 }}
 
 {{? data.api.components && data.api.components.securitySchemes }}{{#def.security}}{{?}}

@@ -2,6 +2,53 @@
 
 > This page is incomplete, stay tuned.
 
+## coderd.SCIMUser
+
+```json
+{
+  "active": true,
+  "emails": [
+    {
+      "display": "string",
+      "primary": true,
+      "type": "string",
+      "value": "user@example.com"
+    }
+  ],
+  "groups": [null],
+  "id": "string",
+  "meta": {
+    "resourceType": "string"
+  },
+  "name": {
+    "familyName": "string",
+    "givenName": "string"
+  },
+  "schemas": ["string"],
+  "userName": "string"
+}
+```
+
+### Properties
+
+| Name             | Type               | Required | Restrictions | Description |
+| ---------------- | ------------------ | -------- | ------------ | ----------- |
+| `active`         | boolean            | false    |              |             |
+| `emails`         | array of object    | false    |              |             |
+| `» display`      | string             | false    |              |             |
+| `» primary`      | boolean            | false    |              |             |
+| `» type`         | string             | false    |              |             |
+| `» value`        | string             | false    |              |             |
+| `groups`         | array of undefined | false    |              |             |
+| `id`             | string             | false    |              |             |
+| `meta`           | object             | false    |              |             |
+| `» resourceType` | string             | false    |              |             |
+| `name`           | object             | false    |              |             |
+| `» familyName`   | string             | false    |              |             |
+| `» givenName`    | string             | false    |              |             |
+| `schemas`        | array of string    | false    |              |             |
+| `userName`       | string             | false    |              |             |
+
 ## coderd.cspViolation
 
 ```json
@@ -34,17 +81,17 @@
 
 ### Properties
 
-| Name               | Type                                         | Required | Restrictions | Description                                 |
-| ------------------ | -------------------------------------------- | -------- | ------------ | ------------------------------------------- |
-| `created_at`       | string                                       | true     |              |                                             |
-| `expires_at`       | string                                       | true     |              |                                             |
-| `id`               | string                                       | true     |              |                                             |
-| `last_used`        | string                                       | true     |              |                                             |
-| `lifetime_seconds` | integer                                      | true     |              |                                             |
-| `login_type`       | [codersdk.LoginType](#codersdklogintype)     | true     |              |                                             |
-| `scope`            | [codersdk.APIKeyScope](#codersdkapikeyscope) | true     |              |                                             |
-| `updated_at`       | string                                       | true     |              |                                             |
-| `user_id`          | string                                       | true     |              | User ID do not ever return the HashedSecret |
+| Name               | Type                                         | Required | Restrictions | Description |
+| ------------------ | -------------------------------------------- | -------- | ------------ | ----------- |
+| `created_at`       | string                                       | true     |              |             |
+| `expires_at`       | string                                       | true     |              |             |
+| `id`               | string                                       | true     |              |             |
+| `last_used`        | string                                       | true     |              |             |
+| `lifetime_seconds` | integer                                      | true     |              |             |
+| `login_type`       | [codersdk.LoginType](#codersdklogintype)     | true     |              |             |
+| `scope`            | [codersdk.APIKeyScope](#codersdkapikeyscope) | true     |              |             |
+| `updated_at`       | string                                       | true     |              |             |
+| `user_id`          | string                                       | true     |              |             |
 
 #### Enumerated Values
 
@@ -87,6 +134,20 @@
 | ----------- | ------ | -------- | ------------ | ----------- |
 | `document`  | string | true     |              |             |
 | `signature` | string | true     |              |             |
+
+## codersdk.AddLicenseRequest
+
+```json
+{
+  "license": "string"
+}
+```
+
+### Properties
+
+| Name      | Type   | Required | Restrictions | Description |
+| --------- | ------ | -------- | ------------ | ----------- |
+| `license` | string | true     |              |             |
 
 ## codersdk.AgentGitSSHKey
 
@@ -145,6 +206,26 @@
 | Name              | Type    | Required | Restrictions | Description                                                                    |
 | ----------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------ |
 | `report_interval` | integer | false    |              | Report interval is the duration after which the agent should send stats again. |
+
+## codersdk.AppearanceConfig
+
+```json
+{
+  "logo_url": "string",
+  "service_banner": {
+    "background_color": "string",
+    "enabled": true,
+    "message": "string"
+  }
+}
+```
+
+### Properties
+
+| Name             | Type                                                         | Required | Restrictions | Description |
+| ---------------- | ------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `logo_url`       | string                                                       | false    |              |             |
+| `service_banner` | [codersdk.ServiceBannerConfig](#codersdkservicebannerconfig) | false    |              |             |
 
 ## codersdk.AssignableRoles
 
@@ -564,6 +645,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ----------------- | ------ | -------- | ------------ | ----------- |
 | `organization_id` | string | false    |              |             |
 | `user_id`         | string | false    |              |             |
+
+## codersdk.CreateGroupRequest
+
+```json
+{
+  "avatar_url": "string",
+  "name": "string",
+  "quota_allowance": 0
+}
+```
+
+### Properties
+
+| Name              | Type    | Required | Restrictions | Description |
+| ----------------- | ------- | -------- | ------------ | ----------- |
+| `avatar_url`      | string  | false    |              |             |
+| `name`            | string  | false    |              |             |
+| `quota_allowance` | integer | false    |              |             |
 
 ## codersdk.CreateOrganizationRequest
 
@@ -2148,6 +2247,80 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `usage`      | string  | false    |              |             |
 | `value`      | integer | false    |              |             |
 
+## codersdk.Entitlement
+
+```json
+"entitled"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value          |
+| -------------- |
+| `entitled`     |
+| `grace_period` |
+| `not_entitled` |
+
+## codersdk.Entitlements
+
+```json
+{
+  "errors": ["string"],
+  "experimental": true,
+  "features": {
+    "property1": {
+      "actual": 0,
+      "enabled": true,
+      "entitlement": "entitled",
+      "limit": 0
+    },
+    "property2": {
+      "actual": 0,
+      "enabled": true,
+      "entitlement": "entitled",
+      "limit": 0
+    }
+  },
+  "has_license": true,
+  "trial": true,
+  "warnings": ["string"]
+}
+```
+
+### Properties
+
+| Name               | Type                                 | Required | Restrictions | Description |
+| ------------------ | ------------------------------------ | -------- | ------------ | ----------- |
+| `errors`           | array of string                      | false    |              |             |
+| `experimental`     | boolean                              | false    |              |             |
+| `features`         | object                               | false    |              |             |
+| » `[any property]` | [codersdk.Feature](#codersdkfeature) | false    |              |             |
+| `has_license`      | boolean                              | false    |              |             |
+| `trial`            | boolean                              | false    |              |             |
+| `warnings`         | array of string                      | false    |              |             |
+
+## codersdk.Feature
+
+```json
+{
+  "actual": 0,
+  "enabled": true,
+  "entitlement": "entitled",
+  "limit": 0
+}
+```
+
+### Properties
+
+| Name          | Type                                         | Required | Restrictions | Description |
+| ------------- | -------------------------------------------- | -------- | ------------ | ----------- |
+| `actual`      | integer                                      | false    |              |             |
+| `enabled`     | boolean                                      | false    |              |             |
+| `entitlement` | [codersdk.Entitlement](#codersdkentitlement) | false    |              |             |
+| `limit`       | integer                                      | false    |              |             |
+
 ## codersdk.GenerateAPIKeyResponse
 
 ```json
@@ -2273,6 +2446,47 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | ---------------- | ------ | -------- | ------------ | ----------- |
 | `json_web_token` | string | true     |              |             |
 
+## codersdk.Group
+
+```json
+{
+  "avatar_url": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "members": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+      "roles": [
+        {
+          "display_name": "string",
+          "name": "string"
+        }
+      ],
+      "status": "active",
+      "username": "string"
+    }
+  ],
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "quota_allowance": 0
+}
+```
+
+### Properties
+
+| Name              | Type                                    | Required | Restrictions | Description |
+| ----------------- | --------------------------------------- | -------- | ------------ | ----------- |
+| `avatar_url`      | string                                  | false    |              |             |
+| `id`              | string                                  | false    |              |             |
+| `members`         | array of [codersdk.User](#codersdkuser) | false    |              |             |
+| `name`            | string                                  | false    |              |             |
+| `organization_id` | string                                  | false    |              |             |
+| `quota_allowance` | integer                                 | false    |              |             |
+
 ## codersdk.Healthcheck
 
 ```json
@@ -2290,6 +2504,26 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `interval`  | integer | false    |              | Interval specifies the seconds between each health check.                                        |
 | `threshold` | integer | false    |              | Threshold specifies the number of consecutive failed health checks before returning "unhealthy". |
 | `url`       | string  | false    |              | URL specifies the endpoint to check for the app health.                                          |
+
+## codersdk.License
+
+```json
+{
+  "claims": {},
+  "id": 0,
+  "uploaded_at": "2019-08-24T14:15:22Z",
+  "uuid": "095be615-a8ad-4c33-8e9c-c7612fbf6c9f"
+}
+```
+
+### Properties
+
+| Name          | Type    | Required | Restrictions | Description                                                                                                                                                                                            |
+| ------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `claims`      | object  | false    |              | Claims are the JWT claims asserted by the license. Here we use a generic string map to ensure that all data from the server is parsed verbatim, not just the fields this version of Coder understands. |
+| `id`          | integer | false    |              |                                                                                                                                                                                                        |
+| `uploaded_at` | string  | false    |              |                                                                                                                                                                                                        |
+| `uuid`        | string  | false    |              |                                                                                                                                                                                                        |
 
 ## codersdk.LogLevel
 
@@ -3010,6 +3244,37 @@ Parameter represents a set value for the scope.
 | `daemons`               | [codersdk.DeploymentConfigField-int](#codersdkdeploymentconfigfield-int)                     | false    |              |             |
 | `force_cancel_interval` | [codersdk.DeploymentConfigField-time_Duration](#codersdkdeploymentconfigfield-time_duration) | false    |              |             |
 
+## codersdk.ProvisionerDaemon
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "provisioners": ["string"],
+  "tags": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "updated_at": {
+    "time": "string",
+    "valid": true
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                         | Required | Restrictions | Description |
+| ------------------ | ---------------------------- | -------- | ------------ | ----------- |
+| `created_at`       | string                       | false    |              |             |
+| `id`               | string                       | false    |              |             |
+| `name`             | string                       | false    |              |             |
+| `provisioners`     | array of string              | false    |              |             |
+| `tags`             | object                       | false    |              |             |
+| » `[any property]` | string                       | false    |              |             |
+| `updated_at`       | [sql.NullTime](#sqlnulltime) | false    |              |             |
+
 ## codersdk.ProvisionerJob
 
 ```json
@@ -3160,6 +3425,32 @@ Parameter represents a set value for the scope.
 | `api`         | [codersdk.DeploymentConfigField-int](#codersdkdeploymentconfigfield-int)   | false    |              |             |
 | `disable_all` | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool) | false    |              |             |
 
+## codersdk.Replica
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "database_latency": 0,
+  "error": "string",
+  "hostname": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "region_id": 0,
+  "relay_address": "string"
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description                                                        |
+| ------------------ | ------- | -------- | ------------ | ------------------------------------------------------------------ |
+| `created_at`       | string  | false    |              | Created at is the timestamp when the replica was first seen.       |
+| `database_latency` | integer | false    |              | Database latency is the latency in microseconds to the database.   |
+| `error`            | string  | false    |              | Error is the replica error.                                        |
+| `hostname`         | string  | false    |              | Hostname is the hostname of the replica.                           |
+| `id`               | string  | false    |              | ID is the unique identifier for the replica.                       |
+| `region_id`        | integer | false    |              | Region ID is the region of the replica.                            |
+| `relay_address`    | string  | false    |              | Relay address is the accessible address to relay DERP connections. |
+
 ## codersdk.ResourceType
 
 ```json
@@ -3220,6 +3511,24 @@ Parameter represents a set value for the scope.
 | -------------- | ------ | -------- | ------------ | ----------- |
 | `display_name` | string | false    |              |             |
 | `name`         | string | false    |              |             |
+
+## codersdk.ServiceBannerConfig
+
+```json
+{
+  "background_color": "string",
+  "enabled": true,
+  "message": "string"
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description |
+| ------------------ | ------- | -------- | ------------ | ----------- |
+| `background_color` | string  | false    |              |             |
+| `enabled`          | boolean | false    |              |             |
+| `message`          | string  | false    |              |             |
 
 ## codersdk.SwaggerConfig
 
@@ -3552,6 +3861,68 @@ Parameter represents a set value for the scope.
 | `tags`        | array of string | false    |              |             |
 | `url`         | string          | false    |              |             |
 
+## codersdk.TemplateRole
+
+```json
+"admin"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value   |
+| ------- |
+| `admin` |
+| `use`   |
+| ``      |
+
+## codersdk.TemplateUser
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "created_at": "2019-08-24T14:15:22Z",
+  "email": "user@example.com",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "last_seen_at": "2019-08-24T14:15:22Z",
+  "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+  "role": "admin",
+  "roles": [
+    {
+      "display_name": "string",
+      "name": "string"
+    }
+  ],
+  "status": "active",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name               | Type                                           | Required | Restrictions | Description |
+| ------------------ | ---------------------------------------------- | -------- | ------------ | ----------- |
+| `avatar_url`       | string                                         | false    |              |             |
+| `created_at`       | string                                         | true     |              |             |
+| `email`            | string                                         | true     |              |             |
+| `id`               | string                                         | true     |              |             |
+| `last_seen_at`     | string                                         | false    |              |             |
+| `organization_ids` | array of string                                | false    |              |             |
+| `role`             | [codersdk.TemplateRole](#codersdktemplaterole) | false    |              |             |
+| `roles`            | array of [codersdk.Role](#codersdkrole)        | false    |              |             |
+| `status`           | [codersdk.UserStatus](#codersdkuserstatus)     | false    |              |             |
+| `username`         | string                                         | true     |              |             |
+
+#### Enumerated Values
+
+| Property | Value       |
+| -------- | ----------- |
+| `role`   | `admin`     |
+| `role`   | `use`       |
+| `status` | `active`    |
+| `status` | `suspended` |
+
 ## codersdk.TemplateVersion
 
 ```json
@@ -3720,6 +4091,30 @@ Parameter represents a set value for the scope.
 | Name    | Type            | Required | Restrictions | Description |
 | ------- | --------------- | -------- | ------------ | ----------- |
 | `roles` | array of string | false    |              |             |
+
+## codersdk.UpdateTemplateACL
+
+```json
+{
+  "group_perms": {
+    "property1": "admin",
+    "property2": "admin"
+  },
+  "user_perms": {
+    "property1": "admin",
+    "property2": "admin"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                                           | Required | Restrictions | Description |
+| ------------------ | ---------------------------------------------- | -------- | ------------ | ----------- |
+| `group_perms`      | object                                         | false    |              |             |
+| » `[any property]` | [codersdk.TemplateRole](#codersdktemplaterole) | false    |              |             |
+| `user_perms`       | object                                         | false    |              |             |
+| » `[any property]` | [codersdk.TemplateRole](#codersdktemplaterole) | false    |              |             |
 
 ## codersdk.UpdateUserPasswordRequest
 
@@ -4510,6 +4905,22 @@ Parameter represents a set value for the scope.
 | `transition` | `stop`      |
 | `transition` | `delete`    |
 
+## codersdk.WorkspaceQuota
+
+```json
+{
+  "budget": 0,
+  "credits_consumed": 0
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description |
+| ------------------ | ------- | -------- | ------------ | ----------- |
+| `budget`           | integer | false    |              |             |
+| `credits_consumed` | integer | false    |              |             |
+
 ## codersdk.WorkspaceResource
 
 ```json
@@ -4886,6 +5297,22 @@ Parameter represents a set value for the scope.
 | `source_scheme`        | [database.ParameterSourceScheme](#databaseparametersourcescheme)           | false    |              |             |
 | `source_value`         | string                                                                     | false    |              |             |
 | `updated_at`           | string                                                                     | false    |              |             |
+
+## sql.NullTime
+
+```json
+{
+  "time": "string",
+  "valid": true
+}
+```
+
+### Properties
+
+| Name    | Type    | Required | Restrictions | Description                       |
+| ------- | ------- | -------- | ------------ | --------------------------------- |
+| `time`  | string  | false    |              |                                   |
+| `valid` | boolean | false    |              | Valid is true if Time is not NULL |
 
 ## tailcfg.DERPMap
 

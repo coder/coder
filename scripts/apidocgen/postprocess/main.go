@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"sort"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -131,6 +132,18 @@ func writeDocs(sections [][]byte) error {
 			path:  "./" + path.Join(apiSubdir, mdFilename),
 		})
 	}
+
+	// Sort API pages
+	// The "General" section is expected to be always first.
+	sort.Slice(mdFiles, func(i, j int) bool {
+		if mdFiles[i].title == "General" {
+			return true // "General" < ... - sorted
+		}
+		if mdFiles[j].title == "General" {
+			return false // ... < "General" - not sorted
+		}
+		return sort.StringsAreSorted([]string{mdFiles[i].title, mdFiles[j].title})
+	})
 
 	// Update manifest.json
 	type route struct {

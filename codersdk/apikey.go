@@ -10,9 +10,9 @@ import (
 	"github.com/google/uuid"
 )
 
+// APIKey: do not ever return the HashedSecret
 type APIKey struct {
-	ID string `json:"id" validate:"required"`
-	// NOTE: do not ever return the HashedSecret
+	ID              string      `json:"id" validate:"required"`
 	UserID          uuid.UUID   `json:"user_id" validate:"required" format:"uuid"`
 	LastUsed        time.Time   `json:"last_used" validate:"required" format:"date-time"`
 	ExpiresAt       time.Time   `json:"expires_at" validate:"required" format:"date-time"`

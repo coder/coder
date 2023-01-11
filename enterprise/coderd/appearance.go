@@ -15,6 +15,13 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+// @Summary Get appearance
+// @ID get-appearance
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Success 200 {object} codersdk.AppearanceConfig
+// @Router /appearance [get]
 func (api *API) appearance(rw http.ResponseWriter, r *http.Request) {
 	api.entitlementsMu.RLock()
 	isEntitled := api.entitlements.Features[codersdk.FeatureAppearance].Entitlement == codersdk.EntitlementEntitled
@@ -74,6 +81,14 @@ func validateHexColor(color string) error {
 	return err
 }
 
+// @Summary Update appearance
+// @ID update-appearance
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param request body codersdk.AppearanceConfig true "Update appearance request"
+// @Success 200 {object} codersdk.AppearanceConfig
+// @Router /appearance [put]
 func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
