@@ -326,6 +326,10 @@
       "icon_path": "./images/icons/api.svg",
       "children": [
         {
+          "title": "General",
+          "path": "./api/general.md"
+        },
+        {
           "title": "Agents",
           "path": "./api/agents.md"
         },
@@ -356,10 +360,6 @@
         {
           "title": "Files",
           "path": "./api/files.md"
-        },
-        {
-          "title": "General",
-          "path": "./api/general.md"
         },
         {
           "title": "Members",
