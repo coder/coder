@@ -133,7 +133,7 @@ jobs:
           # Warn if CODER_IGNORE_MISSING_COMMIT_METADATA is set any other way
           # than via dry-run.
           if [[ ${CODER_IGNORE_MISSING_COMMIT_METADATA:-0} != 0 ]]; then
-            log "WARNING: CODER_IGNORE_MISSING_COMMIT_METADATA is enabled and we will ignore missing commit metadata."
+            echo "WARNING: CODER_IGNORE_MISSING_COMMIT_METADATA is enabled and we will ignore missing commit metadata." 1>&2
           fi
 
           if [[ $DRY_RUN == true ]]; then
