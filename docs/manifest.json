@@ -350,12 +350,20 @@
           "path": "./api/files.md"
         },
         {
-          "title": "Templates",
-          "path": "./api/templates.md"
+          "title": "Organizations",
+          "path": "./api/organizations.md"
+        },
+        {
+          "title": "Members",
+          "path": "./api/members.md"
         },
         {
           "title": "Workspaces",
           "path": "./api/workspaces.md"
+        },
+        {
+          "title": "Templates",
+          "path": "./api/templates.md"
         },
         {
           "title": "Parameters",

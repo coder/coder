@@ -266,15 +266,16 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 	))
 }
 
-// @Summary Create workspace by organization
-// @ID create-workspace-by-organization
+// @Summary Create user workspace by organization
+// @ID create-user-workspace-by-organization
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
 // @Param organization path string true "Organization ID" format(uuid)
-// @Param user path string true "Username"
+// @Param user path string true "Username, UUID, or me"
 // @Success 200 {object} codersdk.Workspace
 // @Router /organizations/{organization}/members/{user}/workspaces [post]
+//
 // Create a new workspace for the currently authenticated user.
 func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (

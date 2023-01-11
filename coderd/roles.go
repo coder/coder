@@ -23,6 +23,15 @@ func (api *API) assignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, assignableRoles(actorRoles.Roles, roles))
 }
 
+// @Summary Get member roles by organization
+// @ID get-member-roles-by-organization
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Members
+// @Param organization path string true "Organization ID" format(uuid)
+// @Success 200 {array} codersdk.AssignableRoles
+// @Router /organizations/{organization}/members/roles [get]
+//
 // assignableSiteRoles returns all site wide roles that can be assigned.
 func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

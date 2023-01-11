@@ -104,7 +104,7 @@ curl -X POST http://coder-server:8080/api/v2/parameters/{scope}/{id} \
 
 ```json
 {
-  "copy_from_parameter": "string",
+  "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
   "destination_scheme": "none",
   "name": "string",
   "source_scheme": "none",

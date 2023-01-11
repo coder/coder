@@ -2,7 +2,7 @@
 
 > This page is incomplete, stay tuned.
 
-## Create workspace by organization
+## Create user workspace by organization
 
 ### Code samples
 
@@ -17,10 +17,10 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
 
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-| -------------- | ---- | ------------ | -------- | --------------- |
-| `organization` | path | string(uuid) | true     | Organization ID |
-| `user`         | path | string       | true     | Username        |
+| Name           | In   | Type         | Required | Description           |
+| -------------- | ---- | ------------ | -------- | --------------------- |
+| `organization` | path | string(uuid) | true     | Organization ID       |
+| `user`         | path | string       | true     | Username, UUID, or me |
 
 ### Example responses
 

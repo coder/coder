@@ -214,6 +214,7 @@ type DAUEntry struct {
 	Amount int       `json:"amount"`
 }
 
+// TemplateDAUsResponse contains statistics of daily active users of the template.
 type TemplateDAUsResponse struct {
 	Entries []DAUEntry `json:"entries"`
 }

@@ -60,12 +60,12 @@ curl -X GET http://coder-server:8080/api/v2/audit?q=string \
       "status_code": 0,
       "time": "string",
       "user": {
-        "avatar_url": "string",
-        "created_at": "string",
+        "avatar_url": "http://example.com",
+        "created_at": "2019-08-24T14:15:22Z",
         "email": "string",
-        "id": "string",
-        "last_seen_at": "string",
-        "organization_ids": ["string"],
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "last_seen_at": "2019-08-24T14:15:22Z",
+        "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
         "roles": [
           {
             "display_name": "string",

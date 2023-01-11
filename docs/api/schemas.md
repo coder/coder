@@ -90,6 +90,24 @@
 | ----------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------ |
 | `report_interval` | integer | false    |              | Report interval is the duration after which the agent should send stats again. |
 
+## codersdk.AssignableRoles
+
+```json
+{
+  "assignable": true,
+  "display_name": "string",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description |
+| -------------- | ------- | -------- | ------------ | ----------- |
+| `assignable`   | boolean | false    |              |             |
+| `display_name` | string  | false    |              |             |
+| `name`         | string  | false    |              |             |
+
 ## codersdk.AuditAction
 
 ```json
@@ -181,12 +199,12 @@
   "status_code": 0,
   "time": "string",
   "user": {
-    "avatar_url": "string",
-    "created_at": "string",
+    "avatar_url": "http://example.com",
+    "created_at": "2019-08-24T14:15:22Z",
     "email": "string",
-    "id": "string",
-    "last_seen_at": "string",
-    "organization_ids": ["string"],
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "last_seen_at": "2019-08-24T14:15:22Z",
+    "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "roles": [
       {
         "display_name": "string",
@@ -257,12 +275,12 @@
       "status_code": 0,
       "time": "string",
       "user": {
-        "avatar_url": "string",
-        "created_at": "string",
+        "avatar_url": "http://example.com",
+        "created_at": "2019-08-24T14:15:22Z",
         "email": "string",
-        "id": "string",
-        "last_seen_at": "string",
-        "organization_ids": ["string"],
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "last_seen_at": "2019-08-24T14:15:22Z",
+        "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
         "roles": [
           {
             "display_name": "string",
@@ -437,11 +455,25 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `autostart` |
 | `autostop`  |
 
+## codersdk.CreateOrganizationRequest
+
+```json
+{
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name   | Type   | Required | Restrictions | Description |
+| ------ | ------ | -------- | ------------ | ----------- |
+| `name` | string | true     |              |             |
+
 ## codersdk.CreateParameterRequest
 
 ```json
 {
-  "copy_from_parameter": "string",
+  "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
   "destination_scheme": "none",
   "name": "string",
   "source_scheme": "none",
@@ -483,7 +515,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   "name": "string",
   "parameter_values": [
     {
-      "copy_from_parameter": "string",
+      "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
       "destination_scheme": "none",
       "name": "string",
       "source_scheme": "none",
@@ -507,6 +539,30 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `parameter_values`                                                                                                                                                                        | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest) | false    |              | Parameter values is a structure used to create a new parameter value for a scope.]                         |
 | `template_version_id`                                                                                                                                                                     | string                                                                      | true     |              | Template version ID is an in-progress or completed job to use as an initial version of the template.       |
 | This is required on creation to enable a user-flow of validating a template works. There is no reason the data-model cannot support empty templates, but it doesn't make sense for users. |
+
+## codersdk.CreateTemplateVersionDryRunRequest
+
+```json
+{
+  "parameter_values": [
+    {
+      "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
+      "destination_scheme": "none",
+      "name": "string",
+      "source_scheme": "none",
+      "source_value": "string"
+    }
+  ],
+  "workspace_name": "string"
+}
+```
+
+### Properties
+
+| Name               | Type                                                                        | Required | Restrictions | Description                                                                        |
+| ------------------ | --------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------- |
+| `parameter_values` | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest) | false    |              | Parameter values is a structure used to create a new parameter value for a scope.] |
+| `workspace_name`   | string                                                                      | false    |              |                                                                                    |
 
 ## codersdk.CreateTestAuditLogRequest
 
@@ -555,7 +611,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   "orphan": true,
   "parameter_values": [
     {
-      "copy_from_parameter": "string",
+      "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
       "destination_scheme": "none",
       "name": "string",
       "source_scheme": "none",
@@ -587,6 +643,22 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `transition` | `start`  |
 | `transition` | `stop`   |
 | `transition` | `delete` |
+
+## codersdk.DAUEntry
+
+```json
+{
+  "amount": 0,
+  "date": "string"
+}
+```
+
+### Properties
+
+| Name     | Type    | Required | Restrictions | Description |
+| -------- | ------- | -------- | ------------ | ----------- |
+| `amount` | integer | false    |              |             |
+| `date`   | string  | false    |              |             |
 
 ## codersdk.DERP
 
@@ -2328,6 +2400,53 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `scopes`                | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string) | false    |              |             |
 | `username_field`        | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
 
+## codersdk.Organization
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+| ------------ | ------ | -------- | ------------ | ----------- |
+| `created_at` | string | true     |              |             |
+| `id`         | string | true     |              |             |
+| `name`       | string | true     |              |             |
+| `updated_at` | string | true     |              |             |
+
+## codersdk.OrganizationMember
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "roles": [
+    {
+      "display_name": "string",
+      "name": "string"
+    }
+  ],
+  "updated_at": "2019-08-24T14:15:22Z",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Properties
+
+| Name              | Type                                    | Required | Restrictions | Description |
+| ----------------- | --------------------------------------- | -------- | ------------ | ----------- |
+| `created_at`      | string                                  | false    |              |             |
+| `organization_id` | string                                  | false    |              |             |
+| `roles`           | array of [codersdk.Role](#codersdkrole) | false    |              |             |
+| `updated_at`      | string                                  | false    |              |             |
+| `user_id`         | string                                  | false    |              |             |
+
 ## codersdk.Parameter
 
 ```json
@@ -2386,6 +2505,62 @@ Parameter represents a set value for the scope.
 | `none`                 |
 | `environment_variable` |
 | `provisioner_variable` |
+
+## codersdk.ParameterSchema
+
+```json
+{
+  "allow_override_destination": true,
+  "allow_override_source": true,
+  "created_at": "2019-08-24T14:15:22Z",
+  "default_destination_scheme": "none",
+  "default_refresh": "string",
+  "default_source_scheme": "none",
+  "default_source_value": "string",
+  "description": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+  "name": "string",
+  "redisplay_value": true,
+  "validation_condition": "string",
+  "validation_contains": ["string"],
+  "validation_error": "string",
+  "validation_type_system": "string",
+  "validation_value_type": "string"
+}
+```
+
+### Properties
+
+| Name                         | Type                                                                       | Required | Restrictions | Description                                                                                                             |
+| ---------------------------- | -------------------------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `allow_override_destination` | boolean                                                                    | false    |              |                                                                                                                         |
+| `allow_override_source`      | boolean                                                                    | false    |              |                                                                                                                         |
+| `created_at`                 | string                                                                     | false    |              |                                                                                                                         |
+| `default_destination_scheme` | [codersdk.ParameterDestinationScheme](#codersdkparameterdestinationscheme) | false    |              |                                                                                                                         |
+| `default_refresh`            | string                                                                     | false    |              |                                                                                                                         |
+| `default_source_scheme`      | [codersdk.ParameterSourceScheme](#codersdkparametersourcescheme)           | false    |              |                                                                                                                         |
+| `default_source_value`       | string                                                                     | false    |              |                                                                                                                         |
+| `description`                | string                                                                     | false    |              |                                                                                                                         |
+| `id`                         | string                                                                     | false    |              |                                                                                                                         |
+| `job_id`                     | string                                                                     | false    |              |                                                                                                                         |
+| `name`                       | string                                                                     | false    |              |                                                                                                                         |
+| `redisplay_value`            | boolean                                                                    | false    |              |                                                                                                                         |
+| `validation_condition`       | string                                                                     | false    |              |                                                                                                                         |
+| `validation_contains`        | array of string                                                            | false    |              | This is a special array of items provided if the validation condition explicitly states the value must be one of a set. |
+| `validation_error`           | string                                                                     | false    |              |                                                                                                                         |
+| `validation_type_system`     | string                                                                     | false    |              |                                                                                                                         |
+| `validation_value_type`      | string                                                                     | false    |              |                                                                                                                         |
+
+#### Enumerated Values
+
+| Property                     | Value                  |
+| ---------------------------- | ---------------------- |
+| `default_destination_scheme` | `none`                 |
+| `default_destination_scheme` | `environment_variable` |
+| `default_destination_scheme` | `provisioner_variable` |
+| `default_source_scheme`      | `none`                 |
+| `default_source_scheme`      | `data`                 |
 
 ## codersdk.ParameterScope
 
@@ -3065,6 +3240,110 @@ Parameter represents a set value for the scope.
 | ---------------- | ---------------------------------------------------- | -------- | ------------ | ----------- |
 | `[any property]` | [codersdk.TransitionStats](#codersdktransitionstats) | false    |              |             |
 
+## codersdk.TemplateDAUsResponse
+
+```json
+{
+  "entries": [
+    {
+      "amount": 0,
+      "date": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                            | Required | Restrictions | Description |
+| --------- | ----------------------------------------------- | -------- | ------------ | ----------- |
+| `entries` | array of [codersdk.DAUEntry](#codersdkdauentry) | false    |              |             |
+
+## codersdk.TemplateExample
+
+```json
+{
+  "description": "string",
+  "icon": "string",
+  "id": "string",
+  "markdown": "string",
+  "name": "string",
+  "tags": ["string"],
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name          | Type            | Required | Restrictions | Description |
+| ------------- | --------------- | -------- | ------------ | ----------- |
+| `description` | string          | false    |              |             |
+| `icon`        | string          | false    |              |             |
+| `id`          | string          | false    |              |             |
+| `markdown`    | string          | false    |              |             |
+| `name`        | string          | false    |              |             |
+| `tags`        | array of string | false    |              |             |
+| `url`         | string          | false    |              |             |
+
+## codersdk.TemplateVersion
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "created_by": {
+    "avatar_url": "http://example.com",
+    "created_at": "2019-08-24T14:15:22Z",
+    "email": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "last_seen_at": "2019-08-24T14:15:22Z",
+    "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+    "roles": [
+      {
+        "display_name": "string",
+        "name": "string"
+      }
+    ],
+    "status": "active",
+    "username": "string"
+  },
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "job": {
+    "canceled_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "created_at": "2019-08-24T14:15:22Z",
+    "error": "string",
+    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "started_at": "2019-08-24T14:15:22Z",
+    "status": "pending",
+    "tags": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+  },
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "readme": "string",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name              | Type                                               | Required | Restrictions | Description |
+| ----------------- | -------------------------------------------------- | -------- | ------------ | ----------- |
+| `created_at`      | string                                             | false    |              |             |
+| `created_by`      | [codersdk.User](#codersdkuser)                     | false    |              |             |
+| `id`              | string                                             | false    |              |             |
+| `job`             | [codersdk.ProvisionerJob](#codersdkprovisionerjob) | false    |              |             |
+| `name`            | string                                             | false    |              |             |
+| `organization_id` | string                                             | false    |              |             |
+| `readme`          | string                                             | false    |              |             |
+| `template_id`     | string                                             | false    |              |             |
+| `updated_at`      | string                                             | false    |              |             |
+
 ## codersdk.TraceConfig
 
 ```json
@@ -3129,6 +3408,20 @@ Parameter represents a set value for the scope.
 | `p50` | integer | false    |              |             |
 | `p95` | integer | false    |              |             |
 
+## codersdk.UpdateActiveTemplateVersion
+
+```json
+{
+  "id": "string"
+}
+```
+
+### Properties
+
+| Name | Type   | Required | Restrictions | Description |
+| ---- | ------ | -------- | ------------ | ----------- |
+| `id` | string | true     |              |             |
+
 ## codersdk.UpdateCheckResponse
 
 ```json
@@ -3146,6 +3439,20 @@ Parameter represents a set value for the scope.
 | `current` | boolean | false    |              | Current indicates whether the server version is the same as the latest. |
 | `url`     | string  | false    |              | URL to download the latest release of Coder.                            |
 | `version` | string  | false    |              | Version is the semantic version for the latest release of Coder.        |
+
+## codersdk.UpdateRoles
+
+```json
+{
+  "roles": ["string"]
+}
+```
+
+### Properties
+
+| Name    | Type            | Required | Restrictions | Description |
+| ------- | --------------- | -------- | ------------ | ----------- |
+| `roles` | array of string | false    |              |             |
 
 ## codersdk.UpdateWorkspaceAutostartRequest
 
@@ -3207,12 +3514,12 @@ Parameter represents a set value for the scope.
 
 ```json
 {
-  "avatar_url": "string",
-  "created_at": "string",
+  "avatar_url": "http://example.com",
+  "created_at": "2019-08-24T14:15:22Z",
   "email": "string",
-  "id": "string",
-  "last_seen_at": "string",
-  "organization_ids": ["string"],
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "last_seen_at": "2019-08-24T14:15:22Z",
+  "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
   "roles": [
     {
       "display_name": "string",
@@ -3237,6 +3544,13 @@ Parameter represents a set value for the scope.
 | `roles`            | array of [codersdk.Role](#codersdkrole)    | false    |              |             |
 | `status`           | [codersdk.UserStatus](#codersdkuserstatus) | false    |              |             |
 | `username`         | string                                     | true     |              |             |
+
+#### Enumerated Values
+
+| Property | Value       |
+| -------- | ----------- |
+| `status` | `active`    |
+| `status` | `suspended` |
 
 ## codersdk.UserStatus
 
@@ -4194,6 +4508,87 @@ Parameter represents a set value for the scope.
 | ------------ | ------------------------------------------------- | -------- | ------------ | ----------- |
 | `count`      | integer                                           | false    |              |             |
 | `workspaces` | array of [codersdk.Workspace](#codersdkworkspace) | false    |              |             |
+
+## database.ParameterDestinationScheme
+
+```json
+"none"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value                  |
+| ---------------------- |
+| `none`                 |
+| `environment_variable` |
+| `provisioner_variable` |
+
+## database.ParameterScope
+
+```json
+"template"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value        |
+| ------------ |
+| `template`   |
+| `import_job` |
+| `workspace`  |
+
+## database.ParameterSourceScheme
+
+```json
+"none"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value  |
+| ------ |
+| `none` |
+| `data` |
+
+## parameter.ComputedValue
+
+```json
+{
+  "created_at": "string",
+  "default_source_value": true,
+  "destination_scheme": "none",
+  "id": "string",
+  "name": "string",
+  "schema_id": "string",
+  "scope": "template",
+  "scope_id": "string",
+  "source_scheme": "none",
+  "source_value": "string",
+  "updated_at": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type                                                                       | Required | Restrictions | Description |
+| ---------------------- | -------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `created_at`           | string                                                                     | false    |              |             |
+| `default_source_value` | boolean                                                                    | false    |              |             |
+| `destination_scheme`   | [database.ParameterDestinationScheme](#databaseparameterdestinationscheme) | false    |              |             |
+| `id`                   | string                                                                     | false    |              |             |
+| `name`                 | string                                                                     | false    |              |             |
+| `schema_id`            | string                                                                     | false    |              |             |
+| `scope`                | [database.ParameterScope](#databaseparameterscope)                         | false    |              |             |
+| `scope_id`             | string                                                                     | false    |              |             |
+| `source_scheme`        | [database.ParameterSourceScheme](#databaseparametersourcescheme)           | false    |              |             |
+| `source_value`         | string                                                                     | false    |              |             |
+| `updated_at`           | string                                                                     | false    |              |             |
 
 ## tailcfg.DERPMap
 
