@@ -130,6 +130,12 @@ jobs:
           ref=HEAD
           old_version="$(git describe --abbrev=0 "$ref^1")"
 
+          # Warn if CODER_IGNORE_MISSING_COMMIT_METADATA is set any other way
+          # than via dry-run.
+          if [[ ${CODER_IGNORE_MISSING_COMMIT_METADATA:-0} != 0 ]]; then
+            log "WARNING: CODER_IGNORE_MISSING_COMMIT_METADATA is enabled and we will ignore missing commit metadata."
+          fi
+
           if [[ $DRY_RUN == true ]]; then
             # Allow dry-run of branches to pass.
             export CODER_IGNORE_MISSING_COMMIT_METADATA=1
