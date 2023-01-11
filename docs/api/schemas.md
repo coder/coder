@@ -81,17 +81,17 @@
 
 ### Properties
 
-| Name               | Type                                         | Required | Restrictions | Description                                 |
-| ------------------ | -------------------------------------------- | -------- | ------------ | ------------------------------------------- |
-| `created_at`       | string                                       | true     |              |                                             |
-| `expires_at`       | string                                       | true     |              |                                             |
-| `id`               | string                                       | true     |              |                                             |
-| `last_used`        | string                                       | true     |              |                                             |
-| `lifetime_seconds` | integer                                      | true     |              |                                             |
-| `login_type`       | [codersdk.LoginType](#codersdklogintype)     | true     |              |                                             |
-| `scope`            | [codersdk.APIKeyScope](#codersdkapikeyscope) | true     |              |                                             |
-| `updated_at`       | string                                       | true     |              |                                             |
-| `user_id`          | string                                       | true     |              | User ID do not ever return the HashedSecret |
+| Name               | Type                                         | Required | Restrictions | Description |
+| ------------------ | -------------------------------------------- | -------- | ------------ | ----------- |
+| `created_at`       | string                                       | true     |              |             |
+| `expires_at`       | string                                       | true     |              |             |
+| `id`               | string                                       | true     |              |             |
+| `last_used`        | string                                       | true     |              |             |
+| `lifetime_seconds` | integer                                      | true     |              |             |
+| `login_type`       | [codersdk.LoginType](#codersdklogintype)     | true     |              |             |
+| `scope`            | [codersdk.APIKeyScope](#codersdkapikeyscope) | true     |              |             |
+| `updated_at`       | string                                       | true     |              |             |
+| `user_id`          | string                                       | true     |              |             |
 
 #### Enumerated Values
 

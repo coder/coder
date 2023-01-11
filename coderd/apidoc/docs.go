@@ -4607,7 +4607,6 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "user_id": {
-                    "description": "NOTE: do not ever return the HashedSecret",
                     "type": "string",
                     "format": "uuid"
                 }
