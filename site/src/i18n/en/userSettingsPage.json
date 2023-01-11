@@ -1,3 +1,4 @@
 {
-  "securityUpdateSuccessMessage": "Updated password."
+  "securityUpdateSuccessMessage": "Updated password.",
+  "sshRegenerateSuccessMessage": "SSH Key regenerated successfully."
 }
