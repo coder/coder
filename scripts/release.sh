@@ -147,6 +147,8 @@ if ! [[ $create =~ ^[Yy]$ ]]; then
 fi
 
 args=()
+
+# Draft and dry-run are required args.
 if ((draft)); then
 	args+=(-F draft=true)
 else
@@ -168,7 +170,6 @@ log
 gh workflow run release.yaml \
 	--ref "$branch" \
 	-F increment="$increment" \
-	-F snapshot=false \
 	"${args[@]}"
 log
 
