@@ -5,9 +5,11 @@ import {
   MockGitSSHKey,
   renderWithAuth,
 } from "../../../testHelpers/renderHelpers"
-import { Language as authXServiceLanguage } from "../../../xServices/auth/authXService"
 import { Language as SSHKeysPageLanguage, SSHKeysPage } from "./SSHKeysPage"
 import { Language as SSHKeysPageViewLanguage } from "./SSHKeysPageView"
+import { i18n } from "i18n"
+
+const { t } = i18n
 
 describe("SSH keys Page", () => {
   it("shows the SSH key", async () => {
@@ -52,7 +54,10 @@ describe("SSH keys Page", () => {
         fireEvent.click(confirmButton)
 
         // Check if the success message is displayed
-        await screen.findByText(authXServiceLanguage.successRegenerateSSHKey)
+        const successMessage = t("sshRegenerateSuccessMessage", {
+          ns: "userSettingsPage",
+        })
+        await screen.findByText(successMessage)
 
         // Check if the API was called correctly
         expect(API.regenerateUserSSHKey).toBeCalledTimes(1)
