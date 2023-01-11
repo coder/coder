@@ -86,7 +86,7 @@ curl -X POST http://coder-server:8080/api/v2/users/login \
 
 ```json
 {
-  "email": "string",
+  "email": "user@example.com",
   "password": "string"
 }
 ```

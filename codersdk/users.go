@@ -92,7 +92,7 @@ type UserRoles struct {
 
 // LoginWithPasswordRequest enables callers to authenticate with email and password.
 type LoginWithPasswordRequest struct {
-	Email    string `json:"email" validate:"required,email"`
+	Email    string `json:"email" validate:"required,email" format:"email"`
 	Password string `json:"password" validate:"required"`
 }
 

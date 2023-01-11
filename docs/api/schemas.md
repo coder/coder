@@ -2345,7 +2345,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ```json
 {
-  "email": "string",
+  "email": "user@example.com",
   "password": "string"
 }
 ```
