@@ -37,15 +37,10 @@ specified branch as the release commit. This will also set --dry-run.
 EOH
 }
 
-# Temporary workaround for commits on `main` without a PR, we can remove this
-# once we ensure all commits for a release will have a PR.
-# Also see .github/workflow/release.yml.
-export CODER_IGNORE_MISSING_COMMIT_METADATA=1
-
 # Warn if CODER_IGNORE_MISSING_COMMIT_METADATA is set any other way than via
 # --branch.
 if [[ ${CODER_IGNORE_MISSING_COMMIT_METADATA:-0} != 0 ]]; then
-	log "WARNING: CODER_IGNORE_MISSING_COMMIT_METADATA is enabled and we will ignore missing commit metadata."
+	log "WARNING: CODER_IGNORE_MISSING_COMMIT_METADATA is enabled externally, we will ignore missing commit metadata."
 fi
 
 branch=main
@@ -124,7 +119,9 @@ mapfile -t versions < <(gh api -H "Accept: application/vnd.github+json" /repos/c
 old_version=${versions[0]}
 
 # shellcheck source=scripts/release/check_commit_metadata.sh
+trap 'log "Check commit metadata failed, you can try to set \"export CODER_IGNORE_MISSING_COMMIT_METADATA=1\" and try again, if you know what you are doing."' EXIT
 source "$SCRIPT_DIR/release/check_commit_metadata.sh" "$old_version" "$ref"
+trap - EXIT
 
 new_version="$(execrelative ./release/tag_version.sh --dry-run --ref "$ref" --"$increment")"
 release_notes="$(execrelative ./release/generate_release_notes.sh --old-version "$old_version" --new-version "$new_version" --ref "$ref")"
@@ -155,6 +152,9 @@ if ((draft)); then
 fi
 if ((dry_run)); then
 	args+=(-F dry_run=true)
+fi
+if [[ ${CODER_IGNORE_MISSING_COMMIT_METADATA:-0} == 1 ]]; then
+	args+=(-F ignore_missing_commit_metadata=true)
 fi
 
 log

@@ -24,6 +24,10 @@ on:
         description: Perform a dry-run release.
         type: boolean
         required: true
+      ignore_missing_commit_metadata:
+        description: Warning! This option disables the requirement that all commits have a PR. Not needed for dry_run.
+        type: boolean
+        default: false
 
 permissions:
   # Required to publish a release
@@ -36,10 +40,7 @@ permissions:
 env:
   CODER_RELEASE: ${{ github.event.inputs.snapshot && 'false' || 'true' }}
   DRY_RUN: ${{ (github.event.inputs.dry_run || github.event.inputs.snapshot) && 'true' || 'false' }}
-  # Temporary workaround for commits on `main` without a PR, we can remove this
-  # once we ensure all commits for a release will have a PR.
-  # Also see scripts/release.sh.
-  CODER_IGNORE_MISSING_COMMIT_METADATA: "1"
+  CODER_IGNORE_MISSING_COMMIT_METADATA: ${{ github.event.inputs.ignore_missing_commit_metadata && '1' || '0' }}
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
