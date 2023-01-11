@@ -171,6 +171,8 @@ func TestWorkspaceBuilds(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.Len(t, builds, 0)
+		// Should never be nil for API consistency
+		require.NotNil(t, builds)
 
 		builds, err = client.WorkspaceBuilds(ctx,
 			codersdk.WorkspaceBuildsRequest{WorkspaceID: workspace.ID, Since: database.Now().Add(-time.Hour)},
