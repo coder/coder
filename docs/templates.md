@@ -117,8 +117,6 @@ allow users to connect to multiple resources in their workspace.
 > Resources must download and start the Coder agent binary to connect to Coder.
 > This means the resource must be able to reach your Coder URL.
 
-Use the Coder agent's init script to
-
 ```hcl
 data "coder_workspace" "me" {
 }

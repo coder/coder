@@ -15,23 +15,21 @@ jobs:
         run: |
           Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
 
-      # The package version is the same as the tag minus the leading "v".
-      - name: Calculate package version
-        id: version
-        run: |
-          $version = $env:CODER_VERSION -replace "^v", ""
-          echo "::set-output name=version::$version"
-
       - name: Submit updated manifest to winget-pkgs
         run: |
           $release_assets = gh release view --repo coder/coder "$env:CODER_VERSION" --json assets | `
             ConvertFrom-Json
-
+          # Get the installer URL from the release assets.
           $installer_url = $release_assets.assets | `
             Where-Object name -Match ".*_windows_amd64_installer.exe$" | `
             Select -ExpandProperty url
 
           echo "Installer URL: $installer_url"
+
+          # The package version is the same as the tag minus the leading "v".
+          $version = $env:CODER_VERSION.Trim('v')
+
+          echo "Package version: $version"
 
           # The URL "|X64" suffix forces the architecture as it cannot be
           # sniffed properly from the URL. wingetcreate checks both the URL and
@@ -44,7 +42,7 @@ jobs:
           # submission.
           .\wingetcreate.exe update Coder.Coder `
             --submit `
-            --version "${{ steps.version.outputs.version }}" `
+            --version "${version}" `
             --urls "${installer_url}|X64" `
             --token "${{ secrets.CDRCI_GITHUB_TOKEN }}"
 

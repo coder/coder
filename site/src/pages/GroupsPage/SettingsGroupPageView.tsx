@@ -13,7 +13,7 @@ import { FullPageForm } from "components/FullPageForm/FullPageForm"
 import { FullScreenLoader } from "components/Loader/FullScreenLoader"
 import { Margins } from "components/Margins/Margins"
 import { useFormik } from "formik"
-import React, { useRef, useState } from "react"
+import { useRef, useState, FC } from "react"
 import { useTranslation } from "react-i18next"
 import { colors } from "theme/colors"
 import { getFormHelpers, nameValidator, onChangeTrimmed } from "util/formUtils"
@@ -30,7 +30,7 @@ const validationSchema = Yup.object({
   quota_allowance: Yup.number().required().min(0).integer(),
 })
 
-const UpdateGroupForm: React.FC<{
+const UpdateGroupForm: FC<{
   group: Group
   errors: unknown
   onSubmit: (data: FormData) => void
@@ -153,7 +153,7 @@ export type SettingsGroupPageViewProps = {
   isUpdating: boolean
 }
 
-export const SettingsGroupPageView: React.FC<SettingsGroupPageViewProps> = ({
+export const SettingsGroupPageView: FC<SettingsGroupPageViewProps> = ({
   onCancel,
   onSubmit,
   group,

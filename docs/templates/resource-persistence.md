@@ -1,7 +1,7 @@
 # Resource Persistence
 
 Coder templates have full control over workspace ephemerality. In a
-completely ephemeral workspace, there are zero resources in the On state. In
+completely ephemeral workspace, there are zero resources in the Off state. In
 a completely persistent workspace, there is no difference between the Off and
 On states.
 

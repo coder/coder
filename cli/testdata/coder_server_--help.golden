@@ -18,9 +18,10 @@ Flags:
                                                      allowed to the API per user, or per IP
                                                      address for unauthenticated users.
                                                      Negative values mean no rate limit. Some
-                                                     API endpoints are always rate limited
-                                                     regardless of this value to prevent
-                                                     denial-of-service attacks.
+                                                     API endpoints have separate strict rate
+                                                     limits regardless of this value to
+                                                     prevent denial-of-service or brute force
+                                                     attacks.
                                                      Consumes $CODER_API_RATE_LIMIT (default 512)
       --cache-dir string                             The directory to cache temporary files.
                                                      If unspecified and $CACHE_DIRECTORY is
@@ -28,6 +29,9 @@ Flags:
                                                      with systemd.
                                                      Consumes $CODER_CACHE_DIRECTORY (default
                                                      "/tmp/coder-cli-test-cache")
+      --dangerous-disable-rate-limits                Disables all rate limits. This is not
+                                                     recommended in production.
+                                                     Consumes $CODER_RATE_LIMIT_DISABLE_ALL
       --derp-config-path string                      Path to read a DERP mapping from. See:
                                                      https://tailscale.com/kb/1118/custom-derp-servers/
                                                      Consumes $CODER_DERP_CONFIG_PATH

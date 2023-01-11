@@ -17,6 +17,7 @@ import appearanceSettings from "./appearanceSettings.json"
 import starterTemplatesPage from "./starterTemplatesPage.json"
 import starterTemplatePage from "./starterTemplatePage.json"
 import createTemplatePage from "./createTemplatePage.json"
+import userSettingsPage from "./userSettingsPage.json"
 
 export const en = {
   common,
@@ -38,4 +39,5 @@ export const en = {
   starterTemplatesPage,
   starterTemplatePage,
   createTemplatePage,
+  userSettingsPage,
 }

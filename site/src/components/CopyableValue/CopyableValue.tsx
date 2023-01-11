@@ -2,14 +2,14 @@ import { makeStyles } from "@material-ui/core/styles"
 import Tooltip from "@material-ui/core/Tooltip"
 import { useClickable } from "hooks/useClickable"
 import { useClipboard } from "hooks/useClipboard"
-import React, { HTMLProps } from "react"
+import { FC, HTMLProps } from "react"
 import { combineClasses } from "util/combineClasses"
 
 interface CopyableValueProps extends HTMLProps<HTMLDivElement> {
   value: string
 }
 
-export const CopyableValue: React.FC<CopyableValueProps> = ({
+export const CopyableValue: FC<CopyableValueProps> = ({
   value,
   className,
   ...props

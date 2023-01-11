@@ -43,7 +43,7 @@
     "axios": "0.26.1",
     "can-ndjson-stream": "1.0.2",
     "chart.js": "3.9.1",
-    "chartjs-adapter-date-fns": "2.0.0",
+    "chartjs-adapter-date-fns": "3.0.0",
     "color-convert": "2.0.1",
     "cron-parser": "4.7.0",
     "cronstrue": "2.21.0",
@@ -57,6 +57,7 @@
     "i18next": "21.9.1",
     "js-untar": "2.0.0",
     "just-debounce-it": "3.1.1",
+    "playwright": "^1.29.2",
     "react": "18.2.0",
     "react-chartjs-2": "4.3.1",
     "react-color": "2.19.3",
@@ -81,7 +82,7 @@
     "yup": "0.32.11"
   },
   "devDependencies": {
-    "@playwright/test": "1.26.1",
+    "@playwright/test": "1.29.2",
     "@storybook/addon-actions": "6.5.9",
     "@storybook/addon-essentials": "6.5.12",
     "@storybook/addon-links": "6.5.9",
@@ -119,6 +120,7 @@
     "eslint-plugin-unicorn": "44.0.0",
     "jest": "27.5.1",
     "jest-canvas-mock": "2.4.0",
+    "jest-esm-transformer": "^1.0.0",
     "jest-runner-eslint": "1.1.0",
     "jest-websocket-mock": "2.4.0",
     "msw": "0.47.0",

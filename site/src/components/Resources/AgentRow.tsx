@@ -13,6 +13,7 @@ import { Maybe } from "components/Conditionals/Maybe"
 import { AgentStatus } from "./AgentStatus"
 import { AppLinkSkeleton } from "components/AppLink/AppLinkSkeleton"
 import { useTranslation } from "react-i18next"
+import { VSCodeDesktopButton } from "components/VSCodeDesktopButton/VSCodeDesktopButton"
 
 export interface AgentRowProps {
   agent: WorkspaceAgent
@@ -20,6 +21,7 @@ export interface AgentRowProps {
   applicationsHost: string | undefined
   showApps: boolean
   hideSSHButton?: boolean
+  hideVSCodeDesktopButton?: boolean
   serverVersion: string
 }
 
@@ -29,6 +31,7 @@ export const AgentRow: FC<AgentRowProps> = ({
   applicationsHost,
   showApps,
   hideSSHButton,
+  hideVSCodeDesktopButton,
   serverVersion,
 }) => {
   const styles = useStyles()
@@ -105,7 +108,14 @@ export const AgentRow: FC<AgentRowProps> = ({
                 agentName={agent.name}
               />
             )}
-            {applicationsHost !== undefined && (
+            {!hideVSCodeDesktopButton && (
+              <VSCodeDesktopButton
+                userName={workspace.owner_name}
+                workspaceName={workspace.name}
+                agentName={agent.name}
+              />
+            )}
+            {applicationsHost !== undefined && applicationsHost !== "" && (
               <PortForwardButton
                 host={applicationsHost}
                 workspaceName={workspace.name}

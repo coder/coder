@@ -2,12 +2,13 @@ import { makeStyles } from "@material-ui/core/styles"
 import { Margins } from "components/Margins/Margins"
 import { Stack } from "components/Stack/Stack"
 import { Sidebar } from "./Sidebar"
-import React, {
+import {
   createContext,
   PropsWithChildren,
   Suspense,
   useContext,
   useEffect,
+  FC,
 } from "react"
 import { useActor } from "@xstate/react"
 import { XServiceContext } from "xServices/StateContext"
@@ -30,9 +31,7 @@ export const useDeploySettings = (): DeploySettingsContextValue => {
   return context
 }
 
-export const DeploySettingsLayout: React.FC<PropsWithChildren> = ({
-  children,
-}) => {
+export const DeploySettingsLayout: FC<PropsWithChildren> = ({ children }) => {
   const xServices = useContext(XServiceContext)
   const [state, send] = useActor(xServices.deploymentConfigXService)
   const styles = useStyles()
@@ -46,7 +45,7 @@ export const DeploySettingsLayout: React.FC<PropsWithChildren> = ({
 
   return (
     <Margins>
-      <Stack className={styles.wrapper} direction="row" spacing={5}>
+      <Stack className={styles.wrapper} direction="row" spacing={6}>
         <Sidebar />
         <main className={styles.content}>
           {deploymentConfig ? (

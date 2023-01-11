@@ -1,21 +1,17 @@
 import Divider from "@material-ui/core/Divider"
-import ListItemIcon from "@material-ui/core/ListItemIcon"
-import ListItemText from "@material-ui/core/ListItemText"
 import MenuItem from "@material-ui/core/MenuItem"
 import { makeStyles } from "@material-ui/core/styles"
-import Tooltip from "@material-ui/core/Tooltip"
-import Typography from "@material-ui/core/Typography"
 import AccountIcon from "@material-ui/icons/AccountCircleOutlined"
 import BugIcon from "@material-ui/icons/BugReportOutlined"
-import ChatIcon from "@material-ui/icons/Chat"
-import LaunchIcon from "@material-ui/icons/Launch"
+import ChatIcon from "@material-ui/icons/ChatOutlined"
+import LaunchIcon from "@material-ui/icons/LaunchOutlined"
+import { Stack } from "components/Stack/Stack"
 import { FC } from "react"
 import { Link } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
-import { navHeight } from "../../theme/constants"
-import { DocsIcon } from "../Icons/DocsIcon"
-import { LogoutIcon } from "../Icons/LogoutIcon"
-import { UserAvatar } from "../UserAvatar/UserAvatar"
+import DocsIcon from "@material-ui/icons/MenuBook"
+import LogoutIcon from "@material-ui/icons/ExitToAppOutlined"
+import { combineClasses } from "util/combineClasses"
 
 export const Language = {
   accountLabel: "Account",
@@ -46,38 +42,27 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
   const discordUrl = `https://coder.com/chat?utm_source=coder&utm_medium=coder&utm_campaign=server-footer`
 
   return (
-    <div className={styles.userInfo}>
-      <div className={styles.root}>
-        <div className={styles.avatarContainer}>
-          <UserAvatar
-            className={styles.avatar}
-            username={user.username}
-            avatarURL={user.avatar_url}
-          />
-        </div>
-        <Typography className={styles.userName}>{user.username}</Typography>
-        <Typography className={styles.userEmail}>{user.email}</Typography>
-      </div>
+    <div>
+      <Stack className={styles.info} spacing={0}>
+        <span className={styles.userName}>{user.username}</span>
+        <span className={styles.userEmail}>{user.email}</span>
+      </Stack>
 
-      <Divider />
+      <Divider className={styles.divider} />
 
       <Link to="/settings/account" className={styles.link}>
         <MenuItem className={styles.menuItem} onClick={onPopoverClose}>
-          <ListItemIcon className={styles.icon}>
-            <AccountIcon />
-          </ListItemIcon>
-          <ListItemText primary={Language.accountLabel} />
+          <AccountIcon className={styles.menuItemIcon} />
+          <span className={styles.menuItemText}>{Language.accountLabel}</span>
         </MenuItem>
       </Link>
 
       <MenuItem className={styles.menuItem} onClick={onSignOut}>
-        <ListItemIcon className={styles.icon}>
-          <LogoutIcon />
-        </ListItemIcon>
-        <ListItemText primary={Language.signOutLabel} />
+        <LogoutIcon className={styles.menuItemIcon} />
+        <span className={styles.menuItemText}>{Language.signOutLabel}</span>
       </MenuItem>
 
-      <Divider />
+      <Divider className={styles.divider} />
 
       <a
         href="https://coder.com/docs/coder-oss"
@@ -86,10 +71,8 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
         className={styles.link}
       >
         <MenuItem className={styles.menuItem} onClick={onPopoverClose}>
-          <ListItemIcon className={styles.icon}>
-            <DocsIcon />
-          </ListItemIcon>
-          <ListItemText primary={Language.docsLabel} />
+          <DocsIcon className={styles.menuItemIcon} />
+          <span className={styles.menuItemText}>{Language.docsLabel}</span>
         </MenuItem>
       </a>
 
@@ -100,10 +83,8 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
         className={styles.link}
       >
         <MenuItem className={styles.menuItem} onClick={onPopoverClose}>
-          <ListItemIcon className={styles.icon}>
-            <BugIcon />
-          </ListItemIcon>
-          <ListItemText primary={Language.bugLabel} />
+          <BugIcon className={styles.menuItemIcon} />
+          <span className={styles.menuItemText}>{Language.bugLabel}</span>
         </MenuItem>
       </a>
 
@@ -114,93 +95,89 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
         className={styles.link}
       >
         <MenuItem className={styles.menuItem} onClick={onPopoverClose}>
-          <ListItemIcon className={styles.icon}>
-            <ChatIcon />
-          </ListItemIcon>
-          <ListItemText primary={Language.discordLabel} />
+          <ChatIcon className={styles.menuItemIcon} />
+          <span className={styles.menuItemText}>{Language.discordLabel}</span>
         </MenuItem>
       </a>
 
-      <Divider />
+      <Divider className={styles.divider} />
 
-      <Tooltip title="Browse Source Code">
+      <Stack className={styles.info} spacing={0}>
         <a
-          className={styles.footerText}
+          title="Browse Source Code"
+          className={combineClasses([styles.footerText, styles.buildInfo])}
           href={buildInfo?.external_url}
           target="_blank"
           rel="noreferrer"
         >
           {buildInfo?.version} <LaunchIcon />
         </a>
-      </Tooltip>
 
-      <div className={styles.footerText}>{Language.copyrightText}</div>
+        <div className={styles.footerText}>{Language.copyrightText}</div>
+      </Stack>
     </div>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
-  root: {
-    padding: theme.spacing(3, 2),
-    textAlign: "center",
-  },
-  avatarContainer: {
-    width: "100%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: "50%",
-    marginBottom: theme.spacing(1),
-    transition: `transform .2s`,
-
-    "&:hover": {
-      transform: `scale(1.1)`,
-    },
+  info: {
+    padding: theme.spacing(2.5),
   },
   userName: {
-    fontSize: 16,
-    marginTop: theme.spacing(1),
+    fontWeight: 600,
   },
   userEmail: {
-    fontSize: 14,
-    letterSpacing: 0.2,
     color: theme.palette.text.secondary,
+    width: "100%",
+    textOverflow: "ellipsis",
+    overflow: "hidden",
   },
   link: {
     textDecoration: "none",
     color: "inherit",
   },
   menuItem: {
-    height: navHeight,
-    padding: `${theme.spacing(1.5)}px ${theme.spacing(2.75)}px`,
+    gap: theme.spacing(2.5),
+    padding: theme.spacing(1, 2.5),
 
     "&:hover": {
       backgroundColor: theme.palette.action.hover,
       transition: "background-color 0.3s ease",
     },
   },
-  userInfo: {
-    marginBottom: theme.spacing(1),
-  },
-  icon: {
+  menuItemIcon: {
     color: theme.palette.text.secondary,
+    width: theme.spacing(2.5),
+    height: theme.spacing(2.5),
+  },
+  menuItemText: {
+    fontSize: 14,
+  },
+  divider: {
+    margin: theme.spacing(1, 0),
+
+    "&:first-of-type": {
+      marginTop: 0,
+    },
+
+    "&:last-of-type": {
+      marginBottom: 0,
+    },
   },
   footerText: {
+    fontSize: 12,
     textDecoration: "none",
     color: theme.palette.text.secondary,
-    marginTop: theme.spacing(1.5),
     display: "flex",
     alignItems: "center",
-    justifyContent: "center",
+    gap: 4,
 
     "& svg": {
-      width: 14,
-      height: 14,
-      marginLeft: theme.spacing(0.5),
+      width: 12,
+      height: 12,
     },
+  },
+  buildInfo: {
+    color: theme.palette.text.primary,
   },
 }))

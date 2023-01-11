@@ -40,7 +40,7 @@ type DeploymentConfig struct {
 	BrowserOnly                     *DeploymentConfigField[bool]            `json:"browser_only" typescript:",notnull"`
 	SCIMAPIKey                      *DeploymentConfigField[string]          `json:"scim_api_key" typescript:",notnull"`
 	Provisioner                     *ProvisionerConfig                      `json:"provisioner" typescript:",notnull"`
-	APIRateLimit                    *DeploymentConfigField[int]             `json:"api_rate_limit" typescript:",notnull"`
+	RateLimit                       *RateLimitConfig                        `json:"rate_limit" typescript:",notnull"`
 	Experimental                    *DeploymentConfigField[bool]            `json:"experimental" typescript:",notnull"`
 	UpdateCheck                     *DeploymentConfigField[bool]            `json:"update_check" typescript:",notnull"`
 	MaxTokenLifetime                *DeploymentConfigField[time.Duration]   `json:"max_token_lifetime" typescript:",notnull"`
@@ -146,6 +146,11 @@ type ProvisionerConfig struct {
 	ForceCancelInterval *DeploymentConfigField[time.Duration] `json:"force_cancel_interval" typescript:",notnull"`
 }
 
+type RateLimitConfig struct {
+	DisableAll *DeploymentConfigField[bool] `json:"disable_all" typescript:",notnull"`
+	API        *DeploymentConfigField[int]  `json:"api" typescript:",notnull"`
+}
+
 type SwaggerConfig struct {
 	Enable *DeploymentConfigField[bool] `json:"enable" typescript:",notnull"`
 }
@@ -155,15 +160,21 @@ type Flaggable interface {
 }
 
 type DeploymentConfigField[T Flaggable] struct {
-	Name       string `json:"name"`
-	Usage      string `json:"usage"`
-	Flag       string `json:"flag"`
-	Shorthand  string `json:"shorthand"`
-	Enterprise bool   `json:"enterprise"`
-	Hidden     bool   `json:"hidden"`
-	Secret     bool   `json:"secret"`
-	Default    T      `json:"default"`
-	Value      T      `json:"value"`
+	Name  string `json:"name"`
+	Usage string `json:"usage"`
+	Flag  string `json:"flag"`
+	// EnvOverride will override the automatically generated environment
+	// variable name. Useful if you're moving values around but need to keep
+	// backwards compatibility with old environment variable names.
+	//
+	// NOTE: this is not supported for array flags.
+	EnvOverride string `json:"-"`
+	Shorthand   string `json:"shorthand"`
+	Enterprise  bool   `json:"enterprise"`
+	Hidden      bool   `json:"hidden"`
+	Secret      bool   `json:"secret"`
+	Default     T      `json:"default"`
+	Value       T      `json:"value"`
 }
 
 // MarshalJSON removes the Value field from the JSON output of any fields marked Secret.

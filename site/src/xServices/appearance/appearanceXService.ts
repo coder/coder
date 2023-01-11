@@ -50,7 +50,7 @@ export const appearanceMachine = createMachine(
       appearance: emptyAppearance,
       preview: false,
     },
-    initial: "gettingAppearance",
+    initial: "idle",
     states: {
       idle: {
         on: {

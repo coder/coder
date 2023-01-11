@@ -508,15 +508,15 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
-                        "name": "user",
+                        "description": "Organization ID",
+                        "name": "organization",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
-                        "name": "organization",
+                        "description": "User ID, name, or me",
+                        "name": "user",
                         "in": "path",
                         "required": true
                     },
@@ -3861,19 +3861,27 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "login_type": {
-                    "type": "string",
                     "enum": [
                         "password",
                         "github",
                         "oidc",
                         "token"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.LoginType"
+                        }
                     ]
                 },
                 "scope": {
-                    "type": "string",
                     "enum": [
                         "all",
                         "application_connect"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.APIKeyScope"
+                        }
                     ]
                 },
                 "updated_at": {
@@ -3886,6 +3894,17 @@ const docTemplate = `{
                     "format": "uuid"
                 }
             }
+        },
+        "codersdk.APIKeyScope": {
+            "type": "string",
+            "enum": [
+                "all",
+                "application_connect"
+            ],
+            "x-enum-varnames": [
+                "APIKeyScopeAll",
+                "APIKeyScopeApplicationConnect"
+            ]
         },
         "codersdk.AWSInstanceIdentityToken": {
             "type": "object",
@@ -3968,6 +3987,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AuditAction": {
+            "type": "string",
+            "enum": [
+                "create",
+                "write",
+                "delete",
+                "start",
+                "stop"
+            ],
+            "x-enum-varnames": [
+                "AuditActionCreate",
+                "AuditActionWrite",
+                "AuditActionDelete",
+                "AuditActionStart",
+                "AuditActionStop"
+            ]
+        },
         "codersdk.AuditDiff": {
             "type": "object",
             "additionalProperties": {
@@ -3988,7 +4024,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "action": {
-                    "type": "string"
+                    "$ref": "#/definitions/codersdk.AuditAction"
                 },
                 "additional_fields": {
                     "type": "array",
@@ -4006,7 +4042,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "ip": {
-                    "$ref": "#/definitions/netip.Addr"
+                    "type": "string"
                 },
                 "is_deleted": {
                     "type": "boolean"
@@ -4031,7 +4067,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "resource_type": {
-                    "type": "string"
+                    "$ref": "#/definitions/codersdk.ResourceType"
                 },
                 "status_code": {
                     "type": "integer"
@@ -4089,8 +4125,12 @@ const docTemplate = `{
                     ]
                 },
                 "object": {
-                    "description": "Object can represent a \"set\" of objects, such as:\n\t- All workspaces in an organization\n\t- All workspaces owned by me\n\t- All workspaces across the entire product\nWhen defining an object, use the most specific language when possible to\nproduce the smallest set. Meaning to set as many fields on 'Object' as\nyou can. Example, if you want to check if you can update all workspaces\nowned by 'me', try to also add an 'OrganizationID' to the settings.\nOmitting the 'OrganizationID' could produce the incorrect value, as\nworkspaces have both ` + "`" + `user` + "`" + ` and ` + "`" + `organization` + "`" + ` owners.",
-                    "$ref": "#/definitions/codersdk.AuthorizationObject"
+                    "description": "Object can represent a \"set\" of objects, such as: all workspaces in an organization, all workspaces owned by me, and all workspaces across the entire product.\nWhen defining an object, use the most specific language when possible to\nproduce the smallest set. Meaning to set as many fields on 'Object' as\nyou can. Example, if you want to check if you can update all workspaces\nowned by 'me', try to also add an 'OrganizationID' to the settings.\nOmitting the 'OrganizationID' could produce the incorrect value, as\nworkspaces have both ` + "`" + `user` + "`" + ` and ` + "`" + `organization` + "`" + ` owners.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AuthorizationObject"
+                        }
+                    ]
                 }
             }
         },
@@ -4162,6 +4202,19 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.BuildReason": {
+            "type": "string",
+            "enum": [
+                "initiator",
+                "autostart",
+                "autostop"
+            ],
+            "x-enum-varnames": [
+                "BuildReasonInitiator",
+                "BuildReasonAutostart",
+                "BuildReasonAutostop"
+            ]
+        },
         "codersdk.CreateFirstUserRequest": {
             "type": "object",
             "required": [
@@ -4224,21 +4277,29 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "destination_scheme": {
-                    "type": "string",
                     "enum": [
                         "none",
                         "environment_variable",
                         "provisioner_variable"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ParameterDestinationScheme"
+                        }
                     ]
                 },
                 "name": {
                     "type": "string"
                 },
                 "source_scheme": {
-                    "type": "string",
                     "enum": [
                         "none",
                         "data"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ParameterSourceScheme"
+                        }
                     ]
                 },
                 "source_value": {
@@ -4307,20 +4368,23 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "action": {
-                    "type": "string",
                     "enum": [
                         "create",
                         "write",
                         "delete",
                         "start",
                         "stop"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AuditAction"
+                        }
                     ]
                 },
                 "resource_id": {
                     "type": "string"
                 },
                 "resource_type": {
-                    "type": "string",
                     "enum": [
                         "organization",
                         "template",
@@ -4331,6 +4395,11 @@ const docTemplate = `{
                         "git_ssh_key",
                         "api_key",
                         "group"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ResourceType"
+                        }
                     ]
                 },
                 "time": {
@@ -4345,10 +4414,14 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "scope": {
-                    "type": "string",
                     "enum": [
                         "all",
                         "application_connect"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.APIKeyScope"
+                        }
                     ]
                 }
             }
@@ -4408,12 +4481,16 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "transition": {
-                    "type": "string",
                     "enum": [
                         "create",
                         "start",
                         "stop",
                         "delete"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceTransition"
+                        }
                     ]
                 }
             }
@@ -4493,16 +4570,17 @@ const docTemplate = `{
                 },
                 "address": {
                     "description": "DEPRECATED: Use HTTPAddress or TLS.Address instead.",
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                        }
+                    ]
                 },
                 "agent_fallback_troubleshooting_url": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
                 },
                 "agent_stat_refresh_interval": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-time_Duration"
-                },
-                "api_rate_limit": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-int"
                 },
                 "audit_logging": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
@@ -4560,6 +4638,9 @@ const docTemplate = `{
                 },
                 "proxy_trusted_origins": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
+                },
+                "rate_limit": {
+                    "$ref": "#/definitions/codersdk.RateLimitConfig"
                 },
                 "scim_api_key": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
@@ -4621,7 +4702,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "value": {
-                    "$ref": "#/definitions/codersdk.GitAuthConfig"
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.GitAuthConfig"
+                    }
                 }
             }
         },
@@ -4656,7 +4740,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "value": {
-                    "type": "string"
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -4902,6 +4989,49 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.LogLevel": {
+            "type": "string",
+            "enum": [
+                "trace",
+                "debug",
+                "info",
+                "warn",
+                "error"
+            ],
+            "x-enum-varnames": [
+                "LogLevelTrace",
+                "LogLevelDebug",
+                "LogLevelInfo",
+                "LogLevelWarn",
+                "LogLevelError"
+            ]
+        },
+        "codersdk.LogSource": {
+            "type": "string",
+            "enum": [
+                "provisioner_daemon",
+                "provisioner"
+            ],
+            "x-enum-varnames": [
+                "LogSourceProvisionerDaemon",
+                "LogSourceProvisioner"
+            ]
+        },
+        "codersdk.LoginType": {
+            "type": "string",
+            "enum": [
+                "password",
+                "github",
+                "oidc",
+                "token"
+            ],
+            "x-enum-varnames": [
+                "LoginTypePassword",
+                "LoginTypeGithub",
+                "LoginTypeOIDC",
+                "LoginTypeToken"
+            ]
+        },
         "codersdk.LoginWithPasswordRequest": {
             "type": "object",
             "required": [
@@ -5053,11 +5183,15 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "destination_scheme": {
-                    "type": "string",
                     "enum": [
                         "none",
                         "environment_variable",
                         "provisioner_variable"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ParameterDestinationScheme"
+                        }
                     ]
                 },
                 "id": {
@@ -5068,11 +5202,15 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "scope": {
-                    "type": "string",
                     "enum": [
                         "template",
                         "workspace",
                         "import_job"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ParameterScope"
+                        }
                     ]
                 },
                 "scope_id": {
@@ -5080,10 +5218,14 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "source_scheme": {
-                    "type": "string",
                     "enum": [
                         "none",
                         "data"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ParameterSourceScheme"
+                        }
                     ]
                 },
                 "updated_at": {
@@ -5091,6 +5233,19 @@ const docTemplate = `{
                     "format": "date-time"
                 }
             }
+        },
+        "codersdk.ParameterDestinationScheme": {
+            "type": "string",
+            "enum": [
+                "none",
+                "environment_variable",
+                "provisioner_variable"
+            ],
+            "x-enum-varnames": [
+                "ParameterDestinationSchemeNone",
+                "ParameterDestinationSchemeEnvironmentVariable",
+                "ParameterDestinationSchemeProvisionerVariable"
+            ]
         },
         "codersdk.ParameterSchema": {
             "type": "object",
@@ -5106,21 +5261,29 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "default_destination_scheme": {
-                    "type": "string",
                     "enum": [
                         "none",
                         "environment_variable",
                         "provisioner_variable"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ParameterDestinationScheme"
+                        }
                     ]
                 },
                 "default_refresh": {
                     "type": "string"
                 },
                 "default_source_scheme": {
-                    "type": "string",
                     "enum": [
                         "none",
                         "data"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ParameterSourceScheme"
+                        }
                     ]
                 },
                 "default_source_value": {
@@ -5164,6 +5327,30 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ParameterScope": {
+            "type": "string",
+            "enum": [
+                "template",
+                "workspace",
+                "import_job"
+            ],
+            "x-enum-varnames": [
+                "ParameterTemplate",
+                "ParameterWorkspace",
+                "ParameterImportJob"
+            ]
+        },
+        "codersdk.ParameterSourceScheme": {
+            "type": "string",
+            "enum": [
+                "none",
+                "data"
+            ],
+            "x-enum-varnames": [
+                "ParameterSourceSchemeNone",
+                "ParameterSourceSchemeData"
+            ]
+        },
         "codersdk.PostWorkspaceAgentVersionRequest": {
             "description": "x-apidocgen:skip",
             "type": "object",
@@ -5180,7 +5367,7 @@ const docTemplate = `{
                     "description": "Healths is a map of the workspace app name and the health of the app.",
                     "type": "object",
                     "additionalProperties": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.WorkspaceAppHealth"
                     }
                 }
             }
@@ -5255,7 +5442,6 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "status": {
-                    "type": "string",
                     "enum": [
                         "pending",
                         "running",
@@ -5263,6 +5449,11 @@ const docTemplate = `{
                         "canceling",
                         "canceled",
                         "failed"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ProvisionerJobStatus"
+                        }
                     ]
                 },
                 "tags": {
@@ -5288,17 +5479,21 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "log_level": {
-                    "type": "string",
                     "enum": [
                         "trace",
                         "debug",
                         "info",
                         "warn",
                         "error"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.LogLevel"
+                        }
                     ]
                 },
                 "log_source": {
-                    "type": "string"
+                    "$ref": "#/definitions/codersdk.LogSource"
                 },
                 "output": {
                     "type": "string"
@@ -5307,6 +5502,25 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.ProvisionerJobStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "running",
+                "succeeded",
+                "canceling",
+                "canceled",
+                "failed"
+            ],
+            "x-enum-varnames": [
+                "ProvisionerJobPending",
+                "ProvisionerJobRunning",
+                "ProvisionerJobSucceeded",
+                "ProvisionerJobCanceling",
+                "ProvisionerJobCanceled",
+                "ProvisionerJobFailed"
+            ]
         },
         "codersdk.PutExtendWorkspaceRequest": {
             "type": "object",
@@ -5318,6 +5532,42 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.RateLimitConfig": {
+            "type": "object",
+            "properties": {
+                "api": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-int"
+                },
+                "disable_all": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                }
+            }
+        },
+        "codersdk.ResourceType": {
+            "type": "string",
+            "enum": [
+                "organization",
+                "template",
+                "template_version",
+                "user",
+                "workspace",
+                "workspace_build",
+                "git_ssh_key",
+                "api_key",
+                "group"
+            ],
+            "x-enum-varnames": [
+                "ResourceTypeOrganization",
+                "ResourceTypeTemplate",
+                "ResourceTypeTemplateVersion",
+                "ResourceTypeUser",
+                "ResourceTypeWorkspace",
+                "ResourceTypeWorkspaceBuild",
+                "ResourceTypeGitSSHKey",
+                "ResourceTypeAPIKey",
+                "ResourceTypeGroup"
+            ]
         },
         "codersdk.Response": {
             "type": "object",
@@ -5459,7 +5709,10 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "provisioner": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "terraform"
+                    ]
                 },
                 "updated_at": {
                     "type": "string",
@@ -5722,16 +5975,31 @@ const docTemplate = `{
                     }
                 },
                 "status": {
-                    "type": "string",
                     "enum": [
                         "active",
                         "suspended"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.UserStatus"
+                        }
                     ]
                 },
                 "username": {
                     "type": "string"
                 }
             }
+        },
+        "codersdk.UserStatus": {
+            "type": "string",
+            "enum": [
+                "active",
+                "suspended"
+            ],
+            "x-enum-varnames": [
+                "UserStatusActive",
+                "UserStatusSuspended"
+            ]
         },
         "codersdk.ValidationError": {
             "type": "object",
@@ -5875,12 +6143,16 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "status": {
-                    "type": "string",
                     "enum": [
                         "connecting",
                         "connected",
                         "disconnected",
                         "timeout"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentStatus"
+                        }
                     ]
                 },
                 "troubleshooting_url": {
@@ -5953,6 +6225,21 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkspaceAgentStatus": {
+            "type": "string",
+            "enum": [
+                "connecting",
+                "connected",
+                "disconnected",
+                "timeout"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAgentConnecting",
+                "WorkspaceAgentConnected",
+                "WorkspaceAgentDisconnected",
+                "WorkspaceAgentTimeout"
+            ]
+        },
         "codersdk.WorkspaceApp": {
             "type": "object",
             "properties": {
@@ -5968,11 +6255,15 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "health": {
-                    "type": "string"
+                    "$ref": "#/definitions/codersdk.WorkspaceAppHealth"
                 },
                 "healthcheck": {
                     "description": "Healthcheck specifies the configuration for checking app health.",
-                    "$ref": "#/definitions/codersdk.Healthcheck"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.Healthcheck"
+                        }
+                    ]
                 },
                 "icon": {
                     "description": "Icon is a relative path or external URL that specifies\nan icon to be displayed in the dashboard.",
@@ -5983,11 +6274,15 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "sharing_level": {
-                    "type": "string",
                     "enum": [
                         "owner",
                         "authenticated",
                         "public"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceAppSharingLevel"
+                        }
                     ]
                 },
                 "slug": {
@@ -6003,6 +6298,34 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.WorkspaceAppHealth": {
+            "type": "string",
+            "enum": [
+                "disabled",
+                "initializing",
+                "healthy",
+                "unhealthy"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAppHealthDisabled",
+                "WorkspaceAppHealthInitializing",
+                "WorkspaceAppHealthHealthy",
+                "WorkspaceAppHealthUnhealthy"
+            ]
+        },
+        "codersdk.WorkspaceAppSharingLevel": {
+            "type": "string",
+            "enum": [
+                "owner",
+                "authenticated",
+                "public"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAppSharingLevelOwner",
+                "WorkspaceAppSharingLevelAuthenticated",
+                "WorkspaceAppSharingLevelPublic"
+            ]
         },
         "codersdk.WorkspaceBuild": {
             "type": "object",
@@ -6036,11 +6359,15 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ProvisionerJob"
                 },
                 "reason": {
-                    "type": "string",
                     "enum": [
                         "initiator",
                         "autostart",
                         "autostop"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.BuildReason"
+                        }
                     ]
                 },
                 "resources": {
@@ -6050,7 +6377,6 @@ const docTemplate = `{
                     }
                 },
                 "status": {
-                    "type": "string",
                     "enum": [
                         "pending",
                         "starting",
@@ -6062,6 +6388,11 @@ const docTemplate = `{
                         "canceled",
                         "deleting",
                         "deleted"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceStatus"
+                        }
                     ]
                 },
                 "template_version_id": {
@@ -6072,11 +6403,15 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "transition": {
-                    "type": "string",
                     "enum": [
                         "start",
                         "stop",
                         "delete"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceTransition"
+                        }
                     ]
                 },
                 "updated_at": {
@@ -6142,11 +6477,15 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "workspace_transition": {
-                    "type": "string",
                     "enum": [
                         "start",
                         "stop",
                         "delete"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceTransition"
+                        }
                     ]
                 }
             }
@@ -6165,6 +6504,46 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkspaceStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "starting",
+                "running",
+                "stopping",
+                "stopped",
+                "failed",
+                "canceling",
+                "canceled",
+                "deleting",
+                "deleted"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceStatusPending",
+                "WorkspaceStatusStarting",
+                "WorkspaceStatusRunning",
+                "WorkspaceStatusStopping",
+                "WorkspaceStatusStopped",
+                "WorkspaceStatusFailed",
+                "WorkspaceStatusCanceling",
+                "WorkspaceStatusCanceled",
+                "WorkspaceStatusDeleting",
+                "WorkspaceStatusDeleted"
+            ]
+        },
+        "codersdk.WorkspaceTransition": {
+            "type": "string",
+            "enum": [
+                "start",
+                "stop",
+                "delete"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceTransitionStart",
+                "WorkspaceTransitionStop",
+                "WorkspaceTransitionDelete"
+            ]
+        },
         "codersdk.WorkspacesResponse": {
             "type": "object",
             "properties": {
@@ -6179,8 +6558,42 @@ const docTemplate = `{
                 }
             }
         },
-        "netip.Addr": {
-            "type": "object"
+        "database.ParameterDestinationScheme": {
+            "type": "string",
+            "enum": [
+                "none",
+                "environment_variable",
+                "provisioner_variable"
+            ],
+            "x-enum-varnames": [
+                "ParameterDestinationSchemeNone",
+                "ParameterDestinationSchemeEnvironmentVariable",
+                "ParameterDestinationSchemeProvisionerVariable"
+            ]
+        },
+        "database.ParameterScope": {
+            "type": "string",
+            "enum": [
+                "template",
+                "import_job",
+                "workspace"
+            ],
+            "x-enum-varnames": [
+                "ParameterScopeTemplate",
+                "ParameterScopeImportJob",
+                "ParameterScopeWorkspace"
+            ]
+        },
+        "database.ParameterSourceScheme": {
+            "type": "string",
+            "enum": [
+                "none",
+                "data"
+            ],
+            "x-enum-varnames": [
+                "ParameterSourceSchemeNone",
+                "ParameterSourceSchemeData"
+            ]
         },
         "parameter.ComputedValue": {
             "type": "object",
@@ -6192,7 +6605,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "destination_scheme": {
-                    "type": "string"
+                    "$ref": "#/definitions/database.ParameterDestinationScheme"
                 },
                 "id": {
                     "type": "string"
@@ -6204,13 +6617,13 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "scope": {
-                    "type": "string"
+                    "$ref": "#/definitions/database.ParameterScope"
                 },
                 "scope_id": {
                     "type": "string"
                 },
                 "source_scheme": {
-                    "type": "string"
+                    "$ref": "#/definitions/database.ParameterSourceScheme"
                 },
                 "source_value": {
                     "type": "string"
