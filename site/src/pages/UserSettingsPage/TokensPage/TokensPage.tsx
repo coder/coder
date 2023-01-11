@@ -1,60 +1,55 @@
-import Button from "@material-ui/core/Button"
-import Add from "@material-ui/icons/Add"
-import React from "react"
+import { FC, PropsWithChildren } from "react"
 import { Section } from "../../../components/Section/Section"
 import { TokensPageView } from "./TokensPageView"
+import { tokensMachine } from "xServices/tokens/tokensXService"
+import { useMachine } from "@xstate/react"
+import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog"
 
 export const Language = {
   title: "Tokens",
   description: (
     <p>
-      Tokens are used to authenticate with the Coder API.
+      Tokens are used to authenticate with the Coder API and can be created with the Coder CLI.
     </p>
   ),
 }
 
-export const TokensPage: React.FC<React.PropsWithChildren<unknown>> = () => {
+export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
+  const [tokensState, tokensSend] = useMachine(tokensMachine)
+  const isLoading = tokensState.matches("gettingTokens")
+  const hasLoaded = tokensState.matches("loaded")
+  const { getTokensError, tokens, deleteTokenId } = tokensState.context
+
   return (
     <>
       <Section
         title={Language.title}
         description={Language.description}
         layout="fluid"
-        toolbar={
-          <Button
-            startIcon={<Add />}
-          >
-            New Token
-          </Button>
-        }
       >
       <TokensPageView
-          tokens={[
-            {
-              "id":"tBoVE3dqLl",
-              "user_id":"f9ee61d8-1d84-4410-ab6e-c1ec1a641e0b",
-              "last_used":"0001-01-01T00:00:00Z",
-              "expires_at":"2023-01-15T20:10:45.637438Z",
-              "created_at":"2022-12-16T20:10:45.637452Z",
-              "updated_at":"2022-12-16T20:10:45.637452Z",
-              "login_type":"token",
-              "scope":"all",
-              "lifetime_seconds":2592000,
-            },
-            {
-              "id":"tBoVE3dqLl",
-              "user_id":"f9ee61d8-1d84-4410-ab6e-c1ec1a641e0b",
-              "last_used":"0001-01-01T00:00:00Z",
-              "expires_at":"2023-01-15T20:10:45.637438Z",
-              "created_at":"2022-12-16T20:10:45.637452Z",
-              "updated_at":"2022-12-16T20:10:45.637452Z",
-              "login_type":"token",
-              "scope":"all",
-              "lifetime_seconds":2592000,
-            }
-          ]}
+          tokens={tokens}
+          isLoading={isLoading}
+          hasLoaded={hasLoaded}
+          getTokensError={getTokensError}
+          onDelete={(id) => {
+            tokensSend({ type: "DELETE_TOKEN", id })
+          }}
         />
       </Section>
+
+      <DeleteDialog
+          isOpen={tokensState.matches("confirmTokenDelete")}
+          confirmLoading={tokensState.matches("deletingToken")}
+          name={deleteTokenId ? deleteTokenId : ""}
+          entity="token"
+          onConfirm={() => {
+            tokensSend("CONFIRM_DELETE_TOKEN")
+          }}
+          onCancel={() => {
+            tokensSend("CANCEL_DELETE_TOKEN")
+          }}
+        />
     </>
   )
 }
