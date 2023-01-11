@@ -33,10 +33,7 @@ export const VSCodeDesktopButton: FC<
               query.set("agent", agentName)
             }
 
-            window.open(
-              `vscode://coder.coder-remote/open?${query.toString()}`,
-              "_blank",
-            )
+            location.href = `vscode://coder.coder-remote/open?${query.toString()}`
           })
           .catch((ex) => {
             console.error(ex)
