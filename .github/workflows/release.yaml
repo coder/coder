@@ -25,7 +25,7 @@ on:
         type: boolean
         required: true
       ignore_missing_commit_metadata:
-        description: Warning! This option disables the requirement that all commits have a PR. Not needed for dry_run.
+        description: WARNING! This option disables the requirement that all commits have a PR. Not needed for dry_run.
         type: boolean
         default: false
 

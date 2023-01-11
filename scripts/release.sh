@@ -149,12 +149,19 @@ fi
 args=()
 if ((draft)); then
 	args+=(-F draft=true)
+else
+	args+=(-F draft=false)
 fi
 if ((dry_run)); then
 	args+=(-F dry_run=true)
-fi
-if [[ ${CODER_IGNORE_MISSING_COMMIT_METADATA:-0} == 1 ]]; then
-	args+=(-F ignore_missing_commit_metadata=true)
+else
+	args+=(-F dry_run=false)
+
+	# We only set this on non-dry-run releases because it will show a
+	# warning in CI.
+	if [[ ${CODER_IGNORE_MISSING_COMMIT_METADATA:-0} == 1 ]]; then
+		args+=(-F ignore_missing_commit_metadata=true)
+	fi
 fi
 
 log
