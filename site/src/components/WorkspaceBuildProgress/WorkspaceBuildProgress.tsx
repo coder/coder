@@ -34,11 +34,13 @@ const estimateFinish = (
   p95: number,
 ): [number | undefined, string] => {
   const sinceStart = dayjs().diff(startedAt)
-  const secondsLeft = (est: number) =>
-    Math.max(
+  const secondsLeft = (est: number) => {
+    const max = Math.max(
       Math.ceil(dayjs.duration((1 - sinceStart / est) * est).asSeconds()),
       0,
     )
+    return isNaN(max) ? 0 : max
+  }
 
   const lowGuess = secondsLeft(p50)
   const highGuess = secondsLeft(p95)

@@ -67,3 +67,9 @@ StartingHighVariaton.args = {
   ...Starting.args,
   transitionStats: { P50: 10000, P95: 20000 },
 }
+
+export const StartingZeroEstimate = Template.bind({})
+StartingZeroEstimate.args = {
+  ...Starting.args,
+  transitionStats: { P50: 0, P95: 0 },
+}
