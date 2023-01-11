@@ -1,11 +1,21 @@
 # GitHub release workflow.
-name: release
+name: Release
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
+      increment:
+        description: Preferred version increment (release script may promote e.g. patch to minor depending on changes).
+        type: choice
+        required: true
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+      draft:
+        description: Create a draft release (for manually editing release notes before publishing).
+        type: boolean
+        required: true
       snapshot:
         description: Force a dev version to be generated, implies dry_run.
         type: boolean
@@ -25,9 +35,13 @@ permissions:
 
 env:
   CODER_RELEASE: ${{ github.event.inputs.snapshot && 'false' || 'true' }}
+  DRY_RUN: ${{ (github.event.inputs.dry_run || github.event.inputs.snapshot) && 'true' || 'false' }}
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
   release:
+    name: Create and publish
     runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
     env:
       # Necessary for Docker manifest
@@ -44,6 +58,12 @@ jobs:
       # https://github.com/actions/checkout/issues/290
       - name: Fetch git tags
         run: git fetch --tags --force
+
+      # Configure git user name/email for creating annotated version tag.
+      - name: Setup git config
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email ""
 
       - name: Docker Login
         uses: docker/login-action@v2
@@ -99,6 +119,38 @@ jobs:
           AC_CERTIFICATE_P12_BASE64: ${{ secrets.AC_CERTIFICATE_P12_BASE64 }}
           AC_CERTIFICATE_PASSWORD: ${{ secrets.AC_CERTIFICATE_PASSWORD }}
           AC_APIKEY_P8_BASE64: ${{ secrets.AC_APIKEY_P8_BASE64 }}
+
+      - name: Create release tag and release notes
+        run: |
+          set -euo pipefail
+          ref=HEAD
+          old_version="$(git describe --abbrev=0 "$ref^1")"
+
+          if [[ $DRY_RUN == true ]]; then
+            # Allow dry-run of branches to pass.
+            export CODER_IGNORE_MISSING_COMMIT_METADATA=1
+          fi
+
+          # Cache commit metadata.
+          . ./scripts/release/check_commit_metadata.sh "$old_version" "$ref"
+
+          # Create new release tag.
+          version="$(
+            ./scripts/release/tag_version.sh \
+              ${{ (github.event.inputs.dry_run || github.event.inputs.snapshot) && '--dry-run' }} \
+              --ref "$ref" \
+              --${{ github.event.inputs.increment }}
+          )"
+
+          # Generate notes.
+          release_notes_file="$(mktemp -t release_notes.XXXXXX)"
+          ./scripts/release/generate_release_notes.sh --old-version "$old_version" --new-version "$version" --ref "$ref" >> "$release_notes_file"
+          echo CODER_RELEASE_NOTES_FILE="$release_notes_file" >> $GITHUB_ENV
+
+      - name: Echo release notes
+        run: |
+          set -euo pipefail
+          cat "$CODER_RELEASE_NOTES_FILE"
 
       - name: Build binaries
         run: |
@@ -157,8 +209,11 @@ jobs:
 
       - name: Publish release
         run: |
+          set -euo pipefail
           ./scripts/release/publish.sh \
+            ${{ github.event.inputs.draft && '--draft' }} \
             ${{ (github.event.inputs.dry_run || github.event.inputs.snapshot) && '--dry-run' }} \
+            --release-notes-file "$CODER_RELEASE_NOTES_FILE" \
             ./build/*_installer.exe \
             ./build/*.zip \
             ./build/*.tar.gz \
@@ -195,6 +250,7 @@ jobs:
         with:
           name: release-artifacts
           path: |
+            ./build/*_installer.exe
             ./build/*.zip
             ./build/*.tar.gz
             ./build/*.tgz
