@@ -36,6 +36,10 @@ permissions:
 env:
   CODER_RELEASE: ${{ github.event.inputs.snapshot && 'false' || 'true' }}
   DRY_RUN: ${{ (github.event.inputs.dry_run || github.event.inputs.snapshot) && 'true' || 'false' }}
+  # Temporary workaround for commits on `main` without a PR, we can remove this
+  # once we ensure all commits for a release will have a PR.
+  # Also see scripts/release.sh.
+  CODER_IGNORE_MISSING_COMMIT_METADATA: "1"
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 

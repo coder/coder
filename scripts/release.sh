@@ -37,6 +37,17 @@ specified branch as the release commit. This will also set --dry-run.
 EOH
 }
 
+# Temporary workaround for commits on `main` without a PR, we can remove this
+# once we ensure all commits for a release will have a PR.
+# Also see .github/workflow/release.yml.
+export CODER_IGNORE_MISSING_COMMIT_METADATA=1
+
+# Warn if CODER_IGNORE_MISSING_COMMIT_METADATA is set any other way than via
+# --branch.
+if [[ ${CODER_IGNORE_MISSING_COMMIT_METADATA:-0} != 0 ]]; then
+	log "WARNING: CODER_IGNORE_MISSING_COMMIT_METADATA is enabled and we will ignore missing commit metadata."
+fi
+
 branch=main
 draft=0
 dry_run=0
