@@ -118,8 +118,8 @@ fi
 mapfile -t versions < <(gh api -H "Accept: application/vnd.github+json" /repos/coder/coder/git/refs/tags -q '.[].ref | split("/") | .[2]' | grep '^v' | sort -r -V)
 old_version=${versions[0]}
 
-# shellcheck source=scripts/release/check_commit_metadata.sh
 trap 'log "Check commit metadata failed, you can try to set \"export CODER_IGNORE_MISSING_COMMIT_METADATA=1\" and try again, if you know what you are doing."' EXIT
+# shellcheck source=scripts/release/check_commit_metadata.sh
 source "$SCRIPT_DIR/release/check_commit_metadata.sh" "$old_version" "$ref"
 trap - EXIT
 
