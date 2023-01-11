@@ -81,6 +81,13 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 		Use:   "server",
 		Short: "Start a Coder server",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Main command context for managing cancellation of running
+			// services.
+			ctx, cancel := context.WithCancel(cmd.Context())
+			defer cancel()
+
+			go dumpHandler(ctx)
+
 			cfg, err := deployment.Config(cmd.Flags(), vip)
 			if err != nil {
 				return xerrors.Errorf("getting deployment config: %w", err)
@@ -122,11 +129,6 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			if cfg.Trace.CaptureLogs.Value {
 				logger = logger.AppendSinks(tracing.SlogSink{})
 			}
-
-			// Main command context for managing cancellation
-			// of running services.
-			ctx, cancel := context.WithCancel(cmd.Context())
-			defer cancel()
 
 			// Register signals early on so that graceful shutdown can't
 			// be interrupted by additional signals. Note that we avoid

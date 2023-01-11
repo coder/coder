@@ -39,6 +39,8 @@ func workspaceAgent() *cobra.Command {
 			ctx, cancel := context.WithCancel(cmd.Context())
 			defer cancel()
 
+			go dumpHandler(ctx)
+
 			rawURL, err := cmd.Flags().GetString(varAgentURL)
 			if err != nil {
 				return xerrors.Errorf("CODER_AGENT_URL must be set: %w", err)
