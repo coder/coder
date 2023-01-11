@@ -60,6 +60,17 @@ import (
 	"github.com/coder/coder/tailnet"
 )
 
+// We must only ever instantiate one httpSwagger.Handler because of a data race
+// inside the handler. This issue is triggered by tests that create multiple
+// coderd instances.
+//
+// See https://github.com/swaggo/http-swagger/issues/78
+var globalHTTPSwaggerHandler http.HandlerFunc
+
+func init() {
+	globalHTTPSwaggerHandler = httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json"))
+}
+
 // Options are requires parameters for Coder to start.
 type Options struct {
 	AccessURL *url.URL
@@ -599,7 +610,9 @@ func New(options *Options) *API {
 		// Swagger UI requires the URL trailing slash. Otherwise, the browser tries to load /assets
 		// from http://localhost:8080/assets instead of http://localhost:8080/swagger/assets.
 		r.Get("/swagger", http.RedirectHandler("/swagger/", http.StatusTemporaryRedirect).ServeHTTP)
-		r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json")))
+		// See globalHTTPSwaggerHandler comment as to why we use a package
+		// global variable here.
+		r.Get("/swagger/*", globalHTTPSwaggerHandler)
 	}
 
 	r.NotFound(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP)).ServeHTTP)
