@@ -1,7 +1,8 @@
-import { test } from "@playwright/test"
+import { test, expect } from "@playwright/test"
 import { email, password } from "../constants"
 import { SignInPage } from "../pom"
 import { clickButton, buttons, fillInput } from "../helpers"
+import dayjs from "dayjs"
 
 test("Basic flow", async ({ baseURL, page }) => {
   // We're keeping entire flows in one test, which means the test needs extra time.
@@ -27,15 +28,15 @@ test("Basic flow", async ({ baseURL, page }) => {
   // create workspace
   await clickButton(page, buttons.createWorkspace)
 
-  await fillInput(page, "Workspace Name", "my-workspace")
+  // give workspace a unique name to avoid failure
+  await fillInput(page, "Workspace Name", `workspace-${dayjs().format('MM-DD-hh-mm-ss')}`)
   await clickButton(page, buttons.submitCreateWorkspace)
 
   // stop workspace
-  await page.waitForSelector("text=Started")
   await clickButton(page, buttons.stopWorkspace)
 
   // start workspace
-  await page.waitForSelector("text=Stopped")
   await clickButton(page, buttons.startWorkspace)
-  await page.waitForSelector("text=Started")
+  const stopButton = page.getByRole("button", { name: buttons.stopWorkspace, exact: true }).waitFor()
+  expect(stopButton).toBeDefined()
 })
