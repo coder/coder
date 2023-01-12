@@ -212,7 +212,6 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 // @Summary Delete API key
 // @ID delete-api-key
 // @Security CoderSessionToken
-// @Produce json
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
 // @Param keyid path string true "Key ID" format(uuid)

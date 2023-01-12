@@ -339,9 +339,6 @@ const docTemplate = `{
                 "consumes": [
                     "application/json"
                 ],
-                "produces": [
-                    "text/plain"
-                ],
                 "tags": [
                     "General"
                 ],
@@ -1073,9 +1070,6 @@ const docTemplate = `{
                     {
                         "CoderSessionToken": []
                     }
-                ],
-                "produces": [
-                    "application/json"
                 ],
                 "tags": [
                     "Enterprise"
@@ -2827,9 +2821,6 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "produces": [
-                    "application/json"
-                ],
                 "tags": [
                     "Users"
                 ],
@@ -2848,9 +2839,6 @@ const docTemplate = `{
                     {
                         "CoderSessionToken": []
                     }
-                ],
-                "produces": [
-                    "application/json"
                 ],
                 "tags": [
                     "Users"
@@ -3186,9 +3174,6 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "produces": [
-                    "application/json"
-                ],
                 "tags": [
                     "Users"
                 ],
@@ -3304,9 +3289,6 @@ const docTemplate = `{
                     }
                 ],
                 "consumes": [
-                    "application/json"
-                ],
-                "produces": [
                     "application/json"
                 ],
                 "tags": [
@@ -3822,9 +3804,6 @@ const docTemplate = `{
                     }
                 ],
                 "description": "It accepts a WebSocket connection to an agent that listens to\nincoming connections and publishes node updates.",
-                "produces": [
-                    "application/json"
-                ],
                 "tags": [
                     "Agents"
                 ],
@@ -4486,9 +4465,6 @@ const docTemplate = `{
                 "consumes": [
                     "application/json"
                 ],
-                "produces": [
-                    "application/json"
-                ],
                 "tags": [
                     "Workspaces"
                 ],
@@ -4528,9 +4504,6 @@ const docTemplate = `{
                     }
                 ],
                 "consumes": [
-                    "application/json"
-                ],
-                "produces": [
                     "application/json"
                 ],
                 "tags": [
@@ -4728,9 +4701,6 @@ const docTemplate = `{
                     }
                 ],
                 "consumes": [
-                    "application/json"
-                ],
-                "produces": [
                     "application/json"
                 ],
                 "tags": [

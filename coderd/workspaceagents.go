@@ -492,7 +492,6 @@ func (api *API) workspaceAgentConnection(rw http.ResponseWriter, r *http.Request
 // @Description incoming connections and publishes node updates.
 // @ID coordinate-workspace-agent-via-tailnet
 // @Security CoderSessionToken
-// @Produce json
 // @Tags Agents
 // @Success 101
 // @Router /workspaceagents/me/coordinate [get]

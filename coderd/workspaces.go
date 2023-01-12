@@ -566,7 +566,6 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 // @ID update-workspace-metadata-by-id
 // @Security CoderSessionToken
 // @Accept json
-// @Produce json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.UpdateWorkspaceRequest true "Metadata update request"
@@ -656,7 +655,6 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @ID update-workspace-autostart-schedule-by-id
 // @Security CoderSessionToken
 // @Accept json
-// @Produce json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.UpdateWorkspaceAutostartRequest true "Schedule update request"
@@ -719,7 +717,6 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 // @ID update-workspace-ttl-by-id
 // @Security CoderSessionToken
 // @Accept json
-// @Produce json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.UpdateWorkspaceTTLRequest true "Workspace TTL update request"

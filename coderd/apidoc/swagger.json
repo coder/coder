@@ -287,7 +287,6 @@
           }
         ],
         "consumes": ["application/json"],
-        "produces": ["text/plain"],
         "tags": ["General"],
         "summary": "Report CSP violations",
         "operationId": "report-csp-violations",
@@ -934,7 +933,6 @@
             "CoderSessionToken": []
           }
         ],
-        "produces": ["application/json"],
         "tags": ["Enterprise"],
         "summary": "Serve provisioner daemon",
         "operationId": "serve-provisioner-daemon",
@@ -2481,7 +2479,6 @@
             "CoderSessionToken": []
           }
         ],
-        "produces": ["application/json"],
         "tags": ["Users"],
         "summary": "OAuth 2.0 GitHub Callback",
         "operationId": "oauth-20-github-callback",
@@ -2499,7 +2496,6 @@
             "CoderSessionToken": []
           }
         ],
-        "produces": ["application/json"],
         "tags": ["Users"],
         "summary": "OpenID Connect Callback",
         "operationId": "openid-connect-callback",
@@ -2794,7 +2790,6 @@
             "CoderSessionToken": []
           }
         ],
-        "produces": ["application/json"],
         "tags": ["Users"],
         "summary": "Delete API key",
         "operationId": "delete-api-key",
@@ -2900,7 +2895,6 @@
           }
         ],
         "consumes": ["application/json"],
-        "produces": ["application/json"],
         "tags": ["Users"],
         "summary": "Update user password",
         "operationId": "update-user-password",
@@ -3352,7 +3346,6 @@
           }
         ],
         "description": "It accepts a WebSocket connection to an agent that listens to\nincoming connections and publishes node updates.",
-        "produces": ["application/json"],
         "tags": ["Agents"],
         "summary": "Coordinate workspace agent via Tailnet",
         "operationId": "coordinate-workspace-agent-via-tailnet",
@@ -3937,7 +3930,6 @@
           }
         ],
         "consumes": ["application/json"],
-        "produces": ["application/json"],
         "tags": ["Workspaces"],
         "summary": "Update workspace metadata by ID",
         "operationId": "update-workspace-metadata-by-id",
@@ -3975,7 +3967,6 @@
           }
         ],
         "consumes": ["application/json"],
-        "produces": ["application/json"],
         "tags": ["Workspaces"],
         "summary": "Update workspace autostart schedule by ID",
         "operationId": "update-workspace-autostart-schedule-by-id",
@@ -4153,7 +4144,6 @@
           }
         ],
         "consumes": ["application/json"],
-        "produces": ["application/json"],
         "tags": ["Workspaces"],
         "summary": "Update workspace TTL by ID",
         "operationId": "update-workspace-ttl-by-id",

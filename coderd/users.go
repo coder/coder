@@ -619,7 +619,6 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 // @ID update-user-password
 // @Security CoderSessionToken
 // @Accept json
-// @Produce json
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
 // @Param request body codersdk.UpdateUserPasswordRequest true "Update password request"

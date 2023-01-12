@@ -26,8 +26,8 @@ type SwaggerComment struct {
 	method string
 	router string
 
-	hasSuccess bool
-	hasFailure bool
+	successes []response
+	failures  []response
 
 	parameters []parameter
 
@@ -37,6 +37,12 @@ type SwaggerComment struct {
 type parameter struct {
 	name string
 	kind string
+}
+
+type response struct {
+	status string
+	kind   string // {object} or {array}
+	model  string
 }
 
 func ParseSwaggerComments(dirs ...string) ([]SwaggerComment, error) {
@@ -79,6 +85,8 @@ func parseSwaggerComment(commentGroup *ast.CommentGroup) SwaggerComment {
 	c := SwaggerComment{
 		raw:        commentGroup.List,
 		parameters: []parameter{},
+		successes:  []response{},
+		failures:   []response{},
 	}
 	for _, line := range commentGroup.List {
 		splitN := strings.SplitN(strings.TrimSpace(line.Text), " ", 2)
@@ -98,9 +106,33 @@ func parseSwaggerComment(commentGroup *ast.CommentGroup) SwaggerComment {
 			args := strings.SplitN(text, " ", 2)
 			c.id = args[1]
 		} else if strings.HasPrefix(text, "@Success ") {
-			c.hasSuccess = true
+			args := strings.Split(text, " ")
+
+			var success response
+			if len(args) > 1 {
+				success.status = args[1]
+			}
+			if len(args) > 2 {
+				success.kind = args[2]
+			}
+			if len(args) > 3 {
+				success.model = args[3]
+			}
+			c.successes = append(c.successes, success)
 		} else if strings.HasPrefix(text, "@Failure ") {
-			c.hasFailure = true
+			args := strings.Split(text, " ")
+
+			var failure response
+			if len(args) > 1 {
+				failure.status = args[1]
+			}
+			if len(args) > 2 {
+				failure.kind = args[2]
+			}
+			if len(args) > 3 {
+				failure.model = args[3]
+			}
+			c.failures = append(c.successes, failure)
 		} else if strings.HasPrefix(text, "@Tags ") {
 			args := strings.SplitN(text, " ", 2)
 			c.tags = args[1]
@@ -149,7 +181,8 @@ func VerifySwaggerDefinitions(t *testing.T, router chi.Router, swaggerComments [
 			assertGoCommentFirst(t, *c)
 			assertPathParametersDefined(t, *c)
 			assertSecurityDefined(t, *c)
-			assertRequestBody(t, *c)
+			assertAccept(t, *c)
+			assertProduce(t, *c)
 		})
 		return nil
 	})
@@ -189,7 +222,7 @@ func assertConsistencyBetweenRouteIDAndSummary(t *testing.T, comment SwaggerComm
 }
 
 func assertSuccessOrFailureDefined(t *testing.T, comment SwaggerComment) {
-	assert.True(t, comment.hasSuccess || comment.hasFailure, "At least one @Success or @Failure annotation must be defined")
+	assert.True(t, len(comment.successes) > 0 || len(comment.failures) > 0, "At least one @Success or @Failure annotation must be defined")
 }
 
 func assertRequiredAnnotations(t *testing.T, comment SwaggerComment) {
@@ -248,7 +281,7 @@ func assertSecurityDefined(t *testing.T, comment SwaggerComment) {
 	assert.Equal(t, "CoderSessionToken", comment.security, "@Security must be equal CoderSessionToken")
 }
 
-func assertRequestBody(t *testing.T, comment SwaggerComment) {
+func assertAccept(t *testing.T, comment SwaggerComment) {
 	var hasRequestBody bool
 	for _, c := range comment.parameters {
 		if c.name == "request" && c.kind == "body" ||
@@ -269,5 +302,21 @@ func assertRequestBody(t *testing.T, comment SwaggerComment) {
 	} else {
 		assert.False(t, hasRequestBody && !hasAccept, "Route with the request body requires the @Accept annotation")
 		assert.False(t, !hasRequestBody && hasAccept, "Route with @Accept annotation requires the request body or file formData parameter")
+	}
+}
+
+func assertProduce(t *testing.T, comment SwaggerComment) {
+	var hasResponseModel bool
+	for _, r := range comment.successes {
+		if r.model != "" {
+			hasResponseModel = true
+			break
+		}
+	}
+
+	if hasResponseModel {
+		assert.True(t, comment.produce != "", "Route must have @Produce annotation as it responds with a model structure")
+	} else {
+		assert.True(t, comment.produce == "", "Response model is undefined, so we can't predict the content type", comment)
 	}
 }
