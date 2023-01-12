@@ -101,6 +101,9 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	))
 }
 
+// workspaces returns all workspaces a user can read.
+// Optional filters with query params
+//
 // @Summary List workspaces
 // @ID list-workspaces
 // @Security CoderSessionToken
@@ -113,9 +116,6 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 // @Param has_agent query string false "Filter by agent status" Enums(connected,connecting,disconnected,timeout)
 // @Success 200 {object} codersdk.WorkspacesResponse
 // @Router /workspaces [get]
-//
-// workspaces returns all workspaces a user can read.
-// Optional filters with query params
 func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -266,6 +266,8 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 	))
 }
 
+// Create a new workspace for the currently authenticated user.
+//
 // @Summary Create user workspace by organization
 // @ID create-user-workspace-by-organization
 // @Security CoderSessionToken
@@ -275,8 +277,6 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 // @Param user path string true "Username, UUID, or me"
 // @Success 200 {object} codersdk.Workspace
 // @Router /organizations/{organization}/members/{user}/workspaces [post]
-//
-// Create a new workspace for the currently authenticated user.
 func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx                   = r.Context()

@@ -23,6 +23,8 @@ import (
 	"github.com/coder/coder/examples"
 )
 
+// Returns a single template.
+//
 // @Summary Get template metadata by ID
 // @ID get-template-metadata-by-id
 // @Security CoderSessionToken
@@ -31,7 +33,6 @@ import (
 // @Param template path string true "Template ID" format(uuid)
 // @Success 200 {object} codersdk.Template
 // @Router /templates/{template} [get]
-// Returns a single template.
 func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
@@ -131,6 +132,9 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Create a new template in an organization.
+// Returns a single template.
+//
 // @Summary Create template by organization
 // @ID create-template-by-organization
 // @Security CoderSessionToken
@@ -141,8 +145,6 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 // @Param organization path string true "Organization ID"
 // @Success 200 {object} codersdk.Template
 // @Router /organizations/{organization}/templates [post]
-// Returns a single template.
-// Create a new template in an organization.
 func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx                                = r.Context()

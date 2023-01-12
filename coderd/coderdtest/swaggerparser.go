@@ -25,6 +25,8 @@ type SwaggerComment struct {
 
 	hasSuccess bool
 	hasFailure bool
+
+	raw []*ast.Comment
 }
 
 func ParseSwaggerComments(dirs ...string) ([]SwaggerComment, error) {
@@ -64,7 +66,9 @@ func ParseSwaggerComments(dirs ...string) ([]SwaggerComment, error) {
 }
 
 func parseSwaggerComment(commentGroup *ast.CommentGroup) SwaggerComment {
-	var c SwaggerComment
+	c := SwaggerComment{
+		raw: commentGroup.List,
+	}
 	for _, line := range commentGroup.List {
 		splitN := strings.SplitN(strings.TrimSpace(line.Text), " ", 2)
 		if len(splitN) < 2 {
@@ -113,6 +117,7 @@ func VerifySwaggerDefinitions(t *testing.T, router chi.Router, swaggerComments [
 			assertConsistencyBetweenRouteIDAndSummary(t, *c)
 			assertSuccessOrFailureDefined(t, *c)
 			assertRequiredAnnotations(t, *c)
+			assertGoCommentFirst(t, *c)
 		})
 		return nil
 	})
@@ -146,4 +151,22 @@ func assertRequiredAnnotations(t *testing.T, comment SwaggerComment) {
 	assert.NotEmpty(t, comment.id, "@ID must be defined")
 	assert.NotEmpty(t, comment.summary, "@Summary must be defined")
 	assert.NotEmpty(t, comment.tags, "@Tags must be defined")
+}
+
+func assertGoCommentFirst(t *testing.T, comment SwaggerComment) {
+	var inSwaggerBlock bool
+
+	for _, line := range comment.raw {
+		text := strings.TrimSpace(line.Text)
+
+		if inSwaggerBlock {
+			if !strings.HasPrefix(text, "// @") {
+				assert.Fail(t, "Go function comment must be placed before swagger comments")
+				return
+			}
+		}
+		if strings.HasPrefix(text, "// @Summary") {
+			inSwaggerBlock = true
+		}
+	}
 }

@@ -911,6 +911,8 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 	})
 }
 
+// postTemplateVersionsByOrganization creates a new version of a template. An import job is queued to parse the storage method provided.
+//
 // @Summary Create template version by organization
 // @ID create-template-version-by-organization
 // @Security CoderSessionToken
@@ -921,8 +923,6 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 // @Param request body codersdk.CreateTemplateVersionDryRunRequest true "Create template version request"
 // @Success 201 {object} codersdk.TemplateVersion
 // @Router /organizations/{organization}/templateversions [post]
-//
-// postTemplateVersionsByOrganization creates a new version of a template. An import job is queued to parse the storage method provided.
 func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -1207,6 +1207,12 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 	httpapi.Write(ctx, rw, http.StatusCreated, convertTemplateVersion(templateVersion, convertProvisionerJob(provisionerJob), user))
 }
 
+// templateVersionResources returns the workspace agent resources associated
+// with a template version. A template can specify more than one resource to be
+// provisioned, each resource can have an agent that dials back to coderd. The
+// agents returned are informative of the template version, and do not return
+// agents associated with any particular workspace.
+//
 // @Summary Get resources by template version
 // @ID get-resources-by-template-version
 // @Security CoderSessionToken
@@ -1215,12 +1221,6 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 // @Param templateversion path string true "Template version ID" format(uuid)
 // @Success 200 {array} codersdk.WorkspaceResource
 // @Router /templateversions/{templateversion}/resources [get]
-//
-// templateVersionResources returns the workspace agent resources associated
-// with a template version. A template can specify more than one resource to be
-// provisioned, each resource can have an agent that dials back to coderd. The
-// agents returned are informative of the template version, and do not return
-// agents associated with any particular workspace.
 func (api *API) templateVersionResources(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx             = r.Context()
@@ -1244,6 +1244,11 @@ func (api *API) templateVersionResources(rw http.ResponseWriter, r *http.Request
 	api.provisionerJobResources(rw, r, job)
 }
 
+// templateVersionLogs returns the logs returned by the provisioner for the given
+// template version. These logs are only associated with the template version,
+// and not any build logs for a workspace.
+// Eg: Logs returned from 'terraform plan' when uploading a new terraform file.
+//
 // @Summary Get logs by template version
 // @ID get-logs-by-template-version
 // @Security CoderSessionToken
@@ -1255,11 +1260,6 @@ func (api *API) templateVersionResources(rw http.ResponseWriter, r *http.Request
 // @Param follow query bool false "Follow log stream"
 // @Success 200 {array} codersdk.ProvisionerJobLog
 // @Router /templateversions/{templateversion}/logs [get]
-//
-// templateVersionLogs returns the logs returned by the provisioner for the given
-// template version. These logs are only associated with the template version,
-// and not any build logs for a workspace.
-// Eg: Logs returned from 'terraform plan' when uploading a new terraform file.
 func (api *API) templateVersionLogs(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx             = r.Context()
