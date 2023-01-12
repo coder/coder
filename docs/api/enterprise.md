@@ -242,18 +242,18 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/groups/{groupName} \
+curl -X GET http://coder-server:8080/api/v2/groups/{group} \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /groups/{groupName}`
+`GET /groups/{group}`
 
 ### Parameters
 
-| Name        | In   | Type   | Required | Description |
-| ----------- | ---- | ------ | -------- | ----------- |
-| `groupName` | path | string | true     | Group name  |
+| Name    | In   | Type   | Required | Description |
+| ------- | ---- | ------ | -------- | ----------- |
+| `group` | path | string | true     | Group name  |
 
 ### Example responses
 
@@ -295,29 +295,121 @@ curl -X GET http://coder-server:8080/api/v2/groups/{groupName} \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Delete license
+## Delete group by name
 
 ### Code samples
 
 ```shell
 # Example request using curl
-curl -X DELETE http://coder-server:8080/api/v2/license/{id} \
+curl -X DELETE http://coder-server:8080/api/v2/groups/{group} \
+  -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /license/{id}`
+`DELETE /groups/{group}`
 
 ### Parameters
 
-| Name | In   | Type           | Required | Description |
-| ---- | ---- | -------------- | -------- | ----------- |
-| `id` | path | string(number) | true     | License ID  |
+| Name    | In   | Type   | Required | Description |
+| ------- | ---- | ------ | -------- | ----------- |
+| `group` | path | string | true     | Group name  |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "avatar_url": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "members": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+      "roles": [
+        {
+          "display_name": "string",
+          "name": "string"
+        }
+      ],
+      "status": "active",
+      "username": "string"
+    }
+  ],
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "quota_allowance": 0
+}
+```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema |
-| ------ | ------------------------------------------------------- | ----------- | ------ |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
+| Status | Meaning                                                 | Description | Schema                                     |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Group](schemas.md#codersdkgroup) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update group by name
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /groups/{group}`
+
+### Parameters
+
+| Name    | In   | Type   | Required | Description |
+| ------- | ---- | ------ | -------- | ----------- |
+| `group` | path | string | true     | Group name  |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "avatar_url": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "members": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+      "roles": [
+        {
+          "display_name": "string",
+          "name": "string"
+        }
+      ],
+      "status": "active",
+      "username": "string"
+    }
+  ],
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "quota_allowance": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                     |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Group](schemas.md#codersdkgroup) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -366,6 +458,32 @@ Status Code **200**
 | `» id`          | integer           | false    |              |                                                                                                                                                                                                        |
 | `» uploaded_at` | string(date-time) | false    |              |                                                                                                                                                                                                        |
 | `» uuid`        | string(uuid)      | false    |              |                                                                                                                                                                                                        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete license
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/licenses/{id} \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /licenses/{id}`
+
+### Parameters
+
+| Name | In   | Type           | Required | Description |
+| ---- | ---- | -------------- | -------- | ----------- |
+| `id` | path | string(number) | true     | License ID  |
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema |
+| ------ | ------------------------------------------------------- | ----------- | ------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -459,6 +577,66 @@ Status Code **200**
 | -------- | ----------- |
 | `status` | `active`    |
 | `status` | `suspended` |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get group by organization and group name
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/{groupName} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /organizations/{organization}/groups/{groupName}`
+
+### Parameters
+
+| Name           | In   | Type         | Required | Description     |
+| -------------- | ---- | ------------ | -------- | --------------- |
+| `organization` | path | string(uuid) | true     | Organization ID |
+| `groupName`    | path | string       | true     | Group name      |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "avatar_url": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "members": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+      "roles": [
+        {
+          "display_name": "string",
+          "name": "string"
+        }
+      ],
+      "status": "active",
+      "username": "string"
+    }
+  ],
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "quota_allowance": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                     |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Group](schemas.md#codersdkgroup) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

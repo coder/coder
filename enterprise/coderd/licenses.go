@@ -178,7 +178,7 @@ func (api *API) licenses(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param id path string true "License ID" format(number)
 // @Success 200
-// @Router /license/{id} [delete]
+// @Router /licenses/{id} [delete]
 func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.AGPL.Authorize(r, rbac.ActionDelete, rbac.ResourceLicense) {

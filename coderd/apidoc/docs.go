@@ -500,7 +500,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/groups/{groupName}": {
+        "/groups/{group}": {
             "get": {
                 "security": [
                     {
@@ -519,7 +519,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Group name",
-                        "name": "groupName",
+                        "name": "group",
                         "in": "path",
                         "required": true
                     }
@@ -532,9 +532,7 @@ const docTemplate = `{
                         }
                     }
                 }
-            }
-        },
-        "/license/{id}": {
+            },
             "delete": {
                 "security": [
                     {
@@ -547,21 +545,55 @@ const docTemplate = `{
                 "tags": [
                     "Enterprise"
                 ],
-                "summary": "Delete license",
-                "operationId": "delete-license",
+                "summary": "Delete group by name",
+                "operationId": "delete-group-by-name",
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "number",
-                        "description": "License ID",
-                        "name": "id",
+                        "description": "Group name",
+                        "name": "group",
                         "in": "path",
                         "required": true
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Group"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update group by name",
+                "operationId": "update-group-by-name",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Group name",
+                        "name": "group",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Group"
+                        }
                     }
                 }
             }
@@ -624,6 +656,38 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.License"
                         }
+                    }
+                }
+            }
+        },
+        "/licenses/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Delete license",
+                "operationId": "delete-license",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "number",
+                        "description": "License ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
                     }
                 }
             }
@@ -774,6 +838,48 @@ const docTemplate = `{
                 "responses": {
                     "201": {
                         "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Group"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/groups/{groupName}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get group by organization and group name",
+                "operationId": "get-group-by-organization-and-group-name",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Group name",
+                        "name": "groupName",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Group"
                         }
