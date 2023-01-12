@@ -31,7 +31,7 @@ type PartialAuthorizer struct {
 var _ PreparedAuthorized = (*PartialAuthorizer)(nil)
 
 func (pa *PartialAuthorizer) CompileToSQL(ctx context.Context, cfg regosql.ConvertConfig) (string, error) {
-	ctx, span := tracing.StartSpan(ctx, trace.WithAttributes(
+	_, span := tracing.StartSpan(ctx, trace.WithAttributes(
 		// Query count is a rough indicator of the complexity of the query
 		// that needs to be converted into SQL.
 		attribute.Int("query_count", len(pa.preparedQueries)),

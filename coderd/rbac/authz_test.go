@@ -163,7 +163,6 @@ func BenchmarkRBACAuthorizeGroups(b *testing.B) {
 			}
 		})
 	}
-
 }
 
 // BenchmarkRBACFilter benchmarks the rbac.Filter method.
