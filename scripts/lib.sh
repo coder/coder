@@ -131,9 +131,16 @@ maybedryrun() {
 		log "DRYRUN: $*"
 	else
 		shift
-		log $ "$@"
-		"$@"
+		logrun "$@"
 	fi
+}
+
+# logrun prints the given program and flags, and then executes it.
+#
+# Usage: logrun gh release create ...
+logrun() {
+	log $ "$*"
+	"$@"
 }
 
 # log prints a message to stderr.

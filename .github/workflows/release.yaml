@@ -55,10 +55,10 @@ jobs:
       # Necessary for Docker manifest
       DOCKER_CLI_EXPERIMENTAL: "enabled"
     steps:
-      - name: Prevent non-dry-run releases on branches
-        if: ${{ github.action_ref != 'main' && !inputs.dry_run }}
+      - name: Check release on main (or dry-run)
+        if: ${{ github.ref_name != 'main' && !inputs.dry_run }}
         run: |
-          echo "Release not allowed on ${{ github.action_ref }}, use dry-run."
+          echo "Release not allowed on ${{ github.ref_name }}, use dry-run."
           exit 1
 
       - uses: actions/checkout@v3
