@@ -5,7 +5,7 @@ import i18next from "i18next"
 
 const { t } = i18next
 
-describe("AuthAndFrame", () => {
+describe("NavbarLayout", () => {
   it("sets localStorage key-value when dismissed", async () => {
     const localStorageMock = {
       ...global.localStorage,
@@ -13,13 +13,15 @@ describe("AuthAndFrame", () => {
     }
     global.localStorage = localStorageMock
 
-    // rendering a random page that is wrapped in AuthAndFrame
-    return renderWithAuth(<AccountPage />)
+    // rendering a random page that is wrapped in NavbarLayout
+    renderWithAuth(<AccountPage />)
+
     fireEvent.click(
       screen.getByRole("button", {
         name: t("ctas.dismissCta", { ns: "common" }),
       }),
     )
+
     expect(localStorageMock.getItem).toHaveBeenCalledWith("dismissedVersion")
   })
 })
