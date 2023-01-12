@@ -4,13 +4,13 @@ import List from "@material-ui/core/List"
 import ListItem from "@material-ui/core/ListItem"
 import { makeStyles } from "@material-ui/core/styles"
 import MenuIcon from "@material-ui/icons/Menu"
+import { CoderIcon } from "components/Icons/CoderIcon"
 import { useState } from "react"
 import { NavLink, useLocation } from "react-router-dom"
 import { colors } from "theme/colors"
 import * as TypesGen from "../../api/typesGenerated"
-import { containerWidth, navHeight, sidePadding } from "../../theme/constants"
+import { navHeight } from "../../theme/constants"
 import { combineClasses } from "../../util/combineClasses"
-import { Logo } from "../Icons/Logo"
 import { UserDropdown } from "../UserDropdown/UsersDropdown"
 
 export interface NavbarViewProps {
@@ -117,7 +117,7 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
               {logo_url ? (
                 <img src={logo_url} alt="Custom Logo" />
               ) : (
-                <Logo fill="white" opacity={1} width={125} />
+                <CoderIcon className={styles.logo} />
               )}
             </div>
             <NavItems
@@ -131,7 +131,7 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
           {logo_url ? (
             <img src={logo_url} alt="Custom Logo" />
           ) : (
-            <Logo fill="white" opacity={1} width={125} />
+            <CoderIcon fill="white" opacity={1} width={125} />
           )}
         </NavLink>
 
@@ -159,20 +159,13 @@ const useStyles = makeStyles((theme) => ({
   root: {
     height: navHeight,
     background: theme.palette.background.paper,
-    "@media (display-mode: standalone)": {
-      borderTop: `1px solid ${theme.palette.divider}`,
-    },
     borderBottom: `1px solid ${theme.palette.divider}`,
-    transition: "margin 150ms ease",
   },
   wrapper: {
     position: "relative",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    margin: "0 auto",
-    maxWidth: containerWidth,
-    padding: `0 ${sidePadding}px`,
     [theme.breakpoints.up("md")]: {
       justifyContent: "flex-start",
     },
@@ -195,6 +188,7 @@ const useStyles = makeStyles((theme) => ({
     },
   },
   profileButton: {
+    paddingRight: theme.spacing(2),
     [theme.breakpoints.up("md")]: {
       marginLeft: "auto",
     },
@@ -208,11 +202,14 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     display: "flex",
     height: navHeight,
-    paddingRight: theme.spacing(4),
+    color: theme.palette.text.primary,
+    width: "fit-content",
+    maxWidth: theme.spacing(15),
+    padding: theme.spacing(2),
     // svg is for the Coder logo, img is for custom images
     "& svg, & img": {
-      width: 109,
-      maxHeight: `calc(${navHeight}px)`,
+      width: "100%",
+      height: "100%",
     },
   },
   title: {
@@ -238,26 +235,8 @@ const useStyles = makeStyles((theme) => ({
 
     // NavLink adds this class when the current route matches.
     "&.active": {
-      position: "relative",
       color: theme.palette.text.primary,
       fontWeight: "bold",
-
-      "&::before": {
-        content: `" "`,
-        left: 0,
-        width: 2,
-        height: "100%",
-        background: theme.palette.secondary.dark,
-        position: "absolute",
-
-        [theme.breakpoints.up("md")]: {
-          bottom: 0,
-          left: theme.spacing(3),
-          width: `calc(100% - 2 * ${theme.spacing(3)}px)`,
-          right: theme.spacing(3),
-          height: 2,
-        },
-      },
     },
 
     [theme.breakpoints.up("md")]: {
