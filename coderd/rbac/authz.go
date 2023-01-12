@@ -30,8 +30,18 @@ type PreparedAuthorized interface {
 // Ideally the 'CompileToSQL' is used instead for large sets. This cost scales
 // linearly with the number of objects passed in.
 func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, subjRoles []string, scope Scope, groups []string, action Action, objects []O) ([]O, error) {
+	if len(objects) == 0 {
+		// Nothing to filter
+		return objects, nil
+	}
+	objectType := objects[0].RBACObject().Type
+	filtered := make([]O, 0)
+
+	// Start the span after the object type is detected. If we are filtering 0
+	// objects, then the span is not interesting. It would just add excessive
+	// 0 time spans that provide no insight.
 	ctx, span := tracing.StartSpan(ctx,
-		rbacTraceAttributes(subjRoles, len(groups), scope, action, "",
+		rbacTraceAttributes(subjRoles, len(groups), scope, action, objectType,
 			// For filtering, we are only measuring the total time for the entire
 			// set of objects. This and the 'PrepareByRoleName' span time
 			// is all that is required to measure the performance of this
@@ -40,13 +50,6 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, sub
 		),
 	)
 	defer span.End()
-
-	if len(objects) == 0 {
-		// Nothing to filter
-		return objects, nil
-	}
-	objectType := objects[0].RBACObject().Type
-	filtered := make([]O, 0)
 
 	// Running benchmarks on this function, it is **always** faster to call
 	// auth.ByRoleName on <10 objects. This is because the overhead of
