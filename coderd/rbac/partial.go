@@ -8,7 +8,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/rbac/regosql"
-	"github.com/coder/coder/coderd/tracing"
 )
 
 type PartialAuthorizer struct {
@@ -111,9 +110,6 @@ EachQueryLoop:
 }
 
 func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, scope Role, groups []string, action Action, objectType string) (*PartialAuthorizer, error) {
-	ctx, span := tracing.StartSpan(ctx)
-	defer span.End()
-
 	input := map[string]interface{}{
 		"subject": authSubject{
 			ID:     subjectID,
