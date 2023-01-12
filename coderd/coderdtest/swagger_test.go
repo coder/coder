@@ -94,24 +94,29 @@ func parseSwaggerComments(dir string) ([]swaggerComment, error) {
 func parseSwaggerComment(commentGroup *ast.CommentGroup) swaggerComment {
 	var c swaggerComment
 	for _, line := range commentGroup.List {
-		text := strings.TrimSpace(line.Text)
-		if strings.Contains(text, "@Router ") {
-			args := strings.SplitN(text, " ", 4)
-			c.router = args[2]
-			c.method = args[3][1 : len(args[3])-1]
-		} else if strings.Contains(text, "@Summary ") {
+		splitN := strings.SplitN(strings.TrimSpace(line.Text), " ", 2)
+		if len(splitN) < 2 {
+			continue // comment prefix without any content
+		}
+		text := splitN[1] // Skip the comment prefix (double-slash)
+
+		if strings.HasPrefix(text, "@Router ") {
 			args := strings.SplitN(text, " ", 3)
-			c.summary = args[2]
-		} else if strings.Contains(text, "@ID ") {
-			args := strings.SplitN(text, " ", 3)
-			c.id = args[2]
-		} else if strings.Contains(text, "@Success ") {
+			c.router = args[1]
+			c.method = args[2][1 : len(args[2])-1]
+		} else if strings.HasPrefix(text, "@Summary ") {
+			args := strings.SplitN(text, " ", 2)
+			c.summary = args[1]
+		} else if strings.HasPrefix(text, "@ID ") {
+			args := strings.SplitN(text, " ", 2)
+			c.id = args[1]
+		} else if strings.HasPrefix(text, "@Success ") {
 			c.hasSuccess = true
-		} else if strings.Contains(text, "@Failure ") {
+		} else if strings.HasPrefix(text, "@Failure ") {
 			c.hasFailure = true
-		} else if strings.Contains(text, "@Tags ") {
-			args := strings.SplitN(text, " ", 3)
-			c.tags = args[2]
+		} else if strings.HasPrefix(text, "@Tags ") {
+			args := strings.SplitN(text, " ", 2)
+			c.tags = args[1]
 		}
 	}
 	return c
