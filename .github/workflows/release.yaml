@@ -77,6 +77,14 @@ jobs:
       - name: Fetch git tags
         run: git fetch --tags --force
 
+      - name: Test
+        run: |
+          echo ${{ inputs.dry_run && '--dry-run' || 'no dry' }}
+          echo ${{ !inputs.dry_run && 'no dry' || '--dry-run'}}
+          echo ${{ (!inputs.dry_run && !inputs.snapshot) && 'release' || 'no release'}}
+          echo ${{ (inputs.dry_run || inputs.snapshot) && 'no release' || 'release'}}
+          exit 1
+
       # Configure git user name/email for creating annotated version tag.
       - name: Setup git config
         run: |
