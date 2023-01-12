@@ -1,6 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import VpnKeyOutlined from "@material-ui/icons/VpnKeyOutlined"
-import FingerprintOutlinedIcon from '@material-ui/icons/FingerprintOutlined';
+import FingerprintOutlinedIcon from "@material-ui/icons/FingerprintOutlined"
 import { User } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
 import { UserAvatar } from "components/UserAvatar/UserAvatar"

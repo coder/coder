@@ -14,7 +14,7 @@ interface Context {
 }
 
 type Events =
-  | { type: "DELETE_TOKEN", id: string }
+  | { type: "DELETE_TOKEN"; id: string }
   | { type: "CONFIRM_DELETE_TOKEN" }
   | { type: "CANCEL_DELETE_TOKEN" }
 
@@ -30,7 +30,7 @@ export const tokensMachine = createMachine(
           data: APIKey[]
         }
         deleteToken: {
-          data: unknown,
+          data: unknown
         }
       },
     },
@@ -101,7 +101,7 @@ export const tokensMachine = createMachine(
     services: {
       getTokens: () => getTokens(),
       deleteToken: (context) => {
-        if  (context.deleteTokenId === undefined) {
+        if (context.deleteTokenId === undefined) {
           return Promise.reject("No token id to delete")
         }
 
