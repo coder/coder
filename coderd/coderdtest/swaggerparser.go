@@ -317,6 +317,12 @@ func assertProduce(t *testing.T, comment SwaggerComment) {
 	if hasResponseModel {
 		assert.True(t, comment.produce != "", "Route must have @Produce annotation as it responds with a model structure")
 	} else {
+		if (comment.router == "/workspaceagents/me/app-health" && comment.method == "post") ||
+			(comment.router == "/workspaceagents/me/version" && comment.method == "post") ||
+			(comment.router == "/licenses/{id}" && comment.method == "delete") {
+			return // Exception: HTTP 200 is returned without response entity
+		}
+
 		assert.True(t, comment.produce == "", "Response model is undefined, so we can't predict the content type", comment)
 	}
 }
