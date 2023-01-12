@@ -57,7 +57,9 @@ jobs:
     steps:
       - name: Prevent non-dry-run releases on branches
         if: ${{ github.action_ref != 'main' && !inputs.dry_run }}
-        run: exit 1
+        run: |
+          echo "Release not allowed on ${{ github.action_ref }}, use dry-run."
+          exit 1
 
       - uses: actions/checkout@v3
         with:
