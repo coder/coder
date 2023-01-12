@@ -2227,6 +2227,14 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
+                        "description": "Job ID",
+                        "name": "jobID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
                         "description": "Template version ID",
                         "name": "templateversion",
                         "in": "path",
@@ -2271,7 +2279,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Job ID",
-                        "name": "job-ID",
+                        "name": "jobID",
                         "in": "path",
                         "required": true
                     },
@@ -4399,7 +4407,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Workspace ID",
-                        "name": "id",
+                        "name": "workspace",
                         "in": "path",
                         "required": true
                     },

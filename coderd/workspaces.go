@@ -48,7 +48,7 @@ var (
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
-// @Param id path string true "Workspace ID" format(uuid)
+// @Param workspace path string true "Workspace ID" format(uuid)
 // @Param include_deleted query bool false "Return data instead of HTTP 404 if the workspace is deleted"
 // @Success 200 {object} codersdk.Workspace
 // @Router /workspaces/{workspace} [get]

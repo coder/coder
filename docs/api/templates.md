@@ -1401,6 +1401,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
 
 | Name              | In   | Type         | Required | Description         |
 | ----------------- | ---- | ------------ | -------- | ------------------- |
+| `jobID`           | path | string(uuid) | true     | Job ID              |
 | `templateversion` | path | string(uuid) | true     | Template version ID |
 
 ### Example responses
@@ -1446,7 +1447,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
 | Name              | In    | Type         | Required | Description           |
 | ----------------- | ----- | ------------ | -------- | --------------------- |
 | `templateversion` | path  | string(uuid) | true     | Template version ID   |
-| `job-ID`          | path  | string(uuid) | true     | Job ID                |
+| `jobID`           | path  | string(uuid) | true     | Job ID                |
 | `before`          | query | integer      | false    | Before Unix timestamp |
 | `after`           | query | integer      | false    | After Unix timestamp  |
 | `follow`          | query | boolean      | false    | Follow log stream     |

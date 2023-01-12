@@ -522,7 +522,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
 
 | Name              | In    | Type         | Required | Description                                                 |
 | ----------------- | ----- | ------------ | -------- | ----------------------------------------------------------- |
-| `id`              | path  | string(uuid) | true     | Workspace ID                                                |
+| `workspace`       | path  | string(uuid) | true     | Workspace ID                                                |
 | `include_deleted` | query | boolean      | false    | Return data instead of HTTP 404 if the workspace is deleted |
 
 ### Example responses

@@ -27,7 +27,14 @@ type SwaggerComment struct {
 	hasSuccess bool
 	hasFailure bool
 
+	parameters []parameter
+
 	raw []*ast.Comment
+}
+
+type parameter struct {
+	name string
+	kind string
 }
 
 func ParseSwaggerComments(dirs ...string) ([]SwaggerComment, error) {
@@ -68,7 +75,8 @@ func ParseSwaggerComments(dirs ...string) ([]SwaggerComment, error) {
 
 func parseSwaggerComment(commentGroup *ast.CommentGroup) SwaggerComment {
 	c := SwaggerComment{
-		raw: commentGroup.List,
+		raw:        commentGroup.List,
+		parameters: []parameter{},
 	}
 	for _, line := range commentGroup.List {
 		splitN := strings.SplitN(strings.TrimSpace(line.Text), " ", 2)
@@ -97,6 +105,13 @@ func parseSwaggerComment(commentGroup *ast.CommentGroup) SwaggerComment {
 		} else if strings.HasPrefix(text, "@Security ") {
 			args := strings.SplitN(text, " ", 2)
 			c.security = args[1]
+		} else if strings.HasPrefix(text, "@Param ") {
+			args := strings.SplitN(text, " ", 4)
+			p := parameter{
+				name: args[1],
+				kind: args[2],
+			}
+			c.parameters = append(c.parameters, p)
 		}
 	}
 	return c
@@ -122,7 +137,7 @@ func VerifySwaggerDefinitions(t *testing.T, router chi.Router, swaggerComments [
 			assertSuccessOrFailureDefined(t, *c)
 			assertRequiredAnnotations(t, *c)
 			assertGoCommentFirst(t, *c)
-			assertURLParamsDefined(t, *c)
+			assertPathParametersDefined(t, *c)
 			assertSecurityDefined(t, *c)
 		})
 		return nil
@@ -177,7 +192,27 @@ func assertGoCommentFirst(t *testing.T, comment SwaggerComment) {
 	}
 }
 
-func assertURLParamsDefined(t *testing.T, comment SwaggerComment) {
+var urlParameterRegexp = regexp.MustCompile(`{[^{}]*}`)
+
+func assertPathParametersDefined(t *testing.T, comment SwaggerComment) {
+	matches := urlParameterRegexp.FindAllString(comment.router, -1)
+	if matches == nil {
+		return // router does not require any parameters
+	}
+
+	for _, m := range matches {
+		var matched bool
+		for _, p := range comment.parameters {
+			if p.kind == "path" && "{"+p.name+"}" == m {
+				matched = true
+				break
+			}
+		}
+
+		if !matched {
+			assert.Failf(t, "Missing @Param annotation", "Path parameter: %s", m)
+		}
+	}
 }
 
 func assertSecurityDefined(t *testing.T, comment SwaggerComment) {

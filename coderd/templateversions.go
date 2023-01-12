@@ -394,7 +394,7 @@ func (api *API) templateVersionDryRunResources(rw http.ResponseWriter, r *http.R
 // @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
-// @Param job-ID path string true "Job ID" format(uuid)
+// @Param jobID path string true "Job ID" format(uuid)
 // @Param before query int false "Before Unix timestamp"
 // @Param after query int false "After Unix timestamp"
 // @Param follow query bool false "Follow log stream"
@@ -414,6 +414,7 @@ func (api *API) templateVersionDryRunLogs(rw http.ResponseWriter, r *http.Reques
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
+// @Param jobID path string true "Job ID" format(uuid)
 // @Param templateversion path string true "Template version ID" format(uuid)
 // @Success 200 {object} codersdk.Response
 // @Router /templateversions/{templateversion}/dry-run/{jobID}/cancel [patch]
