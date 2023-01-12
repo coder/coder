@@ -30,5 +30,4 @@ export const Example = Template.bind({})
 Example.args = {
   title: "My Form",
   detail: "Lorem ipsum dolor",
-  onCancel: action("cancel"),
 }

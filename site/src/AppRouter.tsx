@@ -18,7 +18,7 @@ import { Route, Routes } from "react-router-dom"
 import { selectPermissions } from "xServices/auth/authSelectors"
 import { selectFeatureVisibility } from "xServices/entitlements/entitlementsSelectors"
 import { XServiceContext } from "xServices/StateContext"
-import { NavbarLayout } from "./components/NavbarLayout/NavbarLayout"
+import { DashboardLayout } from "./components/DashboardLayout/DashboardLayout"
 import { RequireAuth } from "./components/RequireAuth/RequireAuth"
 import { SettingsLayout } from "./components/SettingsLayout/SettingsLayout"
 import { DeploySettingsLayout } from "components/DeploySettingsLayout/DeploySettingsLayout"
@@ -134,132 +134,79 @@ export const AppRouter: FC = () => {
         <Route path="login" element={<LoginPage />} />
         <Route path="setup" element={<SetupPage />} />
 
-        {/* Authenticated routes */}
+        {/* Dashboard routes */}
         <Route element={<RequireAuth />}>
-          <Route index element={<IndexPage />} />
+          <Route element={<DashboardLayout />}>
+            <Route index element={<IndexPage />} />
 
-          <Route path="cli-auth" element={<CliAuthenticationPage />} />
-          <Route path="gitauth" element={<GitAuthPage />} />
+            <Route path="cli-auth" element={<CliAuthenticationPage />} />
+            <Route path="gitauth" element={<GitAuthPage />} />
 
-          <Route
-            path="workspaces"
-            element={
-              <NavbarLayout>
-                <WorkspacesPage />
-              </NavbarLayout>
-            }
-          />
+            <Route path="workspaces" element={<WorkspacesPage />} />
 
-          <Route path="starter-templates">
-            <Route
-              index
-              element={
-                <NavbarLayout>
-                  <StarterTemplatesPage />
-                </NavbarLayout>
-              }
-            />
+            <Route path="starter-templates">
+              <Route index element={<StarterTemplatesPage />} />
+              <Route path=":exampleId" element={<StarterTemplatePage />} />
+            </Route>
 
-            <Route
-              path=":exampleId"
-              element={
-                <NavbarLayout>
-                  <StarterTemplatePage />
-                </NavbarLayout>
-              }
-            />
-          </Route>
-
-          <Route path="templates">
-            <Route
-              index
-              element={
-                <NavbarLayout>
-                  <TemplatesPage />
-                </NavbarLayout>
-              }
-            />
-
-            <Route path="new" element={<CreateTemplatePage />} />
-
-            <Route path=":template">
-              <Route
-                index
-                element={
-                  <NavbarLayout>
+            <Route path="templates">
+              <Route index element={<TemplatesPage />} />
+              <Route path="new" element={<CreateTemplatePage />} />
+              <Route path=":template">
+                <Route
+                  index
+                  element={
                     <TemplateLayout>
                       <TemplateSummaryPage />
                     </TemplateLayout>
-                  </NavbarLayout>
-                }
-              />
-              <Route
-                path="permissions"
-                element={
-                  <NavbarLayout>
+                  }
+                />
+                <Route
+                  path="permissions"
+                  element={
                     <TemplateLayout>
                       <TemplatePermissionsPage />
                     </TemplateLayout>
-                  </NavbarLayout>
-                }
-              />
-              <Route path="workspace" element={<CreateWorkspacePage />} />
-              <Route path="settings" element={<TemplateSettingsPage />} />
-              <Route path="versions">
-                <Route
-                  path=":version"
-                  element={
-                    <NavbarLayout>
-                      <TemplateVersionPage />
-                    </NavbarLayout>
                   }
                 />
+                <Route path="workspace" element={<CreateWorkspacePage />} />
+                <Route path="settings" element={<TemplateSettingsPage />} />
+                <Route path="versions">
+                  <Route path=":version" element={<TemplateVersionPage />} />
+                </Route>
               </Route>
             </Route>
-          </Route>
 
-          <Route path="users">
-            <Route
-              index
-              element={
-                <NavbarLayout>
+            <Route path="users">
+              <Route
+                index
+                element={
                   <UsersLayout>
                     <UsersPage />
                   </UsersLayout>
-                </NavbarLayout>
-              }
-            />
-            <Route path="create" element={<CreateUserPage />} />
-          </Route>
+                }
+              />
+              <Route path="create" element={<CreateUserPage />} />
+            </Route>
 
-          <Route path="/groups">
-            <Route
-              index
-              element={
-                <NavbarLayout>
+            <Route path="/groups">
+              <Route
+                index
+                element={
                   <UsersLayout>
                     <GroupsPage />
                   </UsersLayout>
-                </NavbarLayout>
-              }
-            />
-            <Route path="create" element={<CreateGroupPage />} />
-            <Route
-              path=":groupId"
-              element={
-                <NavbarLayout>
-                  <GroupPage />
-                </NavbarLayout>
-              }
-            />
-            <Route path=":groupId/settings" element={<SettingsGroupPage />} />
-          </Route>
+                }
+              />
+              <Route path="create" element={<CreateGroupPage />} />
+              <Route path=":groupId" element={<GroupPage />} />
+              <Route path=":groupId/settings" element={<SettingsGroupPage />} />
+            </Route>
 
-          <Route path="/audit">
-            <Route
-              index
-              element={
-                <NavbarLayout>
+            <Route path="/audit">
+              <Route
+                index
+                element={
                   <RequirePermission
                     isFeatureVisible={
                       featureVisibility[FeatureNames.AuditLog] &&
@@ -268,16 +215,14 @@ export const AppRouter: FC = () => {
                   >
                     <AuditPage />
                   </RequirePermission>
-                </NavbarLayout>
-              }
-            />
-          </Route>
+                }
+              />
+            </Route>
 
-          <Route path="/settings/deployment">
-            <Route
-              path="general"
-              element={
-                <NavbarLayout>
+            <Route path="/settings/deployment">
+              <Route
+                path="general"
+                element={
                   <RequirePermission
                     isFeatureVisible={Boolean(
                       permissions?.viewDeploymentConfig,
@@ -287,13 +232,11 @@ export const AppRouter: FC = () => {
                       <GeneralSettingsPage />
                     </DeploySettingsLayout>
                   </RequirePermission>
-                </NavbarLayout>
-              }
-            />
-            <Route
-              path="security"
-              element={
-                <NavbarLayout>
+                }
+              />
+              <Route
+                path="security"
+                element={
                   <RequirePermission
                     isFeatureVisible={Boolean(
                       permissions?.viewDeploymentConfig,
@@ -303,13 +246,11 @@ export const AppRouter: FC = () => {
                       <SecuritySettingsPage />
                     </DeploySettingsLayout>
                   </RequirePermission>
-                </NavbarLayout>
-              }
-            />
-            <Route
-              path="appearance"
-              element={
-                <NavbarLayout>
+                }
+              />
+              <Route
+                path="appearance"
+                element={
                   <RequirePermission
                     isFeatureVisible={Boolean(
                       permissions?.viewDeploymentConfig,
@@ -319,13 +260,11 @@ export const AppRouter: FC = () => {
                       <AppearanceSettingsPage />
                     </DeploySettingsLayout>
                   </RequirePermission>
-                </NavbarLayout>
-              }
-            />
-            <Route
-              path="network"
-              element={
-                <NavbarLayout>
+                }
+              />
+              <Route
+                path="network"
+                element={
                   <RequirePermission
                     isFeatureVisible={Boolean(
                       permissions?.viewDeploymentConfig,
@@ -335,13 +274,11 @@ export const AppRouter: FC = () => {
                       <NetworkSettingsPage />
                     </DeploySettingsLayout>
                   </RequirePermission>
-                </NavbarLayout>
-              }
-            />
-            <Route
-              path="userauth"
-              element={
-                <NavbarLayout>
+                }
+              />
+              <Route
+                path="userauth"
+                element={
                   <RequirePermission
                     isFeatureVisible={Boolean(
                       permissions?.viewDeploymentConfig,
@@ -351,13 +288,11 @@ export const AppRouter: FC = () => {
                       <UserAuthSettingsPage />
                     </DeploySettingsLayout>
                   </RequirePermission>
-                </NavbarLayout>
-              }
-            />
-            <Route
-              path="gitauth"
-              element={
-                <NavbarLayout>
+                }
+              />
+              <Route
+                path="gitauth"
+                element={
                   <RequirePermission
                     isFeatureVisible={Boolean(
                       permissions?.viewDeploymentConfig,
@@ -367,72 +302,51 @@ export const AppRouter: FC = () => {
                       <GitAuthSettingsPage />
                     </DeploySettingsLayout>
                   </RequirePermission>
-                </NavbarLayout>
-              }
-            />
-          </Route>
+                }
+              />
+            </Route>
 
-          <Route path="settings">
-            <Route
-              path="account"
-              element={
-                <NavbarLayout>
+            <Route path="settings">
+              <Route
+                path="account"
+                element={
                   <SettingsLayout>
                     <AccountPage />
                   </SettingsLayout>
-                </NavbarLayout>
-              }
-            />
-            <Route
-              path="security"
-              element={
-                <NavbarLayout>
+                }
+              />
+              <Route
+                path="security"
+                element={
                   <SettingsLayout>
                     <SecurityPage />
                   </SettingsLayout>
-                </NavbarLayout>
-              }
-            />
-            <Route
-              path="ssh-keys"
-              element={
-                <NavbarLayout>
+                }
+              />
+              <Route
+                path="ssh-keys"
+                element={
                   <SettingsLayout>
                     <SSHKeysPage />
                   </SettingsLayout>
-                </NavbarLayout>
-              }
-            />
-          </Route>
-
-          <Route path="/@:username">
-            <Route path=":workspace">
-              <Route
-                index
-                element={
-                  <NavbarLayout>
-                    <WorkspacePage />
-                  </NavbarLayout>
                 }
               />
+            </Route>
 
-              <Route path="schedule" element={<WorkspaceSchedulePage />} />
-
-              <Route path="terminal" element={<TerminalPage />} />
-
-              <Route
-                path="builds/:buildNumber"
-                element={
-                  <NavbarLayout>
-                    <WorkspaceBuildPage />
-                  </NavbarLayout>
-                }
-              />
-
-              <Route
-                path="change-version"
-                element={<WorkspaceChangeVersionPage />}
-              />
+            <Route path="/@:username">
+              <Route path=":workspace">
+                <Route index element={<WorkspacePage />} />
+                <Route path="schedule" element={<WorkspaceSchedulePage />} />
+                <Route path="terminal" element={<TerminalPage />} />
+                <Route
+                  path="builds/:buildNumber"
+                  element={<WorkspaceBuildPage />}
+                />
+                <Route
+                  path="change-version"
+                  element={<WorkspaceChangeVersionPage />}
+                />
+              </Route>
             </Route>
           </Route>
         </Route>
