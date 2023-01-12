@@ -78,7 +78,7 @@ You can test outside of golang by using the `opa` cli.
 
 **Evaluation**
 
-opa eval --format=pretty 'false' -d policy.rego  -i input.json
+opa eval --format=pretty 'false' -d policy.rego -i input.json
 
 **Partial Evaluation**
 
