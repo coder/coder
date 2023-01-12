@@ -35,6 +35,14 @@ import (
 	"github.com/coder/coder/tailnet"
 )
 
+// @Summary Get workspace agent by ID
+// @ID get-workspace-agent-by-id
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Agents
+// @Param workspaceagent path string true "Workspace agent ID" format(uuid)
+// @Success 200 {object} codersdk.WorkspaceAgent
+// @Router /workspaceagents/{workspaceagent} [get]
 func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
@@ -198,6 +206,14 @@ func (api *API) postWorkspaceAgentVersion(rw http.ResponseWriter, r *http.Reques
 
 // workspaceAgentPTY spawns a PTY and pipes it over a WebSocket.
 // This is used for the web terminal.
+//
+// @Summary Open PTY to workspace agent
+// @ID open-pty-to-workspace agent
+// @Security CoderSessionToken
+// @Tags Agents
+// @Param workspaceagent path string true "Workspace agent ID" format(uuid)
+// @Success 101
+// @Router /workspaceagents/{workspaceagent}/pty [get]
 func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -276,6 +292,14 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	agent.Bicopy(ctx, wsNetConn, ptNetConn)
 }
 
+// @Summary Get listening ports for workspace agent
+// @ID get-listening-ports-for-workspace-agent
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Agents
+// @Param workspaceagent path string true "Workspace agent ID" format(uuid)
+// @Success 200 {object} codersdk.ListeningPortsResponse
+// @Router /workspaceagents/{workspaceagent}/listening-ports [get]
 func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
@@ -443,6 +467,14 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 	}, nil
 }
 
+// @Summary Get connection info for workspace agent
+// @ID get-connection-info-for-workspace-agent
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Agents
+// @Param workspaceagent path string true "Workspace agent ID" format(uuid)
+// @Success 200 {object} codersdk.WorkspaceAgentConnectionInfo
+// @Router /workspaceagents/{workspaceagent}/connection [get]
 func (api *API) workspaceAgentConnection(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
@@ -622,6 +654,14 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 // workspaceAgentClientCoordinate accepts a WebSocket that reads node network updates.
 // After accept a PubSub starts listening for new connection node updates
 // which are written to the WebSocket.
+//
+// @Summary Coordinate workspace agent
+// @ID coordinate-workspace-agent
+// @Security CoderSessionToken
+// @Tags Agents
+// @Param workspaceagent path string true "Workspace agent ID" format(uuid)
+// @Success 101
+// @Router /workspaceagents/{workspaceagent}/coordinate [get]
 func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

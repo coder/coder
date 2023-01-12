@@ -3842,6 +3842,169 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/{workspaceagent}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get workspace agent by ID",
+                "operationId": "get-workspace-agent-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgent"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaceagents/{workspaceagent}/connection": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get connection info for workspace agent",
+                "operationId": "get-connection-info-for-workspace-agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentConnectionInfo"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaceagents/{workspaceagent}/coordinate": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Coordinate workspace agent",
+                "operationId": "coordinate-workspace-agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                }
+            }
+        },
+        "/workspaceagents/{workspaceagent}/listening-ports": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get listening ports for workspace agent",
+                "operationId": "get-listening-ports-for-workspace-agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ListeningPortsResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaceagents/{workspaceagent}/pty": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Open PTY to workspace agent",
+                "operationId": "open-pty-to-workspace agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                }
+            }
+        },
         "/workspacebuilds/{workspacebuild}": {
             "get": {
                 "security": [
@@ -5851,6 +6014,47 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ListeningPort": {
+            "type": "object",
+            "properties": {
+                "network": {
+                    "description": "only \"tcp\" at the moment",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ListeningPortNetwork"
+                        }
+                    ]
+                },
+                "port": {
+                    "type": "integer"
+                },
+                "process_name": {
+                    "description": "may be empty",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ListeningPortNetwork": {
+            "type": "string",
+            "enum": [
+                "tcp"
+            ],
+            "x-enum-varnames": [
+                "ListeningPortNetworkTCP"
+            ]
+        },
+        "codersdk.ListeningPortsResponse": {
+            "type": "object",
+            "properties": {
+                "ports": {
+                    "description": "If there are no ports in the list, nothing should be displayed in the UI.\nThere must not be a \"no ports available\" message or anything similar, as\nthere will always be no ports displayed on platforms where our port\ndetection logic is unsupported.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ListeningPort"
+                    }
+                }
+            }
+        },
         "codersdk.LogLevel": {
             "type": "string",
             "enum": [
@@ -7219,6 +7423,14 @@ const docTemplate = `{
             "properties": {
                 "session_token": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentConnectionInfo": {
+            "type": "object",
+            "properties": {
+                "derp_map": {
+                    "$ref": "#/definitions/tailcfg.DERPMap"
                 }
             }
         },

@@ -2525,6 +2525,58 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `uploaded_at` | string  | false    |              |                                                                                                                                                                                                        |
 | `uuid`        | string  | false    |              |                                                                                                                                                                                                        |
 
+## codersdk.ListeningPort
+
+```json
+{
+  "network": "tcp",
+  "port": 0,
+  "process_name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type                                                           | Required | Restrictions | Description              |
+| -------------- | -------------------------------------------------------------- | -------- | ------------ | ------------------------ |
+| `network`      | [codersdk.ListeningPortNetwork](#codersdklisteningportnetwork) | false    |              | only "tcp" at the moment |
+| `port`         | integer                                                        | false    |              |                          |
+| `process_name` | string                                                         | false    |              | may be empty             |
+
+## codersdk.ListeningPortNetwork
+
+```json
+"tcp"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value |
+| ----- |
+| `tcp` |
+
+## codersdk.ListeningPortsResponse
+
+```json
+{
+  "ports": [
+    {
+      "network": "tcp",
+      "port": 0,
+      "process_name": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                      | Required | Restrictions | Description                                                                                                                                                                                                                                            |
+| ------- | --------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ports` | array of [codersdk.ListeningPort](#codersdklisteningport) | false    |              | If there are no ports in the list, nothing should be displayed in the UI. There must not be a "no ports available" message or anything similar, as there will always be no ports displayed on platforms where our port detection logic is unsupported. |
+
 ## codersdk.LogLevel
 
 ```json
@@ -4532,6 +4584,70 @@ Parameter represents a set value for the scope.
 | Name            | Type   | Required | Restrictions | Description |
 | --------------- | ------ | -------- | ------------ | ----------- |
 | `session_token` | string | false    |              |             |
+
+## codersdk.WorkspaceAgentConnectionInfo
+
+```json
+{
+  "derp_map": {
+    "omitDefaultRegions": true,
+    "regions": {
+      "property1": {
+        "avoid": true,
+        "embeddedRelay": true,
+        "nodes": [
+          {
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          }
+        ],
+        "regionCode": "string",
+        "regionID": 0,
+        "regionName": "string"
+      },
+      "property2": {
+        "avoid": true,
+        "embeddedRelay": true,
+        "nodes": [
+          {
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          }
+        ],
+        "regionCode": "string",
+        "regionID": 0,
+        "regionName": "string"
+      }
+    }
+  }
+}
+```
+
+### Properties
+
+| Name       | Type                               | Required | Restrictions | Description |
+| ---------- | ---------------------------------- | -------- | ------------ | ----------- |
+| `derp_map` | [tailcfg.DERPMap](#tailcfgderpmap) | false    |              |             |
 
 ## codersdk.WorkspaceAgentGitAuthResponse
 
