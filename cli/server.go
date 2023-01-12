@@ -1572,6 +1572,10 @@ func makeLogger(cmd *cobra.Command, cfg *codersdk.DeploymentConfig) (slog.Logger
 		level = slog.LevelDebug
 	}
 
+	if len(sinks) == 0 {
+		return slog.Logger{}, nil, xerrors.New("no loggers provided")
+	}
+
 	return slog.Make(sinks...).Leveled(level), func() {
 		for _, closer := range closers {
 			_ = closer()
