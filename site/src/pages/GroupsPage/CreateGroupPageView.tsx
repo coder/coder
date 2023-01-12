@@ -39,7 +39,7 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
 
   return (
     <Margins>
-      <FullPageForm title="Create group" onCancel={onCancel}>
+      <FullPageForm title="Create group">
         <form onSubmit={form.handleSubmit}>
           <TextField
             {...getFieldHelpers("name")}

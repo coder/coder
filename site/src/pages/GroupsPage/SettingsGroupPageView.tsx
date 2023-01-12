@@ -54,7 +54,7 @@ const UpdateGroupForm: FC<{
   const { t } = useTranslation("common")
 
   return (
-    <FullPageForm title="Group settings" onCancel={onCancel}>
+    <FullPageForm title="Group settings">
       <form onSubmit={form.handleSubmit}>
         <TextField
           {...getFieldHelpers("name")}

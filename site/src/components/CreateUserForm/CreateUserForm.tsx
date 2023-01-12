@@ -62,7 +62,7 @@ export const CreateUserForm: FC<
   )
 
   return (
-    <FullPageForm title="Create user" onCancel={onCancel}>
+    <FullPageForm title="Create user">
       <form onSubmit={form.handleSubmit} autoComplete="off">
         <Stack spacing={1}>
           <TextField
