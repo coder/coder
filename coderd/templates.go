@@ -28,9 +28,9 @@ import (
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
-// @Param id path string true "Template ID" format(uuid)
+// @Param template path string true "Template ID" format(uuid)
 // @Success 200 {object} codersdk.Template
-// @Router /templates/{id} [get]
+// @Router /templates/{template} [get]
 // Returns a single template.
 func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -75,9 +75,9 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
-// @Param id path string true "Template ID" format(uuid)
+// @Param template path string true "Template ID" format(uuid)
 // @Success 200 {object} codersdk.Response
-// @Router /templates/{id} [delete]
+// @Router /templates/{template} [delete]
 func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -465,9 +465,9 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
-// @Param id path string true "Template ID" format(uuid)
+// @Param template path string true "Template ID" format(uuid)
 // @Success 200 {object} codersdk.Template
-// @Router /templates/{id} [patch]
+// @Router /templates/{template} [patch]
 func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -593,9 +593,9 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
-// @Param id path string true "Template ID" format(uuid)
+// @Param template path string true "Template ID" format(uuid)
 // @Success 200 {object} codersdk.TemplateDAUsResponse
-// @Router /templates/{id}/daus [get]
+// @Router /templates/{template}/daus [get]
 func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)

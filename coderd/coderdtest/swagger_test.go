@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 )
@@ -21,25 +22,28 @@ type swaggerComment struct {
 func TestAllEndpointsDocumented(t *testing.T) {
 	t.Parallel()
 
-	swaggerCommentss, err := parseSwaggerComments("..") // TODO enterprise
+	// TODO parse enterprise
+	swaggerComments, err := parseSwaggerComments("..")
 	require.NoError(t, err, "can't parse swagger comments")
 
-	for _, c := range swaggerCommentss {
-		t.Log(c.method, c.router)
-	}
-
 	_, _, api := NewWithAPI(t, nil)
-	err = chi.Walk(api.APIHandler, func(method, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+	chi.Walk(api.APIHandler, func(method, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+		method = strings.ToLower(method)
+		if route != "/" && strings.HasSuffix(route, "/") {
+			route = route[:len(route)-1]
+		}
+
+		c := findSwaggerCommentByMethodAndRoute(swaggerComments, method, route)
+		assert.NotNil(t, c, "Missing @Router annotation for: [%s] %s", method, route)
 		return nil
 	})
-	require.Error(t, err)
 }
 
 func parseSwaggerComments(dir string) ([]swaggerComment, error) {
 	fileSet := token.NewFileSet()
 	commentNodes, err := parser.ParseDir(fileSet, dir, nil, parser.ParseComments)
 	if err != nil {
-		return nil, xerrors.Errorf(`can't parse directory "%s": %w`, dir)
+		return nil, xerrors.Errorf(`parser.ParseDir failed "%s": %w`, dir, err)
 	}
 
 	var swaggerComments []swaggerComment
@@ -73,8 +77,19 @@ func parseSwaggerComment(commentGroup *ast.CommentGroup) swaggerComment {
 	for _, line := range commentGroup.List {
 		text := strings.TrimSpace(line.Text)
 		if strings.Contains(text, "@Router ") {
-			c.router = strings.SplitN(text, " ", 3)[2]
+			args := strings.SplitN(text, " ", 4)
+			c.router = args[2]
+			c.method = args[3][1 : len(args[3])-1]
 		}
 	}
 	return c
+}
+
+func findSwaggerCommentByMethodAndRoute(comments []swaggerComment, method, route string) *swaggerComment {
+	for _, c := range comments {
+		if c.method == method && c.router == route {
+			return &c
+		}
+	}
+	return nil
 }

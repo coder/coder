@@ -357,9 +357,9 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 // @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
-// @Param jobid path string true "Job ID" format(uuid)
+// @Param jobID path string true "Job ID" format(uuid)
 // @Success 200 {object} codersdk.ProvisionerJob
-// @Router /templateversions/{templateversion}/dry-run/{jobid} [get]
+// @Router /templateversions/{templateversion}/dry-run/{jobID} [get]
 func (api *API) templateVersionDryRun(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	job, ok := api.fetchTemplateVersionDryRunJob(rw, r)
@@ -376,9 +376,9 @@ func (api *API) templateVersionDryRun(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
-// @Param jobid path string true "Job ID" format(uuid)
+// @Param jobID path string true "Job ID" format(uuid)
 // @Success 200 {array} codersdk.WorkspaceResource
-// @Router /templateversions/{templateversion}/dry-run/{jobid}/resources [get]
+// @Router /templateversions/{templateversion}/dry-run/{jobID}/resources [get]
 func (api *API) templateVersionDryRunResources(rw http.ResponseWriter, r *http.Request) {
 	job, ok := api.fetchTemplateVersionDryRunJob(rw, r)
 	if !ok {
@@ -394,12 +394,12 @@ func (api *API) templateVersionDryRunResources(rw http.ResponseWriter, r *http.R
 // @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
-// @Param jobid path string true "Job ID" format(uuid)
+// @Param job-ID path string true "Job ID" format(uuid)
 // @Param before query int false "Before Unix timestamp"
 // @Param after query int false "After Unix timestamp"
 // @Param follow query bool false "Follow log stream"
 // @Success 200 {array} codersdk.ProvisionerJobLog
-// @Router /templateversions/{templateversion}/dry-run/{jobid}/logs [get]
+// @Router /templateversions/{templateversion}/dry-run/{jobID}/logs [get]
 func (api *API) templateVersionDryRunLogs(rw http.ResponseWriter, r *http.Request) {
 	job, ok := api.fetchTemplateVersionDryRunJob(rw, r)
 	if !ok {
@@ -416,7 +416,7 @@ func (api *API) templateVersionDryRunLogs(rw http.ResponseWriter, r *http.Reques
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
 // @Success 200 {object} codersdk.Response
-// @Router /templateversions/{templateversion}/dry-run/{jobid}/cancel [patch]
+// @Router /templateversions/{templateversion}/dry-run/{jobID}/cancel [patch]
 func (api *API) patchTemplateVersionDryRunCancel(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	templateVersion := httpmw.TemplateVersionParam(r)
@@ -540,12 +540,12 @@ func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Re
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
-// @Param id path string true "Template ID" format(uuid)
+// @Param template path string true "Template ID" format(uuid)
 // @Param after_id query string false "After ID" format(uuid)
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
 // @Success 200 {array} codersdk.TemplateVersion
-// @Router /templates/{id}/versions [get]
+// @Router /templates/{template}/versions [get]
 func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
@@ -648,10 +648,10 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
-// @Param id path string true "Template ID" format(uuid)
+// @Param template path string true "Template ID" format(uuid)
 // @Param templateversionname path string true "Template version name"
 // @Success 200 {array} codersdk.TemplateVersion
-// @Router /templates/{id}/versions/{templateversionname} [get]
+// @Router /templates/{template}/versions/{templateversionname} [get]
 func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
@@ -834,9 +834,9 @@ func (api *API) previousTemplateVersionByOrganizationAndName(rw http.ResponseWri
 // @Produce json
 // @Tags Templates
 // @Param request body codersdk.UpdateActiveTemplateVersion true "Modified template version"
-// @Param id path string true "Template ID" format(uuid)
+// @Param template path string true "Template ID" format(uuid)
 // @Success 200 {object} codersdk.Response
-// @Router /templates/{id}/versions [patch]
+// @Router /templates/{template}/versions [patch]
 func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()

@@ -77,13 +77,13 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Builds
-// @Param id path string true "Workspace ID" format(uuid)
+// @Param workspace path string true "Workspace ID" format(uuid)
 // @Param after_id query string false "After ID" format(uuid)
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
 // @Param since query string false "Since timestamp" format(date-time)
 // @Success 200 {array} codersdk.WorkspaceBuild
-// @Router /workspaces/{id}/builds [get]
+// @Router /workspaces/{workspace}/builds [get]
 func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
@@ -293,10 +293,10 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 // @Accepts json
 // @Produce json
 // @Tags Builds
-// @Param id path string true "Workspace ID" format(uuid)
+// @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.CreateWorkspaceBuildRequest true "Create workspace build request"
 // @Success 200 {object} codersdk.WorkspaceBuild
-// @Router /workspaces/{id}/builds [post]
+// @Router /workspaces/{workspace}/builds [post]
 func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)

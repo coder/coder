@@ -51,7 +51,7 @@ var (
 // @Param id path string true "Workspace ID" format(uuid)
 // @Param include_deleted query bool false "Return data instead of HTTP 404 if the workspace is deleted"
 // @Success 200 {object} codersdk.Workspace
-// @Router /workspaces/{id} [get]
+// @Router /workspaces/{workspace} [get]
 func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)

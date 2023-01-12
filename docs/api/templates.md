@@ -630,18 +630,18 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/templates/{id} \
+curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templates/{id}`
+`GET /templates/{template}`
 
 ### Parameters
 
-| Name | In   | Type         | Required | Description |
-| ---- | ---- | ------------ | -------- | ----------- |
-| `id` | path | string(uuid) | true     | Template ID |
+| Name       | In   | Type         | Required | Description |
+| ---------- | ---- | ------------ | -------- | ----------- |
+| `template` | path | string(uuid) | true     | Template ID |
 
 ### Example responses
 
@@ -692,18 +692,18 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X DELETE http://coder-server:8080/api/v2/templates/{id} \
+curl -X DELETE http://coder-server:8080/api/v2/templates/{template} \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /templates/{id}`
+`DELETE /templates/{template}`
 
 ### Parameters
 
-| Name | In   | Type         | Required | Description |
-| ---- | ---- | ------------ | -------- | ----------- |
-| `id` | path | string(uuid) | true     | Template ID |
+| Name       | In   | Type         | Required | Description |
+| ---------- | ---- | ------------ | -------- | ----------- |
+| `template` | path | string(uuid) | true     | Template ID |
 
 ### Example responses
 
@@ -736,18 +736,18 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X PATCH http://coder-server:8080/api/v2/templates/{id} \
+curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /templates/{id}`
+`PATCH /templates/{template}`
 
 ### Parameters
 
-| Name | In   | Type         | Required | Description |
-| ---- | ---- | ------------ | -------- | ----------- |
-| `id` | path | string(uuid) | true     | Template ID |
+| Name       | In   | Type         | Required | Description |
+| ---------- | ---- | ------------ | -------- | ----------- |
+| `template` | path | string(uuid) | true     | Template ID |
 
 ### Example responses
 
@@ -798,18 +798,18 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/templates/{id}/daus \
+curl -X GET http://coder-server:8080/api/v2/templates/{template}/daus \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templates/{id}/daus`
+`GET /templates/{template}/daus`
 
 ### Parameters
 
-| Name | In   | Type         | Required | Description |
-| ---- | ---- | ------------ | -------- | ----------- |
-| `id` | path | string(uuid) | true     | Template ID |
+| Name       | In   | Type         | Required | Description |
+| ---------- | ---- | ------------ | -------- | ----------- |
+| `template` | path | string(uuid) | true     | Template ID |
 
 ### Example responses
 
@@ -840,18 +840,18 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/templates/{id}/versions \
+curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templates/{id}/versions`
+`GET /templates/{template}/versions`
 
 ### Parameters
 
 | Name       | In    | Type         | Required | Description |
 | ---------- | ----- | ------------ | -------- | ----------- |
-| `id`       | path  | string(uuid) | true     | Template ID |
+| `template` | path  | string(uuid) | true     | Template ID |
 | `after_id` | query | string(uuid) | false    | After ID    |
 | `limit`    | query | integer      | false    | Page limit  |
 | `offset`   | query | integer      | false    | Page offset |
@@ -971,13 +971,13 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X PATCH http://coder-server:8080/api/v2/templates/{id}/versions \
+curl -X PATCH http://coder-server:8080/api/v2/templates/{template}/versions \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /templates/{id}/versions`
+`PATCH /templates/{template}/versions`
 
 > Body parameter
 
@@ -989,10 +989,10 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{id}/versions \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                   | Required | Description               |
-| ------ | ---- | -------------------------------------------------------------------------------------- | -------- | ------------------------- |
-| `id`   | path | string(uuid)                                                                           | true     | Template ID               |
-| `body` | body | [codersdk.UpdateActiveTemplateVersion](schemas.md#codersdkupdateactivetemplateversion) | true     | Modified template version |
+| Name       | In   | Type                                                                                   | Required | Description               |
+| ---------- | ---- | -------------------------------------------------------------------------------------- | -------- | ------------------------- |
+| `template` | path | string(uuid)                                                                           | true     | Template ID               |
+| `body`     | body | [codersdk.UpdateActiveTemplateVersion](schemas.md#codersdkupdateactivetemplateversion) | true     | Modified template version |
 
 ### Example responses
 
@@ -1025,18 +1025,18 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/templates/{id}/versions/{templateversionname} \
+curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions/{templateversionname} \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templates/{id}/versions/{templateversionname}`
+`GET /templates/{template}/versions/{templateversionname}`
 
 ### Parameters
 
 | Name                  | In   | Type         | Required | Description           |
 | --------------------- | ---- | ------------ | -------- | --------------------- |
-| `id`                  | path | string(uuid) | true     | Template ID           |
+| `template`            | path | string(uuid) | true     | Template ID           |
 | `templateversionname` | path | string       | true     | Template version name |
 
 ### Example responses
@@ -1340,19 +1340,19 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/dry-run/{jobid} \
+curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/dry-run/{jobID} \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/dry-run/{jobid}`
+`GET /templateversions/{templateversion}/dry-run/{jobID}`
 
 ### Parameters
 
 | Name              | In   | Type         | Required | Description         |
 | ----------------- | ---- | ------------ | -------- | ------------------- |
 | `templateversion` | path | string(uuid) | true     | Template version ID |
-| `jobid`           | path | string(uuid) | true     | Job ID              |
+| `jobID`           | path | string(uuid) | true     | Job ID              |
 
 ### Example responses
 
@@ -1390,12 +1390,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}/dry-run/{jobid}/cancel \
+curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}/dry-run/{jobID}/cancel \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /templateversions/{templateversion}/dry-run/{jobid}/cancel`
+`PATCH /templateversions/{templateversion}/dry-run/{jobID}/cancel`
 
 ### Parameters
 
@@ -1434,19 +1434,19 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/dry-run/{jobid}/logs \
+curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/dry-run/{jobID}/logs \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/dry-run/{jobid}/logs`
+`GET /templateversions/{templateversion}/dry-run/{jobID}/logs`
 
 ### Parameters
 
 | Name              | In    | Type         | Required | Description           |
 | ----------------- | ----- | ------------ | -------- | --------------------- |
 | `templateversion` | path  | string(uuid) | true     | Template version ID   |
-| `jobid`           | path  | string(uuid) | true     | Job ID                |
+| `job-ID`          | path  | string(uuid) | true     | Job ID                |
 | `before`          | query | integer      | false    | Before Unix timestamp |
 | `after`           | query | integer      | false    | After Unix timestamp  |
 | `follow`          | query | boolean      | false    | Follow log stream     |
@@ -1508,19 +1508,19 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/dry-run/{jobid}/resources \
+curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/dry-run/{jobID}/resources \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/dry-run/{jobid}/resources`
+`GET /templateversions/{templateversion}/dry-run/{jobID}/resources`
 
 ### Parameters
 
 | Name              | In   | Type         | Required | Description         |
 | ----------------- | ---- | ------------ | -------- | ------------------- |
 | `templateversion` | path | string(uuid) | true     | Template version ID |
-| `jobid`           | path | string(uuid) | true     | Job ID              |
+| `jobID`           | path | string(uuid) | true     | Job ID              |
 
 ### Example responses
 

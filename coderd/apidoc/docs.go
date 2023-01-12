@@ -1576,7 +1576,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/templates/{id}": {
+        "/templates/{template}": {
             "get": {
                 "security": [
                     {
@@ -1596,7 +1596,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Template ID",
-                        "name": "id",
+                        "name": "template",
                         "in": "path",
                         "required": true
                     }
@@ -1629,7 +1629,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Template ID",
-                        "name": "id",
+                        "name": "template",
                         "in": "path",
                         "required": true
                     }
@@ -1662,7 +1662,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Template ID",
-                        "name": "id",
+                        "name": "template",
                         "in": "path",
                         "required": true
                     }
@@ -1672,188 +1672,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Template"
-                        }
-                    }
-                }
-            }
-        },
-        "/templates/{id}/daus": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Templates"
-                ],
-                "summary": "Get template DAUs by ID",
-                "operationId": "get-template-daus-by-id",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Template ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.TemplateDAUsResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/templates/{id}/versions": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Templates"
-                ],
-                "summary": "List template versions by template ID",
-                "operationId": "list-template-versions-by-template-ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Template ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "After ID",
-                        "name": "after_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page limit",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page offset",
-                        "name": "offset",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.TemplateVersion"
-                            }
-                        }
-                    }
-                }
-            },
-            "patch": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Templates"
-                ],
-                "summary": "Update active template version by template ID",
-                "operationId": "update-active-template-version-by-template-ID",
-                "parameters": [
-                    {
-                        "description": "Modified template version",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateActiveTemplateVersion"
-                        }
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Template ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    }
-                }
-            }
-        },
-        "/templates/{id}/versions/{templateversionname}": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Templates"
-                ],
-                "summary": "Get template version by template ID and name",
-                "operationId": "get-template-version-by-template-id-and-name",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Template ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Template version name",
-                        "name": "templateversionname",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.TemplateVersion"
-                            }
                         }
                     }
                 }
@@ -1934,6 +1752,188 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/templates/{template}/daus": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get template DAUs by ID",
+                "operationId": "get-template-daus-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateDAUsResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/templates/{template}/versions": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "List template versions by template ID",
+                "operationId": "list-template-versions-by-template-ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "After ID",
+                        "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.TemplateVersion"
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Update active template version by template ID",
+                "operationId": "update-active-template-version-by-template-ID",
+                "parameters": [
+                    {
+                        "description": "Modified template version",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateActiveTemplateVersion"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/templates/{template}/versions/{templateversionname}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get template version by template ID and name",
+                "operationId": "get-template-version-by-template-id-and-name",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Template version name",
+                        "name": "templateversionname",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.TemplateVersion"
+                            }
                         }
                     }
                 }
@@ -2056,7 +2056,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/templateversions/{templateversion}/dry-run/{jobid}": {
+        "/templateversions/{templateversion}/dry-run/{jobID}": {
             "get": {
                 "security": [
                     {
@@ -2087,7 +2087,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Job ID",
-                        "name": "jobid",
+                        "name": "jobID",
                         "in": "path",
                         "required": true
                     }
@@ -2102,7 +2102,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/templateversions/{templateversion}/dry-run/{jobid}/cancel": {
+        "/templateversions/{templateversion}/dry-run/{jobID}/cancel": {
             "patch": {
                 "security": [
                     {
@@ -2137,7 +2137,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/templateversions/{templateversion}/dry-run/{jobid}/logs": {
+        "/templateversions/{templateversion}/dry-run/{jobID}/logs": {
             "get": {
                 "security": [
                     {
@@ -2165,7 +2165,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Job ID",
-                        "name": "jobid",
+                        "name": "job-ID",
                         "in": "path",
                         "required": true
                     },
@@ -2201,7 +2201,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/templateversions/{templateversion}/dry-run/{jobid}/resources": {
+        "/templateversions/{templateversion}/dry-run/{jobID}/resources": {
             "get": {
                 "security": [
                     {
@@ -2229,7 +2229,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Job ID",
-                        "name": "jobid",
+                        "name": "jobID",
                         "in": "path",
                         "required": true
                     }
@@ -4110,7 +4110,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaces/{id}": {
+        "/workspaces/{workspace}": {
             "get": {
                 "security": [
                     {
@@ -4149,115 +4149,7 @@ const docTemplate = `{
                         }
                     }
                 }
-            }
-        },
-        "/workspaces/{id}/builds": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Builds"
-                ],
-                "summary": "Get workspace builds by workspace ID",
-                "operationId": "get-workspace-builds-by-workspace-id",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Workspace ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "After ID",
-                        "name": "after_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page limit",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page offset",
-                        "name": "offset",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "format": "date-time",
-                        "description": "Since timestamp",
-                        "name": "since",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.WorkspaceBuild"
-                            }
-                        }
-                    }
-                }
             },
-            "post": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Builds"
-                ],
-                "summary": "Create workspace build",
-                "operationId": "create-workspace-build",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Workspace ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Create workspace build request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.CreateWorkspaceBuildRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.WorkspaceBuild"
-                        }
-                    }
-                }
-            }
-        },
-        "/workspaces/{workspace}": {
             "patch": {
                 "security": [
                     {
@@ -4341,6 +4233,112 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/workspaces/{workspace}/builds": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Builds"
+                ],
+                "summary": "Get workspace builds by workspace ID",
+                "operationId": "get-workspace-builds-by-workspace-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "After ID",
+                        "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Since timestamp",
+                        "name": "since",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.WorkspaceBuild"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Builds"
+                ],
+                "summary": "Create workspace build",
+                "operationId": "create-workspace-build",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Create workspace build request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateWorkspaceBuildRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceBuild"
+                        }
                     }
                 }
             }
