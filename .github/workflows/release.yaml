@@ -1,5 +1,6 @@
 # GitHub release workflow.
 name: Release
+run-name: Release ${{ github.ref_name }}${{ inputs.dry_run && ' (DRYRUN)' || '' }}
 on:
   workflow_dispatch:
     inputs:
@@ -54,6 +55,10 @@ jobs:
       # Necessary for Docker manifest
       DOCKER_CLI_EXPERIMENTAL: "enabled"
     steps:
+      - name: Prevent non-dry-run releases on branches
+        if: ${{ github.action_ref != 'main' && !inputs.dry_run }}
+        run: exit 1
+
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
