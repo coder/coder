@@ -7,6 +7,7 @@ import (
 
 	"github.com/open-policy-agent/opa/rego"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/rbac/regosql"
@@ -150,6 +151,7 @@ func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNa
 	}
 
 	err = a.Authorize(ctx, subjectID, roles, scopeRole, groups, action, object)
+	span.AddEvent("authorized", trace.WithAttributes(attribute.Bool("authorized", err == nil)))
 	if err != nil {
 		return err
 	}
@@ -198,7 +200,17 @@ func (a RegoAuthorizer) PrepareByRoleName(ctx context.Context, subjectID string,
 		return nil, err
 	}
 
-	return a.Prepare(ctx, subjectID, roles, scopeRole, groups, action, objectType)
+	prepared, err := a.Prepare(ctx, subjectID, roles, scopeRole, groups, action, objectType)
+	if err != nil {
+		return nil, err
+	}
+
+	span.AddEvent("prepared",
+		trace.WithAttributes(attribute.Int("num_queries", len(prepared.preparedQueries))),
+		trace.WithAttributes(attribute.Bool("always_true", prepared.alwaysTrue)),
+	)
+
+	return prepared, nil
 }
 
 // Prepare will partially execute the rego policy leaving the object fields unknown (except for the type).
