@@ -475,19 +475,19 @@ func newConfig() *codersdk.DeploymentConfig {
 			Human: &codersdk.DeploymentConfigField[string]{
 				Name:    "Human Log Location",
 				Usage:   "Output human-readable logs to a given file.",
-				Flag:    "human-log",
+				Flag:    "log-human",
 				Default: "/dev/stderr",
 			},
 			JSON: &codersdk.DeploymentConfigField[string]{
 				Name:    "JSON Log Location",
 				Usage:   "Output JSON logs to a given file.",
-				Flag:    "json-log",
+				Flag:    "log-json",
 				Default: "",
 			},
 			Stackdriver: &codersdk.DeploymentConfigField[string]{
 				Name:    "Stackdriver Log Location",
 				Usage:   "Output Stackdriver compatible logs to a given file.",
-				Flag:    "stackdriver-log",
+				Flag:    "log-stackdriver",
 				Default: "",
 			},
 		},
