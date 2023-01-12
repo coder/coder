@@ -58,11 +58,11 @@ export const TokensPageView: FC<
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell width="30%">{Language.idLabel}</TableCell>
-              <TableCell width="20%">{Language.createdAtLabel}</TableCell>
-              <TableCell width="20%">{Language.lastUsedLabel}</TableCell>
-              <TableCell width="20%">{Language.expiresAtLabel}</TableCell>
-              <TableCell width="10%"></TableCell>
+              <TableCell width="25%">{Language.idLabel}</TableCell>
+              <TableCell width="25%">{Language.createdAtLabel}</TableCell>
+              <TableCell width="25%">{Language.lastUsedLabel}</TableCell>
+              <TableCell width="25%">{Language.expiresAtLabel}</TableCell>
+              <TableCell width="0%"></TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
