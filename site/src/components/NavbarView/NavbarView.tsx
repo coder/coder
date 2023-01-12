@@ -114,11 +114,13 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
         >
           <div className={styles.drawer}>
             <div className={styles.drawerHeader}>
-              {logo_url ? (
-                <img src={logo_url} alt="Custom Logo" />
-              ) : (
-                <CoderIcon className={styles.logo} />
-              )}
+              <div className={combineClasses([styles.logo, styles.drawerLogo])}>
+                {logo_url ? (
+                  <img src={logo_url} alt="Custom Logo" />
+                ) : (
+                  <CoderIcon />
+                )}
+              </div>
             </div>
             <NavItems
               canViewAuditLog={canViewAuditLog}
@@ -203,14 +205,17 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     height: navHeight,
     color: theme.palette.text.primary,
-    width: "fit-content",
-    maxWidth: theme.spacing(15),
     padding: theme.spacing(2),
     // svg is for the Coder logo, img is for custom images
     "& svg, & img": {
       width: "100%",
       height: "100%",
+      objectFit: "contain",
     },
+  },
+  drawerLogo: {
+    padding: 0,
+    maxHeight: theme.spacing(5),
   },
   title: {
     flex: 1,
