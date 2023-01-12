@@ -16,9 +16,10 @@ import (
 )
 
 type SwaggerComment struct {
-	summary string
-	id      string
-	tags    string
+	summary  string
+	id       string
+	security string
+	tags     string
 
 	method string
 	router string
@@ -93,6 +94,9 @@ func parseSwaggerComment(commentGroup *ast.CommentGroup) SwaggerComment {
 		} else if strings.HasPrefix(text, "@Tags ") {
 			args := strings.SplitN(text, " ", 2)
 			c.tags = args[1]
+		} else if strings.HasPrefix(text, "@Security ") {
+			args := strings.SplitN(text, " ", 2)
+			c.security = args[1]
 		}
 	}
 	return c
@@ -118,6 +122,8 @@ func VerifySwaggerDefinitions(t *testing.T, router chi.Router, swaggerComments [
 			assertSuccessOrFailureDefined(t, *c)
 			assertRequiredAnnotations(t, *c)
 			assertGoCommentFirst(t, *c)
+			assertURLParamsDefined(t, *c)
+			assertSecurityDefined(t, *c)
 		})
 		return nil
 	})
@@ -169,4 +175,16 @@ func assertGoCommentFirst(t *testing.T, comment SwaggerComment) {
 			inSwaggerBlock = true
 		}
 	}
+}
+
+func assertURLParamsDefined(t *testing.T, comment SwaggerComment) {
+}
+
+func assertSecurityDefined(t *testing.T, comment SwaggerComment) {
+	if comment.router == "/updatecheck" ||
+		comment.router == "/buildinfo" ||
+		comment.router == "/" {
+		return // endpoints do not require authorization
+	}
+	assert.Equal(t, "CoderSessionToken", comment.security, "@Security must be equal CoderSessionToken")
 }
