@@ -1,14 +1,15 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { Sidebar } from "./Sidebar"
 import { Stack } from "components/Stack/Stack"
-import { FC, PropsWithChildren, Suspense } from "react"
+import { FC, Suspense } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "../../util/page"
 import { Margins } from "../Margins/Margins"
 import { useMe } from "hooks/useMe"
 import { Loader } from "components/Loader/Loader"
+import { Outlet } from "react-router-dom"
 
-export const SettingsLayout: FC<PropsWithChildren> = ({ children }) => {
+export const SettingsLayout: FC = () => {
   const styles = useStyles()
   const me = useMe()
 
@@ -22,7 +23,9 @@ export const SettingsLayout: FC<PropsWithChildren> = ({ children }) => {
         <Stack className={styles.wrapper} direction="row" spacing={6}>
           <Sidebar user={me} />
           <Suspense fallback={<Loader />}>
-            <main className={styles.content}>{children}</main>
+            <main className={styles.content}>
+              <Outlet />
+            </main>
           </Suspense>
         </Stack>
       </Margins>
