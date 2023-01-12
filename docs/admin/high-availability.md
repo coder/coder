@@ -15,8 +15,6 @@ workspace <-> Coder and user <-> Coder connections.
 
 ## Setup
 
-> We're stress testing High Availability this week before we enable it by default. To try HA beforehand, set `CODER_EXPERIMENTAL=true` for the Coder server as well as the additional configuration options below.
-
 Coder automatically enters HA mode when multiple instances simultaneously connect
 to the same Postgres endpoint.
 
