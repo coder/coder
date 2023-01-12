@@ -1,13 +1,14 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { useActor } from "@xstate/react"
 import { Loader } from "components/Loader/Loader"
-import { FC, PropsWithChildren, Suspense, useContext, useEffect } from "react"
+import { FC, Suspense, useContext, useEffect } from "react"
 import { XServiceContext } from "../../xServices/StateContext"
 import { Navbar } from "../Navbar/Navbar"
 import { UpdateCheckBanner } from "components/UpdateCheckBanner/UpdateCheckBanner"
 import { Margins } from "components/Margins/Margins"
+import { Outlet } from "react-router-dom"
 
-export const NavbarLayout: FC<PropsWithChildren> = ({ children }) => {
+export const DashboardLayout: FC = () => {
   const styles = useStyles()
   const xServices = useContext(XServiceContext)
   const [authState] = useActor(xServices.authXService)
@@ -38,7 +39,9 @@ export const NavbarLayout: FC<PropsWithChildren> = ({ children }) => {
         </div>
       )}
       <div className={styles.siteContent}>
-        <Suspense fallback={<Loader />}>{children}</Suspense>
+        <Suspense fallback={<Loader />}>
+          <Outlet />
+        </Suspense>
       </div>
     </div>
   )
