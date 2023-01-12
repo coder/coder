@@ -22,10 +22,6 @@ on:
         type: boolean
         required: true
         default: false
-      snapshot:
-        description: Force a dev version to be generated, implies dry_run.
-        type: boolean
-        default: false
       ignore_missing_commit_metadata:
         description: WARNING! This option disables the requirement that all commits have a PR. Not needed for dry_run.
         type: boolean
@@ -45,10 +41,10 @@ env:
   # Use `inputs` (vs `github.event.inputs`) to ensure that booleans are actual
   # booleans, not strings.
   # https://github.blog/changelog/2022-06-10-github-actions-inputs-unified-across-manual-and-reusable-workflows/
-  CODER_RELEASE: ${{ !inputs.dry_run && !inputs.snapshot }}
+  CODER_RELEASE: ${{ !inputs.dry_run }}
   CODER_RELEASE_INCREMENT: ${{ inputs.increment }}
   CODER_RELEASE_DRAFT: ${{ inputs.draft }}
-  CODER_DRY_RUN: ${{ inputs.dry_run || inputs.snapshot }}
+  CODER_DRY_RUN: ${{ inputs.dry_run }}
 
 jobs:
   release:
@@ -269,7 +265,7 @@ jobs:
         uses: "google-github-actions/setup-gcloud@v1"
 
       - name: Publish Helm Chart
-        if: ${{ !inputs.dry_run && !inputs.snapshot }}
+        if: ${{ !inputs.dry_run }}
         run: |
           set -euo pipefail
           version="$(./scripts/version.sh)"
@@ -280,8 +276,8 @@ jobs:
           gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/coder_helm_${version}.tgz gs://helm.coder.com/v2
           gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/index.yaml gs://helm.coder.com/v2
 
-      - name: Upload artifacts to actions (if dry-run or snapshot)
-        if: ${{ inputs.dry_run || inputs.snapshot }}
+      - name: Upload artifacts to actions (if dry-run)
+        if: ${{ inputs.dry_run }}
         uses: actions/upload-artifact@v2
         with:
           name: release-artifacts

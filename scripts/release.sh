@@ -171,7 +171,6 @@ log
 maybedryrun 0 gh workflow run release.yaml \
 	--ref "$branch" \
 	-F increment="$increment" \
-	-F snapshot=false \
 	"${args[@]}"
 log
 
