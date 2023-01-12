@@ -48,10 +48,14 @@ env:
   # actual boolean value, it's safest to use `contains` because it casts the
   # input to string, meaning we get the same behavior for true and 'true'.
   # Boolean behavior differs between workflow_dispatch and workflow_call.
-  CODER_RELEASE: ${{ contains(github.event.inputs.snapshot, 'false') }}
-  CODER_RELEASE_INCREMENT: ${{ github.event.inputs.increment }}
-  CODER_RELEASE_DRAFT: ${{ github.event.inputs.draft }}
-  CODER_DRY_RUN: ${{ contains(github.event.inputs.dry_run, 'true') || contains(github.event.inputs.snapshot, 'true') }}
+  #
+  # Also note that inputs (vs github.event.inputs) are usable across both
+  # workflow_dispatch and workflow_call.
+  # https://github.blog/changelog/2022-06-10-github-actions-inputs-unified-across-manual-and-reusable-workflows/
+  CODER_RELEASE: ${{ contains(inputs.snapshot, 'false') }}
+  CODER_RELEASE_INCREMENT: ${{ inputs.increment }}
+  CODER_RELEASE_DRAFT: ${{ inputs.draft }}
+  CODER_DRY_RUN: ${{ contains(inputs.dry_run, 'true') || contains(inputs.snapshot, 'true') }}
 
 jobs:
   release:
@@ -85,7 +89,7 @@ jobs:
           ref=HEAD
           old_version="$(git describe --abbrev=0 "$ref^1")"
 
-          if [[ "${{ github.event.inputs.ignore_missing_commit_metadata }}" == *t* ]]; then
+          if [[ "${{ inputs.ignore_missing_commit_metadata }}" == *t* ]]; then
             export CODER_IGNORE_MISSING_COMMIT_METADATA=1
           fi
 
@@ -273,7 +277,7 @@ jobs:
 
       - name: Publish Helm Chart
         # Do not publish helm charts for either dry run or snapshots.
-        if: ${{ contains(github.event.inputs.dry_run, 'false') && contains(github.event.inputs.snapshot, 'false') }}
+        if: ${{ contains(inputs.dry_run, 'false') && contains(inputs.snapshot, 'false') }}
         run: |
           set -euo pipefail
           version="$(./scripts/version.sh)"
@@ -285,7 +289,7 @@ jobs:
           gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/index.yaml gs://helm.coder.com/v2
 
       - name: Upload artifacts to actions (if dry-run or snapshot)
-        if: ${{ contains(github.event.inputs.dry_run, 'true') || contains(github.event.inputs.snapshot, 'true') }}
+        if: ${{ contains(inputs.dry_run, 'true') || contains(inputs.snapshot, 'true') }}
         uses: actions/upload-artifact@v2
         with:
           name: release-artifacts
