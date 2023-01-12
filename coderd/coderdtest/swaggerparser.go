@@ -118,6 +118,8 @@ func parseSwaggerComment(commentGroup *ast.CommentGroup) SwaggerComment {
 }
 
 func VerifySwaggerDefinitions(t *testing.T, router chi.Router, swaggerComments []SwaggerComment) {
+	assertUniqueRoutes(t, swaggerComments)
+
 	err := chi.Walk(router, func(method, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
 		method = strings.ToLower(method)
 		if route != "/" && strings.HasSuffix(route, "/") {
@@ -222,4 +224,17 @@ func assertSecurityDefined(t *testing.T, comment SwaggerComment) {
 		return // endpoints do not require authorization
 	}
 	assert.Equal(t, "CoderSessionToken", comment.security, "@Security must be equal CoderSessionToken")
+}
+
+func assertUniqueRoutes(t *testing.T, comments []SwaggerComment) {
+	m := map[string]struct{}{}
+
+	for _, c := range comments {
+		key := c.method + " " + c.router
+		_, alreadyDefined := m[key]
+		assert.False(t, alreadyDefined, "defined route must be unique (method: %s, route: %s)", c.method, c.router)
+		if !alreadyDefined {
+			m[key] = struct{}{}
+		}
+	}
 }

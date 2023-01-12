@@ -49,7 +49,7 @@ func (api *API) scimVerifyAuthHeader(r *http.Request) bool {
 // @Produce application/scim+json
 // @Tags Enterprise
 // @Success 200
-// @Router /scim/v2/Users [post]
+// @Router /scim/v2/Users [get]
 //
 //nolint:revive
 func (api *API) scimGetUsers(rw http.ResponseWriter, r *http.Request) {

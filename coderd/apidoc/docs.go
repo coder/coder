@@ -1573,6 +1573,26 @@ const docTemplate = `{
             }
         },
         "/scim/v2/Users": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/scim+json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "SCIM 2.0: Get users",
+                "operationId": "scim-get-users",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            },
             "post": {
                 "security": [
                     {
