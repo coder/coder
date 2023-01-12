@@ -21,6 +21,9 @@ type swaggerComment struct {
 
 	method string
 	router string
+
+	hasSuccess bool
+	hasFailure bool
 }
 
 func TestAllEndpointsDocumented(t *testing.T) {
@@ -44,6 +47,7 @@ func TestAllEndpointsDocumented(t *testing.T) {
 		}
 
 		assertConsistencyBetweenRouteIDAndSummary(t, *c)
+		assertSuccessOrFailureDefined(t, *c)
 		return nil
 	})
 }
@@ -95,6 +99,10 @@ func parseSwaggerComment(commentGroup *ast.CommentGroup) swaggerComment {
 		} else if strings.Contains(text, "@ID ") {
 			args := strings.SplitN(text, " ", 3)
 			c.id = args[2]
+		} else if strings.Contains(text, "@Success ") {
+			c.hasSuccess = true
+		} else if strings.Contains(text, "@Failure ") {
+			c.hasFailure = true
 		}
 	}
 	return c
@@ -117,4 +125,8 @@ func assertConsistencyBetweenRouteIDAndSummary(t *testing.T, comment swaggerComm
 	exp = nonAlphanumericRegex.ReplaceAllString(exp, "")
 
 	assert.Equal(t, exp, comment.id, "Router ID must match summary")
+}
+
+func assertSuccessOrFailureDefined(t *testing.T, comment swaggerComment) {
+	assert.True(t, comment.hasSuccess || comment.hasFailure, "At least one @Success or @Failure annotation must be defined")
 }
