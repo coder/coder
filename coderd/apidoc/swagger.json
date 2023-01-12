@@ -4486,7 +4486,8 @@
           "$ref": "#/definitions/codersdk.AuditDiff"
         },
         "id": {
-          "type": "string"
+          "type": "string",
+          "format": "uuid"
         },
         "ip": {
           "type": "string"
@@ -4495,16 +4496,19 @@
           "type": "boolean"
         },
         "organization_id": {
-          "type": "string"
+          "type": "string",
+          "format": "uuid"
         },
         "request_id": {
-          "type": "string"
+          "type": "string",
+          "format": "uuid"
         },
         "resource_icon": {
           "type": "string"
         },
         "resource_id": {
-          "type": "string"
+          "type": "string",
+          "format": "uuid"
         },
         "resource_link": {
           "type": "string"
@@ -4520,7 +4524,8 @@
           "type": "integer"
         },
         "time": {
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         },
         "user": {
           "$ref": "#/definitions/codersdk.User"
@@ -4779,7 +4784,8 @@
         },
         "template_version_id": {
           "description": "VersionID is an in-progress or completed job to use as an initial version\nof the template.\n\nThis is required on creation to enable a user-flow of validating a\ntemplate works. There is no reason the data-model cannot support empty\ntemplates, but it doesn't make sense for users.",
-          "type": "string"
+          "type": "string",
+          "format": "uuid"
         }
       }
     },
@@ -4809,7 +4815,8 @@
           ]
         },
         "resource_id": {
-          "type": "string"
+          "type": "string",
+          "format": "uuid"
         },
         "resource_type": {
           "enum": [
@@ -4830,7 +4837,8 @@
           ]
         },
         "time": {
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         }
       }
     },
@@ -4895,7 +4903,8 @@
           }
         },
         "template_version_id": {
-          "type": "string"
+          "type": "string",
+          "format": "uuid"
         },
         "transition": {
           "enum": ["create", "start", "stop", "delete"],
@@ -4914,7 +4923,8 @@
           "type": "integer"
         },
         "date": {
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         }
       }
     },
@@ -6056,7 +6066,8 @@
       "required": ["deadline"],
       "properties": {
         "deadline": {
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         }
       }
     },

@@ -5076,7 +5076,8 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.AuditDiff"
                 },
                 "id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "ip": {
                     "type": "string"
@@ -5085,16 +5086,19 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "organization_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "request_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "resource_icon": {
                     "type": "string"
                 },
                 "resource_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "resource_link": {
                     "type": "string"
@@ -5110,7 +5114,8 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "time": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "user": {
                     "$ref": "#/definitions/codersdk.User"
@@ -5397,7 +5402,8 @@ const docTemplate = `{
                 },
                 "template_version_id": {
                     "description": "VersionID is an in-progress or completed job to use as an initial version\nof the template.\n\nThis is required on creation to enable a user-flow of validating a\ntemplate works. There is no reason the data-model cannot support empty\ntemplates, but it doesn't make sense for users.",
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -5433,7 +5439,8 @@ const docTemplate = `{
                     ]
                 },
                 "resource_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "resource_type": {
                     "enum": [
@@ -5454,7 +5461,8 @@ const docTemplate = `{
                     ]
                 },
                 "time": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 }
             }
         },
@@ -5529,7 +5537,8 @@ const docTemplate = `{
                     }
                 },
                 "template_version_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "transition": {
                     "enum": [
@@ -5553,7 +5562,8 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "date": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 }
             }
         },
@@ -6769,7 +6779,8 @@ const docTemplate = `{
             ],
             "properties": {
                 "deadline": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 }
             }
         },

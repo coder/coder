@@ -755,7 +755,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/extend \
 
 ```json
 {
-  "deadline": "string"
+  "deadline": "2019-08-24T14:15:22Z"
 }
 ```
 

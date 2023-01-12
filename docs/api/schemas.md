@@ -323,18 +323,18 @@
       "secret": true
     }
   },
-  "id": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "ip": "string",
   "is_deleted": true,
-  "organization_id": "string",
-  "request_id": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
   "resource_icon": "string",
-  "resource_id": "string",
+  "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "resource_link": "string",
   "resource_target": "string",
   "resource_type": "organization",
   "status_code": 0,
-  "time": "string",
+  "time": "2019-08-24T14:15:22Z",
   "user": {
     "avatar_url": "http://example.com",
     "created_at": "2019-08-24T14:15:22Z",
@@ -399,18 +399,18 @@
           "secret": true
         }
       },
-      "id": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "ip": "string",
       "is_deleted": true,
-      "organization_id": "string",
-      "request_id": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
       "resource_icon": "string",
-      "resource_id": "string",
+      "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
       "resource_link": "string",
       "resource_target": "string",
       "resource_type": "organization",
       "status_code": 0,
-      "time": "string",
+      "time": "2019-08-24T14:15:22Z",
       "user": {
         "avatar_url": "http://example.com",
         "created_at": "2019-08-24T14:15:22Z",
@@ -731,7 +731,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "source_value": "string"
     }
   ],
-  "template_version_id": "string"
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1"
 }
 ```
 
@@ -778,9 +778,9 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 ```json
 {
   "action": "create",
-  "resource_id": "string",
+  "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "resource_type": "organization",
-  "time": "string"
+  "time": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -871,7 +871,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     }
   ],
   "state": [0],
-  "template_version_id": "string",
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "transition": "create"
 }
 ```
@@ -901,7 +901,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 ```json
 {
   "amount": 0,
-  "date": "string"
+  "date": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -3431,7 +3431,7 @@ Parameter represents a set value for the scope.
 
 ```json
 {
-  "deadline": "string"
+  "deadline": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -3875,7 +3875,7 @@ Parameter represents a set value for the scope.
   "entries": [
     {
       "amount": 0,
-      "date": "string"
+      "date": "2019-08-24T14:15:22Z"
     }
   ]
 }

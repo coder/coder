@@ -50,13 +50,13 @@ func ParseSwaggerComments(dirs ...string) ([]SwaggerComment, error) {
 
 	var swaggerComments []SwaggerComment
 	for _, dir := range dirs {
-		commentNodes, err := parser.ParseDir(fileSet, dir, nil, parser.ParseComments)
+		nodes, err := parser.ParseDir(fileSet, dir, nil, parser.ParseComments)
 		if err != nil {
-			return nil, xerrors.Errorf(`parser.ParseDir failed "%s": %w`, dir, err)
+			return nil, xerrors.Errorf(`parser.ParseDir failed for "%s": %w`, dir, err)
 		}
 
-		for _, commentNode := range commentNodes {
-			ast.Inspect(commentNode, func(n ast.Node) bool {
+		for _, node := range nodes {
+			ast.Inspect(node, func(n ast.Node) bool {
 				commentGroup, ok := n.(*ast.CommentGroup)
 				if !ok {
 					return true

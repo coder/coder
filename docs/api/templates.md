@@ -204,7 +204,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
       "source_value": "string"
     }
   ],
-  "template_version_id": "string"
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1"
 }
 ```
 
@@ -820,7 +820,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/daus \
   "entries": [
     {
       "amount": 0,
-      "date": "string"
+      "date": "2019-08-24T14:15:22Z"
     }
   ]
 }
