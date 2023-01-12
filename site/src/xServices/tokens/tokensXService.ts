@@ -2,9 +2,6 @@ import { getTokens, deleteAPIKey } from "api/api"
 import { APIKey } from "api/typesGenerated"
 import { displaySuccess } from "components/GlobalSnackbar/utils"
 import { createMachine, assign } from "xstate"
-import { i18n } from "i18n"
-
-const { t } = i18n
 
 interface Context {
   tokens?: APIKey[]
@@ -17,6 +14,10 @@ type Events =
   | { type: "DELETE_TOKEN"; id: string }
   | { type: "CONFIRM_DELETE_TOKEN" }
   | { type: "CANCEL_DELETE_TOKEN" }
+
+const Language = {
+  deleteSuccess: "Token has been deleted",
+}
 
 export const tokensMachine = createMachine(
   {
@@ -132,7 +133,7 @@ export const tokensMachine = createMachine(
       }),
       notifySuccessTokenDeleted: () => {
         displaySuccess(
-          t("deleteTokenSuccessMessage", { ns: "userSettingsPage" }),
+          Language.deleteSuccess,
         )
       },
     },
