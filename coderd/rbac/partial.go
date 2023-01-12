@@ -8,6 +8,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/rbac/regosql"
+	"github.com/coder/coder/coderd/tracing"
 )
 
 type PartialAuthorizer struct {
@@ -27,7 +28,10 @@ type PartialAuthorizer struct {
 
 var _ PreparedAuthorized = (*PartialAuthorizer)(nil)
 
-func (pa *PartialAuthorizer) CompileToSQL(cfg regosql.ConvertConfig) (string, error) {
+func (pa *PartialAuthorizer) CompileToSQL(ctx context.Context, cfg regosql.ConvertConfig) (string, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
 	filter, err := Compile(cfg, pa)
 	if err != nil {
 		return "", xerrors.Errorf("compile: %w", err)
@@ -40,7 +44,8 @@ func (pa *PartialAuthorizer) Authorize(ctx context.Context, object Object) error
 		return nil
 	}
 
-	// No queries means always false
+	// If we have no queries, then no queries can return 'true'.
+	// So the result is always 'false'.
 	if len(pa.preparedQueries) == 0 {
 		return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), pa.input, nil)
 	}

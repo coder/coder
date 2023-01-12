@@ -20,7 +20,7 @@ type Authorizer interface {
 
 type PreparedAuthorized interface {
 	Authorize(ctx context.Context, object Object) error
-	CompileToSQL(cfg regosql.ConvertConfig) (string, error)
+	CompileToSQL(ctx context.Context, cfg regosql.ConvertConfig) (string, error)
 }
 
 // Filter takes in a list of objects, and will filter the list removing all
