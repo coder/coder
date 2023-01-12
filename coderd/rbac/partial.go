@@ -5,6 +5,8 @@ import (
 
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/rbac/regosql"
@@ -29,7 +31,12 @@ type PartialAuthorizer struct {
 var _ PreparedAuthorized = (*PartialAuthorizer)(nil)
 
 func (pa *PartialAuthorizer) CompileToSQL(ctx context.Context, cfg regosql.ConvertConfig) (string, error) {
-	ctx, span := tracing.StartSpan(ctx)
+	ctx, span := tracing.StartSpan(ctx, trace.WithAttributes(
+		// Query count is a rough indicator of the complexity of the query
+		// that needs to be converted into SQL.
+		attribute.Int("query_count", len(pa.preparedQueries)),
+		attribute.Bool("always_true", pa.alwaysTrue),
+	))
 	defer span.End()
 
 	filter, err := Compile(cfg, pa)
