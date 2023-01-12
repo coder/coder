@@ -132,9 +132,7 @@ export const tokensMachine = createMachine(
         deleteTokenError: (_) => undefined,
       }),
       notifySuccessTokenDeleted: () => {
-        displaySuccess(
-          Language.deleteSuccess,
-        )
+        displaySuccess(Language.deleteSuccess)
       },
     },
   },

@@ -7,7 +7,6 @@ import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
 import { APIKey } from "api/typesGenerated"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
-import { Maybe } from "components/Conditionals/Maybe"
 import { Stack } from "components/Stack/Stack"
 import { TableEmpty } from "components/TableEmpty/TableEmpty"
 import { TableLoader } from "components/TableLoader/TableLoader"
@@ -15,7 +14,6 @@ import DeleteOutlineIcon from "@material-ui/icons/DeleteOutline"
 import dayjs from "dayjs"
 import { FC } from "react"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
-
 import IconButton from "@material-ui/core/IconButton/IconButton"
 
 export const Language = {
@@ -33,17 +31,28 @@ export interface TokensPageViewProps {
   isLoading: boolean
   hasLoaded: boolean
   onDelete: (id: string) => void
+  deleteTokenError?: Error | unknown
 }
 
 export const TokensPageView: FC<
   React.PropsWithChildren<TokensPageViewProps>
-> = ({ tokens, getTokensError, isLoading, hasLoaded, onDelete }) => {
+> = ({
+  tokens,
+  getTokensError,
+  isLoading,
+  hasLoaded,
+  onDelete,
+  deleteTokenError,
+}) => {
   const theme = useTheme()
 
   return (
     <Stack>
       {Boolean(getTokensError) && (
         <AlertBanner severity="error" error={getTokensError} />
+      )}
+      {Boolean(deleteTokenError) && (
+        <AlertBanner severity="error" error={deleteTokenError} />
       )}
       <TableContainer>
         <Table>
@@ -57,11 +66,10 @@ export const TokensPageView: FC<
             </TableRow>
           </TableHead>
           <TableBody>
-            <Maybe condition={isLoading}>
-              <TableLoader />
-            </Maybe>
-
             <ChooseOne>
+              <Cond condition={isLoading}>
+                <TableLoader />
+              </Cond>
               <Cond condition={hasLoaded && tokens?.length === 0}>
                 <TableEmpty message={Language.emptyMessage} />
               </Cond>
