@@ -64,11 +64,10 @@ export function renderWithAuth(
           <I18nextProvider i18n={i18n}>
             <ThemeProvider theme={dark}>
               <Routes>
-                <Route
-                  path={path ?? route}
-                  element={<RequireAuth>{ui}</RequireAuth>}
-                />
-                {routes}
+                <Route element={<RequireAuth />}>
+                  <Route path={path ?? route} element={ui} />
+                  {routes}
+                </Route>
               </Routes>
             </ThemeProvider>
           </I18nextProvider>
