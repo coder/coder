@@ -4,8 +4,11 @@ import (
 	"context"
 	_ "embed"
 	"sync"
+	"time"
 
 	"github.com/open-policy-agent/opa/rego"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
@@ -92,6 +95,9 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, sub
 // RegoAuthorizer will use a prepared rego query for performing authorize()
 type RegoAuthorizer struct {
 	query rego.PreparedEvalQuery
+
+	authorizeHist *prometheus.HistogramVec
+	prepareHist   prometheus.Histogram
 }
 
 var _ Authorizer = (*RegoAuthorizer)(nil)
@@ -105,7 +111,7 @@ var (
 	query     rego.PreparedEvalQuery
 )
 
-func NewAuthorizer() *RegoAuthorizer {
+func NewAuthorizer(registry prometheus.Registerer) *RegoAuthorizer {
 	queryOnce.Do(func() {
 		var err error
 		query, err = rego.New(
@@ -116,7 +122,51 @@ func NewAuthorizer() *RegoAuthorizer {
 			panic(xerrors.Errorf("compile rego: %w", err))
 		}
 	})
-	return &RegoAuthorizer{query: query}
+
+	// Register metrics to prometheus.
+	// These bucket values are based on the average time it takes to run authz
+	// being around 1ms. Anything under ~2ms is OK and does not need to be
+	// analyzed any further.
+	buckets := []float64{
+		0.0005, // 0.5ms
+		0.001,  // 1ms
+		0.002,  // 2ms
+		0.003,
+		0.005,
+		0.01, // 10ms
+		0.2,
+		0.35, // 35ms
+		0.5,
+		0.75,
+		0.1,  // 100ms
+		0.25, // 250ms
+		0.75, // 750ms
+		1,    // 1s
+	}
+
+	factory := promauto.With(registry)
+	authorizeHistogram := factory.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "coderd",
+		Subsystem: "authz",
+		Name:      "authorize_duration_s",
+		Help:      "Duration of the 'Authorize' call in seconds. Only counts calls that succeed.",
+		Buckets:   buckets,
+	}, []string{"allowed"})
+
+	prepareHistogram := factory.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "coderd",
+		Subsystem: "authz",
+		Name:      "prepare_authorize_duration_s",
+		Help:      "Duration of the 'PrepareAuthorize' call in seconds.",
+		Buckets:   buckets,
+	})
+
+	return &RegoAuthorizer{
+		query: query,
+
+		authorizeHist: authorizeHistogram,
+		prepareHist:   prepareHistogram,
+	}
 }
 
 type authSubject struct {
@@ -130,7 +180,9 @@ type authSubject struct {
 // This is the function intended to be used outside this package.
 // The role is fetched from the builtin map located in memory.
 func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNames []string, scope Scope, groups []string, action Action, object Object) error {
+	start := time.Now()
 	ctx, span := tracing.StartSpan(ctx,
+		trace.WithTimestamp(start), // Reuse the time.Now for metric and trace
 		rbacTraceAttributes(roleNames, len(groups), scope, action, object.Type,
 			// For authorizing a single object, this data is useful to know how
 			// complex our objects are getting.
@@ -152,10 +204,13 @@ func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNa
 
 	err = a.Authorize(ctx, subjectID, roles, scopeRole, groups, action, object)
 	span.AddEvent("authorized", trace.WithAttributes(attribute.Bool("authorized", err == nil)))
+	dur := time.Since(start)
 	if err != nil {
+		a.authorizeHist.WithLabelValues("false").Observe(dur.Seconds())
 		return err
 	}
 
+	a.authorizeHist.WithLabelValues("true").Observe(dur.Seconds())
 	return nil
 }
 
@@ -185,7 +240,9 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles [
 }
 
 func (a RegoAuthorizer) PrepareByRoleName(ctx context.Context, subjectID string, roleNames []string, scope Scope, groups []string, action Action, objectType string) (PreparedAuthorized, error) {
+	start := time.Now()
 	ctx, span := tracing.StartSpan(ctx,
+		trace.WithTimestamp(start),
 		rbacTraceAttributes(roleNames, len(groups), scope, action, objectType),
 	)
 	defer span.End()
@@ -210,6 +267,7 @@ func (a RegoAuthorizer) PrepareByRoleName(ctx context.Context, subjectID string,
 		trace.WithAttributes(attribute.Bool("always_true", prepared.alwaysTrue)),
 	)
 
+	a.prepareHist.Observe(time.Since(start).Seconds())
 	return prepared, nil
 }
 

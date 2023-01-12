@@ -6,12 +6,12 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/rbac"
 )
-
 
 type authSubject struct {
 	// Name is helpful for test assertions
@@ -24,7 +24,7 @@ type authSubject struct {
 func TestRolePermissions(t *testing.T) {
 	t.Parallel()
 
-	auth := rbac.NewAuthorizer()
+	auth := rbac.NewAuthorizer(prometheus.NewRegistry())
 
 	// currentUser is anything that references "me", "mine", or "my".
 	currentUser := uuid.New()

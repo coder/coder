@@ -4,9 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/coder/coder/coderd/rbac"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/coderd/rbac"
 )
 
 type benchmarkCase struct {
@@ -98,7 +100,7 @@ func BenchmarkRBACAuthorize(b *testing.B) {
 		uuid.MustParse("0632b012-49e0-4d70-a5b3-f4398f1dcd52"),
 		uuid.MustParse("70dbaa7a-ea9c-4f68-a781-97b08af8461d"),
 	)
-	authorizer := rbac.NewAuthorizer()
+	authorizer := rbac.NewAuthorizer(prometheus.NewRegistry())
 	// This benchmarks all the simple cases using just user permissions. Groups
 	// are added as noise, but do not do anything.
 	for _, c := range benchCases {
@@ -125,7 +127,7 @@ func BenchmarkRBACAuthorizeGroups(b *testing.B) {
 		uuid.MustParse("0632b012-49e0-4d70-a5b3-f4398f1dcd52"),
 		uuid.MustParse("70dbaa7a-ea9c-4f68-a781-97b08af8461d"),
 	)
-	authorizer := rbac.NewAuthorizer()
+	authorizer := rbac.NewAuthorizer(prometheus.NewRegistry())
 
 	// Same benchmark cases, but this time groups will be used to match.
 	// Some '*' permissions will still match, but using a fake action reduces
@@ -177,7 +179,7 @@ func BenchmarkRBACFilter(b *testing.B) {
 		uuid.MustParse("70dbaa7a-ea9c-4f68-a781-97b08af8461d"),
 	)
 
-	authorizer := rbac.NewAuthorizer()
+	authorizer := rbac.NewAuthorizer(prometheus.NewRegistry())
 	for _, c := range benchCases {
 		b.Run(c.Name, func(b *testing.B) {
 			objects := benchmarkSetup(orgs, users, b.N)
