@@ -17,7 +17,8 @@ trial](https://coder.com/trial).
 | Deployment      | [Service Banners](./admin/service-banners.md)                               |                |     X      |
 | Deployment      | Isolated Terraform Runners                                                  |                |     X      |
 
-> Previous plans to restrict OIDC and Git Auth features in OSS have been removed as of 2023-01-11
+> Previous plans to restrict OIDC and Git Auth features in OSS have been removed
+> as of 2023-01-11
 
 ## Adding your license key
 
