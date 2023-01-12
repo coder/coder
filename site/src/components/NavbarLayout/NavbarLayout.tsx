@@ -1,21 +1,13 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { useActor } from "@xstate/react"
 import { Loader } from "components/Loader/Loader"
-import { FC, Suspense, useContext, useEffect } from "react"
+import { FC, PropsWithChildren, Suspense, useContext, useEffect } from "react"
 import { XServiceContext } from "../../xServices/StateContext"
 import { Navbar } from "../Navbar/Navbar"
-import { RequireAuth } from "../RequireAuth/RequireAuth"
 import { UpdateCheckBanner } from "components/UpdateCheckBanner/UpdateCheckBanner"
 import { Margins } from "components/Margins/Margins"
 
-interface AuthAndFrameProps {
-  children: JSX.Element
-}
-
-/**
- * Wraps page in RequireAuth and renders it between Navbar and Footer
- */
-export const AuthAndFrame: FC<AuthAndFrameProps> = ({ children }) => {
+export const NavbarLayout: FC<PropsWithChildren> = ({ children }) => {
   const styles = useStyles()
   const xServices = useContext(XServiceContext)
   const [authState] = useActor(xServices.authXService)
@@ -32,25 +24,23 @@ export const AuthAndFrame: FC<AuthAndFrameProps> = ({ children }) => {
   }, [authState, updateCheckSend])
 
   return (
-    <RequireAuth>
-      <div className={styles.site}>
-        <Navbar />
-        {updateCheckState.context.show && (
-          <div className={styles.updateCheckBanner}>
-            <Margins>
-              <UpdateCheckBanner
-                updateCheck={updateCheckState.context.updateCheck}
-                error={updateCheckState.context.error}
-                onDismiss={() => updateCheckSend("DISMISS")}
-              />
-            </Margins>
-          </div>
-        )}
-        <div className={styles.siteContent}>
-          <Suspense fallback={<Loader />}>{children}</Suspense>
+    <div className={styles.site}>
+      <Navbar />
+      {updateCheckState.context.show && (
+        <div className={styles.updateCheckBanner}>
+          <Margins>
+            <UpdateCheckBanner
+              updateCheck={updateCheckState.context.updateCheck}
+              error={updateCheckState.context.error}
+              onDismiss={() => updateCheckSend("DISMISS")}
+            />
+          </Margins>
         </div>
+      )}
+      <div className={styles.siteContent}>
+        <Suspense fallback={<Loader />}>{children}</Suspense>
       </div>
-    </RequireAuth>
+    </div>
   )
 }
 
