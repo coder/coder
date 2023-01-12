@@ -18,6 +18,7 @@ import (
 type swaggerComment struct {
 	summary string
 	id      string
+	tags    string
 
 	method string
 	router string
@@ -40,14 +41,19 @@ func TestAllEndpointsDocumented(t *testing.T) {
 			route = route[:len(route)-1]
 		}
 
-		c := findSwaggerCommentByMethodAndRoute(swaggerComments, method, route)
-		assert.NotNil(t, c, "Missing @Router annotation for: [%s] %s", method, route)
-		if c == nil {
-			return nil // do not fail next assertion for this route
-		}
+		t.Run(method+" "+route, func(t *testing.T) {
+			t.Parallel()
 
-		assertConsistencyBetweenRouteIDAndSummary(t, *c)
-		assertSuccessOrFailureDefined(t, *c)
+			c := findSwaggerCommentByMethodAndRoute(swaggerComments, method, route)
+			assert.NotNil(t, c, "Missing @Router annotation")
+			if c == nil {
+				return // do not fail next assertion for this route
+			}
+
+			assertConsistencyBetweenRouteIDAndSummary(t, *c)
+			assertSuccessOrFailureDefined(t, *c)
+			assertRequiredAnnotations(t, *c)
+		})
 		return nil
 	})
 }
@@ -103,6 +109,9 @@ func parseSwaggerComment(commentGroup *ast.CommentGroup) swaggerComment {
 			c.hasSuccess = true
 		} else if strings.Contains(text, "@Failure ") {
 			c.hasFailure = true
+		} else if strings.Contains(text, "@Tags ") {
+			args := strings.SplitN(text, " ", 3)
+			c.tags = args[2]
 		}
 	}
 	return c
@@ -129,4 +138,10 @@ func assertConsistencyBetweenRouteIDAndSummary(t *testing.T, comment swaggerComm
 
 func assertSuccessOrFailureDefined(t *testing.T, comment swaggerComment) {
 	assert.True(t, comment.hasSuccess || comment.hasFailure, "At least one @Success or @Failure annotation must be defined")
+}
+
+func assertRequiredAnnotations(t *testing.T, comment swaggerComment) {
+	assert.NotEmpty(t, comment.id, "@ID must be defined")
+	assert.NotEmpty(t, comment.summary, "@Summary must be defined")
+	assert.NotEmpty(t, comment.tags, "@Tags must be defined")
 }
