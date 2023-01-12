@@ -134,10 +134,10 @@ func NewAuthorizer(registry prometheus.Registerer) *RegoAuthorizer {
 		0.003,
 		0.005,
 		0.01, // 10ms
-		0.2,
-		0.35, // 35ms
-		0.5,
-		0.75,
+		0.02,
+		0.035, // 35ms
+		0.05,
+		0.075,
 		0.1,  // 100ms
 		0.25, // 250ms
 		0.75, // 750ms
