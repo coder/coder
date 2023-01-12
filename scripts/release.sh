@@ -167,9 +167,11 @@ else
 fi
 
 log
-gh workflow run release.yaml \
+# Use maybedryrun to echo the command.
+maybedryrun 0 gh workflow run release.yaml \
 	--ref "$branch" \
 	-F increment="$increment" \
+	-F snapshot=false \
 	"${args[@]}"
 log
 
