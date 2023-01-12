@@ -42,15 +42,8 @@ permissions:
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 env:
-  # Use string semantics for negating the boolean, otherwise it will always
-  # be false. See https://github.com/actions/runner/issues/1483.
-  # Note that any time we need to do expressions, more than outputting the
-  # actual boolean value, it's safest to use `contains` because it casts the
-  # input to string, meaning we get the same behavior for true and 'true'.
-  # Boolean behavior differs between workflow_dispatch and workflow_call.
-  #
-  # Also note that inputs (vs github.event.inputs) are usable across both
-  # workflow_dispatch and workflow_call.
+  # Use `inputs` (vs `github.event.inputs`) to ensure that booleans are actual
+  # booleans, not strings.
   # https://github.blog/changelog/2022-06-10-github-actions-inputs-unified-across-manual-and-reusable-workflows/
   CODER_RELEASE: ${{ !inputs.snapshot }}
   CODER_RELEASE_INCREMENT: ${{ inputs.increment }}
@@ -76,16 +69,6 @@ jobs:
       # https://github.com/actions/checkout/issues/290
       - name: Fetch git tags
         run: git fetch --tags --force
-
-      - name: Test
-        run: |
-          echo ${{ inputs.dry_run && '--dry-run' || 'no dry' }}
-          echo ${{ inputs.dry_run && '--dry-run' || '' }}
-          echo ${{ inputs.dry_run && '--dry-run' }}
-          echo ${{ !inputs.dry_run && 'no dry' || '--dry-run'}}
-          echo ${{ (!inputs.dry_run && !inputs.snapshot) && 'release' || 'no release'}}
-          echo ${{ (inputs.dry_run || inputs.snapshot) && 'no release' || 'release'}}
-          exit 1
 
       # Configure git user name/email for creating annotated version tag.
       - name: Setup git config
@@ -286,8 +269,7 @@ jobs:
         uses: "google-github-actions/setup-gcloud@v1"
 
       - name: Publish Helm Chart
-        # Do not publish helm charts for either dry run or snapshots.
-        if: ${{ contains(inputs.dry_run, 'false') && contains(inputs.snapshot, 'false') }}
+        if: ${{ !inputs.dry_run && !inputs.snapshot }}
         run: |
           set -euo pipefail
           version="$(./scripts/version.sh)"
@@ -299,7 +281,7 @@ jobs:
           gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/index.yaml gs://helm.coder.com/v2
 
       - name: Upload artifacts to actions (if dry-run or snapshot)
-        if: ${{ contains(inputs.dry_run, 'true') || contains(inputs.snapshot, 'true') }}
+        if: ${{ inputs.dry_run || inputs.snapshot }}
         uses: actions/upload-artifact@v2
         with:
           name: release-artifacts
