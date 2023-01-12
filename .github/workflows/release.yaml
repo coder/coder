@@ -52,10 +52,10 @@ env:
   # Also note that inputs (vs github.event.inputs) are usable across both
   # workflow_dispatch and workflow_call.
   # https://github.blog/changelog/2022-06-10-github-actions-inputs-unified-across-manual-and-reusable-workflows/
-  CODER_RELEASE: ${{ contains(inputs.snapshot, 'false') }}
+  CODER_RELEASE: ${{ !inputs.snapshot }}
   CODER_RELEASE_INCREMENT: ${{ inputs.increment }}
   CODER_RELEASE_DRAFT: ${{ inputs.draft }}
-  CODER_DRY_RUN: ${{ contains(inputs.dry_run, 'true') || contains(inputs.snapshot, 'true') }}
+  CODER_DRY_RUN: ${{ inputs.dry_run || inputs.snapshot }}
 
 jobs:
   release:
@@ -80,6 +80,8 @@ jobs:
       - name: Test
         run: |
           echo ${{ inputs.dry_run && '--dry-run' || 'no dry' }}
+          echo ${{ inputs.dry_run && '--dry-run' || '' }}
+          echo ${{ inputs.dry_run && '--dry-run' }}
           echo ${{ !inputs.dry_run && 'no dry' || '--dry-run'}}
           echo ${{ (!inputs.dry_run && !inputs.snapshot) && 'release' || 'no release'}}
           echo ${{ (inputs.dry_run || inputs.snapshot) && 'no release' || 'release'}}
