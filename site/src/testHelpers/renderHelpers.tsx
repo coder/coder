@@ -66,8 +66,8 @@ export function renderWithAuth(
               <Routes>
                 <Route element={<RequireAuth />}>
                   <Route path={path ?? route} element={ui} />
-                  {routes}
                 </Route>
+                {routes}
               </Routes>
             </ThemeProvider>
           </I18nextProvider>
