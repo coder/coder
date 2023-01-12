@@ -6,7 +6,7 @@ export const deploymentConfigMachine = createMachine(
   {
     id: "deploymentConfigMachine",
     predictableActionArguments: true,
-    initial: "idle",
+
     schema: {
       context: {} as {
         deploymentConfig?: DeploymentConfig
@@ -20,28 +20,22 @@ export const deploymentConfigMachine = createMachine(
       },
     },
     tsTypes: {} as import("./deploymentConfigMachine.typegen").Typegen0,
+    initial: "loading",
     states: {
-      idle: {
-        on: {
-          LOAD: {
-            target: "loading",
-          },
-        },
-      },
       loading: {
         invoke: {
           src: "getDeploymentConfig",
           onDone: {
-            target: "loaded",
+            target: "done",
             actions: ["assignDeploymentConfig"],
           },
           onError: {
-            target: "idle",
+            target: "done",
             actions: ["assignGetDeploymentConfigError"],
           },
         },
       },
-      loaded: {
+      done: {
         type: "final",
       },
     },

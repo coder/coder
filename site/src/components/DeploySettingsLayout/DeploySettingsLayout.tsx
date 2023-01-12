@@ -7,13 +7,12 @@ import {
   PropsWithChildren,
   Suspense,
   useContext,
-  useEffect,
   FC,
 } from "react"
-import { useActor } from "@xstate/react"
-import { XServiceContext } from "xServices/StateContext"
+import { useMachine } from "@xstate/react"
 import { Loader } from "components/Loader/Loader"
 import { DeploymentConfig } from "api/typesGenerated"
+import { deploymentConfigMachine } from "xServices/deploymentConfig/deploymentConfigMachine"
 
 type DeploySettingsContextValue = { deploymentConfig: DeploymentConfig }
 
@@ -32,16 +31,9 @@ export const useDeploySettings = (): DeploySettingsContextValue => {
 }
 
 export const DeploySettingsLayout: FC<PropsWithChildren> = ({ children }) => {
-  const xServices = useContext(XServiceContext)
-  const [state, send] = useActor(xServices.deploymentConfigXService)
+  const [state] = useMachine(deploymentConfigMachine)
   const styles = useStyles()
   const { deploymentConfig } = state.context
-
-  useEffect(() => {
-    if (state.matches("idle")) {
-      send("LOAD")
-    }
-  }, [send, state])
 
   return (
     <Margins>
