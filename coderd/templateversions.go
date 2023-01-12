@@ -536,7 +536,7 @@ func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Re
 }
 
 // @Summary List template versions by template ID
-// @ID list-template-versions-by-template-ID
+// @ID list-template-versions-by-template-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
@@ -828,7 +828,7 @@ func (api *API) previousTemplateVersionByOrganizationAndName(rw http.ResponseWri
 }
 
 // @Summary Update active template version by template ID
-// @ID update-active-template-version-by-template-ID
+// @ID update-active-template-version-by-template-id
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json

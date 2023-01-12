@@ -142,7 +142,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/google-instance-ide
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Submit workspace application health
+## Submit workspace agent application health
 
 ### Code samples
 

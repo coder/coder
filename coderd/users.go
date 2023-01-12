@@ -908,7 +908,7 @@ func (api *API) updateSiteUserRoles(ctx context.Context, args database.UpdateUse
 // Returns organizations the parameterized user has access to.
 //
 // @Summary Get organizations by user
-// @ID get-organizations-by-users
+// @ID get-organizations-by-user
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users

@@ -145,7 +145,7 @@ const docTemplate = `{
                     "Applications"
                 ],
                 "summary": "Get applications host",
-                "operationId": "get-app-host",
+                "operationId": "get-applications-host",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -223,7 +223,7 @@ const docTemplate = `{
                     "Audit"
                 ],
                 "summary": "Generate fake audit log",
-                "operationId": "generate-fake-audit-logs",
+                "operationId": "generate-fake-audit-log",
                 "parameters": [
                     {
                         "description": "Audit log request",
@@ -405,7 +405,7 @@ const docTemplate = `{
                     "Files"
                 ],
                 "summary": "Upload file",
-                "operationId": "update-file",
+                "operationId": "upload-file",
                 "parameters": [
                     {
                         "type": "string",
@@ -1656,7 +1656,7 @@ const docTemplate = `{
                     "Templates"
                 ],
                 "summary": "Update template metadata by ID",
-                "operationId": "update-template-metadata",
+                "operationId": "update-template-metadata-by-id",
                 "parameters": [
                     {
                         "type": "string",
@@ -1806,7 +1806,7 @@ const docTemplate = `{
                     "Templates"
                 ],
                 "summary": "List template versions by template ID",
-                "operationId": "list-template-versions-by-template-ID",
+                "operationId": "list-template-versions-by-template-id",
                 "parameters": [
                     {
                         "type": "string",
@@ -1864,7 +1864,7 @@ const docTemplate = `{
                     "Templates"
                 ],
                 "summary": "Update active template version by template ID",
-                "operationId": "update-active-template-version-by-template-ID",
+                "operationId": "update-active-template-version-by-template-id",
                 "parameters": [
                     {
                         "description": "Modified template version",
@@ -2688,7 +2688,7 @@ const docTemplate = `{
                     "Users"
                 ],
                 "summary": "OAuth 2.0 GitHub Callback",
-                "operationId": "oauth2-github-callback",
+                "operationId": "oauth-20-github-callback",
                 "responses": {
                     "307": {
                         "description": "Temporary Redirect"
@@ -2710,7 +2710,7 @@ const docTemplate = `{
                     "Users"
                 ],
                 "summary": "OpenID Connect Callback",
-                "operationId": "oidc-callback",
+                "operationId": "openid-connect-callback",
                 "responses": {
                     "307": {
                         "description": "Temporary Redirect"
@@ -3044,7 +3044,7 @@ const docTemplate = `{
                     "Users"
                 ],
                 "summary": "Delete API key",
-                "operationId": "delete-user-tokens",
+                "operationId": "delete-api-key",
                 "parameters": [
                     {
                         "type": "string",
@@ -3083,7 +3083,7 @@ const docTemplate = `{
                     "Users"
                 ],
                 "summary": "Get organizations by user",
-                "operationId": "get-organizations-by-users",
+                "operationId": "get-organizations-by-user",
                 "parameters": [
                     {
                         "type": "string",
@@ -3627,8 +3627,8 @@ const docTemplate = `{
                 "tags": [
                     "Agents"
                 ],
-                "summary": "Submit workspace application health",
-                "operationId": "submit-workspace-workspace-agent-health",
+                "summary": "Submit workspace agent application health",
+                "operationId": "submit-workspace-agent-application-health",
                 "parameters": [
                     {
                         "description": "Application health request",
@@ -3662,7 +3662,7 @@ const docTemplate = `{
                     "Agents"
                 ],
                 "summary": "Coordinate workspace agent via Tailnet",
-                "operationId": "get-workspace-agent-git-ssh-key-via-tailnet",
+                "operationId": "coordinate-workspace-agent-via-tailnet",
                 "responses": {
                     "101": {
                         "description": "Switching Protocols"
@@ -3784,7 +3784,7 @@ const docTemplate = `{
                     "Agents"
                 ],
                 "summary": "Submit workspace agent stats",
-                "operationId": "submit-workspace-workspace-agent-stats",
+                "operationId": "submit-workspace-agent-stats",
                 "parameters": [
                     {
                         "description": "Stats request",
@@ -3820,7 +3820,7 @@ const docTemplate = `{
                     "Agents"
                 ],
                 "summary": "Submit workspace agent version",
-                "operationId": "submit-workspace-workspace-agent-version",
+                "operationId": "submit-workspace-agent-version",
                 "parameters": [
                     {
                         "description": "Version request",
@@ -3987,7 +3987,7 @@ const docTemplate = `{
                     "Agents"
                 ],
                 "summary": "Open PTY to workspace agent",
-                "operationId": "open-pty-to-workspace agent",
+                "operationId": "open-pty-to-workspace-agent",
                 "parameters": [
                     {
                         "type": "string",
@@ -4213,7 +4213,7 @@ const docTemplate = `{
                     "Workspaces"
                 ],
                 "summary": "List workspaces",
-                "operationId": "get-workspaces",
+                "operationId": "list-workspaces",
                 "parameters": [
                     {
                         "type": "string",
@@ -4611,7 +4611,7 @@ const docTemplate = `{
                     "Workspaces"
                 ],
                 "summary": "Watch workspace by ID",
-                "operationId": "watch-workspace-id",
+                "operationId": "watch-workspace-by-id",
                 "parameters": [
                     {
                         "type": "string",

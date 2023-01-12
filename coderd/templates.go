@@ -461,7 +461,7 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 }
 
 // @Summary Update template metadata by ID
-// @ID update-template-metadata
+// @ID update-template-metadata-by-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates

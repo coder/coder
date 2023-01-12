@@ -66,7 +66,7 @@ var nonCanonicalHeaders = map[string]string{
 }
 
 // @Summary Get applications host
-// @ID get-app-host
+// @ID get-applications-host
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Applications

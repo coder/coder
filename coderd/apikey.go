@@ -209,7 +209,7 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Delete API key
-// @ID delete-user-tokens
+// @ID delete-api-key
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users

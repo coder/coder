@@ -102,7 +102,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary List workspaces
-// @ID get-workspaces
+// @ID list-workspaces
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
@@ -883,7 +883,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Watch workspace by ID
-// @ID watch-workspace-id
+// @ID watch-workspace-by-id
 // @Security CoderSessionToken
 // @Produce text/event-stream
 // @Tags Workspaces
