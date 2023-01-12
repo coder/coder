@@ -1,5 +1,6 @@
 # GitHub release workflow.
 name: Release
+run-name: Release ${{ github.ref_name }}${{ inputs.dry_run && ' (DRYRUN)' || '' }}
 on:
   workflow_dispatch:
     inputs:
@@ -22,10 +23,6 @@ on:
         type: boolean
         required: true
         default: false
-      snapshot:
-        description: Force a dev version to be generated, implies dry_run.
-        type: boolean
-        default: false
       ignore_missing_commit_metadata:
         description: WARNING! This option disables the requirement that all commits have a PR. Not needed for dry_run.
         type: boolean
@@ -39,10 +36,16 @@ permissions:
   # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
   id-token: write
 
-env:
-  CODER_RELEASE: ${{ !github.event.inputs.snapshot }}
-
 concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+env:
+  # Use `inputs` (vs `github.event.inputs`) to ensure that booleans are actual
+  # booleans, not strings.
+  # https://github.blog/changelog/2022-06-10-github-actions-inputs-unified-across-manual-and-reusable-workflows/
+  CODER_RELEASE: ${{ !inputs.dry_run }}
+  CODER_RELEASE_INCREMENT: ${{ inputs.increment }}
+  CODER_RELEASE_DRAFT: ${{ inputs.draft }}
+  CODER_DRY_RUN: ${{ inputs.dry_run }}
 
 jobs:
   release:
@@ -52,6 +55,12 @@ jobs:
       # Necessary for Docker manifest
       DOCKER_CLI_EXPERIMENTAL: "enabled"
     steps:
+      - name: Check release on main (or dry-run)
+        if: ${{ github.ref_name != 'main' && !inputs.dry_run }}
+        run: |
+          echo "Release not allowed on ${{ github.ref_name }}, use dry-run."
+          exit 1
+
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
@@ -76,7 +85,7 @@ jobs:
           ref=HEAD
           old_version="$(git describe --abbrev=0 "$ref^1")"
 
-          if [[ "${{ github.event.inputs.ignore_missing_commit_metadata }}" == *t* ]]; then
+          if [[ "${{ inputs.ignore_missing_commit_metadata }}" == *t* ]]; then
             export CODER_IGNORE_MISSING_COMMIT_METADATA=1
           fi
 
@@ -87,7 +96,7 @@ jobs:
           fi
 
           version_args=()
-          if [[ "${{ github.event.inputs.dry_run || github.event.inputs.snapshot }}" == *t* ]]; then
+          if [[ $CODER_DRY_RUN == *t* ]]; then
             # Allow dry-run of branches to pass.
             export CODER_IGNORE_MISSING_COMMIT_METADATA=1
             version_args+=(--dry-run)
@@ -104,7 +113,7 @@ jobs:
             ./scripts/release/tag_version.sh \
               "${version_args[@]}" \
               --ref "$ref" \
-              --${{ github.event.inputs.increment }}
+              --"$CODER_RELEASE_INCREMENT"
           )"
 
           # Generate notes.
@@ -232,10 +241,10 @@ jobs:
           set -euo pipefail
 
           publish_args=()
-          if [[ "${{ github.event.inputs.draft }}" == *t* ]]; then
+          if [[ $CODER_RELEASE_DRAFT == *t* ]]; then
             publish_args+=(--draft)
           fi
-          if [[ "${{ github.event.inputs.dry_run || github.event.inputs.snapshot }}" == *t* ]]; then
+          if [[ $CODER_DRY_RUN == *t* ]]; then
             publish_args+=(--dry-run)
           fi
           declare -p publish_args
@@ -263,7 +272,7 @@ jobs:
         uses: "google-github-actions/setup-gcloud@v1"
 
       - name: Publish Helm Chart
-        if: ${{ !github.event.inputs.dry_run && !github.event.inputs.snapshot }}
+        if: ${{ !inputs.dry_run }}
         run: |
           set -euo pipefail
           version="$(./scripts/version.sh)"
@@ -274,8 +283,8 @@ jobs:
           gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/coder_helm_${version}.tgz gs://helm.coder.com/v2
           gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/index.yaml gs://helm.coder.com/v2
 
-      - name: Upload artifacts to actions (if dry-run or snapshot)
-        if: ${{ github.event.inputs.dry_run || github.event.inputs.snapshot }}
+      - name: Upload artifacts to actions (if dry-run)
+        if: ${{ inputs.dry_run }}
         uses: actions/upload-artifact@v2
         with:
           name: release-artifacts
