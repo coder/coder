@@ -95,7 +95,9 @@ const CreateWorkspaceButton: FC<{
   </Link>
 )
 
-export const TemplateLayout: FC = () => {
+export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
+  children = <Outlet />,
+}) => {
   const styles = useStyles()
   const organizationId = useOrganizationId()
   const templateName = useTemplateName()
@@ -200,9 +202,7 @@ export const TemplateLayout: FC = () => {
         <TemplateLayoutContext.Provider
           value={{ permissions, context: templateState.context }}
         >
-          <Suspense fallback={<Loader />}>
-            <Outlet />
-          </Suspense>
+          <Suspense fallback={<Loader />}>{children}</Suspense>
         </TemplateLayoutContext.Provider>
       </Margins>
     </>
