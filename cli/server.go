@@ -124,7 +124,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			}
 
 			printLogo(cmd)
-			logger, logCloser, err := makeLogger(cmd, cfg)
+			logger, logCloser, err := buildLogger(cmd, cfg)
 			if err != nil {
 				return xerrors.Errorf("make logger: %w", err)
 			}
@@ -1518,49 +1518,45 @@ func isLocalhost(host string) bool {
 	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
-func makeLogger(cmd *cobra.Command, cfg *codersdk.DeploymentConfig) (slog.Logger, func(), error) {
+func buildLogger(cmd *cobra.Command, cfg *codersdk.DeploymentConfig) (slog.Logger, func(), error) {
 	var (
 		sinks   = []slog.Sink{}
 		closers = []func() error{}
 	)
 
-	if cfg.Logging.Human.Value != "" {
-		if cfg.Logging.Human.Value == "/dev/stderr" {
-			sinks = append(sinks, sloghuman.Sink(cmd.ErrOrStderr()))
-		} else {
+	addSinkIfProvided := func(sinkFn func(io.Writer) slog.Sink, loc string) error {
+		switch loc {
+		case "":
+
+		case "/dev/stdout":
+			sinks = append(sinks, sinkFn(cmd.OutOrStdout()))
+
+		case "/dev/stderr":
+			sinks = append(sinks, sinkFn(cmd.ErrOrStderr()))
+
+		default:
 			fi, err := os.OpenFile(cfg.Logging.Human.Value, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 			if err != nil {
-				return slog.Logger{}, nil, xerrors.Errorf("open human log %q: %w", cfg.Logging.Human.Value, err)
+				return xerrors.Errorf("open log file %q: %w", cfg.Logging.Human.Value, err)
 			}
+
 			closers = append(closers, fi.Close)
-			sinks = append(sinks, sloghuman.Sink(fi))
+			sinks = append(sinks, sinkFn(fi))
 		}
+		return nil
 	}
 
-	if cfg.Logging.JSON.Value != "" {
-		if cfg.Logging.JSON.Value == "/dev/stderr" {
-			sinks = append(sinks, slogjson.Sink(cmd.ErrOrStderr()))
-		} else {
-			fi, err := os.OpenFile(cfg.Logging.JSON.Value, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
-			if err != nil {
-				return slog.Logger{}, nil, xerrors.Errorf("open json log %q: %w", cfg.Logging.JSON.Value, err)
-			}
-			closers = append(closers, fi.Close)
-			sinks = append(sinks, slogjson.Sink(fi))
-		}
+	err := addSinkIfProvided(sloghuman.Sink, cfg.Logging.Human.Value)
+	if err != nil {
+		return slog.Logger{}, nil, xerrors.Errorf("add human sink: %w", err)
 	}
-
-	if cfg.Logging.Stackdriver.Value != "" {
-		if cfg.Logging.JSON.Value == "/dev/stderr" {
-			sinks = append(sinks, slogstackdriver.Sink(cmd.ErrOrStderr()))
-		} else {
-			fi, err := os.OpenFile(cfg.Logging.Stackdriver.Value, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
-			if err != nil {
-				return slog.Logger{}, nil, xerrors.Errorf("open stackdriver log %q: %w", cfg.Logging.Stackdriver.Value, err)
-			}
-			closers = append(closers, fi.Close)
-			sinks = append(sinks, slogstackdriver.Sink(fi))
-		}
+	err = addSinkIfProvided(slogjson.Sink, cfg.Logging.JSON.Value)
+	if err != nil {
+		return slog.Logger{}, nil, xerrors.Errorf("add json sink: %w", err)
+	}
+	err = addSinkIfProvided(slogstackdriver.Sink, cfg.Logging.Stackdriver.Value)
+	if err != nil {
+		return slog.Logger{}, nil, xerrors.Errorf("add stackdriver sink: %w", err)
 	}
 
 	if cfg.Trace.CaptureLogs.Value {
