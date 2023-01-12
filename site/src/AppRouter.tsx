@@ -337,7 +337,6 @@ export const AppRouter: FC = () => {
               <Route path=":workspace">
                 <Route index element={<WorkspacePage />} />
                 <Route path="schedule" element={<WorkspaceSchedulePage />} />
-                <Route path="terminal" element={<TerminalPage />} />
                 <Route
                   path="builds/:buildNumber"
                   element={<WorkspaceBuildPage />}
@@ -347,6 +346,12 @@ export const AppRouter: FC = () => {
                   element={<WorkspaceChangeVersionPage />}
                 />
               </Route>
+            </Route>
+          </Route>
+
+          <Route path="/@:username">
+            <Route path=":workspace">
+              <Route path="terminal" element={<TerminalPage />} />
             </Route>
           </Route>
         </Route>
