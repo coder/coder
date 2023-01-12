@@ -353,7 +353,6 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 // @Summary Get template version dry-run by job ID
 // @ID get-template-version-dry-run-by-job-id
 // @Security CoderSessionToken
-// @Accept json
 // @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)

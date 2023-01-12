@@ -20,6 +20,8 @@ type SwaggerComment struct {
 	id       string
 	security string
 	tags     string
+	accept   string
+	produce  string
 
 	method string
 	router string
@@ -112,6 +114,12 @@ func parseSwaggerComment(commentGroup *ast.CommentGroup) SwaggerComment {
 				kind: args[2],
 			}
 			c.parameters = append(c.parameters, p)
+		} else if strings.HasPrefix(text, "@Accept ") {
+			args := strings.SplitN(text, " ", 2)
+			c.accept = args[1]
+		} else if strings.HasPrefix(text, "@Produce ") {
+			args := strings.SplitN(text, " ", 2)
+			c.produce = args[1]
 		}
 	}
 	return c
@@ -141,10 +149,24 @@ func VerifySwaggerDefinitions(t *testing.T, router chi.Router, swaggerComments [
 			assertGoCommentFirst(t, *c)
 			assertPathParametersDefined(t, *c)
 			assertSecurityDefined(t, *c)
+			assertRequestBody(t, *c)
 		})
 		return nil
 	})
 	require.NoError(t, err, "chi.Walk should not fail")
+}
+
+func assertUniqueRoutes(t *testing.T, comments []SwaggerComment) {
+	m := map[string]struct{}{}
+
+	for _, c := range comments {
+		key := c.method + " " + c.router
+		_, alreadyDefined := m[key]
+		assert.False(t, alreadyDefined, "defined route must be unique (method: %s, route: %s)", c.method, c.router)
+		if !alreadyDefined {
+			m[key] = struct{}{}
+		}
+	}
 }
 
 func findSwaggerCommentByMethodAndRoute(comments []SwaggerComment, method, route string) *SwaggerComment {
@@ -226,15 +248,26 @@ func assertSecurityDefined(t *testing.T, comment SwaggerComment) {
 	assert.Equal(t, "CoderSessionToken", comment.security, "@Security must be equal CoderSessionToken")
 }
 
-func assertUniqueRoutes(t *testing.T, comments []SwaggerComment) {
-	m := map[string]struct{}{}
-
-	for _, c := range comments {
-		key := c.method + " " + c.router
-		_, alreadyDefined := m[key]
-		assert.False(t, alreadyDefined, "defined route must be unique (method: %s, route: %s)", c.method, c.router)
-		if !alreadyDefined {
-			m[key] = struct{}{}
+func assertRequestBody(t *testing.T, comment SwaggerComment) {
+	var hasRequestBody bool
+	for _, c := range comment.parameters {
+		if c.name == "request" && c.kind == "body" ||
+			c.name == "file" && c.kind == "formData" {
+			hasRequestBody = true
+			break
 		}
+	}
+
+	var hasAccept bool
+	if comment.accept != "" {
+		hasAccept = true
+	}
+
+	if comment.method == "get" {
+		assert.Empty(t, comment.accept, "GET route does not require the @Accept annotation")
+		assert.False(t, hasRequestBody, "GET route does not require the request body")
+	} else {
+		assert.False(t, hasRequestBody && !hasAccept, "Route with the request body requires the @Accept annotation")
+		assert.False(t, !hasRequestBody && hasAccept, "Route with @Accept annotation requires the request body or file formData parameter")
 	}
 }

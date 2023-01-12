@@ -23,6 +23,7 @@ import (
 // @Summary Authenticate agent on Azure instance
 // @ID authenticate-agent-on-azure-instance
 // @Security CoderSessionToken
+// @Accept json
 // @Produce json
 // @Tags Agents
 // @Param request body codersdk.AzureInstanceIdentityToken true "Instance identity token"
@@ -52,6 +53,7 @@ func (api *API) postWorkspaceAuthAzureInstanceIdentity(rw http.ResponseWriter, r
 // @Summary Authenticate agent on AWS instance
 // @ID authenticate-agent-on-aws-instance
 // @Security CoderSessionToken
+// @Accept json
 // @Produce json
 // @Tags Agents
 // @Param request body codersdk.AWSInstanceIdentityToken true "Instance identity token"
@@ -81,6 +83,7 @@ func (api *API) postWorkspaceAuthAWSInstanceIdentity(rw http.ResponseWriter, r *
 // @Summary Authenticate agent on Google Cloud instance
 // @ID authenticate-agent-on-google-cloud-instance
 // @Security CoderSessionToken
+// @Accept json
 // @Produce json
 // @Tags Agents
 // @Param request body codersdk.GoogleInstanceIdentityToken true "Instance identity token"

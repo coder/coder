@@ -52,6 +52,7 @@ var Keys = map[string]ed25519.PublicKey{"2022-08-12": ed25519.PublicKey(key20220
 // @Summary Add new license
 // @ID add-new-license
 // @Security CoderSessionToken
+// @Accept json
 // @Produce json
 // @Tags Organizations
 // @Param request body codersdk.AddLicenseRequest true "Add license request"

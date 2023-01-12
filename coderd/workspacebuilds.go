@@ -290,7 +290,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 // @Summary Create workspace build
 // @ID create-workspace-build
 // @Security CoderSessionToken
-// @Accepts json
+// @Accept json
 // @Produce json
 // @Tags Builds
 // @Param workspace path string true "Workspace ID" format(uuid)

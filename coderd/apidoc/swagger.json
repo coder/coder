@@ -59,6 +59,7 @@
             "CoderSessionToken": []
           }
         ],
+        "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Enterprise"],
         "summary": "Update appearance",
@@ -545,6 +546,7 @@
             "CoderSessionToken": []
           }
         ],
+        "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Organizations"],
         "summary": "Add new license",
@@ -605,6 +607,7 @@
             "CoderSessionToken": []
           }
         ],
+        "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Organizations"],
         "summary": "Create organization",
@@ -1614,6 +1617,7 @@
             "CoderSessionToken": []
           }
         ],
+        "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Enterprise"],
         "summary": "Update template ACL",
@@ -1921,7 +1925,6 @@
             "CoderSessionToken": []
           }
         ],
-        "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Templates"],
         "summary": "Get template version dry-run by job ID",
@@ -2424,6 +2427,7 @@
             "CoderSessionToken": []
           }
         ],
+        "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Authorization"],
         "summary": "Log in user",
@@ -2714,6 +2718,7 @@
             "CoderSessionToken": []
           }
         ],
+        "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Users"],
         "summary": "Create token API key",
@@ -2894,6 +2899,7 @@
             "CoderSessionToken": []
           }
         ],
+        "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Users"],
         "summary": "Update user password",
@@ -2930,6 +2936,7 @@
             "CoderSessionToken": []
           }
         ],
+        "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Users"],
         "summary": "Update user profile",
@@ -3215,6 +3222,7 @@
             "CoderSessionToken": []
           }
         ],
+        "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Agents"],
         "summary": "Authenticate agent on AWS instance",
@@ -3247,6 +3255,7 @@
             "CoderSessionToken": []
           }
         ],
+        "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Agents"],
         "summary": "Authenticate agent on Azure instance",
@@ -3279,6 +3288,7 @@
             "CoderSessionToken": []
           }
         ],
+        "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Agents"],
         "summary": "Authenticate agent on Google Cloud instance",
@@ -3311,6 +3321,7 @@
             "CoderSessionToken": []
           }
         ],
+        "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Agents"],
         "summary": "Submit workspace agent application health",
@@ -3359,7 +3370,6 @@
             "CoderSessionToken": []
           }
         ],
-        "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Agents"],
         "summary": "Get workspace agent Git auth",
@@ -3397,7 +3407,6 @@
             "CoderSessionToken": []
           }
         ],
-        "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Agents"],
         "summary": "Get workspace agent Git SSH key",
@@ -3419,7 +3428,6 @@
             "CoderSessionToken": []
           }
         ],
-        "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Agents"],
         "summary": "Get authorized workspace agent metadata",
@@ -3441,6 +3449,7 @@
             "CoderSessionToken": []
           }
         ],
+        "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Agents"],
         "summary": "Submit workspace agent stats",
@@ -3473,6 +3482,7 @@
             "CoderSessionToken": []
           }
         ],
+        "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Agents"],
         "summary": "Submit workspace agent version",
@@ -4060,6 +4070,7 @@
             "CoderSessionToken": []
           }
         ],
+        "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Builds"],
         "summary": "Create workspace build",

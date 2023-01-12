@@ -103,6 +103,7 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 // @Summary Update template ACL
 // @ID update-template-acl
 // @Security CoderSessionToken
+// @Accept json
 // @Produce json
 // @Tags Enterprise
 // @Param template path string true "Template ID" format(uuid)

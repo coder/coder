@@ -84,6 +84,7 @@ func validateHexColor(color string) error {
 // @Summary Update appearance
 // @ID update-appearance
 // @Security CoderSessionToken
+// @Accept json
 // @Produce json
 // @Tags Enterprise
 // @Param request body codersdk.AppearanceConfig true "Update appearance request"

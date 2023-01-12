@@ -74,7 +74,6 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 // @Summary Get authorized workspace agent metadata
 // @ID get-authorized-workspace-agent-metadata
 // @Security CoderSessionToken
-// @Accept json
 // @Produce json
 // @Tags Agents
 // @Success 200 {object} codersdk.WorkspaceAgentMetadata
@@ -157,7 +156,8 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 // @Summary Submit workspace agent version
 // @ID submit-workspace-agent-version
 // @Security CoderSessionToken
-// @Produce application/json
+// @Accept json
+// @Produce json
 // @Tags Agents
 // @Param request body codersdk.PostWorkspaceAgentVersionRequest true "Version request"
 // @Success 200
@@ -826,6 +826,7 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 // @Summary Submit workspace agent stats
 // @ID submit-workspace-agent-stats
 // @Security CoderSessionToken
+// @Accept json
 // @Produce application/json
 // @Tags Agents
 // @Param request body codersdk.AgentStats true "Stats request"
@@ -903,6 +904,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 // @Summary Submit workspace agent application health
 // @ID submit-workspace-agent-application-health
 // @Security CoderSessionToken
+// @Accept json
 // @Produce application/json
 // @Tags Agents
 // @Param request body codersdk.PostWorkspaceAppHealthsRequest true "Application health request"
@@ -1029,7 +1031,6 @@ func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) 
 // @Summary Get workspace agent Git auth
 // @ID get-workspace-agent-git-auth
 // @Security CoderSessionToken
-// @Accept json
 // @Produce json
 // @Tags Agents
 // @Param url query string true "Git URL" format(uri)

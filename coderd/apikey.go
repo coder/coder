@@ -29,6 +29,7 @@ import (
 // @Summary Create token API key
 // @ID create-token-api-key
 // @Security CoderSessionToken
+// @Accept json
 // @Produce json
 // @Tags Users
 // @Param user path string true "User ID, name, or me"

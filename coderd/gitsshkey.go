@@ -119,7 +119,6 @@ func (api *API) gitSSHKey(rw http.ResponseWriter, r *http.Request) {
 // @Summary Get workspace agent Git SSH key
 // @ID get-workspace-agent-git-ssh-key
 // @Security CoderSessionToken
-// @Accept json
 // @Produce json
 // @Tags Agents
 // @Success 200 {object} codersdk.AgentGitSSHKey
