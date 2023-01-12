@@ -5,7 +5,6 @@ import { authMachine } from "./auth/authXService"
 import { buildInfoMachine } from "./buildInfo/buildInfoXService"
 import { updateCheckMachine } from "./updateCheck/updateCheckXService"
 import { entitlementsMachine } from "./entitlements/entitlementsXService"
-import { siteRolesMachine } from "./roles/siteRolesXService"
 import { appearanceMachine } from "./appearance/appearanceXService"
 
 interface XServiceContextType {
@@ -13,7 +12,6 @@ interface XServiceContextType {
   buildInfoXService: ActorRefFrom<typeof buildInfoMachine>
   entitlementsXService: ActorRefFrom<typeof entitlementsMachine>
   appearanceXService: ActorRefFrom<typeof appearanceMachine>
-  siteRolesXService: ActorRefFrom<typeof siteRolesMachine>
   updateCheckXService: ActorRefFrom<typeof updateCheckMachine>
 }
 
@@ -35,7 +33,6 @@ export const XServiceProvider: FC<{ children: ReactNode }> = ({ children }) => {
         buildInfoXService: useInterpret(buildInfoMachine),
         entitlementsXService: useInterpret(entitlementsMachine),
         appearanceXService: useInterpret(appearanceMachine),
-        siteRolesXService: useInterpret(siteRolesMachine),
         updateCheckXService: useInterpret(updateCheckMachine),
       }}
     >

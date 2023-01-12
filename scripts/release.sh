@@ -167,7 +167,7 @@ else
 fi
 
 log
-gh workflow run release.yaml \
+logrun gh workflow run release.yaml \
 	--ref "$branch" \
 	-F increment="$increment" \
 	"${args[@]}"
