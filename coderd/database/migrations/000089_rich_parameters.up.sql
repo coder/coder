@@ -1,4 +1,4 @@
-CREATE TABLE template_version_parameters (
+CREATE TABLE IF NOT EXISTS template_version_parameters (
     template_version_id uuid not null references template_versions (id) on delete cascade,
     name text not null,
     description text not null,
@@ -24,7 +24,7 @@ COMMENT ON COLUMN template_version_parameters.validation_regex IS 'Validation: r
 COMMENT ON COLUMN template_version_parameters.validation_min IS 'Validation: minimum length of value';
 COMMENT ON COLUMN template_version_parameters.validation_max IS 'Validation: maximum length of value';
 
-CREATE TABLE workspace_build_parameters (
+CREATE TABLE IF NOT EXISTS workspace_build_parameters (
     workspace_build_id uuid not null references workspace_builds (id) on delete cascade,
     name text not null,
     value text not null,
