@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"bytes"
 	"context"
 	"path/filepath"
 	"testing"
@@ -197,6 +198,47 @@ func TestTemplatePush(t *testing.T) {
 			pty.ExpectMatch(m.match)
 			pty.WriteLine(m.write)
 		}
+
+		require.NoError(t, <-execDone)
+
+		// Assert that the template version changed.
+		templateVersions, err := client.TemplateVersionsByTemplate(context.Background(), codersdk.TemplateVersionsByTemplateRequest{
+			TemplateID: template.ID,
+		})
+		require.NoError(t, err)
+		assert.Len(t, templateVersions, 2)
+		assert.NotEqual(t, template.ActiveVersionID, templateVersions[1].ID)
+	})
+
+	t.Run("Stdin", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		source, err := echo.Tar(&echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ProvisionComplete,
+		})
+		require.NoError(t, err)
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		cmd, root := clitest.New(
+			t, "templates", "push", "--directory", "-",
+			"--test.provisioner", string(database.ProvisionerTypeEcho),
+			template.Name,
+		)
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t)
+		cmd.SetIn(bytes.NewReader(source))
+		cmd.SetOut(pty.Output())
+
+		execDone := make(chan error)
+		go func() {
+			execDone <- cmd.Execute()
+		}()
 
 		require.NoError(t, <-execDone)
 
