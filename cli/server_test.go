@@ -1132,10 +1132,9 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
-			// fi := os.CreateTemp("/tmp", "coder-logging-test-*")
 			random, err := cryptorand.String(5)
 			require.NoError(t, err)
-			fiName := fmt.Sprint("/tmp/coder-logging-test-", random)
+			fiName := fmt.Sprint(os.TempDir(), "/coder-logging-test-", random)
 			defer func() {
 				_ = os.Remove(fiName)
 			}()
@@ -1166,7 +1165,7 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
-			fi, err := os.CreateTemp("/tmp", "coder-logging-test-*")
+			fi, err := os.CreateTemp("", "coder-logging-test-*")
 			require.NoError(t, err)
 			defer func() {
 				_ = os.Remove(fi.Name())
@@ -1198,7 +1197,7 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
-			fi, err := os.CreateTemp("/tmp", "coder-logging-test-*")
+			fi, err := os.CreateTemp("", "coder-logging-test-*")
 			require.NoError(t, err)
 			defer func() {
 				_ = os.Remove(fi.Name())
@@ -1230,7 +1229,7 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
-			fi, err := os.CreateTemp("/tmp", "coder-logging-test-*")
+			fi, err := os.CreateTemp("", "coder-logging-test-*")
 			require.NoError(t, err)
 			defer func() {
 				_ = os.Remove(fi.Name())
@@ -1262,19 +1261,19 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
-			fi1, err := os.CreateTemp("/tmp", "coder-logging-test-*")
+			fi1, err := os.CreateTemp("", "coder-logging-test-*")
 			require.NoError(t, err)
 			defer func() {
 				_ = os.Remove(fi1.Name())
 			}()
 
-			fi2, err := os.CreateTemp("/tmp", "coder-logging-test-*")
+			fi2, err := os.CreateTemp("", "coder-logging-test-*")
 			require.NoError(t, err)
 			defer func() {
 				_ = os.Remove(fi2.Name())
 			}()
 
-			fi3, err := os.CreateTemp("/tmp", "coder-logging-test-*")
+			fi3, err := os.CreateTemp("", "coder-logging-test-*")
 			require.NoError(t, err)
 			defer func() {
 				_ = os.Remove(fi3.Name())
