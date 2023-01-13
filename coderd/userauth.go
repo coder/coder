@@ -161,7 +161,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if verifiedEmail == nil {
-		httpapi.Write(ctx, rw, http.StatusPreconditionRequired, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Your primary email must be verified on GitHub!",
 		})
 		return

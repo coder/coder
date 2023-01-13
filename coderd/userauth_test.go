@@ -177,7 +177,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		})
 		_ = coderdtest.CreateFirstUser(t, client)
 		resp := oauth2Callback(t, client)
-		require.Equal(t, http.StatusPreconditionRequired, resp.StatusCode)
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
 	t.Run("BlockSignups", func(t *testing.T) {
 		t.Parallel()
@@ -686,7 +686,7 @@ func TestUserOIDC(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		resp := oidcCallback(t, client, "asdf")
-		require.Equal(t, http.StatusPreconditionRequired, resp.StatusCode)
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
 
 	t.Run("NoIDToken", func(t *testing.T) {

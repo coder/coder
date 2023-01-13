@@ -144,7 +144,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 			UserID:         uuid.MustParse(id),
 		})
 		if xerrors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: fmt.Sprintf("User %q must be a member of organization %q", id, group.ID),
 			})
 			return
@@ -215,14 +215,14 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	}, nil)
 	if database.IsUniqueViolation(err) {
-		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Cannot add the same user to a group twice!",
 			Detail:  err.Error(),
 		})
 		return
 	}
 	if xerrors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to add or remove non-existent group member",
 			Detail:  err.Error(),
 		})
