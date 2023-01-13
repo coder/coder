@@ -262,9 +262,11 @@ func (a RegoAuthorizer) PrepareByRoleName(ctx context.Context, subjectID string,
 		return nil, err
 	}
 
-	span.AddEvent("prepared",
-		trace.WithAttributes(attribute.Int("num_queries", len(prepared.preparedQueries))),
-		trace.WithAttributes(attribute.Bool("always_true", prepared.alwaysTrue)),
+	// Add attributes of the Prepare results. This will help understand the
+	// complexity of the roles and how it affects the time taken.
+	span.SetAttributes(
+		attribute.Int("num_queries", len(prepared.preparedQueries)),
+		attribute.Bool("always_true", prepared.alwaysTrue),
 	)
 
 	a.prepareHist.Observe(time.Since(start).Seconds())
