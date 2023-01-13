@@ -7,29 +7,37 @@ cdroot
 
 usage() {
 	cat <<EOH
-Usage: ./version_tag.sh [--dry-run] [--ref <ref>] <--major | --minor | --patch>
+Usage: ./version_tag.sh [--dry-run] [--old-version <version>] [--ref <ref>] <--major | --minor | --patch>
 
 This script should be called to tag a new release. It will take the suggested
 increment (major, minor, patch) and optionally promote e.g. patch -> minor if
 there are breaking changes between the previous version and the given --ref
 (or HEAD).
 
-This script will create a git tag, so it should only be run in CI (or via
---dry-run).
+Pass --old-version optionally to ensure that the version is bumped from the
+provided version instead of the latest tag (for use in release.sh).
+
+This script will create a git tag, it should only be called by release.sh or in
+CI.
 EOH
 }
 
 dry_run=0
+old_version=
 ref=HEAD
 increment=
 
-args="$(getopt -o h -l dry-run,help,ref:,major,minor,patch -- "$@")"
+args="$(getopt -o h -l dry-run,help,old-version:,ref:,major,minor,patch -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
 	--dry-run)
 		dry_run=1
 		shift
+		;;
+	--old-version)
+		old_version="$2"
+		shift 2
 		;;
 	--ref)
 		ref="$2"
@@ -63,20 +71,12 @@ if [[ -z $increment ]]; then
 	error "No version increment provided."
 fi
 
-if [[ $dry_run != 1 ]] && [[ ${CI:-} == "" ]]; then
-	error "This script must be run in CI or with --dry-run."
+if [[ -z $old_version ]]; then
+	old_version="$(git describe --abbrev=0 "$ref^1" --always)"
 fi
-
-old_version="$(git describe --abbrev=0 "$ref^1")"
-cur_tag="$(git describe --abbrev=0 "$ref")"
+cur_tag="$(git describe --abbrev=0 "$ref" --always)"
 if [[ $old_version != "$cur_tag" ]]; then
-	message="Ref \"$ref\" is already tagged with a release ($cur_tag)"
-	if ! ((dry_run)); then
-		error "$message."
-	fi
-	log "DRYRUN: $message, echoing current tag."
-	echo "$cur_tag"
-	exit 0
+	error "A newer tag than \"$old_version\" already exists for \"$ref\" ($cur_tag), aborting."
 fi
 ref=$(git rev-parse --short "$ref")
 
