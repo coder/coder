@@ -41,7 +41,7 @@ env:
 
 jobs:
   release:
-    name: Create and publish
+    name: Build and publish
     runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
     env:
       # Necessary for Docker manifest
@@ -60,7 +60,6 @@ jobs:
         run: git fetch --tags --force
 
       - name: Create release notes
-        if: ${{ inputs.dry_run }}
         env:
           # We always have to set this since there might be commits on
           # main that didn't have a PR.
@@ -69,15 +68,12 @@ jobs:
           set -euo pipefail
           ref=HEAD
           old_version="$(git describe --abbrev=0 "$ref^1")"
+          version="$(./scripts/version.sh)"
 
           # Cache commit metadata.
           . ./scripts/release/check_commit_metadata.sh "$old_version" "$ref"
 
-          if [[ $CODER_DRY_RUN != *t* ]]; then
-            # This will fail if we're doing a non-dry-run without tag
-            # being present.
-            version="$(./scripts/version.sh)"
-          else
+          if [[ $CODER_DRY_RUN == *t* ]]; then
             # Create a tag for this dry-run (local only, can't be uploaded).
             version="$(
               ./scripts/release/tag_version.sh \
