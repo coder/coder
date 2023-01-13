@@ -37,5 +37,5 @@ test("Basic flow", async ({ baseURL, page }) => {
   // start workspace
   await clickButton(page, buttons.startWorkspace)
   const stopButton = page.getByRole("button", { name: buttons.stopWorkspace, exact: true })
-  await expect(stopButton, { timeout: 20_000 }).toBeEnabled()
+  await expect(stopButton).toBeEnabled({ timeout: 20_000 })
 })
