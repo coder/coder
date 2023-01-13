@@ -20,7 +20,6 @@ type cspViolation struct {
 // @ID report-csp-violations
 // @Security CoderSessionToken
 // @Accept json
-// @Produce text/plain
 // @Tags General
 // @Param request body cspViolation true "Violation report"
 // @Success 200

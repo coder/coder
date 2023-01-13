@@ -75,6 +75,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -145,7 +148,7 @@ const docTemplate = `{
                     "Applications"
                 ],
                 "summary": "Get applications host",
-                "operationId": "get-app-host",
+                "operationId": "get-applications-host",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -223,7 +226,7 @@ const docTemplate = `{
                     "Audit"
                 ],
                 "summary": "Generate fake audit log",
-                "operationId": "generate-fake-audit-logs",
+                "operationId": "generate-fake-audit-log",
                 "parameters": [
                     {
                         "description": "Audit log request",
@@ -336,9 +339,6 @@ const docTemplate = `{
                 "consumes": [
                     "application/json"
                 ],
-                "produces": [
-                    "text/plain"
-                ],
                 "tags": [
                     "General"
                 ],
@@ -405,7 +405,7 @@ const docTemplate = `{
                     "Files"
                 ],
                 "summary": "Upload file",
-                "operationId": "update-file",
+                "operationId": "upload-file",
                 "parameters": [
                     {
                         "type": "string",
@@ -500,7 +500,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/groups/{groupName}": {
+        "/groups/{group}": {
             "get": {
                 "security": [
                     {
@@ -519,7 +519,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Group name",
-                        "name": "groupName",
+                        "name": "group",
                         "in": "path",
                         "required": true
                     }
@@ -532,9 +532,7 @@ const docTemplate = `{
                         }
                     }
                 }
-            }
-        },
-        "/license/{id}": {
+            },
             "delete": {
                 "security": [
                     {
@@ -547,21 +545,55 @@ const docTemplate = `{
                 "tags": [
                     "Enterprise"
                 ],
-                "summary": "Delete license",
-                "operationId": "delete-license",
+                "summary": "Delete group by name",
+                "operationId": "delete-group-by-name",
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "number",
-                        "description": "License ID",
-                        "name": "id",
+                        "description": "Group name",
+                        "name": "group",
                         "in": "path",
                         "required": true
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Group"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update group by name",
+                "operationId": "update-group-by-name",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Group name",
+                        "name": "group",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Group"
+                        }
                     }
                 }
             }
@@ -599,6 +631,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -628,12 +663,47 @@ const docTemplate = `{
                 }
             }
         },
+        "/licenses/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Delete license",
+                "operationId": "delete-license",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "number",
+                        "description": "License ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/organizations": {
             "post": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
+                ],
+                "consumes": [
+                    "application/json"
                 ],
                 "produces": [
                     "application/json"
@@ -774,6 +844,48 @@ const docTemplate = `{
                 "responses": {
                     "201": {
                         "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Group"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/groups/{groupName}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get group by organization and group name",
+                "operationId": "get-group-by-organization-and-group-name",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Group name",
+                        "name": "groupName",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Group"
                         }
@@ -958,9 +1070,6 @@ const docTemplate = `{
                     {
                         "CoderSessionToken": []
                     }
-                ],
-                "produces": [
-                    "application/json"
                 ],
                 "tags": [
                     "Enterprise"
@@ -1467,6 +1576,26 @@ const docTemplate = `{
             }
         },
         "/scim/v2/Users": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/scim+json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "SCIM 2.0: Get users",
+                "operationId": "scim-get-users",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            },
             "post": {
                 "security": [
                     {
@@ -1576,7 +1705,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/templates/{id}": {
+        "/templates/{template}": {
             "get": {
                 "security": [
                     {
@@ -1596,7 +1725,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Template ID",
-                        "name": "id",
+                        "name": "template",
                         "in": "path",
                         "required": true
                     }
@@ -1629,7 +1758,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Template ID",
-                        "name": "id",
+                        "name": "template",
                         "in": "path",
                         "required": true
                     }
@@ -1656,13 +1785,13 @@ const docTemplate = `{
                     "Templates"
                 ],
                 "summary": "Update template metadata by ID",
-                "operationId": "update-template-metadata",
+                "operationId": "update-template-metadata-by-id",
                 "parameters": [
                     {
                         "type": "string",
                         "format": "uuid",
                         "description": "Template ID",
-                        "name": "id",
+                        "name": "template",
                         "in": "path",
                         "required": true
                     }
@@ -1677,7 +1806,90 @@ const docTemplate = `{
                 }
             }
         },
-        "/templates/{id}/daus": {
+        "/templates/{template}/acl": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get template ACLs",
+                "operationId": "get-template-acls",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.TemplateUser"
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update template ACL",
+                "operationId": "update-template-acl",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update template request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateTemplateACL"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/templates/{template}/daus": {
             "get": {
                 "security": [
                     {
@@ -1697,7 +1909,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Template ID",
-                        "name": "id",
+                        "name": "template",
                         "in": "path",
                         "required": true
                     }
@@ -1712,7 +1924,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/templates/{id}/versions": {
+        "/templates/{template}/versions": {
             "get": {
                 "security": [
                     {
@@ -1726,13 +1938,13 @@ const docTemplate = `{
                     "Templates"
                 ],
                 "summary": "List template versions by template ID",
-                "operationId": "list-template-versions-by-template-ID",
+                "operationId": "list-template-versions-by-template-id",
                 "parameters": [
                     {
                         "type": "string",
                         "format": "uuid",
                         "description": "Template ID",
-                        "name": "id",
+                        "name": "template",
                         "in": "path",
                         "required": true
                     },
@@ -1784,7 +1996,7 @@ const docTemplate = `{
                     "Templates"
                 ],
                 "summary": "Update active template version by template ID",
-                "operationId": "update-active-template-version-by-template-ID",
+                "operationId": "update-active-template-version-by-template-id",
                 "parameters": [
                     {
                         "description": "Modified template version",
@@ -1799,7 +2011,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Template ID",
-                        "name": "id",
+                        "name": "template",
                         "in": "path",
                         "required": true
                     }
@@ -1814,7 +2026,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/templates/{id}/versions/{templateversionname}": {
+        "/templates/{template}/versions/{templateversionname}": {
             "get": {
                 "security": [
                     {
@@ -1834,7 +2046,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Template ID",
-                        "name": "id",
+                        "name": "template",
                         "in": "path",
                         "required": true
                     },
@@ -1854,86 +2066,6 @@ const docTemplate = `{
                             "items": {
                                 "$ref": "#/definitions/codersdk.TemplateVersion"
                             }
-                        }
-                    }
-                }
-            }
-        },
-        "/templates/{template}/acl": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Enterprise"
-                ],
-                "summary": "Get template ACLs",
-                "operationId": "get-template-acls",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Template ID",
-                        "name": "template",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.TemplateUser"
-                            }
-                        }
-                    }
-                }
-            },
-            "patch": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Enterprise"
-                ],
-                "summary": "Update template ACL",
-                "operationId": "update-template-acl",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Template ID",
-                        "name": "template",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Update template request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateTemplateACL"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 }
@@ -2056,15 +2188,12 @@ const docTemplate = `{
                 }
             }
         },
-        "/templateversions/{templateversion}/dry-run/{jobid}": {
+        "/templateversions/{templateversion}/dry-run/{jobID}": {
             "get": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ],
-                "consumes": [
-                    "application/json"
                 ],
                 "produces": [
                     "application/json"
@@ -2087,7 +2216,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Job ID",
-                        "name": "jobid",
+                        "name": "jobID",
                         "in": "path",
                         "required": true
                     }
@@ -2102,7 +2231,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/templateversions/{templateversion}/dry-run/{jobid}/cancel": {
+        "/templateversions/{templateversion}/dry-run/{jobID}/cancel": {
             "patch": {
                 "security": [
                     {
@@ -2118,6 +2247,14 @@ const docTemplate = `{
                 "summary": "Cancel template version dry-run by job ID",
                 "operationId": "cancel-template-version-dry-run-by-job-id",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job ID",
+                        "name": "jobID",
+                        "in": "path",
+                        "required": true
+                    },
                     {
                         "type": "string",
                         "format": "uuid",
@@ -2137,7 +2274,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/templateversions/{templateversion}/dry-run/{jobid}/logs": {
+        "/templateversions/{templateversion}/dry-run/{jobID}/logs": {
             "get": {
                 "security": [
                     {
@@ -2165,7 +2302,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Job ID",
-                        "name": "jobid",
+                        "name": "jobID",
                         "in": "path",
                         "required": true
                     },
@@ -2201,7 +2338,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/templateversions/{templateversion}/dry-run/{jobid}/resources": {
+        "/templateversions/{templateversion}/dry-run/{jobID}/resources": {
             "get": {
                 "security": [
                     {
@@ -2229,7 +2366,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Job ID",
-                        "name": "jobid",
+                        "name": "jobID",
                         "in": "path",
                         "required": true
                     }
@@ -2620,6 +2757,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -2681,14 +2821,11 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "produces": [
-                    "application/json"
-                ],
                 "tags": [
                     "Users"
                 ],
                 "summary": "OAuth 2.0 GitHub Callback",
-                "operationId": "oauth2-github-callback",
+                "operationId": "oauth-20-github-callback",
                 "responses": {
                     "307": {
                         "description": "Temporary Redirect"
@@ -2703,14 +2840,11 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "produces": [
-                    "application/json"
-                ],
                 "tags": [
                     "Users"
                 ],
                 "summary": "OpenID Connect Callback",
-                "operationId": "oidc-callback",
+                "operationId": "openid-connect-callback",
                 "responses": {
                     "307": {
                         "description": "Temporary Redirect"
@@ -2954,6 +3088,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -3037,14 +3174,11 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "produces": [
-                    "application/json"
-                ],
                 "tags": [
                     "Users"
                 ],
                 "summary": "Delete API key",
-                "operationId": "delete-user-tokens",
+                "operationId": "delete-api-key",
                 "parameters": [
                     {
                         "type": "string",
@@ -3083,7 +3217,7 @@ const docTemplate = `{
                     "Users"
                 ],
                 "summary": "Get organizations by user",
-                "operationId": "get-organizations-by-users",
+                "operationId": "get-organizations-by-user",
                 "parameters": [
                     {
                         "type": "string",
@@ -3154,7 +3288,7 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "produces": [
+                "consumes": [
                     "application/json"
                 ],
                 "tags": [
@@ -3193,6 +3327,9 @@ const docTemplate = `{
                     {
                         "CoderSessionToken": []
                     }
+                ],
+                "consumes": [
+                    "application/json"
                 ],
                 "produces": [
                     "application/json"
@@ -3513,6 +3650,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -3548,6 +3688,9 @@ const docTemplate = `{
                     {
                         "CoderSessionToken": []
                     }
+                ],
+                "consumes": [
+                    "application/json"
                 ],
                 "produces": [
                     "application/json"
@@ -3585,6 +3728,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -3621,14 +3767,17 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Agents"
                 ],
-                "summary": "Submit workspace application health",
-                "operationId": "submit-workspace-workspace-agent-health",
+                "summary": "Submit workspace agent application health",
+                "operationId": "submit-workspace-agent-application-health",
                 "parameters": [
                     {
                         "description": "Application health request",
@@ -3655,14 +3804,11 @@ const docTemplate = `{
                     }
                 ],
                 "description": "It accepts a WebSocket connection to an agent that listens to\nincoming connections and publishes node updates.",
-                "produces": [
-                    "application/json"
-                ],
                 "tags": [
                     "Agents"
                 ],
                 "summary": "Coordinate workspace agent via Tailnet",
-                "operationId": "get-workspace-agent-git-ssh-key-via-tailnet",
+                "operationId": "coordinate-workspace-agent-via-tailnet",
                 "responses": {
                     "101": {
                         "description": "Switching Protocols"
@@ -3676,9 +3822,6 @@ const docTemplate = `{
                     {
                         "CoderSessionToken": []
                     }
-                ],
-                "consumes": [
-                    "application/json"
                 ],
                 "produces": [
                     "application/json"
@@ -3721,9 +3864,6 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "consumes": [
-                    "application/json"
-                ],
                 "produces": [
                     "application/json"
                 ],
@@ -3748,9 +3888,6 @@ const docTemplate = `{
                     {
                         "CoderSessionToken": []
                     }
-                ],
-                "consumes": [
-                    "application/json"
                 ],
                 "produces": [
                     "application/json"
@@ -3777,6 +3914,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -3784,7 +3924,7 @@ const docTemplate = `{
                     "Agents"
                 ],
                 "summary": "Submit workspace agent stats",
-                "operationId": "submit-workspace-workspace-agent-stats",
+                "operationId": "submit-workspace-agent-stats",
                 "parameters": [
                     {
                         "description": "Stats request",
@@ -3813,6 +3953,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -3820,7 +3963,7 @@ const docTemplate = `{
                     "Agents"
                 ],
                 "summary": "Submit workspace agent version",
-                "operationId": "submit-workspace-workspace-agent-version",
+                "operationId": "submit-workspace-agent-version",
                 "parameters": [
                     {
                         "description": "Version request",
@@ -3839,6 +3982,169 @@ const docTemplate = `{
                 },
                 "x-apidocgen": {
                     "skip": true
+                }
+            }
+        },
+        "/workspaceagents/{workspaceagent}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get workspace agent by ID",
+                "operationId": "get-workspace-agent-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgent"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaceagents/{workspaceagent}/connection": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get connection info for workspace agent",
+                "operationId": "get-connection-info-for-workspace-agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentConnectionInfo"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaceagents/{workspaceagent}/coordinate": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Coordinate workspace agent",
+                "operationId": "coordinate-workspace-agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                }
+            }
+        },
+        "/workspaceagents/{workspaceagent}/listening-ports": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get listening ports for workspace agent",
+                "operationId": "get-listening-ports-for-workspace-agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ListeningPortsResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaceagents/{workspaceagent}/pty": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Open PTY to workspace agent",
+                "operationId": "open-pty-to-workspace-agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
                 }
             }
         },
@@ -4050,7 +4356,7 @@ const docTemplate = `{
                     "Workspaces"
                 ],
                 "summary": "List workspaces",
-                "operationId": "get-workspaces",
+                "operationId": "list-workspaces",
                 "parameters": [
                     {
                         "type": "string",
@@ -4110,7 +4416,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaces/{id}": {
+        "/workspaces/{workspace}": {
             "get": {
                 "security": [
                     {
@@ -4130,7 +4436,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Workspace ID",
-                        "name": "id",
+                        "name": "workspace",
                         "in": "path",
                         "required": true
                     },
@@ -4149,9 +4455,89 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Update workspace metadata by ID",
+                "operationId": "update-workspace-metadata-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Metadata update request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateWorkspaceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
             }
         },
-        "/workspaces/{id}/builds": {
+        "/workspaces/{workspace}/autostart": {
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Update workspace autostart schedule by ID",
+                "operationId": "update-workspace-autostart-schedule-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Schedule update request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateWorkspaceAutostartRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/workspaces/{workspace}/builds": {
             "get": {
                 "security": [
                     {
@@ -4171,7 +4557,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Workspace ID",
-                        "name": "id",
+                        "name": "workspace",
                         "in": "path",
                         "required": true
                     },
@@ -4220,6 +4606,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -4233,7 +4622,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Workspace ID",
-                        "name": "id",
+                        "name": "workspace",
                         "in": "path",
                         "required": true
                     },
@@ -4253,94 +4642,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.WorkspaceBuild"
                         }
-                    }
-                }
-            }
-        },
-        "/workspaces/{workspace}": {
-            "patch": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Workspaces"
-                ],
-                "summary": "Update workspace metadata by ID",
-                "operationId": "update-workspace-metadata-by-id",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Workspace ID",
-                        "name": "workspace",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Metadata update request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateWorkspaceRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                }
-            }
-        },
-        "/workspaces/{workspace}/autostart": {
-            "put": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Workspaces"
-                ],
-                "summary": "Update workspace autostart schedule by ID",
-                "operationId": "update-workspace-autostart-schedule-by-id",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Workspace ID",
-                        "name": "workspace",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Schedule update request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateWorkspaceAutostartRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
                     }
                 }
             }
@@ -4402,9 +4703,6 @@ const docTemplate = `{
                 "consumes": [
                     "application/json"
                 ],
-                "produces": [
-                    "application/json"
-                ],
                 "tags": [
                     "Workspaces"
                 ],
@@ -4450,7 +4748,7 @@ const docTemplate = `{
                     "Workspaces"
                 ],
                 "summary": "Watch workspace by ID",
-                "operationId": "watch-workspace-id",
+                "operationId": "watch-workspace-by-id",
                 "parameters": [
                     {
                         "type": "string",
@@ -4778,7 +5076,8 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.AuditDiff"
                 },
                 "id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "ip": {
                     "type": "string"
@@ -4787,16 +5086,19 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "organization_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "request_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "resource_icon": {
                     "type": "string"
                 },
                 "resource_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "resource_link": {
                     "type": "string"
@@ -4812,7 +5114,8 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "time": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "user": {
                     "$ref": "#/definitions/codersdk.User"
@@ -5099,7 +5402,8 @@ const docTemplate = `{
                 },
                 "template_version_id": {
                     "description": "VersionID is an in-progress or completed job to use as an initial version\nof the template.\n\nThis is required on creation to enable a user-flow of validating a\ntemplate works. There is no reason the data-model cannot support empty\ntemplates, but it doesn't make sense for users.",
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -5135,7 +5439,8 @@ const docTemplate = `{
                     ]
                 },
                 "resource_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "resource_type": {
                     "enum": [
@@ -5156,7 +5461,8 @@ const docTemplate = `{
                     ]
                 },
                 "time": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 }
             }
         },
@@ -5231,7 +5537,8 @@ const docTemplate = `{
                     }
                 },
                 "template_version_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "transition": {
                     "enum": [
@@ -5255,7 +5562,8 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "date": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 }
             }
         },
@@ -5856,6 +6164,47 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ListeningPort": {
+            "type": "object",
+            "properties": {
+                "network": {
+                    "description": "only \"tcp\" at the moment",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ListeningPortNetwork"
+                        }
+                    ]
+                },
+                "port": {
+                    "type": "integer"
+                },
+                "process_name": {
+                    "description": "may be empty",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ListeningPortNetwork": {
+            "type": "string",
+            "enum": [
+                "tcp"
+            ],
+            "x-enum-varnames": [
+                "ListeningPortNetworkTCP"
+            ]
+        },
+        "codersdk.ListeningPortsResponse": {
+            "type": "object",
+            "properties": {
+                "ports": {
+                    "description": "If there are no ports in the list, nothing should be displayed in the UI.\nThere must not be a \"no ports available\" message or anything similar, as\nthere will always be no ports displayed on platforms where our port\ndetection logic is unsupported.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ListeningPort"
+                    }
+                }
+            }
+        },
         "codersdk.LogLevel": {
             "type": "string",
             "enum": [
@@ -6447,7 +6796,8 @@ const docTemplate = `{
             ],
             "properties": {
                 "deadline": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 }
             }
         },
@@ -7238,6 +7588,14 @@ const docTemplate = `{
             "properties": {
                 "session_token": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentConnectionInfo": {
+            "type": "object",
+            "properties": {
+                "derp_map": {
+                    "$ref": "#/definitions/tailcfg.DERPMap"
                 }
             }
         },

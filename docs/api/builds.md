@@ -740,22 +740,22 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/workspaces/{id}/builds \
+curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspaces/{id}/builds`
+`GET /workspaces/{workspace}/builds`
 
 ### Parameters
 
-| Name       | In    | Type              | Required | Description     |
-| ---------- | ----- | ----------------- | -------- | --------------- |
-| `id`       | path  | string(uuid)      | true     | Workspace ID    |
-| `after_id` | query | string(uuid)      | false    | After ID        |
-| `limit`    | query | integer           | false    | Page limit      |
-| `offset`   | query | integer           | false    | Page offset     |
-| `since`    | query | string(date-time) | false    | Since timestamp |
+| Name        | In    | Type              | Required | Description     |
+| ----------- | ----- | ----------------- | -------- | --------------- |
+| `workspace` | path  | string(uuid)      | true     | Workspace ID    |
+| `after_id`  | query | string(uuid)      | false    | After ID        |
+| `limit`     | query | integer           | false    | Page limit      |
+| `offset`    | query | integer           | false    | Page offset     |
+| `since`     | query | string(date-time) | false    | Since timestamp |
 
 ### Example responses
 
@@ -1019,13 +1019,13 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/api/v2/workspaces/{id}/builds \
+curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /workspaces/{id}/builds`
+`POST /workspaces/{workspace}/builds`
 
 > Body parameter
 
@@ -1043,17 +1043,17 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{id}/builds \
     }
   ],
   "state": [0],
-  "template_version_id": "string",
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "transition": "create"
 }
 ```
 
 ### Parameters
 
-| Name   | In   | Type                                                                                   | Required | Description                    |
-| ------ | ---- | -------------------------------------------------------------------------------------- | -------- | ------------------------------ |
-| `id`   | path | string(uuid)                                                                           | true     | Workspace ID                   |
-| `body` | body | [codersdk.CreateWorkspaceBuildRequest](schemas.md#codersdkcreateworkspacebuildrequest) | true     | Create workspace build request |
+| Name        | In   | Type                                                                                   | Required | Description                    |
+| ----------- | ---- | -------------------------------------------------------------------------------------- | -------- | ------------------------------ |
+| `workspace` | path | string(uuid)                                                                           | true     | Workspace ID                   |
+| `body`      | body | [codersdk.CreateWorkspaceBuildRequest](schemas.md#codersdkcreateworkspacebuildrequest) | true     | Create workspace build request |
 
 ### Example responses
 

@@ -40,6 +40,7 @@ func (api *API) organization(rw http.ResponseWriter, r *http.Request) {
 // @Summary Create organization
 // @ID create-organization
 // @Security CoderSessionToken
+// @Accept json
 // @Produce json
 // @Tags Organizations
 // @Param request body codersdk.CreateOrganizationRequest true "Create organization request"
