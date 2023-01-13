@@ -86,9 +86,9 @@ git fetch --quiet --tags origin "$branch"
 ref=$(git rev-parse --short "${ref:-origin/$branch}")
 
 # Make sure that we're running the latest release script.
-# if [[ -n $(git diff --name-status origin/"$branch" -- ./scripts/release.sh) ]]; then
-# 	error "Release script is out-of-date. Please check out the latest version and try again."
-# fi
+if [[ -n $(git diff --name-status origin/"$branch" -- ./scripts/release.sh) ]]; then
+	error "Release script is out-of-date. Please check out the latest version and try again."
+fi
 
 # Check the current version tag from GitHub (by number) using the API to
 # ensure no local tags are considered.
