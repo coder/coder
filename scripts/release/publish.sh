@@ -35,10 +35,9 @@ fi
 
 version=""
 release_notes_file=""
-draft=0
 dry_run=0
 
-args="$(getopt -o "" -l version:,release-notes-file:,draft,dry-run -- "$@")"
+args="$(getopt -o "" -l version:,release-notes-file:,dry-run -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -49,10 +48,6 @@ while true; do
 	--release-notes-file)
 		release_notes_file="$2"
 		shift 2
-		;;
-	--draft)
-		draft=1
-		shift
 		;;
 	--dry-run)
 		dry_run=1
