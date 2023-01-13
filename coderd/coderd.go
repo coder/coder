@@ -177,11 +177,11 @@ func New(options *Options) *API {
 	if options.FilesRateLimit == 0 {
 		options.FilesRateLimit = 12
 	}
-	if options.Authorizer == nil {
-		options.Authorizer = rbac.NewAuthorizer()
-	}
 	if options.PrometheusRegistry == nil {
 		options.PrometheusRegistry = prometheus.NewRegistry()
+	}
+	if options.Authorizer == nil {
+		options.Authorizer = rbac.NewAuthorizer(options.PrometheusRegistry)
 	}
 	if options.TailnetCoordinator == nil {
 		options.TailnetCoordinator = tailnet.NewCoordinator()
