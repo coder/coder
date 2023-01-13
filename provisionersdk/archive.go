@@ -4,7 +4,6 @@ import (
 	"archive/tar"
 	"bytes"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -32,37 +31,43 @@ func dirHasExt(dir string, ext string) (bool, error) {
 	return false, nil
 }
 
+// Tar archives a Terraform directory.
+func Tar(directory string, limit int64) ([]byte, error) {
+	var buffer bytes.Buffer
+	tarWriter := tar.NewWriter(&buffer)
+	totalSize := int64(0)
 
-type archiver struct {
+	const tfExt = ".tf"
+	hasTf, err := dirHasExt(directory, tfExt)
+	if err != nil {
+		return nil, err
+	}
+	if !hasTf {
+		absPath, err := filepath.Abs(directory)
+		if err != nil {
+			return nil, err
+		}
 
-}
+		// Show absolute path to aid in debugging. E.g. showing "." is
+		// useless.
+		return nil, xerrors.Errorf(
+			"%s is not a valid template since it has no %s files",
+			absPath, tfExt,
+		)
+	}
 
-func (a *archiver) walkFn(path string, fileInfo os.FileInfo, err error) error {
+	err = filepath.Walk(directory, func(file string, fileInfo os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
+		var link string
 		if fileInfo.Mode()&os.ModeSymlink == os.ModeSymlink {
-			// Per https://github.com/coder/coder/issues/5677, we want to
-			// follow symlinks.
-			var linkDest string
-			linkDest, err = os.Readlink(file)
+			link, err = os.Readlink(file)
 			if err != nil {
 				return err
 			}
-
-			destInfo, err := os.Stat(linkDest)
-			if err != nil {
-				return err
-			}
-			if destInfo.IsDir() {
-				return filepath.Walk(linkDest, func(path string, info fs.FileInfo, err error) error {
-					walkFn(path, info, err)
-				})
-			}
-			return nil
 		}
-
-		header, err := tar.FileInfoHeader(fileInfo, "")
+		header, err := tar.FileInfoHeader(fileInfo, link)
 		if err != nil {
 			return err
 		}
@@ -71,10 +76,11 @@ func (a *archiver) walkFn(path string, fileInfo os.FileInfo, err error) error {
 			return err
 		}
 		if strings.HasPrefix(rel, ".") || strings.HasPrefix(filepath.Base(rel), ".") {
-			// Don't archive hidden files!
 			if fileInfo.IsDir() && rel != "." {
+				// Don't archive hidden files!
 				return filepath.SkipDir
 			}
+			// Don't archive hidden files!
 			return nil
 		}
 		if strings.Contains(rel, ".tfstate") {
@@ -103,35 +109,7 @@ func (a *archiver) walkFn(path string, fileInfo os.FileInfo, err error) error {
 			return xerrors.Errorf("Archive too big. Must be <= %d bytes", limit)
 		}
 		return data.Close()
-	}
-}
-
-// Tar archives a Terraform directory.
-func Tar(directory string, limit int64) ([]byte, error) {
-	var buffer bytes.Buffer
-	tarWriter := tar.NewWriter(&buffer)
-	totalSize := int64(0)
-
-	const tfExt = ".tf"
-	hasTf, err := dirHasExt(directory, tfExt)
-	if err != nil {
-		return nil, err
-	}
-	if !hasTf {
-		absPath, err := filepath.Abs(directory)
-		if err != nil {
-			return nil, err
-		}
-
-		// Show absolute path to aid in debugging. E.g. showing "." is
-		// useless.
-		return nil, xerrors.Errorf(
-			"%s is not a valid template since it has no %s files",
-			absPath, tfExt,
-		)
-	}
-
-	err = filepath.Walk(directory, tarWalkFn())
+	})
 	if err != nil {
 		return nil, err
 	}
