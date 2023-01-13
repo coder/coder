@@ -2301,11 +2301,6 @@
     },
     "/users/login": {
       "post": {
-        "security": [
-          {
-            "CoderSessionToken": []
-          }
-        ],
         "produces": ["application/json"],
         "tags": ["Authorization"],
         "summary": "Log in user",

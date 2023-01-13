@@ -2615,11 +2615,6 @@ const docTemplate = `{
         },
         "/users/login": {
             "post": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "produces": [
                     "application/json"
                 ],
