@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/examples"
+	sdkproto "github.com/coder/coder/provisionersdk/proto"
 )
 
 // @Summary Get template version by ID
@@ -190,6 +191,59 @@ func (api *API) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 		apiSchemas = append(apiSchemas, apiSchema)
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, apiSchemas)
+}
+
+// @Summary Get rich parameters by template version
+// @ID get-rich-parameters-by-template-version
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Param templateversion path string true "Template version ID" format(uuid)
+// @Success 200 {array} parameter.ComputedValue
+// @Router /templateversions/{templateversion}/rich-parameters [get]
+func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	templateVersion := httpmw.TemplateVersionParam(r)
+	template := httpmw.TemplateParam(r)
+	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner job.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !job.CompletedAt.Valid {
+		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
+			Message: "Job hasn't completed!",
+		})
+		return
+	}
+	dbParameters, err := api.Database.GetTemplateVersionParameters(ctx, templateVersion.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template version parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	parameters := make([]codersdk.TemplateVersionParameter, 0)
+	for _, dbParameter := range dbParameters {
+		parameter, err := convertTemplateVersionParameter(dbParameter)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error converting template version parameter.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		parameters = append(parameters, parameter)
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, parameters)
 }
 
 // @Summary Get parameters by template version
@@ -1305,6 +1359,35 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 		Readme:         version.Readme,
 		CreatedBy:      createdBy,
 	}
+}
+
+func convertTemplateVersionParameter(param database.TemplateVersionParameter) (codersdk.TemplateVersionParameter, error) {
+	var protoOptions []*sdkproto.ParameterOption
+	err := json.Unmarshal(param.Options, &protoOptions)
+	if err != nil {
+		return codersdk.TemplateVersionParameter{}, err
+	}
+	options := make([]codersdk.TemplateVersionParameterOption, 0)
+	for _, option := range protoOptions {
+		options = append(options, codersdk.TemplateVersionParameterOption{
+			Name:        option.Name,
+			Description: option.Description,
+			Value:       option.Value,
+			Icon:        option.Icon,
+		})
+	}
+	return codersdk.TemplateVersionParameter{
+		Name:            param.Name,
+		Description:     param.Description,
+		Type:            param.Type,
+		Mutable:         param.Mutable,
+		DefaultValue:    param.DefaultValue,
+		Icon:            param.Icon,
+		Options:         options,
+		ValidationRegex: param.ValidationRegex,
+		ValidationMin:   param.ValidationMin,
+		ValidationMax:   param.ValidationMax,
+	}, nil
 }
 
 func watchTemplateChannel(id uuid.UUID) string {

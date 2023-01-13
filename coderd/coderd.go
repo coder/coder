@@ -435,6 +435,7 @@ func New(options *Options) *API {
 			r.Patch("/cancel", api.patchCancelTemplateVersion)
 			r.Get("/schema", api.templateVersionSchema)
 			r.Get("/parameters", api.templateVersionParameters)
+			r.Get("/rich-parameters", api.templateVersionRichParameters)
 			r.Get("/resources", api.templateVersionResources)
 			r.Get("/logs", api.templateVersionLogs)
 			r.Route("/dry-run", func(r chi.Router) {

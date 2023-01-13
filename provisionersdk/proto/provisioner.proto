@@ -52,6 +52,14 @@ message ParameterSchema {
     string validation_condition = 11;
 }
 
+// ParameterOption represents a singular option that a parameter may expose.
+message ParameterOption {
+    string name = 1;
+    string description = 2;
+    string value = 3;
+    string icon = 4;
+}
+
 // LogLevel represents severity of the log.
 enum LogLevel {
     TRACE = 0;
