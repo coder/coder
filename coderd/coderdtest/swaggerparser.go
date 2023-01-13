@@ -149,7 +149,7 @@ func parseSwaggerComment(commentGroup *ast.CommentGroup) SwaggerComment {
 
 func VerifySwaggerDefinitions(t *testing.T, router chi.Router, swaggerComments []SwaggerComment) {
 	assertUniqueRoutes(t, swaggerComments)
-	assertUniqueAnnotations(t, swaggerComments)
+	assertSingleAnnotations(t, swaggerComments)
 
 	err := chi.Walk(router, func(method, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
 		method = strings.ToLower(method)
@@ -195,7 +195,7 @@ func assertUniqueRoutes(t *testing.T, comments []SwaggerComment) {
 
 var uniqueAnnotations = []string{"@ID", "@Summary", "@Tags", "@Router"}
 
-func assertUniqueAnnotations(t *testing.T, comments []SwaggerComment) {
+func assertSingleAnnotations(t *testing.T, comments []SwaggerComment) {
 	for _, comment := range comments {
 		counters := map[string]int{}
 
