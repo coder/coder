@@ -29,6 +29,7 @@ import (
 // @Summary Create token API key
 // @ID create-token-api-key
 // @Security CoderSessionToken
+// @Accept json
 // @Produce json
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
@@ -209,9 +210,8 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Delete API key
-// @ID delete-user-tokens
+// @ID delete-api-key
 // @Security CoderSessionToken
-// @Produce json
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
 // @Param keyid path string true "Key ID" format(uuid)

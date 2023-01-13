@@ -48,10 +48,10 @@ var (
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
-// @Param id path string true "Workspace ID" format(uuid)
+// @Param workspace path string true "Workspace ID" format(uuid)
 // @Param include_deleted query bool false "Return data instead of HTTP 404 if the workspace is deleted"
 // @Success 200 {object} codersdk.Workspace
-// @Router /workspaces/{id} [get]
+// @Router /workspaces/{workspace} [get]
 func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
@@ -101,8 +101,11 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	))
 }
 
+// workspaces returns all workspaces a user can read.
+// Optional filters with query params
+//
 // @Summary List workspaces
-// @ID get-workspaces
+// @ID list-workspaces
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
@@ -113,9 +116,6 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 // @Param has_agent query string false "Filter by agent status" Enums(connected,connecting,disconnected,timeout)
 // @Success 200 {object} codersdk.WorkspacesResponse
 // @Router /workspaces [get]
-//
-// workspaces returns all workspaces a user can read.
-// Optional filters with query params
 func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -266,6 +266,8 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 	))
 }
 
+// Create a new workspace for the currently authenticated user.
+//
 // @Summary Create user workspace by organization
 // @ID create-user-workspace-by-organization
 // @Security CoderSessionToken
@@ -275,8 +277,6 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 // @Param user path string true "Username, UUID, or me"
 // @Success 200 {object} codersdk.Workspace
 // @Router /organizations/{organization}/members/{user}/workspaces [post]
-//
-// Create a new workspace for the currently authenticated user.
 func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -558,7 +558,6 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 // @ID update-workspace-metadata-by-id
 // @Security CoderSessionToken
 // @Accept json
-// @Produce json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.UpdateWorkspaceRequest true "Metadata update request"
@@ -648,7 +647,6 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @ID update-workspace-autostart-schedule-by-id
 // @Security CoderSessionToken
 // @Accept json
-// @Produce json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.UpdateWorkspaceAutostartRequest true "Schedule update request"
@@ -711,7 +709,6 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 // @ID update-workspace-ttl-by-id
 // @Security CoderSessionToken
 // @Accept json
-// @Produce json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.UpdateWorkspaceTTLRequest true "Workspace TTL update request"
@@ -875,7 +872,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Watch workspace by ID
-// @ID watch-workspace-id
+// @ID watch-workspace-by-id
 // @Security CoderSessionToken
 // @Produce text/event-stream
 // @Tags Workspaces

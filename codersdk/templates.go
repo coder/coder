@@ -176,7 +176,7 @@ func (c *Client) UpdateActiveTemplateVersion(ctx context.Context, template uuid.
 // TemplateVersionsByTemplateRequest defines the request parameters for
 // TemplateVersionsByTemplate.
 type TemplateVersionsByTemplateRequest struct {
-	TemplateID uuid.UUID `json:"template_id" validate:"required"`
+	TemplateID uuid.UUID `json:"template_id" validate:"required" format:"uuid"`
 	Pagination
 }
 
@@ -210,7 +210,7 @@ func (c *Client) TemplateVersionByName(ctx context.Context, template uuid.UUID, 
 }
 
 type DAUEntry struct {
-	Date   time.Time `json:"date"`
+	Date   time.Time `json:"date" format:"date-time"`
 	Amount int       `json:"amount"`
 }
 

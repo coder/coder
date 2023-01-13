@@ -59,9 +59,8 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary OAuth 2.0 GitHub Callback
-// @ID oauth2-github-callback
+// @ID oauth-20-github-callback
 // @Security CoderSessionToken
-// @Produce json
 // @Tags Users
 // @Success 307
 // @Router /users/oauth2/github/callback [get]
@@ -218,9 +217,8 @@ type OIDCConfig struct {
 }
 
 // @Summary OpenID Connect Callback
-// @ID oidc-callback
+// @ID openid-connect-callback
 // @Security CoderSessionToken
-// @Produce json
 // @Tags Users
 // @Success 307
 // @Router /users/oidc/callback [get]
