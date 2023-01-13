@@ -12,6 +12,7 @@ import (
 
 func TestTar(t *testing.T) {
 	t.Parallel()
+
 	t.Run("NoTF", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()
@@ -90,15 +91,58 @@ func TestTar(t *testing.T) {
 
 func TestUntar(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
-	file, err := os.CreateTemp(dir, "*.tf")
-	require.NoError(t, err)
-	_ = file.Close()
-	archive, err := provisionersdk.Tar(dir, 1024)
-	require.NoError(t, err)
-	dir = t.TempDir()
-	err = provisionersdk.Untar(dir, archive)
-	require.NoError(t, err)
-	_, err = os.Stat(filepath.Join(dir, filepath.Base(file.Name())))
-	require.NoError(t, err)
+	t.Run("Normal", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		file, err := os.CreateTemp(dir, "*.tf")
+		require.NoError(t, err)
+		_ = file.Close()
+		archive, err := provisionersdk.Tar(dir, 1024)
+		require.NoError(t, err)
+		dir = t.TempDir()
+		err = provisionersdk.Untar(dir, archive)
+		require.NoError(t, err)
+		_, err = os.Stat(filepath.Join(dir, filepath.Base(file.Name())))
+		require.NoError(t, err)
+	})
+	t.Run("FollowSymlinks", func(t *testing.T) {
+		t.Parallel()
+
+		externalDir := t.TempDir()
+		externalFile, err := os.CreateTemp(externalDir, "")
+		require.NoError(t, err)
+		const externalFileContents = "dogdogdog"
+		externalFile.WriteString(externalFileContents)
+		externalFile.Close()
+
+		dir := t.TempDir()
+
+		file, err := os.CreateTemp(dir, "*.tf")
+		require.NoError(t, err)
+		_ = file.Close()
+
+		err = os.Symlink(
+			externalDir,
+			filepath.Join(dir, "link"),
+		)
+		require.NoError(t, err)
+
+		checkDir := func(dir string) {
+			gotContents, err := os.ReadFile(filepath.Join(dir, "link", filepath.Base(externalFile.Name())))
+			require.NoError(t, err)
+			require.EqualValues(t, externalFileContents, gotContents)
+		}
+
+		checkDir(dir)
+
+		archive, err := provisionersdk.Tar(dir, 1024)
+		require.NoError(t, err)
+
+		extractDir := t.TempDir()
+		err = provisionersdk.Untar(extractDir, archive)
+		require.NoError(t, err)
+
+		checkDir(extractDir)
+	})
 }
