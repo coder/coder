@@ -133,6 +133,18 @@ export const getApiKey = async (): Promise<TypesGen.GenerateAPIKeyResponse> => {
   return response.data
 }
 
+export const getTokens = async (): Promise<TypesGen.APIKey[]> => {
+  const response = await axios.get<TypesGen.APIKey[]>(
+    "/api/v2/users/me/keys/tokens",
+  )
+  return response.data
+}
+
+export const deleteAPIKey = async (keyId: string): Promise<void> => {
+  const response = await axios.delete("/api/v2/users/me/keys/" + keyId)
+  return response.data
+}
+
 export const getUsers = async (
   options: TypesGen.UsersRequest,
 ): Promise<TypesGen.GetUsersResponse> => {

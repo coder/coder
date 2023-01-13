@@ -189,10 +189,6 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	keys, err := api.Database.GetAPIKeysByLoginType(ctx, database.LoginTypeToken)
-	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusOK, []codersdk.APIKey{})
-		return
-	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching API keys.",
@@ -201,7 +197,7 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var apiKeys []codersdk.APIKey
+	apiKeys := []codersdk.APIKey{}
 	for _, key := range keys {
 		apiKeys = append(apiKeys, convertAPIKey(key))
 	}
