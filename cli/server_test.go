@@ -1152,7 +1152,7 @@ func TestServer(t *testing.T) {
 				serverErr <- root.ExecuteContext(ctx)
 			}()
 
-			require.Eventually(t, func() bool {
+			assert.Eventually(t, func() bool {
 				stat, err := os.Stat(fiName)
 				return err == nil && stat.Size() > 0
 			}, testutil.WaitShort, testutil.IntervalFast)
@@ -1184,7 +1184,7 @@ func TestServer(t *testing.T) {
 				serverErr <- root.ExecuteContext(ctx)
 			}()
 
-			require.Eventually(t, func() bool {
+			assert.Eventually(t, func() bool {
 				stat, err := os.Stat(fi.Name())
 				return err == nil && stat.Size() > 0
 			}, testutil.WaitShort, testutil.IntervalFast)
@@ -1248,7 +1248,7 @@ func TestServer(t *testing.T) {
 				serverErr <- root.ExecuteContext(ctx)
 			}()
 
-			require.Eventually(t, func() bool {
+			assert.Eventually(t, func() bool {
 				stat, err := os.Stat(fi.Name())
 				return err == nil && stat.Size() > 0
 			}, testutil.WaitShort, testutil.IntervalFast)
@@ -1294,15 +1294,15 @@ func TestServer(t *testing.T) {
 				serverErr <- root.ExecuteContext(ctx)
 			}()
 
-			require.Eventually(t, func() bool {
+			assert.Eventually(t, func() bool {
 				stat, err := os.Stat(fi1.Name())
 				return err == nil && stat.Size() > 0
 			}, testutil.WaitShort, testutil.IntervalFast)
-			require.Eventually(t, func() bool {
+			assert.Eventually(t, func() bool {
 				stat, err := os.Stat(fi2.Name())
 				return err == nil && stat.Size() > 0
 			}, testutil.WaitShort, testutil.IntervalFast)
-			require.Eventually(t, func() bool {
+			assert.Eventually(t, func() bool {
 				stat, err := os.Stat(fi3.Name())
 				return err == nil && stat.Size() > 0
 			}, testutil.WaitShort, testutil.IntervalFast)
