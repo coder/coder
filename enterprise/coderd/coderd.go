@@ -87,7 +87,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 					httpmw.ExtractGroupByNameParam(api.Database),
 				)
 
-				r.Get("/", api.group)
+				r.Get("/", api.groupByOrganization)
 			})
 		})
 		r.Route("/organizations/{organization}/provisionerdaemons", func(r chi.Router) {

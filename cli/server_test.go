@@ -35,6 +35,7 @@ import (
 	"github.com/coder/coder/coderd/database/postgres"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/pty/ptytest"
 	"github.com/coder/coder/testutil"
 )
@@ -1118,6 +1119,194 @@ func TestServer(t *testing.T) {
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			require.Equal(t, "", resp.Header.Get("X-Ratelimit-Limit"))
+			cancelFunc()
+			<-serverErr
+		})
+	})
+
+	t.Run("Logging", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("CreatesFile", func(t *testing.T) {
+			t.Parallel()
+			ctx, cancelFunc := context.WithCancel(context.Background())
+			defer cancelFunc()
+
+			random, err := cryptorand.String(5)
+			require.NoError(t, err)
+			fiName := fmt.Sprint(os.TempDir(), "/coder-logging-test-", random)
+			defer func() {
+				_ = os.Remove(fiName)
+			}()
+
+			root, _ := clitest.New(t,
+				"server",
+				"--verbose",
+				"--in-memory",
+				"--http-address", ":0",
+				"--access-url", "http://example.com",
+				"--log-human", fiName,
+			)
+			serverErr := make(chan error, 1)
+			go func() {
+				serverErr <- root.ExecuteContext(ctx)
+			}()
+
+			assert.Eventually(t, func() bool {
+				stat, err := os.Stat(fiName)
+				return err == nil && stat.Size() > 0
+			}, testutil.WaitShort, testutil.IntervalFast)
+			cancelFunc()
+			<-serverErr
+		})
+
+		t.Run("Human", func(t *testing.T) {
+			t.Parallel()
+			ctx, cancelFunc := context.WithCancel(context.Background())
+			defer cancelFunc()
+
+			fi, err := os.CreateTemp("", "coder-logging-test-*")
+			require.NoError(t, err)
+			defer func() {
+				_ = os.Remove(fi.Name())
+			}()
+
+			root, _ := clitest.New(t,
+				"server",
+				"--verbose",
+				"--in-memory",
+				"--http-address", ":0",
+				"--access-url", "http://example.com",
+				"--log-human", fi.Name(),
+			)
+			serverErr := make(chan error, 1)
+			go func() {
+				serverErr <- root.ExecuteContext(ctx)
+			}()
+
+			assert.Eventually(t, func() bool {
+				stat, err := os.Stat(fi.Name())
+				return err == nil && stat.Size() > 0
+			}, testutil.WaitShort, testutil.IntervalFast)
+			cancelFunc()
+			<-serverErr
+		})
+
+		t.Run("JSON", func(t *testing.T) {
+			t.Parallel()
+			ctx, cancelFunc := context.WithCancel(context.Background())
+			defer cancelFunc()
+
+			fi, err := os.CreateTemp("", "coder-logging-test-*")
+			require.NoError(t, err)
+			defer func() {
+				_ = os.Remove(fi.Name())
+			}()
+
+			root, _ := clitest.New(t,
+				"server",
+				"--verbose",
+				"--in-memory",
+				"--http-address", ":0",
+				"--access-url", "http://example.com",
+				"--log-json", fi.Name(),
+			)
+			serverErr := make(chan error, 1)
+			go func() {
+				serverErr <- root.ExecuteContext(ctx)
+			}()
+
+			assert.Eventually(t, func() bool {
+				stat, err := os.Stat(fi.Name())
+				return err == nil && stat.Size() > 0
+			}, testutil.WaitShort, testutil.IntervalFast)
+			cancelFunc()
+			<-serverErr
+		})
+
+		t.Run("Stackdriver", func(t *testing.T) {
+			t.Parallel()
+			ctx, cancelFunc := context.WithCancel(context.Background())
+			defer cancelFunc()
+
+			fi, err := os.CreateTemp("", "coder-logging-test-*")
+			require.NoError(t, err)
+			defer func() {
+				_ = os.Remove(fi.Name())
+			}()
+
+			root, _ := clitest.New(t,
+				"server",
+				"--verbose",
+				"--in-memory",
+				"--http-address", ":0",
+				"--access-url", "http://example.com",
+				"--log-stackdriver", fi.Name(),
+			)
+			serverErr := make(chan error, 1)
+			go func() {
+				serverErr <- root.ExecuteContext(ctx)
+			}()
+
+			assert.Eventually(t, func() bool {
+				stat, err := os.Stat(fi.Name())
+				return err == nil && stat.Size() > 0
+			}, testutil.WaitLong, testutil.IntervalMedium)
+			cancelFunc()
+			<-serverErr
+		})
+
+		t.Run("Multiple", func(t *testing.T) {
+			t.Parallel()
+			ctx, cancelFunc := context.WithCancel(context.Background())
+			defer cancelFunc()
+
+			fi1, err := os.CreateTemp("", "coder-logging-test-*")
+			require.NoError(t, err)
+			defer func() {
+				_ = os.Remove(fi1.Name())
+			}()
+
+			fi2, err := os.CreateTemp("", "coder-logging-test-*")
+			require.NoError(t, err)
+			defer func() {
+				_ = os.Remove(fi2.Name())
+			}()
+
+			fi3, err := os.CreateTemp("", "coder-logging-test-*")
+			require.NoError(t, err)
+			defer func() {
+				_ = os.Remove(fi3.Name())
+			}()
+
+			root, _ := clitest.New(t,
+				"server",
+				"--verbose",
+				"--in-memory",
+				"--http-address", ":0",
+				"--access-url", "http://example.com",
+				"--log-human", fi1.Name(),
+				"--log-json", fi2.Name(),
+				"--log-stackdriver", fi3.Name(),
+			)
+			serverErr := make(chan error, 1)
+			go func() {
+				serverErr <- root.ExecuteContext(ctx)
+			}()
+
+			assert.Eventually(t, func() bool {
+				stat, err := os.Stat(fi1.Name())
+				return err == nil && stat.Size() > 0
+			}, testutil.WaitLong, testutil.IntervalMedium)
+			assert.Eventually(t, func() bool {
+				stat, err := os.Stat(fi2.Name())
+				return err == nil && stat.Size() > 0
+			}, testutil.WaitLong, testutil.IntervalMedium)
+			assert.Eventually(t, func() bool {
+				stat, err := os.Stat(fi3.Name())
+				return err == nil && stat.Size() > 0
+			}, testutil.WaitLong, testutil.IntervalMedium)
+
 			cancelFunc()
 			<-serverErr
 		})

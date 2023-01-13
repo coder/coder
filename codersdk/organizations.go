@@ -67,7 +67,7 @@ type CreateTemplateRequest struct {
 	// This is required on creation to enable a user-flow of validating a
 	// template works. There is no reason the data-model cannot support empty
 	// templates, but it doesn't make sense for users.
-	VersionID       uuid.UUID                `json:"template_version_id" validate:"required"`
+	VersionID       uuid.UUID                `json:"template_version_id" validate:"required" format:"uuid"`
 	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
 
 	// DefaultTTLMillis allows optionally specifying the default TTL
@@ -81,7 +81,7 @@ type CreateTemplateRequest struct {
 
 // CreateWorkspaceRequest provides options for creating a new workspace.
 type CreateWorkspaceRequest struct {
-	TemplateID        uuid.UUID `json:"template_id" validate:"required"`
+	TemplateID        uuid.UUID `json:"template_id" validate:"required" format:"uuid"`
 	Name              string    `json:"name" validate:"workspace_name,required"`
 	AutostartSchedule *string   `json:"autostart_schedule"`
 	TTLMillis         *int64    `json:"ttl_ms,omitempty"`

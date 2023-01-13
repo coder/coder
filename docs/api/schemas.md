@@ -323,18 +323,18 @@
       "secret": true
     }
   },
-  "id": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "ip": "string",
   "is_deleted": true,
-  "organization_id": "string",
-  "request_id": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
   "resource_icon": "string",
-  "resource_id": "string",
+  "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "resource_link": "string",
   "resource_target": "string",
   "resource_type": "organization",
   "status_code": 0,
-  "time": "string",
+  "time": "2019-08-24T14:15:22Z",
   "user": {
     "avatar_url": "http://example.com",
     "created_at": "2019-08-24T14:15:22Z",
@@ -399,18 +399,18 @@
           "secret": true
         }
       },
-      "id": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "ip": "string",
       "is_deleted": true,
-      "organization_id": "string",
-      "request_id": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
       "resource_icon": "string",
-      "resource_id": "string",
+      "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
       "resource_link": "string",
       "resource_target": "string",
       "resource_type": "organization",
       "status_code": 0,
-      "time": "string",
+      "time": "2019-08-24T14:15:22Z",
       "user": {
         "avatar_url": "http://example.com",
         "created_at": "2019-08-24T14:15:22Z",
@@ -731,7 +731,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "source_value": "string"
     }
   ],
-  "template_version_id": "string"
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1"
 }
 ```
 
@@ -778,9 +778,9 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 ```json
 {
   "action": "create",
-  "resource_id": "string",
+  "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "resource_type": "organization",
-  "time": "string"
+  "time": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -871,7 +871,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     }
   ],
   "state": [0],
-  "template_version_id": "string",
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "transition": "create"
 }
 ```
@@ -901,7 +901,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 ```json
 {
   "amount": 0,
-  "date": "string"
+  "date": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -1407,6 +1407,41 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "shorthand": "string",
     "usage": "string",
     "value": true
+  },
+  "logging": {
+    "human": {
+      "default": "string",
+      "enterprise": true,
+      "flag": "string",
+      "hidden": true,
+      "name": "string",
+      "secret": true,
+      "shorthand": "string",
+      "usage": "string",
+      "value": "string"
+    },
+    "json": {
+      "default": "string",
+      "enterprise": true,
+      "flag": "string",
+      "hidden": true,
+      "name": "string",
+      "secret": true,
+      "shorthand": "string",
+      "usage": "string",
+      "value": "string"
+    },
+    "stackdriver": {
+      "default": "string",
+      "enterprise": true,
+      "flag": "string",
+      "hidden": true,
+      "name": "string",
+      "secret": true,
+      "shorthand": "string",
+      "usage": "string",
+      "value": "string"
+    }
   },
   "max_token_lifetime": {
     "default": 0,
@@ -2022,6 +2057,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `gitauth`                            | [codersdk.DeploymentConfigField-array_codersdk_GitAuthConfig](#codersdkdeploymentconfigfield-array_codersdk_gitauthconfig) | false    |              |                                                 |
 | `http_address`                       | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
 | `in_memory_database`                 | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
+| `logging`                            | [codersdk.LoggingConfig](#codersdkloggingconfig)                                                                           | false    |              |                                                 |
 | `max_token_lifetime`                 | [codersdk.DeploymentConfigField-time_Duration](#codersdkdeploymentconfigfield-time_duration)                               | false    |              |                                                 |
 | `metrics_cache_refresh_interval`     | [codersdk.DeploymentConfigField-time_Duration](#codersdkdeploymentconfigfield-time_duration)                               | false    |              |                                                 |
 | `oauth2`                             | [codersdk.OAuth2Config](#codersdkoauth2config)                                                                             | false    |              |                                                 |
@@ -2525,6 +2561,58 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `uploaded_at` | string  | false    |              |                                                                                                                                                                                                        |
 | `uuid`        | string  | false    |              |                                                                                                                                                                                                        |
 
+## codersdk.ListeningPort
+
+```json
+{
+  "network": "tcp",
+  "port": 0,
+  "process_name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type                                                           | Required | Restrictions | Description              |
+| -------------- | -------------------------------------------------------------- | -------- | ------------ | ------------------------ |
+| `network`      | [codersdk.ListeningPortNetwork](#codersdklisteningportnetwork) | false    |              | only "tcp" at the moment |
+| `port`         | integer                                                        | false    |              |                          |
+| `process_name` | string                                                         | false    |              | may be empty             |
+
+## codersdk.ListeningPortNetwork
+
+```json
+"tcp"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value |
+| ----- |
+| `tcp` |
+
+## codersdk.ListeningPortsResponse
+
+```json
+{
+  "ports": [
+    {
+      "network": "tcp",
+      "port": 0,
+      "process_name": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                      | Required | Restrictions | Description                                                                                                                                                                                                                                            |
+| ------- | --------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ports` | array of [codersdk.ListeningPort](#codersdklisteningport) | false    |              | If there are no ports in the list, nothing should be displayed in the UI. There must not be a "no ports available" message or anything similar, as there will always be no ports displayed on platforms where our port detection logic is unsupported. |
+
 ## codersdk.LogLevel
 
 ```json
@@ -2557,6 +2645,54 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | -------------------- |
 | `provisioner_daemon` |
 | `provisioner`        |
+
+## codersdk.LoggingConfig
+
+```json
+{
+  "human": {
+    "default": "string",
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": "string"
+  },
+  "json": {
+    "default": "string",
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": "string"
+  },
+  "stackdriver": {
+    "default": "string",
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": "string"
+  }
+}
+```
+
+### Properties
+
+| Name          | Type                                                                           | Required | Restrictions | Description |
+| ------------- | ------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `human`       | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string) | false    |              |             |
+| `json`        | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string) | false    |              |             |
+| `stackdriver` | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string) | false    |              |             |
 
 ## codersdk.LoginType
 
@@ -3379,7 +3515,7 @@ Parameter represents a set value for the scope.
 
 ```json
 {
-  "deadline": "string"
+  "deadline": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -3823,7 +3959,7 @@ Parameter represents a set value for the scope.
   "entries": [
     {
       "amount": 0,
-      "date": "string"
+      "date": "2019-08-24T14:15:22Z"
     }
   ]
 }
@@ -4532,6 +4668,70 @@ Parameter represents a set value for the scope.
 | Name            | Type   | Required | Restrictions | Description |
 | --------------- | ------ | -------- | ------------ | ----------- |
 | `session_token` | string | false    |              |             |
+
+## codersdk.WorkspaceAgentConnectionInfo
+
+```json
+{
+  "derp_map": {
+    "omitDefaultRegions": true,
+    "regions": {
+      "property1": {
+        "avoid": true,
+        "embeddedRelay": true,
+        "nodes": [
+          {
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          }
+        ],
+        "regionCode": "string",
+        "regionID": 0,
+        "regionName": "string"
+      },
+      "property2": {
+        "avoid": true,
+        "embeddedRelay": true,
+        "nodes": [
+          {
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          }
+        ],
+        "regionCode": "string",
+        "regionID": 0,
+        "regionName": "string"
+      }
+    }
+  }
+}
+```
+
+### Properties
+
+| Name       | Type                               | Required | Restrictions | Description |
+| ---------- | ---------------------------------- | -------- | ------------ | ----------- |
+| `derp_map` | [tailcfg.DERPMap](#tailcfgderpmap) | false    |              |             |
 
 ## codersdk.WorkspaceAgentGitAuthResponse
 

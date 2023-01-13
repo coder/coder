@@ -29,6 +29,7 @@ import (
 // @Summary Create token API key
 // @ID create-token-api-key
 // @Security CoderSessionToken
+// @Accept json
 // @Produce json
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
@@ -188,10 +189,6 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	keys, err := api.Database.GetAPIKeysByLoginType(ctx, database.LoginTypeToken)
-	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusOK, []codersdk.APIKey{})
-		return
-	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching API keys.",
@@ -200,7 +197,7 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var apiKeys []codersdk.APIKey
+	apiKeys := []codersdk.APIKey{}
 	for _, key := range keys {
 		apiKeys = append(apiKeys, convertAPIKey(key))
 	}
@@ -209,9 +206,8 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Delete API key
-// @ID delete-user-tokens
+// @ID delete-api-key
 // @Security CoderSessionToken
-// @Produce json
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
 // @Param keyid path string true "Key ID" format(uuid)

@@ -23,15 +23,16 @@ import (
 	"github.com/coder/coder/examples"
 )
 
+// Returns a single template.
+//
 // @Summary Get template metadata by ID
 // @ID get-template-metadata-by-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
-// @Param id path string true "Template ID" format(uuid)
+// @Param template path string true "Template ID" format(uuid)
 // @Success 200 {object} codersdk.Template
-// @Router /templates/{id} [get]
-// Returns a single template.
+// @Router /templates/{template} [get]
 func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
@@ -75,9 +76,9 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
-// @Param id path string true "Template ID" format(uuid)
+// @Param template path string true "Template ID" format(uuid)
 // @Success 200 {object} codersdk.Response
-// @Router /templates/{id} [delete]
+// @Router /templates/{template} [delete]
 func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -109,7 +110,7 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(workspaces) > 0 {
-		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "All workspaces must be deleted before a template can be removed.",
 		})
 		return
@@ -131,6 +132,9 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Create a new template in an organization.
+// Returns a single template.
+//
 // @Summary Create template by organization
 // @ID create-template-by-organization
 // @Security CoderSessionToken
@@ -141,8 +145,6 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 // @Param organization path string true "Organization ID"
 // @Success 200 {object} codersdk.Template
 // @Router /organizations/{organization}/templates [post]
-// Returns a single template.
-// Create a new template in an organization.
 func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx                                = r.Context()
@@ -461,13 +463,13 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 }
 
 // @Summary Update template metadata by ID
-// @ID update-template-metadata
+// @ID update-template-metadata-by-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
-// @Param id path string true "Template ID" format(uuid)
+// @Param template path string true "Template ID" format(uuid)
 // @Success 200 {object} codersdk.Template
-// @Router /templates/{id} [patch]
+// @Router /templates/{template} [patch]
 func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -593,9 +595,9 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
-// @Param id path string true "Template ID" format(uuid)
+// @Param template path string true "Template ID" format(uuid)
 // @Success 200 {object} codersdk.TemplateDAUsResponse
-// @Router /templates/{id}/daus [get]
+// @Router /templates/{template}/daus [get]
 func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)

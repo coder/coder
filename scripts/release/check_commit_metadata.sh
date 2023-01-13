@@ -91,10 +91,12 @@ main() {
 		commit_sha_long=${parts[1]}
 		commit_prefix=${parts[2]}
 
-		if [[ $ignore_missing_metadata != 1 ]]; then
-			# Safety-check, guarantee all commits had their metadata fetched.
-			if [[ ! -v labels[$commit_sha_long] ]]; then
+		# Safety-check, guarantee all commits had their metadata fetched.
+		if [[ ! -v labels[$commit_sha_long] ]]; then
+			if [[ $ignore_missing_metadata != 1 ]]; then
 				error "Metadata missing for commit $commit_sha_short"
+			else
+				log "WARNING: Metadata missing for commit $commit_sha_short"
 			fi
 		fi
 

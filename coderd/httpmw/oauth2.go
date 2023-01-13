@@ -50,7 +50,7 @@ func ExtractOAuth2(config OAuth2Config, client *http.Client) func(http.Handler) 
 
 			// Interfaces can hold a nil value
 			if config == nil || reflect.ValueOf(config).IsNil() {
-				httpapi.Write(ctx, rw, http.StatusPreconditionRequired, codersdk.Response{
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: "The oauth2 method requested is not configured!",
 				})
 				return

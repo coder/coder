@@ -11,14 +11,13 @@ import {
   PageHeaderTitle,
 } from "components/PageHeader/PageHeader"
 import { useOrganizationId } from "hooks/useOrganizationId"
+import { createContext, FC, Suspense, useContext } from "react"
 import {
-  createContext,
-  FC,
-  PropsWithChildren,
-  Suspense,
-  useContext,
-} from "react"
-import { Link as RouterLink, NavLink, useParams } from "react-router-dom"
+  Link as RouterLink,
+  NavLink,
+  Outlet,
+  useParams,
+} from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
 import { firstLetter } from "util/firstLetter"
 import { selectPermissions } from "xServices/auth/authSelectors"
@@ -96,7 +95,9 @@ const CreateWorkspaceButton: FC<{
   </Link>
 )
 
-export const TemplateLayout: FC<PropsWithChildren> = ({ children }) => {
+export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
+  children = <Outlet />,
+}) => {
   const styles = useStyles()
   const organizationId = useOrganizationId()
   const templateName = useTemplateName()

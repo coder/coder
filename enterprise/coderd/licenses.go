@@ -52,6 +52,7 @@ var Keys = map[string]ed25519.PublicKey{"2022-08-12": ed25519.PublicKey(key20220
 // @Summary Add new license
 // @ID add-new-license
 // @Security CoderSessionToken
+// @Accept json
 // @Produce json
 // @Tags Organizations
 // @Param request body codersdk.AddLicenseRequest true "Add license request"
@@ -178,7 +179,7 @@ func (api *API) licenses(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param id path string true "License ID" format(number)
 // @Success 200
-// @Router /license/{id} [delete]
+// @Router /licenses/{id} [delete]
 func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.AGPL.Authorize(r, rbac.ActionDelete, rbac.ResourceLicense) {

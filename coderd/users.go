@@ -435,6 +435,7 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 // @Summary Update user profile
 // @ID update-user-profile
 // @Security CoderSessionToken
+// @Accept json
 // @Produce json
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
@@ -617,7 +618,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 // @Summary Update user password
 // @ID update-user-password
 // @Security CoderSessionToken
-// @Produce json
+// @Accept json
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
 // @Param request body codersdk.UpdateUserPasswordRequest true "Update password request"
@@ -908,7 +909,7 @@ func (api *API) updateSiteUserRoles(ctx context.Context, args database.UpdateUse
 // Returns organizations the parameterized user has access to.
 //
 // @Summary Get organizations by user
-// @ID get-organizations-by-users
+// @ID get-organizations-by-user
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users
@@ -989,6 +990,7 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 //
 // @Summary Log in user
 // @ID log-in-user
+// @Accept json
 // @Produce json
 // @Tags Authorization
 // @Param request body codersdk.LoginWithPasswordRequest true "Login request"

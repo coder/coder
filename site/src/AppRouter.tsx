@@ -39,6 +39,9 @@ const SecurityPage = lazy(
 const SSHKeysPage = lazy(
   () => import("./pages/UserSettingsPage/SSHKeysPage/SSHKeysPage"),
 )
+const TokensPage = lazy(
+  () => import("./pages/UserSettingsPage/TokensPage/TokensPage"),
+)
 const CreateUserPage = lazy(
   () => import("./pages/UsersPage/CreateUserPage/CreateUserPage"),
 )
@@ -153,22 +156,14 @@ export const AppRouter: FC = () => {
               <Route index element={<TemplatesPage />} />
               <Route path="new" element={<CreateTemplatePage />} />
               <Route path=":template">
-                <Route
-                  index
-                  element={
-                    <TemplateLayout>
-                      <TemplateSummaryPage />
-                    </TemplateLayout>
-                  }
-                />
-                <Route
-                  path="permissions"
-                  element={
-                    <TemplateLayout>
-                      <TemplatePermissionsPage />
-                    </TemplateLayout>
-                  }
-                />
+                <Route element={<TemplateLayout />}>
+                  <Route index element={<TemplateSummaryPage />} />
+                  <Route
+                    path="permissions"
+                    element={<TemplatePermissionsPage />}
+                  />
+                </Route>
+
                 <Route path="workspace" element={<CreateWorkspacePage />} />
                 <Route path="settings" element={<TemplateSettingsPage />} />
                 <Route path="versions">
@@ -178,26 +173,18 @@ export const AppRouter: FC = () => {
             </Route>
 
             <Route path="users">
-              <Route
-                index
-                element={
-                  <UsersLayout>
-                    <UsersPage />
-                  </UsersLayout>
-                }
-              />
+              <Route element={<UsersLayout />}>
+                <Route index element={<UsersPage />} />
+              </Route>
+
               <Route path="create" element={<CreateUserPage />} />
             </Route>
 
             <Route path="/groups">
-              <Route
-                index
-                element={
-                  <UsersLayout>
-                    <GroupsPage />
-                  </UsersLayout>
-                }
-              />
+              <Route element={<UsersLayout />}>
+                <Route index element={<GroupsPage />} />
+              </Route>
+
               <Route path="create" element={<CreateGroupPage />} />
               <Route path=":groupId" element={<GroupPage />} />
               <Route path=":groupId/settings" element={<SettingsGroupPage />} />
@@ -219,125 +206,29 @@ export const AppRouter: FC = () => {
               />
             </Route>
 
-            <Route path="/settings/deployment">
-              <Route
-                path="general"
-                element={
-                  <RequirePermission
-                    isFeatureVisible={Boolean(
-                      permissions?.viewDeploymentConfig,
-                    )}
-                  >
-                    <DeploySettingsLayout>
-                      <GeneralSettingsPage />
-                    </DeploySettingsLayout>
-                  </RequirePermission>
-                }
-              />
-              <Route
-                path="security"
-                element={
-                  <RequirePermission
-                    isFeatureVisible={Boolean(
-                      permissions?.viewDeploymentConfig,
-                    )}
-                  >
-                    <DeploySettingsLayout>
-                      <SecuritySettingsPage />
-                    </DeploySettingsLayout>
-                  </RequirePermission>
-                }
-              />
-              <Route
-                path="appearance"
-                element={
-                  <RequirePermission
-                    isFeatureVisible={Boolean(
-                      permissions?.viewDeploymentConfig,
-                    )}
-                  >
-                    <DeploySettingsLayout>
-                      <AppearanceSettingsPage />
-                    </DeploySettingsLayout>
-                  </RequirePermission>
-                }
-              />
-              <Route
-                path="network"
-                element={
-                  <RequirePermission
-                    isFeatureVisible={Boolean(
-                      permissions?.viewDeploymentConfig,
-                    )}
-                  >
-                    <DeploySettingsLayout>
-                      <NetworkSettingsPage />
-                    </DeploySettingsLayout>
-                  </RequirePermission>
-                }
-              />
-              <Route
-                path="userauth"
-                element={
-                  <RequirePermission
-                    isFeatureVisible={Boolean(
-                      permissions?.viewDeploymentConfig,
-                    )}
-                  >
-                    <DeploySettingsLayout>
-                      <UserAuthSettingsPage />
-                    </DeploySettingsLayout>
-                  </RequirePermission>
-                }
-              />
-              <Route
-                path="gitauth"
-                element={
-                  <RequirePermission
-                    isFeatureVisible={Boolean(
-                      permissions?.viewDeploymentConfig,
-                    )}
-                  >
-                    <DeploySettingsLayout>
-                      <GitAuthSettingsPage />
-                    </DeploySettingsLayout>
-                  </RequirePermission>
-                }
-              />
+            <Route
+              path="/settings/deployment"
+              element={<DeploySettingsLayout />}
+            >
+              <Route path="general" element={<GeneralSettingsPage />} />
+              <Route path="security" element={<SecuritySettingsPage />} />
+              <Route path="appearance" element={<AppearanceSettingsPage />} />
+              <Route path="network" element={<NetworkSettingsPage />} />
+              <Route path="userauth" element={<UserAuthSettingsPage />} />
+              <Route path="gitauth" element={<GitAuthSettingsPage />} />
             </Route>
 
-            <Route path="settings">
-              <Route
-                path="account"
-                element={
-                  <SettingsLayout>
-                    <AccountPage />
-                  </SettingsLayout>
-                }
-              />
-              <Route
-                path="security"
-                element={
-                  <SettingsLayout>
-                    <SecurityPage />
-                  </SettingsLayout>
-                }
-              />
-              <Route
-                path="ssh-keys"
-                element={
-                  <SettingsLayout>
-                    <SSHKeysPage />
-                  </SettingsLayout>
-                }
-              />
+            <Route path="settings" element={<SettingsLayout />}>
+              <Route path="account" element={<AccountPage />} />
+              <Route path="security" element={<SecurityPage />} />
+              <Route path="ssh-keys" element={<SSHKeysPage />} />
+              <Route path="tokens" element={<TokensPage />} />
             </Route>
 
             <Route path="/@:username">
               <Route path=":workspace">
                 <Route index element={<WorkspacePage />} />
                 <Route path="schedule" element={<WorkspaceSchedulePage />} />
-                <Route path="terminal" element={<TerminalPage />} />
                 <Route
                   path="builds/:buildNumber"
                   element={<WorkspaceBuildPage />}
@@ -349,6 +240,12 @@ export const AppRouter: FC = () => {
               </Route>
             </Route>
           </Route>
+
+          {/* Terminal page don't have the dashboard layout */}
+          <Route
+            path="/@:username/:workspace/terminal"
+            element={<TerminalPage />}
+          />
         </Route>
 
         {/* Using path="*"" means "match anything", so this route

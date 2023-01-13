@@ -40,7 +40,7 @@ func TestOAuth2(t *testing.T) {
 		req := httptest.NewRequest("GET", "/", nil)
 		res := httptest.NewRecorder()
 		httpmw.ExtractOAuth2(nil, nil)(nil).ServeHTTP(res, req)
-		require.Equal(t, http.StatusPreconditionRequired, res.Result().StatusCode)
+		require.Equal(t, http.StatusBadRequest, res.Result().StatusCode)
 	})
 	t.Run("RedirectWithoutCode", func(t *testing.T) {
 		t.Parallel()

@@ -94,7 +94,6 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 // @Summary Serve provisioner daemon
 // @ID serve-provisioner-daemon
 // @Security CoderSessionToken
-// @Produce json
 // @Tags Enterprise
 // @Param organization path string true "Organization ID" format(uuid)
 // @Success 101
