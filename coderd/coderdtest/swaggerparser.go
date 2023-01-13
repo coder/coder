@@ -89,7 +89,8 @@ func parseSwaggerComment(commentGroup *ast.CommentGroup) SwaggerComment {
 		failures:   []response{},
 	}
 	for _, line := range commentGroup.List {
-		splitN := strings.SplitN(strings.TrimSpace(line.Text), " ", 3) // @Router <args>
+		// @<annotationName> [args...]
+		splitN := strings.SplitN(strings.TrimSpace(line.Text), " ", 3)
 		if len(splitN) < 2 {
 			continue // comment prefix without any content
 		}
@@ -100,42 +101,30 @@ func parseSwaggerComment(commentGroup *ast.CommentGroup) SwaggerComment {
 
 		annotationName := splitN[1]
 		annotationArgs := splitN[2]
+		args := strings.Split(splitN[2], " ")
 
 		switch annotationName {
 		case "@Router":
-			args := strings.SplitN(annotationArgs, " ", 2)
 			c.router = args[0]
 			c.method = args[1][1 : len(args[1])-1]
-		case "@Success":
-			args := strings.Split(annotationArgs, " ")
-
-			var success response
+		case "@Success", "@Failure":
+			var r response
 			if len(args) > 0 {
-				success.status = args[0]
+				r.status = args[0]
 			}
 			if len(args) > 1 {
-				success.kind = args[1]
+				r.kind = args[1]
 			}
 			if len(args) > 2 {
-				success.model = args[2]
+				r.model = args[2]
 			}
-			c.successes = append(c.successes, success)
-		case "@Failure":
-			args := strings.Split(annotationArgs, " ")
 
-			var failure response
-			if len(args) > 0 {
-				failure.status = args[0]
+			if annotationName == "@Success" {
+				c.successes = append(c.successes, r)
+			} else if annotationName == "@Failure" {
+				c.failures = append(c.failures, r)
 			}
-			if len(args) > 1 {
-				failure.kind = args[1]
-			}
-			if len(args) > 2 {
-				failure.model = args[2]
-			}
-			c.failures = append(c.failures, failure)
 		case "@Param":
-			args := strings.SplitN(annotationArgs, " ", 3)
 			p := parameter{
 				name: args[0],
 				kind: args[1],
