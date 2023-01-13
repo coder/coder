@@ -1,19 +1,32 @@
 # GitHub release workflow.
-name: release
+name: Release
+run-name: Release ${{ github.ref_name }}${{ inputs.dry_run && ' (DRYRUN)' || '' }}
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
-      snapshot:
-        description: Force a dev version to be generated, implies dry_run.
+      increment:
+        description: Preferred version increment (release script may promote e.g. patch to minor depending on changes).
+        type: choice
+        required: true
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+      draft:
+        description: Create a draft release (for manually editing release notes before publishing).
         type: boolean
         required: true
+        default: false
       dry_run:
         description: Perform a dry-run release.
         type: boolean
         required: true
+        default: false
+      ignore_missing_commit_metadata:
+        description: WARNING! This option disables the requirement that all commits have a PR. Not needed for dry_run.
+        type: boolean
+        default: false
 
 permissions:
   # Required to publish a release
@@ -23,19 +36,36 @@ permissions:
   # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
   id-token: write
 
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
 env:
-  CODER_RELEASE: ${{ github.event.inputs.snapshot && 'false' || 'true' }}
+  # Use `inputs` (vs `github.event.inputs`) to ensure that booleans are actual
+  # booleans, not strings.
+  # https://github.blog/changelog/2022-06-10-github-actions-inputs-unified-across-manual-and-reusable-workflows/
+  CODER_RELEASE: ${{ !inputs.dry_run }}
+  CODER_RELEASE_INCREMENT: ${{ inputs.increment }}
+  CODER_RELEASE_DRAFT: ${{ inputs.draft }}
+  CODER_DRY_RUN: ${{ inputs.dry_run }}
 
 jobs:
   release:
+    name: Create and publish
     runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
     env:
       # Necessary for Docker manifest
       DOCKER_CLI_EXPERIMENTAL: "enabled"
     steps:
+      - name: Check release on main (or dry-run)
+        if: ${{ github.ref_name != 'main' && !inputs.dry_run }}
+        run: |
+          echo "Release not allowed on ${{ github.ref_name }}, use dry-run."
+          exit 1
+
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
+          # Set token for pushing protected tag (vX.X.X).
+          token: ${{ secrets.RELEASE_GITHUB_PAT }}
 
       # If the event that triggered the build was an annotated tag (which our
       # tags are supposed to be), actions/checkout has a bug where the tag in
@@ -44,6 +74,59 @@ jobs:
       # https://github.com/actions/checkout/issues/290
       - name: Fetch git tags
         run: git fetch --tags --force
+
+      # Configure git user name/email for creating annotated version tag.
+      - name: Setup git config
+        run: |
+          git config user.name "Coder CI"
+          git config user.email "dean+cdrci@coder.com"
+
+      - name: Create release tag and release notes
+        run: |
+          set -euo pipefail
+          ref=HEAD
+          old_version="$(git describe --abbrev=0 "$ref^1")"
+
+          if [[ "${{ inputs.ignore_missing_commit_metadata }}" == *t* ]]; then
+            export CODER_IGNORE_MISSING_COMMIT_METADATA=1
+          fi
+
+          # Warn if CODER_IGNORE_MISSING_COMMIT_METADATA is set any other way
+          # than via dry-run.
+          if [[ ${CODER_IGNORE_MISSING_COMMIT_METADATA:-0} != 0 ]]; then
+            echo "WARNING: CODER_IGNORE_MISSING_COMMIT_METADATA is enabled and we will ignore missing commit metadata." 1>&2
+          fi
+
+          version_args=()
+          if [[ $CODER_DRY_RUN == *t* ]]; then
+            # Allow dry-run of branches to pass.
+            export CODER_IGNORE_MISSING_COMMIT_METADATA=1
+            version_args+=(--dry-run)
+          fi
+
+          # Cache commit metadata.
+          . ./scripts/release/check_commit_metadata.sh "$old_version" "$ref"
+
+          declare -p version_args
+
+          # Create new release tag (note that this tag is not pushed before
+          # release.sh is run).
+          version="$(
+            ./scripts/release/tag_version.sh \
+              "${version_args[@]}" \
+              --ref "$ref" \
+              --"$CODER_RELEASE_INCREMENT"
+          )"
+
+          # Generate notes.
+          release_notes_file="$(mktemp -t release_notes.XXXXXX)"
+          ./scripts/release/generate_release_notes.sh --old-version "$old_version" --new-version "$version" --ref "$ref" >> "$release_notes_file"
+          echo CODER_RELEASE_NOTES_FILE="$release_notes_file" >> $GITHUB_ENV
+
+      - name: Echo release notes
+        run: |
+          set -euo pipefail
+          cat "$CODER_RELEASE_NOTES_FILE"
 
       - name: Docker Login
         uses: docker/login-action@v2
@@ -157,8 +240,20 @@ jobs:
 
       - name: Publish release
         run: |
+          set -euo pipefail
+
+          publish_args=()
+          if [[ $CODER_RELEASE_DRAFT == *t* ]]; then
+            publish_args+=(--draft)
+          fi
+          if [[ $CODER_DRY_RUN == *t* ]]; then
+            publish_args+=(--dry-run)
+          fi
+          declare -p publish_args
+
           ./scripts/release/publish.sh \
-            ${{ (github.event.inputs.dry_run || github.event.inputs.snapshot) && '--dry-run' }} \
+            "${publish_args[@]}" \
+            --release-notes-file "$CODER_RELEASE_NOTES_FILE" \
             ./build/*_installer.exe \
             ./build/*.zip \
             ./build/*.tar.gz \
@@ -179,6 +274,7 @@ jobs:
         uses: "google-github-actions/setup-gcloud@v1"
 
       - name: Publish Helm Chart
+        if: ${{ !inputs.dry_run }}
         run: |
           set -euo pipefail
           version="$(./scripts/version.sh)"
@@ -189,12 +285,13 @@ jobs:
           gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/coder_helm_${version}.tgz gs://helm.coder.com/v2
           gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/index.yaml gs://helm.coder.com/v2
 
-      - name: Upload artifacts to actions (if dry-run or snapshot)
-        if: ${{ github.event.inputs.dry_run || github.event.inputs.snapshot }}
+      - name: Upload artifacts to actions (if dry-run)
+        if: ${{ inputs.dry_run }}
         uses: actions/upload-artifact@v2
         with:
           name: release-artifacts
           path: |
+            ./build/*_installer.exe
             ./build/*.zip
             ./build/*.tar.gz
             ./build/*.tgz

@@ -313,6 +313,7 @@ export interface DeploymentConfig {
   readonly update_check: DeploymentConfigField<boolean>
   readonly max_token_lifetime: DeploymentConfigField<number>
   readonly swagger: SwaggerConfig
+  readonly logging: LoggingConfig
 }
 
 // From codersdk/deploymentconfig.go
@@ -419,6 +420,13 @@ export interface ListeningPort {
 // From codersdk/agentconn.go
 export interface ListeningPortsResponse {
   readonly ports: ListeningPort[]
+}
+
+// From codersdk/deploymentconfig.go
+export interface LoggingConfig {
+  readonly human: DeploymentConfigField<string>
+  readonly json: DeploymentConfigField<string>
+  readonly stackdriver: DeploymentConfigField<string>
 }
 
 // From codersdk/users.go

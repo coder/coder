@@ -54,7 +54,7 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
   }
 
   return (
-    <FullPageForm title={t("title")} onCancel={onCancel}>
+    <FullPageForm title={t("title")}>
       {Boolean(errors.getTemplateError) && (
         <Stack className={classes.errorContainer}>
           <AlertBanner severity="error" error={errors.getTemplateError} />

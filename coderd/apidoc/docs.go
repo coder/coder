@@ -5670,6 +5670,9 @@ const docTemplate = `{
                 "in_memory_database": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
                 },
+                "logging": {
+                    "$ref": "#/definitions/codersdk.LoggingConfig"
+                },
                 "max_token_lifetime": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-time_Duration"
                 },
@@ -6229,6 +6232,20 @@ const docTemplate = `{
                 "LogSourceProvisionerDaemon",
                 "LogSourceProvisioner"
             ]
+        },
+        "codersdk.LoggingConfig": {
+            "type": "object",
+            "properties": {
+                "human": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
+                "json": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
+                "stackdriver": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                }
+            }
         },
         "codersdk.LoginType": {
             "type": "string",

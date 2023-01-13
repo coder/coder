@@ -5,7 +5,6 @@ import { displaySuccess } from "../../components/GlobalSnackbar/utils"
 
 export const Language = {
   successProfileUpdate: "Updated settings.",
-  successRegenerateSSHKey: "SSH Key regenerated successfully",
 }
 
 export const checks = {
@@ -83,20 +82,12 @@ export interface AuthContext {
   methods?: TypesGen.AuthMethods
   permissions?: Permissions
   checkPermissionsError?: Error | unknown
-  // SSH
-  sshKey?: TypesGen.GitSSHKey
-  getSSHKeyError?: Error | unknown
-  regenerateSSHKeyError?: Error | unknown
 }
 
 export type AuthEvent =
   | { type: "SIGN_OUT" }
   | { type: "SIGN_IN"; email: string; password: string }
   | { type: "UPDATE_PROFILE"; data: TypesGen.UpdateUserProfileRequest }
-  | { type: "GET_SSH_KEY" }
-  | { type: "REGENERATE_SSH_KEY" }
-  | { type: "CONFIRM_REGENERATE_SSH_KEY" }
-  | { type: "CANCEL_REGENERATE_SSH_KEY" }
   | { type: "GET_AUTH_METHODS" }
 
 export const authMachine =
@@ -127,12 +118,6 @@ export const authMachine =
           }
           checkPermissions: {
             data: TypesGen.AuthorizationResponse
-          }
-          getSSHKey: {
-            data: TypesGen.GitSSHKey
-          }
-          regenerateSSHKey: {
-            data: TypesGen.GitSSHKey
           }
           hasFirstUser: {
             data: boolean
@@ -279,79 +264,6 @@ export const authMachine =
                 },
               },
             },
-            ssh: {
-              initial: "idle",
-              states: {
-                idle: {
-                  on: {
-                    GET_SSH_KEY: {
-                      target: "gettingSSHKey",
-                    },
-                  },
-                },
-                gettingSSHKey: {
-                  entry: "clearGetSSHKeyError",
-                  invoke: {
-                    src: "getSSHKey",
-                    onDone: [
-                      {
-                        actions: "assignSSHKey",
-                        target: "loaded",
-                      },
-                    ],
-                    onError: [
-                      {
-                        actions: "assignGetSSHKeyError",
-                        target: "idle",
-                      },
-                    ],
-                  },
-                },
-                loaded: {
-                  initial: "idle",
-                  states: {
-                    idle: {
-                      on: {
-                        REGENERATE_SSH_KEY: {
-                          target: "confirmSSHKeyRegenerate",
-                        },
-                      },
-                    },
-                    confirmSSHKeyRegenerate: {
-                      on: {
-                        CANCEL_REGENERATE_SSH_KEY: {
-                          target: "idle",
-                        },
-                        CONFIRM_REGENERATE_SSH_KEY: {
-                          target: "regeneratingSSHKey",
-                        },
-                      },
-                    },
-                    regeneratingSSHKey: {
-                      entry: "clearRegenerateSSHKeyError",
-                      invoke: {
-                        src: "regenerateSSHKey",
-                        onDone: [
-                          {
-                            actions: [
-                              "assignSSHKey",
-                              "notifySuccessSSHKeyRegenerated",
-                            ],
-                            target: "idle",
-                          },
-                        ],
-                        onError: [
-                          {
-                            actions: "assignRegenerateSSHKeyError",
-                            target: "idle",
-                          },
-                        ],
-                      },
-                    },
-                  },
-                },
-              },
-            },
             methods: {
               initial: "idle",
               states: {
@@ -480,9 +392,6 @@ export const authMachine =
             checks: permissionsToCheck,
           })
         },
-        // SSH
-        getSSHKey: () => API.getUserSSHKey(),
-        regenerateSSHKey: () => API.regenerateUserSSHKey(),
         // First user
         hasFirstUser: () => API.hasFirstUser(),
       },
@@ -538,25 +447,6 @@ export const authMachine =
         clearGetPermissionsError: assign({
           checkPermissionsError: (_) => undefined,
         }),
-        // SSH
-        assignSSHKey: assign({
-          sshKey: (_, event) => event.data,
-        }),
-        assignGetSSHKeyError: assign({
-          getSSHKeyError: (_, event) => event.data,
-        }),
-        clearGetSSHKeyError: assign({
-          getSSHKeyError: (_) => undefined,
-        }),
-        assignRegenerateSSHKeyError: assign({
-          regenerateSSHKeyError: (_, event) => event.data,
-        }),
-        clearRegenerateSSHKeyError: assign({
-          regenerateSSHKeyError: (_) => undefined,
-        }),
-        notifySuccessSSHKeyRegenerated: () => {
-          displaySuccess(Language.successRegenerateSSHKey)
-        },
         redirect: (_, { data }) => {
           // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- data can be undefined
           if (!data) {

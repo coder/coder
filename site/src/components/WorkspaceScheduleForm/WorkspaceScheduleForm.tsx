@@ -280,7 +280,7 @@ export const WorkspaceScheduleForm: FC<
   }
 
   return (
-    <FullPageForm onCancel={onCancel} title={Language.formTitle}>
+    <FullPageForm title={Language.formTitle}>
       <form onSubmit={form.handleSubmit} className={styles.form}>
         <Stack>
           {Boolean(submitScheduleError) && (

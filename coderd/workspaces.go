@@ -279,27 +279,19 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 // @Router /organizations/{organization}/members/{user}/workspaces [post]
 func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx                   = r.Context()
-		organization          = httpmw.OrganizationParam(r)
-		apiKey                = httpmw.APIKey(r)
-		auditor               = api.Auditor.Load()
-		user                  = httpmw.UserParam(r)
-		workspaceResourceInfo = map[string]string{
-			"workspaceOwner": user.Username,
-		}
+		ctx               = r.Context()
+		organization      = httpmw.OrganizationParam(r)
+		apiKey            = httpmw.APIKey(r)
+		auditor           = api.Auditor.Load()
+		user              = httpmw.UserParam(r)
+		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionCreate,
+		})
 	)
-	wriBytes, err := json.Marshal(workspaceResourceInfo)
-	if err != nil {
-		api.Logger.Warn(ctx, "marshal workspace owner name")
-	}
 
-	aReq, commitAudit := audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
-		Audit:            *auditor,
-		Log:              api.Logger,
-		Request:          r,
-		Action:           database.AuditActionCreate,
-		AdditionalFields: wriBytes,
-	})
 	defer commitAudit()
 
 	if !api.Authorize(r, rbac.ActionCreate,

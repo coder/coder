@@ -1,8 +1,8 @@
-import { useActor } from "@xstate/react"
-import { useContext, useEffect, PropsWithChildren, FC } from "react"
+import { useMachine } from "@xstate/react"
+import { PropsWithChildren, FC } from "react"
+import { sshKeyMachine } from "xServices/sshKey/sshKeyXService"
 import { ConfirmDialog } from "../../../components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { Section } from "../../../components/SettingsLayout/Section"
-import { XServiceContext } from "../../../xServices/StateContext"
 import { SSHKeysPageView } from "./SSHKeysPageView"
 
 export const Language = {
@@ -15,19 +15,13 @@ export const Language = {
 }
 
 export const SSHKeysPage: FC<PropsWithChildren<unknown>> = () => {
-  const xServices = useContext(XServiceContext)
-  const [authState, authSend] = useActor(xServices.authXService)
-  const { sshKey, getSSHKeyError, regenerateSSHKeyError } = authState.context
-
-  useEffect(() => {
-    authSend({ type: "GET_SSH_KEY" })
-  }, [authSend])
-
-  const isLoading = authState.matches("signedIn.ssh.gettingSSHKey")
-  const hasLoaded = authState.matches("signedIn.ssh.loaded")
+  const [sshState, sshSend] = useMachine(sshKeyMachine)
+  const isLoading = sshState.matches("gettingSSHKey")
+  const hasLoaded = sshState.matches("loaded")
+  const { getSSHKeyError, regenerateSSHKeyError, sshKey } = sshState.context
 
   const onRegenerateClick = () => {
-    authSend({ type: "REGENERATE_SSH_KEY" })
+    sshSend({ type: "REGENERATE_SSH_KEY" })
   }
 
   return (
@@ -46,17 +40,15 @@ export const SSHKeysPage: FC<PropsWithChildren<unknown>> = () => {
       <ConfirmDialog
         type="delete"
         hideCancel={false}
-        open={authState.matches("signedIn.ssh.loaded.confirmSSHKeyRegenerate")}
-        confirmLoading={authState.matches(
-          "signedIn.ssh.loaded.regeneratingSSHKey",
-        )}
+        open={sshState.matches("confirmSSHKeyRegenerate")}
+        confirmLoading={sshState.matches("regeneratingSSHKey")}
         title={Language.regenerateDialogTitle}
         confirmText={Language.confirmLabel}
         onConfirm={() => {
-          authSend({ type: "CONFIRM_REGENERATE_SSH_KEY" })
+          sshSend({ type: "CONFIRM_REGENERATE_SSH_KEY" })
         }}
         onClose={() => {
-          authSend({ type: "CANCEL_REGENERATE_SSH_KEY" })
+          sshSend({ type: "CANCEL_REGENERATE_SSH_KEY" })
         }}
         description={<>{Language.regenerateDialogMessage}</>}
       />

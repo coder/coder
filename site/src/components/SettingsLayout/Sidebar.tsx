@@ -52,19 +52,19 @@ export const Sidebar: React.FC<{ user: User }> = ({ user }) => {
       </Stack>
 
       <SidebarNavItem
-        href="../account"
+        href="account"
         icon={<SidebarNavItemIcon icon={AccountIcon} />}
       >
         Account
       </SidebarNavItem>
       <SidebarNavItem
-        href="../security"
+        href="security"
         icon={<SidebarNavItemIcon icon={SecurityIcon} />}
       >
         Security
       </SidebarNavItem>
       <SidebarNavItem
-        href="../ssh-keys"
+        href="ssh-keys"
         icon={<SidebarNavItemIcon icon={VpnKeyOutlined} />}
       >
         SSH Keys
