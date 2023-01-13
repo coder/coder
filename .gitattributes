@@ -1,4 +1,6 @@
 # Generated files
+coderd/apidoc/docs.go linguist-generated=true
+coderd/apidoc/swagger.json linguist-generated=true
 coderd/database/dump.sql linguist-generated=true
 peerbroker/proto/*.go linguist-generated=true
 provisionerd/proto/*.go linguist-generated=true
