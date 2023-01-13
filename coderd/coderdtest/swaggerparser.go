@@ -149,6 +149,7 @@ func parseSwaggerComment(commentGroup *ast.CommentGroup) SwaggerComment {
 
 func VerifySwaggerDefinitions(t *testing.T, router chi.Router, swaggerComments []SwaggerComment) {
 	assertUniqueRoutes(t, swaggerComments)
+	assertUniqueAnnotations(t, swaggerComments)
 
 	err := chi.Walk(router, func(method, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
 		method = strings.ToLower(method)
@@ -192,6 +193,36 @@ func assertUniqueRoutes(t *testing.T, comments []SwaggerComment) {
 	}
 }
 
+var uniqueAnnotations = []string{"@ID", "@Summary", "@Tags", "@Router"}
+
+func assertUniqueAnnotations(t *testing.T, comments []SwaggerComment) {
+	for _, comment := range comments {
+		counters := map[string]int{}
+
+		for _, line := range comment.raw {
+			splitN := strings.SplitN(strings.TrimSpace(line.Text), " ", 3)
+			if len(splitN) < 2 {
+				continue // comment prefix without any content
+			}
+
+			if !strings.HasPrefix(splitN[1], "@") {
+				continue // not a swagger annotation
+			}
+
+			annotation := splitN[1]
+			if _, ok := counters[annotation]; !ok {
+				counters[annotation] = 0
+			}
+			counters[annotation]++
+		}
+
+		for _, annotation := range uniqueAnnotations {
+			v := counters[annotation]
+			assert.Equal(t, 1, v, "%s annotation for route %s must be defined only once", annotation, comment.router)
+		}
+	}
+}
+
 func findSwaggerCommentByMethodAndRoute(comments []SwaggerComment, method, route string) *SwaggerComment {
 	for _, c := range comments {
 		if c.method == method && c.router == route {
@@ -219,6 +250,7 @@ func assertRequiredAnnotations(t *testing.T, comment SwaggerComment) {
 	assert.NotEmpty(t, comment.id, "@ID must be defined")
 	assert.NotEmpty(t, comment.summary, "@Summary must be defined")
 	assert.NotEmpty(t, comment.tags, "@Tags must be defined")
+	assert.NotEmpty(t, comment.tags, "@Router must be defined")
 }
 
 func assertGoCommentFirst(t *testing.T, comment SwaggerComment) {
