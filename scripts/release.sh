@@ -7,7 +7,7 @@ cdroot
 
 usage() {
 	cat <<EOH
-Usage: ./release.sh [--branch <name>] [--draft] [--dry-run] [--ref <ref>] [--major | --minor | --patch]
+Usage: ./release.sh [--dry-run] [--ref <ref>] [--major | --minor | --patch]
 
 This script should be called to create a new release.
 
@@ -23,47 +23,24 @@ be tagged at, otherwise the latest commit will be used.
 Set --minor to force a minor version bump, even when there are no breaking
 changes. Likewise for --major. By default a patch version will be created.
 
-Set --dry-run to run the release workflow in CI as a dry-run (no release will
-be created).
+Set --dry-run to see what this script would do without making actual changes.
 
 To mark a release as containing breaking changes, the commit title should
 either contain a known prefix with an exclamation mark ("feat!:",
 "feat(api)!:") or the PR that was merged can be tagged with the
 "release/breaking" label.
-
-To test changes to this script, you can set --branch <my-branch>, which will
-run the release workflow in CI as a dry-run and use the latest commit on the
-specified branch as the release commit. This will also set --dry-run.
 EOH
 }
 
-# Warn if CODER_IGNORE_MISSING_COMMIT_METADATA is set any other way than via
-# --branch.
-if [[ ${CODER_IGNORE_MISSING_COMMIT_METADATA:-0} != 0 ]]; then
-	log "WARNING: CODER_IGNORE_MISSING_COMMIT_METADATA is enabled externally, we will ignore missing commit metadata."
-fi
-
 branch=main
-draft=0
 dry_run=0
 ref=
 increment=
 
-args="$(getopt -o h -l branch:,draft,dry-run,help,ref:,major,minor,patch -- "$@")"
+args="$(getopt -o h -l dry-run,help,ref:,major,minor,patch -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
-	--branch)
-		branch="$2"
-		log "Using branch $branch, implies DRYRUN and CODER_IGNORE_MISSING_COMMIT_METADATA."
-		dry_run=1
-		export CODER_IGNORE_MISSING_COMMIT_METADATA=1
-		shift 2
-		;;
-	--draft)
-		draft=1
-		shift
-		;;
 	--dry-run)
 		dry_run=1
 		shift
@@ -109,70 +86,51 @@ git fetch --quiet --tags origin "$branch"
 ref=$(git rev-parse --short "${ref:-origin/$branch}")
 
 # Make sure that we're running the latest release script.
-if [[ -n $(git diff --name-status origin/"$branch" -- ./scripts/release.sh) ]]; then
-	error "Release script is out-of-date. Please check out the latest version and try again."
-fi
+# if [[ -n $(git diff --name-status origin/"$branch" -- ./scripts/release.sh) ]]; then
+# 	error "Release script is out-of-date. Please check out the latest version and try again."
+# fi
 
 # Check the current version tag from GitHub (by number) using the API to
 # ensure no local tags are considered.
+log "Checking GitHub for latest release..."
 mapfile -t versions < <(gh api -H "Accept: application/vnd.github+json" /repos/coder/coder/git/refs/tags -q '.[].ref | split("/") | .[2]' | grep '^v' | sort -r -V)
 old_version=${versions[0]}
+log "Latest release: $old_version"
+log
 
 trap 'log "Check commit metadata failed, you can try to set \"export CODER_IGNORE_MISSING_COMMIT_METADATA=1\" and try again, if you know what you are doing."' EXIT
 # shellcheck source=scripts/release/check_commit_metadata.sh
 source "$SCRIPT_DIR/release/check_commit_metadata.sh" "$old_version" "$ref"
 trap - EXIT
 
-new_version="$(execrelative ./release/tag_version.sh --dry-run --ref "$ref" --"$increment")"
+log "Executing DRYRUN of release tagging..."
+new_version="$(execrelative ./release/tag_version.sh --old-version "$old_version" --ref "$ref" --"$increment" --dry-run)"
+log
+read -p "Continue? (y/n) " -n 1 -r show_reply
+
 release_notes="$(execrelative ./release/generate_release_notes.sh --old-version "$old_version" --new-version "$new_version" --ref "$ref")"
 
 log
 read -p "Preview release notes? (y/n) " -n 1 -r show_reply
 log
 if [[ $show_reply =~ ^[Yy]$ ]]; then
+	log
 	echo -e "$release_notes\n"
 fi
 
-create_message="Create release"
-if ((draft)); then
-	create_message="Create draft release"
-fi
-if ((dry_run)); then
-	create_message+=" (DRYRUN)"
-fi
-read -p "$create_message? (y/n) " -n 1 -r create
+read -p "Create release? (y/n) " -n 1 -r create
 log
 if ! [[ $create =~ ^[Yy]$ ]]; then
 	exit 0
 fi
 
-args=()
-
-# Draft and dry-run are required args.
-if ((draft)); then
-	args+=(-F draft=true)
-else
-	args+=(-F draft=false)
-fi
-if ((dry_run)); then
-	args+=(-F dry_run=true)
-else
-	args+=(-F dry_run=false)
-
-	# We only set this on non-dry-run releases because it will show a
-	# warning in CI.
-	if [[ ${CODER_IGNORE_MISSING_COMMIT_METADATA:-0} == 1 ]]; then
-		args+=(-F ignore_missing_commit_metadata=true)
-	fi
-fi
+log
+# Run without dry-run to actually create the tag, note we don't update the
+# new_version variable here to ensure we're pushing what we showed before.
+maybedryrun "$dry_run" execrelative ./release/tag_version.sh --old-version "$old_version" --ref "$ref" --"$increment" >/dev/null
+maybedryrun "$dry_run" git push --tags -u origin "$new_version"
 
 log
-logrun gh workflow run release.yaml \
-	--ref "$branch" \
-	-F increment="$increment" \
-	"${args[@]}"
-log
-
 read -p "Watch release? (y/n) " -n 1 -r watch
 log
 if ! [[ $watch =~ ^[Yy]$ ]]; then
