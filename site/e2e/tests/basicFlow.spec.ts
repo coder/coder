@@ -28,7 +28,11 @@ test("Basic flow", async ({ baseURL, page }) => {
   await clickButton(page, buttons.createWorkspace)
 
   // give workspace a unique name to avoid failure
-  await fillInput(page, "Workspace Name", `workspace-${dayjs().format('MM-DD-hh-mm-ss')}`)
+  await fillInput(
+    page,
+    "Workspace Name",
+    `workspace-${dayjs().format("MM-DD-hh-mm-ss")}`,
+  )
   await clickButton(page, buttons.submitCreateWorkspace)
 
   // stop workspace
@@ -36,6 +40,9 @@ test("Basic flow", async ({ baseURL, page }) => {
 
   // start workspace
   await clickButton(page, buttons.startWorkspace)
-  const stopButton = page.getByRole("button", { name: buttons.stopWorkspace, exact: true })
+  const stopButton = page.getByRole("button", {
+    name: buttons.stopWorkspace,
+    exact: true,
+  })
   await expect(stopButton).toBeEnabled({ timeout: 60_000 })
 })
