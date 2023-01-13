@@ -132,9 +132,6 @@ type Metrics struct {
 
 func NewMetrics(reg prometheus.Registerer) Metrics {
 	auto := promauto.With(reg)
-	durationToFloatMs := func(d time.Duration) float64 {
-		return float64(d.Milliseconds())
-	}
 
 	return Metrics{
 		Runner: runner.Metrics{

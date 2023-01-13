@@ -14,10 +14,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-func durationToFloatMs(d time.Duration) float64 {
-	return float64(d.Milliseconds())
-}
-
 func Prometheus(register prometheus.Registerer) func(http.Handler) http.Handler {
 	factory := promauto.With(register)
 	requestsProcessed := factory.NewCounterVec(prometheus.CounterOpts{
