@@ -45,6 +45,7 @@ type DeploymentConfig struct {
 	UpdateCheck                     *DeploymentConfigField[bool]            `json:"update_check" typescript:",notnull"`
 	MaxTokenLifetime                *DeploymentConfigField[time.Duration]   `json:"max_token_lifetime" typescript:",notnull"`
 	Swagger                         *SwaggerConfig                          `json:"swagger" typescript:",notnull"`
+	Logging                         *LoggingConfig                          `json:"logging" typescript:",notnull"`
 }
 
 type DERP struct {
@@ -153,6 +154,12 @@ type RateLimitConfig struct {
 
 type SwaggerConfig struct {
 	Enable *DeploymentConfigField[bool] `json:"enable" typescript:",notnull"`
+}
+
+type LoggingConfig struct {
+	Human       *DeploymentConfigField[string] `json:"human" typescript:",notnull"`
+	JSON        *DeploymentConfigField[string] `json:"json" typescript:",notnull"`
+	Stackdriver *DeploymentConfigField[string] `json:"stackdriver" typescript:",notnull"`
 }
 
 type Flaggable interface {

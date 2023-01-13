@@ -167,6 +167,8 @@ require (
 	tailscale.com v1.32.2
 )
 
+require cloud.google.com/go/longrunning v0.1.1 // indirect
+
 require (
 	cloud.google.com/go/compute v1.12.1 // indirect
 	filippo.io/edwards25519 v1.0.0-rc.1 // indirect
