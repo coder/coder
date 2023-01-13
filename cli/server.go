@@ -476,7 +476,6 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				LoginRateLimit:              loginRateLimit,
 				FilesRateLimit:              filesRateLimit,
 				HTTPClient:                  httpClient,
-				Experimental:                cfg.Experimental.Value,
 			}
 			if tlsConfig != nil {
 				options.TLSCertificates = tlsConfig.Certificates
