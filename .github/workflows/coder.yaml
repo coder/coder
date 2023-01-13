@@ -613,83 +613,83 @@ jobs:
           files: ./site/coverage/lcov.info
           flags: unittest-js
 
-  # test-e2e:
-    # name: "test/e2e/${{ matrix.os }}"
-    # needs:
-    #   - changes
-    # if: needs.changes.outputs.docs-only == 'false'
-    # runs-on: ${{ matrix.os }}
-    # timeout-minutes: 20
-    # strategy:
-    #   matrix:
-    #     os:
-    #       - ubuntu-latest
-    # steps:
-    #   - uses: actions/checkout@v3
+  test-e2e:
+    name: "test/e2e/${{ matrix.os }}"
+    needs:
+      - changes
+    if: false #needs.changes.outputs.docs-only == 'false'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
 
-    #   - name: Cache Node
-    #     id: cache-node
-    #     uses: actions/cache@v3
-    #     with:
-    #       path: |
-    #         **/node_modules
-    #         .eslintcache
-    #       key: js-${{ runner.os }}-e2e-${{ hashFiles('**/yarn.lock') }}
+      - name: Cache Node
+        id: cache-node
+        uses: actions/cache@v3
+        with:
+          path: |
+            **/node_modules
+            .eslintcache
+          key: js-${{ runner.os }}-e2e-${{ hashFiles('**/yarn.lock') }}
 
-    #   - uses: actions/setup-go@v3
-    #     with:
-    #       go-version: "~1.19"
+      - uses: actions/setup-go@v3
+        with:
+          go-version: "~1.19"
 
-    #   - uses: hashicorp/setup-terraform@v2
-    #     with:
-    #       terraform_version: 1.1.9
-    #       terraform_wrapper: false
+      - uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.1.9
+          terraform_wrapper: false
 
-    #   - uses: actions/setup-node@v3
-    #     with:
-    #       node-version: "14"
+      - uses: actions/setup-node@v3
+        with:
+          node-version: "14"
 
-    #   - name: Echo Go Cache Paths
-    #     id: go-cache-paths
-    #     run: |
-    #       echo "::set-output name=go-build::$(go env GOCACHE)"
-    #       echo "::set-output name=go-mod::$(go env GOMODCACHE)"
+      - name: Echo Go Cache Paths
+        id: go-cache-paths
+        run: |
+          echo "::set-output name=go-build::$(go env GOCACHE)"
+          echo "::set-output name=go-mod::$(go env GOMODCACHE)"
 
-    #   - name: Go Build Cache
-    #     uses: actions/cache@v3
-    #     with:
-    #       path: ${{ steps.go-cache-paths.outputs.go-build }}
-    #       key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
+      - name: Go Build Cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
 
-    #   - name: Go Mod Cache
-    #     uses: actions/cache@v3
-    #     with:
-    #       path: ${{ steps.go-cache-paths.outputs.go-mod }}
-    #       key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
+      - name: Go Mod Cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
 
-    #   - name: Build
-    #     run: |
-    #       sudo npm install -g prettier
-    #       make -B site/out/index.html
+      - name: Build
+        run: |
+          sudo npm install -g prettier
+          make -B site/out/index.html
 
-    #   - run: yarn playwright:install
-    #     working-directory: site
+      - run: yarn playwright:install
+        working-directory: site
 
-    #   - run: yarn playwright:install-deps
-    #     working-directory: site
+      - run: yarn playwright:install-deps
+        working-directory: site
 
-    #   - run: yarn playwright:test
-    #     env:
-    #       DEBUG: pw:api
-    #     working-directory: site
+      - run: yarn playwright:test
+        env:
+          DEBUG: pw:api
+        working-directory: site
 
-    #   - name: Upload Playwright Failed Tests
-    #     if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-    #     uses: actions/upload-artifact@v3
-    #     with:
-    #       name: failed-test-videos
-    #       path: ./site/test-results/**/*.webm
-    #       retention-days: 7
+      - name: Upload Playwright Failed Tests
+        if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
+        uses: actions/upload-artifact@v3
+        with:
+          name: failed-test-videos
+          path: ./site/test-results/**/*.webm
+          retention-days: 7
 
   chromatic:
     # REMARK: this is only used to build storybook and deploy it to Chromatic.
