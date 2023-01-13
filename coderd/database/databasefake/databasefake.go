@@ -1367,7 +1367,7 @@ func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(_ context.Con
 	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
+func (q *fakeQuerier) GetWorkspaceBuildParameters(_ context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2428,10 +2428,11 @@ func (q *fakeQuerier) InsertTemplateVersion(_ context.Context, arg database.Inse
 	return version, nil
 }
 
-func (q *fakeQuerier) InsertTemplateVersionParameter(ctx context.Context, arg database.InsertTemplateVersionParameterParams) (database.TemplateVersionParameter, error) {
+func (q *fakeQuerier) InsertTemplateVersionParameter(_ context.Context, arg database.InsertTemplateVersionParameterParams) (database.TemplateVersionParameter, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
+	//nolint:gosimple
 	param := database.TemplateVersionParameter{
 		TemplateVersionID: arg.TemplateVersionID,
 		Name:              arg.Name,
@@ -2774,7 +2775,7 @@ func (q *fakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 	return workspaceBuild, nil
 }
 
-func (q *fakeQuerier) InsertWorkspaceBuildParameters(ctx context.Context, arg database.InsertWorkspaceBuildParametersParams) error {
+func (q *fakeQuerier) InsertWorkspaceBuildParameters(_ context.Context, arg database.InsertWorkspaceBuildParametersParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 

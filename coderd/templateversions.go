@@ -231,7 +231,7 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 		})
 		return
 	}
-	parameters := make([]codersdk.TemplateVersionParameter, 0)
+	params := make([]codersdk.TemplateVersionParameter, 0)
 	for _, dbParameter := range dbParameters {
 		parameter, err := convertTemplateVersionParameter(dbParameter)
 		if err != nil {
@@ -241,9 +241,9 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 			})
 			return
 		}
-		parameters = append(parameters, parameter)
+		params = append(params, parameter)
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, parameters)
+	httpapi.Write(ctx, rw, http.StatusOK, params)
 }
 
 // @Summary Get parameters by template version
