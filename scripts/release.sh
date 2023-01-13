@@ -133,6 +133,11 @@ log
 maybedryrun "$dry_run" execrelative ./release/tag_version.sh --old-version "$old_version" --ref "$ref" --"$increment" >/dev/null
 maybedryrun "$dry_run" git push --tags -u origin "$new_version"
 
+if ((dry_run)); then
+	# We can't watch the release.yaml workflow if we're in dry-run mode.
+	exit 0
+fi
+
 log
 read -p "Watch release? (y/n) " -n 1 -r watch
 log
