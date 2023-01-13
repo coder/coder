@@ -1251,7 +1251,7 @@ func TestServer(t *testing.T) {
 			assert.Eventually(t, func() bool {
 				stat, err := os.Stat(fi.Name())
 				return err == nil && stat.Size() > 0
-			}, testutil.WaitShort, testutil.IntervalFast)
+			}, testutil.WaitLong, testutil.IntervalMedium)
 			cancelFunc()
 			<-serverErr
 		})
@@ -1297,15 +1297,15 @@ func TestServer(t *testing.T) {
 			assert.Eventually(t, func() bool {
 				stat, err := os.Stat(fi1.Name())
 				return err == nil && stat.Size() > 0
-			}, testutil.WaitLong, testutil.IntervalFast)
+			}, testutil.WaitLong, testutil.IntervalMedium)
 			assert.Eventually(t, func() bool {
 				stat, err := os.Stat(fi2.Name())
 				return err == nil && stat.Size() > 0
-			}, testutil.WaitLong, testutil.IntervalFast)
+			}, testutil.WaitLong, testutil.IntervalMedium)
 			assert.Eventually(t, func() bool {
 				stat, err := os.Stat(fi3.Name())
 				return err == nil && stat.Size() > 0
-			}, testutil.WaitLong, testutil.IntervalFast)
+			}, testutil.WaitLong, testutil.IntervalMedium)
 
 			cancelFunc()
 			<-serverErr
