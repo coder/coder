@@ -25,6 +25,14 @@ export const Language = {
   ariaDeleteLabel: "Delete Token",
 }
 
+const lastUsedOrNever = (lastUsed: string) => {
+  const t = dayjs(lastUsed)
+  const now = dayjs()
+  return now.isBefore(t.add(100, "year"))
+    ? t.fromNow()
+    : "Never"
+}
+
 export interface TokensPageViewProps {
   tokens?: APIKey[]
   getTokensError?: Error | unknown
@@ -75,11 +83,6 @@ export const TokensPageView: FC<
               </Cond>
               <Cond>
                 {tokens?.map((token) => {
-                  const t = dayjs(token.last_used)
-                  const now = dayjs()
-                  const lastUsed = now.isBefore(t.add(100, "year"))
-                    ? t.fromNow()
-                    : "Never"
                   return (
                     <TableRow
                       key={token.id}
@@ -98,7 +101,7 @@ export const TokensPageView: FC<
                         </span>
                       </TableCell>
 
-                      <TableCell>{lastUsed}</TableCell>
+                      <TableCell>{lastUsedOrNever(token.last_used)}</TableCell>
 
                       <TableCell>
                         <span style={{ color: theme.palette.text.secondary }}>
