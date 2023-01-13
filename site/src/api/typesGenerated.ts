@@ -242,7 +242,7 @@ export interface CreateWorkspaceRequest {
   readonly autostart_schedule?: string
   readonly ttl_ms?: number
   readonly parameter_values?: CreateParameterRequest[]
-  readonly parameters: WorkspaceBuildParameter[]
+  readonly rich_parameter_values?: WorkspaceBuildParameter[]
 }
 
 // From codersdk/templates.go
