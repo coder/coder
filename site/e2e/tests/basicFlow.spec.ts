@@ -6,7 +6,7 @@ import dayjs from "dayjs"
 
 test("Basic flow", async ({ baseURL, page }) => {
   // We're keeping entire flows in one test, which means the test needs extra time.
-  test.setTimeout(120000)
+  test.setTimeout(200_000)
   await page.goto(baseURL + "/", { waitUntil: "networkidle" })
 
   // Log-in with the default credentials we set up in the development server
@@ -14,7 +14,6 @@ test("Basic flow", async ({ baseURL, page }) => {
   await signInPage.submitBuiltInAuthentication(email, password)
 
   // create Docker template
-  await page.waitForSelector("text=Templates")
   await page.click("text=Templates")
 
   await clickButton(page, buttons.starterTemplates)
@@ -37,6 +36,6 @@ test("Basic flow", async ({ baseURL, page }) => {
 
   // start workspace
   await clickButton(page, buttons.startWorkspace)
-  const stopButton = page.getByRole("button", { name: buttons.stopWorkspace, exact: true }).waitFor()
-  expect(stopButton).toBeDefined()
+  const stopButton = page.getByRole("button", { name: buttons.stopWorkspace, exact: true })
+  await expect(stopButton, { timeout: 20_000 }).toBeEnabled()
 })
