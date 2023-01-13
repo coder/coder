@@ -1535,9 +1535,9 @@ func buildLogger(cmd *cobra.Command, cfg *codersdk.DeploymentConfig) (slog.Logge
 			sinks = append(sinks, sinkFn(cmd.ErrOrStderr()))
 
 		default:
-			fi, err := os.OpenFile(cfg.Logging.Human.Value, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+			fi, err := os.OpenFile(loc, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 			if err != nil {
-				return xerrors.Errorf("open log file %q: %w", cfg.Logging.Human.Value, err)
+				return xerrors.Errorf("open log file %q: %w", loc, err)
 			}
 
 			closers = append(closers, fi.Close)
