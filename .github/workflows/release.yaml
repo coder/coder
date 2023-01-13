@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: Perform a dry-run release (devel).
+        description: Perform a dry-run release (devel). Note that ref must be an annotated tag when run without dry-run.
         type: boolean
         required: true
         default: false
