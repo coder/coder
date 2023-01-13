@@ -826,7 +826,7 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 // @ID submit-workspace-agent-stats
 // @Security CoderSessionToken
 // @Accept json
-// @Produce application/json
+// @Produce json
 // @Tags Agents
 // @Param request body codersdk.AgentStats true "Stats request"
 // @Success 200 {object} codersdk.AgentStatsResponse
@@ -904,7 +904,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 // @ID submit-workspace-agent-application-health
 // @Security CoderSessionToken
 // @Accept json
-// @Produce application/json
+// @Produce json
 // @Tags Agents
 // @Param request body codersdk.PostWorkspaceAppHealthsRequest true "Application health request"
 // @Success 200
