@@ -1,49 +1,56 @@
 import { makeStyles } from "@material-ui/core/styles"
-import { useActor } from "@xstate/react"
+import { useMachine } from "@xstate/react"
 import { Loader } from "components/Loader/Loader"
-import { FC, Suspense, useContext, useEffect } from "react"
-import { XServiceContext } from "../../xServices/StateContext"
+import { FC, Suspense } from "react"
 import { Navbar } from "../Navbar/Navbar"
 import { UpdateCheckBanner } from "components/UpdateCheckBanner/UpdateCheckBanner"
 import { Margins } from "components/Margins/Margins"
 import { Outlet } from "react-router-dom"
+import { LicenseBanner } from "components/LicenseBanner/LicenseBanner"
+import { ServiceBanner } from "components/ServiceBanner/ServiceBanner"
+import { updateCheckMachine } from "xServices/updateCheck/updateCheckXService"
+import { usePermissions } from "hooks/usePermissions"
+import { UpdateCheckResponse } from "api/typesGenerated"
 
 export const DashboardLayout: FC = () => {
   const styles = useStyles()
-  const xServices = useContext(XServiceContext)
-  const [authState] = useActor(xServices.authXService)
-  const [updateCheckState, updateCheckSend] = useActor(
-    xServices.updateCheckXService,
-  )
-
-  useEffect(() => {
-    if (authState.matches("signedIn")) {
-      updateCheckSend("CHECK")
-    } else {
-      updateCheckSend("CLEAR")
-    }
-  }, [authState, updateCheckSend])
+  const permissions = usePermissions()
+  const [updateCheckState, updateCheckSend] = useMachine(updateCheckMachine, {
+    context: {
+      permissions,
+    },
+  })
+  const { error: updateCheckError, updateCheck } = updateCheckState.context
 
   return (
-    <div className={styles.site}>
-      <Navbar />
-      {updateCheckState.context.show && (
-        <div className={styles.updateCheckBanner}>
-          <Margins>
-            <UpdateCheckBanner
-              updateCheck={updateCheckState.context.updateCheck}
-              error={updateCheckState.context.error}
-              onDismiss={() => updateCheckSend("DISMISS")}
-            />
-          </Margins>
+    <>
+      <ServiceBanner />
+      <LicenseBanner />
+
+      <div className={styles.site}>
+        <Navbar />
+
+        {updateCheckState.matches("show") && (
+          <div className={styles.updateCheckBanner}>
+            <Margins>
+              <UpdateCheckBanner
+                // We can trust when it is show, the update check is filled
+                // unfortunately, XState does not has typed state - context yet
+                updateCheck={updateCheck as UpdateCheckResponse}
+                error={updateCheckError}
+                onDismiss={() => updateCheckSend("DISMISS")}
+              />
+            </Margins>
+          </div>
+        )}
+
+        <div className={styles.siteContent}>
+          <Suspense fallback={<Loader />}>
+            <Outlet />
+          </Suspense>
         </div>
-      )}
-      <div className={styles.siteContent}>
-        <Suspense fallback={<Loader />}>
-          <Outlet />
-        </Suspense>
       </div>
-    </div>
+    </>
   )
 }
 

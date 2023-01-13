@@ -3,7 +3,6 @@ import { createContext, FC, ReactNode } from "react"
 import { ActorRefFrom } from "xstate"
 import { authMachine } from "./auth/authXService"
 import { buildInfoMachine } from "./buildInfo/buildInfoXService"
-import { updateCheckMachine } from "./updateCheck/updateCheckXService"
 import { entitlementsMachine } from "./entitlements/entitlementsXService"
 import { appearanceMachine } from "./appearance/appearanceXService"
 
@@ -12,7 +11,6 @@ interface XServiceContextType {
   buildInfoXService: ActorRefFrom<typeof buildInfoMachine>
   entitlementsXService: ActorRefFrom<typeof entitlementsMachine>
   appearanceXService: ActorRefFrom<typeof appearanceMachine>
-  updateCheckXService: ActorRefFrom<typeof updateCheckMachine>
 }
 
 /**
@@ -33,7 +31,6 @@ export const XServiceProvider: FC<{ children: ReactNode }> = ({ children }) => {
         buildInfoXService: useInterpret(buildInfoMachine),
         entitlementsXService: useInterpret(entitlementsMachine),
         appearanceXService: useInterpret(appearanceMachine),
-        updateCheckXService: useInterpret(updateCheckMachine),
       }}
     >
       {children}

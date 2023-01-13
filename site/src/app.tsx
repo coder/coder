@@ -1,7 +1,5 @@
 import CssBaseline from "@material-ui/core/CssBaseline"
 import ThemeProvider from "@material-ui/styles/ThemeProvider"
-import { LicenseBanner } from "components/LicenseBanner/LicenseBanner"
-import { ServiceBanner } from "components/ServiceBanner/ServiceBanner"
 import { FC } from "react"
 import { HelmetProvider } from "react-helmet-async"
 import { BrowserRouter as Router } from "react-router-dom"
@@ -20,8 +18,6 @@ export const App: FC = () => {
           <CssBaseline />
           <ErrorBoundary>
             <XServiceProvider>
-              <ServiceBanner />
-              <LicenseBanner />
               <AppRouter />
               <GlobalSnackbar />
             </XServiceProvider>
