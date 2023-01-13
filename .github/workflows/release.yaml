@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       increment:
-        description: Preferred version increment (release script may promote e.g. patch to minor depending on changes).
+        description: Version increment.
         type: choice
         required: true
         default: patch
@@ -37,7 +37,6 @@ env:
   # https://github.blog/changelog/2022-06-10-github-actions-inputs-unified-across-manual-and-reusable-workflows/
   CODER_RELEASE: ${{ !inputs.dry_run }}
   CODER_RELEASE_INCREMENT: ${{ inputs.increment }}
-  CODER_RELEASE_DRAFT: ${{ inputs.draft }}
   CODER_DRY_RUN: ${{ inputs.dry_run }}
 
 jobs:
