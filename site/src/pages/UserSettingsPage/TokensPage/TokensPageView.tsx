@@ -28,9 +28,7 @@ export const Language = {
 const lastUsedOrNever = (lastUsed: string) => {
   const t = dayjs(lastUsed)
   const now = dayjs()
-  return now.isBefore(t.add(100, "year"))
-    ? t.fromNow()
-    : "Never"
+  return now.isBefore(t.add(100, "year")) ? t.fromNow() : "Never"
 }
 
 export interface TokensPageViewProps {
