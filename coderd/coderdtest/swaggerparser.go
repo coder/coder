@@ -295,6 +295,8 @@ func assertAccept(t *testing.T, comment SwaggerComment) {
 	}
 }
 
+var allowedProduceTypes = []string{"json", "text/event-stream"}
+
 func assertProduce(t *testing.T, comment SwaggerComment) {
 	var hasResponseModel bool
 	for _, r := range comment.successes {
@@ -306,6 +308,7 @@ func assertProduce(t *testing.T, comment SwaggerComment) {
 
 	if hasResponseModel {
 		assert.True(t, comment.produce != "", "Route must have @Produce annotation as it responds with a model structure")
+		assert.Contains(t, allowedProduceTypes, comment.produce, "@Produce value is limited to specific types: %s", strings.Join(allowedProduceTypes, ","))
 	} else {
 		if (comment.router == "/workspaceagents/me/app-health" && comment.method == "post") ||
 			(comment.router == "/workspaceagents/me/version" && comment.method == "post") ||
