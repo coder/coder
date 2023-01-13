@@ -6,17 +6,8 @@ on:
       - "v*"
   workflow_dispatch:
     inputs:
-      increment:
-        description: Version increment.
-        type: choice
-        required: true
-        default: patch
-        options:
-          - patch
-          - minor
-          - major
       dry_run:
-        description: Perform a dry-run release.
+        description: Perform a dry-run release (devel).
         type: boolean
         required: true
         default: false
@@ -36,7 +27,6 @@ env:
   # booleans, not strings.
   # https://github.blog/changelog/2022-06-10-github-actions-inputs-unified-across-manual-and-reusable-workflows/
   CODER_RELEASE: ${{ !inputs.dry_run }}
-  CODER_RELEASE_INCREMENT: ${{ inputs.increment }}
   CODER_DRY_RUN: ${{ inputs.dry_run }}
 
 jobs:
@@ -69,18 +59,6 @@ jobs:
           ref=HEAD
           old_version="$(git describe --abbrev=0 "$ref^1")"
           version="$(./scripts/version.sh)"
-
-          # Cache commit metadata.
-          . ./scripts/release/check_commit_metadata.sh "$old_version" "$ref"
-
-          if [[ $CODER_DRY_RUN == *t* ]]; then
-            # Create a tag for this dry-run (local only, can't be uploaded).
-            version="$(
-              ./scripts/release/tag_version.sh \
-                --ref "$ref" \
-                --"$CODER_RELEASE_INCREMENT"
-            )"
-          fi
 
           # Generate notes.
           release_notes_file="$(mktemp -t release_notes.XXXXXX)"
