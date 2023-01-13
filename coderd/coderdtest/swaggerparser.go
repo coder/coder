@@ -89,69 +89,70 @@ func parseSwaggerComment(commentGroup *ast.CommentGroup) SwaggerComment {
 		failures:   []response{},
 	}
 	for _, line := range commentGroup.List {
-		splitN := strings.SplitN(strings.TrimSpace(line.Text), " ", 2)
+		splitN := strings.SplitN(strings.TrimSpace(line.Text), " ", 3) // @Router <args>
 		if len(splitN) < 2 {
 			continue // comment prefix without any content
 		}
-		text := splitN[1] // Skip the comment prefix (double-slash)
 
-		if strings.HasPrefix(text, "@Router ") {
-			args := strings.SplitN(text, " ", 3)
-			c.router = args[1]
-			c.method = args[2][1 : len(args[2])-1]
-		} else if strings.HasPrefix(text, "@Summary ") {
-			args := strings.SplitN(text, " ", 2)
-			c.summary = args[1]
-		} else if strings.HasPrefix(text, "@ID ") {
-			args := strings.SplitN(text, " ", 2)
-			c.id = args[1]
-		} else if strings.HasPrefix(text, "@Success ") {
-			args := strings.Split(text, " ")
+		if !strings.HasPrefix(splitN[1], "@") {
+			continue // not a swagger annotation
+		}
+
+		annotationName := splitN[1]
+		annotationArgs := splitN[2]
+
+		switch annotationName {
+		case "@Router":
+			args := strings.SplitN(annotationArgs, " ", 2)
+			c.router = args[0]
+			c.method = args[1][1 : len(args[1])-1]
+		case "@Success":
+			args := strings.Split(annotationArgs, " ")
 
 			var success response
+			if len(args) > 0 {
+				success.status = args[0]
+			}
 			if len(args) > 1 {
-				success.status = args[1]
+				success.kind = args[1]
 			}
 			if len(args) > 2 {
-				success.kind = args[2]
-			}
-			if len(args) > 3 {
-				success.model = args[3]
+				success.model = args[2]
 			}
 			c.successes = append(c.successes, success)
-		} else if strings.HasPrefix(text, "@Failure ") {
-			args := strings.Split(text, " ")
+		case "@Failure":
+			args := strings.Split(annotationArgs, " ")
 
 			var failure response
+			if len(args) > 0 {
+				failure.status = args[0]
+			}
 			if len(args) > 1 {
-				failure.status = args[1]
+				failure.kind = args[1]
 			}
 			if len(args) > 2 {
-				failure.kind = args[2]
+				failure.model = args[2]
 			}
-			if len(args) > 3 {
-				failure.model = args[3]
-			}
-			c.failures = append(c.successes, failure)
-		} else if strings.HasPrefix(text, "@Tags ") {
-			args := strings.SplitN(text, " ", 2)
-			c.tags = args[1]
-		} else if strings.HasPrefix(text, "@Security ") {
-			args := strings.SplitN(text, " ", 2)
-			c.security = args[1]
-		} else if strings.HasPrefix(text, "@Param ") {
-			args := strings.SplitN(text, " ", 4)
+			c.failures = append(c.failures, failure)
+		case "@Param":
+			args := strings.SplitN(annotationArgs, " ", 3)
 			p := parameter{
-				name: args[1],
-				kind: args[2],
+				name: args[0],
+				kind: args[1],
 			}
 			c.parameters = append(c.parameters, p)
-		} else if strings.HasPrefix(text, "@Accept ") {
-			args := strings.SplitN(text, " ", 2)
-			c.accept = args[1]
-		} else if strings.HasPrefix(text, "@Produce ") {
-			args := strings.SplitN(text, " ", 2)
-			c.produce = args[1]
+		case "@Summary":
+			c.summary = annotationArgs
+		case "@ID":
+			c.id = annotationArgs
+		case "@Tags":
+			c.tags = annotationArgs
+		case "@Security":
+			c.security = annotationArgs
+		case "@Accept":
+			c.accept = annotationArgs
+		case "@Produce":
+			c.produce = annotationArgs
 		}
 	}
 	return c
