@@ -233,7 +233,7 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 	}
 	params := make([]codersdk.TemplateVersionParameter, 0)
 	for _, dbParameter := range dbParameters {
-		parameter, err := convertTemplateVersionParameter(dbParameter)
+		param, err := convertTemplateVersionParameter(dbParameter)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error converting template version parameter.",
@@ -241,7 +241,7 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 			})
 			return
 		}
-		params = append(params, parameter)
+		params = append(params, param)
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, params)
 }
