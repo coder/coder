@@ -250,7 +250,7 @@ func assertRequiredAnnotations(t *testing.T, comment SwaggerComment) {
 	assert.NotEmpty(t, comment.id, "@ID must be defined")
 	assert.NotEmpty(t, comment.summary, "@Summary must be defined")
 	assert.NotEmpty(t, comment.tags, "@Tags must be defined")
-	assert.NotEmpty(t, comment.tags, "@Router must be defined")
+	assert.NotEmpty(t, comment.router, "@Router must be defined")
 }
 
 func assertGoCommentFirst(t *testing.T, comment SwaggerComment) {
