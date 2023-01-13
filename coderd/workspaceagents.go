@@ -237,7 +237,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
-		httpapi.Write(ctx, rw, http.StatusPreconditionRequired, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Agent state is %q, it must be in the %q state.", apiAgent.Status, codersdk.WorkspaceAgentConnected),
 		})
 		return
@@ -318,7 +318,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 		return
 	}
 	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
-		httpapi.Write(ctx, rw, http.StatusPreconditionRequired, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Agent state is %q, it must be in the %q state.", apiAgent.Status, codersdk.WorkspaceAgentConnected),
 		})
 		return
@@ -826,7 +826,7 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 // @ID submit-workspace-agent-stats
 // @Security CoderSessionToken
 // @Accept json
-// @Produce application/json
+// @Produce json
 // @Tags Agents
 // @Param request body codersdk.AgentStats true "Stats request"
 // @Success 200 {object} codersdk.AgentStatsResponse
@@ -904,7 +904,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 // @ID submit-workspace-agent-application-health
 // @Security CoderSessionToken
 // @Accept json
-// @Produce application/json
+// @Produce json
 // @Tags Agents
 // @Param request body codersdk.PostWorkspaceAppHealthsRequest true "Application health request"
 // @Success 200
