@@ -32,13 +32,13 @@ The environment variable `CODER_PROMETHEUS_ENABLE` will be enabled automatically
 | Name                                         | Type      | Description                                                        | Labels                 |
 | -------------------------------------------- | --------- | ------------------------------------------------------------------ | ---------------------- |
 | `coderd_api_active_users_duration_hour`      | gauge     | The number of users that have been active within the last hour.    |                        |
-| `coderd_api_concurrent_requests`             | gauge     | The number of concurrent API requests                              |                        |
-| `coderd_api_concurrent_websockets`           | gauge     | The total number of concurrent API websockets                      |                        |
-| `coderd_api_request_latencies_ms`            | histogram | Latency distribution of requests in milliseconds                   | `method` `path`        |
+| `coderd_api_concurrent_requests`             | gauge     | The number of concurrent API requests.                             |                        |
+| `coderd_api_concurrent_websockets`           | gauge     | The total number of concurrent API websockets.                     |                        |
+| `coderd_api_request_latencies_seconds`       | histogram | Latency distribution of requests in seconds.                       | `method` `path`        |
 | `coderd_api_requests_processed_total`        | counter   | The total number of processed API requests                         | `code` `method` `path` |
-| `coderd_api_websocket_durations_ms`          | histogram | Websocket duration distribution of requests in milliseconds        | `path`                 |
+| `coderd_api_websocket_durations_seconds`     | histogram | Websocket duration distribution of requests in seconds.            | `path`                 |
 | `coderd_api_workspace_latest_build_total`    | gauge     | The latest workspace builds with a status.                         | `status`               |
-| `coderd_provisionerd_job_timings_ms`         | histogram | The provisioner job time duration.                                 | `provisioner` `status` |
+| `coderd_provisionerd_job_timings_seconds`    | histogram | The provisioner job time duration in seconds.                      | `provisioner` `status` |
 | `coderd_provisionerd_jobs_current`           | gauge     | The number of currently running provisioner jobs.                  | `provisioner`          |
 | `go_gc_duration_seconds`                     | summary   | A summary of the pause duration of garbage collection cycles.      |                        |
 | `go_goroutines`                              | gauge     | Number of goroutines that currently exist.                         |                        |
@@ -67,6 +67,13 @@ The environment variable `CODER_PROMETHEUS_ENABLE` will be enabled automatically
 | `go_memstats_stack_sys_bytes`                | gauge     | Number of bytes obtained from system for stack allocator.          |                        |
 | `go_memstats_sys_bytes`                      | gauge     | Number of bytes obtained from system.                              |                        |
 | `go_threads`                                 | gauge     | Number of OS threads created.                                      |                        |
+| `process_cpu_seconds_total`                  | counter   | Total user and system CPU time spent in seconds.                   |                        |
+| `process_max_fds`                            | gauge     | Maximum number of open file descriptors.                           |                        |
+| `process_open_fds`                           | gauge     | Number of open file descriptors.                                   |                        |
+| `process_resident_memory_bytes`              | gauge     | Resident memory size in bytes.                                     |                        |
+| `process_start_time_seconds`                 | gauge     | Start time of the process since unix epoch in seconds.             |                        |
+| `process_virtual_memory_bytes`               | gauge     | Virtual memory size in bytes.                                      |                        |
+| `process_virtual_memory_max_bytes`           | gauge     | Maximum amount of virtual memory available in bytes.               |                        |
 | `promhttp_metric_handler_requests_in_flight` | gauge     | Current number of scrapes being served.                            |                        |
 | `promhttp_metric_handler_requests_total`     | counter   | Total number of scrapes by HTTP status code.                       | `code`                 |
 
