@@ -1,5 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import VpnKeyOutlined from "@material-ui/icons/VpnKeyOutlined"
+import FingerprintOutlinedIcon from "@material-ui/icons/FingerprintOutlined"
 import { User } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
 import { UserAvatar } from "components/UserAvatar/UserAvatar"
@@ -52,22 +53,28 @@ export const Sidebar: React.FC<{ user: User }> = ({ user }) => {
       </Stack>
 
       <SidebarNavItem
-        href="../account"
+        href="account"
         icon={<SidebarNavItemIcon icon={AccountIcon} />}
       >
         Account
       </SidebarNavItem>
       <SidebarNavItem
-        href="../security"
+        href="security"
         icon={<SidebarNavItemIcon icon={SecurityIcon} />}
       >
         Security
       </SidebarNavItem>
       <SidebarNavItem
-        href="../ssh-keys"
-        icon={<SidebarNavItemIcon icon={VpnKeyOutlined} />}
+        href="ssh-keys"
+        icon={<SidebarNavItemIcon icon={FingerprintOutlinedIcon} />}
       >
         SSH Keys
+      </SidebarNavItem>
+      <SidebarNavItem
+        href="tokens"
+        icon={<SidebarNavItemIcon icon={VpnKeyOutlined} />}
+      >
+        Tokens
       </SidebarNavItem>
     </nav>
   )

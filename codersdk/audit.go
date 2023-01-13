@@ -88,14 +88,14 @@ type AuditDiffField struct {
 }
 
 type AuditLog struct {
-	ID             uuid.UUID    `json:"id"`
-	RequestID      uuid.UUID    `json:"request_id"`
-	Time           time.Time    `json:"time"`
-	OrganizationID uuid.UUID    `json:"organization_id"`
+	ID             uuid.UUID    `json:"id" format:"uuid"`
+	RequestID      uuid.UUID    `json:"request_id" format:"uuid"`
+	Time           time.Time    `json:"time" format:"date-time"`
+	OrganizationID uuid.UUID    `json:"organization_id" format:"uuid"`
 	IP             netip.Addr   `json:"ip"`
 	UserAgent      string       `json:"user_agent"`
 	ResourceType   ResourceType `json:"resource_type"`
-	ResourceID     uuid.UUID    `json:"resource_id"`
+	ResourceID     uuid.UUID    `json:"resource_id" format:"uuid"`
 	// ResourceTarget is the name of the resource.
 	ResourceTarget   string          `json:"resource_target"`
 	ResourceIcon     string          `json:"resource_icon"`
@@ -123,8 +123,8 @@ type AuditLogResponse struct {
 type CreateTestAuditLogRequest struct {
 	Action       AuditAction  `json:"action,omitempty" enums:"create,write,delete,start,stop"`
 	ResourceType ResourceType `json:"resource_type,omitempty" enums:"organization,template,template_version,user,workspace,workspace_build,git_ssh_key,api_key,group"`
-	ResourceID   uuid.UUID    `json:"resource_id,omitempty"`
-	Time         time.Time    `json:"time,omitempty"`
+	ResourceID   uuid.UUID    `json:"resource_id,omitempty" format:"uuid"`
+	Time         time.Time    `json:"time,omitempty" format:"date-time"`
 }
 
 // AuditLogs retrieves audit logs from the given page.

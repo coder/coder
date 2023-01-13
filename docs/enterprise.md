@@ -4,22 +4,21 @@ Coder is free to use and includes some features that are only accessible with a 
 [Contact Sales](https://coder.com/contact) for pricing or [get a free
 trial](https://coder.com/trial).
 
-| Category        | Feature                                                                     |  Open Source   | Enterprise |
-| --------------- | --------------------------------------------------------------------------- | :------------: | :--------: |
-| User Management | [Groups](./admin/groups.md)                                                 |                |     X      |
-| User Management | [OIDC](./admin/auth.md)                                                     | X<sup>\*</sup> |     X      |
-| User Management | [SCIM](./admin/auth.md#scim)                                                |                |     X      |
-| Governance      | [Audit Logging](./admin/audit-logs.md)                                      |                |     X      |
-| Governance      | [Browser Only Connections](./networking.md#browser-only-connections)        |                |     X      |
-| Governance      | [Template Access Control](./admin/rbac.md)                                  |                |     X      |
-| Cost Control    | [Quotas](./admin/quotas.md)                                                 |                |     X      |
-| Cost Control    | [Max Workspace Auto-Stop](./templates.md#configure-max-workspace-auto-stop) |                |     X      |
-| Deployment      | [High Availability](./admin/high-availability.md)                           |                |     X      |
-| Deployment      | [Service Banners](./admin/service-banners.md)                               |                |     X      |
-| Deployment      | [Git Provider Integration](./admin/git-providers.md)                        | X<sup>\*</sup> |     X      |
-| Deployment      | Isolated Terraform Runners                                                  |                |     X      |
+| Category        | Feature                                                                     | Open Source | Enterprise |
+| --------------- | --------------------------------------------------------------------------- | :---------: | :--------: |
+| User Management | [Groups](./admin/groups.md)                                                 |             |     X      |
+| User Management | [SCIM](./admin/auth.md#scim)                                                |             |     X      |
+| Governance      | [Audit Logging](./admin/audit-logs.md)                                      |             |     X      |
+| Governance      | [Browser Only Connections](./networking.md#browser-only-connections)        |             |     X      |
+| Governance      | [Template Access Control](./admin/rbac.md)                                  |             |     X      |
+| Cost Control    | [Quotas](./admin/quotas.md)                                                 |             |     X      |
+| Cost Control    | [Max Workspace Auto-Stop](./templates.md#configure-max-workspace-auto-stop) |             |     X      |
+| Deployment      | [High Availability](./admin/high-availability.md)                           |             |     X      |
+| Deployment      | [Service Banners](./admin/service-banners.md)                               |             |     X      |
+| Deployment      | Isolated Terraform Runners                                                  |             |     X      |
 
-<sup>\*</sup> Free for up to 20 users
+> Previous plans to restrict OIDC and Git Auth features in OSS have been removed
+> as of 2023-01-11
 
 ## Adding your license key
 

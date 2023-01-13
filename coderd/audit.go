@@ -89,7 +89,7 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Generate fake audit log
-// @ID generate-fake-audit-logs
+// @ID generate-fake-audit-log
 // @Security CoderSessionToken
 // @Accept json
 // @Tags Audit

@@ -25,7 +25,7 @@ const (
 
 // @Summary Upload file
 // @Description Swagger notice: Swagger 2.0 doesn't support file upload with a `content-type` different than `application/x-www-form-urlencoded`.
-// @ID update-file
+// @ID upload-file
 // @Security CoderSessionToken
 // @Produce json
 // @Accept application/x-tar

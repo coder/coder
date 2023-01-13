@@ -66,7 +66,7 @@ var nonCanonicalHeaders = map[string]string{
 }
 
 // @Summary Get applications host
-// @ID get-app-host
+// @ID get-applications-host
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Applications
@@ -614,6 +614,13 @@ func (api *API) setWorkspaceAppCookie(rw http.ResponseWriter, r *http.Request, t
 	return true
 }
 
+// workspaceApplicationAuth is an endpoint on the main router that handles
+// redirects from the subdomain handler.
+//
+// This endpoint is under /api so we don't return the friendly error page here.
+// Any errors on this endpoint should be errors that are unlikely to happen
+// in production unless the user messes with the URL.
+//
 // @Summary Redirect to URI with encrypted API key
 // @ID redirect-to-uri-with-encrypted-api-key
 // @Security CoderSessionToken
@@ -621,13 +628,6 @@ func (api *API) setWorkspaceAppCookie(rw http.ResponseWriter, r *http.Request, t
 // @Param redirect_uri query string false "Redirect destination"
 // @Success 307
 // @Router /applications/auth-redirect [get]
-//
-// workspaceApplicationAuth is an endpoint on the main router that handles
-// redirects from the subdomain handler.
-//
-// This endpoint is under /api so we don't return the friendly error page here.
-// Any errors on this endpoint should be errors that are unlikely to happen
-// in production unless the user messes with the URL.
 func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if api.AppHostname == "" {

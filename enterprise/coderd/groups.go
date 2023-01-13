@@ -80,6 +80,14 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 	httpapi.Write(ctx, rw, http.StatusCreated, convertGroup(group, nil))
 }
 
+// @Summary Update group by name
+// @ID update-group-by-name
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param group path string true "Group name"
+// @Success 200 {object} codersdk.Group
+// @Router /groups/{group} [patch]
 func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -136,7 +144,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 			UserID:         uuid.MustParse(id),
 		})
 		if xerrors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: fmt.Sprintf("User %q must be a member of organization %q", id, group.ID),
 			})
 			return
@@ -207,14 +215,14 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	}, nil)
 	if database.IsUniqueViolation(err) {
-		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Cannot add the same user to a group twice!",
 			Detail:  err.Error(),
 		})
 		return
 	}
 	if xerrors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to add or remove non-existent group member",
 			Detail:  err.Error(),
 		})
@@ -236,6 +244,14 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, convertGroup(group, members))
 }
 
+// @Summary Delete group by name
+// @ID delete-group-by-name
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param group path string true "Group name"
+// @Success 200 {object} codersdk.Group
+// @Router /groups/{group} [delete]
 func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -274,14 +290,27 @@ func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary Get group by organization and group name
+// @ID get-group-by-organization-and-group-name
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param groupName path string true "Group name"
+// @Success 200 {object} codersdk.Group
+// @Router /organizations/{organization}/groups/{groupName} [get]
+func (api *API) groupByOrganization(rw http.ResponseWriter, r *http.Request) {
+	api.group(rw, r)
+}
+
 // @Summary Get group by name
 // @ID get-group-by-name
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param groupName path string true "Group name"
+// @Param group path string true "Group name"
 // @Success 200 {object} codersdk.Group
-// @Router /groups/{groupName} [get]
+// @Router /groups/{group} [get]
 func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx   = r.Context()
