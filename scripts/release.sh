@@ -106,11 +106,14 @@ trap - EXIT
 log "Executing DRYRUN of release tagging..."
 new_version="$(execrelative ./release/tag_version.sh --old-version "$old_version" --ref "$ref" --"$increment" --dry-run)"
 log
-read -p "Continue? (y/n) " -n 1 -r show_reply
+read -p "Continue? (y/n) " -n 1 -r continue_release
+log
+if ! [[ $continue_release =~ ^[Yy]$ ]]; then
+	exit 0
+fi
 
 release_notes="$(execrelative ./release/generate_release_notes.sh --old-version "$old_version" --new-version "$new_version" --ref "$ref")"
 
-log
 read -p "Preview release notes? (y/n) " -n 1 -r show_reply
 log
 if [[ $show_reply =~ ^[Yy]$ ]]; then

@@ -96,7 +96,7 @@ main() {
 			if [[ $ignore_missing_metadata != 1 ]]; then
 				error "Metadata missing for commit $commit_sha_short"
 			else
-				log "WARING: Metadata missing for commit $commit_sha_short"
+				log "WARNING: Metadata missing for commit $commit_sha_short"
 			fi
 		fi
 
