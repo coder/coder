@@ -1096,6 +1096,7 @@ export const MockPermissions: Permissions = {
   updateUsers: true,
   viewAuditLog: true,
   viewDeploymentConfig: true,
+  viewUpdateCheck: true,
 }
 
 export const MockAppearance: TypesGen.AppearanceConfig = {
