@@ -18,7 +18,6 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/rbac"
 )
@@ -71,15 +70,12 @@ func Generate(packageName string, skip map[string]bool) (string, error) {
 	if err != nil {
 		log.Fatalf("failed to parse templates: %v", err)
 	}
-	methods := storeMethods()
+	parsed := generateStoreMethods(skip)
 
-	generate := make([]ParsedMethod, 0)
-	for _, method := range methods {
+	generate := make([]*ParsedMethod, 0)
+	for _, method := range parsed.Methods {
 		if method == nil {
 			// TODO: None of the methods should be nil
-			continue
-		}
-		if _, ok := skip[method.Name()]; ok {
 			continue
 		}
 		generate = append(generate, method)
@@ -87,7 +83,7 @@ func Generate(packageName string, skip map[string]bool) (string, error) {
 
 	// Sort for consistent output
 	sort.Slice(generate, func(i, j int) bool {
-		return generate[i].Name() < generate[j].Name()
+		return generate[i].Name < generate[j].Name
 	})
 
 	var output bytes.Buffer
@@ -98,7 +94,14 @@ func Generate(packageName string, skip map[string]bool) (string, error) {
 	output.WriteString("// an error in a method, write it manually there and regenerate this file.\n")
 	output.WriteString(fmt.Sprintf("package %s\n\n", packageName))
 
-	sep := "\n\n"
+	// Write the imports
+	output.WriteString("import (\n")
+	for _, imp := range parsed.RequiredImports {
+		output.WriteString(fmt.Sprintf("\t %q\n", imp))
+	}
+	output.WriteString(")\n\n")
+
+	sep := ""
 	var merr error
 	for _, v := range generate {
 		out, err := v.Generate(tpls)
@@ -109,16 +112,84 @@ func Generate(packageName string, skip map[string]bool) (string, error) {
 		}
 		out = strings.TrimSpace(out)
 		// empty line between each function
+		output.WriteString(sep + out)
+		sep = "\n\n"
 	}
 
 	return output.String(), merr
 }
 
-type ParsedMethod interface {
-	Name() string
-	Generate(tpl *template.Template) (string, error)
+type ParsedMethod struct {
+	Name          string
+	Raw           reflect.Method
+	RequiredTypes []reflect.Type
+	TemplateName  string
+	TemplateData  any
 }
 
+func (m ParsedMethod) Generate(tpl *template.Template) (string, error) {
+	var buf bytes.Buffer
+	err := tpl.Lookup("get_method").Execute(&buf, m)
+	return buf.String(), err
+}
+
+type Parsed struct {
+	Methods         []*ParsedMethod
+	RequiredImports []string
+}
+
+func generateStoreMethods(skip map[string]bool) Parsed {
+	requiredImports := make(map[string]bool)
+	methods := make([]*ParsedMethod, 0)
+	for i := 0; i < dbStoreType.NumMethod(); i++ {
+		method := dbStoreType.Method(i)
+		if _, ok := skip[method.Name]; ok {
+			continue
+		}
+
+		parsed := parseMethod(method)
+		if parsed != nil {
+			methods = append(methods, parsed)
+		}
+	}
+
+	imported := make(map[string]bool)
+	imports := make([]string, 0, len(requiredImports))
+	for _, method := range methods {
+		for _, t := range method.RequiredTypes {
+			if !localType(t) && t.PkgPath() != "" {
+				if _, ok := imported[t.PkgPath()]; ok {
+					continue
+				}
+				imported[t.PkgPath()] = true
+				imports = append(imports, t.PkgPath())
+			}
+		}
+	}
+	// TODO: Sort imports better
+	sort.Strings(imports)
+
+	return Parsed{
+		Methods:         methods,
+		RequiredImports: imports,
+	}
+}
+
+func parseMethod(method reflect.Method) *ParsedMethod {
+	if getMethod, ok := parseGetMethod(method); ok {
+		return getMethod
+	}
+
+	return nil
+}
+
+type getMethodData struct {
+	FunctionName string
+	ArgumentType string
+	ReturnType   string
+}
+
+// parseGetMethod returns a basic GetMethod.
 // GetMethod is any method with 2 arguments as input and 2 outputs.
 // These methods are used when the rbac object comes from the database
 // and the rbac object permission can be checked after a fetch.
@@ -134,64 +205,55 @@ type ParsedMethod interface {
 // GetMethods should not result in any database mutations.
 // Note: @Emyrk we could look at the sql statements to see if any 'Update', 'Insert',
 // or other mutations are being performed with a string search.
-type GetMethod struct {
-	Raw          reflect.Method
-	FunctionName string
-	ArgumentType string
-	ReturnType   string
-}
 
-func (m GetMethod) Name() string { return m.Raw.Name }
-func (m GetMethod) Generate(tpl *template.Template) (string, error) {
-	var buf bytes.Buffer
-	err := tpl.Lookup("get_method").Execute(&buf, m)
-	return buf.String(), err
-}
-
-func storeMethods() []ParsedMethod {
-	methods := make([]ParsedMethod, 0)
-	for i := 0; i < dbStoreType.NumMethod(); i++ {
-		method := dbStoreType.Method(i)
-		methods = append(methods, parseMethod(method))
-	}
-	return methods
-}
-
-func parseMethod(method reflect.Method) ParsedMethod {
-	if getMethod, ok := parseGetMethod(method); ok {
-		return getMethod
-	}
-
-	return nil
-}
-
-func parseGetMethod(method reflect.Method) (GetMethod, bool) {
+func parseGetMethod(method reflect.Method) (*ParsedMethod, bool) {
 	// Match the method name.
 	if !GetMethodRegex.MatchString(method.Name) {
-		return GetMethod{}, false
+		return nil, false
 	}
 
 	// Requires 2 inputs, 2 outputs.
 	if method.Type.NumIn() != 2 || method.Type.NumOut() != 2 {
-		return GetMethod{}, false
+		return nil, false
 	}
 
 	if method.Type.In(0) != contextType {
-		return GetMethod{}, false
+		return nil, false
 	}
 
 	if !method.Type.Out(0).Implements(rbacObjectType) {
-		return GetMethod{}, false
+		return nil, false
 	}
 
 	if method.Type.Out(1) != errorType {
-		return GetMethod{}, false
+		return nil, false
 	}
 
-	return GetMethod{
-		Raw:          method,
-		FunctionName: method.Name,
-		ArgumentType: method.Type.In(1).String(),
-		ReturnType:   method.Type.Out(0).String(),
+	return &ParsedMethod{
+		Name: method.Name,
+		Raw:  method,
+		RequiredTypes: []reflect.Type{
+			method.Type.In(1),
+			method.Type.Out(0),
+			errorType,
+			contextType,
+		},
+		TemplateName: "get_method",
+		TemplateData: getMethodData{
+			FunctionName: method.Name,
+			ArgumentType: nameOfType(method.Type.In(1)),
+			ReturnType:   nameOfType(method.Type.Out(0)),
+		},
 	}, true
+}
+
+func localType(t reflect.Type) bool {
+	return t.PkgPath() == "github.com/coder/coder/coderd/database"
+}
+
+func nameOfType(t reflect.Type) string {
+	if localType(t) {
+		return t.Name()
+	}
+	return t.String()
 }

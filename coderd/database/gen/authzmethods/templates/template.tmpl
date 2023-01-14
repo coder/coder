@@ -1,6 +1,6 @@
 {{define "get_method"}}
-func (q *AuthzQuerier) {{.FunctionName}}(ctx context.Context, arg {{.ArgumentType}}) ({{.ReturnType}}, error) {
-	return authorizedFetch(q.authorizer, rbac.ActionRead, q.database.{{.FunctionName}})(ctx, arg)
+func (q *AuthzQuerier) {{.TemplateData.FunctionName}}(ctx context.Context, arg {{.TemplateData.ArgumentType}}) ({{.TemplateData.ReturnType}}, error) {
+	return authorizedFetch(q.authorizer, rbac.ActionRead, q.database.{{.TemplateData.FunctionName}})(ctx, arg)
 }
 {{end}}
 
