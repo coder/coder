@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -50,13 +51,13 @@ func (q *AuthzQuerier) Ping(ctx context.Context) (time.Duration, error) {
 	return q.database.Ping(ctx)
 }
 
-//func (q *AuthzQuerier) InTx(function func(Store) error, txOpts *sql.TxOptions) error {
-//	return q.database.InTx(func(tx Store) error {
-//		// Wrap the transaction store in an AuthzQuerier.
-//		wrapped := NewAuthzQuerier(tx, q.authorizer)
-//		return function(wrapped)
-//	}, txOpts)
-//}
+func (q *AuthzQuerier) InTx(function func(Store) error, txOpts *sql.TxOptions) error {
+	return q.database.InTx(func(tx Store) error {
+		// Wrap the transaction store in an AuthzQuerier.
+		wrapped := NewAuthzQuerier(tx, q.authorizer)
+		return function(wrapped)
+	}, txOpts)
+}
 
 func authorizedFetch[ArgumentType any, ObjectType rbac.Objecter, DatabaseFunc func(ctx context.Context, arg ArgumentType) (ObjectType, error)](
 	authorizer rbac.Authorizer, action rbac.Action, f DatabaseFunc) DatabaseFunc {

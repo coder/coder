@@ -101,6 +101,8 @@ func Generate(packageName string, skip map[string]bool) (string, error) {
 	}
 	output.WriteString(")\n\n")
 
+	output.WriteString("var _ Store = (*AuthzQuerier)(nil)\n\n")
+
 	sep := ""
 	var merr error
 	for _, v := range generate {
@@ -129,7 +131,7 @@ type ParsedMethod struct {
 
 func (m ParsedMethod) Generate(tpl *template.Template) (string, error) {
 	var buf bytes.Buffer
-	err := tpl.Lookup("get_method").Execute(&buf, m)
+	err := tpl.Lookup(m.TemplateName).Execute(&buf, m)
 	return buf.String(), err
 }
 
@@ -180,7 +182,40 @@ func parseMethod(method reflect.Method) *ParsedMethod {
 		return getMethod
 	}
 
-	return nil
+	inputs := []string{}
+	outputs := []string{}
+	required := []reflect.Type{errorType, contextType}
+	for i := 0; i < method.Type.NumIn(); i++ {
+		inputType := method.Type.In(i)
+		required = append(required, inputType)
+		if i != 0 {
+			inputs = append(inputs, nameOfType(inputType))
+		}
+	}
+
+	for i := 0; i < method.Type.NumOut(); i++ {
+		outputType := method.Type.Out(i)
+		required = append(required, outputType)
+		outputs = append(outputs, nameOfType(outputType))
+	}
+
+	return &ParsedMethod{
+		Name:          method.Name,
+		Raw:           method,
+		RequiredTypes: required,
+		TemplateName:  "unknown",
+		TemplateData: unknownData{
+			FunctionName: method.Name,
+			Inputs:       inputs,
+			Outputs:      outputs,
+		},
+	}
+}
+
+type unknownData struct {
+	FunctionName string
+	Inputs       []string
+	Outputs      []string
 }
 
 type getMethodData struct {
@@ -248,10 +283,18 @@ func parseGetMethod(method reflect.Method) (*ParsedMethod, bool) {
 }
 
 func localType(t reflect.Type) bool {
-	return t.PkgPath() == "github.com/coder/coder/coderd/database"
+	return t.PkgPath() == "github.com/coder/coder/coderd/database" || t.PkgPath() == ""
 }
 
 func nameOfType(t reflect.Type) string {
+	switch t.String() {
+	case "uuid.UUID":
+	default:
+		if t.Kind() == reflect.Array || t.Kind() == reflect.Slice {
+			return "[]" + nameOfType(t.Elem())
+		}
+	}
+
 	if localType(t) {
 		return t.Name()
 	}
