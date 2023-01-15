@@ -56,6 +56,9 @@ resource "coder_agent" "dev" {
     if [ -n "$DOTFILES_URI" ]; then
       coder dotfiles "$DOTFILES_URI" -y 2>&1 | tee  ~/.personalize.log
     fi
+    if [ -f ./personalize ]; then
+      ./personalize
+    fi
     EOF
 }
 
