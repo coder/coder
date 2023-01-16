@@ -1134,7 +1134,7 @@ func TestServer(t *testing.T) {
 
 			random, err := cryptorand.String(5)
 			require.NoError(t, err)
-			tmpdir := t.TempDir()
+			tmpdir := testutil.TempDir(t)
 			fiName := fmt.Sprint(tmpdir, "/coder-logging-test-", random)
 
 			root, _ := clitest.New(t,
@@ -1163,7 +1163,7 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
-			tmpdir := t.TempDir()
+			tmpdir := testutil.TempDir(t)
 			fi, err := os.CreateTemp(tmpdir, "coder-logging-test-*")
 			require.NoError(t, err)
 
@@ -1193,7 +1193,7 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
-			tmpdir := t.TempDir()
+			tmpdir := testutil.TempDir(t)
 			fi, err := os.CreateTemp(tmpdir, "coder-logging-test-*")
 			require.NoError(t, err)
 
@@ -1223,7 +1223,7 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
-			tmpdir := t.TempDir()
+			tmpdir := testutil.TempDir(t)
 			fi, err := os.CreateTemp(tmpdir, "coder-logging-test-*")
 			require.NoError(t, err)
 
@@ -1266,7 +1266,7 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
-			tmpdir := t.TempDir()
+			tmpdir := testutil.TempDir(t)
 			fi1, err := os.CreateTemp(tmpdir, "coder-logging-test-*")
 			require.NoError(t, err)
 			fi2, err := os.CreateTemp(tmpdir, "coder-logging-test-*")
