@@ -9,7 +9,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/briandowns/spinner"
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
@@ -19,16 +18,16 @@ import (
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionerd"
-	"github.com/coder/coder/provisionersdk"
 )
 
 func templateCreate() *cobra.Command {
 	var (
-		directory       string
 		provisioner     string
 		provisionerTags []string
 		parameterFile   string
 		defaultTTL      time.Duration
+
+		uploadFlags templateUploadFlags
 	)
 	cmd := &cobra.Command{
 		Use:   "create [name]",
@@ -45,11 +44,9 @@ func templateCreate() *cobra.Command {
 				return err
 			}
 
-			var templateName string
-			if len(args) == 0 {
-				templateName = filepath.Base(directory)
-			} else {
-				templateName = args[0]
+			templateName, err := uploadFlags.templateName(args)
+			if err != nil {
+				return err
 			}
 
 			if utf8.RuneCountInString(templateName) > 31 {
@@ -62,31 +59,10 @@ func templateCreate() *cobra.Command {
 			}
 
 			// Confirm upload of the directory.
-			prettyDir := prettyDirectoryPath(directory)
-			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-				Text:      fmt.Sprintf("Create and upload %q?", prettyDir),
-				IsConfirm: true,
-				Default:   cliui.ConfirmYes,
-			})
+			resp, err := uploadFlags.upload(cmd, client)
 			if err != nil {
 				return err
 			}
-
-			spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
-			spin.Writer = cmd.OutOrStdout()
-			spin.Suffix = cliui.Styles.Keyword.Render(" Uploading directory...")
-			spin.Start()
-			defer spin.Stop()
-			archive, err := provisionersdk.Tar(directory, provisionersdk.TemplateArchiveLimit)
-			if err != nil {
-				return err
-			}
-
-			resp, err := client.Upload(cmd.Context(), codersdk.ContentTypeTar, archive)
-			if err != nil {
-				return err
-			}
-			spin.Stop()
 
 			tags, err := ParseProvisionerTags(provisionerTags)
 			if err != nil {
@@ -105,12 +81,14 @@ func templateCreate() *cobra.Command {
 				return err
 			}
 
-			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-				Text:      "Confirm create?",
-				IsConfirm: true,
-			})
-			if err != nil {
-				return err
+			if !uploadFlags.stdin() {
+				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+					Text:      "Confirm create?",
+					IsConfirm: true,
+				})
+				if err != nil {
+					return err
+				}
 			}
 
 			createReq := codersdk.CreateTemplateRequest{
@@ -134,12 +112,11 @@ func templateCreate() *cobra.Command {
 			return nil
 		},
 	}
-	currentDirectory, _ := os.Getwd()
-	cmd.Flags().StringVarP(&directory, "directory", "d", currentDirectory, "Specify the directory to create from")
-	cmd.Flags().StringVarP(&provisioner, "test.provisioner", "", "terraform", "Customize the provisioner backend")
 	cmd.Flags().StringVarP(&parameterFile, "parameter-file", "", "", "Specify a file path with parameter values.")
 	cmd.Flags().StringArrayVarP(&provisionerTags, "provisioner-tag", "", []string{}, "Specify a set of tags to target provisioner daemons.")
 	cmd.Flags().DurationVarP(&defaultTTL, "default-ttl", "", 24*time.Hour, "Specify a default TTL for workspaces created from this template.")
+	uploadFlags.register(cmd.Flags())
+	cmd.Flags().StringVarP(&provisioner, "test.provisioner", "", "terraform", "Customize the provisioner backend")
 	// This is for testing!
 	err := cmd.Flags().MarkHidden("test.provisioner")
 	if err != nil {
