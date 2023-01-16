@@ -58,15 +58,13 @@ func TestEntitlements(t *testing.T) {
 		db := databasefake.New()
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-				UserLimit:                  100,
-				AuditLog:                   true,
-				BrowserOnly:                true,
-				SCIM:                       true,
-				HighAvailability:           true,
-				TemplateRBAC:               true,
-				MultipleGitAuth:            true,
-				ExternalProvisionerDaemons: true,
-				ServiceBanners:             true,
+				Features: func() license.Features {
+					f := make(license.Features)
+					for _, name := range codersdk.FeatureNames {
+						f[name] = 1
+					}
+					return f
+				}(),
 			}),
 			Exp: time.Now().Add(time.Hour),
 		})
@@ -83,16 +81,12 @@ func TestEntitlements(t *testing.T) {
 		db := databasefake.New()
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-				UserLimit:                  100,
-				AuditLog:                   true,
-				BrowserOnly:                true,
-				SCIM:                       true,
-				HighAvailability:           true,
-				TemplateRBAC:               true,
-				ExternalProvisionerDaemons: true,
-				ServiceBanners:             true,
-				GraceAt:                    time.Now().Add(-time.Hour),
-				ExpiresAt:                  time.Now().Add(time.Hour),
+				Features: license.Features{
+					codersdk.FeatureUserLimit: 100,
+				},
+
+				GraceAt:   time.Now().Add(-time.Hour),
+				ExpiresAt: time.Now().Add(time.Hour),
 			}),
 			Exp: time.Now().Add(time.Hour),
 		})
@@ -100,20 +94,10 @@ func TestEntitlements(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 		require.False(t, entitlements.Trial)
-		for _, featureName := range codersdk.FeatureNames {
-			if featureName == codersdk.FeatureUserLimit {
-				continue
-			}
-			if featureName == codersdk.FeatureHighAvailability {
-				continue
-			}
-			if featureName == codersdk.FeatureMultipleGitAuth {
-				continue
-			}
-			niceName := featureName.Humanize()
-			require.Equal(t, codersdk.EntitlementGracePeriod, entitlements.Features[featureName].Entitlement)
-			require.Contains(t, entitlements.Warnings, fmt.Sprintf("%s is enabled but your license for this feature is expired.", niceName))
-		}
+
+		require.Equal(t, codersdk.EntitlementGracePeriod, entitlements.Features[codersdk.FeatureUserLimit].Entitlement)
+		require.Contains(t, entitlements.Warnings, fmt.Sprintf("%s is enabled but your license for this feature is expired.", codersdk.FeatureUserLimit.Humanize()))
+
 	})
 	t.Run("SingleLicenseNotEntitled", func(t *testing.T) {
 		t.Parallel()
@@ -154,7 +138,9 @@ func TestEntitlements(t *testing.T) {
 		})
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-				UserLimit: 1,
+				Features: license.Features{
+					codersdk.FeatureUserLimit: 1,
+				},
 			}),
 			Exp: time.Now().Add(time.Hour),
 		})
@@ -170,13 +156,17 @@ func TestEntitlements(t *testing.T) {
 		db.InsertUser(context.Background(), database.InsertUserParams{})
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-				UserLimit: 10,
+				Features: license.Features{
+					codersdk.FeatureUserLimit: 10,
+				},
 			}),
 			Exp: time.Now().Add(time.Hour),
 		})
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-				UserLimit: 1,
+				Features: license.Features{
+					codersdk.FeatureUserLimit: 1,
+				},
 			}),
 			Exp: time.Now().Add(time.Hour),
 		})
@@ -247,7 +237,9 @@ func TestEntitlements(t *testing.T) {
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			Exp: time.Now().Add(time.Hour),
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-				AuditLog: true,
+				Features: license.Features{
+					codersdk.FeatureAuditLog: 1,
+				},
 			}),
 		})
 		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 2, 1, coderdenttest.Keys, map[codersdk.FeatureName]bool{
@@ -264,9 +256,11 @@ func TestEntitlements(t *testing.T) {
 		db := databasefake.New()
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-				HighAvailability: true,
-				GraceAt:          time.Now().Add(-time.Hour),
-				ExpiresAt:        time.Now().Add(time.Hour),
+				Features: license.Features{
+					codersdk.FeatureHighAvailability: 1,
+				},
+				GraceAt:   time.Now().Add(-time.Hour),
+				ExpiresAt: time.Now().Add(time.Hour),
 			}),
 			Exp: time.Now().Add(time.Hour),
 		})
@@ -295,7 +289,9 @@ func TestEntitlements(t *testing.T) {
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			Exp: time.Now().Add(time.Hour),
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-				AuditLog: true,
+				Features: license.Features{
+					codersdk.FeatureAuditLog: 1,
+				},
 			}),
 		})
 		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 2, coderdenttest.Keys, map[codersdk.FeatureName]bool{
@@ -312,9 +308,11 @@ func TestEntitlements(t *testing.T) {
 		db := databasefake.New()
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-				MultipleGitAuth: true,
-				GraceAt:         time.Now().Add(-time.Hour),
-				ExpiresAt:       time.Now().Add(time.Hour),
+				GraceAt:   time.Now().Add(-time.Hour),
+				ExpiresAt: time.Now().Add(time.Hour),
+				Features: license.Features{
+					codersdk.FeatureMultipleGitAuth: 1,
+				},
 			}),
 			Exp: time.Now().Add(time.Hour),
 		})

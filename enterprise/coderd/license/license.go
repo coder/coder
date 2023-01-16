@@ -68,6 +68,11 @@ func Entitlements(
 			entitlement = codersdk.EntitlementGracePeriod
 		}
 		for featureName, featureValue := range claims.Features {
+			// Can this be negative?
+			if featureValue <= 0 {
+				continue
+			}
+
 			switch featureName {
 			// User limit has special treatment as our only non-boolean feature.
 			case codersdk.FeatureUserLimit:
@@ -83,11 +88,9 @@ func Entitlements(
 					Actual:      &activeUserCount,
 				}
 			default:
-				if featureValue > 0 {
-					entitlements.Features[featureName] = codersdk.Feature{
-						Entitlement: entitlement,
-						Enabled:     enablements[featureName] || featureName.AlwaysEnable(),
-					}
+				entitlements.Features[featureName] = codersdk.Feature{
+					Entitlement: entitlement,
+					Enabled:     enablements[featureName] || featureName.AlwaysEnable(),
 				}
 			}
 		}

@@ -16,7 +16,7 @@ const (
 )
 
 // To add a new feature, modify this set of enums as well as the FeatureNames
-// array.
+// array below.
 type FeatureName string
 
 const (
@@ -30,6 +30,19 @@ const (
 	FeatureExternalProvisionerDaemons FeatureName = "external_provisioner_daemons"
 	FeatureAppearance                 FeatureName = "appearance"
 )
+
+// FeatureNames must be kept in-sync with the Feature enum above.
+var FeatureNames = []FeatureName{
+	FeatureUserLimit,
+	FeatureAuditLog,
+	FeatureBrowserOnly,
+	FeatureSCIM,
+	FeatureTemplateRBAC,
+	FeatureHighAvailability,
+	FeatureMultipleGitAuth,
+	FeatureExternalProvisionerDaemons,
+	FeatureAppearance,
+}
 
 // Humanize returns the feature name in a human-readable format.
 func (n FeatureName) Humanize() string {
@@ -46,18 +59,6 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureAppearance:                 true,
 	}
 	return m[n]
-}
-
-var FeatureNames = []FeatureName{
-	FeatureUserLimit,
-	FeatureAuditLog,
-	FeatureBrowserOnly,
-	FeatureSCIM,
-	FeatureTemplateRBAC,
-	FeatureHighAvailability,
-	FeatureMultipleGitAuth,
-	FeatureExternalProvisionerDaemons,
-	FeatureAppearance,
 }
 
 type Feature struct {
