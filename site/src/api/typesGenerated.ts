@@ -331,7 +331,7 @@ export interface DeploymentConfigField<T extends Flaggable> {
 
 // From codersdk/features.go
 export interface Entitlements {
-  readonly features: Record<string, Feature>
+  readonly features: Record<FeatureName, Feature>
   readonly warnings: string[]
   readonly errors: string[]
   readonly has_license: boolean
@@ -1029,6 +1029,18 @@ export type BuildReason = "autostart" | "autostop" | "initiator"
 
 // From codersdk/features.go
 export type Entitlement = "entitled" | "grace_period" | "not_entitled"
+
+// From codersdk/features.go
+export type FeatureName =
+  | "appearance"
+  | "audit_log"
+  | "browser_only"
+  | "external_provisioner_daemons"
+  | "high_availability"
+  | "multiple_git_auth"
+  | "scim"
+  | "template_rbac"
+  | "user_limit"
 
 // From codersdk/agentconn.go
 export type ListeningPortNetwork = "tcp"
