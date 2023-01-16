@@ -92,6 +92,19 @@ CODER_FAT_NOVERSION_BINARIES      := $(addprefix build/coder_,$(OS_ARCHES))
 CODER_ALL_NOVERSION_IMAGES        := $(foreach arch, $(DOCKER_ARCHES), build/coder_linux_$(arch).tag) build/coder_linux.tag
 CODER_ALL_NOVERSION_IMAGES_PUSHED := $(addprefix push/, $(CODER_ALL_NOVERSION_IMAGES))
 
+# If callers are only building Docker images and not the packages and archives,
+# we can skip those prerequisites as they are not actually required and only
+# specified to avoid concurrent write failures.
+ifdef DOCKER_IMAGE_NO_PREREQUISITES
+CODER_ARCH_IMAGE_PREREQUISITES :=
+else
+CODER_ARCH_IMAGE_PREREQUISITES := \
+	build/coder_$(VERSION)_%.apk \
+	build/coder_$(VERSION)_%.deb \
+	build/coder_$(VERSION)_%.rpm \
+	build/coder_$(VERSION)_%.tar.gz
+endif
+
 
 clean:
 	rm -rf build site/out
@@ -296,13 +309,7 @@ $(CODER_ALL_NOVERSION_IMAGES_PUSHED): push/build/coder_%: push/build/coder_$(VER
 #
 # Images need to run after the archives and packages are built, otherwise they
 # cause errors like "file changed as we read it".
-$(CODER_ARCH_IMAGES): build/coder_$(VERSION)_%.tag: \
-	build/coder_$(VERSION)_% \
-	build/coder_$(VERSION)_%.apk \
-	build/coder_$(VERSION)_%.deb \
-	build/coder_$(VERSION)_%.rpm \
-	build/coder_$(VERSION)_%.tar.gz
-
+$(CODER_ARCH_IMAGES): build/coder_$(VERSION)_%.tag: build/coder_$(VERSION)_% $(CODER_ARCH_IMAGE_PREREQUISITES)
 	$(get-mode-os-arch-ext)
 
 	image_tag="$$(./scripts/image_tag.sh --arch "$$arch" --version "$(VERSION)")"
