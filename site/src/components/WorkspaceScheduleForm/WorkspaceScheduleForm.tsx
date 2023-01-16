@@ -62,7 +62,7 @@ export const Language = {
   ttlLabel: "Time until shutdown (hours)",
   ttlCausesShutdownHelperText: "Your workspace will shut down",
   ttlCausesShutdownAfterStart:
-    "after its next start. We delay shutdown by an hour whenever we detect activity",
+    "after its next start. We delay shutdown by this time whenever we detect activity",
   ttlCausesNoShutdownHelperText:
     "Your workspace will not automatically shut down.",
   formTitle: "Workspace schedule",
