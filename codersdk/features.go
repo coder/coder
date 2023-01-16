@@ -60,12 +60,11 @@ func (n FeatureName) Humanize() string {
 // Warning: We don't know if we need this functionality.
 // This method may disappear at any time.
 func (n FeatureName) AlwaysEnable() bool {
-	m := map[FeatureName]bool{
+	return map[FeatureName]bool{
 		FeatureMultipleGitAuth:            true,
 		FeatureExternalProvisionerDaemons: true,
 		FeatureAppearance:                 true,
-	}
-	return m[n]
+	}[n]
 }
 
 type Feature struct {

@@ -1,5 +1,4 @@
 import { useSelector } from "@xstate/react"
-import { FeatureNames } from "api/types"
 import { FullScreenLoader } from "components/Loader/FullScreenLoader"
 import { RequirePermission } from "components/RequirePermission/RequirePermission"
 import { TemplateLayout } from "components/TemplateLayout/TemplateLayout"
@@ -196,7 +195,7 @@ export const AppRouter: FC = () => {
                 element={
                   <RequirePermission
                     isFeatureVisible={
-                      featureVisibility[FeatureNames.AuditLog] &&
+                      featureVisibility["audit_log"] &&
                       Boolean(permissions?.viewAuditLog)
                     }
                   >

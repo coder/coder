@@ -223,6 +223,18 @@ func (g *Generator) generateAll() (*TypescriptTypes, error) {
 			name, strings.Join(values, " | "),
 		))
 
+		var pluralName string
+		if strings.HasSuffix(name, "s") {
+			pluralName = name + "es"
+		} else {
+			pluralName = name + "s"
+		}
+
+		// Generate array used for enumerating all possible values.
+		_, _ = s.WriteString(fmt.Sprintf("export const %s: %s[] = [%s]\n",
+			pluralName, name, strings.Join(values, ", "),
+		))
+
 		enumCodeBlocks[name] = s.String()
 	}
 
@@ -645,7 +657,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		}
 		aboveTypeLine = aboveTypeLine + valueType.AboveTypeLine
 		return TypescriptType{
-			ValueType:     fmt.Sprintf("Record<%s, %s>", keyType.ValueType, valueType.ValueType),
+			ValueType:     fmt.Sprintf("Partial<Record<%s, %s>>", keyType.ValueType, valueType.ValueType),
 			AboveTypeLine: aboveTypeLine,
 		}, nil
 	case *types.Slice, *types.Array:

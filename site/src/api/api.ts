@@ -19,12 +19,13 @@ export const hardCodedCSRFCookie = (): string => {
 // defaultEntitlements has a default set of disabled functionality.
 export const defaultEntitlements = (): TypesGen.Entitlements => {
   const features: TypesGen.Entitlements["features"] = {}
-  for (const feature in Types.FeatureNames) {
-    features[feature] = {
+  for (const feature in TypesGen.FeatureNames) {
+    features[feature as TypesGen.FeatureName] = {
       enabled: false,
       entitlement: "not_entitled",
     }
   }
+
   return {
     features: features,
     has_license: false,
@@ -35,7 +36,7 @@ export const defaultEntitlements = (): TypesGen.Entitlements => {
   }
 }
 
-// Always attach CSRF token to all requests.
+// Always attach CSRF token to all re = "not_entitled"quests.
 // In puppeteer the document is undefined. In those cases, just
 // do nothing.
 const token =
