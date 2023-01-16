@@ -43,13 +43,29 @@ func activityBumpWorkspace(log slog.Logger, db database.Store, workspaceID uuid.
 			return nil
 		}
 
-		// We sent bumpThreshold slightly under bumpAmount to minimize DB writes.
-		const (
-			bumpAmount    = time.Hour
-			bumpThreshold = time.Hour - (time.Minute * 10)
+		workspace, err := s.GetWorkspaceByID(ctx, workspaceID)
+		if err != nil {
+			return xerrors.Errorf("get workspace: %w", err)
+		}
+
+		var (
+			// We bump by the original TTL to prevent counter-intuitive behavior
+			// as the TTL wraps. For example, if I set the TTL to 12 hours, sign off
+			// work at midnight, come back at 10am, I would want another full day
+			// of uptime. In the prior implementation, the workspace would enter
+			// a state of always expiring 1 hour in the future
+			bumpAmount = time.Duration(workspace.Ttl.Int64)
+			// DB writes are expensive so we only bump when 5% of the deadline
+			// has elapsed.
+			bumpEvery         = bumpAmount / 20
+			timeSinceLastBump = bumpAmount - time.Until(build.Deadline)
 		)
 
-		if !build.Deadline.Before(time.Now().Add(bumpThreshold)) {
+		if timeSinceLastBump < bumpEvery {
+			return nil
+		}
+
+		if bumpAmount == 0 {
 			return nil
 		}
 

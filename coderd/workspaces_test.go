@@ -1053,7 +1053,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 
 	t.Run("AlreadyActive", func(t *testing.T) {
@@ -1770,17 +1770,14 @@ func TestWorkspaceResource(t *testing.T) {
 		require.NoError(t, err)
 		metadata := workspace.LatestBuild.Resources[0].Metadata
 		require.Equal(t, []codersdk.WorkspaceResourceMetadata{{
-			Key: "empty",
-		}, {
 			Key:   "foo",
 			Value: "bar",
+		}, {
+			Key: "empty",
 		}, {
 			Key:       "secret",
 			Value:     "squirrel",
 			Sensitive: true,
-		}, {
-			Key:   "type",
-			Value: "example",
 		}}, metadata)
 	})
 }

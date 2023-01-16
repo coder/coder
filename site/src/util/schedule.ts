@@ -7,7 +7,7 @@ import duration from "dayjs/plugin/duration"
 import relativeTime from "dayjs/plugin/relativeTime"
 import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
-import { Template, Workspace } from "../api/typesGenerated"
+import { Workspace } from "../api/typesGenerated"
 import { isWorkspaceOn } from "./workspace"
 import { WorkspaceScheduleFormValues } from "components/WorkspaceScheduleForm/WorkspaceScheduleForm"
 import { AutoStop } from "pages/WorkspaceSchedulePage/ttl"
@@ -127,27 +127,18 @@ export const deadlineExtensionMin = dayjs.duration(30, "minutes")
 export const deadlineExtensionMax = dayjs.duration(24, "hours")
 
 /**
- * Depends on the time the workspace was last updated, the template config,
- * and a global constant.
+ * Depends on the time the workspace was last updated and a global constant.
  * @param ws workspace
- * @param tpl template
  * @returns the latest datetime at which the workspace can be automatically shut down.
  */
-export function getMaxDeadline(
-  ws: Workspace | undefined,
-  tpl: Template,
-): dayjs.Dayjs {
+export function getMaxDeadline(ws: Workspace | undefined): dayjs.Dayjs {
   // note: we count runtime from updated_at as started_at counts from the start of
   // the workspace build process, which can take a while.
   if (ws === undefined) {
     throw Error("Cannot calculate max deadline because workspace is undefined")
   }
   const startedAt = dayjs(ws.latest_build.updated_at)
-  const maxTemplateDeadline = startedAt.add(
-    dayjs.duration(tpl.default_ttl_ms, "milliseconds"),
-  )
-  const maxGlobalDeadline = startedAt.add(deadlineExtensionMax)
-  return dayjs.min(maxTemplateDeadline, maxGlobalDeadline)
+  return startedAt.add(deadlineExtensionMax)
 }
 
 /**
@@ -158,18 +149,6 @@ export function getMinDeadline(): dayjs.Dayjs {
   return dayjs().add(deadlineExtensionMin)
 }
 
-export function canExtendDeadline(
-  deadline: dayjs.Dayjs,
-  workspace: Workspace,
-  template: Template,
-): boolean {
-  return deadline < getMaxDeadline(workspace, template)
-}
-
-export function canReduceDeadline(deadline: dayjs.Dayjs): boolean {
-  return deadline > getMinDeadline()
-}
-
 export const getDeadline = (workspace: Workspace): dayjs.Dayjs =>
   dayjs(workspace.latest_build.deadline).utc()
 
@@ -177,7 +156,6 @@ export const getDeadline = (workspace: Workspace): dayjs.Dayjs =>
  * Get number of hours you can add or subtract to the current deadline before hitting the max or min deadline.
  * @param deadline
  * @param workspace
- * @param template
  * @returns number, in hours
  */
 export const getMaxDeadlineChange = (

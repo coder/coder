@@ -3,7 +3,14 @@ import Popover, { PopoverProps } from "@material-ui/core/Popover"
 import { makeStyles } from "@material-ui/core/styles"
 import HelpIcon from "@material-ui/icons/HelpOutline"
 import OpenInNewIcon from "@material-ui/icons/OpenInNew"
-import React, { createContext, useContext, useRef, useState } from "react"
+import {
+  createContext,
+  useContext,
+  useRef,
+  useState,
+  FC,
+  PropsWithChildren,
+} from "react"
 import { combineClasses } from "util/combineClasses"
 import { Stack } from "../../Stack/Stack"
 
@@ -39,7 +46,7 @@ const useHelpTooltip = () => {
   return helpTooltipContext
 }
 
-export const HelpPopover: React.FC<
+export const HelpPopover: FC<
   PopoverProps & { onOpen: () => void; onClose: () => void }
 > = ({ onOpen, onClose, children, ...props }) => {
   const styles = useStyles({ size: "small" })
@@ -68,9 +75,7 @@ export const HelpPopover: React.FC<
   )
 }
 
-export const HelpTooltip: React.FC<
-  React.PropsWithChildren<HelpTooltipProps>
-> = ({
+export const HelpTooltip: FC<PropsWithChildren<HelpTooltipProps>> = ({
   children,
   open,
   size = "medium",
@@ -122,7 +127,7 @@ export const HelpTooltip: React.FC<
   )
 }
 
-export const HelpTooltipTitle: React.FC<React.PropsWithChildren<unknown>> = ({
+export const HelpTooltipTitle: FC<PropsWithChildren<unknown>> = ({
   children,
 }) => {
   const styles = useStyles({})
@@ -130,7 +135,7 @@ export const HelpTooltipTitle: React.FC<React.PropsWithChildren<unknown>> = ({
   return <h4 className={styles.title}>{children}</h4>
 }
 
-export const HelpTooltipText: React.FC<React.PropsWithChildren<unknown>> = ({
+export const HelpTooltipText: FC<PropsWithChildren<unknown>> = ({
   children,
 }) => {
   const styles = useStyles({})
@@ -138,9 +143,10 @@ export const HelpTooltipText: React.FC<React.PropsWithChildren<unknown>> = ({
   return <p className={styles.text}>{children}</p>
 }
 
-export const HelpTooltipLink: React.FC<
-  React.PropsWithChildren<{ href: string }>
-> = ({ children, href }) => {
+export const HelpTooltipLink: FC<PropsWithChildren<{ href: string }>> = ({
+  children,
+  href,
+}) => {
   const styles = useStyles({})
 
   return (
@@ -151,8 +157,8 @@ export const HelpTooltipLink: React.FC<
   )
 }
 
-export const HelpTooltipAction: React.FC<
-  React.PropsWithChildren<{
+export const HelpTooltipAction: FC<
+  PropsWithChildren<{
     icon: Icon
     onClick: () => void
     ariaLabel?: string
@@ -177,9 +183,9 @@ export const HelpTooltipAction: React.FC<
   )
 }
 
-export const HelpTooltipLinksGroup: React.FC<
-  React.PropsWithChildren<unknown>
-> = ({ children }) => {
+export const HelpTooltipLinksGroup: FC<PropsWithChildren<unknown>> = ({
+  children,
+}) => {
   const styles = useStyles({})
 
   return (

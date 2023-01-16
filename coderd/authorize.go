@@ -106,6 +106,16 @@ func (h *HTTPAuthorizer) AuthorizeSQLFilter(r *http.Request, action rbac.Action,
 
 // checkAuthorization returns if the current API key can use the given
 // permissions, factoring in the current user's roles and the API key scopes.
+//
+// @Summary Check authorization
+// @ID check-authorization
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Authorization
+// @Param request body codersdk.AuthorizationRequest true "Authorization request"
+// @Success 200 {object} codersdk.AuthorizationResponse
+// @Router /authcheck [post]
 func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	auth := httpmw.UserAuthorization(r)

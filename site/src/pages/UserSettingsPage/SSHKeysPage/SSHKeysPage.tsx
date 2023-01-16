@@ -1,21 +1,12 @@
-import { useActor } from "@xstate/react"
-import React, { useContext, useEffect } from "react"
+import { useMachine } from "@xstate/react"
+import { PropsWithChildren, FC } from "react"
+import { sshKeyMachine } from "xServices/sshKey/sshKeyXService"
 import { ConfirmDialog } from "../../../components/Dialogs/ConfirmDialog/ConfirmDialog"
-import { Section } from "../../../components/Section/Section"
-import { XServiceContext } from "../../../xServices/StateContext"
+import { Section } from "../../../components/SettingsLayout/Section"
 import { SSHKeysPageView } from "./SSHKeysPageView"
 
 export const Language = {
   title: "SSH keys",
-  description: (
-    <p>
-      The following public key is used to authenticate Git in workspaces. You
-      may add it to Git services (such as GitHub) that you need to access from
-      your workspace. <br />
-      <br />
-      Coder configures authentication via <code>$GIT_SSH_COMMAND</code>.
-    </p>
-  ),
   regenerateDialogTitle: "Regenerate SSH key?",
   regenerateDialogMessage:
     "You will need to replace the public SSH key on services you use it with, and you'll need to rebuild existing workspaces.",
@@ -23,25 +14,19 @@ export const Language = {
   cancelLabel: "Cancel",
 }
 
-export const SSHKeysPage: React.FC<React.PropsWithChildren<unknown>> = () => {
-  const xServices = useContext(XServiceContext)
-  const [authState, authSend] = useActor(xServices.authXService)
-  const { sshKey, getSSHKeyError, regenerateSSHKeyError } = authState.context
-
-  useEffect(() => {
-    authSend({ type: "GET_SSH_KEY" })
-  }, [authSend])
-
-  const isLoading = authState.matches("signedIn.ssh.gettingSSHKey")
-  const hasLoaded = authState.matches("signedIn.ssh.loaded")
+export const SSHKeysPage: FC<PropsWithChildren<unknown>> = () => {
+  const [sshState, sshSend] = useMachine(sshKeyMachine)
+  const isLoading = sshState.matches("gettingSSHKey")
+  const hasLoaded = sshState.matches("loaded")
+  const { getSSHKeyError, regenerateSSHKeyError, sshKey } = sshState.context
 
   const onRegenerateClick = () => {
-    authSend({ type: "REGENERATE_SSH_KEY" })
+    sshSend({ type: "REGENERATE_SSH_KEY" })
   }
 
   return (
     <>
-      <Section title={Language.title} description={Language.description}>
+      <Section title={Language.title}>
         <SSHKeysPageView
           isLoading={isLoading}
           hasLoaded={hasLoaded}
@@ -55,17 +40,15 @@ export const SSHKeysPage: React.FC<React.PropsWithChildren<unknown>> = () => {
       <ConfirmDialog
         type="delete"
         hideCancel={false}
-        open={authState.matches("signedIn.ssh.loaded.confirmSSHKeyRegenerate")}
-        confirmLoading={authState.matches(
-          "signedIn.ssh.loaded.regeneratingSSHKey",
-        )}
+        open={sshState.matches("confirmSSHKeyRegenerate")}
+        confirmLoading={sshState.matches("regeneratingSSHKey")}
         title={Language.regenerateDialogTitle}
         confirmText={Language.confirmLabel}
         onConfirm={() => {
-          authSend({ type: "CONFIRM_REGENERATE_SSH_KEY" })
+          sshSend({ type: "CONFIRM_REGENERATE_SSH_KEY" })
         }}
         onClose={() => {
-          authSend({ type: "CANCEL_REGENERATE_SSH_KEY" })
+          sshSend({ type: "CANCEL_REGENERATE_SSH_KEY" })
         }}
         description={<>{Language.regenerateDialogMessage}</>}
       />

@@ -163,7 +163,7 @@ func (r *Runner) Run() {
 		}
 
 		concurrentGauge.Dec()
-		r.metrics.JobTimings.WithLabelValues(r.job.Provisioner, status).Observe(float64(time.Since(start).Milliseconds()))
+		r.metrics.JobTimings.WithLabelValues(r.job.Provisioner, status).Observe(time.Since(start).Seconds())
 	}()
 
 	r.mutex.Lock()

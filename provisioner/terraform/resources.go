@@ -38,6 +38,7 @@ type agentAppAttributes struct {
 	Name        string                     `mapstructure:"name"`
 	Icon        string                     `mapstructure:"icon"`
 	URL         string                     `mapstructure:"url"`
+	External    bool                       `mapstructure:"external"`
 	Command     string                     `mapstructure:"command"`
 	Share       string                     `mapstructure:"share"`
 	Subdomain   bool                       `mapstructure:"subdomain"`
@@ -67,8 +68,8 @@ type metadataItem struct {
 	IsNull    bool   `mapstructure:"is_null"`
 }
 
-// ConvertResources consumes Terraform state and a GraphViz representation produced by
-// `terraform graph` to produce resources consumable by Coder.
+// ConvertResources consumes Terraform state and a GraphViz representation
+// produced by `terraform graph` to produce resources consumable by Coder.
 // nolint:gocyclo
 func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Resource, error) {
 	parsedGraph, err := gographviz.ParseString(rawGraph)
@@ -83,13 +84,9 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 	resources := make([]*proto.Resource, 0)
 	resourceAgents := map[string][]*proto.Agent{}
 
-	// Indexes Terraform resources by their label and ID.
-	// The label is what "terraform graph" uses to reference nodes, and the ID
-	// is used by "coder_metadata" resources to refer to their targets. (The ID
-	// field is only available when reading a state file, and not when reading a
-	// plan file.)
+	// Indexes Terraform resources by their label.
+	// The label is what "terraform graph" uses to reference nodes.
 	tfResourceByLabel := map[string]*tfjson.StateResource{}
-	resourceLabelByID := map[string]string{}
 	var findTerraformResources func(mod *tfjson.StateModule)
 	findTerraformResources = func(mod *tfjson.StateModule) {
 		for _, module := range mod.ChildModules {
@@ -99,19 +96,12 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 			label := convertAddressToLabel(resource.Address)
 			// index by label
 			tfResourceByLabel[label] = resource
-			// index by ID, if it exists
-			id, ok := resource.AttributeValues["id"]
-			if ok {
-				idString, ok := id.(string)
-				if ok {
-					resourceLabelByID[idString] = label
-				}
-			}
 		}
 	}
 	findTerraformResources(module)
 
 	// Find all agents!
+	agentNames := map[string]struct{}{}
 	for _, tfResource := range tfResourceByLabel {
 		if tfResource.Type != "coder_agent" {
 			continue
@@ -121,6 +111,12 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 		if err != nil {
 			return nil, xerrors.Errorf("decode agent attributes: %w", err)
 		}
+
+		if _, ok := agentNames[tfResource.Name]; ok {
+			return nil, xerrors.Errorf("duplicate agent name: %s", tfResource.Name)
+		}
+		agentNames[tfResource.Name] = struct{}{}
+
 		agent := &proto.Agent{
 			Name:                     tfResource.Name,
 			Id:                       attrs.ID,
@@ -218,8 +214,15 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 				if agent.Id != agentID {
 					continue
 				}
-				agent.Auth = &proto.Agent_InstanceId{
-					InstanceId: instanceID,
+				// Only apply the instance ID if the agent authentication
+				// type is set to do so. A user ran into a bug where they
+				// had the instance ID block, but auth was set to "token". See:
+				// https://github.com/coder/coder/issues/4551#issuecomment-1336293468
+				switch t := agent.Auth.(type) {
+				case *proto.Agent_Token:
+					continue
+				case *proto.Agent_InstanceId:
+					t.InstanceId = instanceID
 				}
 				break
 			}
@@ -290,6 +293,7 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 					Slug:         attrs.Slug,
 					DisplayName:  attrs.DisplayName,
 					Command:      attrs.Command,
+					External:     attrs.External,
 					Url:          attrs.URL,
 					Icon:         attrs.Icon,
 					Subdomain:    attrs.Subdomain,
@@ -310,58 +314,48 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 		if resource.Type != "coder_metadata" {
 			continue
 		}
+
 		var attrs metadataAttributes
 		err = mapstructure.Decode(resource.AttributeValues, &attrs)
 		if err != nil {
 			return nil, xerrors.Errorf("decode metadata attributes: %w", err)
 		}
 
-		var targetLabel string
-		// This occurs in a plan, because there is no resource ID.
-		// We attempt to find the closest node, just so we can hide it from the UI.
-		if attrs.ResourceID == "" {
-			resourceLabel := convertAddressToLabel(resource.Address)
+		resourceLabel := convertAddressToLabel(resource.Address)
 
-			var attachedNode *gographviz.Node
-			for _, node := range graph.Nodes.Lookup {
-				// The node attributes surround the label with quotes.
-				if strings.Trim(node.Attrs["label"], `"`) != resourceLabel {
-					continue
-				}
-				attachedNode = node
-				break
-			}
-			if attachedNode == nil {
+		var attachedNode *gographviz.Node
+		for _, node := range graph.Nodes.Lookup {
+			// The node attributes surround the label with quotes.
+			if strings.Trim(node.Attrs["label"], `"`) != resourceLabel {
 				continue
 			}
-			var attachedResource *graphResource
-			for _, resource := range findResourcesInGraph(graph, tfResourceByLabel, attachedNode.Name, 0, false) {
-				if attachedResource == nil {
-					// Default to the first resource because we have nothing to compare!
-					attachedResource = resource
-					continue
-				}
-				if resource.Depth < attachedResource.Depth {
-					// There's a closer resource!
-					attachedResource = resource
-					continue
-				}
-				if resource.Depth == attachedResource.Depth && resource.Label < attachedResource.Label {
-					attachedResource = resource
-					continue
-				}
-			}
-			if attachedResource == nil {
-				continue
-			}
-			targetLabel = attachedResource.Label
+			attachedNode = node
+			break
 		}
-		if targetLabel == "" {
-			targetLabel = resourceLabelByID[attrs.ResourceID]
-		}
-		if targetLabel == "" {
+		if attachedNode == nil {
 			continue
 		}
+		var attachedResource *graphResource
+		for _, resource := range findResourcesInGraph(graph, tfResourceByLabel, attachedNode.Name, 0, false) {
+			if attachedResource == nil {
+				// Default to the first resource because we have nothing to compare!
+				attachedResource = resource
+				continue
+			}
+			if resource.Depth < attachedResource.Depth {
+				// There's a closer resource!
+				attachedResource = resource
+				continue
+			}
+			if resource.Depth == attachedResource.Depth && resource.Label < attachedResource.Label {
+				attachedResource = resource
+				continue
+			}
+		}
+		if attachedResource == nil {
+			continue
+		}
+		targetLabel := attachedResource.Label
 
 		resourceHidden[targetLabel] = attrs.Hide
 		resourceIcon[targetLabel] = attrs.Icon
@@ -407,9 +401,11 @@ func ConvertResources(module *tfjson.StateModule, rawGraph string) ([]*proto.Res
 }
 
 // convertAddressToLabel returns the Terraform address without the count
-// specifier. eg. "module.ec2_dev.ec2_instance.dev[0]" becomes "module.ec2_dev.ec2_instance.dev"
+// specifier.
+// eg. "module.ec2_dev.ec2_instance.dev[0]" becomes "module.ec2_dev.ec2_instance.dev"
 func convertAddressToLabel(address string) string {
-	return strings.Split(address, "[")[0]
+	cut, _, _ := strings.Cut(address, "[")
+	return cut
 }
 
 type graphResource struct {

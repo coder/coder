@@ -1,5 +1,5 @@
 import { screen } from "@testing-library/react"
-import { MockUser } from "../../testHelpers/entities"
+import { MockBuildInfo, MockUser } from "../../testHelpers/entities"
 import { render } from "../../testHelpers/renderHelpers"
 import { Language, UserDropdownContent } from "./UserDropdownContent"
 
@@ -20,6 +20,7 @@ describe("UserDropdownContent", () => {
     render(
       <UserDropdownContent
         user={MockUser}
+        buildInfo={MockBuildInfo}
         onSignOut={jest.fn()}
         onPopoverClose={jest.fn()}
       />,
@@ -27,6 +28,10 @@ describe("UserDropdownContent", () => {
     expect(screen.getByText(Language.accountLabel)).toBeDefined()
     expect(screen.getByText(Language.docsLabel)).toBeDefined()
     expect(screen.getByText(Language.signOutLabel)).toBeDefined()
+    expect(screen.getByText(Language.bugLabel)).toBeDefined()
+    expect(screen.getByText(Language.discordLabel)).toBeDefined()
+    expect(screen.getByText(Language.copyrightText)).toBeDefined()
+    expect(screen.getByText(MockBuildInfo.version)).toBeDefined()
   })
 
   it("has the correct link for the account item", () => {

@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.6.0"
+      version = "0.6.6"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -30,7 +30,7 @@ resource "coder_agent" "main" {
   startup_script = <<EOF
     #!/bin/sh
     # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh
+    curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3
     code-server --auth none --port 13337
     EOF
 
@@ -95,7 +95,7 @@ resource "docker_image" "main" {
   name = "coder-${data.coder_workspace.me.id}"
   build {
     path = "./build"
-    build_arg = {
+    build_args = {
       USER = local.username
     }
   }

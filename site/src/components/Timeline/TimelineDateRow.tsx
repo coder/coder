@@ -10,8 +10,8 @@ export interface TimelineDateRow {
 
 // We only want the message related to the date since the time is displayed
 // inside of the build row
-export const createDisplayDate = (date: Date): string =>
-  formatRelative(date, new Date()).split(" at ")[0]
+export const createDisplayDate = (date: Date, base = new Date()): string =>
+  formatRelative(date, base).split(" at ")[0]
 
 export const TimelineDateRow: FC<TimelineDateRow> = ({ date }) => {
   const styles = useStyles()

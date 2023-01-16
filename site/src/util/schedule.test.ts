@@ -2,11 +2,9 @@ import dayjs from "dayjs"
 import duration from "dayjs/plugin/duration"
 import { emptySchedule } from "pages/WorkspaceSchedulePage/schedule"
 import { emptyTTL } from "pages/WorkspaceSchedulePage/ttl"
-import { Template, Workspace } from "../api/typesGenerated"
+import { Workspace } from "../api/typesGenerated"
 import * as Mocks from "../testHelpers/entities"
 import {
-  canExtendDeadline,
-  canReduceDeadline,
   deadlineExtensionMax,
   deadlineExtensionMin,
   extractTimezone,
@@ -19,6 +17,7 @@ import {
 
 dayjs.extend(duration)
 const now = dayjs()
+const startTime = dayjs(Mocks.MockWorkspaceBuild.updated_at)
 
 describe("util/schedule", () => {
   describe("stripTimezone", () => {
@@ -43,38 +42,16 @@ describe("util/schedule", () => {
 })
 
 describe("maxDeadline", () => {
-  // Given: a workspace built from a template with a max deadline equal to 25 hours which isn't really possible
   const workspace: Workspace = {
     ...Mocks.MockWorkspace,
     latest_build: {
       ...Mocks.MockWorkspaceBuild,
-      deadline: now.add(8, "hours").utc().format(),
+      deadline: startTime.add(8, "hours").utc().format(),
     },
   }
-  describe("given a template with 25 hour max ttl", () => {
-    it("should be never be greater than global max deadline", () => {
-      const template: Template = {
-        ...Mocks.MockTemplate,
-        default_ttl_ms: 25 * 60 * 60 * 1000,
-      }
-
-      // Then: deadlineMinusDisabled should be falsy
-      const delta = getMaxDeadline(workspace, template).diff(now)
-      expect(delta).toBeLessThanOrEqual(deadlineExtensionMax.asMilliseconds())
-    })
-  })
-
-  describe("given a template with 4 hour max ttl", () => {
-    it("should be never be greater than global max deadline", () => {
-      const template: Template = {
-        ...Mocks.MockTemplate,
-        default_ttl_ms: 4 * 60 * 60 * 1000,
-      }
-
-      // Then: deadlineMinusDisabled should be falsy
-      const delta = getMaxDeadline(workspace, template).diff(now)
-      expect(delta).toBeLessThanOrEqual(deadlineExtensionMax.asMilliseconds())
-    })
+  it("should be 24 hours from the workspace start time", () => {
+    const delta = getMaxDeadline(workspace).diff(startTime)
+    expect(delta).toEqual(deadlineExtensionMax.asMilliseconds())
   })
 })
 
@@ -82,50 +59,6 @@ describe("minDeadline", () => {
   it("should never be less than 30 minutes", () => {
     const delta = getMinDeadline().diff(now)
     expect(delta).toBeGreaterThanOrEqual(deadlineExtensionMin.asMilliseconds())
-  })
-})
-
-describe("canExtendDeadline", () => {
-  it("should be falsy if the deadline is more than 24 hours in the future", () => {
-    expect(
-      canExtendDeadline(
-        dayjs().add(25, "hours"),
-        Mocks.MockWorkspace,
-        Mocks.MockTemplate,
-      ),
-    ).toBeFalsy()
-  })
-
-  it("should be falsy if the deadline is more than the template max_ttl", () => {
-    const tooFarAhead = dayjs().add(
-      dayjs.duration(Mocks.MockTemplate.default_ttl_ms, "milliseconds"),
-    )
-    expect(
-      canExtendDeadline(tooFarAhead, Mocks.MockWorkspace, Mocks.MockTemplate),
-    ).toBeFalsy()
-  })
-
-  it("should be truth if the deadline is within the template max_ttl", () => {
-    const okDeadline = dayjs().add(
-      dayjs.duration(Mocks.MockTemplate.default_ttl_ms / 2, "milliseconds"),
-    )
-    expect(
-      canExtendDeadline(okDeadline, Mocks.MockWorkspace, Mocks.MockTemplate),
-    ).toBeFalsy()
-  })
-})
-
-describe("canReduceDeadline", () => {
-  it("should be falsy if the deadline is 30 minutes or less in the future", () => {
-    expect(canReduceDeadline(dayjs())).toBeFalsy()
-    expect(canReduceDeadline(dayjs().add(1, "minutes"))).toBeFalsy()
-    expect(canReduceDeadline(dayjs().add(29, "minutes"))).toBeFalsy()
-    expect(canReduceDeadline(dayjs().add(30, "minutes"))).toBeFalsy()
-  })
-
-  it("should be truthy if the deadline is 30 minutes or more in the future", () => {
-    expect(canReduceDeadline(dayjs().add(31, "minutes"))).toBeTruthy()
-    expect(canReduceDeadline(dayjs().add(100, "years"))).toBeTruthy()
   })
 })
 

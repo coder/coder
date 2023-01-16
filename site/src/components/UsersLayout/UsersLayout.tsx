@@ -6,13 +6,18 @@ import PersonAdd from "@material-ui/icons/PersonAddOutlined"
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
 import { useFeatureVisibility } from "hooks/useFeatureVisibility"
 import { usePermissions } from "hooks/usePermissions"
-import { FC, PropsWithChildren } from "react"
-import { Link as RouterLink, NavLink, useNavigate } from "react-router-dom"
+import { FC } from "react"
+import {
+  Link as RouterLink,
+  NavLink,
+  Outlet,
+  useNavigate,
+} from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
 import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
 
-export const UsersLayout: FC<PropsWithChildren> = ({ children }) => {
+export const UsersLayout: FC = () => {
   const styles = useStyles()
   const { createUser: canCreateUser, createGroup: canCreateGroup } =
     usePermissions()
@@ -81,7 +86,9 @@ export const UsersLayout: FC<PropsWithChildren> = ({ children }) => {
         </Margins>
       </div>
 
-      <Margins>{children}</Margins>
+      <Margins>
+        <Outlet />
+      </Margins>
     </>
   )
 }

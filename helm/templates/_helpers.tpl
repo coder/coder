@@ -43,43 +43,42 @@ Coder Docker image URI
 {{- end }}
 
 {{/*
-Coder listen port (must be > 1024)
+Coder TLS enabled.
 */}}
-{{- define "coder.port" }}
+{{- define "coder.tlsEnabled" -}}
 {{- if .Values.coder.tls.secretNames -}}
-8443
+true
 {{- else -}}
-8080
+false
 {{- end -}}
 {{- end }}
 
 {{/*
-Coder service port
+Coder TLS environment variables.
 */}}
-{{- define "coder.servicePort" }}
-{{- if .Values.coder.tls.secretNames -}}
-443
-{{- else -}}
-80
-{{- end -}}
+{{- define "coder.tlsEnv" }}
+{{- if eq (include "coder.tlsEnabled" .) "true" }}
+- name: CODER_TLS_ENABLE
+  value: "true"
+- name: CODER_TLS_ADDRESS
+  value: "0.0.0.0:8443"
+- name: CODER_TLS_CERT_FILE
+  value: "{{ range $idx, $secretName := .Values.coder.tls.secretNames -}}{{ if $idx }},{{ end }}/etc/ssl/certs/coder/{{ $secretName }}/tls.crt{{- end }}"
+- name: CODER_TLS_KEY_FILE
+  value: "{{ range $idx, $secretName := .Values.coder.tls.secretNames -}}{{ if $idx }},{{ end }}/etc/ssl/certs/coder/{{ $secretName }}/tls.key{{- end }}"
+{{- end }}
 {{- end }}
 
 {{/*
-Port name
+Coder default access URL
 */}}
-{{- define "coder.portName" }}
-{{- if .Values.coder.tls.secretNames -}}
+{{- define "coder.defaultAccessURL" }}
+{{- if eq (include "coder.tlsEnabled" .) "true" -}}
 https
 {{- else -}}
 http
 {{- end -}}
-{{- end }}
-
-{{/*
-Scheme
-*/}}
-{{- define "coder.scheme" }}
-{{- include "coder.portName" . | upper -}}
+://coder.{{ .Release.Namespace }}.svc.cluster.local
 {{- end }}
 
 {{/*
@@ -95,6 +94,9 @@ Coder volume definitions.
 - name: "ca-cert-{{ $secret.name }}"
   secret:
     secretName: {{ $secret.name | quote }}
+{{ end -}}
+{{ if gt (len .Values.coder.volumes) 0 -}}
+{{ toYaml .Values.coder.volumes }}
 {{ end -}}
 {{- end }}
 
@@ -125,6 +127,9 @@ Coder volume mounts.
   subPath: {{ $secret.key | quote }}
   readOnly: true
 {{ end -}}
+{{ if gt (len .Values.coder.volumeMounts) 0 -}}
+{{ toYaml .Values.coder.volumeMounts }}
+{{ end -}}
 {{- end }}
 
 {{/*
@@ -137,20 +142,6 @@ volumeMounts:
 {{- else -}}
 volumeMounts: []
 {{- end -}}
-{{- end }}
-
-{{/*
-Coder TLS environment variables.
-*/}}
-{{- define "coder.tlsEnv" }}
-{{- if .Values.coder.tls.secretNames }}
-- name: CODER_TLS_ENABLE
-  value: "true"
-- name: CODER_TLS_CERT_FILE
-  value: "{{ range $idx, $secretName := .Values.coder.tls.secretNames -}}{{ if $idx }},{{ end }}/etc/ssl/certs/coder/{{ $secretName }}/tls.crt{{- end }}"
-- name: CODER_TLS_KEY_FILE
-  value: "{{ range $idx, $secretName := .Values.coder.tls.secretNames -}}{{ if $idx }},{{ end }}/etc/ssl/certs/coder/{{ $secretName }}/tls.key{{- end }}"
-{{- end }}
 {{- end }}
 
 {{/*

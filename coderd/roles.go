@@ -11,6 +11,14 @@ import (
 )
 
 // assignableSiteRoles returns all site wide roles that can be assigned.
+//
+// @Summary Get site member roles
+// @ID get-site-member-roles
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Members
+// @Success 200 {array} codersdk.AssignableRoles
+// @Router /users/roles [get]
 func (api *API) assignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	actorRoles := httpmw.UserAuthorization(r)
@@ -23,7 +31,16 @@ func (api *API) assignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, assignableRoles(actorRoles.Roles, roles))
 }
 
-// assignableSiteRoles returns all site wide roles that can be assigned.
+// assignableSiteRoles returns all org wide roles that can be assigned.
+//
+// @Summary Get member roles by organization
+// @ID get-member-roles-by-organization
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Members
+// @Param organization path string true "Organization ID" format(uuid)
+// @Success 200 {array} codersdk.AssignableRoles
+// @Router /organizations/{organization}/members/roles [get]
 func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)

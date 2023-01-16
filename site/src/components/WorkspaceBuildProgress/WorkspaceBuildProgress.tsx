@@ -34,13 +34,15 @@ const estimateFinish = (
   p95: number,
 ): [number | undefined, string] => {
   const sinceStart = dayjs().diff(startedAt)
-  const secondsLeft = (est: number) =>
-    Math.max(
+  const secondsLeft = (est: number) => {
+    const max = Math.max(
       Math.ceil(dayjs.duration((1 - sinceStart / est) * est).asSeconds()),
       0,
     )
+    return isNaN(max) ? 0 : max
+  }
 
-  const lowGuess = secondsLeft(p50)
+  // Under-promise, over-deliver with the 95th percentile estimate.
   const highGuess = secondsLeft(p95)
 
   const anyMomentNow: [number | undefined, string] = [
@@ -52,11 +54,7 @@ const estimateFinish = (
   if (highGuess <= 0) {
     return anyMomentNow
   }
-  const diff = highGuess - lowGuess
-  if (diff < 3) {
-    // If there is sufficient consistency, keep display simple.
-    return [p50percent, `${highGuess} seconds remaining...`]
-  }
+
   return [p50percent, `Up to ${highGuess} seconds remaining...`]
 }
 

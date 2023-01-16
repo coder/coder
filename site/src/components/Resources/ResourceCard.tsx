@@ -22,9 +22,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
   const [shouldDisplayAllMetadata, setShouldDisplayAllMetadata] =
     useState(false)
   const styles = useStyles()
-  const metadataToDisplay =
-    // Type is already displayed in the header
-    resource.metadata?.filter((data) => data.key !== "type") ?? []
+  const metadataToDisplay = resource.metadata ?? []
   const visibleMetadata = shouldDisplayAllMetadata
     ? metadataToDisplay
     : metadataToDisplay.slice(0, 4)

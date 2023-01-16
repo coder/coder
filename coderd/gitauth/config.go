@@ -121,7 +121,7 @@ func ConvertConfig(entries []codersdk.GitAuthConfig, accessURL *url.URL) ([]*Con
 			Regex:        regex,
 			Type:         typ,
 			NoRefresh:    entry.NoRefresh,
-			ValidateURL:  validateURL[typ],
+			ValidateURL:  entry.ValidateURL,
 		})
 	}
 	return configs, nil

@@ -2,6 +2,7 @@ package ptytest_test
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -19,6 +20,23 @@ func TestPtytest(t *testing.T) {
 		pty.Output().Write([]byte("write"))
 		pty.ExpectMatch("write")
 		pty.WriteLine("read")
+	})
+
+	t.Run("ReadLine", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("ReadLine is glitchy on windows when it comes to the final line of output it seems")
+		}
+
+		pty := ptytest.New(t)
+
+		// The PTY expands these to \r\n (even on linux).
+		pty.Output().Write([]byte("line 1\nline 2\nline 3\nline 4\nline 5"))
+		require.Equal(t, "line 1", pty.ReadLine())
+		require.Equal(t, "line 2", pty.ReadLine())
+		require.Equal(t, "line 3", pty.ReadLine())
+		require.Equal(t, "line 4", pty.ReadLine())
+		require.Equal(t, "line 5", pty.ExpectMatch("5"))
 	})
 
 	// See https://github.com/coder/coder/issues/2122 for the motivation

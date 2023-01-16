@@ -25,6 +25,15 @@ export const handlers = [
     return res(ctx.status(200), ctx.json(M.MockOrganization))
   }),
   rest.get(
+    "api/v2/organizations/:organizationId/templates/examples",
+    (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json([M.MockTemplateExample, M.MockTemplateExample2]),
+      )
+    },
+  ),
+  rest.get(
     "/api/v2/organizations/:organizationId/templates/:templateId",
     async (req, res, ctx) => {
       return res(ctx.status(200), ctx.json(M.MockTemplate))
@@ -131,6 +140,7 @@ export const handlers = [
     const permissions = [
       ...Object.keys(permissionsToCheck),
       "canUpdateTemplate",
+      "updateWorkspace",
     ]
     const response = permissions.reduce((obj, permission) => {
       return {
@@ -271,5 +281,9 @@ export const handlers = [
 
   rest.get("/api/v2/workspace-quota/:userId", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(MockWorkspaceQuota))
+  }),
+
+  rest.get("/api/v2/appearance", (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockAppearance))
   }),
 ]

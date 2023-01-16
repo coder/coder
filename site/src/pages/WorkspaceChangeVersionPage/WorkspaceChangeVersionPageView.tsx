@@ -21,7 +21,7 @@ export const WorkspaceChangeVersionPageView: FC<
   const { workspace, templateVersions, template, error } = context
 
   return (
-    <FullPageForm title="Change version" onCancel={() => navigate(-1)}>
+    <FullPageForm title="Change version">
       <Stack>
         <Maybe condition={Boolean(error)}>
           <AlertBanner severity="error" error={error} />

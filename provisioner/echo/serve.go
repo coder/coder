@@ -88,7 +88,7 @@ func (e *echo) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_
 		if err != nil {
 			if index == 0 {
 				// Error if nothing is around to enable failed states.
-				return xerrors.New("no state")
+				return xerrors.Errorf("no state: %w", err)
 			}
 			break
 		}

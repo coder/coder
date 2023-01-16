@@ -24,6 +24,17 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+// @Summary Get audit logs
+// @ID get-audit-logs
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Audit
+// @Param q query string true "Search query"
+// @Param after_id query string false "After ID" format(uuid)
+// @Param limit query int false "Page limit"
+// @Param offset query int false "Page offset"
+// @Success 200 {object} codersdk.AuditLogResponse
+// @Router /audit [get]
 func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceAuditLog) {
@@ -77,9 +88,17 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary Generate fake audit log
+// @ID generate-fake-audit-log
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Audit
+// @Param request body codersdk.CreateTestAuditLogRequest true "Audit log request"
+// @Success 204
+// @Router /audit/testgenerate [post]
 func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceAuditLog) {
+	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceAuditLog) {
 		httpapi.Forbidden(rw)
 		return
 	}
@@ -161,9 +180,8 @@ func (api *API) convertAuditLogs(ctx context.Context, dblogs []database.GetAudit
 }
 
 type AdditionalFields struct {
-	WorkspaceName  string
-	BuildNumber    string
-	WorkspaceOwner string
+	WorkspaceName string
+	BuildNumber   string
 }
 
 func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
@@ -199,9 +217,8 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 	if err != nil {
 		api.Logger.Error(ctx, "unmarshal additional fields", slog.Error(err))
 		resourceInfo := map[string]string{
-			"workspaceName":  "unknown",
-			"buildNumber":    "unknown",
-			"workspaceOwner": "unknown",
+			"workspaceName": "unknown",
+			"buildNumber":   "unknown",
 		}
 		dblog.AdditionalFields, err = json.Marshal(resourceInfo)
 		api.Logger.Error(ctx, "marshal additional fields", slog.Error(err))
@@ -214,7 +231,7 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 	if isDeleted {
 		resourceLink = ""
 	} else {
-		resourceLink = auditLogResourceLink(dblog, additionalFields)
+		resourceLink = api.auditLogResourceLink(ctx, dblog, additionalFields)
 	}
 
 	return codersdk.AuditLog{
@@ -324,7 +341,7 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 	}
 }
 
-func auditLogResourceLink(alog database.GetAuditLogsOffsetRow, additionalFields AdditionalFields) string {
+func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAuditLogsOffsetRow, additionalFields AdditionalFields) string {
 	switch alog.ResourceType {
 	case database.ResourceTypeTemplate:
 		return fmt.Sprintf("/templates/%s",
@@ -333,18 +350,34 @@ func auditLogResourceLink(alog database.GetAuditLogsOffsetRow, additionalFields 
 		return fmt.Sprintf("/users?filter=%s",
 			alog.ResourceTarget)
 	case database.ResourceTypeWorkspace:
-		workspaceOwner := alog.UserUsername.String
-		if len(additionalFields.WorkspaceOwner) != 0 && additionalFields.WorkspaceOwner != "unknown" {
-			workspaceOwner = additionalFields.WorkspaceOwner
+		workspace, getWorkspaceErr := api.Database.GetWorkspaceByID(ctx, alog.ResourceID)
+		if getWorkspaceErr != nil {
+			return ""
+		}
+		workspaceOwner, getWorkspaceOwnerErr := api.Database.GetUserByID(ctx, workspace.OwnerID)
+		if getWorkspaceOwnerErr != nil {
+			return ""
 		}
 		return fmt.Sprintf("/@%s/%s",
-			workspaceOwner, alog.ResourceTarget)
+			workspaceOwner.Username, alog.ResourceTarget)
 	case database.ResourceTypeWorkspaceBuild:
 		if len(additionalFields.WorkspaceName) == 0 || len(additionalFields.BuildNumber) == 0 {
 			return ""
 		}
+		workspaceBuild, getWorkspaceBuildErr := api.Database.GetWorkspaceBuildByID(ctx, alog.ResourceID)
+		if getWorkspaceBuildErr != nil {
+			return ""
+		}
+		workspace, getWorkspaceErr := api.Database.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
+		if getWorkspaceErr != nil {
+			return ""
+		}
+		workspaceOwner, getWorkspaceOwnerErr := api.Database.GetUserByID(ctx, workspace.OwnerID)
+		if getWorkspaceOwnerErr != nil {
+			return ""
+		}
 		return fmt.Sprintf("/@%s/%s/builds/%s",
-			alog.UserUsername.String, additionalFields.WorkspaceName, additionalFields.BuildNumber)
+			workspaceOwner.Username, additionalFields.WorkspaceName, additionalFields.BuildNumber)
 	default:
 		return ""
 	}

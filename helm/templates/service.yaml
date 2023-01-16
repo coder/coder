@@ -10,12 +10,18 @@ metadata:
     {{- toYaml .Values.coder.service.annotations | nindent 4 }}
 spec:
   type: {{ .Values.coder.service.type }}
-  sessionAffinity: ClientIP
+  sessionAffinity: {{ .Values.coder.service.sessionAffinity }}
   ports:
-    - name: {{ include "coder.portName" . | quote }}
-      port: {{ include "coder.servicePort" . }}
-      targetPort: {{ include "coder.portName" . | quote }}
+    - name: "http"
+      port: 80
+      targetPort: "http"
       protocol: TCP
+    {{- if eq (include "coder.tlsEnabled" .) "true" }}
+    - name: "https"
+      port: 443
+      targetPort: "https"
+      protocol: TCP
+    {{- end }}
   {{- if eq "LoadBalancer" .Values.coder.service.type }}
   {{- with .Values.coder.service.loadBalancerIP }}
   loadBalancerIP: {{ . | quote }}

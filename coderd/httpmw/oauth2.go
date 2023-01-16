@@ -40,13 +40,17 @@ func OAuth2(r *http.Request) OAuth2State {
 // ExtractOAuth2 is a middleware for automatically redirecting to OAuth
 // URLs, and handling the exchange inbound. Any route that does not have
 // a "code" URL parameter will be redirected.
-func ExtractOAuth2(config OAuth2Config) func(http.Handler) http.Handler {
+func ExtractOAuth2(config OAuth2Config, client *http.Client) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
+			if client != nil {
+				ctx = context.WithValue(ctx, oauth2.HTTPClient, client)
+			}
+
 			// Interfaces can hold a nil value
 			if config == nil || reflect.ValueOf(config).IsNil() {
-				httpapi.Write(ctx, rw, http.StatusPreconditionRequired, codersdk.Response{
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: "The oauth2 method requested is not configured!",
 				})
 				return

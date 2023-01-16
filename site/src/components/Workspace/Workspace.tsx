@@ -35,8 +35,6 @@ export interface WorkspaceProps {
   scheduleProps: {
     onDeadlinePlus: (hours: number) => void
     onDeadlineMinus: (hours: number) => void
-    deadlinePlusEnabled: () => boolean
-    deadlineMinusEnabled: () => boolean
     maxDeadlineIncrease: number
     maxDeadlineDecrease: number
   }
@@ -52,6 +50,7 @@ export interface WorkspaceProps {
   builds?: TypesGen.WorkspaceBuild[]
   canUpdateWorkspace: boolean
   hideSSHButton?: boolean
+  hideVSCodeDesktopButton?: boolean
   workspaceErrors: Partial<Record<WorkspaceErrors, Error | unknown>>
   buildInfo?: TypesGen.BuildInfoResponse
   applicationsHost?: string
@@ -77,6 +76,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   canUpdateWorkspace,
   workspaceErrors,
   hideSSHButton,
+  hideVSCodeDesktopButton,
   buildInfo,
   applicationsHost,
   template,
@@ -131,8 +131,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               workspace={workspace}
               onDeadlineMinus={scheduleProps.onDeadlineMinus}
               onDeadlinePlus={scheduleProps.onDeadlinePlus}
-              deadlineMinusEnabled={scheduleProps.deadlineMinusEnabled}
-              deadlinePlusEnabled={scheduleProps.deadlinePlusEnabled}
               maxDeadlineDecrease={scheduleProps.maxDeadlineDecrease}
               maxDeadlineIncrease={scheduleProps.maxDeadlineIncrease}
               canUpdateWorkspace={canUpdateWorkspace}
@@ -219,6 +217,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
                 applicationsHost={applicationsHost}
                 showApps={canUpdateWorkspace}
                 hideSSHButton={hideSSHButton}
+                hideVSCodeDesktopButton={hideVSCodeDesktopButton}
                 serverVersion={serverVersion}
               />
             )}

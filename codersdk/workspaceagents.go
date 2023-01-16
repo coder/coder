@@ -35,15 +35,15 @@ const (
 )
 
 type WorkspaceAgent struct {
-	ID                   uuid.UUID            `json:"id"`
-	CreatedAt            time.Time            `json:"created_at"`
-	UpdatedAt            time.Time            `json:"updated_at"`
-	FirstConnectedAt     *time.Time           `json:"first_connected_at,omitempty"`
-	LastConnectedAt      *time.Time           `json:"last_connected_at,omitempty"`
-	DisconnectedAt       *time.Time           `json:"disconnected_at,omitempty"`
-	Status               WorkspaceAgentStatus `json:"status"`
+	ID                   uuid.UUID            `json:"id" format:"uuid"`
+	CreatedAt            time.Time            `json:"created_at" format:"date-time"`
+	UpdatedAt            time.Time            `json:"updated_at" format:"date-time"`
+	FirstConnectedAt     *time.Time           `json:"first_connected_at,omitempty" format:"date-time"`
+	LastConnectedAt      *time.Time           `json:"last_connected_at,omitempty" format:"date-time"`
+	DisconnectedAt       *time.Time           `json:"disconnected_at,omitempty" format:"date-time"`
+	Status               WorkspaceAgentStatus `json:"status" enums:"connecting,connected,disconnected,timeout"`
 	Name                 string               `json:"name"`
-	ResourceID           uuid.UUID            `json:"resource_id"`
+	ResourceID           uuid.UUID            `json:"resource_id" format:"uuid"`
 	InstanceID           string               `json:"instance_id,omitempty"`
 	Architecture         string               `json:"architecture"`
 	EnvironmentVariables map[string]string    `json:"environment_variables"`
@@ -115,6 +115,7 @@ type WorkspaceAgentConnectionInfo struct {
 }
 
 // @typescript-ignore PostWorkspaceAgentVersionRequest
+// @Description x-apidocgen:skip
 type PostWorkspaceAgentVersionRequest struct {
 	Version string `json:"version"`
 }
@@ -346,7 +347,8 @@ func (c *Client) ListenWorkspaceAgent(ctx context.Context) (net.Conn, error) {
 type DialWorkspaceAgentOptions struct {
 	Logger slog.Logger
 	// BlockEndpoints forced a direct connection through DERP.
-	BlockEndpoints bool
+	BlockEndpoints     bool
+	EnableTrafficStats bool
 }
 
 func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *DialWorkspaceAgentOptions) (*AgentConn, error) {
@@ -369,10 +371,11 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 
 	ip := tailnet.IP()
 	conn, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:      []netip.Prefix{netip.PrefixFrom(ip, 128)},
-		DERPMap:        connInfo.DERPMap,
-		Logger:         options.Logger,
-		BlockEndpoints: options.BlockEndpoints,
+		Addresses:          []netip.Prefix{netip.PrefixFrom(ip, 128)},
+		DERPMap:            connInfo.DERPMap,
+		Logger:             options.Logger,
+		BlockEndpoints:     options.BlockEndpoints,
+		EnableTrafficStats: options.EnableTrafficStats,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)

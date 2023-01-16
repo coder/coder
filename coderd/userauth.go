@@ -43,6 +43,13 @@ type GithubOAuth2Config struct {
 	AllowTeams         []GithubOAuth2Team
 }
 
+// @Summary Get authentication methods
+// @ID get-authentication-methods
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Success 200 {object} codersdk.AuthMethods
+// @Router /users/authmethods [get]
 func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 	var signInText string
 	var iconURL string
@@ -68,6 +75,12 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary OAuth 2.0 GitHub Callback
+// @ID oauth-20-github-callback
+// @Security CoderSessionToken
+// @Tags Users
+// @Success 307
+// @Router /users/oauth2/github/callback [get]
 func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx   = r.Context()
@@ -165,7 +178,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if verifiedEmail == nil {
-		httpapi.Write(ctx, rw, http.StatusPreconditionRequired, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Your primary email must be verified on GitHub!",
 		})
 		return
@@ -208,6 +221,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 type OIDCConfig struct {
 	httpmw.OAuth2Config
 
+	Provider *oidc.Provider
 	Verifier *oidc.IDTokenVerifier
 	// EmailDomains are the domains to enforce when a user authenticates.
 	EmailDomain  []string
@@ -215,10 +229,21 @@ type OIDCConfig struct {
 	// IgnoreEmailVerified allows ignoring the email_verified claim
 	// from an upstream OIDC provider. See #5065 for context.
 	IgnoreEmailVerified bool
+	// UsernameField selects the claim field to be used as the created user's
+	// username.
+	UsernameField string
+	// SignInText is the text to display on the OIDC login button
 	SignInText   string
+	// IconURL points to the URL of an icon to display on the OIDC login button
 	IconURL      string
 }
 
+// @Summary OpenID Connect Callback
+// @ID openid-connect-callback
+// @Security CoderSessionToken
+// @Tags Users
+// @Success 307
+// @Router /users/oidc/callback [get]
 func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx   = r.Context()
@@ -255,7 +280,36 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	usernameRaw, ok := claims["preferred_username"]
+
+	// Not all claims are necessarily embedded in the `id_token`.
+	// In GitLab, the username is left empty and must be fetched in UserInfo.
+	//
+	// The OIDC specification says claims can be in either place, so we fetch
+	// user info and merge the two claim sets to be sure we have all of
+	// the correct data.
+	userInfo, err := api.OIDCConfig.Provider.UserInfo(ctx, oauth2.StaticTokenSource(state.Token))
+	if err == nil {
+		userInfoClaims := map[string]interface{}{}
+		err = userInfo.Claims(&userInfoClaims)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to unmarshal user info claims.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		for k, v := range userInfoClaims {
+			claims[k] = v
+		}
+	} else if !strings.Contains(err.Error(), "user info endpoint is not supported by this provider") {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to obtain user information claims.",
+			Detail:  "The OIDC provider returned no claims as part of the `id_token`. The attempt to fetch claims via the UserInfo endpoint failed: " + err.Error(),
+		})
+		return
+	}
+
+	usernameRaw, ok := claims[api.OIDCConfig.UsernameField]
 	var username string
 	if ok {
 		username, _ = usernameRaw.(string)

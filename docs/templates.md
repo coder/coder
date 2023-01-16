@@ -70,6 +70,15 @@ coder templates create <template-name>
 > [examples/](https://github.com/coder/coder/tree/main/examples/templates)
 > directory in the repo.
 
+## Configure Max Workspace Auto-Stop
+
+To control cost, specify a maximum time to live flag for a template in hours or
+minutes.
+
+```sh
+coder templates create my-template --ttl 4h
+```
+
 ## Customize templates
 
 Example templates are not designed to support every use (e.g
@@ -107,8 +116,6 @@ allow users to connect to multiple resources in their workspace.
 
 > Resources must download and start the Coder agent binary to connect to Coder.
 > This means the resource must be able to reach your Coder URL.
-
-Use the Coder agent's init script to
 
 ```hcl
 data "coder_workspace" "me" {
@@ -153,8 +160,8 @@ resource "coder_agent" "coder" {
   startup_script = <<EOT
 #!/bin/bash
 
-# install code-server
-curl -fsSL https://code-server.dev/install.sh | sh
+# install code-server 4.8.3
+curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3
 
 # The & prevents the startup_script from blocking so the
 # next commands can run.

@@ -1,0 +1,16 @@
+# This config file is used in conjunction with `.editorconfig` to specify
+# formatting for prettier-supported files. See `.editorconfig` and
+# `site/.editorconfig`for whitespace formatting options.
+printWidth: 80
+semi: false
+trailingComma: all
+overrides:
+  - files:
+      - README.md
+    options:
+      proseWrap: preserve
+  - files:
+      - "site/**/*.yaml"
+      - "site/**/*.yml"
+    options:
+      proseWrap: always

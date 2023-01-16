@@ -322,7 +322,7 @@ func TestPatchGroup(t *testing.T) {
 		require.Error(t, err)
 		cerr, ok := codersdk.AsError(err)
 		require.True(t, ok)
-		require.Equal(t, http.StatusPreconditionFailed, cerr.StatusCode())
+		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
 	})
 
 	t.Run("MalformedUUID", func(t *testing.T) {
@@ -372,7 +372,7 @@ func TestPatchGroup(t *testing.T) {
 		cerr, ok := codersdk.AsError(err)
 		require.True(t, ok)
 
-		require.Equal(t, http.StatusPreconditionFailed, cerr.StatusCode())
+		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
 	})
 
 	t.Run("allUsers", func(t *testing.T) {

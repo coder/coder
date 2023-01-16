@@ -226,6 +226,25 @@ func (a *agent) run(ctx context.Context) error {
 			_ = network.Close()
 			return xerrors.New("agent is closed")
 		}
+
+		// Report statistics from the created network.
+		cl, err := a.client.AgentReportStats(ctx, a.logger, func() *codersdk.AgentStats {
+			stats := network.ExtractTrafficStats()
+			return convertAgentStats(stats)
+		})
+		if err != nil {
+			a.logger.Error(ctx, "report stats", slog.Error(err))
+		} else {
+			if err = a.trackConnGoroutine(func() {
+				// This is OK because the agent never re-creates the tailnet
+				// and the only shutdown indicator is agent.Close().
+				<-a.closed
+				_ = cl.Close()
+			}); err != nil {
+				a.logger.Debug(ctx, "report stats goroutine", slog.Error(err))
+				_ = cl.Close()
+			}
+		}
 	} else {
 		// Update the DERP map!
 		network.SetDERPMap(metadata.DERPMap)
@@ -285,7 +304,18 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 			if err != nil {
 				return
 			}
-			go a.sshServer.HandleConn(conn)
+			closed := make(chan struct{})
+			_ = a.trackConnGoroutine(func() {
+				select {
+				case <-network.Closed():
+				case <-closed:
+				}
+				_ = conn.Close()
+			})
+			_ = a.trackConnGoroutine(func() {
+				defer close(closed)
+				a.sshServer.HandleConn(conn)
+			})
 		}
 	}); err != nil {
 		return nil, err
@@ -461,12 +491,16 @@ func (a *agent) init(ctx context.Context) {
 	if err != nil {
 		panic(err)
 	}
+
 	sshLogger := a.logger.Named("ssh-server")
 	forwardHandler := &ssh.ForwardedTCPHandler{}
+	unixForwardHandler := &forwardedUnixHandler{log: a.logger}
+
 	a.sshServer = &ssh.Server{
 		ChannelHandlers: map[string]ssh.ChannelHandler{
-			"direct-tcpip": ssh.DirectTCPIPHandler,
-			"session":      ssh.DefaultSessionHandler,
+			"direct-tcpip":                   ssh.DirectTCPIPHandler,
+			"direct-streamlocal@openssh.com": directStreamLocalHandler,
+			"session":                        ssh.DefaultSessionHandler,
 		},
 		ConnectionFailedCallback: func(conn net.Conn, err error) {
 			sshLogger.Info(ctx, "ssh connection ended", slog.Error(err))
@@ -506,8 +540,10 @@ func (a *agent) init(ctx context.Context) {
 			return true
 		},
 		RequestHandlers: map[string]ssh.RequestHandler{
-			"tcpip-forward":        forwardHandler.HandleSSHRequest,
-			"cancel-tcpip-forward": forwardHandler.HandleSSHRequest,
+			"tcpip-forward":                          forwardHandler.HandleSSHRequest,
+			"cancel-tcpip-forward":                   forwardHandler.HandleSSHRequest,
+			"streamlocal-forward@openssh.com":        unixForwardHandler.HandleSSHRequest,
+			"cancel-streamlocal-forward@openssh.com": unixForwardHandler.HandleSSHRequest,
 		},
 		ServerConfigCallback: func(ctx ssh.Context) *gossh.ServerConfig {
 			return &gossh.ServerConfig{
@@ -561,28 +597,6 @@ func (a *agent) init(ctx context.Context) {
 	}
 
 	go a.runLoop(ctx)
-	cl, err := a.client.AgentReportStats(ctx, a.logger, func() *codersdk.AgentStats {
-		stats := map[netlogtype.Connection]netlogtype.Counts{}
-		a.closeMutex.Lock()
-		if a.network != nil {
-			stats = a.network.ExtractTrafficStats()
-		}
-		a.closeMutex.Unlock()
-		return convertAgentStats(stats)
-	})
-	if err != nil {
-		a.logger.Error(ctx, "report stats", slog.Error(err))
-		return
-	}
-
-	if err = a.trackConnGoroutine(func() {
-		<-a.closed
-		_ = cl.Close()
-	}); err != nil {
-		a.logger.Error(ctx, "report stats goroutine", slog.Error(err))
-		_ = cl.Close()
-		return
-	}
 }
 
 func convertAgentStats(counts map[netlogtype.Connection]netlogtype.Counts) *codersdk.AgentStats {

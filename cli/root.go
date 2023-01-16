@@ -8,7 +8,11 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
+	"path/filepath"
+	"runtime"
 	"strings"
+	"syscall"
 	"text/template"
 	"time"
 
@@ -76,7 +80,6 @@ func Core() []*cobra.Command {
 		dotfiles(),
 		gitssh(),
 		list(),
-		loadtest(),
 		login(),
 		logout(),
 		parameters(),
@@ -84,6 +87,7 @@ func Core() []*cobra.Command {
 		publickey(),
 		rename(),
 		resetPassword(),
+		scaletest(),
 		schedules(),
 		show(),
 		speedtest(),
@@ -96,6 +100,7 @@ func Core() []*cobra.Command {
 		update(),
 		users(),
 		versionCmd(),
+		vscodeSSH(),
 		workspaceAgent(),
 	}
 }
@@ -583,12 +588,17 @@ func checkVersions(cmd *cobra.Command, client *codersdk.Client) error {
 	}
 
 	fmtWarningText := `version mismatch: client %s, server %s
-download the server version with: 'curl -L https://coder.com/install.sh | sh -s -- --version %s'
 `
+	// Our installation script doesn't work on Windows, so instead we direct the user
+	// to the GitHub release page to download the latest installer.
+	if runtime.GOOS == "windows" {
+		fmtWarningText += `download the server version from: https://github.com/coder/coder/releases/v%s`
+	} else {
+		fmtWarningText += `download the server version with: 'curl -L https://coder.com/install.sh | sh -s -- --version %s'`
+	}
 
 	if !buildinfo.VersionsMatch(clientVersion, info.Version) {
 		warn := cliui.Styles.Warn.Copy().Align(lipgloss.Left)
-		// Trim the leading 'v', our install.sh script does not handle this case well.
 		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), warn.Render(fmtWarningText), clientVersion, info.Version, strings.TrimPrefix(info.CanonicalVersion(), "v"))
 		_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 	}
@@ -623,4 +633,94 @@ func (h *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		req.Header.Add(k, v)
 	}
 	return h.transport.RoundTrip(req)
+}
+
+// dumpHandler provides a custom SIGQUIT and SIGTRAP handler that dumps the
+// stacktrace of all goroutines to stderr and a well-known file in the home
+// directory. This is useful for debugging deadlock issues that may occur in
+// production in workspaces, since the default Go runtime will only dump to
+// stderr (which is often difficult/impossible to read in a workspace).
+//
+// SIGQUITs will still cause the program to exit (similarly to the default Go
+// runtime behavior).
+//
+// A SIGQUIT handler will not be registered if GOTRACEBACK=crash.
+//
+// On Windows this immediately returns.
+func dumpHandler(ctx context.Context) {
+	if runtime.GOOS == "windows" {
+		// free up the goroutine since it'll be permanently blocked anyways
+		return
+	}
+
+	listenSignals := []os.Signal{syscall.SIGTRAP}
+	if os.Getenv("GOTRACEBACK") != "crash" {
+		listenSignals = append(listenSignals, syscall.SIGQUIT)
+	}
+
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, listenSignals...)
+	defer signal.Stop(sigs)
+
+	for {
+		sigStr := ""
+		select {
+		case <-ctx.Done():
+			return
+		case sig := <-sigs:
+			switch sig {
+			case syscall.SIGQUIT:
+				sigStr = "SIGQUIT"
+			case syscall.SIGTRAP:
+				sigStr = "SIGTRAP"
+			}
+		}
+
+		// Start with a 1MB buffer and keep doubling it until we can fit the
+		// entire stacktrace, stopping early once we reach 64MB.
+		buf := make([]byte, 1_000_000)
+		stacklen := 0
+		for {
+			stacklen = runtime.Stack(buf, true)
+			if stacklen < len(buf) {
+				break
+			}
+			if 2*len(buf) > 64_000_000 {
+				// Write a message to the end of the buffer saying that it was
+				// truncated.
+				const truncatedMsg = "\n\n\nstack trace truncated due to size\n"
+				copy(buf[len(buf)-len(truncatedMsg):], truncatedMsg)
+				break
+			}
+			buf = make([]byte, 2*len(buf))
+		}
+
+		_, _ = fmt.Fprintf(os.Stderr, "%s:\n%s\n", sigStr, buf[:stacklen])
+
+		// Write to a well-known file.
+		dir, err := os.UserHomeDir()
+		if err != nil {
+			dir = os.TempDir()
+		}
+		fpath := filepath.Join(dir, fmt.Sprintf("coder-agent-%s.dump", time.Now().Format("2006-01-02T15:04:05.000Z")))
+		_, _ = fmt.Fprintf(os.Stderr, "writing dump to %q\n", fpath)
+
+		f, err := os.Create(fpath)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "failed to open dump file: %v\n", err.Error())
+			goto done
+		}
+		_, err = f.Write(buf[:stacklen])
+		_ = f.Close()
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "failed to write dump file: %v\n", err.Error())
+			goto done
+		}
+
+	done:
+		if sigStr == "SIGQUIT" {
+			//nolint:revive
+			os.Exit(1)
+		}
+	}
 }

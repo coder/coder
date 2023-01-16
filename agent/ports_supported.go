@@ -32,7 +32,7 @@ func (lp *listeningPortsHandler) getListeningPorts() ([]codersdk.ListeningPort, 
 	seen := make(map[uint16]struct{}, len(tabs))
 	ports := []codersdk.ListeningPort{}
 	for _, tab := range tabs {
-		if tab.LocalAddr == nil || tab.LocalAddr.Port < uint16(codersdk.MinimumListeningPort) {
+		if tab.LocalAddr == nil || tab.LocalAddr.Port < codersdk.MinimumListeningPort {
 			continue
 		}
 

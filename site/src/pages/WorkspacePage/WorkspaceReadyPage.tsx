@@ -6,6 +6,7 @@ import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import {
+  getDeadline,
   getMaxDeadline,
   getMaxDeadlineChange,
   getMinDeadline,
@@ -37,11 +38,14 @@ export const WorkspaceReadyPage = ({
   quotaState,
   workspaceSend,
 }: WorkspaceReadyPageProps): JSX.Element => {
-  const [bannerState, bannerSend] = useActor(
+  const [_, bannerSend] = useActor(
     workspaceState.children["scheduleBannerMachine"],
   )
-  const deadline = bannerState.context.deadline
   const xServices = useContext(XServiceContext)
+  const experimental = useSelector(
+    xServices.entitlementsXService,
+    (state) => state.context.entitlements.experimental,
+  )
   const featureVisibility = useSelector(
     xServices.entitlementsXService,
     selectFeatureVisibility,
@@ -61,6 +65,7 @@ export const WorkspaceReadyPage = ({
   if (workspace === undefined) {
     throw Error("Workspace is undefined")
   }
+  const deadline = getDeadline(workspace)
   const canUpdateWorkspace = Boolean(permissions?.updateWorkspace)
   const { t } = useTranslation("workspacePage")
   const favicon = getFaviconByStatus(workspace.latest_build)
@@ -101,18 +106,11 @@ export const WorkspaceReadyPage = ({
               hours,
             })
           },
-          deadlineMinusEnabled: () => !bannerState.matches("atMinDeadline"),
-          deadlinePlusEnabled: () => !bannerState.matches("atMaxDeadline"),
-          maxDeadlineDecrease: deadline
-            ? getMaxDeadlineChange(deadline, getMinDeadline())
-            : 0,
-          maxDeadlineIncrease:
-            deadline && template
-              ? getMaxDeadlineChange(
-                  getMaxDeadline(workspace, template),
-                  deadline,
-                )
-              : 0,
+          maxDeadlineDecrease: getMaxDeadlineChange(deadline, getMinDeadline()),
+          maxDeadlineIncrease: getMaxDeadlineChange(
+            getMaxDeadline(workspace),
+            deadline,
+          ),
         }}
         isUpdating={workspaceState.hasTag("updating")}
         workspace={workspace}
@@ -126,6 +124,9 @@ export const WorkspaceReadyPage = ({
         builds={builds}
         canUpdateWorkspace={canUpdateWorkspace}
         hideSSHButton={featureVisibility[FeatureNames.BrowserOnly]}
+        hideVSCodeDesktopButton={
+          !experimental || featureVisibility[FeatureNames.BrowserOnly]
+        }
         workspaceErrors={{
           [WorkspaceErrors.GET_RESOURCES_ERROR]: refreshWorkspaceWarning,
           [WorkspaceErrors.GET_BUILDS_ERROR]: getBuildsError,

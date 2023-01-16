@@ -123,6 +123,7 @@ type data struct {
 	derpMeshKey     string
 	lastUpdateCheck []byte
 	serviceBanner   []byte
+	logoURL         string
 	lastLicenseID   int32
 }
 
@@ -448,7 +449,7 @@ func (q *fakeQuerier) GetUserByEmailOrUsername(_ context.Context, arg database.G
 	defer q.mutex.RUnlock()
 
 	for _, user := range q.users {
-		if (strings.EqualFold(user.Email, arg.Email) || strings.EqualFold(user.Username, arg.Username)) && user.Deleted == arg.Deleted {
+		if !user.Deleted && (strings.EqualFold(user.Email, arg.Email) || strings.EqualFold(user.Username, arg.Username)) {
 			return user, nil
 		}
 	}
@@ -513,15 +514,14 @@ func (q *fakeQuerier) GetAuthorizedUserCount(ctx context.Context, params databas
 		users = append(users, user)
 	}
 
-	if params.Deleted {
-		tmp := make([]database.User, 0, len(users))
-		for _, user := range users {
-			if user.Deleted {
-				tmp = append(tmp, user)
-			}
+	// Filter out deleted since they should never be returned..
+	tmp := make([]database.User, 0, len(users))
+	for _, user := range users {
+		if !user.Deleted {
+			tmp = append(tmp, user)
 		}
-		users = tmp
 	}
+	users = tmp
 
 	if params.Search != "" {
 		tmp := make([]database.User, 0, len(users))
@@ -593,15 +593,14 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 		return a.CreatedAt.Before(b.CreatedAt)
 	})
 
-	if params.Deleted {
-		tmp := make([]database.User, 0, len(users))
-		for _, user := range users {
-			if user.Deleted {
-				tmp = append(tmp, user)
-			}
+	// Filter out deleted since they should never be returned..
+	tmp := make([]database.User, 0, len(users))
+	for _, user := range users {
+		if !user.Deleted {
+			tmp = append(tmp, user)
 		}
-		users = tmp
 	}
+	users = tmp
 
 	if params.AfterID != uuid.Nil {
 		found := false
@@ -2193,19 +2192,6 @@ func (q *fakeQuerier) GetWorkspaceResourceMetadataCreatedAfter(ctx context.Conte
 	return metadata, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceResourceMetadataByResourceID(_ context.Context, id uuid.UUID) ([]database.WorkspaceResourceMetadatum, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	metadata := make([]database.WorkspaceResourceMetadatum, 0)
-	for _, metadatum := range q.workspaceResourceMetadata {
-		if metadatum.WorkspaceResourceID == id {
-			metadata = append(metadata, metadatum)
-		}
-	}
-	return metadata, nil
-}
-
 func (q *fakeQuerier) GetWorkspaceResourceMetadataByResourceIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceResourceMetadatum, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -2549,19 +2535,31 @@ func (q *fakeQuerier) InsertWorkspaceResource(_ context.Context, arg database.In
 	return resource, nil
 }
 
-func (q *fakeQuerier) InsertWorkspaceResourceMetadata(_ context.Context, arg database.InsertWorkspaceResourceMetadataParams) (database.WorkspaceResourceMetadatum, error) {
+func (q *fakeQuerier) InsertWorkspaceResourceMetadata(_ context.Context, arg database.InsertWorkspaceResourceMetadataParams) ([]database.WorkspaceResourceMetadatum, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	//nolint:gosimple
-	metadatum := database.WorkspaceResourceMetadatum{
-		WorkspaceResourceID: arg.WorkspaceResourceID,
-		Key:                 arg.Key,
-		Value:               arg.Value,
-		Sensitive:           arg.Sensitive,
+	metadata := make([]database.WorkspaceResourceMetadatum, 0)
+	id := int64(1)
+	if len(q.workspaceResourceMetadata) > 0 {
+		id = q.workspaceResourceMetadata[len(q.workspaceResourceMetadata)-1].ID
 	}
-	q.workspaceResourceMetadata = append(q.workspaceResourceMetadata, metadatum)
-	return metadatum, nil
+	for index, key := range arg.Key {
+		id++
+		value := arg.Value[index]
+		metadata = append(metadata, database.WorkspaceResourceMetadatum{
+			ID:                  id,
+			WorkspaceResourceID: arg.WorkspaceResourceID,
+			Key:                 key,
+			Value: sql.NullString{
+				String: value,
+				Valid:  value != "",
+			},
+			Sensitive: arg.Sensitive[index],
+		})
+	}
+	q.workspaceResourceMetadata = append(q.workspaceResourceMetadata, metadata...)
+	return metadata, nil
 }
 
 func (q *fakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParams) (database.User, error) {
@@ -2743,6 +2741,7 @@ func (q *fakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 		Icon:                 arg.Icon,
 		Command:              arg.Command,
 		Url:                  arg.Url,
+		External:             arg.External,
 		Subdomain:            arg.Subdomain,
 		SharingLevel:         arg.SharingLevel,
 		HealthcheckUrl:       arg.HealthcheckUrl,
@@ -3356,6 +3355,25 @@ func (q *fakeQuerier) GetServiceBanner(_ context.Context) (string, error) {
 	}
 
 	return string(q.serviceBanner), nil
+}
+
+func (q *fakeQuerier) InsertOrUpdateLogoURL(_ context.Context, data string) error {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	q.logoURL = data
+	return nil
+}
+
+func (q *fakeQuerier) GetLogoURL(_ context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if q.logoURL == "" {
+		return "", sql.ErrNoRows
+	}
+
+	return q.logoURL, nil
 }
 
 func (q *fakeQuerier) InsertLicense(

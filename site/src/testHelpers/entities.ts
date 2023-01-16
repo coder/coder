@@ -3,6 +3,7 @@ import { everyOneGroup } from "util/groups"
 import * as Types from "../api/types"
 import * as TypesGen from "../api/typesGenerated"
 import { range } from "lodash"
+import { Permissions } from "xServices/auth/authXService"
 
 export const MockTemplateDAUResponse: TypesGen.TemplateDAUsResponse = {
   entries: [
@@ -18,6 +19,31 @@ export const MockSessionToken: TypesGen.LoginWithPasswordResponse = {
 export const MockAPIKey: TypesGen.GenerateAPIKeyResponse = {
   key: "my-api-key",
 }
+
+export const MockTokens: TypesGen.APIKey[] = [
+  {
+    id: "tBoVE3dqLl",
+    user_id: "f9ee61d8-1d84-4410-ab6e-c1ec1a641e0b",
+    last_used: "0001-01-01T00:00:00Z",
+    expires_at: "2023-01-15T20:10:45.637438Z",
+    created_at: "2022-12-16T20:10:45.637452Z",
+    updated_at: "2022-12-16T20:10:45.637452Z",
+    login_type: "token",
+    scope: "all",
+    lifetime_seconds: 2592000,
+  },
+  {
+    id: "tBoVE3dqLl",
+    user_id: "f9ee61d8-1d84-4410-ab6e-c1ec1a641e0b",
+    last_used: "0001-01-01T00:00:00Z",
+    expires_at: "2023-01-15T20:10:45.637438Z",
+    created_at: "2022-12-16T20:10:45.637452Z",
+    updated_at: "2022-12-16T20:10:45.637452Z",
+    login_type: "token",
+    scope: "all",
+    lifetime_seconds: 2592000,
+  },
+]
 
 export const MockBuildInfo: TypesGen.BuildInfoResponse = {
   external_url: "file:///mock-url",
@@ -244,6 +270,8 @@ export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
   icon: "",
   subdomain: false,
   health: "disabled",
+  external: false,
+  url: "",
   sharing_level: "owner",
   healthcheck: {
     url: "",
@@ -338,10 +366,7 @@ export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
   workspace_transition: "start",
   hide: false,
   icon: "",
-  metadata: [
-    { key: "type", value: "a-workspace-resource", sensitive: false },
-    { key: "api_key", value: "12345678", sensitive: true },
-  ],
+  metadata: [{ key: "api_key", value: "12345678", sensitive: true }],
   daily_cost: 10,
 }
 
@@ -359,10 +384,7 @@ export const MockWorkspaceResource2: TypesGen.WorkspaceResource = {
   workspace_transition: "start",
   hide: false,
   icon: "",
-  metadata: [
-    { key: "type", value: "google_compute_disk", sensitive: false },
-    { key: "size", value: "32GB", sensitive: false },
-  ],
+  metadata: [{ key: "size", value: "32GB", sensitive: false }],
   daily_cost: 10,
 }
 
@@ -380,10 +402,7 @@ export const MockWorkspaceResource3: TypesGen.WorkspaceResource = {
   workspace_transition: "start",
   hide: true,
   icon: "",
-  metadata: [
-    { key: "type", value: "google_compute_disk", sensitive: false },
-    { key: "size", value: "32GB", sensitive: false },
-  ],
+  metadata: [{ key: "size", value: "32GB", sensitive: false }],
   daily_cost: 20,
 }
 
@@ -1069,4 +1088,45 @@ export const MockTemplateACL: TypesGen.TemplateACL = {
 export const MockTemplateACLEmpty: TypesGen.TemplateACL = {
   group: [],
   users: [],
+}
+
+export const MockTemplateExample: TypesGen.TemplateExample = {
+  id: "aws-windows",
+  url: "https://github.com/coder/coder/tree/main/examples/templates/aws-windows",
+  name: "Develop in an ECS-hosted container",
+  description: "Get started with Linux development on AWS ECS.",
+  markdown:
+    "\n# aws-ecs\n\nThis is a sample template for running a Coder workspace on ECS. It assumes there\nis a pre-existing ECS cluster with EC2-based compute to host the workspace.\n\n## Architecture\n\nThis workspace is built using the following AWS resources:\n\n- Task definition - the container definition, includes the image, command, volume(s)\n- ECS service - manages the task definition\n\n## code-server\n\n`code-server` is installed via the `startup_script` argument in the `coder_agent`\nresource block. The `coder_app` resource is defined to access `code-server` through\nthe dashboard UI over `localhost:13337`.\n",
+  icon: "/icon/aws.png",
+  tags: ["aws", "cloud"],
+}
+
+export const MockTemplateExample2: TypesGen.TemplateExample = {
+  id: "aws-linux",
+  url: "https://github.com/coder/coder/tree/main/examples/templates/aws-linux",
+  name: "Develop in Linux on AWS EC2",
+  description: "Get started with Linux development on AWS EC2.",
+  markdown:
+    '\n# aws-linux\n\nTo get started, run `coder templates init`. When prompted, select this template.\nFollow the on-screen instructions to proceed.\n\n## Authentication\n\nThis template assumes that coderd is run in an environment that is authenticated\nwith AWS. For example, run `aws configure import` to import credentials on the\nsystem and user running coderd.  For other ways to authenticate [consult the\nTerraform docs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs#authentication-and-configuration).\n\n## Required permissions / policy\n\nThe following sample policy allows Coder to create EC2 instances and modify\ninstances provisioned by Coder:\n\n```json\n{\n    "Version": "2012-10-17",\n    "Statement": [\n        {\n            "Sid": "VisualEditor0",\n            "Effect": "Allow",\n            "Action": [\n                "ec2:GetDefaultCreditSpecification",\n                "ec2:DescribeIamInstanceProfileAssociations",\n                "ec2:DescribeTags",\n                "ec2:CreateTags",\n                "ec2:RunInstances",\n                "ec2:DescribeInstanceCreditSpecifications",\n                "ec2:DescribeImages",\n                "ec2:ModifyDefaultCreditSpecification",\n                "ec2:DescribeVolumes"\n            ],\n            "Resource": "*"\n        },\n        {\n            "Sid": "CoderResources",\n            "Effect": "Allow",\n            "Action": [\n                "ec2:DescribeInstances",\n                "ec2:DescribeInstanceAttribute",\n                "ec2:UnmonitorInstances",\n                "ec2:TerminateInstances",\n                "ec2:StartInstances",\n                "ec2:StopInstances",\n                "ec2:DeleteTags",\n                "ec2:MonitorInstances",\n                "ec2:CreateTags",\n                "ec2:RunInstances",\n                "ec2:ModifyInstanceAttribute",\n                "ec2:ModifyInstanceCreditSpecification"\n            ],\n            "Resource": "arn:aws:ec2:*:*:instance/*",\n            "Condition": {\n                "StringEquals": {\n                    "aws:ResourceTag/Coder_Provisioned": "true"\n                }\n            }\n        }\n    ]\n}\n```\n\n## code-server\n\n`code-server` is installed via the `startup_script` argument in the `coder_agent`\nresource block. The `coder_app` resource is defined to access `code-server` through\nthe dashboard UI over `localhost:13337`.\n',
+  icon: "/icon/aws.png",
+  tags: ["aws", "cloud"],
+}
+
+export const MockPermissions: Permissions = {
+  createGroup: true,
+  createTemplates: true,
+  createUser: true,
+  deleteTemplates: true,
+  readAllUsers: true,
+  updateUsers: true,
+  viewAuditLog: true,
+  viewDeploymentConfig: true,
+  viewUpdateCheck: true,
+}
+
+export const MockAppearance: TypesGen.AppearanceConfig = {
+  logo_url: "",
+  service_banner: {
+    enabled: false,
+  },
 }

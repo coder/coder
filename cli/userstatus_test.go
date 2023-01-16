@@ -33,7 +33,7 @@ func TestUserStatus(t *testing.T) {
 	})
 
 	t.Run("StatusOther", func(t *testing.T) {
-		require.Equal(t, otherUser.Status, codersdk.UserStatusActive, "start as active")
+		require.Equal(t, codersdk.UserStatusActive, otherUser.Status, "start as active")
 
 		cmd, root := clitest.New(t, "users", "suspend", otherUser.Username)
 		clitest.SetupConfig(t, client, root)
@@ -45,7 +45,7 @@ func TestUserStatus(t *testing.T) {
 		// Check the user status
 		otherUser, err = client.User(context.Background(), otherUser.Username)
 		require.NoError(t, err, "fetch suspended user")
-		require.Equal(t, otherUser.Status, codersdk.UserStatusSuspended, "suspended user")
+		require.Equal(t, codersdk.UserStatusSuspended, otherUser.Status, "suspended user")
 
 		// Set back to active. Try using a uuid as well
 		cmd, root = clitest.New(t, "users", "activate", otherUser.ID.String())
@@ -58,6 +58,6 @@ func TestUserStatus(t *testing.T) {
 		// Check the user status
 		otherUser, err = client.User(context.Background(), otherUser.ID.String())
 		require.NoError(t, err, "fetch active user")
-		require.Equal(t, otherUser.Status, codersdk.UserStatusActive, "active user")
+		require.Equal(t, codersdk.UserStatusActive, otherUser.Status, "active user")
 	})
 }

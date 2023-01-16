@@ -1,18 +1,24 @@
 // For format details, see https://aka.ms/devcontainer.json
 {
-	"name": "Development environments on your infrastructure",
+  "name": "Development environments on your infrastructure",
 
-	// Sets the run context to one level up instead of the .devcontainer folder.
-	"context": ".",
+  // Sets the run context to one level up instead of the .devcontainer folder.
+  "context": ".",
 
-	// Update the 'dockerFile' property if you aren't using the standard 'Dockerfile' filename.
-	"dockerFile": "Dockerfile",
+  // Update the 'dockerFile' property if you aren't using the standard 'Dockerfile' filename.
+  "dockerFile": "Dockerfile",
 
-	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	// "forwardPorts": [],
-	
-	"postStartCommand": "dockerd",
+  // Use 'forwardPorts' to make a list of ports inside the container available locally.
+  // "forwardPorts": [],
 
-	// privileged is required by GitHub codespaces - https://github.com/microsoft/vscode-dev-containers/issues/727
-	"runArgs": [ "--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined", "--privileged", "--init" ]	
+  "postStartCommand": "dockerd",
+
+  // privileged is required by GitHub codespaces - https://github.com/microsoft/vscode-dev-containers/issues/727
+  "runArgs": [
+    "--cap-add=SYS_PTRACE",
+    "--security-opt",
+    "seccomp=unconfined",
+    "--privileged",
+    "--init"
+  ]
 }

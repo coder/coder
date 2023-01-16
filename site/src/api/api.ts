@@ -133,6 +133,18 @@ export const getApiKey = async (): Promise<TypesGen.GenerateAPIKeyResponse> => {
   return response.data
 }
 
+export const getTokens = async (): Promise<TypesGen.APIKey[]> => {
+  const response = await axios.get<TypesGen.APIKey[]>(
+    "/api/v2/users/me/keys/tokens",
+  )
+  return response.data
+}
+
+export const deleteAPIKey = async (keyId: string): Promise<void> => {
+  const response = await axios.delete("/api/v2/users/me/keys/" + keyId)
+  return response.data
+}
+
 export const getUsers = async (
   options: TypesGen.UsersRequest,
 ): Promise<TypesGen.GetUsersResponse> => {
@@ -257,6 +269,37 @@ export const getPreviousTemplateVersionByName = async (
 
     throw error
   }
+}
+
+export const createTemplateVersion = async (
+  organizationId: string,
+  data: TypesGen.CreateTemplateVersionRequest,
+): Promise<TypesGen.TemplateVersion> => {
+  const response = await axios.post<TypesGen.TemplateVersion>(
+    `/api/v2/organizations/${organizationId}/templateversions`,
+    data,
+  )
+  return response.data
+}
+
+export const getTemplateVersionParameters = async (
+  versionId: string,
+): Promise<TypesGen.Parameter[]> => {
+  const response = await axios.get(
+    `/api/v2/templateversions/${versionId}/parameters`,
+  )
+  return response.data
+}
+
+export const createTemplate = async (
+  organizationId: string,
+  data: TypesGen.CreateTemplateRequest,
+): Promise<TypesGen.Template> => {
+  const response = await axios.post(
+    `/api/v2/organizations/${organizationId}/templates`,
+    data,
+  )
+  return response.data
 }
 
 export const updateTemplateMeta = async (
@@ -692,14 +735,43 @@ export const getFile = async (fileId: string): Promise<ArrayBuffer> => {
   return response.data
 }
 
-export const getServiceBanner = async (): Promise<TypesGen.ServiceBanner> => {
-  const response = await axios.get(`/api/v2/service-banner`)
+export const getAppearance = async (): Promise<TypesGen.AppearanceConfig> => {
+  const response = await axios.get(`/api/v2/appearance`)
   return response.data
 }
 
-export const setServiceBanner = async (
-  b: TypesGen.ServiceBanner,
-): Promise<TypesGen.ServiceBanner> => {
-  const response = await axios.put(`/api/v2/service-banner`, b)
+export const updateAppearance = async (
+  b: TypesGen.AppearanceConfig,
+): Promise<TypesGen.AppearanceConfig> => {
+  const response = await axios.put(`/api/v2/appearance`, b)
+  return response.data
+}
+
+export const getTemplateExamples = async (
+  organizationId: string,
+): Promise<TypesGen.TemplateExample[]> => {
+  const response = await axios.get(
+    `/api/v2/organizations/${organizationId}/templates/examples`,
+  )
+  return response.data
+}
+
+export const uploadTemplateFile = async (
+  file: File,
+): Promise<TypesGen.UploadResponse> => {
+  const response = await axios.post("/api/v2/files", file, {
+    headers: {
+      "Content-Type": "application/x-tar",
+    },
+  })
+  return response.data
+}
+
+export const getTemplateVersionLogs = async (
+  versionId: string,
+): Promise<TypesGen.ProvisionerJobLog[]> => {
+  const response = await axios.get<TypesGen.ProvisionerJobLog[]>(
+    `/api/v2/templateversions/${versionId}/logs`,
+  )
   return response.data
 }

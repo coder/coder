@@ -177,7 +177,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		})
 		_ = coderdtest.CreateFirstUser(t, client)
 		resp := oauth2Callback(t, client)
-		require.Equal(t, http.StatusPreconditionRequired, resp.StatusCode)
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
 	t.Run("BlockSignups", func(t *testing.T) {
 		t.Parallel()
@@ -480,7 +480,8 @@ func TestUserOIDC(t *testing.T) {
 
 	for _, tc := range []struct {
 		Name                string
-		Claims              jwt.MapClaims
+		IDTokenClaims       jwt.MapClaims
+		UserInfoClaims      jwt.MapClaims
 		AllowSignups        bool
 		EmailDomain         []string
 		Username            string
@@ -489,7 +490,7 @@ func TestUserOIDC(t *testing.T) {
 		IgnoreEmailVerified bool
 	}{{
 		Name: "EmailOnly",
-		Claims: jwt.MapClaims{
+		IDTokenClaims: jwt.MapClaims{
 			"email": "kyle@kwc.io",
 		},
 		AllowSignups: true,
@@ -497,7 +498,7 @@ func TestUserOIDC(t *testing.T) {
 		Username:     "kyle",
 	}, {
 		Name: "EmailNotVerified",
-		Claims: jwt.MapClaims{
+		IDTokenClaims: jwt.MapClaims{
 			"email":          "kyle@kwc.io",
 			"email_verified": false,
 		},
@@ -505,7 +506,7 @@ func TestUserOIDC(t *testing.T) {
 		StatusCode:   http.StatusForbidden,
 	}, {
 		Name: "EmailNotAString",
-		Claims: jwt.MapClaims{
+		IDTokenClaims: jwt.MapClaims{
 			"email":          3.14159,
 			"email_verified": false,
 		},
@@ -513,7 +514,7 @@ func TestUserOIDC(t *testing.T) {
 		StatusCode:   http.StatusBadRequest,
 	}, {
 		Name: "EmailNotVerifiedIgnored",
-		Claims: jwt.MapClaims{
+		IDTokenClaims: jwt.MapClaims{
 			"email":          "kyle@kwc.io",
 			"email_verified": false,
 		},
@@ -523,7 +524,7 @@ func TestUserOIDC(t *testing.T) {
 		IgnoreEmailVerified: true,
 	}, {
 		Name: "NotInRequiredEmailDomain",
-		Claims: jwt.MapClaims{
+		IDTokenClaims: jwt.MapClaims{
 			"email":          "kyle@kwc.io",
 			"email_verified": true,
 		},
@@ -534,7 +535,7 @@ func TestUserOIDC(t *testing.T) {
 		StatusCode: http.StatusForbidden,
 	}, {
 		Name: "EmailDomainCaseInsensitive",
-		Claims: jwt.MapClaims{
+		IDTokenClaims: jwt.MapClaims{
 			"email":          "kyle@KWC.io",
 			"email_verified": true,
 		},
@@ -544,20 +545,20 @@ func TestUserOIDC(t *testing.T) {
 		},
 		StatusCode: http.StatusTemporaryRedirect,
 	}, {
-		Name:         "EmptyClaims",
-		Claims:       jwt.MapClaims{},
-		AllowSignups: true,
-		StatusCode:   http.StatusBadRequest,
+		Name:          "EmptyClaims",
+		IDTokenClaims: jwt.MapClaims{},
+		AllowSignups:  true,
+		StatusCode:    http.StatusBadRequest,
 	}, {
 		Name: "NoSignups",
-		Claims: jwt.MapClaims{
+		IDTokenClaims: jwt.MapClaims{
 			"email":          "kyle@kwc.io",
 			"email_verified": true,
 		},
 		StatusCode: http.StatusForbidden,
 	}, {
 		Name: "UsernameFromEmail",
-		Claims: jwt.MapClaims{
+		IDTokenClaims: jwt.MapClaims{
 			"email":          "kyle@kwc.io",
 			"email_verified": true,
 		},
@@ -566,7 +567,7 @@ func TestUserOIDC(t *testing.T) {
 		StatusCode:   http.StatusTemporaryRedirect,
 	}, {
 		Name: "UsernameFromClaims",
-		Claims: jwt.MapClaims{
+		IDTokenClaims: jwt.MapClaims{
 			"email":              "kyle@kwc.io",
 			"email_verified":     true,
 			"preferred_username": "hotdog",
@@ -578,7 +579,7 @@ func TestUserOIDC(t *testing.T) {
 		// Services like Okta return the email as the username:
 		// https://developer.okta.com/docs/reference/api/oidc/#base-claims-always-present
 		Name: "UsernameAsEmail",
-		Claims: jwt.MapClaims{
+		IDTokenClaims: jwt.MapClaims{
 			"email":              "kyle@kwc.io",
 			"email_verified":     true,
 			"preferred_username": "kyle@kwc.io",
@@ -589,7 +590,7 @@ func TestUserOIDC(t *testing.T) {
 	}, {
 		// See: https://github.com/coder/coder/issues/4472
 		Name: "UsernameIsEmail",
-		Claims: jwt.MapClaims{
+		IDTokenClaims: jwt.MapClaims{
 			"preferred_username": "kyle@kwc.io",
 		},
 		Username:     "kyle",
@@ -597,13 +598,27 @@ func TestUserOIDC(t *testing.T) {
 		StatusCode:   http.StatusTemporaryRedirect,
 	}, {
 		Name: "WithPicture",
-		Claims: jwt.MapClaims{
-			"email":          "kyle@kwc.io",
-			"email_verified": true,
-			"username":       "kyle",
-			"picture":        "/example.png",
+		IDTokenClaims: jwt.MapClaims{
+			"email":              "kyle@kwc.io",
+			"email_verified":     true,
+			"preferred_username": "kyle",
+			"picture":            "/example.png",
 		},
 		Username:     "kyle",
+		AllowSignups: true,
+		AvatarURL:    "/example.png",
+		StatusCode:   http.StatusTemporaryRedirect,
+	}, {
+		Name: "WithUserInfoClaims",
+		IDTokenClaims: jwt.MapClaims{
+			"email":          "kyle@kwc.io",
+			"email_verified": true,
+		},
+		UserInfoClaims: jwt.MapClaims{
+			"preferred_username": "potato",
+			"picture":            "/example.png",
+		},
+		Username:     "potato",
 		AllowSignups: true,
 		AvatarURL:    "/example.png",
 		StatusCode:   http.StatusTemporaryRedirect,
@@ -613,7 +628,7 @@ func TestUserOIDC(t *testing.T) {
 			t.Parallel()
 			conf := coderdtest.NewOIDCConfig(t, "")
 
-			config := conf.OIDCConfig()
+			config := conf.OIDCConfig(t, tc.UserInfoClaims)
 			config.AllowSignups = tc.AllowSignups
 			config.EmailDomain = tc.EmailDomain
 			config.IgnoreEmailVerified = tc.IgnoreEmailVerified
@@ -621,7 +636,7 @@ func TestUserOIDC(t *testing.T) {
 			client := coderdtest.New(t, &coderdtest.Options{
 				OIDCConfig: config,
 			})
-			resp := oidcCallback(t, client, conf.EncodeClaims(t, tc.Claims))
+			resp := oidcCallback(t, client, conf.EncodeClaims(t, tc.IDTokenClaims))
 			assert.Equal(t, tc.StatusCode, resp.StatusCode)
 
 			ctx, _ := testutil.Context(t)
@@ -647,7 +662,7 @@ func TestUserOIDC(t *testing.T) {
 
 		conf := coderdtest.NewOIDCConfig(t, "")
 
-		config := conf.OIDCConfig()
+		config := conf.OIDCConfig(t, nil)
 		config.AllowSignups = true
 
 		client := coderdtest.New(t, &coderdtest.Options{
@@ -686,7 +701,7 @@ func TestUserOIDC(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		resp := oidcCallback(t, client, "asdf")
-		require.Equal(t, http.StatusPreconditionRequired, resp.StatusCode)
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
 
 	t.Run("NoIDToken", func(t *testing.T) {
@@ -705,6 +720,7 @@ func TestUserOIDC(t *testing.T) {
 		verifier := oidc.NewVerifier("", &oidc.StaticKeySet{
 			PublicKeys: []crypto.PublicKey{},
 		}, &oidc.Config{})
+		provider := &oidc.Provider{}
 
 		client := coderdtest.New(t, &coderdtest.Options{
 			OIDCConfig: &coderd.OIDCConfig{
@@ -715,6 +731,7 @@ func TestUserOIDC(t *testing.T) {
 						"id_token": "invalid",
 					}),
 				},
+				Provider: provider,
 				Verifier: verifier,
 			},
 		})

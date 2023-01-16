@@ -10,16 +10,16 @@ import (
 	"github.com/google/uuid"
 )
 
+// APIKey: do not ever return the HashedSecret
 type APIKey struct {
-	ID string `json:"id" validate:"required"`
-	// NOTE: do not ever return the HashedSecret
-	UserID          uuid.UUID   `json:"user_id" validate:"required"`
-	LastUsed        time.Time   `json:"last_used" validate:"required"`
-	ExpiresAt       time.Time   `json:"expires_at" validate:"required"`
-	CreatedAt       time.Time   `json:"created_at" validate:"required"`
-	UpdatedAt       time.Time   `json:"updated_at" validate:"required"`
-	LoginType       LoginType   `json:"login_type" validate:"required"`
-	Scope           APIKeyScope `json:"scope" validate:"required"`
+	ID              string      `json:"id" validate:"required"`
+	UserID          uuid.UUID   `json:"user_id" validate:"required" format:"uuid"`
+	LastUsed        time.Time   `json:"last_used" validate:"required" format:"date-time"`
+	ExpiresAt       time.Time   `json:"expires_at" validate:"required" format:"date-time"`
+	CreatedAt       time.Time   `json:"created_at" validate:"required" format:"date-time"`
+	UpdatedAt       time.Time   `json:"updated_at" validate:"required" format:"date-time"`
+	LoginType       LoginType   `json:"login_type" validate:"required" enums:"password,github,oidc,token"`
+	Scope           APIKeyScope `json:"scope" validate:"required" enums:"all,application_connect"`
 	LifetimeSeconds int64       `json:"lifetime_seconds" validate:"required"`
 }
 
@@ -41,7 +41,7 @@ const (
 
 type CreateTokenRequest struct {
 	Lifetime time.Duration `json:"lifetime"`
-	Scope    APIKeyScope   `json:"scope"`
+	Scope    APIKeyScope   `json:"scope" enums:"all,application_connect"`
 }
 
 // GenerateAPIKeyResponse contains an API key for a user.

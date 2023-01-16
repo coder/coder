@@ -45,6 +45,14 @@ func (api *API) provisionerDaemonsEnabledMW(next http.Handler) http.Handler {
 	})
 }
 
+// @Summary Get provisioner daemons
+// @ID get-provisioner-daemons
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param organization path string true "Organization ID" format(uuid)
+// @Success 200 {array} codersdk.ProvisionerDaemon
+// @Router /organizations/{organization}/provisionerdaemons [get]
 func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
@@ -82,6 +90,14 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 }
 
 // Serves the provisioner daemon protobuf API over a WebSocket.
+//
+// @Summary Serve provisioner daemon
+// @ID serve-provisioner-daemon
+// @Security CoderSessionToken
+// @Tags Enterprise
+// @Param organization path string true "Organization ID" format(uuid)
+// @Success 101
+// @Router /organizations/{organization}/provisionerdaemons/serve [get]
 func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) {
 	tags := map[string]string{}
 	if r.URL.Query().Has("tag") {

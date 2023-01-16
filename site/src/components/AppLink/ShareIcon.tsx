@@ -1,6 +1,7 @@
 import PublicOutlinedIcon from "@material-ui/icons/PublicOutlined"
 import LockOutlinedIcon from "@material-ui/icons/LockOutlined"
 import GroupOutlinedIcon from "@material-ui/icons/GroupOutlined"
+import LaunchOutlinedIcon from "@material-ui/icons/LaunchOutlined"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import Tooltip from "@material-ui/core/Tooltip"
@@ -22,6 +23,10 @@ export const ShareIcon: FC<ShareIconProps> = ({ app }) => {
   if (app.sharing_level === "public") {
     shareIcon = <PublicOutlinedIcon />
     shareTooltip = t("shareTooltip.public")
+  }
+  if (app.external) {
+    shareIcon = <LaunchOutlinedIcon />
+    shareTooltip = t("shareTooltip.external")
   }
 
   return <Tooltip title={shareTooltip}>{shareIcon}</Tooltip>
