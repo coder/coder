@@ -17,6 +17,12 @@ on:
     # Run every week at 10:24 on Thursday.
     - cron: "24 10 * * 4"
 
+# Cancel in-progress runs for pull requests when developers push
+# additional changes
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-security
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   codeql:
     name: CodeQL
