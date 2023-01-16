@@ -198,19 +198,19 @@ jobs:
       - name: Echo Go Cache Paths
         id: go-cache-paths
         run: |
-          echo "go-build=$(go env GOCACHE)" >> $GITHUB_OUTPUT
-          echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
+          echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Build Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
           key: ${{ github.job }}-go-build-${{ hashFiles('**/go.sum', '**/**.go') }}
 
       - name: Go Mod Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
           key: ${{ github.job }}-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Install sqlc
@@ -299,19 +299,19 @@ jobs:
       - name: Echo Go Cache Paths
         id: go-cache-paths
         run: |
-          echo "go-build=$(go env GOCACHE)" >> $GITHUB_OUTPUT
-          echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
+          echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Build Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.**', '**.go') }}
 
       - name: Go Mod Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Install gotestsum
@@ -402,19 +402,19 @@ jobs:
       - name: Echo Go Cache Paths
         id: go-cache-paths
         run: |
-          echo "go-build=$(go env GOCACHE)" >> $GITHUB_OUTPUT
-          echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
+          echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Build Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum', '**/**.go') }}
 
       - name: Go Mod Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Install gotestsum
@@ -508,19 +508,19 @@ jobs:
       - name: Echo Go Cache Paths
         id: go-cache-paths
         run: |
-          echo "go-build=$(go env GOCACHE)" >> $GITHUB_OUTPUT
-          echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
+          echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Build Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
           key: ${{ runner.os }}-release-go-build-${{ hashFiles('**/go.sum') }}
 
       - name: Go Mod Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
           key: ${{ runner.os }}-release-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Cache Node
@@ -652,19 +652,19 @@ jobs:
       - name: Echo Go Cache Paths
         id: go-cache-paths
         run: |
-          echo "go-build=$(go env GOCACHE)" >> $GITHUB_OUTPUT
-          echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
+          echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Build Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
 
       - name: Go Mod Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Build

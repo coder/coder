@@ -52,13 +52,13 @@ jobs:
         if: matrix.language == 'go'
         id: go-cache-paths
         run: |
-          echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
+          echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Mod Cache
         if: matrix.language == 'go'
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
           key: ${{ runner.os }}-release-go-mod-${{ hashFiles('**/go.sum') }}
 
       # Workaround to prevent CodeQL from building the dashboard.
@@ -87,12 +87,12 @@ jobs:
       - name: Go Cache Paths
         id: go-cache-paths
         run: |
-          echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
+          echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Mod Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
           key: ${{ runner.os }}-release-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Cache Node
