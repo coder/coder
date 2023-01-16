@@ -51,7 +51,7 @@ jobs:
         if: matrix.language == 'go'
         id: go-cache-paths
         run: |
-          echo "::set-output name=go-mod::$(go env GOMODCACHE)"
+          echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Mod Cache
         if: matrix.language == 'go'
@@ -84,13 +84,11 @@ jobs:
           go-version: "~1.19"
 
       - name: Go Cache Paths
-        if: matrix.language == 'go'
         id: go-cache-paths
         run: |
-          echo "::set-output name=go-mod::$(go env GOMODCACHE)"
+          echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Mod Cache
-        if: matrix.language == 'go'
         uses: actions/cache@v3
         with:
           path: ${{ steps.go-cache-paths.outputs.go-mod }}

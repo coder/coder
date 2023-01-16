@@ -25,7 +25,7 @@ jobs:
           tag=${{ steps.branch-name.outputs.current_branch }}
           # Replace / with --, e.g. user/feature => user--feature.
           tag=${tag//\//--}
-          echo "::set-output name=tag::${tag}"
+          echo "tag=${tag}" >> $GITHUB_OUTPUT
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
@@ -54,7 +54,7 @@ jobs:
         uses: actions/checkout@v3
       - name: Get short commit SHA
         id: vars
-        run: echo "::set-output name=sha_short::$(git rev-parse --short HEAD)"
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
       - name: "Install latest Coder"
         run: |
           curl -L https://coder.com/install.sh | sh

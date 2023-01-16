@@ -198,8 +198,8 @@ jobs:
       - name: Echo Go Cache Paths
         id: go-cache-paths
         run: |
-          echo "::set-output name=go-build::$(go env GOCACHE)"
-          echo "::set-output name=go-mod::$(go env GOMODCACHE)"
+          echo "go-build=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Build Cache
         uses: actions/cache@v3
@@ -299,8 +299,8 @@ jobs:
       - name: Echo Go Cache Paths
         id: go-cache-paths
         run: |
-          echo "::set-output name=go-build::$(go env GOCACHE)"
-          echo "::set-output name=go-mod::$(go env GOMODCACHE)"
+          echo "go-build=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Build Cache
         uses: actions/cache@v3
@@ -335,10 +335,10 @@ jobs:
           # prevents test caching, so we disable it on alternate operating
           # systems.
           if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
-            echo ::set-output name=cover::true
+            echo "cover=true" >> $GITHUB_OUTPUT
             export COVERAGE_FLAGS='-covermode=atomic -coverprofile="gotests.coverage" -coverpkg=./...'
           else
-            echo ::set-output name=cover::false
+            echo "cover=false" >> $GITHUB_OUTPUT
           fi
           set +e
           gotestsum --junitfile="gotests.xml" --jsonfile="gotestsum.json" --packages="./..." --debug -- -parallel=8 -timeout=5m -short -failfast $COVERAGE_FLAGS
@@ -402,8 +402,8 @@ jobs:
       - name: Echo Go Cache Paths
         id: go-cache-paths
         run: |
-          echo "::set-output name=go-build::$(go env GOCACHE)"
-          echo "::set-output name=go-mod::$(go env GOMODCACHE)"
+          echo "go-build=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Build Cache
         uses: actions/cache@v3
@@ -474,7 +474,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./gotests.coverage
-          flags: unittest-go-postgres-${{ matrix.os }}
+          flags: unittest-go-postgres-linux
 
   deploy:
     name: "deploy"
@@ -508,8 +508,8 @@ jobs:
       - name: Echo Go Cache Paths
         id: go-cache-paths
         run: |
-          echo "::set-output name=go-build::$(go env GOCACHE)"
-          echo "::set-output name=go-mod::$(go env GOMODCACHE)"
+          echo "go-build=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Build Cache
         uses: actions/cache@v3
@@ -652,8 +652,8 @@ jobs:
       - name: Echo Go Cache Paths
         id: go-cache-paths
         run: |
-          echo "::set-output name=go-build::$(go env GOCACHE)"
-          echo "::set-output name=go-mod::$(go env GOMODCACHE)"
+          echo "go-build=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Build Cache
         uses: actions/cache@v3
