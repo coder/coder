@@ -3,7 +3,6 @@ package license_test
 import (
 	"context"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -19,16 +18,12 @@ import (
 
 func TestEntitlements(t *testing.T) {
 	t.Parallel()
-	all := map[string]bool{
-		codersdk.FeatureAuditLog:                   true,
-		codersdk.FeatureBrowserOnly:                true,
-		codersdk.FeatureSCIM:                       true,
-		codersdk.FeatureHighAvailability:           true,
-		codersdk.FeatureTemplateRBAC:               true,
-		codersdk.FeatureMultipleGitAuth:            true,
-		codersdk.FeatureExternalProvisionerDaemons: true,
-		codersdk.FeatureAppearance:                 true,
+	all := make(map[codersdk.FeatureName]bool)
+	for _, n := range codersdk.FeatureNames {
+		all[n] = true
 	}
+
+	empty := map[codersdk.FeatureName]bool{}
 
 	t.Run("Defaults", func(t *testing.T) {
 		t.Parallel()
@@ -49,7 +44,7 @@ func TestEntitlements(t *testing.T) {
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{}),
 			Exp: time.Now().Add(time.Hour),
 		})
-		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 1, coderdenttest.Keys, map[string]bool{})
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 1, coderdenttest.Keys, empty)
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 		require.False(t, entitlements.Trial)
@@ -75,7 +70,7 @@ func TestEntitlements(t *testing.T) {
 			}),
 			Exp: time.Now().Add(time.Hour),
 		})
-		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 1, coderdenttest.Keys, map[string]bool{})
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 1, coderdenttest.Keys, empty)
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 		require.False(t, entitlements.Trial)
@@ -115,7 +110,7 @@ func TestEntitlements(t *testing.T) {
 			if featureName == codersdk.FeatureMultipleGitAuth {
 				continue
 			}
-			niceName := strings.Title(strings.ReplaceAll(featureName, "_", " "))
+			niceName := featureName.Humanize()
 			require.Equal(t, codersdk.EntitlementGracePeriod, entitlements.Features[featureName].Entitlement)
 			require.Contains(t, entitlements.Warnings, fmt.Sprintf("%s is enabled but your license for this feature is expired.", niceName))
 		}
@@ -141,7 +136,7 @@ func TestEntitlements(t *testing.T) {
 			if featureName == codersdk.FeatureMultipleGitAuth {
 				continue
 			}
-			niceName := strings.Title(strings.ReplaceAll(featureName, "_", " "))
+			niceName := featureName.Humanize()
 			// Ensures features that are not entitled are properly disabled.
 			require.False(t, entitlements.Features[featureName].Enabled)
 			require.Equal(t, codersdk.EntitlementNotEntitled, entitlements.Features[featureName].Entitlement)
@@ -163,7 +158,7 @@ func TestEntitlements(t *testing.T) {
 			}),
 			Exp: time.Now().Add(time.Hour),
 		})
-		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 1, coderdenttest.Keys, map[string]bool{})
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 1, coderdenttest.Keys, empty)
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 		require.Contains(t, entitlements.Warnings, "Your deployment has 2 active users but is only licensed for 1.")
@@ -185,7 +180,7 @@ func TestEntitlements(t *testing.T) {
 			}),
 			Exp: time.Now().Add(time.Hour),
 		})
-		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 1, coderdenttest.Keys, map[string]bool{})
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 1, coderdenttest.Keys, empty)
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 		require.Empty(t, entitlements.Warnings)
@@ -208,7 +203,7 @@ func TestEntitlements(t *testing.T) {
 			}),
 		})
 
-		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 1, coderdenttest.Keys, map[string]bool{})
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 1, coderdenttest.Keys, empty)
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 		require.False(t, entitlements.Trial)
@@ -255,7 +250,7 @@ func TestEntitlements(t *testing.T) {
 				AuditLog: true,
 			}),
 		})
-		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 2, 1, coderdenttest.Keys, map[string]bool{
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 2, 1, coderdenttest.Keys, map[codersdk.FeatureName]bool{
 			codersdk.FeatureHighAvailability: true,
 		})
 		require.NoError(t, err)
@@ -275,7 +270,7 @@ func TestEntitlements(t *testing.T) {
 			}),
 			Exp: time.Now().Add(time.Hour),
 		})
-		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 2, 1, coderdenttest.Keys, map[string]bool{
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 2, 1, coderdenttest.Keys, map[codersdk.FeatureName]bool{
 			codersdk.FeatureHighAvailability: true,
 		})
 		require.NoError(t, err)
@@ -303,7 +298,7 @@ func TestEntitlements(t *testing.T) {
 				AuditLog: true,
 			}),
 		})
-		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 2, coderdenttest.Keys, map[string]bool{
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 2, coderdenttest.Keys, map[codersdk.FeatureName]bool{
 			codersdk.FeatureMultipleGitAuth: true,
 		})
 		require.NoError(t, err)
@@ -323,7 +318,7 @@ func TestEntitlements(t *testing.T) {
 			}),
 			Exp: time.Now().Add(time.Hour),
 		})
-		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 2, coderdenttest.Keys, map[string]bool{
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 2, coderdenttest.Keys, map[codersdk.FeatureName]bool{
 			codersdk.FeatureMultipleGitAuth: true,
 		})
 		require.NoError(t, err)

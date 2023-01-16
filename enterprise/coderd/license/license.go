@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/ed25519"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -24,12 +23,12 @@ func Entitlements(
 	replicaCount int,
 	gitAuthCount int,
 	keys map[string]ed25519.PublicKey,
-	enablements map[string]bool,
+	enablements map[codersdk.FeatureName]bool,
 ) (codersdk.Entitlements, error) {
 	now := time.Now()
 	// Default all entitlements to be disabled.
 	entitlements := codersdk.Entitlements{
-		Features: map[string]codersdk.Feature{},
+		Features: map[codersdk.FeatureName]codersdk.Feature{},
 		Warnings: []string{},
 		Errors:   []string{},
 	}
@@ -171,7 +170,7 @@ func Entitlements(
 			if !feature.Enabled {
 				continue
 			}
-			niceName := strings.Title(strings.ReplaceAll(featureName, "_", " "))
+			niceName := featureName.Humanize()
 			switch feature.Entitlement {
 			case codersdk.EntitlementNotEntitled:
 				entitlements.Warnings = append(entitlements.Warnings,
