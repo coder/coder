@@ -1279,6 +1279,10 @@ func TestServer(t *testing.T) {
 				_ = os.Remove(fi3.Name())
 			}()
 
+			// NOTE(mafredri): This test might end up downloading Terraform
+			// which can take a long time and end up failing the test.
+			// This is why we wait extra long below for server to listen on
+			// HTTP.
 			root, _ := clitest.New(t,
 				"server",
 				"--verbose",
@@ -1289,26 +1293,38 @@ func TestServer(t *testing.T) {
 				"--log-json", fi2.Name(),
 				"--log-stackdriver", fi3.Name(),
 			)
+			// Attach pty so we get debug output from the command if this test
+			// fails.
+			pty := ptytest.New(t)
+			root.SetOut(pty.Output())
+			root.SetErr(pty.Output())
+
 			serverErr := make(chan error, 1)
 			go func() {
 				serverErr <- root.ExecuteContext(ctx)
 			}()
+			defer func() {
+				cancelFunc()
+				<-serverErr
+			}()
 
-			assert.Eventually(t, func() bool {
+			require.Eventually(t, func() bool {
+				line := pty.ReadLine()
+				return strings.HasPrefix(line, "Started HTTP listener at ")
+			}, testutil.WaitLong*2, testutil.IntervalMedium, "wait for server to listen on http")
+
+			require.Eventually(t, func() bool {
 				stat, err := os.Stat(fi1.Name())
 				return err == nil && stat.Size() > 0
-			}, testutil.WaitLong, testutil.IntervalMedium)
-			assert.Eventually(t, func() bool {
+			}, testutil.WaitShort, testutil.IntervalMedium, "log human size > 0")
+			require.Eventually(t, func() bool {
 				stat, err := os.Stat(fi2.Name())
 				return err == nil && stat.Size() > 0
-			}, testutil.WaitLong, testutil.IntervalMedium)
-			assert.Eventually(t, func() bool {
+			}, testutil.WaitShort, testutil.IntervalMedium, "log json size > 0")
+			require.Eventually(t, func() bool {
 				stat, err := os.Stat(fi3.Name())
 				return err == nil && stat.Size() > 0
-			}, testutil.WaitLong, testutil.IntervalMedium)
-
-			cancelFunc()
-			<-serverErr
+			}, testutil.WaitShort, testutil.IntervalMedium, "log stackdriver size > 0")
 		})
 	})
 }
