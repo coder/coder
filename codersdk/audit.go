@@ -22,7 +22,13 @@ const (
 	ResourceTypeWorkspaceBuild  ResourceType = "workspace_build"
 	ResourceTypeGitSSHKey       ResourceType = "git_ssh_key"
 	ResourceTypeAPIKey          ResourceType = "api_key"
-	ResourceTypeGroup           ResourceType = "group"
+	// ResourceTypeGroup           ResourceType = "group"
+
+	// ResourceTypeAuditableGroup ResourceType = "auditable_group" // does not work
+	// ResourceTypeAuditableGroup ResourceType = "group" // does not work
+
+	ResourceTypeGroup ResourceType = "auditable_group"
+	// ResourceTypeGroup	ResourceType = "group"
 )
 
 func (r ResourceType) FriendlyString() string {

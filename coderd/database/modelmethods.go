@@ -1,8 +1,35 @@
 package database
 
 import (
+	"sort"
+
 	"github.com/coder/coder/coderd/rbac"
 )
+
+type AuditableGroup struct {
+	Group
+	Members []GroupMember
+}
+
+func (g Group) Auditable(users []User) AuditableGroup {
+	members := make([]GroupMember, 0, len(users))
+	for _, u := range users {
+		members = append(members, GroupMember{
+			UserID:  u.ID,
+			GroupID: g.ID,
+		})
+	}
+
+	// we sort to ensure the diff order enterprise/audit/diff.go:18
+	sort.Slice(members, func(i, j int) bool {
+		return members[i].UserID.String() < members[j].UserID.String()
+	})
+
+	return AuditableGroup{
+		Group:   g,
+		Members: members,
+	}
+}
 
 const AllUsersGroup = "Everyone"
 

@@ -6858,7 +6858,7 @@ const docTemplate = `{
                 "workspace_build",
                 "git_ssh_key",
                 "api_key",
-                "group"
+                "auditable_group"
             ],
             "x-enum-varnames": [
                 "ResourceTypeOrganization",
