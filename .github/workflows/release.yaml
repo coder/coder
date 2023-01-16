@@ -36,6 +36,8 @@ jobs:
     env:
       # Necessary for Docker manifest
       DOCKER_CLI_EXPERIMENTAL: "enabled"
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v3
         with:
@@ -48,6 +50,16 @@ jobs:
       # https://github.com/actions/checkout/issues/290
       - name: Fetch git tags
         run: git fetch --tags --force
+
+      - name: Print version
+        id: version
+        run: |
+          set -euo pipefail
+          version="$(./scripts/version.sh)"
+          echo "version=$version" >> $GITHUB_OUTPUT
+          # Speed up future version.sh calls.
+          echo "CODER_FORCE_VERSION=$version" >> $GITHUB_ENV
+          echo "$version"
 
       - name: Create release notes
         env:
@@ -238,3 +250,73 @@ jobs:
             ./build/*.deb
             ./build/*.rpm
           retention-days: 7
+
+  publish-winget:
+    runs-on: windows-latest
+    needs: release
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      # If the event that triggered the build was an annotated tag (which our
+      # tags are supposed to be), actions/checkout has a bug where the tag in
+      # question is only a lightweight tag and not a full annotated tag. This
+      # command seems to fix it.
+      # https://github.com/actions/checkout/issues/290
+      - name: Fetch git tags
+        run: git fetch --tags --force
+
+      - name: Install wingetcreate
+        run: |
+          Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+
+      - name: Submit updated manifest to winget-pkgs
+        run: |
+          # The package version is the same as the tag minus the leading "v".
+          $version = "${{ needs.release.outputs.version }}".Trim('v')
+          $vversion = "v${version}"
+
+          $release_assets = gh release view --repo coder/coder "$vversion" --json assets | `
+            ConvertFrom-Json
+          # Get the installer URL from the release assets.
+          $installer_url = $release_assets.assets | `
+            Where-Object name -Match ".*_windows_amd64_installer.exe$" | `
+            Select -ExpandProperty url
+
+          echo "Installer URL: $installer_url"
+          echo "Package version: $version"
+
+          # Bail if dry-run.
+          if ($env:CODER_DRY_RUN -match "t") {
+            echo "Skipping submission due to dry-run."
+            exit 0
+          }
+
+          # The URL "|X64" suffix forces the architecture as it cannot be
+          # sniffed properly from the URL. wingetcreate checks both the URL and
+          # binary magic bytes for the architecture and they need to both match,
+          # but they only check for `x64`, `win64` and `_64` in the URL. Our URL
+          # contains `amd64` which doesn't match sadly.
+          #
+          # wingetcreate will still do the binary magic bytes check, so if we
+          # accidentally change the architecture of the installer, it will fail
+          # submission.
+          .\wingetcreate.exe update Coder.Coder `
+            --submit `
+            --version "${version}" `
+            --urls "${installer_url}|X64" `
+            --token "${{ secrets.CDRCI_GITHUB_TOKEN }}"
+
+        env:
+          # For gh CLI:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Comment on PR
+        run: |
+          # Find the PR that wingetcreate just made.
+          $pr_list = gh pr list --repo microsoft/winget-pkgs --search "author:cdrci Coder.Coder version ${{ steps.version.outputs.version }}" --limit 1 --json number | `
+            ConvertFrom-Json`
+          $pr_number = $pr_list[0].number
+
+          gh pr comment --repo microsoft/winget-pkgs "$pr_number" --body "🤖 cc: @deansheather @matifali"
