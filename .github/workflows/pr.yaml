@@ -28,6 +28,8 @@ jobs:
     runs-on: ubuntu-latest
     # Depend on lint so that title is Conventional Commits-compatible.
     needs: [lint-title]
+    # Skip tagging for draft PRs.
+    if: ${{ !github.event.pull_request.draft }}
     steps:
       - uses: actions/github-script@v6
         with:
