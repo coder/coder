@@ -1134,10 +1134,8 @@ func TestServer(t *testing.T) {
 
 			random, err := cryptorand.String(5)
 			require.NoError(t, err)
-			fiName := fmt.Sprint(os.TempDir(), "/coder-logging-test-", random)
-			defer func() {
-				_ = os.Remove(fiName)
-			}()
+			tmpdir := t.TempDir()
+			fiName := fmt.Sprint(tmpdir, "/coder-logging-test-", random)
 
 			root, _ := clitest.New(t,
 				"server",
@@ -1165,11 +1163,9 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
-			fi, err := os.CreateTemp("", "coder-logging-test-*")
+			tmpdir := t.TempDir()
+			fi, err := os.CreateTemp(tmpdir, "coder-logging-test-*")
 			require.NoError(t, err)
-			defer func() {
-				_ = os.Remove(fi.Name())
-			}()
 
 			root, _ := clitest.New(t,
 				"server",
@@ -1197,11 +1193,9 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
-			fi, err := os.CreateTemp("", "coder-logging-test-*")
+			tmpdir := t.TempDir()
+			fi, err := os.CreateTemp(tmpdir, "coder-logging-test-*")
 			require.NoError(t, err)
-			defer func() {
-				_ = os.Remove(fi.Name())
-			}()
 
 			root, _ := clitest.New(t,
 				"server",
@@ -1229,11 +1223,9 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
-			fi, err := os.CreateTemp("", "coder-logging-test-*")
+			tmpdir := t.TempDir()
+			fi, err := os.CreateTemp(tmpdir, "coder-logging-test-*")
 			require.NoError(t, err)
-			defer func() {
-				_ = os.Remove(fi.Name())
-			}()
 
 			root, _ := clitest.New(t,
 				"server",
@@ -1243,17 +1235,30 @@ func TestServer(t *testing.T) {
 				"--access-url", "http://example.com",
 				"--log-stackdriver", fi.Name(),
 			)
+			// Attach pty so we get debug output from the command if this test
+			// fails.
+			pty := ptytest.New(t)
+			root.SetOut(pty.Output())
+			root.SetErr(pty.Output())
+
 			serverErr := make(chan error, 1)
 			go func() {
 				serverErr <- root.ExecuteContext(ctx)
 			}()
+			defer func() {
+				cancelFunc()
+				<-serverErr
+			}()
 
-			assert.Eventually(t, func() bool {
+			require.Eventually(t, func() bool {
+				line := pty.ReadLine()
+				return strings.HasPrefix(line, "Started HTTP listener at ")
+			}, testutil.WaitLong*2, testutil.IntervalMedium, "wait for server to listen on http")
+
+			require.Eventually(t, func() bool {
 				stat, err := os.Stat(fi.Name())
 				return err == nil && stat.Size() > 0
 			}, testutil.WaitLong, testutil.IntervalMedium)
-			cancelFunc()
-			<-serverErr
 		})
 
 		t.Run("Multiple", func(t *testing.T) {
@@ -1261,23 +1266,13 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
-			fi1, err := os.CreateTemp("", "coder-logging-test-*")
+			tmpdir := t.TempDir()
+			fi1, err := os.CreateTemp(tmpdir, "coder-logging-test-*")
 			require.NoError(t, err)
-			defer func() {
-				_ = os.Remove(fi1.Name())
-			}()
-
-			fi2, err := os.CreateTemp("", "coder-logging-test-*")
+			fi2, err := os.CreateTemp(tmpdir, "coder-logging-test-*")
 			require.NoError(t, err)
-			defer func() {
-				_ = os.Remove(fi2.Name())
-			}()
-
-			fi3, err := os.CreateTemp("", "coder-logging-test-*")
+			fi3, err := os.CreateTemp(tmpdir, "coder-logging-test-*")
 			require.NoError(t, err)
-			defer func() {
-				_ = os.Remove(fi3.Name())
-			}()
 
 			// NOTE(mafredri): This test might end up downloading Terraform
 			// which can take a long time and end up failing the test.
