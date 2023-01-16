@@ -627,7 +627,6 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			}
 		}
 
-		server.Logger.Info(ctx, "template import !", slog.F("template_import", jobType.TemplateImport.String()))
 		for _, richParameter := range jobType.TemplateImport.RichParameters {
 			server.Logger.Info(ctx, "inserting template import job parameter",
 				slog.F("job_id", job.ID.String()),
