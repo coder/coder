@@ -35,7 +35,6 @@ Software development on your infrastructure. Offload your team's development fro
 - [Laptop development is dead: why remote development is the future](https://medium.com/@elliotgraebert/laptop-development-is-dead-why-remote-development-is-the-future-f92ce103fd13)
 - [Learn how Palantir improved build times by 78% with coder](https://blog.palantir.com/the-benefits-of-remote-ephemeral-workspaces-1a1251ed6e53).
 - [A software development environment is not just a container](https://coder.com/blog/not-a-container?utm_source=github.com/coder/coder&utm_medium=github&utm_campaign=readme.md).
-- [What Coder is not](https://coder.com/docs/coder-oss/latest/index#what-coder-is-not?utm_source=github.com/coder/coder&utm_medium=github&utm_campaign=readme.md).
 
 ## Getting Started
 
@@ -90,7 +89,6 @@ Find our templates [here](./examples/templates).
 
 Please file [an issue](https://github.com/coder/coder/issues/new) if any information is out of date. Also refer to:
 
-- [What Coder is not](https://coder.com/docs/coder-oss/latest/index#what-coder-is-not?utm_source=github.com/coder/coder&utm_medium=github&utm_campaign=readme.md).
 - [The Self-Hosting Paradox](https://coder.com/blog/the-self-hosting-paradox?utm_source=github.com/coder/coder&utm_medium=github&utm_campaign=readme.md).
 - [GitHub Codespaces, Coder, and Enterprise Customers](https://coder.com/blog/github-codespaces-coder-and-enterprise-customers?utm_source=github.com/coder/coder&utm_medium=github&utm_campaign=readme.md)
 - [How our development team shares one giant bare metal machine](https://coder.com/blog/how-our-development-team-shares-one-giant-bare-metal-machine?utm_source=github.com/coder/coder&utm_medium=github&utm_campaign=readme.md).
