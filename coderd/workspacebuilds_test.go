@@ -632,3 +632,38 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, codersdk.WorkspaceStatusDeleted, workspace.LatestBuild.Status)
 }
+
+func TestWorkspaceBuildWithRichParameters(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+	expected := []codersdk.WorkspaceBuildParameter{
+		{
+			Name:  "first_parameter",
+			Value: "1",
+		}, {
+			Name:  "second_parameter",
+			Value: "2",
+		},
+	}
+
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		cwr.RichParameterValues = expected
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	_, err := client.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
+	require.NoError(t, err)
+
+	richParameters, err := client.TemplateVersionRichParameters(ctx, version.ID)
+	require.NoError(t, err)
+	require.Len(t, richParameters, 2)
+	require.ElementsMatch(t, expected, richParameters)
+}
