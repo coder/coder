@@ -110,7 +110,7 @@ jobs:
         run: |
           set -euo pipefail
           image_job="build/coder_$(./scripts/version.sh)_linux_amd64.tag"
-          make -j "$image_job"
+          DOCKER_IMAGE_NO_PREREQUISITES=true make -j "$image_job"
           echo "image=$(cat "$image_job")" >> $GITHUB_OUTPUT
 
       - name: Run Trivy vulnerability scanner
