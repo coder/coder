@@ -1362,7 +1362,7 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 }
 
 func convertTemplateVersionParameter(param database.TemplateVersionParameter) (codersdk.TemplateVersionParameter, error) {
-	var protoOptions []*sdkproto.ParameterOption
+	var protoOptions []*sdkproto.RichParameterOption
 	err := json.Unmarshal(param.Options, &protoOptions)
 	if err != nil {
 		return codersdk.TemplateVersionParameter{}, err
