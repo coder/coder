@@ -606,7 +606,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 		var input TemplateVersionImportJob
 		err = json.Unmarshal(job.Input, &input)
 		if err != nil {
-			return nil, xerrors.Errorf("unmarshal job data: %w", err)
+			return nil, xerrors.Errorf("template version ID is expected: %w", err)
 		}
 
 		for transition, resources := range map[database.WorkspaceTransition][]*sdkproto.Resource{
