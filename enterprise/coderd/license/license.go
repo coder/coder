@@ -67,67 +67,31 @@ func Entitlements(
 			// LicenseExpires we must be in grace period.
 			entitlement = codersdk.EntitlementGracePeriod
 		}
-		if claims.Features.UserLimit > 0 {
-			limit := claims.Features.UserLimit
-			priorLimit := entitlements.Features[codersdk.FeatureUserLimit]
-			if priorLimit.Limit != nil && *priorLimit.Limit > limit {
-				limit = *priorLimit.Limit
-			}
-			entitlements.Features[codersdk.FeatureUserLimit] = codersdk.Feature{
-				Enabled:     true,
-				Entitlement: entitlement,
-				Limit:       &limit,
-				Actual:      &activeUserCount,
-			}
-		}
-		if claims.Features.AuditLog > 0 {
-			entitlements.Features[codersdk.FeatureAuditLog] = codersdk.Feature{
-				Entitlement: entitlement,
-				Enabled:     enablements[codersdk.FeatureAuditLog],
-			}
-		}
-		if claims.Features.BrowserOnly > 0 {
-			entitlements.Features[codersdk.FeatureBrowserOnly] = codersdk.Feature{
-				Entitlement: entitlement,
-				Enabled:     enablements[codersdk.FeatureBrowserOnly],
-			}
-		}
-		if claims.Features.SCIM > 0 {
-			entitlements.Features[codersdk.FeatureSCIM] = codersdk.Feature{
-				Entitlement: entitlement,
-				Enabled:     enablements[codersdk.FeatureSCIM],
+		for featureName, featureValue := range claims.Features {
+			switch featureName {
+			// User limit has special treatment as our only non-boolean feature.
+			case codersdk.FeatureUserLimit:
+				limit := featureValue
+				priorLimit := entitlements.Features[codersdk.FeatureUserLimit]
+				if priorLimit.Limit != nil && *priorLimit.Limit > limit {
+					limit = *priorLimit.Limit
+				}
+				entitlements.Features[codersdk.FeatureUserLimit] = codersdk.Feature{
+					Enabled:     true,
+					Entitlement: entitlement,
+					Limit:       &limit,
+					Actual:      &activeUserCount,
+				}
+			default:
+				if featureValue > 0 {
+					entitlements.Features[featureName] = codersdk.Feature{
+						Entitlement: entitlement,
+						Enabled:     enablements[featureName] || featureName.AlwaysEnable(),
+					}
+				}
 			}
 		}
-		if claims.Features.HighAvailability > 0 {
-			entitlements.Features[codersdk.FeatureHighAvailability] = codersdk.Feature{
-				Entitlement: entitlement,
-				Enabled:     enablements[codersdk.FeatureHighAvailability],
-			}
-		}
-		if claims.Features.TemplateRBAC > 0 {
-			entitlements.Features[codersdk.FeatureTemplateRBAC] = codersdk.Feature{
-				Entitlement: entitlement,
-				Enabled:     enablements[codersdk.FeatureTemplateRBAC],
-			}
-		}
-		if claims.Features.MultipleGitAuth > 0 {
-			entitlements.Features[codersdk.FeatureMultipleGitAuth] = codersdk.Feature{
-				Entitlement: entitlement,
-				Enabled:     true,
-			}
-		}
-		if claims.Features.ExternalProvisionerDaemons > 0 {
-			entitlements.Features[codersdk.FeatureExternalProvisionerDaemons] = codersdk.Feature{
-				Entitlement: entitlement,
-				Enabled:     true,
-			}
-		}
-		if claims.Features.Appearance > 0 {
-			entitlements.Features[codersdk.FeatureAppearance] = codersdk.Feature{
-				Entitlement: entitlement,
-				Enabled:     true,
-			}
-		}
+
 		if claims.AllFeatures {
 			allFeatures = true
 		}
@@ -248,17 +212,7 @@ var (
 	ErrMissingLicenseExpires = xerrors.New("license missing license_expires")
 )
 
-type Features struct {
-	UserLimit                  int64 `json:"user_limit"`
-	AuditLog                   int64 `json:"audit_log"`
-	BrowserOnly                int64 `json:"browser_only"`
-	SCIM                       int64 `json:"scim"`
-	TemplateRBAC               int64 `json:"template_rbac"`
-	HighAvailability           int64 `json:"high_availability"`
-	MultipleGitAuth            int64 `json:"multiple_git_auth"`
-	ExternalProvisionerDaemons int64 `json:"external_provisioner_daemons"`
-	Appearance                 int64 `json:"appearance"`
-}
+type Features map[codersdk.FeatureName]int64
 
 type Claims struct {
 	jwt.RegisteredClaims

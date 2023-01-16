@@ -36,6 +36,18 @@ func (n FeatureName) Humanize() string {
 	return strings.Title(strings.ReplaceAll(string(n), "_", " "))
 }
 
+// AlwaysEnable returns if the feature is always enabled if entitled.
+// Warning: We don't know if we need this functionality.
+// This method may disappear at any time.
+func (n FeatureName) AlwaysEnable() bool {
+	m := map[FeatureName]bool{
+		FeatureMultipleGitAuth:            true,
+		FeatureExternalProvisionerDaemons: true,
+		FeatureAppearance:                 true,
+	}
+	return m[n]
+}
+
 var FeatureNames = []FeatureName{
 	FeatureUserLimit,
 	FeatureAuditLog,
