@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/testutil"
@@ -39,7 +40,9 @@ func TestBlockNonBrowser(t *testing.T) {
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			BrowserOnly: true,
+			Features: license.Features{
+				codersdk.FeatureBrowserOnly: 1,
+			},
 		})
 		_, agent := setupWorkspaceAgent(t, client, user, 0)
 		_, err := client.DialWorkspaceAgent(context.Background(), agent.ID, nil)
@@ -56,7 +59,9 @@ func TestBlockNonBrowser(t *testing.T) {
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			BrowserOnly: false,
+			Features: license.Features{
+				codersdk.FeatureBrowserOnly: 0,
+			},
 		})
 		_, agent := setupWorkspaceAgent(t, client, user, 0)
 		conn, err := client.DialWorkspaceAgent(context.Background(), agent.ID, nil)

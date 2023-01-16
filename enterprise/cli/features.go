@@ -88,17 +88,17 @@ func featuresList() *cobra.Command {
 }
 
 type featureRow struct {
-	Name        string `table:"name"`
-	Entitlement string `table:"entitlement"`
-	Enabled     bool   `table:"enabled"`
-	Limit       *int64 `table:"limit"`
-	Actual      *int64 `table:"actual"`
+	Name        codersdk.FeatureName `table:"name"`
+	Entitlement string               `table:"entitlement"`
+	Enabled     bool                 `table:"enabled"`
+	Limit       *int64               `table:"limit"`
+	Actual      *int64               `table:"actual"`
 }
 
 // displayFeatures will return a table displaying all features passed in.
 // filterColumns must be a subset of the feature fields and will determine which
 // columns to display
-func displayFeatures(filterColumns []string, features map[string]codersdk.Feature) (string, error) {
+func displayFeatures(filterColumns []string, features map[codersdk.FeatureName]codersdk.Feature) (string, error) {
 	rows := make([]featureRow, 0, len(features))
 	for name, feat := range features {
 		rows = append(rows, featureRow{

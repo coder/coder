@@ -83,6 +83,7 @@ func TestEntitlements(t *testing.T) {
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureUserLimit: 100,
+					codersdk.FeatureAuditLog:  1,
 				},
 
 				GraceAt:   time.Now().Add(-time.Hour),
@@ -95,9 +96,11 @@ func TestEntitlements(t *testing.T) {
 		require.True(t, entitlements.HasLicense)
 		require.False(t, entitlements.Trial)
 
-		require.Equal(t, codersdk.EntitlementGracePeriod, entitlements.Features[codersdk.FeatureUserLimit].Entitlement)
-		require.Contains(t, entitlements.Warnings, fmt.Sprintf("%s is enabled but your license for this feature is expired.", codersdk.FeatureUserLimit.Humanize()))
-
+		require.Equal(t, codersdk.EntitlementGracePeriod, entitlements.Features[codersdk.FeatureAuditLog].Entitlement)
+		require.Contains(
+			t, entitlements.Warnings,
+			fmt.Sprintf("%s is enabled but your license for this feature is expired.", codersdk.FeatureAuditLog.Humanize()),
+		)
 	})
 	t.Run("SingleLicenseNotEntitled", func(t *testing.T) {
 		t.Parallel()

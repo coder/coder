@@ -46,7 +46,14 @@ var FeatureNames = []FeatureName{
 
 // Humanize returns the feature name in a human-readable format.
 func (n FeatureName) Humanize() string {
-	return strings.Title(strings.ReplaceAll(string(n), "_", " "))
+	switch n {
+	case FeatureTemplateRBAC:
+		return "Template RBAC"
+	case FeatureSCIM:
+		return "SCIM"
+	default:
+		return strings.Title(strings.ReplaceAll(string(n), "_", " "))
+	}
 }
 
 // AlwaysEnable returns if the feature is always enabled if entitled.
