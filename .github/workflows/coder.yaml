@@ -195,14 +195,11 @@ jobs:
         with:
           go-version: "~1.19"
 
-      # Sadly the new "set output" syntax (of writing env vars to
-      # $GITHUB_OUTPUT) does not work on both powershell and bash so we use the
-      # deprecated syntax here.
       - name: Echo Go Cache Paths
         id: go-cache-paths
         run: |
-          echo "::set-output name=GOCACHE::$(go env GOCACHE)"
-          echo "::set-output name=GOMODCACHE::$(go env GOMODCACHE)"
+          echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Build Cache
         uses: actions/cache@v3
@@ -299,11 +296,14 @@ jobs:
         with:
           go-version: "~1.19"
 
+      # Sadly the new "set output" syntax (of writing env vars to
+      # $GITHUB_OUTPUT) does not work on both powershell and bash so we use the
+      # deprecated syntax here.
       - name: Echo Go Cache Paths
         id: go-cache-paths
         run: |
-          echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_OUTPUT
-          echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
+          echo "::set-output name=GOCACHE::$(go env GOCACHE)"
+          echo "::set-output name=GOMODCACHE::$(go env GOMODCACHE)"
 
       - name: Go Build Cache
         uses: actions/cache@v3
