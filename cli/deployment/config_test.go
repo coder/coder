@@ -232,6 +232,23 @@ func TestConfig(t *testing.T) {
 			require.Equal(t, config.Prometheus.Enable.Value, true)
 			require.Equal(t, config.Prometheus.Address.Value, config.Prometheus.Address.Default)
 		},
+	}, {
+		Name: "Experimental - no features",
+		Env: map[string]string{
+			"CODER_EXPERIMENTAL": "",
+		},
+		Valid: func(config *codersdk.DeploymentConfig) {
+			require.Empty(t, config.Experimental.Value)
+		},
+	}, {
+		Name: "Experimental - multiple features",
+		Env: map[string]string{
+			"CODER_EXPERIMENTAL": "foo,bar",
+		},
+		Valid: func(config *codersdk.DeploymentConfig) {
+			expected := []string{"foo", "bar"}
+			require.ElementsMatch(t, expected, config.Experimental.Value)
+		},
 	}} {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {

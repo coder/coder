@@ -61,9 +61,11 @@ Flags:
                                                      Consumes
                                                      $CODER_DERP_SERVER_STUN_ADDRESSES
                                                      (default [stun.l.google.com:19302])
-      --experimental                                 Enable experimental features.
-                                                     Experimental features are not ready for
-                                                     production.
+      --experimental strings                         Enable one or more experiments. These are
+                                                     not ready for production. Separate
+                                                     multiple experiments with commas, or
+                                                     enter '*' to opt-in to all available
+                                                     experiments.
                                                      Consumes $CODER_EXPERIMENTAL
   -h, --help                                         help for server
       --http-address string                          HTTP bind address of the server. Unset to

@@ -311,7 +311,7 @@ export interface DeploymentConfig {
   readonly scim_api_key: DeploymentConfigField<string>
   readonly provisioner: ProvisionerConfig
   readonly rate_limit: RateLimitConfig
-  readonly experimental: DeploymentConfigField<boolean>
+  readonly experimental: DeploymentConfigField<Experiments>
   readonly update_check: DeploymentConfigField<boolean>
   readonly max_token_lifetime: DeploymentConfigField<number>
   readonly swagger: SwaggerConfig
@@ -340,6 +340,9 @@ export interface Entitlements {
   readonly experimental: boolean
   readonly trial: boolean
 }
+
+// From codersdk/experiments.go
+export type Experiments = string[]
 
 // From codersdk/features.go
 export interface Feature {
@@ -1277,4 +1280,10 @@ export const WorkspaceTransitions: WorkspaceTransition[] = [
 ]
 
 // From codersdk/deploymentconfig.go
-export type Flaggable = string | number | boolean | string[] | GitAuthConfig[]
+export type Flaggable =
+  | string
+  | number
+  | boolean
+  | string[]
+  | GitAuthConfig[]
+  | Experiments

@@ -266,7 +266,7 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
     }
   },
   "experimental": {
-    "default": true,
+    "default": ["string"],
     "enterprise": true,
     "flag": "string",
     "hidden": true,
@@ -274,7 +274,7 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
     "secret": true,
     "shorthand": "string",
     "usage": "string",
-    "value": true
+    "value": ["string"]
   },
   "gitauth": {
     "default": [
@@ -1007,6 +1007,34 @@ curl -X POST http://coder-server:8080/api/v2/csp/reports \
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get experiments
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/experiments \
+  -H 'Accept: application/json'
+```
+
+`GET /experiments`
+
+### Example responses
+
+> 200 Response
+
+```json
+["string"]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema          |
+| ------ | ------------------------------------------------------- | ----------- | --------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of string |
+
+<h3 id="get-experiments-responseschema">Response Schema</h3>
 
 ## Update check
 

@@ -288,7 +288,7 @@ func (g *Generator) generateOne(m *Maps, obj types.Object) error {
 			// type <Name> string
 			// These are enums. Store to expand later.
 			m.Enums[obj.Name()] = obj
-		case *types.Map:
+		case *types.Map, *types.Array, *types.Slice:
 			// Declared maps that are not structs are still valid codersdk objects.
 			// Handle them custom by calling 'typescriptType' directly instead of
 			// iterating through each struct field.
@@ -308,8 +308,6 @@ func (g *Generator) generateOne(m *Maps, obj types.Object) error {
 			// Use similar output syntax to enums.
 			str.WriteString(fmt.Sprintf("export type %s = %s\n", obj.Name(), ts.ValueType))
 			m.Structs[obj.Name()] = str.String()
-		case *types.Array, *types.Slice:
-		// TODO: @emyrk if you need this, follow the same design as "*types.Map" case.
 		case *types.Interface:
 			// Interfaces are used as generics. Non-generic interfaces are
 			// not supported.

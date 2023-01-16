@@ -446,10 +446,11 @@ func newConfig() *codersdk.DeploymentConfig {
 				Default:     512,
 			},
 		},
-		Experimental: &codersdk.DeploymentConfigField[bool]{
-			Name:  "Experimental",
-			Usage: "Enable experimental features. Experimental features are not ready for production.",
-			Flag:  "experimental",
+		Experimental: &codersdk.DeploymentConfigField[codersdk.Experiments]{
+			Name:    "Experimental",
+			Usage:   "Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.",
+			Flag:    "experimental",
+			Default: []string{},
 		},
 		UpdateCheck: &codersdk.DeploymentConfigField[bool]{
 			Name:    "Update Check",
@@ -557,15 +558,37 @@ func setConfig(prefix string, vip *viper.Viper, target interface{}) {
 			// with a comma, but Viper only supports with a space. This
 			// is a small hack around it!
 			rawSlice := reflect.ValueOf(vip.GetStringSlice(prefix)).Interface()
-			slice, ok := rawSlice.([]string)
+			stringSlice, ok := rawSlice.([]string)
 			if !ok {
 				panic(fmt.Sprintf("string slice is of type %T", rawSlice))
 			}
-			value := make([]string, 0, len(slice))
-			for _, entry := range slice {
+			value := make([]string, 0, len(stringSlice))
+			for _, entry := range stringSlice {
 				value = append(value, strings.Split(entry, ",")...)
 			}
 			val.FieldByName("Value").Set(reflect.ValueOf(value))
+		case codersdk.Experiments:
+			// As []string above, but we support setting wildcard values
+			// '*' or 'true' to enable experiments listed in codersdk.ExperimentsAll.
+			// Experiments not listed in codersdk.ExperimentsAll must be enabled
+			// explicitly.
+			vip.MustBindEnv(prefix, env)
+			rawSlice := reflect.ValueOf(vip.GetStringSlice(prefix)).Interface()
+			stringSlice, ok := rawSlice.([]string)
+			if !ok {
+				panic(fmt.Sprintf("string slice is of type %T", rawSlice))
+			}
+			value := make([]string, 0, len(stringSlice))
+			for _, entry := range stringSlice {
+				for _, val := range strings.Split(entry, ",") {
+					if val == "*" || val == "true" {
+						value = append(value, codersdk.ExperimentsAll...)
+					} else {
+						value = append(value, val)
+					}
+				}
+			}
+			val.FieldByName("Value").Set(reflect.ValueOf(codersdk.Experiments(value)))
 		case []codersdk.GitAuthConfig:
 			// Do not bind to CODER_GITAUTH, instead bind to CODER_GITAUTH_0_*, etc.
 			values := readSliceFromViper[codersdk.GitAuthConfig](vip, prefix, value)
@@ -743,7 +766,7 @@ func setFlags(prefix string, flagset *pflag.FlagSet, vip *viper.Viper, target in
 			_ = flagset.IntP(flg, shorthand, vip.GetInt(prefix), usage)
 		case time.Duration:
 			_ = flagset.DurationP(flg, shorthand, vip.GetDuration(prefix), usage)
-		case []string:
+		case []string, codersdk.Experiments:
 			_ = flagset.StringSliceP(flg, shorthand, vip.GetStringSlice(prefix), usage)
 		case []codersdk.GitAuthConfig:
 			// Ignore this one!

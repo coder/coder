@@ -387,6 +387,29 @@ const docTemplate = `{
                 }
             }
         },
+        "/experiments": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Get experiments",
+                "operationId": "get-experiments",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/files": {
             "post": {
                 "security": [
@@ -5740,7 +5763,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.DERP"
                 },
                 "experimental": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-codersdk_Experiments"
                 },
                 "gitauth": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-array_codersdk_GitAuthConfig"
@@ -5924,6 +5947,44 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.DeploymentConfigField-codersdk_Experiments": {
+            "type": "object",
+            "properties": {
+                "default": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "enterprise": {
+                    "type": "boolean"
+                },
+                "flag": {
+                    "type": "string"
+                },
+                "hidden": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "secret": {
+                    "type": "boolean"
+                },
+                "shorthand": {
+                    "type": "string"
+                },
+                "usage": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "codersdk.DeploymentConfigField-int": {
             "type": "object",
             "properties": {
@@ -6043,6 +6104,7 @@ const docTemplate = `{
                     }
                 },
                 "experimental": {
+                    "description": "DEPRECATED: use Experiments instead.",
                     "type": "boolean"
                 },
                 "features": {

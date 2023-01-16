@@ -636,6 +636,18 @@ export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
   }
 }
 
+export const getExperiments = async (): Promise<string[]> => {
+  try {
+    const response = await axios.get("/api/v2/experiments")
+    return response.data
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      return []
+    }
+    throw error
+  }
+}
+
 export const getAuditLogs = async (
   options: TypesGen.AuditLogsRequest,
 ): Promise<TypesGen.AuditLogResponse> => {

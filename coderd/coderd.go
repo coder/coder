@@ -348,6 +348,7 @@ func New(options *Options) *API {
 		r.Post("/csp/reports", api.logReportCSPViolations)
 
 		r.Get("/buildinfo", buildInfo)
+		r.Get("/experiments", api.handleExperimentsGet)
 		r.Get("/updatecheck", api.updateCheck)
 		r.Route("/config", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
