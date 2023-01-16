@@ -274,18 +274,19 @@ jobs:
       - name: Submit updated manifest to winget-pkgs
         run: |
           # The package version is the same as the tag minus the leading "v".
+          # The version in this output already has the leading "v" removed but
+          # we do it again to be safe.
           $version = "${{ needs.release.outputs.version }}".Trim('v')
-          $vversion = "v${version}"
 
-          $release_assets = gh release view --repo coder/coder "$vversion" --json assets | `
+          $release_assets = gh release view --repo coder/coder "v${version}" --json assets | `
             ConvertFrom-Json
           # Get the installer URL from the release assets.
           $installer_url = $release_assets.assets | `
             Where-Object name -Match ".*_windows_amd64_installer.exe$" | `
             Select -ExpandProperty url
 
-          echo "Installer URL: $installer_url"
-          echo "Package version: $version"
+          echo "Installer URL: ${installer_url}"
+          echo "Package version: ${version}"
 
           # Bail if dry-run.
           if ($env:CODER_DRY_RUN -match "t") {
@@ -315,8 +316,14 @@ jobs:
       - name: Comment on PR
         run: |
           # Find the PR that wingetcreate just made.
-          $pr_list = gh pr list --repo microsoft/winget-pkgs --search "author:cdrci Coder.Coder version ${{ steps.version.outputs.version }}" --limit 1 --json number | `
+          $version = "${{ needs.release.outputs.version }}".Trim('v')
+          $pr_list = gh pr list --repo microsoft/winget-pkgs --search "author:cdrci Coder.Coder version ${version}" --limit 1 --json number | `
             ConvertFrom-Json`
           $pr_number = $pr_list[0].number
 
-          gh pr comment --repo microsoft/winget-pkgs "$pr_number" --body "🤖 cc: @deansheather @matifali"
+          gh pr comment --repo microsoft/winget-pkgs "${pr_number}" --body "🤖 cc: @deansheather @matifali"
+
+        env:
+          # For gh CLI. We need a real token since we're commenting on a PR in a
+          # different repo.
+          GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
