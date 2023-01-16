@@ -10,6 +10,7 @@ on:
     branches: ["main"]
 
   pull_request:
+    branches: ["main"]
 
   workflow_dispatch:
 
@@ -117,8 +118,7 @@ jobs:
         uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
         with:
           image-ref: ${{ steps.build.outputs.image }}
-          format: template
-          template: "@/contrib/sarif.tpl"
+          format: sarif
           output: trivy-results.sarif
           severity: "CRITICAL,HIGH"
 
@@ -126,3 +126,10 @@ jobs:
         uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: trivy-results.sarif
+
+      - name: Upload Trivy scan results as an artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: trivy
+          path: trivy-results.sarif
+          retention-days: 7
