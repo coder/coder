@@ -638,32 +638,50 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 
 	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	user := coderdtest.CreateFirstUser(t, client)
-	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-
-	expected := []codersdk.WorkspaceBuildParameter{
-		{
-			Name:  "first_parameter",
-			Value: "1",
-		}, {
-			Name:  "second_parameter",
-			Value: "2",
-		},
-	}
-
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
-		cwr.RichParameterValues = expected
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Provision_Response{
+			{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Parameters: []*proto.RichParameter{
+							{
+								Name:        "first_parameter",
+								Description: "This is first parameter",
+							},
+							{
+								Name:        "second_parameter",
+								Description: "This is second parameter",
+							},
+						},
+					},
+				},
+			}},
 	})
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	_, err := client.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
-	require.NoError(t, err)
-
 	richParameters, err := client.TemplateVersionRichParameters(ctx, version.ID)
 	require.NoError(t, err)
 	require.Len(t, richParameters, 2)
-	require.ElementsMatch(t, expected, richParameters)
+	require.Equal(t, richParameters[0].Name, "first_parameter")
+	require.Equal(t, richParameters[1].Name, "second_parameter")
+
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		cwr.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+			{
+				Name:  "first_parameter",
+				Value: "1",
+			},
+			{
+				Name:  "second_parameter",
+				Value: "2",
+			},
+		}
+	})
+	_, err = client.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
+	require.NoError(t, err)
 }

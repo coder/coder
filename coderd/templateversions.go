@@ -1196,6 +1196,14 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			}
 		}
 
+		templateVersionID := uuid.New()
+		jobInput, err := json.Marshal(provisionerdserver.TemplateVersionImportJob{
+			TemplateVersionID: templateVersionID,
+		})
+		if err != nil {
+			return xerrors.Errorf("marshal job input: %w", err)
+		}
+
 		provisionerJob, err = tx.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 			ID:             jobID,
 			CreatedAt:      database.Now(),
@@ -1206,7 +1214,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			StorageMethod:  database.ProvisionerStorageMethodFile,
 			FileID:         file.ID,
 			Type:           database.ProvisionerJobTypeTemplateVersionImport,
-			Input:          []byte{'{', '}'},
+			Input:          jobInput,
 			Tags:           tags,
 		})
 		if err != nil {
@@ -1226,7 +1234,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		}
 
 		templateVersion, err = tx.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
-			ID:             uuid.New(),
+			ID:             templateVersionID,
 			TemplateID:     templateID,
 			OrganizationID: organization.ID,
 			CreatedAt:      database.Now(),
