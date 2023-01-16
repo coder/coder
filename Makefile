@@ -556,7 +556,7 @@ site/.eslintignore site/.prettierignore: .prettierignore Makefile
 	done < "$<"
 
 test: test-clean
-	gotestsum --debug -- -v -short ./...
+	gotestsum -- -v -short ./...
 .PHONY: test
 
 # When updating -timeout for this test, keep in sync with
@@ -566,7 +566,6 @@ test-postgres: test-clean test-postgres-docker
 	# more consistent execution.
 	DB=ci DB_FROM=$(shell go run scripts/migrate-ci/main.go) gotestsum \
 		--junitfile="gotests.xml" \
-		--jsonfile="gotestsum.json" \
 		--packages="./..." -- \
 		-covermode=atomic -coverprofile="gotests.coverage" -timeout=20m \
 		-parallel=4 \
