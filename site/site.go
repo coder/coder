@@ -66,6 +66,26 @@ func Handler(siteFS fs.FS, binFS http.FileSystem) http.Handler {
 		// support both for now.
 		r.URL.Path = strings.ReplaceAll(r.URL.Path, "_", "-")
 
+		// Set ETag header to the sha1 hash of the file contents.
+		path := filePath(r.URL.Path)
+		f, err := binFS.Open(path)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusNotFound)
+			return
+		}
+		defer f.Close()
+
+		h := sha1.New() //#nosec // Not used for cryptography.
+		if _, err := io.Copy(h, f); err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// ETag header needs to be quoted.
+		rw.Header().Set("ETag", fmt.Sprintf(`%q`, hex.EncodeToString(h.Sum(nil))))
+
+		// http.FileServer will see the ETag header and automatically handle
+		// If-Match and If-None-Match headers on the request properly.
 		http.FileServer(binFS).ServeHTTP(rw, r)
 	})))
 	mux.Handle("/", http.FileServer(http.FS(siteFS))) // All other non-html static files.
