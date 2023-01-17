@@ -49,6 +49,25 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
     ? `${browser.name} ${browser.version}`
     : t("auditLog:table.logRow.notAvailable")
 
+  let auditDiff = auditLog.diff
+  // groups have nested diffs (group members)
+  // so we overwrite the member diff such that
+  // only the user_id is shown.
+  if (auditLog.resource_type === "group") {
+    auditDiff = {
+      ...auditLog.diff,
+      members: {
+        old: auditLog.diff.members.old?.map(
+          (groupMember: any) => groupMember.user_id,
+        ),
+        new: auditLog.diff.members.new?.map(
+          (groupMember: any) => groupMember.user_id,
+        ),
+        secret: auditLog.diff.members.secret,
+      },
+    }
+  }
+
   const toggle = () => {
     if (shouldDisplayDiff) {
       setIsDiffOpen((v) => !v)
@@ -153,7 +172,7 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
 
         {shouldDisplayDiff && (
           <Collapse in={isDiffOpen}>
-            <AuditLogDiff diff={auditLog.diff} />
+            <AuditLogDiff diff={auditDiff} />
           </Collapse>
         )}
       </TableCell>

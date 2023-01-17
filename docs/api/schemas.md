@@ -3607,7 +3607,7 @@ Parameter represents a set value for the scope.
 | `workspace_build`  |
 | `git_ssh_key`      |
 | `api_key`          |
-| `auditable_group`  |
+| `group`            |
 
 ## codersdk.Response
 

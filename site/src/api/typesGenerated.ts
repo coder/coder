@@ -1075,8 +1075,8 @@ export type ProvisionerType = "echo" | "terraform"
 // From codersdk/audit.go
 export type ResourceType =
   | "api_key"
-  | "auditable_group"
   | "git_ssh_key"
+  | "group"
   | "organization"
   | "template"
   | "template_version"
