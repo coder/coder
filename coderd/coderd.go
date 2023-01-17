@@ -197,7 +197,7 @@ func New(options *Options) *API {
 	if siteCacheDir != "" {
 		siteCacheDir = filepath.Join(siteCacheDir, "site")
 	}
-	binFS, err := site.ExtractOrReadBinFS(siteCacheDir, site.FS())
+	binFS, binHashes, err := site.ExtractOrReadBinFS(siteCacheDir, site.FS())
 	if err != nil {
 		panic(xerrors.Errorf("read site bin failed: %w", err))
 	}
@@ -213,7 +213,7 @@ func New(options *Options) *API {
 		ID:          uuid.New(),
 		Options:     options,
 		RootHandler: r,
-		siteHandler: site.Handler(site.FS(), binFS),
+		siteHandler: site.Handler(site.FS(), binFS, binHashes),
 		HTTPAuth: &HTTPAuthorizer{
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
