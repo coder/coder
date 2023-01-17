@@ -274,8 +274,14 @@ func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 		})
 	)
 	defer commitAudit()
-	var emptyUsers []database.User
-	aReq.Old = group.Auditable(emptyUsers)
+
+	groupMembers, getGroupMembersErr := api.Database.GetGroupMembers(ctx, group.ID)
+	if getGroupMembersErr != nil {
+		httpapi.InternalServerError(rw, getGroupMembersErr)
+		return
+	}
+
+	aReq.Old = group.Auditable(groupMembers)
 
 	if !api.Authorize(r, rbac.ActionDelete, group) {
 		httpapi.ResourceNotFound(rw)
