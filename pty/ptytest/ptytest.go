@@ -139,6 +139,8 @@ func (p *PTY) Close() error {
 }
 
 func (p *PTY) ExpectMatch(str string) string {
+	p.t.Helper()
+
 	timeout, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
 
