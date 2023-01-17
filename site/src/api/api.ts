@@ -36,7 +36,7 @@ export const defaultEntitlements = (): TypesGen.Entitlements => {
   }
 }
 
-// Always attach CSRF token to all re = "not_entitled"quests.
+// Always attach CSRF token to all requests.
 // In puppeteer the document is undefined. In those cases, just
 // do nothing.
 const token =
