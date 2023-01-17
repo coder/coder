@@ -1,29 +1,26 @@
-import { useActor, useMachine } from "@xstate/react"
+import { useMachine } from "@xstate/react"
+import { useMe } from "hooks/useMe"
 import { useOrganizationId } from "hooks/useOrganizationId"
-import { FC, useContext } from "react"
+import { FC } from "react"
 import { Helmet } from "react-helmet-async"
-import { useNavigate, useParams } from "react-router-dom"
+import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { pageTitle } from "util/page"
 import { createWorkspaceMachine } from "xServices/createWorkspace/createWorkspaceXService"
-import { XServiceContext } from "xServices/StateContext"
 import {
   CreateWorkspaceErrors,
   CreateWorkspacePageView,
 } from "./CreateWorkspacePageView"
 
 const CreateWorkspacePage: FC = () => {
-  const xServices = useContext(XServiceContext)
   const organizationId = useOrganizationId()
-  const { template } = useParams()
-  const templateName = template ? template : ""
+  const { template: templateName } = useParams() as { template: string }
   const navigate = useNavigate()
-  const [authState] = useActor(xServices.authXService)
-  const { me } = authState.context
+  const me = useMe()
   const [createWorkspaceState, send] = useMachine(createWorkspaceMachine, {
     context: {
       organizationId,
       templateName,
-      owner: me ?? null,
+      owner: me,
     },
     actions: {
       onCreateWorkspace: (_, event) => {
@@ -31,7 +28,6 @@ const CreateWorkspacePage: FC = () => {
       },
     },
   })
-
   const {
     templates,
     templateSchema,
@@ -42,6 +38,8 @@ const CreateWorkspacePage: FC = () => {
     permissions,
     owner,
   } = createWorkspaceState.context
+  const [searchParams] = useSearchParams()
+  const defaultParameterValues = getDefaultParameterValues(searchParams)
 
   return (
     <>
@@ -49,6 +47,7 @@ const CreateWorkspacePage: FC = () => {
         <title>{pageTitle("Create Workspace")}</title>
       </Helmet>
       <CreateWorkspacePageView
+        defaultParameterValues={defaultParameterValues}
         loadingTemplates={createWorkspaceState.matches("gettingTemplates")}
         loadingTemplateSchema={createWorkspaceState.matches(
           "gettingTemplateSchema",
@@ -87,6 +86,20 @@ const CreateWorkspacePage: FC = () => {
       />
     </>
   )
+}
+
+const getDefaultParameterValues = (
+  urlSearchParams: URLSearchParams,
+): Record<string, string> => {
+  const paramValues: Record<string, string> = {}
+  Array.from(urlSearchParams.keys())
+    .filter((key) => key.startsWith("param."))
+    .forEach((key) => {
+      const paramName = key.replace("param.", "")
+      const paramValue = urlSearchParams.get(key)
+      paramValues[paramName] = paramValue ?? ""
+    })
+  return paramValues
 }
 
 export default CreateWorkspacePage

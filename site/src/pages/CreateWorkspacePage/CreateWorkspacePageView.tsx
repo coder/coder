@@ -39,6 +39,7 @@ export interface CreateWorkspacePageViewProps {
   onSubmit: (req: TypesGen.CreateWorkspaceRequest) => void
   // initialTouched is only used for testing the error state of the form.
   initialTouched?: FormikTouched<TypesGen.CreateWorkspaceRequest>
+  defaultParameterValues?: Record<string, string>
 }
 
 const { t } = i18n
@@ -55,7 +56,7 @@ export const CreateWorkspacePageView: FC<
   const formFooterStyles = useFormFooterStyles()
   const [parameterValues, setParameterValues] = useState<
     Record<string, string>
-  >({})
+  >(props.defaultParameterValues ?? {})
 
   const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
     useFormik<TypesGen.CreateWorkspaceRequest>({
@@ -234,6 +235,7 @@ export const CreateWorkspacePageView: FC<
                   <ParameterInput
                     disabled={form.isSubmitting}
                     key={schema.id}
+                    defaultValue={parameterValues[schema.name]}
                     onChange={(value) => {
                       setParameterValues({
                         ...parameterValues,
