@@ -198,19 +198,19 @@ jobs:
       - name: Echo Go Cache Paths
         id: go-cache-paths
         run: |
-          echo "::set-output name=go-build::$(go env GOCACHE)"
-          echo "::set-output name=go-mod::$(go env GOMODCACHE)"
+          echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Build Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
           key: ${{ github.job }}-go-build-${{ hashFiles('**/go.sum', '**/**.go') }}
 
       - name: Go Mod Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
           key: ${{ github.job }}-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Install sqlc
@@ -296,22 +296,25 @@ jobs:
         with:
           go-version: "~1.19"
 
+      # Sadly the new "set output" syntax (of writing env vars to
+      # $GITHUB_OUTPUT) does not work on both powershell and bash so we use the
+      # deprecated syntax here.
       - name: Echo Go Cache Paths
         id: go-cache-paths
         run: |
-          echo "::set-output name=go-build::$(go env GOCACHE)"
-          echo "::set-output name=go-mod::$(go env GOMODCACHE)"
+          echo "::set-output name=GOCACHE::$(go env GOCACHE)"
+          echo "::set-output name=GOMODCACHE::$(go env GOMODCACHE)"
 
       - name: Go Build Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.**', '**.go') }}
 
       - name: Go Mod Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Install gotestsum
@@ -320,7 +323,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           repo: gotestyourself/gotestsum
-          tag: v1.8.2
+          tag: v1.9.0
 
       - uses: hashicorp/setup-terraform@v2
         with:
@@ -335,35 +338,13 @@ jobs:
           # prevents test caching, so we disable it on alternate operating
           # systems.
           if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
-            echo ::set-output name=cover::true
+            echo "cover=true" >> $GITHUB_OUTPUT
             export COVERAGE_FLAGS='-covermode=atomic -coverprofile="gotests.coverage" -coverpkg=./...'
           else
-            echo ::set-output name=cover::false
+            echo "cover=false" >> $GITHUB_OUTPUT
           fi
-          set +e
-          gotestsum --junitfile="gotests.xml" --jsonfile="gotestsum.json" --packages="./..." --debug -- -parallel=8 -timeout=5m -short -failfast $COVERAGE_FLAGS
-          ret=$?
-          if ((ret)); then
-            # Eternalize test timeout logs because "re-run failed" erases
-            # artifacts and gotestsum doesn't always capture it:
-            # https://github.com/gotestyourself/gotestsum/issues/292
-            # Multiple test packages could've failed, each one may or may
-            # not run into the edge case. PS. Don't summon ShellCheck here.
-            for testWithStack in $(grep 'panic: test timed out' gotestsum.json | grep -E -o '("Test":[^,}]*)'); do
-              if [ -n "$testWithStack" ] && grep -q "${testWithStack}.*PASS" gotestsum.json; then
-                echo "Conditions met for gotestsum stack trace missing bug, outputting panic trace:"
-                grep -A 999999 "${testWithStack}.*panic: test timed out" gotestsum.json
-              fi
-            done
-          fi
-          exit $ret
 
-      - uses: actions/upload-artifact@v3
-        if: success() || failure()
-        with:
-          name: gotestsum-debug-${{ matrix.os }}.json
-          path: ./gotestsum.json
-          retention-days: 7
+          gotestsum --junitfile="gotests.xml" --packages="./..." -- -parallel=8 -timeout=5m -short -failfast $COVERAGE_FLAGS
 
       - uses: actions/upload-artifact@v3
         if: success() || failure()
@@ -402,19 +383,19 @@ jobs:
       - name: Echo Go Cache Paths
         id: go-cache-paths
         run: |
-          echo "::set-output name=go-build::$(go env GOCACHE)"
-          echo "::set-output name=go-mod::$(go env GOMODCACHE)"
+          echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Build Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum', '**/**.go') }}
 
       - name: Go Mod Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Install gotestsum
@@ -423,7 +404,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           repo: gotestyourself/gotestsum
-          tag: v1.8.2
+          tag: v1.9.0
 
       - uses: hashicorp/setup-terraform@v2
         with:
@@ -432,30 +413,7 @@ jobs:
 
       - name: Test with PostgreSQL Database
         run: |
-          set +e
           make test-postgres
-          ret=$?
-          if ((ret)); then
-            # Eternalize test timeout logs because "re-run failed" erases
-            # artifacts and gotestsum doesn't always capture it:
-            # https://github.com/gotestyourself/gotestsum/issues/292
-            # Multiple test packages could've failed, each one may or may
-            # not run into the edge case. PS. Don't summon ShellCheck here.
-            for testWithStack in $(grep 'panic: test timed out' gotestsum.json | grep -E -o '("Test":[^,}]*)'); do
-              if [ -n "$testWithStack" ] && grep -q "${testWithStack}.*PASS" gotestsum.json; then
-                echo "Conditions met for gotestsum stack trace missing bug, outputting panic trace:"
-                grep -A 999999 "${testWithStack}.*panic: test timed out" gotestsum.json
-              fi
-            done
-          fi
-          exit $ret
-
-      - uses: actions/upload-artifact@v3
-        if: success() || failure()
-        with:
-          name: gotestsum-debug-postgres.json
-          path: ./gotestsum.json
-          retention-days: 7
 
       - uses: actions/upload-artifact@v3
         if: success() || failure()
@@ -474,7 +432,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./gotests.coverage
-          flags: unittest-go-postgres-${{ matrix.os }}
+          flags: unittest-go-postgres-linux
 
   deploy:
     name: "deploy"
@@ -508,19 +466,19 @@ jobs:
       - name: Echo Go Cache Paths
         id: go-cache-paths
         run: |
-          echo "::set-output name=go-build::$(go env GOCACHE)"
-          echo "::set-output name=go-mod::$(go env GOMODCACHE)"
+          echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Build Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
           key: ${{ runner.os }}-release-go-build-${{ hashFiles('**/go.sum') }}
 
       - name: Go Mod Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
           key: ${{ runner.os }}-release-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Cache Node
@@ -617,7 +575,7 @@ jobs:
     name: "test/e2e/${{ matrix.os }}"
     needs:
       - changes
-    if: false #needs.changes.outputs.docs-only == 'false'
+    if: needs.changes.outputs.docs-only == 'false'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -652,19 +610,19 @@ jobs:
       - name: Echo Go Cache Paths
         id: go-cache-paths
         run: |
-          echo "::set-output name=go-build::$(go env GOCACHE)"
-          echo "::set-output name=go-mod::$(go env GOMODCACHE)"
+          echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Build Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
 
       - name: Go Mod Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Build

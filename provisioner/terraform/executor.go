@@ -223,7 +223,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 	if err != nil {
 		return nil, xerrors.Errorf("terraform plan: %w", err)
 	}
-	resources, err := e.planResources(ctx, killCtx, planfilePath)
+	resources, parameters, err := e.planResources(ctx, killCtx, planfilePath)
 	if err != nil {
 		return nil, err
 	}
@@ -234,25 +234,31 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 	return &proto.Provision_Response{
 		Type: &proto.Provision_Response_Complete{
 			Complete: &proto.Provision_Complete{
-				Resources: resources,
-				Plan:      planFileByt,
+				Parameters: parameters,
+				Resources:  resources,
+				Plan:       planFileByt,
 			},
 		},
 	}, nil
 }
 
 // planResources must only be called while the lock is held.
-func (e *executor) planResources(ctx, killCtx context.Context, planfilePath string) ([]*proto.Resource, error) {
+func (e *executor) planResources(ctx, killCtx context.Context, planfilePath string) ([]*proto.Resource, []*proto.RichParameter, error) {
 	plan, err := e.showPlan(ctx, killCtx, planfilePath)
 	if err != nil {
-		return nil, xerrors.Errorf("show terraform plan file: %w", err)
+		return nil, nil, xerrors.Errorf("show terraform plan file: %w", err)
 	}
 
 	rawGraph, err := e.graph(ctx, killCtx)
 	if err != nil {
-		return nil, xerrors.Errorf("graph: %w", err)
+		return nil, nil, xerrors.Errorf("graph: %w", err)
 	}
-	return ConvertResources(plan.PlannedValues.RootModule, rawGraph)
+	modules := []*tfjson.StateModule{}
+	if plan.PriorState != nil {
+		modules = append(modules, plan.PriorState.Values.RootModule)
+	}
+	modules = append(modules, plan.PlannedValues.RootModule)
+	return ConvertResourcesAndParameters(modules, rawGraph)
 }
 
 // showPlan must only be called while the lock is held.
@@ -326,7 +332,7 @@ func (e *executor) apply(
 	if err != nil {
 		return nil, xerrors.Errorf("terraform apply: %w", err)
 	}
-	resources, err := e.stateResources(ctx, killCtx)
+	resources, parameters, err := e.stateResources(ctx, killCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -338,31 +344,35 @@ func (e *executor) apply(
 	return &proto.Provision_Response{
 		Type: &proto.Provision_Response_Complete{
 			Complete: &proto.Provision_Complete{
-				Resources: resources,
-				State:     stateContent,
+				Parameters: parameters,
+				Resources:  resources,
+				State:      stateContent,
 			},
 		},
 	}, nil
 }
 
 // stateResources must only be called while the lock is held.
-func (e *executor) stateResources(ctx, killCtx context.Context) ([]*proto.Resource, error) {
+func (e *executor) stateResources(ctx, killCtx context.Context) ([]*proto.Resource, []*proto.RichParameter, error) {
 	state, err := e.state(ctx, killCtx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	rawGraph, err := e.graph(ctx, killCtx)
 	if err != nil {
-		return nil, xerrors.Errorf("get terraform graph: %w", err)
+		return nil, nil, xerrors.Errorf("get terraform graph: %w", err)
 	}
 	var resources []*proto.Resource
+	var parameters []*proto.RichParameter
 	if state.Values != nil {
-		resources, err = ConvertResources(state.Values.RootModule, rawGraph)
+		resources, parameters, err = ConvertResourcesAndParameters([]*tfjson.StateModule{
+			state.Values.RootModule,
+		}, rawGraph)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
-	return resources, nil
+	return resources, parameters, nil
 }
 
 // state must only be called while the lock is held.

@@ -71,3 +71,17 @@ Y indicates that the role provides positive permissions, N indicates the role pr
 | user            | \_   | \_   | Y    | Y      |
 |                 | \_   | \_   | N    | N      |
 | unauthenticated | \_   | \_   | \_   | N      |
+
+# Testing
+
+You can test outside of golang by using the `opa` cli.
+
+**Evaluation**
+
+opa eval --format=pretty 'false' -d policy.rego -i input.json
+
+**Partial Evaluation**
+
+```bash
+opa eval --partial --format=pretty 'data.authz.allow' -d policy.rego --unknowns input.object.owner --unknowns input.object.org_owner --unknowns input.object.acl_user_list --unknowns input.object.acl_group_list -i input.json
+```

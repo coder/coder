@@ -239,6 +239,8 @@ func TestMigrateUpWithFixtures(t *testing.T) {
 		"group_members",
 		"licenses",
 		"replicas",
+		"template_version_parameters",
+		"workspace_build_parameters",
 	}
 	s := &tableStats{s: make(map[string]int)}
 

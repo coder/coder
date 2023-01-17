@@ -1,7 +1,5 @@
 # General
 
-> This page is incomplete, stay tuned.
-
 ## API root handler
 
 ### Code samples

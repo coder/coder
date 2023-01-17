@@ -1,7 +1,5 @@
 # Parameters
 
-> This page is incomplete, stay tuned.
-
 ## Get parameters
 
 ### Code samples

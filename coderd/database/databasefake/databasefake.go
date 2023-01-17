@@ -111,10 +111,12 @@ type data struct {
 	provisionerJobs           []database.ProvisionerJob
 	replicas                  []database.Replica
 	templateVersions          []database.TemplateVersion
+	templateVersionParameters []database.TemplateVersionParameter
 	templates                 []database.Template
 	workspaceAgents           []database.WorkspaceAgent
 	workspaceApps             []database.WorkspaceApp
 	workspaceBuilds           []database.WorkspaceBuild
+	workspaceBuildParameters  []database.WorkspaceBuildParameter
 	workspaceResourceMetadata []database.WorkspaceResourceMetadatum
 	workspaceResources        []database.WorkspaceResource
 	workspaces                []database.Workspace
@@ -1365,6 +1367,20 @@ func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(_ context.Con
 	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetWorkspaceBuildParameters(_ context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	params := make([]database.WorkspaceBuildParameter, 0)
+	for _, param := range q.workspaceBuildParameters {
+		if param.WorkspaceBuildID != workspaceBuildID {
+			continue
+		}
+		params = append(params, param)
+	}
+	return params, nil
+}
+
 func (q *fakeQuerier) GetWorkspaceBuildsCreatedAfter(_ context.Context, after time.Time) ([]database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -1654,6 +1670,20 @@ func (q *fakeQuerier) GetTemplateVersionByTemplateIDAndName(_ context.Context, a
 		return templateVersion, nil
 	}
 	return database.TemplateVersion{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetTemplateVersionParameters(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionParameter, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	parameters := make([]database.TemplateVersionParameter, 0)
+	for _, param := range q.templateVersionParameters {
+		if param.TemplateVersionID != templateVersionID {
+			continue
+		}
+		parameters = append(parameters, param)
+	}
+	return parameters, nil
 }
 
 func (q *fakeQuerier) GetTemplateVersionByOrganizationAndName(_ context.Context, arg database.GetTemplateVersionByOrganizationAndNameParams) (database.TemplateVersion, error) {
@@ -2398,6 +2428,28 @@ func (q *fakeQuerier) InsertTemplateVersion(_ context.Context, arg database.Inse
 	return version, nil
 }
 
+func (q *fakeQuerier) InsertTemplateVersionParameter(_ context.Context, arg database.InsertTemplateVersionParameterParams) (database.TemplateVersionParameter, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	//nolint:gosimple
+	param := database.TemplateVersionParameter{
+		TemplateVersionID: arg.TemplateVersionID,
+		Name:              arg.Name,
+		Description:       arg.Description,
+		Type:              arg.Type,
+		Mutable:           arg.Mutable,
+		DefaultValue:      arg.DefaultValue,
+		Icon:              arg.Icon,
+		Options:           arg.Options,
+		ValidationRegex:   arg.ValidationRegex,
+		ValidationMin:     arg.ValidationMin,
+		ValidationMax:     arg.ValidationMax,
+	}
+	q.templateVersionParameters = append(q.templateVersionParameters, param)
+	return param, nil
+}
+
 func (q *fakeQuerier) InsertProvisionerJobLogs(_ context.Context, arg database.InsertProvisionerJobLogsParams) ([]database.ProvisionerJobLog, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -2721,6 +2773,20 @@ func (q *fakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 	}
 	q.workspaceBuilds = append(q.workspaceBuilds, workspaceBuild)
 	return workspaceBuild, nil
+}
+
+func (q *fakeQuerier) InsertWorkspaceBuildParameters(_ context.Context, arg database.InsertWorkspaceBuildParametersParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, name := range arg.Name {
+		q.workspaceBuildParameters = append(q.workspaceBuildParameters, database.WorkspaceBuildParameter{
+			WorkspaceBuildID: arg.WorkspaceBuildID,
+			Name:             name,
+			Value:            arg.Value[index],
+		})
+	}
+	return nil
 }
 
 func (q *fakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {

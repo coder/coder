@@ -43,7 +43,7 @@ RUN mkdir --parents "$GOPATH" && \
 	# the language server protocol
 	go install golang.org/x/tools/gopls@latest && \
 	# gotestsum makes test output more readable
-	go install gotest.tools/gotestsum@v1.7.0 && \
+	go install gotest.tools/gotestsum@v1.9.0 && \
 	# goveralls collects code coverage metrics from tests
 	# and sends to Coveralls
 	go install github.com/mattn/goveralls@v0.0.11 && \

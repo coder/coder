@@ -42,7 +42,7 @@ const estimateFinish = (
     return isNaN(max) ? 0 : max
   }
 
-  const lowGuess = secondsLeft(p50)
+  // Under-promise, over-deliver with the 95th percentile estimate.
   const highGuess = secondsLeft(p95)
 
   const anyMomentNow: [number | undefined, string] = [
@@ -54,11 +54,7 @@ const estimateFinish = (
   if (highGuess <= 0) {
     return anyMomentNow
   }
-  const diff = highGuess - lowGuess
-  if (diff < 3) {
-    // If there is sufficient consistency, keep display simple.
-    return [p50percent, `${highGuess} seconds remaining...`]
-  }
+
   return [p50percent, `Up to ${highGuess} seconds remaining...`]
 }
 

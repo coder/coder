@@ -24,6 +24,29 @@ type TemplateVersion struct {
 	CreatedBy      User           `json:"created_by"`
 }
 
+// TemplateVersionParameter represents a parameter for a template version.
+type TemplateVersionParameter struct {
+	Name            string                           `json:"name"`
+	Description     string                           `json:"description"`
+	Type            string                           `json:"type"`
+	Mutable         bool                             `json:"mutable"`
+	DefaultValue    string                           `json:"default_value"`
+	Icon            string                           `json:"icon"`
+	Options         []TemplateVersionParameterOption `json:"options"`
+	ValidationError string                           `json:"validation_error"`
+	ValidationRegex string                           `json:"validation_regex"`
+	ValidationMin   int32                            `json:"validation_min"`
+	ValidationMax   int32                            `json:"validation_max"`
+}
+
+// TemplateVersionParameterOption represents a selectable option for a template parameter.
+type TemplateVersionParameterOption struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Value       string `json:"value"`
+	Icon        string `json:"icon"`
+}
+
 // TemplateVersion returns a template version by ID.
 func (c *Client) TemplateVersion(ctx context.Context, id uuid.UUID) (TemplateVersion, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s", id), nil)
@@ -49,6 +72,20 @@ func (c *Client) CancelTemplateVersion(ctx context.Context, version uuid.UUID) e
 		return readBodyAsError(res)
 	}
 	return nil
+}
+
+// TemplateVersionParameters returns parameters a template version exposes.
+func (c *Client) TemplateVersionRichParameters(ctx context.Context, version uuid.UUID) ([]TemplateVersionParameter, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/rich-parameters", version), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+	var params []TemplateVersionParameter
+	return params, json.NewDecoder(res.Body).Decode(&params)
 }
 
 // TemplateVersionSchema returns schemas for a template version by ID.

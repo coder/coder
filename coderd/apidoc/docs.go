@@ -2516,6 +2516,44 @@ const docTemplate = `{
                 }
             }
         },
+        "/templateversions/{templateversion}/rich-parameters": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get rich parameters by template version",
+                "operationId": "get-rich-parameters-by-template-version",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversion",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/parameter.ComputedValue"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/templateversions/{templateversion}/schema": {
             "get": {
                 "security": [
@@ -4271,6 +4309,43 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspacebuilds/{workspacebuild}/parameters": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Builds"
+                ],
+                "summary": "Get build parameters for workspace build",
+                "operationId": "get-build-parameters-for-workspace-build",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workspace build ID",
+                        "name": "workspacebuild",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.WorkspaceBuildParameter"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/workspacebuilds/{workspacebuild}/resources": {
             "get": {
                 "security": [
@@ -5528,6 +5603,12 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.CreateParameterRequest"
+                    }
+                },
+                "rich_parameter_values": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceBuildParameter"
                     }
                 },
                 "state": {
@@ -7854,6 +7935,17 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "workspace_owner_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceBuildParameter": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "value": {
                     "type": "string"
                 }
             }

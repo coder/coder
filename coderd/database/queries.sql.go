@@ -3542,6 +3542,121 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 	return i, err
 }
 
+const getTemplateVersionParameters = `-- name: GetTemplateVersionParameters :many
+SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max FROM template_version_parameters WHERE template_version_id = $1
+`
+
+func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionParameter, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateVersionParameters, templateVersionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TemplateVersionParameter
+	for rows.Next() {
+		var i TemplateVersionParameter
+		if err := rows.Scan(
+			&i.TemplateVersionID,
+			&i.Name,
+			&i.Description,
+			&i.Type,
+			&i.Mutable,
+			&i.DefaultValue,
+			&i.Icon,
+			&i.Options,
+			&i.ValidationRegex,
+			&i.ValidationMin,
+			&i.ValidationMax,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertTemplateVersionParameter = `-- name: InsertTemplateVersionParameter :one
+INSERT INTO
+    template_version_parameters (
+        template_version_id,
+        name,
+        description,
+        type,
+        mutable,
+        default_value,
+        icon,
+        options,
+        validation_regex,
+        validation_min,
+        validation_max
+    )
+VALUES
+    (
+        $1,
+        $2,
+        $3,
+        $4,
+        $5,
+        $6,
+        $7,
+        $8,
+        $9,
+        $10,
+        $11
+    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max
+`
+
+type InsertTemplateVersionParameterParams struct {
+	TemplateVersionID uuid.UUID       `db:"template_version_id" json:"template_version_id"`
+	Name              string          `db:"name" json:"name"`
+	Description       string          `db:"description" json:"description"`
+	Type              string          `db:"type" json:"type"`
+	Mutable           bool            `db:"mutable" json:"mutable"`
+	DefaultValue      string          `db:"default_value" json:"default_value"`
+	Icon              string          `db:"icon" json:"icon"`
+	Options           json.RawMessage `db:"options" json:"options"`
+	ValidationRegex   string          `db:"validation_regex" json:"validation_regex"`
+	ValidationMin     int32           `db:"validation_min" json:"validation_min"`
+	ValidationMax     int32           `db:"validation_max" json:"validation_max"`
+}
+
+func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg InsertTemplateVersionParameterParams) (TemplateVersionParameter, error) {
+	row := q.db.QueryRowContext(ctx, insertTemplateVersionParameter,
+		arg.TemplateVersionID,
+		arg.Name,
+		arg.Description,
+		arg.Type,
+		arg.Mutable,
+		arg.DefaultValue,
+		arg.Icon,
+		arg.Options,
+		arg.ValidationRegex,
+		arg.ValidationMin,
+		arg.ValidationMax,
+	)
+	var i TemplateVersionParameter
+	err := row.Scan(
+		&i.TemplateVersionID,
+		&i.Name,
+		&i.Description,
+		&i.Type,
+		&i.Mutable,
+		&i.DefaultValue,
+		&i.Icon,
+		&i.Options,
+		&i.ValidationRegex,
+		&i.ValidationMin,
+		&i.ValidationMax,
+	)
+	return i, err
+}
+
 const getPreviousTemplateVersion = `-- name: GetPreviousTemplateVersion :one
 SELECT
 	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by
@@ -5381,6 +5496,59 @@ type UpdateWorkspaceAppHealthByIDParams struct {
 
 func (q *sqlQuerier) UpdateWorkspaceAppHealthByID(ctx context.Context, arg UpdateWorkspaceAppHealthByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspaceAppHealthByID, arg.ID, arg.Health)
+	return err
+}
+
+const getWorkspaceBuildParameters = `-- name: GetWorkspaceBuildParameters :many
+SELECT
+    workspace_build_id, name, value
+FROM
+    workspace_build_parameters
+WHERE
+    workspace_build_id = $1
+`
+
+func (q *sqlQuerier) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]WorkspaceBuildParameter, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceBuildParameters, workspaceBuildID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceBuildParameter
+	for rows.Next() {
+		var i WorkspaceBuildParameter
+		if err := rows.Scan(&i.WorkspaceBuildID, &i.Name, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertWorkspaceBuildParameters = `-- name: InsertWorkspaceBuildParameters :exec
+INSERT INTO
+    workspace_build_parameters (workspace_build_id, name, value)
+SELECT
+    $1 :: uuid AS workspace_build_id,
+    unnest($2 :: text[]) AS name,
+    unnest($3 :: text[]) AS value
+RETURNING workspace_build_id, name, value
+`
+
+type InsertWorkspaceBuildParametersParams struct {
+	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
+	Name             []string  `db:"name" json:"name"`
+	Value            []string  `db:"value" json:"value"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceBuildParameters(ctx context.Context, arg InsertWorkspaceBuildParametersParams) error {
+	_, err := q.db.ExecContext(ctx, insertWorkspaceBuildParameters, arg.WorkspaceBuildID, pq.Array(arg.Name), pq.Array(arg.Value))
 	return err
 }
 

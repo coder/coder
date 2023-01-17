@@ -1,0 +1,135 @@
+name: "Security"
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+on:
+  push:
+    branches: ["main"]
+
+  pull_request:
+    branches: ["main"]
+
+  workflow_dispatch:
+
+  schedule:
+    # Run every week at 10:24 on Thursday.
+    - cron: "24 10 * * 4"
+
+# Cancel in-progress runs for pull requests when developers push
+# additional changes
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-security
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  codeql:
+    name: CodeQL
+    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ["go", "javascript"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Setup Go
+        if: matrix.language == 'go'
+        uses: actions/setup-go@v3
+        with:
+          go-version: "~1.19"
+
+      - name: Go Cache Paths
+        if: matrix.language == 'go'
+        id: go-cache-paths
+        run: |
+          echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
+
+      - name: Go Mod Cache
+        if: matrix.language == 'go'
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
+          key: ${{ runner.os }}-release-go-mod-${{ hashFiles('**/go.sum') }}
+
+      # Workaround to prevent CodeQL from building the dashboard.
+      - name: Remove Makefile
+        if: matrix.language == 'go'
+        run: |
+          rm Makefile
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+        with:
+          category: "/language:${{matrix.language}}"
+
+  trivy:
+    name: Trivy
+    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v3
+        with:
+          go-version: "~1.19"
+
+      - name: Go Cache Paths
+        id: go-cache-paths
+        run: |
+          echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
+
+      - name: Go Mod Cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
+          key: ${{ runner.os }}-release-go-mod-${{ hashFiles('**/go.sum') }}
+
+      - name: Cache Node
+        id: cache-node
+        uses: actions/cache@v3
+        with:
+          path: |
+            **/node_modules
+            .eslintcache
+          key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            js-${{ runner.os }}-
+
+      - name: Build Coder linux amd64 Docker image
+        id: build
+        run: |
+          set -euo pipefail
+          image_job="build/coder_$(./scripts/version.sh)_linux_amd64.tag"
+          DOCKER_IMAGE_NO_PREREQUISITES=true make -j "$image_job"
+          echo "image=$(cat "$image_job")" >> $GITHUB_OUTPUT
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
+        with:
+          image-ref: ${{ steps.build.outputs.image }}
+          format: sarif
+          output: trivy-results.sarif
+          severity: "CRITICAL,HIGH"
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Upload Trivy scan results as an artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: trivy
+          path: trivy-results.sarif
+          retention-days: 7

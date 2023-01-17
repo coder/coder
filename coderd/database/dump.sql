@@ -331,6 +331,40 @@ CREATE TABLE site_configs (
     value character varying(8192) NOT NULL
 );
 
+CREATE TABLE template_version_parameters (
+    template_version_id uuid NOT NULL,
+    name text NOT NULL,
+    description text NOT NULL,
+    type text NOT NULL,
+    mutable boolean NOT NULL,
+    default_value text NOT NULL,
+    icon text NOT NULL,
+    options jsonb DEFAULT '[]'::jsonb NOT NULL,
+    validation_regex text NOT NULL,
+    validation_min integer NOT NULL,
+    validation_max integer NOT NULL
+);
+
+COMMENT ON COLUMN template_version_parameters.name IS 'Parameter name';
+
+COMMENT ON COLUMN template_version_parameters.description IS 'Parameter description';
+
+COMMENT ON COLUMN template_version_parameters.type IS 'Parameter type';
+
+COMMENT ON COLUMN template_version_parameters.mutable IS 'Is parameter mutable?';
+
+COMMENT ON COLUMN template_version_parameters.default_value IS 'Default value';
+
+COMMENT ON COLUMN template_version_parameters.icon IS 'Icon';
+
+COMMENT ON COLUMN template_version_parameters.options IS 'Additional options';
+
+COMMENT ON COLUMN template_version_parameters.validation_regex IS 'Validation: regex pattern';
+
+COMMENT ON COLUMN template_version_parameters.validation_min IS 'Validation: minimum length of value';
+
+COMMENT ON COLUMN template_version_parameters.validation_max IS 'Validation: maximum length of value';
+
 CREATE TABLE template_versions (
     id uuid NOT NULL,
     template_id uuid,
@@ -442,6 +476,16 @@ CREATE TABLE workspace_apps (
     slug text NOT NULL,
     external boolean DEFAULT false NOT NULL
 );
+
+CREATE TABLE workspace_build_parameters (
+    workspace_build_id uuid NOT NULL,
+    name text NOT NULL,
+    value text NOT NULL
+);
+
+COMMENT ON COLUMN workspace_build_parameters.name IS 'Parameter name';
+
+COMMENT ON COLUMN workspace_build_parameters.value IS 'Parameter value';
 
 CREATE TABLE workspace_builds (
     id uuid NOT NULL,
@@ -578,6 +622,9 @@ ALTER TABLE ONLY provisioner_jobs
 ALTER TABLE ONLY site_configs
     ADD CONSTRAINT site_configs_key_key UNIQUE (key);
 
+ALTER TABLE ONLY template_version_parameters
+    ADD CONSTRAINT template_version_parameters_template_version_id_name_key UNIQUE (template_version_id, name);
+
 ALTER TABLE ONLY template_versions
     ADD CONSTRAINT template_versions_pkey PRIMARY KEY (id);
 
@@ -601,6 +648,9 @@ ALTER TABLE ONLY workspace_apps
 
 ALTER TABLE ONLY workspace_apps
     ADD CONSTRAINT workspace_apps_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY workspace_build_parameters
+    ADD CONSTRAINT workspace_build_parameters_workspace_build_id_name_key UNIQUE (workspace_build_id, name);
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_job_id_key UNIQUE (job_id);
@@ -697,6 +747,9 @@ ALTER TABLE ONLY provisioner_job_logs
 ALTER TABLE ONLY provisioner_jobs
     ADD CONSTRAINT provisioner_jobs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY template_version_parameters
+    ADD CONSTRAINT template_version_parameters_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY template_versions
     ADD CONSTRAINT template_versions_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT;
 
@@ -720,6 +773,9 @@ ALTER TABLE ONLY workspace_agents
 
 ALTER TABLE ONLY workspace_apps
     ADD CONSTRAINT workspace_apps_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_build_parameters
+    ADD CONSTRAINT workspace_build_parameters_workspace_build_id_fkey FOREIGN KEY (workspace_build_id) REFERENCES workspace_builds(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
