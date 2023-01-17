@@ -35,7 +35,6 @@ import (
 	"github.com/coder/coder/coderd/database/postgres"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/pty/ptytest"
 	"github.com/coder/coder/testutil"
 )
@@ -1132,10 +1131,7 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
-			random, err := cryptorand.String(5)
-			require.NoError(t, err)
-			tmpdir := t.TempDir()
-			fiName := fmt.Sprint(tmpdir, "/coder-logging-test-", random)
+			fiName := testutil.TempFile(t, "", "coder-logging-test-*")
 
 			root, _ := clitest.New(t,
 				"server",
@@ -1163,7 +1159,7 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
-			fi := testutil.CreateTemp(t, "", "coder-logging-test-*")
+			fi := testutil.TempFile(t, "", "coder-logging-test-*")
 
 			root, _ := clitest.New(t,
 				"server",
@@ -1171,7 +1167,7 @@ func TestServer(t *testing.T) {
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
-				"--log-human", fi.Name(),
+				"--log-human", fi,
 			)
 			serverErr := make(chan error, 1)
 			go func() {
@@ -1179,7 +1175,7 @@ func TestServer(t *testing.T) {
 			}()
 
 			assert.Eventually(t, func() bool {
-				stat, err := os.Stat(fi.Name())
+				stat, err := os.Stat(fi)
 				return err == nil && stat.Size() > 0
 			}, testutil.WaitShort, testutil.IntervalFast)
 			cancelFunc()
@@ -1191,7 +1187,7 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
-			fi := testutil.CreateTemp(t, "", "coder-logging-test-*")
+			fi := testutil.TempFile(t, "", "coder-logging-test-*")
 
 			root, _ := clitest.New(t,
 				"server",
@@ -1199,7 +1195,7 @@ func TestServer(t *testing.T) {
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
-				"--log-json", fi.Name(),
+				"--log-json", fi,
 			)
 			serverErr := make(chan error, 1)
 			go func() {
@@ -1207,7 +1203,7 @@ func TestServer(t *testing.T) {
 			}()
 
 			assert.Eventually(t, func() bool {
-				stat, err := os.Stat(fi.Name())
+				stat, err := os.Stat(fi)
 				return err == nil && stat.Size() > 0
 			}, testutil.WaitShort, testutil.IntervalFast)
 			cancelFunc()
@@ -1219,7 +1215,7 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
-			fi := testutil.CreateTemp(t, "", "coder-logging-test-*")
+			fi := testutil.TempFile(t, "", "coder-logging-test-*")
 
 			root, _ := clitest.New(t,
 				"server",
@@ -1227,7 +1223,7 @@ func TestServer(t *testing.T) {
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
-				"--log-stackdriver", fi.Name(),
+				"--log-stackdriver", fi,
 			)
 			// Attach pty so we get debug output from the command if this test
 			// fails.
@@ -1250,7 +1246,7 @@ func TestServer(t *testing.T) {
 			}, testutil.WaitLong*2, testutil.IntervalMedium, "wait for server to listen on http")
 
 			require.Eventually(t, func() bool {
-				stat, err := os.Stat(fi.Name())
+				stat, err := os.Stat(fi)
 				return err == nil && stat.Size() > 0
 			}, testutil.WaitLong, testutil.IntervalMedium)
 		})
@@ -1260,9 +1256,9 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
-			fi1 := testutil.CreateTemp(t, "", "coder-logging-test-*")
-			fi2 := testutil.CreateTemp(t, "", "coder-logging-test-*")
-			fi3 := testutil.CreateTemp(t, "", "coder-logging-test-*")
+			fi1 := testutil.TempFile(t, "", "coder-logging-test-*")
+			fi2 := testutil.TempFile(t, "", "coder-logging-test-*")
+			fi3 := testutil.TempFile(t, "", "coder-logging-test-*")
 
 			// NOTE(mafredri): This test might end up downloading Terraform
 			// which can take a long time and end up failing the test.
@@ -1274,9 +1270,9 @@ func TestServer(t *testing.T) {
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
-				"--log-human", fi1.Name(),
-				"--log-json", fi2.Name(),
-				"--log-stackdriver", fi3.Name(),
+				"--log-human", fi1,
+				"--log-json", fi2,
+				"--log-stackdriver", fi3,
 			)
 			// Attach pty so we get debug output from the command if this test
 			// fails.
@@ -1299,15 +1295,15 @@ func TestServer(t *testing.T) {
 			}, testutil.WaitLong*2, testutil.IntervalMedium, "wait for server to listen on http")
 
 			require.Eventually(t, func() bool {
-				stat, err := os.Stat(fi1.Name())
+				stat, err := os.Stat(fi1)
 				return err == nil && stat.Size() > 0
 			}, testutil.WaitShort, testutil.IntervalMedium, "log human size > 0")
 			require.Eventually(t, func() bool {
-				stat, err := os.Stat(fi2.Name())
+				stat, err := os.Stat(fi2)
 				return err == nil && stat.Size() > 0
 			}, testutil.WaitShort, testutil.IntervalMedium, "log json size > 0")
 			require.Eventually(t, func() bool {
-				stat, err := os.Stat(fi3.Name())
+				stat, err := os.Stat(fi3)
 				return err == nil && stat.Size() > 0
 			}, testutil.WaitShort, testutil.IntervalMedium, "log stackdriver size > 0")
 		})
