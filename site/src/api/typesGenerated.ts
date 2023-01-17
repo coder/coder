@@ -242,6 +242,7 @@ export interface CreateWorkspaceRequest {
   readonly autostart_schedule?: string
   readonly ttl_ms?: number
   readonly parameter_values?: CreateParameterRequest[]
+  readonly rich_parameter_values?: WorkspaceBuildParameter[]
 }
 
 // From codersdk/templates.go
@@ -735,6 +736,29 @@ export interface TemplateVersion {
   readonly created_by: User
 }
 
+// From codersdk/templateversions.go
+export interface TemplateVersionParameter {
+  readonly name: string
+  readonly description: string
+  readonly type: string
+  readonly mutable: boolean
+  readonly default_value: string
+  readonly icon: string
+  readonly options: TemplateVersionParameterOption[]
+  readonly validation_error: string
+  readonly validation_regex: string
+  readonly validation_min: number
+  readonly validation_max: number
+}
+
+// From codersdk/templateversions.go
+export interface TemplateVersionParameterOption {
+  readonly name: string
+  readonly description: string
+  readonly value: string
+  readonly icon: string
+}
+
 // From codersdk/templates.go
 export interface TemplateVersionsByTemplateRequest extends Pagination {
   readonly template_id: string
@@ -961,6 +985,12 @@ export interface WorkspaceBuild {
   readonly deadline?: string
   readonly status: WorkspaceStatus
   readonly daily_cost: number
+}
+
+// From codersdk/workspacebuilds.go
+export interface WorkspaceBuildParameter {
+  readonly name: string
+  readonly value: string
 }
 
 // From codersdk/workspaces.go

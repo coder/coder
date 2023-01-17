@@ -2516,6 +2516,44 @@ const docTemplate = `{
                 }
             }
         },
+        "/templateversions/{templateversion}/rich-parameters": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get rich parameters by template version",
+                "operationId": "get-rich-parameters-by-template-version",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversion",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/parameter.ComputedValue"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/templateversions/{templateversion}/schema": {
             "get": {
                 "security": [

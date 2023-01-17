@@ -87,7 +87,8 @@ type CreateWorkspaceRequest struct {
 	TTLMillis         *int64    `json:"ttl_ms,omitempty"`
 	// ParameterValues allows for additional parameters to be provided
 	// during the initial provision.
-	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
+	ParameterValues     []CreateParameterRequest  `json:"parameter_values,omitempty"`
+	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
 }
 
 func (c *Client) Organization(ctx context.Context, id uuid.UUID) (Organization, error) {

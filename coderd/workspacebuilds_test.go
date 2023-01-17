@@ -632,3 +632,56 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, codersdk.WorkspaceStatusDeleted, workspace.LatestBuild.Status)
 }
+
+func TestWorkspaceBuildWithRichParameters(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Provision_Response{
+			{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Parameters: []*proto.RichParameter{
+							{
+								Name:        "first_parameter",
+								Description: "This is first parameter",
+							},
+							{
+								Name:        "second_parameter",
+								Description: "This is second parameter",
+							},
+						},
+					},
+				},
+			}},
+	})
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	richParameters, err := client.TemplateVersionRichParameters(ctx, version.ID)
+	require.NoError(t, err)
+	require.Len(t, richParameters, 2)
+	require.Equal(t, richParameters[0].Name, "first_parameter")
+	require.Equal(t, richParameters[1].Name, "second_parameter")
+
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		cwr.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+			{
+				Name:  "first_parameter",
+				Value: "1",
+			},
+			{
+				Name:  "second_parameter",
+				Value: "2",
+			},
+		}
+	})
+	_, err = client.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
+	require.NoError(t, err)
+}
