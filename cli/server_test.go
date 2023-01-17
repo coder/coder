@@ -120,13 +120,15 @@ func TestServer(t *testing.T) {
 	})
 	t.Run("BuiltinPostgresURLRaw", func(t *testing.T) {
 		t.Parallel()
+		ctx, _ := testutil.Context(t)
+
 		root, _ := clitest.New(t, "server", "postgres-builtin-url", "--raw-url")
 		pty := ptytest.New(t)
 		root.SetOutput(pty.Output())
-		err := root.Execute()
+		err := root.ExecuteContext(ctx)
 		require.NoError(t, err)
 
-		got := pty.ReadLine()
+		got := pty.ReadLine(ctx)
 		if !strings.HasPrefix(got, "postgres://") {
 			t.Fatalf("expected postgres URL to start with \"postgres://\", got %q", got)
 		}
@@ -491,12 +493,12 @@ func TestServer(t *testing.T) {
 		// We can't use waitAccessURL as it will only return the HTTP URL.
 		const httpLinePrefix = "Started HTTP listener at "
 		pty.ExpectMatch(httpLinePrefix)
-		httpLine := pty.ReadLine()
+		httpLine := pty.ReadLine(ctx)
 		httpAddr := strings.TrimSpace(strings.TrimPrefix(httpLine, httpLinePrefix))
 		require.NotEmpty(t, httpAddr)
 		const tlsLinePrefix = "Started TLS/HTTPS listener at "
 		pty.ExpectMatch(tlsLinePrefix)
-		tlsLine := pty.ReadLine()
+		tlsLine := pty.ReadLine(ctx)
 		tlsAddr := strings.TrimSpace(strings.TrimPrefix(tlsLine, tlsLinePrefix))
 		require.NotEmpty(t, tlsAddr)
 
@@ -617,14 +619,14 @@ func TestServer(t *testing.T) {
 				if c.httpListener {
 					const httpLinePrefix = "Started HTTP listener at "
 					pty.ExpectMatch(httpLinePrefix)
-					httpLine := pty.ReadLine()
+					httpLine := pty.ReadLine(ctx)
 					httpAddr = strings.TrimSpace(strings.TrimPrefix(httpLine, httpLinePrefix))
 					require.NotEmpty(t, httpAddr)
 				}
 				if c.tlsListener {
 					const tlsLinePrefix = "Started TLS/HTTPS listener at "
 					pty.ExpectMatch(tlsLinePrefix)
-					tlsLine := pty.ReadLine()
+					tlsLine := pty.ReadLine(ctx)
 					tlsAddr = strings.TrimSpace(strings.TrimPrefix(tlsLine, tlsLinePrefix))
 					require.NotEmpty(t, tlsAddr)
 				}
@@ -1212,7 +1214,7 @@ func TestServer(t *testing.T) {
 
 		t.Run("Stackdriver", func(t *testing.T) {
 			t.Parallel()
-			ctx, cancelFunc := context.WithCancel(context.Background())
+			ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 			defer cancelFunc()
 
 			fi := testutil.TempFile(t, "", "coder-logging-test-*")
@@ -1240,10 +1242,9 @@ func TestServer(t *testing.T) {
 				<-serverErr
 			}()
 
-			require.Eventually(t, func() bool {
-				line := pty.ReadLine()
-				return strings.HasPrefix(line, "Started HTTP listener at ")
-			}, testutil.WaitLong*2, testutil.IntervalMedium, "wait for server to listen on http")
+			// Wait for server to listen on HTTP, this is a good
+			// starting point for expecting logs.
+			_ = pty.ExpectMatchContext(ctx, "Started HTTP listener at ")
 
 			require.Eventually(t, func() bool {
 				stat, err := os.Stat(fi)
@@ -1253,7 +1254,7 @@ func TestServer(t *testing.T) {
 
 		t.Run("Multiple", func(t *testing.T) {
 			t.Parallel()
-			ctx, cancelFunc := context.WithCancel(context.Background())
+			ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 			defer cancelFunc()
 
 			fi1 := testutil.TempFile(t, "", "coder-logging-test-*")
@@ -1289,10 +1290,9 @@ func TestServer(t *testing.T) {
 				<-serverErr
 			}()
 
-			require.Eventually(t, func() bool {
-				line := pty.ReadLine()
-				return strings.HasPrefix(line, "Started HTTP listener at ")
-			}, testutil.WaitLong*2, testutil.IntervalMedium, "wait for server to listen on http")
+			// Wait for server to listen on HTTP, this is a good
+			// starting point for expecting logs.
+			_ = pty.ExpectMatchContext(ctx, "Started HTTP listener at ")
 
 			require.Eventually(t, func() bool {
 				stat, err := os.Stat(fi1)

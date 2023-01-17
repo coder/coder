@@ -477,7 +477,7 @@ Expire-Date: 0
 
 		// Wait for the prompt or any output really to indicate the command has
 		// started and accepting input on stdin.
-		_ = pty.ReadRune(ctx)
+		_ = pty.Peek(ctx, 1)
 
 		pty.WriteLine("echo hello 'world'")
 		pty.ExpectMatch("hello world")
