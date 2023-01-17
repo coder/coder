@@ -8,7 +8,7 @@ Coder runs workspace operations in a queue. The number of concurrent builds will
 - **coderd replicas**: Replicas (often via Kubernetes) for high availability, this is an [enterprise feature](../../enterprise.md)
 - **concurrent workspace builds**: Workspace operations (e.g. create/stop/delete/apply) across all users
 - **concurrent connections**: Any connection to a workspace (e.g. SSH, web terminal, `coder_app`)
-- **provisioner daemons**: Coder runs one workspace build per provisioner daemon. One coderd replica can host many daemons 
+- **provisioner daemons**: Coder runs one workspace build per provisioner daemon. One coderd replica can host many daemons
 - **scaletest**: Our scale-testing utility, built into the `coder` command line.
 
 ```text
