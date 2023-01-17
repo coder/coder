@@ -138,9 +138,8 @@ if [[ "$dry_run" == 0 ]] && [[ "${CODER_GPG_RELEASE_KEY_BASE64:-}" != "" ]]; the
 	true | gpg --detach-sign --armor "${temp_dir}/${checksum_file}" 1>&2
 
 	rm -rf "$gnupg_home_temp"
-	if [[ "$old_gnupg_home" == "" ]]; then
-		unset GNUPGHOME
-	else
+	unset GNUPGHOME
+	if [[ "$old_gnupg_home" != "" ]]; then
 		export GNUPGHOME="$old_gnupg_home"
 	fi
 
