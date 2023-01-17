@@ -26,7 +26,7 @@ interface HelpTooltipProps {
   buttonClassName?: string
 }
 
-const Language = {
+export const Language = {
   ariaLabel: "tooltip",
 }
 
