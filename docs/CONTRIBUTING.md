@@ -202,22 +202,21 @@ be applied selectively or to discourage anyone from contributing.
 
 ## Releases
 
-Coder releases are automated via GitHub Actions. Specifically, the
-[`release.yaml`](../.github/workflows/release.yaml) workflow. They are created
-based on the current [`main`](https://github.com/coder/coder/tree/main) branch.
+Coder releases are initiated via [`./scripts/release.sh`](../scripts/release.sh) and automated via GitHub Actions. Specifically, the [`release.yaml`](../.github/workflows/release.yaml) workflow. They are created based on the current [`main`](https://github.com/coder/coder/tree/main) branch.
 
-The release notes for a release are automatically generated from commit titles
-and metadata from PRs that are merged into `main`.
+The release notes for a release are automatically generated from commit titles and metadata from PRs that are merged into `main`.
 
-### Creating a release (script)
+### Creating a release
 
-The preferred way to create a release is to use [`./scripts/release.sh`](../scripts/release.sh). This script will show a preview of the release that _would_ be created and if you choose to continue, automatically run and watch the release workflow for you.
+The creation of a release is initiated via [`./scripts/release.sh`](../scripts/release.sh). This script will show a preview of the release that will be created, and if you choose to continue, create and push the tag which will trigger the creation of the release via GitHub Actions.
 
 See `./scripts/release.sh --help` for more information.
 
-### Creating a release (workflow dispatch)
+### Creating a release (via workflow dispatch)
 
-Alternatively, the workflow can be dispatched manually from [Actions: Release](https://github.com/coder/coder/actions/workflows/release.yaml). Simply press "Run workflow" and set your preferred inputs.
+Typically the workflow dispatch is only used to test (dry-run) a release, meaning no actual release will take place. The workflow can be dispatched manually from [Actions: Release](https://github.com/coder/coder/actions/workflows/release.yaml). Simply press "Run workflow" and choose dry-run.
+
+If a release has failed after the tag has been created and pushed, it can be retried by again, pressing "Run workflow", changing "Use workflow from" from "Branch: main" to "Tag: vX.X.X" and not selecting dry-run.
 
 ### Commit messages
 
