@@ -39,10 +39,6 @@ export type WorkspaceScheduleBannerEvent =
       workspace: Workspace
     }
 
-export type WorkspaceScheduleBannerMachineRef = ActorRefFrom<
-  typeof workspaceScheduleBannerMachine
->
-
 export const workspaceScheduleBannerMachine = createMachine(
   {
     id: "workspaceScheduleBannerState",

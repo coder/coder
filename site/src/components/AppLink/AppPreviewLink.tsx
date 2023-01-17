@@ -5,7 +5,7 @@ import * as TypesGen from "api/typesGenerated"
 import { BaseIcon } from "./BaseIcon"
 import { ShareIcon } from "./ShareIcon"
 
-export interface AppPreviewProps {
+interface AppPreviewProps {
   app: TypesGen.WorkspaceApp
 }
 

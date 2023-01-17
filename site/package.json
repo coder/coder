@@ -23,7 +23,8 @@
     "test": "jest --selectProjects test",
     "test:coverage": "jest --selectProjects test --collectCoverage",
     "test:watch": "jest --selectProjects test --watch",
-    "typegen": "xstate typegen 'src/**/*.ts'"
+    "typegen": "xstate typegen 'src/**/*.ts'",
+    "deadcode": "ts-prune | grep -v \".stories\\|.typegen\\|.config\\|e2e\\|__mocks__\\|used in module\\|testHelpers\\|typesGenerated\" || echo \"No deadcode found.\""
   },
   "dependencies": {
     "@emoji-mart/data": "1.0.5",
@@ -68,6 +69,7 @@
     "react-syntax-highlighter": "15.5.0",
     "remark-gfm": "3.0.1",
     "sourcemapped-stacktrace": "1.1.11",
+    "ts-prune": "0.10.3",
     "tzdata": "1.0.30",
     "ua-parser-js": "1.0.2",
     "uuid": "9.0.0",

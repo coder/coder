@@ -3,10 +3,6 @@ import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
 import { Entitlements } from "../../api/typesGenerated"
 
-export const Language = {
-  getEntitlementsError: "Error getting license entitlements.",
-}
-
 export type EntitlementsContext = {
   entitlements: Entitlements
   getEntitlementsError?: Error | unknown

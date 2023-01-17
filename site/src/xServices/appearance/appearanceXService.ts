@@ -3,11 +3,6 @@ import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
 import { AppearanceConfig } from "../../api/typesGenerated"
 
-export const Language = {
-  getAppearanceError: "Error getting appearance.",
-  setAppearanceError: "Error setting appearance.",
-}
-
 export type AppearanceContext = {
   appearance: AppearanceConfig
   getAppearanceError?: Error | unknown

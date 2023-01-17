@@ -17,7 +17,7 @@ import { Stack } from "../../Stack/Stack"
 type Icon = typeof HelpIcon
 
 type Size = "small" | "medium"
-export interface HelpTooltipProps {
+interface HelpTooltipProps {
   // Useful to test on storybook
   open?: boolean
   size?: Size
@@ -26,7 +26,7 @@ export interface HelpTooltipProps {
   buttonClassName?: string
 }
 
-export const Language = {
+const Language = {
   ariaLabel: "tooltip",
 }
 
