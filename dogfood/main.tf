@@ -71,8 +71,10 @@ resource "coder_agent" "dev" {
     sudo service docker start
 
     # Install Nix into our bash profile so `nix-shell`, `nix-build, and `nix` are available
-    echo '. /home/coder/.nix-profile/etc/profile.d/nix.sh' >> /home/coder/.bashrc
     bash /opt/nix/install --no-daemon
+    if ! grep -q '. ~/.nix-profile/etc/profile.d/nix.sh' ~/.bashrc; then
+      echo '. ~/.nix-profile/etc/profile.d/nix.sh' >> ~/.bashrc
+    fi
 
     DOTFILES_URI=${var.dotfiles_uri}
     if [ -n "$DOTFILES_URI" ]; then
