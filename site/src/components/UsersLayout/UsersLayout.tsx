@@ -3,6 +3,7 @@ import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import GroupAdd from "@material-ui/icons/GroupAddOutlined"
 import PersonAdd from "@material-ui/icons/PersonAddOutlined"
+import { USERS_LINK } from "components/NavbarView/NavbarView"
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
 import { useFeatureVisibility } from "hooks/useFeatureVisibility"
 import { usePermissions } from "hooks/usePermissions"
@@ -61,7 +62,7 @@ export const UsersLayout: FC = () => {
           <Stack direction="row" spacing={0.25}>
             <NavLink
               end
-              to="/users"
+              to={USERS_LINK}
               className={({ isActive }) =>
                 combineClasses([
                   styles.tabItem,
