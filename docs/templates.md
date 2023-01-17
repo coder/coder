@@ -390,9 +390,9 @@ practices:
 - Ensure the resource can `curl` your Coder [access
   URL](./admin/configure.md#access-url)
 - Manually connect to the resource and check the agent logs (e.g., `kubectl exec`, `docker exec` or AWS console)
-  - The Coder agent logs are typically stored in `/var/log/coder-agent.log`
+  - The Coder agent logs are typically stored in `/tmp/coder-agent.log`
   - The Coder agent startup script logs are typically stored in
-    `/var/log/coder-startup-script.log`
+    `/tmp/coder-startup-script.log`
 
 ## Template permissions (enterprise)
 
