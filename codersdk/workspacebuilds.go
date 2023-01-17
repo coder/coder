@@ -95,6 +95,12 @@ type WorkspaceResourceMetadata struct {
 	Sensitive bool   `json:"sensitive"`
 }
 
+// WorkspaceBuildParameter represents a parameter specific for a workspace build.
+type WorkspaceBuildParameter struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
 // WorkspaceBuild returns a single workspace build for a workspace.
 // If history is "", the latest version is returned.
 func (c *Client) WorkspaceBuild(ctx context.Context, id uuid.UUID) (WorkspaceBuild, error) {
@@ -157,4 +163,17 @@ func (c *Client) WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(ctx cont
 	}
 	var workspaceBuild WorkspaceBuild
 	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
+}
+
+func (c *Client) WorkspaceBuildParameters(ctx context.Context, build uuid.UUID) ([]WorkspaceBuildParameter, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspacebuilds/%s/parameters", build), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+	var params []WorkspaceBuildParameter
+	return params, json.NewDecoder(res.Body).Decode(&params)
 }

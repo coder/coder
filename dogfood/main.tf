@@ -13,10 +13,19 @@ terraform {
 
 # User parameters
 
+variable "region" {
+  type        = string
+  description = "Which region to deploy to."
+  default     = "us-pittsburgh"
+  validation {
+    condition     = contains(["us-pittsburgh", "eu-helsinki", "ap-sydney"], var.region)
+    error_message = "Region must be one of us-pittsburg, eu-helsinki, or ap-sydney."
+  }
+}
+
 variable "dotfiles_uri" {
   type        = string
   description = <<-EOF
-  default     = ""
   Dotfiles repo URI (optional)
 
   see https://dotfiles.github.io
@@ -30,17 +39,23 @@ variable "datocms_api_token" {
   default     = ""
 }
 
-# Admin parameters
+locals {
+  // These are Tailscale IP addresses. Ask Dean or Kyle for help.
+  docker_host = {
+    ""              = "tcp://100.94.74.63:2375"
+    "us-pittsburgh" = "tcp://100.94.74.63:2375"
+    "eu-helsinki"   = "tcp://100.117.102.81:2375"
+    "ap-sydney"     = "tcp://100.127.2.1:2375"
+  }
+}
 
 provider "docker" {
-  host = "unix:///var/run/dogfood-docker.sock"
+  host = lookup(local.docker_host, var.region)
 }
 
-provider "coder" {
-}
+provider "coder" {}
 
-data "coder_workspace" "me" {
-}
+data "coder_workspace" "me" {}
 
 resource "coder_agent" "dev" {
   arch           = "amd64"
@@ -55,6 +70,9 @@ resource "coder_agent" "dev" {
     DOTFILES_URI=${var.dotfiles_uri}
     if [ -n "$DOTFILES_URI" ]; then
       coder dotfiles "$DOTFILES_URI" -y 2>&1 | tee  ~/.personalize.log
+    fi
+    if [ -f ./personalize ]; then
+      ./personalize
     fi
     EOF
 }

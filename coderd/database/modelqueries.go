@@ -33,7 +33,7 @@ type templateQuerier interface {
 }
 
 func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]Template, error) {
-	authorizedFilter, err := prepared.CompileToSQL(regosql.ConvertConfig{
+	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
 		VariableConverter: regosql.TemplateConverter(),
 	})
 	if err != nil {
@@ -183,7 +183,7 @@ type workspaceQuerier interface {
 // This code is copied from `GetWorkspaces` and adds the authorized filter WHERE
 // clause.
 func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]GetWorkspacesRow, error) {
-	authorizedFilter, err := prepared.CompileToSQL(rbac.ConfigWithoutACL())
+	authorizedFilter, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL())
 	if err != nil {
 		return nil, xerrors.Errorf("compile authorized filter: %w", err)
 	}
@@ -249,7 +249,7 @@ type userQuerier interface {
 }
 
 func (q *sqlQuerier) GetAuthorizedUserCount(ctx context.Context, arg GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
-	authorizedFilter, err := prepared.CompileToSQL(rbac.ConfigWithoutACL())
+	authorizedFilter, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL())
 	if err != nil {
 		return -1, xerrors.Errorf("compile authorized filter: %w", err)
 	}

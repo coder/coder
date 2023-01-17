@@ -181,12 +181,18 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 			return nil, failJob(fmt.Sprintf("convert workspace transition: %s", err))
 		}
 
+		workspaceBuildParameters, err := server.Database.GetWorkspaceBuildParameters(ctx, workspaceBuild.ID)
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("get workspace build parameters: %s", err))
+		}
+
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
-				WorkspaceBuildId: workspaceBuild.ID.String(),
-				WorkspaceName:    workspace.Name,
-				State:            workspaceBuild.ProvisionerState,
-				ParameterValues:  protoParameters,
+				WorkspaceBuildId:    workspaceBuild.ID.String(),
+				WorkspaceName:       workspace.Name,
+				State:               workspaceBuild.ProvisionerState,
+				ParameterValues:     protoParameters,
+				RichParameterValues: convertRichParameterValues(workspaceBuildParameters),
 				Metadata: &sdkproto.Provision_Metadata{
 					CoderUrl:            server.AccessURL.String(),
 					WorkspaceTransition: transition,
@@ -597,6 +603,12 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 
 	switch jobType := completed.Type.(type) {
 	case *proto.CompletedJob_TemplateImport_:
+		var input TemplateVersionImportJob
+		err = json.Unmarshal(job.Input, &input)
+		if err != nil {
+			return nil, xerrors.Errorf("template version ID is expected: %w", err)
+		}
+
 		for transition, resources := range map[database.WorkspaceTransition][]*sdkproto.Resource{
 			database.WorkspaceTransitionStart: jobType.TemplateImport.StartResources,
 			database.WorkspaceTransitionStop:  jobType.TemplateImport.StopResources,
@@ -612,6 +624,33 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				if err != nil {
 					return nil, xerrors.Errorf("insert resource: %w", err)
 				}
+			}
+		}
+
+		for _, richParameter := range jobType.TemplateImport.RichParameters {
+			server.Logger.Info(ctx, "inserting template import job parameter",
+				slog.F("job_id", job.ID.String()),
+				slog.F("parameter_name", richParameter.Name),
+			)
+			options, err := json.Marshal(richParameter.Options)
+			if err != nil {
+				return nil, xerrors.Errorf("marshal parameter options: %w", err)
+			}
+			_, err = server.Database.InsertTemplateVersionParameter(ctx, database.InsertTemplateVersionParameterParams{
+				TemplateVersionID: input.TemplateVersionID,
+				Name:              richParameter.Name,
+				Description:       richParameter.Description,
+				Type:              richParameter.Type,
+				Mutable:           richParameter.Mutable,
+				DefaultValue:      richParameter.DefaultValue,
+				Icon:              richParameter.Icon,
+				Options:           options,
+				ValidationRegex:   richParameter.ValidationRegex,
+				ValidationMin:     richParameter.ValidationMin,
+				ValidationMax:     richParameter.ValidationMax,
+			})
+			if err != nil {
+				return nil, xerrors.Errorf("insert parameter: %w", err)
 			}
 		}
 
@@ -1056,6 +1095,17 @@ func convertLogSource(logSource proto.LogSource) (database.LogSource, error) {
 	}
 }
 
+func convertRichParameterValues(workspaceBuildParameters []database.WorkspaceBuildParameter) []*sdkproto.RichParameterValue {
+	protoParameters := make([]*sdkproto.RichParameterValue, len(workspaceBuildParameters))
+	for i, buildParameter := range workspaceBuildParameters {
+		protoParameters[i] = &sdkproto.RichParameterValue{
+			Name:  buildParameter.Name,
+			Value: buildParameter.Value,
+		}
+	}
+	return protoParameters
+}
+
 func convertComputedParameterValues(parameters []parameter.ComputedValue) ([]*sdkproto.ParameterValue, error) {
 	protoParameters := make([]*sdkproto.ParameterValue, len(parameters))
 	for i, computedParameter := range parameters {
@@ -1111,6 +1161,10 @@ func auditActionFromTransition(transition database.WorkspaceTransition) database
 	default:
 		return database.AuditActionWrite
 	}
+}
+
+type TemplateVersionImportJob struct {
+	TemplateVersionID uuid.UUID `json:"template_version_id"`
 }
 
 // WorkspaceProvisionJob is the payload for the "workspace_provision" job type.

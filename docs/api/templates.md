@@ -1,7 +1,5 @@
 # Templates
 
-> This page is incomplete, stay tuned.
-
 ## Create group for organization
 
 ### Code samples
@@ -2029,6 +2027,87 @@ Status Code **200**
 | `workspace_transition` | `start`         |
 | `workspace_transition` | `stop`          |
 | `workspace_transition` | `delete`        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get rich parameters by template version
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/rich-parameters \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /templateversions/{templateversion}/rich-parameters`
+
+### Parameters
+
+| Name              | In   | Type         | Required | Description         |
+| ----------------- | ---- | ------------ | -------- | ------------------- |
+| `templateversion` | path | string(uuid) | true     | Template version ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "created_at": "string",
+    "default_source_value": true,
+    "destination_scheme": "none",
+    "id": "string",
+    "name": "string",
+    "schema_id": "string",
+    "scope": "template",
+    "scope_id": "string",
+    "source_scheme": "none",
+    "source_value": "string",
+    "updated_at": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                |
+| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [parameter.ComputedValue](schemas.md#parametercomputedvalue) |
+
+<h3 id="get-rich-parameters-by-template-version-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                     | Type                                                                                 | Required | Restrictions | Description |
+| ------------------------ | ------------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `[array item]`           | array                                                                                | false    |              |             |
+| `» created_at`           | string                                                                               | false    |              |             |
+| `» default_source_value` | boolean                                                                              | false    |              |             |
+| `» destination_scheme`   | [database.ParameterDestinationScheme](schemas.md#databaseparameterdestinationscheme) | false    |              |             |
+| `» id`                   | string                                                                               | false    |              |             |
+| `» name`                 | string                                                                               | false    |              |             |
+| `» schema_id`            | string                                                                               | false    |              |             |
+| `» scope`                | [database.ParameterScope](schemas.md#databaseparameterscope)                         | false    |              |             |
+| `» scope_id`             | string                                                                               | false    |              |             |
+| `» source_scheme`        | [database.ParameterSourceScheme](schemas.md#databaseparametersourcescheme)           | false    |              |             |
+| `» source_value`         | string                                                                               | false    |              |             |
+| `» updated_at`           | string                                                                               | false    |              |             |
+
+#### Enumerated Values
+
+| Property             | Value                  |
+| -------------------- | ---------------------- |
+| `destination_scheme` | `none`                 |
+| `destination_scheme` | `environment_variable` |
+| `destination_scheme` | `provisioner_variable` |
+| `scope`              | `template`             |
+| `scope`              | `import_job`           |
+| `scope`              | `workspace`            |
+| `source_scheme`      | `none`                 |
+| `source_scheme`      | `data`                 |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

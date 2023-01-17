@@ -177,11 +177,11 @@ func New(options *Options) *API {
 	if options.FilesRateLimit == 0 {
 		options.FilesRateLimit = 12
 	}
-	if options.Authorizer == nil {
-		options.Authorizer = rbac.NewAuthorizer()
-	}
 	if options.PrometheusRegistry == nil {
 		options.PrometheusRegistry = prometheus.NewRegistry()
+	}
+	if options.Authorizer == nil {
+		options.Authorizer = rbac.NewAuthorizer(options.PrometheusRegistry)
 	}
 	if options.TailnetCoordinator == nil {
 		options.TailnetCoordinator = tailnet.NewCoordinator()
@@ -197,7 +197,7 @@ func New(options *Options) *API {
 	if siteCacheDir != "" {
 		siteCacheDir = filepath.Join(siteCacheDir, "site")
 	}
-	binFS, err := site.ExtractOrReadBinFS(siteCacheDir, site.FS())
+	binFS, binHashes, err := site.ExtractOrReadBinFS(siteCacheDir, site.FS())
 	if err != nil {
 		panic(xerrors.Errorf("read site bin failed: %w", err))
 	}
@@ -213,7 +213,7 @@ func New(options *Options) *API {
 		ID:          uuid.New(),
 		Options:     options,
 		RootHandler: r,
-		siteHandler: site.Handler(site.FS(), binFS),
+		siteHandler: site.Handler(site.FS(), binFS, binHashes),
 		HTTPAuth: &HTTPAuthorizer{
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
@@ -435,6 +435,7 @@ func New(options *Options) *API {
 			r.Patch("/cancel", api.patchCancelTemplateVersion)
 			r.Get("/schema", api.templateVersionSchema)
 			r.Get("/parameters", api.templateVersionParameters)
+			r.Get("/rich-parameters", api.templateVersionRichParameters)
 			r.Get("/resources", api.templateVersionResources)
 			r.Get("/logs", api.templateVersionLogs)
 			r.Route("/dry-run", func(r chi.Router) {
@@ -581,6 +582,7 @@ func New(options *Options) *API {
 			r.Get("/", api.workspaceBuild)
 			r.Patch("/cancel", api.patchCancelWorkspaceBuild)
 			r.Get("/logs", api.workspaceBuildLogs)
+			r.Get("/parameters", api.workspaceBuildParameters)
 			r.Get("/resources", api.workspaceBuildResources)
 			r.Get("/state", api.workspaceBuildState)
 		})

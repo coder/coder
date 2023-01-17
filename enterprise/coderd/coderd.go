@@ -13,6 +13,7 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/go-chi/chi/v5"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd"
@@ -42,8 +43,11 @@ func New(ctx context.Context, options *Options) (*API, error) {
 	if options.Options == nil {
 		options.Options = &coderd.Options{}
 	}
+	if options.PrometheusRegistry == nil {
+		options.PrometheusRegistry = prometheus.NewRegistry()
+	}
 	if options.Options.Authorizer == nil {
-		options.Options.Authorizer = rbac.NewAuthorizer()
+		options.Options.Authorizer = rbac.NewAuthorizer(options.PrometheusRegistry)
 	}
 	ctx, cancelFunc := context.WithCancel(ctx)
 	api := &API{

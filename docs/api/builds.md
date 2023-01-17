@@ -1,7 +1,5 @@
 # Builds
 
-> This page is incomplete, stay tuned.
-
 ## Get workspace build by user, workspace name, and build number
 
 ### Code samples
@@ -402,6 +400,56 @@ Status Code **200**
 | `log_level`  | `error`              |
 | `log_source` | `provisioner_daemon` |
 | `log_source` | `provisioner`        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get build parameters for workspace build
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/parameters \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspacebuilds/{workspacebuild}/parameters`
+
+### Parameters
+
+| Name             | In   | Type   | Required | Description        |
+| ---------------- | ---- | ------ | -------- | ------------------ |
+| `workspacebuild` | path | string | true     | Workspace build ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "name": "string",
+    "value": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                  |
+| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.WorkspaceBuildParameter](schemas.md#codersdkworkspacebuildparameter) |
+
+<h3 id="get-build-parameters-for-workspace-build-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `[array item]` | array  | false    |              |             |
+| `» name`       | string | false    |              |             |
+| `» value`      | string | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1040,6 +1088,12 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
       "name": "string",
       "source_scheme": "none",
       "source_value": "string"
+    }
+  ],
+  "rich_parameter_values": [
+    {
+      "name": "string",
+      "value": "string"
     }
   ],
   "state": [0],

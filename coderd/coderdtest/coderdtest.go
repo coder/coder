@@ -887,7 +887,23 @@ func (o *OIDCConfig) EncodeClaims(t *testing.T, claims jwt.MapClaims) string {
 	return base64.StdEncoding.EncodeToString([]byte(signed))
 }
 
-func (o *OIDCConfig) OIDCConfig() *coderd.OIDCConfig {
+func (o *OIDCConfig) OIDCConfig(t *testing.T, userInfoClaims jwt.MapClaims) *coderd.OIDCConfig {
+	// By default, the provider can be empty.
+	// This means it won't support any endpoints!
+	provider := &oidc.Provider{}
+	if userInfoClaims != nil {
+		resp, err := json.Marshal(userInfoClaims)
+		require.NoError(t, err)
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(resp)
+		}))
+		t.Cleanup(srv.Close)
+		cfg := &oidc.ProviderConfig{
+			UserInfoURL: srv.URL,
+		}
+		provider = cfg.NewProvider(context.Background())
+	}
 	return &coderd.OIDCConfig{
 		OAuth2Config: o,
 		Verifier: oidc.NewVerifier(o.issuer, &oidc.StaticKeySet{
@@ -895,6 +911,7 @@ func (o *OIDCConfig) OIDCConfig() *coderd.OIDCConfig {
 		}, &oidc.Config{
 			SkipClientIDCheck: true,
 		}),
+		Provider:      provider,
 		UsernameField: "preferred_username",
 	}
 }

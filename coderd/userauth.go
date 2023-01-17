@@ -204,6 +204,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 type OIDCConfig struct {
 	httpmw.OAuth2Config
 
+	Provider *oidc.Provider
 	Verifier *oidc.IDTokenVerifier
 	// EmailDomains are the domains to enforce when a user authenticates.
 	EmailDomain  []string
@@ -258,6 +259,35 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	// Not all claims are necessarily embedded in the `id_token`.
+	// In GitLab, the username is left empty and must be fetched in UserInfo.
+	//
+	// The OIDC specification says claims can be in either place, so we fetch
+	// user info and merge the two claim sets to be sure we have all of
+	// the correct data.
+	userInfo, err := api.OIDCConfig.Provider.UserInfo(ctx, oauth2.StaticTokenSource(state.Token))
+	if err == nil {
+		userInfoClaims := map[string]interface{}{}
+		err = userInfo.Claims(&userInfoClaims)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to unmarshal user info claims.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		for k, v := range userInfoClaims {
+			claims[k] = v
+		}
+	} else if !strings.Contains(err.Error(), "user info endpoint is not supported by this provider") {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to obtain user information claims.",
+			Detail:  "The OIDC provider returned no claims as part of the `id_token`. The attempt to fetch claims via the UserInfo endpoint failed: " + err.Error(),
+		})
+		return
+	}
+
 	usernameRaw, ok := claims[api.OIDCConfig.UsernameField]
 	var username string
 	if ok {

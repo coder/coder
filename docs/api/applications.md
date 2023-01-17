@@ -1,7 +1,5 @@
 # Applications
 
-> This page is incomplete, stay tuned.
-
 ## Redirect to URI with encrypted API key
 
 ### Code samples

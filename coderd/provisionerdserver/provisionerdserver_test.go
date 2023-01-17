@@ -580,6 +580,7 @@ func TestCompleteJob(t *testing.T) {
 		job, err := srv.Database.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 			ID:          uuid.New(),
 			Provisioner: database.ProvisionerTypeEcho,
+			Input:       []byte(`{"template_version_id": "` + uuid.NewString() + `"}`),
 		})
 		require.NoError(t, err)
 		_, err = srv.Database.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{

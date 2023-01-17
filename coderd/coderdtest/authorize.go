@@ -177,6 +177,10 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
 		},
+		"GET:/api/v2/templateversions/{templateversion}/rich-parameters": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
+		},
 		"GET:/api/v2/templateversions/{templateversion}/resources": {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
@@ -565,7 +569,7 @@ func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Obje
 
 // CompileToSQL returns a compiled version of the authorizer that will work for
 // in memory databases. This fake version will not work against a SQL database.
-func (fakePreparedAuthorizer) CompileToSQL(_ regosql.ConvertConfig) (string, error) {
+func (fakePreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
 	return "", xerrors.New("not implemented")
 }
 

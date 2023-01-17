@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -41,7 +42,7 @@ func (w fakeObject) RBACObject() Object {
 
 func TestFilterError(t *testing.T) {
 	t.Parallel()
-	auth := NewAuthorizer()
+	auth := NewAuthorizer(prometheus.NewRegistry())
 
 	_, err := Filter(context.Background(), auth, uuid.NewString(), []string{}, ScopeAll, []string{}, ActionRead, []Object{ResourceUser, ResourceWorkspace})
 	require.ErrorContains(t, err, "object types must be uniform")
@@ -160,7 +161,7 @@ func TestFilter(t *testing.T) {
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 			defer cancel()
-			auth := NewAuthorizer()
+			auth := NewAuthorizer(prometheus.NewRegistry())
 
 			scope := ScopeAll
 			if tc.Scope != "" {
@@ -808,7 +809,7 @@ type authTestCase struct {
 
 func testAuthorize(t *testing.T, name string, subject subject, sets ...[]authTestCase) {
 	t.Helper()
-	authorizer := NewAuthorizer()
+	authorizer := NewAuthorizer(prometheus.NewRegistry())
 	for _, cases := range sets {
 		for i, c := range cases {
 			c := c

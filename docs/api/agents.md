@@ -1,7 +1,5 @@
 # Agents
 
-> This page is incomplete, stay tuned.
-
 ## Authenticate agent on AWS instance
 
 ### Code samples
