@@ -191,7 +191,7 @@ func (p *PTY) ReadRune(ctx context.Context) rune {
 		timeout := testutil.WaitMedium
 		p.logf("ReadRune ctx has no deadline, using %s", timeout)
 		var cancel context.CancelFunc
-		//nolint:ruleguard // Rule guard doesn't detect that we're using testutil.Wait*.
+		//nolint:gocritic // Rule guard doesn't detect that we're using testutil.Wait*.
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
