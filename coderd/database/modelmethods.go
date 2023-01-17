@@ -11,6 +11,8 @@ type AuditableGroup struct {
 	Members []GroupMember `json:"members"`
 }
 
+// Auditable returns an object that can be used in audit logs.
+// Covers both group and group member changes.
 func (g Group) Auditable(users []User) AuditableGroup {
 	members := make([]GroupMember, 0, len(users))
 	for _, u := range users {
