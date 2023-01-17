@@ -16,18 +16,28 @@ export const hardCodedCSRFCookie = (): string => {
   return csrfToken
 }
 
-// defaultEntitlements has a default set of disabled functionality.
-export const defaultEntitlements = (): TypesGen.Entitlements => {
-  const features: Partial<TypesGen.Entitlements["features"]> = {}
-  for (const feature in TypesGen.FeatureNames) {
-    features[feature as TypesGen.FeatureName] = {
+// withDefaultFeatures sets all unspecified features to not_entitled and disabled.
+export const withDefaultFeatures = (
+  fs: Partial<TypesGen.Entitlements["features"]>,
+): TypesGen.Entitlements["features"] => {
+  for (const k in TypesGen.FeatureNames) {
+    const feature = k as TypesGen.FeatureName
+    // Skip fields that are already filled.
+    if (fs[feature] !== undefined) {
+      continue
+    }
+    fs[feature] = {
       enabled: false,
       entitlement: "not_entitled",
     }
   }
+  return fs as TypesGen.Entitlements["features"]
+}
 
+// defaultEntitlements has a default set of disabled functionality.
+export const defaultEntitlements = (): TypesGen.Entitlements => {
   return {
-    features: features as TypesGen.Entitlements["features"],
+    features: withDefaultFeatures({}),
     has_license: false,
     errors: [],
     warnings: [],
