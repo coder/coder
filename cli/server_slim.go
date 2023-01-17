@@ -60,8 +60,9 @@ func Server(vip *viper.Viper, _ func(context.Context, *coderd.Options) (*coderd.
 }
 
 func serverUnsupported(w io.Writer) {
-	_, _ = fmt.Fprintln(w, "You are using a 'slim' build of Coder, which does not support the %s subcommand.\n", cliui.Styles.Code.Render("server"))
+	_, _ = fmt.Fprintf(w, "You are using a 'slim' build of Coder, which does not support the %s subcommand.\n", cliui.Styles.Code.Render("server"))
+	_, _ = fmt.Fprintln(w, "")
 	_, _ = fmt.Fprintln(w, "Please use a build of Coder from GitHub releases:")
-	_, _ = fmt.Fprintln(w, "\thttps://github.com/coder/coder/releases")
+	_, _ = fmt.Fprintln(w, "  https://github.com/coder/coder/releases")
 	os.Exit(1)
 }
