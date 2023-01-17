@@ -1,12 +1,36 @@
-We regularly scale-test Coder with our [scale testing utility](#scaletest-utility). The same utility can be used in your own environment for insights on how Coder scales with your deployment's specific templates, images, etc.
+We regularly scale-test Coder with our [scale testing utility](#scaletest-utility). The same utility can be used in your own environment for insights on how Coder performs with your specific templates, images, etc.
+
+## General concepts
+
+- **coderd**: Coder’s primary service. Learn more about [Coder’s architecture](../../about/architecture.md)
+- **coderd replicas**: Replicas (often via Kubernetes) for high availability, this is an [enterprise feature](../../enterprise.md)
+- **concurrent workspace builds**: Workspace operations (e.g. create/stop/delete/apply) across all users
+- **concurrent connections**: Any connection to a workspace (e.g. SSH, web terminal, `coder_app`)
+- **provisioner daemons**: Number of processes responsible for workspace builds, per coderd replica. 
+    
+    ```text
+    2 coderd replicas * 30 provisioner daemons = 30 max concurrent workspace builds
+    ```
+    
+- **scaletest**: Our scale-testing utility, built into the `coder` command line.
+
+## General recommendations
+
+### Concurrent workspace builds
+
+Workspace builds are CPU-intensive, as it relies on Terraform and the various [Terraform providers](https://registry.terraform.io/browse/providers). When tested with our [kubernetes](https://github.com/coder/coder/tree/main/examples/templates/kubernetes) template, `coderd` will consume roughly 8 cores per 30 concurrent workspace builds. For effective provisioning, our helm chart prefers to schedule [one coderd replica per-node](https://github.com/coder/coder/blob/main/helm/values.yaml#L110-L121).
+
+To support 120 concurrent workspace builds, for example:
+
+- Create a cluster/nodepool with three 8-core nodes (AWS: `t3.2xlarge` GCP: `e2-highcpu-8`)
+- Run coderd with 4 replicas, 30 provisioner daemons each. (`CODER_PROVISIONER_DAEMONS=30`)
+- Ensure Coder's [PostgreSQL server](../../admin/configure.md#postgresql-database) can use up to 1.5 cores
 
 ## Recent scale tests
 
-> This section is incomplete. Stay tuned for reference architectures for up to 3,000 users.
-
 | Environment        | Users | Concurrent builds | Concurrent connections (SSH) | Concurrent connections (web) | Last tested  |
 | ------------------ | ----- | ----------------- | ---------------------------- | ---------------------------- | ------------ |
-| Kubernetes (GKE)   | 1000  | 500               | 10,000                       | 10,000                       | Dec 20, 2022 |
+| Kubernetes (GKE)   | 3000  | 300               | 10,000                       | 10,000                       | Jan 10, 2022 |
 | Docker (Single VM) | 1000  | 500               | 10,000                       | 10,000                       | Dec 20, 2022 |
 
 ## Scale testing utility
