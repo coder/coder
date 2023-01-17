@@ -22,7 +22,7 @@ func (g Group) Auditable(users []User) AuditableGroup {
 		})
 	}
 
-	// we sort to ensure the diff order enterprise/audit/diff.go:18
+	// consistent ordering
 	sort.Slice(members, func(i, j int) bool {
 		return members[i].UserID.String() < members[j].UserID.String()
 	})
