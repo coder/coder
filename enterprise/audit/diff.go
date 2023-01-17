@@ -27,8 +27,6 @@ func diffValues(left, right any, table Table) audit.Map {
 		diffKey = table[structName(rightT)]
 	)
 
-	fmt.Println("DIFF KEY", diffKey)
-
 	if diffKey == nil {
 		panic(fmt.Sprintf("dev error: type %q (type %T) attempted audit but not auditable", rightT.Name(), right))
 	}
@@ -47,9 +45,6 @@ func diffValues(left, right any, table Table) audit.Map {
 
 			diffName = rightT.Field(i).Tag.Get("json")
 		)
-		fmt.Println("rightT.Field(i)", rightT, rightT.Field(i), rightT.Field(i).Tag.Get("json"))
-
-		fmt.Println("DIFF NAME", diffName)
 
 		atype, ok := diffKey[diffName]
 		if !ok {
