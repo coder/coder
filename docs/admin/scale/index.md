@@ -19,7 +19,7 @@ Coder runs workspace operations in a queue. The number of concurrent builds will
 
 ### Concurrent workspace builds
 
-Workspace builds are CPU-intensive, as it relies on Terraform and the various [Terraform providers](https://registry.terraform.io/browse/providers). When tested with our [kubernetes](https://github.com/coder/coder/tree/main/examples/templates/kubernetes) template, `coderd` will consume roughly 8 cores per 30 concurrent workspace builds. For effective provisioning, our helm chart prefers to schedule [one coderd replica per-node](https://github.com/coder/coder/blob/main/helm/values.yaml#L110-L121).
+Workspace builds are CPU-intensive, as it relies on Terraform. Various [Terraform providers](https://registry.terraform.io/browse/providers) have different resource requirements. When tested with our [kubernetes](https://github.com/coder/coder/tree/main/examples/templates/kubernetes) template, `coderd` will consume roughly 8 cores per 30 concurrent workspace builds. For effective provisioning, our helm chart prefers to schedule [one coderd replica per-node](https://github.com/coder/coder/blob/main/helm/values.yaml#L110-L121).
 
 To support 120 concurrent workspace builds, for example:
 
