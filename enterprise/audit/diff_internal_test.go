@@ -97,6 +97,54 @@ func Test_diffValues(t *testing.T) {
 			},
 		})
 	})
+	t.Run("EmbeddedStruct", func(t *testing.T) {
+		t.Parallel()
+
+		type Bar struct {
+			Baz  int    `json:"baz"`
+			Buzz string `json:"buzz"`
+		}
+
+		type foo struct {
+			Bar
+		}
+
+		table := auditMap(map[any]map[string]Action{
+			&foo{}: {
+				"baz":  ActionTrack,
+				"buzz": ActionTrack,
+			},
+			// &Bar{}: {
+			// 	"baz":  ActionTrack,
+			// 	"buzz": ActionTrack,
+			// },
+		})
+
+		runDiffValuesTests(t, table, []diffTest{
+			{
+				name: "SingleFieldChange",
+				left: foo{Bar: Bar{Baz: 1, Buzz: "before"}}, right: foo{Bar: Bar{Baz: 0, Buzz: "after"}},
+				exp: audit.Map{
+					"baz":  audit.OldNew{Old: 1, New: 0},
+					"buzz": audit.OldNew{Old: "before", New: "after"},
+				},
+			},
+			// {
+			// 	name: "LeftNil",
+			// 	left: foo{Bar: Bar{Baz: 1}}, right: foo{Bar: pointer.StringPtr("baz")},
+			// 	exp: audit.Map{
+			// 		"bar": audit.OldNew{Old: "", New: "baz"},
+			// 	},
+			// },
+			// {
+			// 	name: "RightNil",
+			// 	left: foo{Bar: pointer.StringPtr("baz")}, right: foo{Bar: nil},
+			// 	exp: audit.Map{
+			// 		"bar": audit.OldNew{Old: "baz", New: ""},
+			// 	},
+			// },
+		})
+	})
 
 	// We currently don't support nested structs.
 	// t.Run("NestedStruct", func(t *testing.T) {

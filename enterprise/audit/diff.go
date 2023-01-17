@@ -15,22 +15,21 @@ func structName(t reflect.Type) string {
 	return t.PkgPath() + "." + t.Name()
 }
 
-func diffValues(left, right any, table Table) audit.Map {
-	var (
-		baseDiff = audit.Map{}
+type FieldDiff struct {
+	FieldType reflect.StructField
+	LeftF     reflect.Value
+	RightF    reflect.Value
+}
 
-		leftV = reflect.ValueOf(left)
+func flattenStructFields(left, right any) []FieldDiff {
+	leftV := reflect.ValueOf(left)
+	rightV := reflect.ValueOf(right)
 
-		rightV = reflect.ValueOf(right)
-		rightT = reflect.TypeOf(right)
+	allFields := []FieldDiff{}
+	rightT := rightV.Type()
 
-		diffKey = table[structName(rightT)]
-	)
-
-	if diffKey == nil {
-		panic(fmt.Sprintf("dev error: type %q (type %T) attempted audit but not auditable", rightT.Name(), right))
-	}
-
+	// Flatten the structure and all fields.
+	// Does not support named nested structs.
 	for i := 0; i < rightT.NumField(); i++ {
 		if !rightT.Field(i).IsExported() {
 			continue
@@ -39,13 +38,65 @@ func diffValues(left, right any, table Table) audit.Map {
 		var (
 			leftF  = leftV.Field(i)
 			rightF = rightV.Field(i)
+		)
+
+		if rightT.Field(i).Anonymous {
+			// Loop through anonymous type for fields,
+			// append as top level fields for diffs.
+			allFields = append(allFields, flattenStructFields(leftF.Interface(), rightF.Interface())...)
+			continue
+		}
+
+		// Single fields append as is.
+		allFields = append(allFields, FieldDiff{
+			LeftF:     leftF,
+			RightF:    rightF,
+			FieldType: rightT.Field(i),
+		})
+	}
+	return allFields
+}
+
+func diffValues(left, right any, table Table) audit.Map {
+	var (
+		baseDiff = audit.Map{}
+		rightT   = reflect.TypeOf(right)
+
+		diffKey = table[structName(rightT)]
+	)
+
+	if diffKey == nil {
+		panic(fmt.Sprintf("dev error: type %q (type %T) attempted audit but not auditable", rightT.Name(), right))
+	}
+
+	allFields := flattenStructFields(left, right)
+	fmt.Println("AllFields", allFields)
+	for _, field := range allFields {
+		var (
+			leftF  = field.LeftF
+			rightF = field.RightF
 
 			leftI  = leftF.Interface()
 			rightI = rightF.Interface()
-
-			diffName = rightT.Field(i).Tag.Get("json")
 		)
 
+		// This is the field that is returning a blank string.
+		fmt.Printf("Number of fields for %s: %d\n", rightT.String(), rightT.NumField())
+		// rightT.Field(i)
+
+		var (
+			diffName = field.FieldType.Tag.Get("json")
+		)
+<<<<<<< Updated upstream
+=======
+		// fmt.Println("rightT.Field(i)", rightT, rightT.Field(i), rightT.Field(i).Tag.Get("json"))
+
+		// map[avatar_url:track id:track members:track name:track organization_id:ignore quota_allowance:track]
+		fmt.Println("DIFF KEY", diffKey)
+>>>>>>> Stashed changes
+
+		// group
+		fmt.Println("DIFF NAME", diffName)
 		atype, ok := diffKey[diffName]
 		if !ok {
 			panic(fmt.Sprintf("dev error: field %q lacks audit information", diffName))
