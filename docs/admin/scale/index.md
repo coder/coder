@@ -2,19 +2,20 @@ We regularly scale-test Coder with our [scale testing utility](#scaletest-utilit
 
 ## General concepts
 
+Coder runs workspace operations in a queue. The number of concurrent builds will be limited to the number of provisioner daemons across all coderd replicas.
+
+```text
+2 coderd replicas * 30 provisioner daemons = 60 max concurrent workspace builds
+```
+
 - **coderd**: Coder’s primary service. Learn more about [Coder’s architecture](../../about/architecture.md)
 - **coderd replicas**: Replicas (often via Kubernetes) for high availability, this is an [enterprise feature](../../enterprise.md)
 - **concurrent workspace builds**: Workspace operations (e.g. create/stop/delete/apply) across all users
 - **concurrent connections**: Any connection to a workspace (e.g. SSH, web terminal, `coder_app`)
-- **provisioner daemons**: Number of processes responsible for workspace builds, per coderd replica. 
-    
-    ```text
-    2 coderd replicas * 30 provisioner daemons = 30 max concurrent workspace builds
-    ```
-    
+- **provisioner daemons**: Coder runs one workspace build per provisioner daemon. One coderd replica can host many daemons 
 - **scaletest**: Our scale-testing utility, built into the `coder` command line.
 
-## General recommendations
+## Infrastructure recommendations
 
 ### Concurrent workspace builds
 
@@ -22,7 +23,7 @@ Workspace builds are CPU-intensive, as it relies on Terraform and the various [T
 
 To support 120 concurrent workspace builds, for example:
 
-- Create a cluster/nodepool with three 8-core nodes (AWS: `t3.2xlarge` GCP: `e2-highcpu-8`)
+- Create a cluster/nodepool with four 8-core nodes (AWS: `t3.2xlarge` GCP: `e2-highcpu-8`)
 - Run coderd with 4 replicas, 30 provisioner daemons each. (`CODER_PROVISIONER_DAEMONS=30`)
 - Ensure Coder's [PostgreSQL server](../../admin/configure.md#postgresql-database) can use up to 1.5 cores
 
@@ -30,8 +31,8 @@ To support 120 concurrent workspace builds, for example:
 
 | Environment        | Users | Concurrent builds | Concurrent connections (SSH) | Concurrent connections (web) | Last tested  |
 | ------------------ | ----- | ----------------- | ---------------------------- | ---------------------------- | ------------ |
-| Kubernetes (GKE)   | 3000  | 300               | 10,000                       | 10,000                       | Jan 10, 2022 |
-| Docker (Single VM) | 1000  | 500               | 10,000                       | 10,000                       | Dec 20, 2022 |
+| Kubernetes (GKE)   | 1200  | 120               | 10,000                       | 10,000                       | Jan 10, 2022 |
+| Docker (Single VM) | 500   | 50                | 10,000                       | 10,000                       | Dec 20, 2022 |
 
 ## Scale testing utility
 
