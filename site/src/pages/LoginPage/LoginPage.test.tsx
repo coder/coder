@@ -98,7 +98,7 @@ describe("LoginPage", () => {
     render(<LoginPage />)
 
     // Then
-    await screen.findByText(Language.passwordSignIn)
+    expect(await screen.queryByText(Language.passwordSignIn)).not.toBeInTheDocument()
     await screen.findByText(Language.githubSignIn)
   })
 
@@ -120,5 +120,33 @@ describe("LoginPage", () => {
 
     // Then
     await screen.findByText("Setup")
+  })
+
+  it("hides password authentication if OIDC/GitHub is enabled and displays on click", async () => {
+    const authMethods: TypesGen.AuthMethods = {
+      password: { enabled: true },
+      github: { enabled: true },
+      oidc: { enabled: true, signInText: "", iconUrl: "" },
+    }
+
+    // Given
+    server.use(
+      rest.get("/api/v2/users/authmethods", async (req, res, ctx) => {
+        return res(ctx.status(200), ctx.json(authMethods))
+      }),
+    )
+
+    // When
+    render(<LoginPage />)
+
+    // Then
+    expect(await screen.queryByText(Language.passwordSignIn)).not.toBeInTheDocument()
+    await screen.findByText(Language.githubSignIn)
+
+    const showPasswordAuthLink = screen.getByText("Show password login")
+    await userEvent.click(showPasswordAuthLink);
+
+    await screen.findByText(Language.passwordSignIn)
+    await screen.findByText(Language.githubSignIn)
   })
 })
