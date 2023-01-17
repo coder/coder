@@ -66,7 +66,6 @@ func Test_diffValues(t *testing.T) {
 		})
 	})
 
-	//nolint:revive
 	t.Run("PointerField", func(t *testing.T) {
 		t.Parallel()
 
@@ -98,6 +97,7 @@ func Test_diffValues(t *testing.T) {
 		})
 	})
 
+	//nolint:revive
 	t.Run("EmbeddedStruct", func(t *testing.T) {
 		t.Parallel()
 
