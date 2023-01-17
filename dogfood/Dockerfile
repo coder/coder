@@ -325,8 +325,6 @@ RUN addgroup --system nixbld \
   && mkdir -m 0755 /nix && chown coder:coder /nix \
   && mkdir -p /etc/nix && echo 'sandbox = false' > /etc/nix/nix.conf
 
-USER coder
-
 # Install Nix
 ARG NIX_VERSION=2.3.15
 RUN cd /opt \
@@ -351,3 +349,5 @@ ENV GOPRIVATE="coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder"
 
 # Increase memory allocation to NodeJS
 ENV NODE_OPTIONS="--max-old-space-size=8192"
+
+USER coder
