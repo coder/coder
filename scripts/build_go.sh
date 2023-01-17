@@ -93,12 +93,23 @@ if [[ "$sign_darwin" == 1 ]]; then
 	requiredenvs AC_CERTIFICATE_FILE AC_CERTIFICATE_PASSWORD_FILE
 fi
 
-build_args=(
-	-ldflags "-s -w -X 'github.com/coder/coder/buildinfo.tag=$version'"
+ldflags=(
+	-s
+	-w
+	-X "'github.com/coder/coder/buildinfo.tag=$version'"
 )
+
 if [[ "$slim" == 0 ]]; then
 	build_args+=(-tags embed)
+else
+	build_args+=(-tags slim)
 fi
+if [[ "$agpl" == 1 ]]; then
+	# We don't use a tag to control AGPL because we don't want code to depend on
+	# a flag to control AGPL vs. enterprise behavior.
+	ldflags+=(-X "'github.com/coder/coder/buildinfo.agpl=true'")
+fi
+build_args+=(-ldflags "${ldflags[*]}")
 
 # Compute default output path.
 if [[ "$output_path" == "" ]]; then
