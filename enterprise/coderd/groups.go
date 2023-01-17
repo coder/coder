@@ -242,8 +242,8 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	patchedMembers, patchedMembersErr := api.Database.GetGroupMembers(ctx, group.ID)
-	if patchedMembersErr != nil {
+	patchedMembers, err := api.Database.GetGroupMembers(ctx, group.ID)
+	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
@@ -275,9 +275,9 @@ func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 
-	groupMembers, getGroupMembersErr := api.Database.GetGroupMembers(ctx, group.ID)
-	if getGroupMembersErr != nil {
-		httpapi.InternalServerError(rw, getGroupMembersErr)
+	groupMembers, getMembersErr := api.Database.GetGroupMembers(ctx, group.ID)
+	if getMembersErr != nil {
+		httpapi.InternalServerError(rw, getMembersErr)
 		return
 	}
 
