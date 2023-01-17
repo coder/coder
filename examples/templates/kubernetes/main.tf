@@ -143,8 +143,11 @@ resource "kubernetes_pod" "main" {
       }
     }
 
+
     affinity {
       pod_anti_affinity {
+        // This affinity attempts to spread out all workspace pods evenly across
+        // nodes.
         preferred_during_scheduling_ignored_during_execution {
           weight = 1
           pod_affinity_term {
