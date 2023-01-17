@@ -320,20 +320,20 @@ COPY --from=proto /tmp/bin /usr/local/bin
 # - https://github.com/NixOS/nix/issues/2636#issuecomment-455302745
 # - https://nixos.org/manual/nix/stable/installation/multi-user.html#setting-up-the-build-users
 RUN addgroup --system nixbld \
-  && adduser coder nixbld \
-  && for i in $(seq 1 30); do useradd -ms /bin/bash nixbld$i &&  adduser nixbld$i nixbld; done \
-  && mkdir -m 0755 /nix && chown coder:coder /nix \
-  && mkdir -p /etc/nix && echo 'sandbox = false' > /etc/nix/nix.conf
+	&& adduser coder nixbld \
+	&& for i in $(seq 1 30); do useradd -ms /bin/bash nixbld$i &&  adduser nixbld$i nixbld; done \
+	&& mkdir -m 0755 /nix && chown coder:coder /nix \
+	&& mkdir -p /etc/nix && echo 'sandbox = false' > /etc/nix/nix.conf
 
 # Install Nix
 ARG NIX_VERSION=2.3.15
 RUN cd /opt \
-  && curl --silent --show-error --location \
-  "https://releases.nixos.org/nix/nix-${NIX_VERSION}/nix-${NIX_VERSION}-x86_64-linux.tar.xz" \
-  -o "nix-${NIX_VERSION}-x86_64-linux.tar.xz" \
-  && tar -xf "nix-${NIX_VERSION}-x86_64-linux.tar.xz" \
-  && ln -s "nix-${NIX_VERSION}-x86_64-linux" nix \
-  && rm -rf "nix-${NIX_VERSION}-x86_64-linux.tar.xz"
+	&& curl --silent --show-error --location \
+	"https://releases.nixos.org/nix/nix-${NIX_VERSION}/nix-${NIX_VERSION}-x86_64-linux.tar.xz" \
+	-o "nix-${NIX_VERSION}-x86_64-linux.tar.xz" \
+	&& tar -xf "nix-${NIX_VERSION}-x86_64-linux.tar.xz" \
+	&& ln -s "nix-${NIX_VERSION}-x86_64-linux" nix \
+	&& rm -rf "nix-${NIX_VERSION}-x86_64-linux.tar.xz"
 
 # Ensure go bins are in the 'coder' user's path. Note that no go bins are
 # installed in this docker file, as they'd be mounted over by the persistent
