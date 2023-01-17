@@ -225,9 +225,9 @@ func versionCmd() *cobra.Command {
 			_, _ = str.WriteString("\r\n" + buildinfo.ExternalURL() + "\r\n\r\n")
 
 			if buildinfo.IsSlim() {
-				_, _ = str.WriteString("Slim build of Coder, does not support the `server` subcommand.\r\n")
+				_, _ = str.WriteString(fmt.Sprintf("Slim build of Coder, does not support the %s subcommand.\n", cliui.Styles.Code.Render("server")))
 			} else {
-				_, _ = str.WriteString("Full build of Coder, supports the `server` subcommand.\r\n")
+				_, _ = str.WriteString(fmt.Sprintf("Full build of Coder, supports the %s subcommand.\n", cliui.Styles.Code.Render("server")))
 			}
 
 			_, _ = fmt.Fprint(cmd.OutOrStdout(), str.String())
