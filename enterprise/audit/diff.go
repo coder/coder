@@ -87,13 +87,10 @@ func diffValues(left, right any, table Table) audit.Map {
 		var (
 			diffName = field.FieldType.Tag.Get("json")
 		)
-<<<<<<< Updated upstream
-=======
 		// fmt.Println("rightT.Field(i)", rightT, rightT.Field(i), rightT.Field(i).Tag.Get("json"))
 
 		// map[avatar_url:track id:track members:track name:track organization_id:ignore quota_allowance:track]
 		fmt.Println("DIFF KEY", diffKey)
->>>>>>> Stashed changes
 
 		// group
 		fmt.Println("DIFF NAME", diffName)
