@@ -377,6 +377,11 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		state = createBuild.ProvisionerState
 	}
 
+	var parameters []codersdk.WorkspaceBuildParameter
+	if createBuild.RichParameterValues != nil {
+		parameters = createBuild.RichParameterValues
+	}
+
 	if createBuild.Orphan {
 		if createBuild.Transition != codersdk.WorkspaceTransitionDelete {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -447,6 +452,24 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 
 	if state == nil {
 		state = priorHistory.ProvisionerState
+	}
+
+	if parameters == nil {
+		buildParameters, err := api.Database.GetWorkspaceBuildParameters(ctx, priorHistory.ID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching prior workspace build parameters.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		parameters = make([]codersdk.WorkspaceBuildParameter, 0, len(buildParameters))
+		for _, param := range buildParameters {
+			parameters = append(parameters, codersdk.WorkspaceBuildParameter{
+				Name:  param.Name,
+				Value: param.Value,
+			})
+		}
 	}
 
 	var workspaceBuild database.WorkspaceBuild
@@ -530,6 +553,21 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace build: %w", err)
+		}
+
+		names := make([]string, 0, len(parameters))
+		values := make([]string, 0, len(parameters))
+		for _, param := range parameters {
+			names = append(names, param.Name)
+			values = append(values, param.Value)
+		}
+		err = db.InsertWorkspaceBuildParameters(ctx, database.InsertWorkspaceBuildParametersParams{
+			WorkspaceBuildID: workspaceBuildID,
+			Name:             names,
+			Value:            values,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert workspace build parameter: %w", err)
 		}
 
 		return nil
@@ -714,6 +752,42 @@ func (api *API) workspaceBuildResources(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 	api.provisionerJobResources(rw, r, job)
+}
+
+// @Summary Get build parameters for workspace build
+// @ID get-build-parameters-for-workspace-build
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Builds
+// @Param workspacebuild path string true "Workspace build ID"
+// @Success 200 {array} codersdk.WorkspaceBuildParameter
+// @Router /workspacebuilds/{workspacebuild}/parameters [get]
+func (api *API) workspaceBuildParameters(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspaceBuild := httpmw.WorkspaceBuildParam(r)
+	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "No workspace exists for this job.",
+		})
+		return
+	}
+
+	if !api.Authorize(r, rbac.ActionRead, workspace) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	parameters, err := api.Database.GetWorkspaceBuildParameters(ctx, workspaceBuild.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace build parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	apiParameters := convertWorkspaceBuildParameters(parameters)
+	httpapi.Write(ctx, rw, http.StatusOK, apiParameters)
 }
 
 // @Summary Get workspace build logs
@@ -1083,4 +1157,17 @@ func convertWorkspaceStatus(jobStatus codersdk.ProvisionerJobStatus, transition 
 
 	// return error status since we should never get here
 	return codersdk.WorkspaceStatusFailed
+}
+
+func convertWorkspaceBuildParameters(parameters []database.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
+	var apiParameters = make([]codersdk.WorkspaceBuildParameter, 0, len(parameters))
+
+	for _, p := range parameters {
+		apiParameter := codersdk.WorkspaceBuildParameter{
+			Name:  p.Name,
+			Value: p.Value,
+		}
+		apiParameters = append(apiParameters, apiParameter)
+	}
+	return apiParameters
 }

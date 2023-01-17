@@ -233,6 +233,7 @@ export interface CreateWorkspaceBuildRequest {
   readonly state?: string
   readonly orphan?: boolean
   readonly parameter_values?: CreateParameterRequest[]
+  readonly rich_parameter_values?: WorkspaceBuildParameter[]
 }
 
 // From codersdk/organizations.go
