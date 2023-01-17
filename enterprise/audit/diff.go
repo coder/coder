@@ -6,6 +6,7 @@ import (
 	"reflect"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
@@ -15,52 +16,12 @@ func structName(t reflect.Type) string {
 	return t.PkgPath() + "." + t.Name()
 }
 
-type FieldDiff struct {
-	FieldType reflect.StructField
-	LeftF     reflect.Value
-	RightF    reflect.Value
-}
-
-func flattenStructFields(left, right any) []FieldDiff {
-	leftV := reflect.ValueOf(left)
-	rightV := reflect.ValueOf(right)
-
-	allFields := []FieldDiff{}
-	rightT := rightV.Type()
-
-	// Flatten the structure and all fields.
-	// Does not support named nested structs.
-	for i := 0; i < rightT.NumField(); i++ {
-		if !rightT.Field(i).IsExported() {
-			continue
-		}
-
-		var (
-			leftF  = leftV.Field(i)
-			rightF = rightV.Field(i)
-		)
-
-		if rightT.Field(i).Anonymous {
-			// Loop through anonymous type for fields,
-			// append as top level fields for diffs.
-			allFields = append(allFields, flattenStructFields(leftF.Interface(), rightF.Interface())...)
-			continue
-		}
-
-		// Single fields append as is.
-		allFields = append(allFields, FieldDiff{
-			LeftF:     leftF,
-			RightF:    rightF,
-			FieldType: rightT.Field(i),
-		})
-	}
-	return allFields
-}
-
 func diffValues(left, right any, table Table) audit.Map {
 	var (
 		baseDiff = audit.Map{}
 		rightT   = reflect.TypeOf(right)
+		leftV    = reflect.ValueOf(left)
+		rightV   = reflect.ValueOf(right)
 
 		diffKey = table[structName(rightT)]
 	)
@@ -69,8 +30,14 @@ func diffValues(left, right any, table Table) audit.Map {
 		panic(fmt.Sprintf("dev error: type %q (type %T) attempted audit but not auditable", rightT.Name(), right))
 	}
 
-	allFields := flattenStructFields(left, right)
-	fmt.Println("AllFields", allFields)
+	// allFields contains all top level fields of the struct.
+	allFields, err := flattenStructFields(leftV, rightV)
+	if err != nil {
+		// This should never happen. Only structs should be flattened. If an
+		// error occurs, an unsupported or non-struct type was passed in.
+		panic(fmt.Sprintf("dev error: failed to flatten struct fields: %v", err))
+	}
+
 	for _, field := range allFields {
 		var (
 			leftF  = field.LeftF
@@ -80,20 +47,10 @@ func diffValues(left, right any, table Table) audit.Map {
 			rightI = rightF.Interface()
 		)
 
-		// This is the field that is returning a blank string.
-		fmt.Printf("Number of fields for %s: %d\n", rightT.String(), rightT.NumField())
-		// rightT.Field(i)
-
 		var (
 			diffName = field.FieldType.Tag.Get("json")
 		)
-		// fmt.Println("rightT.Field(i)", rightT, rightT.Field(i), rightT.Field(i).Tag.Get("json"))
 
-		// map[avatar_url:track id:track members:track name:track organization_id:ignore quota_allowance:track]
-		fmt.Println("DIFF KEY", diffKey)
-
-		// group
-		fmt.Println("DIFF NAME", diffName)
 		atype, ok := diffKey[diffName]
 		if !ok {
 			panic(fmt.Sprintf("dev error: field %q lacks audit information", diffName))
@@ -191,6 +148,64 @@ func convertDiffType(left, right any) (newLeft, newRight any, changed bool) {
 	default:
 		return left, right, false
 	}
+}
+
+// fieldDiff has all the required information to return an audit diff for a
+// given field.
+type fieldDiff struct {
+	FieldType reflect.StructField
+	LeftF     reflect.Value
+	RightF    reflect.Value
+}
+
+// flattenStructFields will return all top level fields for a given structure.
+// Only anonymously embedded structs will be recursively flattened such that their
+// fields are returned as top level fields. Named nested structs will be returned
+// as a single field.
+// Conflicting field names need to be handled by the caller.
+func flattenStructFields(leftV, rightV reflect.Value) ([]fieldDiff, error) {
+	// Dereference pointers if the field is a pointer field.
+	if leftV.Kind() == reflect.Ptr {
+		leftV = derefPointer(leftV)
+		rightV = derefPointer(rightV)
+	}
+
+	if leftV.Kind() != reflect.Struct {
+		return nil, xerrors.Errorf("%q is not a struct, kind=%s", leftV.String(), leftV.Kind())
+	}
+
+	var allFields []fieldDiff
+	rightT := rightV.Type()
+
+	// Loop through all top level fields of the struct.
+	for i := 0; i < rightT.NumField(); i++ {
+		if !rightT.Field(i).IsExported() {
+			continue
+		}
+
+		var (
+			leftF  = leftV.Field(i)
+			rightF = rightV.Field(i)
+		)
+
+		if rightT.Field(i).Anonymous {
+			// Anonymous fields are recursively flattened.
+			anonFields, err := flattenStructFields(leftF, rightF)
+			if err != nil {
+				return nil, xerrors.Errorf("flatten anonymous field %q: %w", rightT.Field(i).Name, err)
+			}
+			allFields = append(allFields, anonFields...)
+			continue
+		}
+
+		// Single fields append as is.
+		allFields = append(allFields, fieldDiff{
+			LeftF:     leftF,
+			RightF:    rightF,
+			FieldType: rightT.Field(i),
+		})
+	}
+	return allFields, nil
 }
 
 // derefPointer deferences a reflect.Value that is a pointer to its underlying

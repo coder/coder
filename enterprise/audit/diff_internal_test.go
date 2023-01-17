@@ -97,6 +97,7 @@ func Test_diffValues(t *testing.T) {
 			},
 		})
 	})
+
 	t.Run("EmbeddedStruct", func(t *testing.T) {
 		t.Parallel()
 
@@ -105,44 +106,71 @@ func Test_diffValues(t *testing.T) {
 			Buzz string `json:"buzz"`
 		}
 
+		type PtrBar struct {
+			Qux string `json:"qux"`
+		}
+
 		type foo struct {
 			Bar
+			*PtrBar
+			TopLevel string `json:"top_level"`
 		}
 
 		table := auditMap(map[any]map[string]Action{
 			&foo{}: {
-				"baz":  ActionTrack,
-				"buzz": ActionTrack,
+				"baz":       ActionTrack,
+				"buzz":      ActionTrack,
+				"qux":       ActionTrack,
+				"top_level": ActionTrack,
 			},
-			// &Bar{}: {
-			// 	"baz":  ActionTrack,
-			// 	"buzz": ActionTrack,
-			// },
 		})
 
 		runDiffValuesTests(t, table, []diffTest{
 			{
-				name: "SingleFieldChange",
-				left: foo{Bar: Bar{Baz: 1, Buzz: "before"}}, right: foo{Bar: Bar{Baz: 0, Buzz: "after"}},
+				name:  "SingleFieldChange",
+				left:  foo{TopLevel: "top-before", Bar: Bar{Baz: 1, Buzz: "before"}, PtrBar: &PtrBar{Qux: "qux-before"}},
+				right: foo{TopLevel: "top-after", Bar: Bar{Baz: 0, Buzz: "after"}, PtrBar: &PtrBar{Qux: "qux-after"}},
 				exp: audit.Map{
-					"baz":  audit.OldNew{Old: 1, New: 0},
-					"buzz": audit.OldNew{Old: "before", New: "after"},
+					"baz":       audit.OldNew{Old: 1, New: 0},
+					"buzz":      audit.OldNew{Old: "before", New: "after"},
+					"qux":       audit.OldNew{Old: "qux-before", New: "qux-after"},
+					"top_level": audit.OldNew{Old: "top-before", New: "top-after"},
 				},
 			},
-			// {
-			// 	name: "LeftNil",
-			// 	left: foo{Bar: Bar{Baz: 1}}, right: foo{Bar: pointer.StringPtr("baz")},
-			// 	exp: audit.Map{
-			// 		"bar": audit.OldNew{Old: "", New: "baz"},
-			// 	},
-			// },
-			// {
-			// 	name: "RightNil",
-			// 	left: foo{Bar: pointer.StringPtr("baz")}, right: foo{Bar: nil},
-			// 	exp: audit.Map{
-			// 		"bar": audit.OldNew{Old: "baz", New: ""},
-			// 	},
-			// },
+			{
+				name:  "Empty",
+				left:  foo{},
+				right: foo{},
+				exp:   audit.Map{},
+			},
+			{
+				name:  "NoChange",
+				left:  foo{TopLevel: "top-before", Bar: Bar{Baz: 1, Buzz: "before"}, PtrBar: &PtrBar{Qux: "qux-before"}},
+				right: foo{TopLevel: "top-before", Bar: Bar{Baz: 1, Buzz: "before"}, PtrBar: &PtrBar{Qux: "qux-before"}},
+				exp:   audit.Map{},
+			},
+			{
+				name:  "LeftEmpty",
+				left:  foo{},
+				right: foo{TopLevel: "top-after", Bar: Bar{Baz: 1, Buzz: "after"}, PtrBar: &PtrBar{Qux: "qux-after"}},
+				exp: audit.Map{
+					"baz":       audit.OldNew{Old: 0, New: 1},
+					"buzz":      audit.OldNew{Old: "", New: "after"},
+					"qux":       audit.OldNew{Old: "", New: "qux-after"},
+					"top_level": audit.OldNew{Old: "", New: "top-after"},
+				},
+			},
+			{
+				name:  "RightNil",
+				left:  foo{TopLevel: "top-before", Bar: Bar{Baz: 1, Buzz: "before"}, PtrBar: &PtrBar{Qux: "qux-before"}},
+				right: foo{},
+				exp: audit.Map{
+					"baz":       audit.OldNew{Old: 1, New: 0},
+					"buzz":      audit.OldNew{Old: "before", New: ""},
+					"qux":       audit.OldNew{Old: "qux-before", New: ""},
+					"top_level": audit.OldNew{Old: "top-before", New: ""},
+				},
+			},
 		})
 	})
 
