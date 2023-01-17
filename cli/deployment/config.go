@@ -168,11 +168,6 @@ func newConfig() *codersdk.DeploymentConfig {
 			Flag:   "postgres-url",
 			Secret: true,
 		},
-		PasswordAuthHidden: &codersdk.DeploymentConfigField[bool]{
-			Name:  "Flag to hide password auth",
-			Usage: "When this flag is set to true, the user/password form in the UI will be hidden",
-			Flag:  "password-auth-hidden",
-		},
 		OAuth2: &codersdk.OAuth2Config{
 			Github: &codersdk.OAuth2GithubConfig{
 				ClientID: &codersdk.DeploymentConfigField[string]{

@@ -481,8 +481,6 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				options.TLSCertificates = tlsConfig.Certificates
 			}
 
-			options.PasswordAuthHidden = cfg.PasswordAuthHidden.Value
-
 			if cfg.UpdateCheck.Value {
 				options.UpdateCheckOptions = &updatecheck.Options{
 					// Avoid spamming GitHub API checking for updates.
@@ -552,8 +550,8 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					EmailDomain:   cfg.OIDC.EmailDomain.Value,
 					AllowSignups:  cfg.OIDC.AllowSignups.Value,
 					UsernameField: cfg.OIDC.UsernameField.Value,
-					SignInText:   cfg.OIDC.SignInText.Value,
-					IconURL:      cfg.OIDC.IconURL.Value,
+					SignInText:    cfg.OIDC.SignInText.Value,
+					IconURL:       cfg.OIDC.IconURL.Value,
 				}
 			}
 

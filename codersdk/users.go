@@ -105,20 +105,15 @@ type CreateOrganizationRequest struct {
 	Name string `json:"name" validate:"required,username"`
 }
 
-// AuthMethods contains authentication method information like whether they are enabled or not or hidden or not, etc.
+// AuthMethods contains authentication method information like whether they are enabled or not or custom text, etc.
 type AuthMethods struct {
-	Password PasswordMethod `json:"password"`
-	Github   AuthMethod     `json:"github"`
-	OIDC     OIDCMethod     `json:"oidc"`
+	Password AuthMethod `json:"password"`
+	Github   AuthMethod `json:"github"`
+	OIDC     OIDCMethod `json:"oidc"`
 }
 
 type AuthMethod struct {
 	Enabled bool `json:"enabled"`
-}
-
-type PasswordMethod struct {
-	AuthMethod
-	Hidden bool `json:"hidden"`
 }
 
 type OIDCMethod struct {

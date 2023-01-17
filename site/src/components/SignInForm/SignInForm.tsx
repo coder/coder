@@ -2,19 +2,19 @@ import Box from "@material-ui/core/Box"
 import Button from "@material-ui/core/Button"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
+import Typography from "@material-ui/core/Typography"
 import TextField from "@material-ui/core/TextField"
 import GitHubIcon from "@material-ui/icons/GitHub"
 import KeyIcon from "@material-ui/icons/VpnKey"
 import { Stack } from "components/Stack/Stack"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
-import { FC } from "react"
+import { FC, useState } from "react"
 import * as Yup from "yup"
 import { AuthMethods } from "../../api/typesGenerated"
 import { getFormHelpers, onChangeTrimmed } from "../../util/formUtils"
 import { LoadingButton } from "./../LoadingButton/LoadingButton"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { useTranslation } from "react-i18next"
-import { useSearchParams } from "react-router-dom"
 
 /**
  * BuiltInAuthFormValues describes a form using built-in (email/password)
@@ -95,6 +95,12 @@ const useStyles = makeStyles((theme) => ({
     fontSize: 12,
     letterSpacing: 1,
   },
+  showPasswordLink: {
+    cursor: "pointer",
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+    marginTop: 12,
+  }
 }))
 
 export interface SignInFormProps {
@@ -115,8 +121,10 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
   onSubmit,
   initialTouched,
 }) => {
+  const nonPasswordAuthEnabled = authMethods?.github.enabled || authMethods?.oidc.enabled
+
+  const [showPasswordAuth, setShowPasswordAuth] = useState(!nonPasswordAuthEnabled);
   const styles = useStyles()
-  const [searchParams] = useSearchParams()
   const form: FormikContextType<BuiltInAuthFormValues> =
     useFormik<BuiltInAuthFormValues>({
       initialValues: {
@@ -139,17 +147,13 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
   const commonTranslation = useTranslation("common")
   const loginPageTranslation = useTranslation("loginPage")
 
-  const passwordHidden = authMethods?.password.hidden
-  const urlParamOverride = searchParams.get("auth") === "password"
-  const showPasswordLogin = !passwordHidden || urlParamOverride
-
   return (
     <div className={styles.root}>
       <h1 className={styles.title}>
         {loginPageTranslation.t("signInTo")}{" "}
         <strong>{commonTranslation.t("coder")}</strong>
       </h1>
-      {showPasswordLogin && (
+      {showPasswordAuth && (
         <form onSubmit={form.handleSubmit}>
           <Stack>
             {Object.keys(loginErrors).map(
@@ -195,15 +199,15 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
           </Stack>
         </form>
       )}
-      {showPasswordLogin &&
-        (authMethods?.github.enabled || authMethods?.oidc.enabled) && (
+      {showPasswordAuth &&
+        (nonPasswordAuthEnabled) && (
           <div className={styles.divider}>
             <div className={styles.dividerLine} />
             <div className={styles.dividerLabel}>Or</div>
             <div className={styles.dividerLine} />
           </div>
         )}
-      {(authMethods?.github.enabled || authMethods?.oidc.enabled) && (
+      {(nonPasswordAuthEnabled) && (
         <Box display="grid" gridGap="16px">
           {authMethods.github.enabled && (
             <Link
@@ -255,6 +259,11 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
           )}
         </Box>
       )}
+      {!showPasswordAuth &&
+        <Typography className={styles.showPasswordLink} onClick={() => setShowPasswordAuth(true)}>
+          Show password login
+        </Typography>
+      }
     </div>
   )
 }

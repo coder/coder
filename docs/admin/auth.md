@@ -4,18 +4,6 @@ By default, Coder is accessible via password authentication.
 
 The following steps explain how to set up GitHub OAuth or OpenID Connect.
 
-If after configuring another authentication method you'd like to hide password authentication, you can configure that like so:
-
-```console
-CODER_PASSWORD_AUTH_HIDDEN=true
-```
-
-If your external authentication method(s) were to go down, you can un-hide password authentication with the following URL query parameter:
-
-```console
-https://coder.domain.com/login?auth=password
-```
-
 ## GitHub
 
 ### Step 1: Configure the OAuth application in GitHub

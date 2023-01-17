@@ -62,11 +62,8 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AuthMethods{
-		Password: codersdk.PasswordMethod{
-			AuthMethod: codersdk.AuthMethod{Enabled: true},
-			Hidden:     api.PasswordAuthHidden,
-		},
-		Github: codersdk.AuthMethod{Enabled: api.GithubOAuth2Config != nil},
+		Password: codersdk.AuthMethod{Enabled: true},
+		Github:   codersdk.AuthMethod{Enabled: api.GithubOAuth2Config != nil},
 		OIDC: codersdk.OIDCMethod{
 			AuthMethod: codersdk.AuthMethod{Enabled: api.OIDCConfig != nil},
 			SignInText: signInText,
@@ -233,9 +230,9 @@ type OIDCConfig struct {
 	// username.
 	UsernameField string
 	// SignInText is the text to display on the OIDC login button
-	SignInText   string
+	SignInText string
 	// IconURL points to the URL of an icon to display on the OIDC login button
-	IconURL      string
+	IconURL string
 }
 
 // @Summary OpenID Connect Callback

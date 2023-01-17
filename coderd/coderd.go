@@ -97,7 +97,6 @@ type Options struct {
 	Authorizer                     rbac.Authorizer
 	AzureCertificates              x509.VerifyOptions
 	GoogleTokenValidator           *idtoken.Validator
-	PasswordAuthHidden   bool
 	GithubOAuth2Config             *GithubOAuth2Config
 	OIDCConfig                     *OIDCConfig
 	PrometheusRegistry             *prometheus.Registry

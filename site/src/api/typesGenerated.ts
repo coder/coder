@@ -96,7 +96,7 @@ export interface AuthMethod {
 
 // From codersdk/users.go
 export interface AuthMethods {
-  readonly password: PasswordMethod
+  readonly password: AuthMethod
   readonly github: AuthMethod
   readonly oidc: OIDCMethod
 }
@@ -536,11 +536,6 @@ export interface ParameterSchema {
   readonly validation_type_system: string
   readonly validation_value_type: string
   readonly validation_contains?: string[]
-}
-
-// From codersdk/users.go
-export interface PasswordMethod extends AuthMethod {
-  readonly hidden: boolean
 }
 
 // From codersdk/groups.go
