@@ -11,6 +11,8 @@ type AuditableGroup struct {
 	Members []GroupMember `json:"members"`
 }
 
+// Auditable returns an object that can be used in audit logs.
+// Covers both group and group member changes.
 func (g Group) Auditable(users []User) AuditableGroup {
 	members := make([]GroupMember, 0, len(users))
 	for _, u := range users {
@@ -20,7 +22,7 @@ func (g Group) Auditable(users []User) AuditableGroup {
 		})
 	}
 
-	// we sort to ensure the diff order enterprise/audit/diff.go:18
+	// consistent ordering
 	sort.Slice(members, func(i, j int) bool {
 		return members[i].UserID.String() < members[j].UserID.String()
 	})
