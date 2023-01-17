@@ -1,4 +1,4 @@
-import { Feature } from "api/typesGenerated"
+import { Feature, FeatureName } from "api/typesGenerated"
 import { State } from "xstate"
 import { EntitlementsContext, EntitlementsEvent } from "./entitlementsXService"
 
@@ -28,7 +28,7 @@ export const getFeatureVisibility = (
 
 export const selectFeatureVisibility = (
   state: EntitlementState,
-): Record<string, boolean> => {
+): Record<FeatureName, boolean> => {
   return getFeatureVisibility(
     state.context.entitlements.has_license,
     state.context.entitlements.features,

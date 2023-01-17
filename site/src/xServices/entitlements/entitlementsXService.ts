@@ -1,3 +1,4 @@
+import { withDefaultFeatures } from "./../../api/api"
 import { MockEntitlementsWithWarnings } from "testHelpers/entities"
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
@@ -18,7 +19,7 @@ export type EntitlementsEvent =
 const emptyEntitlements = {
   errors: [],
   warnings: [],
-  features: {},
+  features: withDefaultFeatures({}),
   has_license: false,
   experimental: false,
   trial: false,
