@@ -1,7 +1,5 @@
 # Workspaces
 
-> This page is incomplete, stay tuned.
-
 ## Create user workspace by organization
 
 ### Code samples
