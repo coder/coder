@@ -82,7 +82,7 @@ describe("LoginPage", () => {
 
   it("shows github authentication when enabled", async () => {
     const authMethods: TypesGen.AuthMethods = {
-      password: { enabled: true, hidden: false },
+      password: { enabled: true },
       github: { enabled: true },
       oidc: { enabled: true, signInText: "", iconUrl: "" },
     }

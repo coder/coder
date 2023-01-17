@@ -100,7 +100,7 @@ const useStyles = makeStyles((theme) => ({
     fontSize: 12,
     color: theme.palette.text.secondary,
     marginTop: 12,
-  }
+  },
 }))
 
 export interface SignInFormProps {
@@ -121,9 +121,12 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
   onSubmit,
   initialTouched,
 }) => {
-  const nonPasswordAuthEnabled = authMethods?.github.enabled || authMethods?.oidc.enabled
+  const nonPasswordAuthEnabled =
+    authMethods?.github.enabled || authMethods?.oidc.enabled
 
-  const [showPasswordAuth, setShowPasswordAuth] = useState(!nonPasswordAuthEnabled);
+  const [showPasswordAuth, setShowPasswordAuth] = useState(
+    !nonPasswordAuthEnabled,
+  )
   const styles = useStyles()
   const form: FormikContextType<BuiltInAuthFormValues> =
     useFormik<BuiltInAuthFormValues>({
@@ -199,15 +202,14 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
           </Stack>
         </form>
       )}
-      {showPasswordAuth &&
-        (nonPasswordAuthEnabled) && (
-          <div className={styles.divider}>
-            <div className={styles.dividerLine} />
-            <div className={styles.dividerLabel}>Or</div>
-            <div className={styles.dividerLine} />
-          </div>
-        )}
-      {(nonPasswordAuthEnabled) && (
+      {showPasswordAuth && nonPasswordAuthEnabled && (
+        <div className={styles.divider}>
+          <div className={styles.dividerLine} />
+          <div className={styles.dividerLabel}>Or</div>
+          <div className={styles.dividerLine} />
+        </div>
+      )}
+      {nonPasswordAuthEnabled && (
         <Box display="grid" gridGap="16px">
           {authMethods.github.enabled && (
             <Link
@@ -259,11 +261,14 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
           )}
         </Box>
       )}
-      {!showPasswordAuth &&
-        <Typography className={styles.showPasswordLink} onClick={() => setShowPasswordAuth(true)}>
+      {!showPasswordAuth && (
+        <Typography
+          className={styles.showPasswordLink}
+          onClick={() => setShowPasswordAuth(true)}
+        >
           Show password login
         </Typography>
-      }
+      )}
     </div>
   )
 }

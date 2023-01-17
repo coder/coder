@@ -610,7 +610,7 @@ export const MockUserAgent: Types.UserAgent = {
 }
 
 export const MockAuthMethods: TypesGen.AuthMethods = {
-  password: { enabled: true, hidden: false },
+  password: { enabled: true },
   github: { enabled: false },
   oidc: { enabled: false, signInText: "", iconUrl: "" },
 }
