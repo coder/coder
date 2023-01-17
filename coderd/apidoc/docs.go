@@ -6869,7 +6869,7 @@ const docTemplate = `{
                 "ResourceTypeWorkspaceBuild",
                 "ResourceTypeGitSSHKey",
                 "ResourceTypeAPIKey",
-                "ResourceTypeGroup"
+                "ResourceTypeAuditableGroup"
             ]
         },
         "codersdk.Response": {

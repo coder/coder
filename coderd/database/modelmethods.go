@@ -7,9 +7,18 @@ import (
 )
 
 type AuditableGroup struct {
-	Group
-	Members []GroupMember
+	Group   Group         `json:"group"`
+	Members []GroupMember `json:"members"`
 }
+
+// type AuditableGroup struct {
+// 	ID  Group.ID	`json:group_id`
+// 	Name
+// 	OrganizationId
+// 	AvatarUrl
+// 	QuotaAllowance
+// 	Members []GroupMember `json:"members"`
+// }
 
 func (g Group) Auditable(users []User) AuditableGroup {
 	members := make([]GroupMember, 0, len(users))
