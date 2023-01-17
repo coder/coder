@@ -164,3 +164,16 @@ func (c *Client) WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(ctx cont
 	var workspaceBuild WorkspaceBuild
 	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
 }
+
+func (c *Client) WorkspaceBuildParameters(ctx context.Context, build uuid.UUID) ([]WorkspaceBuildParameter, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspacebuilds/%s/parameters", build), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+	var params []WorkspaceBuildParameter
+	return params, json.NewDecoder(res.Body).Decode(&params)
+}

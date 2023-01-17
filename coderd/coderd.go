@@ -582,6 +582,7 @@ func New(options *Options) *API {
 			r.Get("/", api.workspaceBuild)
 			r.Patch("/cancel", api.patchCancelWorkspaceBuild)
 			r.Get("/logs", api.workspaceBuildLogs)
+			r.Get("/parameters", api.workspaceBuildParameters)
 			r.Get("/resources", api.workspaceBuildResources)
 			r.Get("/state", api.workspaceBuildState)
 		})

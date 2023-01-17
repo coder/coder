@@ -870,6 +870,12 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "source_value": "string"
     }
   ],
+  "rich_parameter_values": [
+    {
+      "name": "string",
+      "value": "string"
+    }
+  ],
   "state": [0],
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "transition": "create"
@@ -878,14 +884,15 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ### Properties
 
-| Name                  | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                                              |
-| --------------------- | --------------------------------------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dry_run`             | boolean                                                                     | false    |              |                                                                                                                                                                                                          |
-| `orphan`              | boolean                                                                     | false    |              | Orphan may be set for the Destroy transition.                                                                                                                                                            |
-| `parameter_values`    | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest) | false    |              | Parameter values are optional. It will write params to the 'workspace' scope. This will overwrite any existing parameters with the same name. This will not delete old params not included in this list. |
-| `state`               | array of integer                                                            | false    |              |                                                                                                                                                                                                          |
-| `template_version_id` | string                                                                      | false    |              |                                                                                                                                                                                                          |
-| `transition`          | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)                | true     |              |                                                                                                                                                                                                          |
+| Name                    | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                                              |
+| ----------------------- | ----------------------------------------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dry_run`               | boolean                                                                       | false    |              |                                                                                                                                                                                                          |
+| `orphan`                | boolean                                                                       | false    |              | Orphan may be set for the Destroy transition.                                                                                                                                                            |
+| `parameter_values`      | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest)   | false    |              | Parameter values are optional. It will write params to the 'workspace' scope. This will overwrite any existing parameters with the same name. This will not delete old params not included in this list. |
+| `rich_parameter_values` | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              |                                                                                                                                                                                                          |
+| `state`                 | array of integer                                                              | false    |              |                                                                                                                                                                                                          |
+| `template_version_id`   | string                                                                        | false    |              |                                                                                                                                                                                                          |
+| `transition`            | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)                  | true     |              |                                                                                                                                                                                                          |
 
 #### Enumerated Values
 
@@ -5104,6 +5111,22 @@ Parameter represents a set value for the scope.
 | `transition` | `start`     |
 | `transition` | `stop`      |
 | `transition` | `delete`    |
+
+## codersdk.WorkspaceBuildParameter
+
+```json
+{
+  "name": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+| ------- | ------ | -------- | ------------ | ----------- |
+| `name`  | string | false    |              |             |
+| `value` | string | false    |              |             |
 
 ## codersdk.WorkspaceQuota
 

@@ -1372,7 +1372,7 @@ func (q *fakeQuerier) GetWorkspaceBuildParameters(_ context.Context, workspaceBu
 	defer q.mutex.RUnlock()
 
 	params := make([]database.WorkspaceBuildParameter, 0)
-	for _, param := range params {
+	for _, param := range q.workspaceBuildParameters {
 		if param.WorkspaceBuildID != workspaceBuildID {
 			continue
 		}
