@@ -1,12 +1,8 @@
-We regularly scale-test Coder with our [scale testing utility](#scaletest-utility). The same utility can be used in your own environment for insights on how Coder performs with your specific templates, images, etc.
+We scale-test Coder with the [same utility](#scaletest-utility) that can be used in your environment for insights into how Coder scales with your infrastructure.
 
 ## General concepts
 
 Coder runs workspace operations in a queue. The number of concurrent builds will be limited to the number of provisioner daemons across all coderd replicas.
-
-```text
-2 coderd replicas * 30 provisioner daemons = 60 max concurrent workspace builds
-```
 
 - **coderd**: Coder’s primary service. Learn more about [Coder’s architecture](../../about/architecture.md)
 - **coderd replicas**: Replicas (often via Kubernetes) for high availability, this is an [enterprise feature](../../enterprise.md)
@@ -14,6 +10,10 @@ Coder runs workspace operations in a queue. The number of concurrent builds will
 - **concurrent connections**: Any connection to a workspace (e.g. SSH, web terminal, `coder_app`)
 - **provisioner daemons**: Coder runs one workspace build per provisioner daemon. One coderd replica can host many daemons 
 - **scaletest**: Our scale-testing utility, built into the `coder` command line.
+
+```text
+2 coderd replicas * 30 provisioner daemons = 60 max concurrent workspace builds
+```
 
 ## Infrastructure recommendations
 
