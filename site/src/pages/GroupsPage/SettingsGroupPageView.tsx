@@ -10,7 +10,7 @@ import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { OpenDropdown } from "components/DropdownArrows/DropdownArrows"
 import { FormFooter } from "components/FormFooter/FormFooter"
 import { FullPageForm } from "components/FullPageForm/FullPageForm"
-import { FullScreenLoader } from "components/Loader/FullScreenLoader"
+import { Loader } from "components/Loader/Loader"
 import { Margins } from "components/Margins/Margins"
 import { useFormik } from "formik"
 import { useRef, useState, FC } from "react"
@@ -164,7 +164,7 @@ export const SettingsGroupPageView: FC<SettingsGroupPageViewProps> = ({
   return (
     <ChooseOne>
       <Cond condition={isLoading}>
-        <FullScreenLoader />
+        <Loader />
       </Cond>
 
       <Cond>
