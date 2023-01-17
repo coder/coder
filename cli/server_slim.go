@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/deployment"
 	"github.com/coder/coder/coderd"
 )
@@ -21,9 +22,7 @@ func Server(vip *viper.Viper, _ func(context.Context, *coderd.Options) (*coderd.
 		Short:  "Start a Coder server",
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Fprintln(cmd.ErrOrStderr(), "`coder server` does not work with a 'slim' build of Coder.")
-			fmt.Fprintln(cmd.ErrOrStderr(), "Please use a build of Coder from GitHub releases.")
-			os.Exit(1)
+			serverUnsupported(cmd.ErrOrStderr())
 			return nil
 		},
 	}
@@ -34,9 +33,7 @@ func Server(vip *viper.Viper, _ func(context.Context, *coderd.Options) (*coderd.
 		Short:  "Output the connection URL for the built-in PostgreSQL deployment.",
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			fmt.Fprintln(cmd.ErrOrStderr(), "`coder server` does not work with a 'slim' build of Coder.")
-			fmt.Fprintln(cmd.ErrOrStderr(), "Please use a build of Coder from GitHub releases.")
-			os.Exit(1)
+			serverUnsupported(cmd.ErrOrStderr())
 			return nil
 		},
 	}
@@ -45,9 +42,7 @@ func Server(vip *viper.Viper, _ func(context.Context, *coderd.Options) (*coderd.
 		Short:  "Run the built-in PostgreSQL deployment.",
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Fprintln(cmd.ErrOrStderr(), "`coder server` does not work with a 'slim' build of Coder.")
-			fmt.Fprintln(cmd.ErrOrStderr(), "Please use a build of Coder from GitHub releases.")
-			os.Exit(1)
+			serverUnsupported(cmd.ErrOrStderr())
 			return nil
 		},
 	}
@@ -62,4 +57,11 @@ func Server(vip *viper.Viper, _ func(context.Context, *coderd.Options) (*coderd.
 	deployment.AttachFlags(root.Flags(), vip, false)
 
 	return root
+}
+
+func serverUnsupported(w io.Writer) {
+	_, _ = fmt.Fprintln(w, "You are using a 'slim' build of Coder, which does not support the %s subcommand.\n", cliui.Styles.Code.Render("server"))
+	_, _ = fmt.Fprintln(w, "Please use a build of Coder from GitHub releases:")
+	_, _ = fmt.Fprintln(w, "\thttps://github.com/coder/coder/releases")
+	os.Exit(1)
 }

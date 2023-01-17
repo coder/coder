@@ -21,9 +21,11 @@ var (
 	version     string
 	readVersion sync.Once
 
-	// Injected with ldflags at build!
+	// Updated by buildinfo_slim.go on start.
+	slim bool
+
+	// Injected with ldflags at build, see scripts/build_go.sh
 	tag  string
-	slim string // either "true" or "false", ldflags does not support bools
 	agpl string // either "true" or "false", ldflags does not support bools
 )
 
@@ -77,7 +79,7 @@ func IsDev() bool {
 
 // IsSlim returns true if this is a slim build.
 func IsSlim() bool {
-	return strings.Contains(slim, "t")
+	return slim
 }
 
 // IsAGPL returns true if this is an AGPL build.

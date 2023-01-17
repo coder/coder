@@ -103,9 +103,10 @@ if [[ "$slim" == 0 ]]; then
 	build_args+=(-tags embed)
 else
 	build_args+=(-tags slim)
-	ldflags+=(-X "'github.com/coder/coder/buildinfo.slim=true'")
 fi
 if [[ "$agpl" == 1 ]]; then
+	# We don't use a tag to control AGPL because we don't want code to depend on
+	# a flag to control AGPL vs. enterprise behavior.
 	ldflags+=(-X "'github.com/coder/coder/buildinfo.agpl=true'")
 fi
 build_args+=(-ldflags "${ldflags[*]}")
