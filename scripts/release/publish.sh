@@ -114,8 +114,48 @@ done
 
 # Generate checksums file which will be uploaded to the GitHub release.
 pushd "$temp_dir"
-sha256sum ./* | sed -e 's/\.\///' - >"coder_${version}_checksums.txt"
+checksum_file="coder_${version}_checksums.txt"
+sha256sum ./* | sed -e 's/\.\///' - >"$checksum_file"
 popd
+
+# Sign the checksums file if we have a GPG key. We skip this step in dry-run
+# because we don't want to sign a fake release with our real key.
+if [[ "$dry_run" == 0 ]] && [[ "${CODER_GPG_RELEASE_KEY_BASE64:-}" != "" ]]; then
+	log "--- Signing checksums file"
+	log
+
+	# Import the GPG key.
+	old_gnupg_home="${GNUPGHOME:-}"
+	gnupg_home_temp="$(mktemp -d)"
+	export GNUPGHOME="$gnupg_home_temp"
+	echo "$CODER_GPG_RELEASE_KEY_BASE64" | base64 -d | gpg --import 1>&2
+
+	# Sign the checksums file. This generates a file in the same directory and
+	# with the same name as the checksums file but ending in ".asc".
+	#
+	# We pipe `true` into `gpg` so that it never tries to be interactive (i.e.
+	# ask for a passphrase). The key we import above is not password protected.
+	true | gpg --detach-sign --armor "${temp_dir}/${checksum_file}" 1>&2
+
+	rm -rf "$gnupg_home_temp"
+	unset GNUPGHOME
+	if [[ "$old_gnupg_home" != "" ]]; then
+		export GNUPGHOME="$old_gnupg_home"
+	fi
+
+	signed_checksum_path="${temp_dir}/${checksum_file}.asc"
+	if [[ ! -e "$signed_checksum_path" ]]; then
+		log "Signed checksum file not found: ${signed_checksum_path}"
+		log
+		log "Files in ${temp_dir}:"
+		ls -l "$temp_dir"
+		log
+		error "Failed to sign checksums file. See above for more details."
+	fi
+
+	log
+	log
+fi
 
 log "--- Publishing release $new_tag on GitHub"
 log
