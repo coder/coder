@@ -1134,7 +1134,7 @@ func TestServer(t *testing.T) {
 
 			random, err := cryptorand.String(5)
 			require.NoError(t, err)
-			tmpdir := testutil.TempDir(t)
+			tmpdir := t.TempDir()
 			fiName := fmt.Sprint(tmpdir, "/coder-logging-test-", random)
 
 			root, _ := clitest.New(t,
@@ -1163,9 +1163,7 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
-			tmpdir := testutil.TempDir(t)
-			fi, err := os.CreateTemp(tmpdir, "coder-logging-test-*")
-			require.NoError(t, err)
+			fi := testutil.CreateTemp(t, "", "coder-logging-test-*")
 
 			root, _ := clitest.New(t,
 				"server",
@@ -1193,9 +1191,7 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
-			tmpdir := testutil.TempDir(t)
-			fi, err := os.CreateTemp(tmpdir, "coder-logging-test-*")
-			require.NoError(t, err)
+			fi := testutil.CreateTemp(t, "", "coder-logging-test-*")
 
 			root, _ := clitest.New(t,
 				"server",
@@ -1223,9 +1219,7 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
-			tmpdir := testutil.TempDir(t)
-			fi, err := os.CreateTemp(tmpdir, "coder-logging-test-*")
-			require.NoError(t, err)
+			fi := testutil.CreateTemp(t, "", "coder-logging-test-*")
 
 			root, _ := clitest.New(t,
 				"server",
@@ -1266,13 +1260,9 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
-			tmpdir := testutil.TempDir(t)
-			fi1, err := os.CreateTemp(tmpdir, "coder-logging-test-*")
-			require.NoError(t, err)
-			fi2, err := os.CreateTemp(tmpdir, "coder-logging-test-*")
-			require.NoError(t, err)
-			fi3, err := os.CreateTemp(tmpdir, "coder-logging-test-*")
-			require.NoError(t, err)
+			fi1 := testutil.CreateTemp(t, "", "coder-logging-test-*")
+			fi2 := testutil.CreateTemp(t, "", "coder-logging-test-*")
+			fi3 := testutil.CreateTemp(t, "", "coder-logging-test-*")
 
 			// NOTE(mafredri): This test might end up downloading Terraform
 			// which can take a long time and end up failing the test.
