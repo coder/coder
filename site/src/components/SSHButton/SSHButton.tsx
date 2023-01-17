@@ -1,7 +1,11 @@
 import Button from "@material-ui/core/Button"
 import Popover from "@material-ui/core/Popover"
+import Typography from "@material-ui/core/Typography"
 import { makeStyles } from "@material-ui/core/styles"
 import CloudIcon from "@material-ui/icons/CloudOutlined"
+import ExpandMoreIcon from "@material-ui/icons/ExpandMore"
+import ChevronRightIcon from "@material-ui/icons/ChevronRight"
+import { Maybe } from "components/Conditionals/Maybe"
 import { useRef, useState } from "react"
 import { CodeExample } from "../CodeExample/CodeExample"
 import { Stack } from "../Stack/Stack"
@@ -10,6 +14,7 @@ import {
   HelpTooltipLinksGroup,
   HelpTooltipText,
 } from "../Tooltips/HelpTooltip"
+import Link from "@material-ui/core/Link"
 
 export interface SSHButtonProps {
   workspaceName: string
@@ -24,6 +29,7 @@ export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
 }) => {
   const anchorRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(defaultIsOpen)
+  const [downloadCLIOpen, setDownloadCLIOpen] = useState(false)
   const id = isOpen ? "schedule-popover" : undefined
   const styles = useStyles()
 
@@ -83,9 +89,47 @@ export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
         </Stack>
 
         <HelpTooltipLinksGroup>
-          <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/install">
-            Install Coder CLI
-          </HelpTooltipLink>
+          <Link
+            onClick={() => setDownloadCLIOpen(!downloadCLIOpen)}
+            className={styles.link}
+          >
+            {downloadCLIOpen ? (
+              <ExpandMoreIcon className={styles.linkIcon} />
+            ) : (
+              <ChevronRightIcon className={styles.linkIcon} />
+            )}
+            <Typography
+              className={styles.downloadCLIButton}
+              onClick={() => setDownloadCLIOpen(!downloadCLIOpen)}
+            >
+              Download Coder CLI
+            </Typography>
+          </Link>
+          <Maybe condition={downloadCLIOpen}>
+            <div className={styles.downloadCLIOptionsDiv}>
+              <HelpTooltipLink href="/bin/coder-windows-amd64.exe">
+                For Windows (AMD64)
+              </HelpTooltipLink>
+              <HelpTooltipLink href="/bin/coder-windows-arm64.exe">
+                For Windows (ARM)
+              </HelpTooltipLink>
+              <HelpTooltipLink href="/bin/coder-darwin-amd64">
+                For Mac OS (Intel)
+              </HelpTooltipLink>
+              <HelpTooltipLink href="/bin/coder-darwin-arm64">
+                For Mac OS (ARM)
+              </HelpTooltipLink>
+              <HelpTooltipLink href="/bin/coder-linux-amd64">
+                For Linux (AMD64)
+              </HelpTooltipLink>
+              <HelpTooltipLink href="/bin/coder-linux-arm64">
+                For Linux (ARM64)
+              </HelpTooltipLink>
+              <HelpTooltipLink href="/bin/coder-linux-arm64">
+                For Linux (ARMv7)
+              </HelpTooltipLink>
+            </div>
+          </Maybe>
           <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/ides#vs-code-remote">
             Connect via VS Code Remote SSH
           </HelpTooltipLink>
@@ -121,5 +165,29 @@ const useStyles = makeStyles((theme) => ({
 
   textHelper: {
     fontWeight: 400,
+  },
+
+  downloadCLIButton: {
+    fontSize: 14,
+  },
+
+  downloadCLIOptionsDiv: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+    marginLeft: theme.spacing(1),
+  },
+
+  link: {
+    display: "flex",
+    alignItems: "center",
+    cursor: "pointer",
+  },
+
+  linkIcon: {
+    width: 14,
+    height: 14,
+    transform: "scale(1.8)",
+    marginRight: theme.spacing(1),
   },
 }))
