@@ -1,9 +1,7 @@
 import MuiDialog, {
   DialogProps as MuiDialogProps,
 } from "@material-ui/core/Dialog"
-import MuiDialogTitle from "@material-ui/core/DialogTitle"
 import { alpha, darken, lighten, makeStyles } from "@material-ui/core/styles"
-import SvgIcon from "@material-ui/core/SvgIcon"
 import * as React from "react"
 import { combineClasses } from "../../util/combineClasses"
 import {
@@ -11,66 +9,6 @@ import {
   LoadingButtonProps,
 } from "../LoadingButton/LoadingButton"
 import { ConfirmDialogType } from "./types"
-
-export interface DialogTitleProps {
-  /** Title for display */
-  title: React.ReactNode
-  /** Optional icon to display faded to the right of the title */
-  icon?: typeof SvgIcon
-  /** Smaller text to display above the title */
-  superTitle?: React.ReactNode
-}
-
-/**
- * Override of Material UI's DialogTitle that allows for a supertitle and background icon
- */
-export const DialogTitle: React.FC<DialogTitleProps> = ({
-  title,
-  icon: Icon,
-  superTitle,
-}) => {
-  const styles = useTitleStyles()
-  return (
-    <MuiDialogTitle disableTypography>
-      <div className={styles.titleWrapper}>
-        {superTitle && <div className={styles.superTitle}>{superTitle}</div>}
-        <div className={styles.title}>{title}</div>
-      </div>
-      {Icon && <Icon className={styles.icon} />}
-    </MuiDialogTitle>
-  )
-}
-
-const useTitleStyles = makeStyles(
-  (theme) => ({
-    title: {
-      position: "relative",
-      zIndex: 2,
-      fontSize: theme.typography.h3.fontSize,
-      fontWeight: theme.typography.h3.fontWeight,
-      lineHeight: "40px",
-      display: "flex",
-      alignItems: "center",
-    },
-    superTitle: {
-      position: "relative",
-      zIndex: 2,
-      fontSize: theme.typography.body2.fontSize,
-      fontWeight: 500,
-      letterSpacing: 1.5,
-      textTransform: "uppercase",
-    },
-    titleWrapper: {
-      padding: `${theme.spacing(2)}px 0`,
-    },
-    icon: {
-      height: 84,
-      width: 84,
-      color: alpha(theme.palette.action.disabled, 0.4),
-    },
-  }),
-  { name: "CdrDialogTitle" },
-)
 
 export interface DialogActionButtonsProps {
   /** Text to display in the cancel button */
