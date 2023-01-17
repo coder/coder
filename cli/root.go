@@ -213,12 +213,22 @@ func versionCmd() *cobra.Command {
 		Short: "Show coder version",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var str strings.Builder
-			_, _ = str.WriteString(fmt.Sprintf("Coder %s", buildinfo.Version()))
+			_, _ = str.WriteString("Coder ")
+			if buildinfo.IsAGPL() {
+				_, _ = str.WriteString("(AGPL) ")
+			}
+			_, _ = str.WriteString(buildinfo.Version())
 			buildTime, valid := buildinfo.Time()
 			if valid {
 				_, _ = str.WriteString(" " + buildTime.Format(time.UnixDate))
 			}
-			_, _ = str.WriteString("\r\n" + buildinfo.ExternalURL() + "\r\n")
+			_, _ = str.WriteString("\r\n" + buildinfo.ExternalURL() + "\r\n\r\n")
+
+			if buildinfo.IsSlim() {
+				_, _ = str.WriteString("Slim build of Coder, does not support the `server` subcommand.\r\n")
+			} else {
+				_, _ = str.WriteString("Full build of Coder, supports the `server` subcommand.\r\n")
+			}
 
 			_, _ = fmt.Fprint(cmd.OutOrStdout(), str.String())
 			return nil
