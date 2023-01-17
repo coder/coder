@@ -20,8 +20,8 @@ type Template struct {
 	OrganizationID      uuid.UUID       `json:"organization_id" format:"uuid"`
 	Name                string          `json:"name"`
 	DisplayName         string          `json:"display_name"`
-	Provisioner         ProvisionerType `json:"provisioner"`
-	ActiveVersionID     uuid.UUID       `json:"active_version_id"`
+	Provisioner         ProvisionerType `json:"provisioner" enums:"terraform"`
+	ActiveVersionID     uuid.UUID       `json:"active_version_id" format:"uuid"`
 	WorkspaceOwnerCount uint32          `json:"workspace_owner_count"`
 	// ActiveUserCount is set to -1 when loading.
 	ActiveUserCount  int                    `json:"active_user_count"`
@@ -42,7 +42,7 @@ type TransitionStats struct {
 
 type TemplateBuildTimeStats map[WorkspaceTransition]TransitionStats
 type UpdateActiveTemplateVersion struct {
-	ID uuid.UUID `json:"id" validate:"required"`
+	ID uuid.UUID `json:"id" validate:"required" format:"uuid"`
 }
 
 type TemplateRole string
@@ -60,12 +60,12 @@ type TemplateACL struct {
 
 type TemplateGroup struct {
 	Group
-	Role TemplateRole `json:"role"`
+	Role TemplateRole `json:"role" enums:"admin,use"`
 }
 
 type TemplateUser struct {
 	User
-	Role TemplateRole `json:"role"`
+	Role TemplateRole `json:"role" enums:"admin,use"`
 }
 
 type UpdateTemplateACL struct {
@@ -83,7 +83,7 @@ type UpdateTemplateMeta struct {
 }
 
 type TemplateExample struct {
-	ID          string   `json:"id"`
+	ID          string   `json:"id" format:"uuid"`
 	URL         string   `json:"url"`
 	Name        string   `json:"name"`
 	Description string   `json:"description"`
@@ -176,7 +176,7 @@ func (c *Client) UpdateActiveTemplateVersion(ctx context.Context, template uuid.
 // TemplateVersionsByTemplateRequest defines the request parameters for
 // TemplateVersionsByTemplate.
 type TemplateVersionsByTemplateRequest struct {
-	TemplateID uuid.UUID `json:"template_id" validate:"required"`
+	TemplateID uuid.UUID `json:"template_id" validate:"required" format:"uuid"`
 	Pagination
 }
 
@@ -210,10 +210,11 @@ func (c *Client) TemplateVersionByName(ctx context.Context, template uuid.UUID, 
 }
 
 type DAUEntry struct {
-	Date   time.Time `json:"date"`
+	Date   time.Time `json:"date" format:"date-time"`
 	Amount int       `json:"amount"`
 }
 
+// TemplateDAUsResponse contains statistics of daily active users of the template.
 type TemplateDAUsResponse struct {
 	Entries []DAUEntry `json:"entries"`
 }

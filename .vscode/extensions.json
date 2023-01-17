@@ -1,5 +1,6 @@
 {
   "recommendations": [
+    "github.vscode-codeql",
     "golang.go",
     "hashicorp.terraform",
     "esbenp.prettier-vscode",

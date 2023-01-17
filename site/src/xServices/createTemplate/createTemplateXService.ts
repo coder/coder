@@ -17,6 +17,7 @@ import {
   UploadResponse,
 } from "api/typesGenerated"
 import { displayError } from "components/GlobalSnackbar/utils"
+import { delay } from "util/delay"
 import { assign, createMachine } from "xstate"
 
 // for creating a new template:
@@ -345,6 +346,11 @@ export const createTemplateMachine =
           while (["pending", "running"].includes(status)) {
             version = await getTemplateVersion(version.id)
             status = version.job.status
+            // Delay the verification in two seconds to not overload the server
+            // with too many requests Maybe at some point we could have a
+            // websocket for template version Also, preferred doing this way to
+            // avoid a new state since we don't need to reflect it on the UI
+            await delay(2_000)
           }
           return version
         },

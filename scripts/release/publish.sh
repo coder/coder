@@ -34,14 +34,19 @@ if [[ "${CI:-}" == "" ]]; then
 fi
 
 version=""
+release_notes_file=""
 dry_run=0
 
-args="$(getopt -o "" -l version:,dry-run -- "$@")"
+args="$(getopt -o "" -l version:,release-notes-file:,dry-run -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
 	--version)
 		version="$2"
+		shift 2
+		;;
+	--release-notes-file)
+		release_notes_file="$2"
 		shift 2
 		;;
 	--dry-run)
@@ -65,6 +70,10 @@ dependencies gh
 version="${version#v}"
 if [[ "$version" == "" ]]; then
 	version="$(execrelative ./version.sh)"
+fi
+
+if [[ -z $release_notes_file ]]; then
+	error "No release notes files specified, use --release-notes-file."
 fi
 
 # realpath-ify all input files so we can cdroot below.
@@ -96,25 +105,6 @@ if [[ "$(git describe --always)" != "$new_tag" ]]; then
 	log "The provided version does not match the current git tag, but --dry-run was supplied so continuing..."
 fi
 
-# This returns the tag before the current tag.
-old_tag="$(git describe --abbrev=0 HEAD^1)"
-
-# For dry-run builds we want to use the SHA instead of the tag, because the new
-# tag probably doesn't exist.
-new_ref="$new_tag"
-if [[ "$dry_run" == 1 ]]; then
-	new_ref="$(git rev-parse --short HEAD)"
-fi
-
-# shellcheck source=scripts/release/check_commit_metadata.sh
-source "$SCRIPT_DIR/release/check_commit_metadata.sh" "$old_tag" "$new_ref"
-
-# Craft the release notes.
-release_notes="$(execrelative ./release/generate_release_notes.sh --old-version "$old_tag" --new-version "$new_tag" --ref "$new_ref")"
-
-release_notes_file="$(mktemp)"
-echo "$release_notes" >"$release_notes_file"
-
 # Create temporary release folder so we can generate checksums. Both the
 # sha256sum and gh binaries support symlinks as input files so this works well.
 temp_dir="$(mktemp -d)"
@@ -127,10 +117,10 @@ pushd "$temp_dir"
 sha256sum ./* | sed -e 's/\.\///' - >"coder_${version}_checksums.txt"
 popd
 
-log "--- Creating release $new_tag"
+log "--- Publishing release $new_tag on GitHub"
 log
 log "Description:"
-echo "$release_notes" | sed -e 's/^/\t/' - 1>&2
+sed -e 's/^/\t/' - <"$release_notes_file" 1>&2
 log
 log "Contents:"
 pushd "$temp_dir"

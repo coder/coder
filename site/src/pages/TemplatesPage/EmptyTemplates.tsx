@@ -1,7 +1,7 @@
 import Button from "@material-ui/core/Button"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
-import { Entitlements, TemplateExample } from "api/typesGenerated"
+import { TemplateExample } from "api/typesGenerated"
 import { CodeExample } from "components/CodeExample/CodeExample"
 import { Stack } from "components/Stack/Stack"
 import { TableEmpty } from "components/TableEmpty/TableEmpty"
@@ -12,7 +12,7 @@ import { Link as RouterLink } from "react-router-dom"
 import { Permissions } from "xServices/auth/authXService"
 
 // Those are from https://github.com/coder/coder/tree/main/examples/templates
-const featuredExamples = [
+const featuredExampleIds = [
   "docker",
   "kubernetes",
   "aws-linux",
@@ -22,19 +22,29 @@ const featuredExamples = [
 ]
 
 const findFeaturedExamples = (examples: TemplateExample[]) => {
-  return examples.filter((example) => featuredExamples.includes(example.id))
+  const featuredExamples: TemplateExample[] = []
+
+  // We loop the featuredExampleIds first to keep the order
+  featuredExampleIds.forEach((exampleId) => {
+    examples.forEach((example) => {
+      if (exampleId === example.id) {
+        featuredExamples.push(example)
+      }
+    })
+  })
+
+  return featuredExamples
 }
 
 export const EmptyTemplates: FC<{
   permissions: Permissions
   examples: TemplateExample[]
-  entitlements: Entitlements
-}> = ({ permissions, examples, entitlements }) => {
+}> = ({ permissions, examples }) => {
   const styles = useStyles()
   const { t } = useTranslation("templatesPage")
   const featuredExamples = findFeaturedExamples(examples)
 
-  if (permissions.createTemplates && entitlements.experimental) {
+  if (permissions.createTemplates) {
     return (
       <TableEmpty
         message={t("empty.message")}
@@ -76,33 +86,6 @@ export const EmptyTemplates: FC<{
               View all starter templates
             </Button>
           </Stack>
-        }
-      />
-    )
-  }
-
-  if (permissions.createTemplates) {
-    return (
-      <TableEmpty
-        className={styles.withImage}
-        message={t("empty.message")}
-        description={
-          <>
-            To create a workspace you need to have a template. You can{" "}
-            <Link
-              target="_blank"
-              href="https://coder.com/docs/coder-oss/latest/templates"
-            >
-              create one from scratch
-            </Link>{" "}
-            or use a built-in template using the following Coder CLI command:
-          </>
-        }
-        cta={<CodeExample code="coder templates init" />}
-        image={
-          <div className={styles.emptyImage}>
-            <img src="/featured/templates.webp" alt="" />
-          </div>
         }
       />
     )

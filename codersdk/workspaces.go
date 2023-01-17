@@ -47,7 +47,7 @@ type WorkspacesResponse struct {
 
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
 type CreateWorkspaceBuildRequest struct {
-	TemplateVersionID uuid.UUID           `json:"template_version_id,omitempty"`
+	TemplateVersionID uuid.UUID           `json:"template_version_id,omitempty" format:"uuid"`
 	Transition        WorkspaceTransition `json:"transition" validate:"oneof=create start stop delete,required"`
 	DryRun            bool                `json:"dry_run,omitempty"`
 	ProvisionerState  []byte              `json:"state,omitempty"`
@@ -245,7 +245,7 @@ func (c *Client) UpdateWorkspaceTTL(ctx context.Context, id uuid.UUID, req Updat
 // PutExtendWorkspaceRequest is a request to extend the deadline of
 // the active workspace build.
 type PutExtendWorkspaceRequest struct {
-	Deadline time.Time `json:"deadline" validate:"required"`
+	Deadline time.Time `json:"deadline" validate:"required" format:"date-time"`
 }
 
 // PutExtendWorkspace updates the deadline for resources of the latest workspace build.

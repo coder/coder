@@ -3,9 +3,10 @@ import { useMachine } from "@xstate/react"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { Margins } from "components/Margins/Margins"
+import dayjs from "dayjs"
 import { scheduleToAutoStart } from "pages/WorkspaceSchedulePage/schedule"
 import { ttlMsToAutoStop } from "pages/WorkspaceSchedulePage/ttl"
-import React, { useEffect } from "react"
+import { useEffect, FC } from "react"
 import { useTranslation } from "react-i18next"
 import { Navigate, useNavigate, useParams } from "react-router-dom"
 import { scheduleChanged } from "util/schedule"
@@ -30,7 +31,7 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-export const WorkspaceSchedulePage: React.FC = () => {
+export const WorkspaceSchedulePage: FC = () => {
   const { t } = useTranslation("workspaceSchedulePage")
   const styles = useStyles()
   const { username: usernameQueryParam, workspace: workspaceQueryParam } =
@@ -46,6 +47,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
     getTemplateError,
     permissions,
     workspace,
+    template,
   } = scheduleState.context
 
   // Get workspace on mount and whenever the args for getting a workspace change.
@@ -60,7 +62,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
     return <Navigate to="/workspaces" />
   }
 
-  if (scheduleState.hasTag("loading")) {
+  if (scheduleState.hasTag("loading") || !template) {
     return <FullScreenLoader />
   }
 
@@ -104,6 +106,7 @@ export const WorkspaceSchedulePage: React.FC = () => {
           ...getAutoStop(workspace),
         }}
         isLoading={scheduleState.tags.has("loading")}
+        defaultTTL={dayjs.duration(template.default_ttl_ms, "ms").asHours()}
         onCancel={() => {
           navigate(`/@${username}/${workspaceName}`)
         }}

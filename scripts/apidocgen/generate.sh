@@ -18,21 +18,21 @@ trap cleanup EXIT
 log "Use temporary file: ${API_MD_TMP_FILE}"
 
 pushd "${PROJECT_ROOT}"
-go run github.com/swaggo/swag/cmd/swag@v1.8.6 init \
+go run github.com/swaggo/swag/cmd/swag@v1.8.9 init \
 	--generalInfo="coderd.go" \
-	--dir="./coderd,./codersdk" \
+	--dir="./coderd,./codersdk,./enterprise/coderd" \
 	--output="./coderd/apidoc" \
 	--outputTypes="go,json" \
 	--parseDependency=true
 popd
 
 pushd "${APIDOCGEN_DIR}"
-npm ci
+yarn
 
 # Make sure that widdershins is installed correctly.
-npm exec -- widdershins --version
+yarn exec -- widdershins --version
 # Render the Markdown file.
-npm exec -- widdershins \
+yarn exec -- widdershins \
 	--user_templates "./markdown-template" \
 	--search false \
 	--omitHeader true \

@@ -45,9 +45,9 @@ curl -X POST http://coder-server:8080/api/v2/authcheck \
 
 ### Parameters
 
-| Name | In   | Type                                                                     | Required | Description           |
-| ---- | ---- | ------------------------------------------------------------------------ | -------- | --------------------- |
-| body | body | [codersdk.AuthorizationRequest](schemas.md#codersdkauthorizationrequest) | true     | Authorization request |
+| Name   | In   | Type                                                                     | Required | Description           |
+| ------ | ---- | ------------------------------------------------------------------------ | -------- | --------------------- |
+| `body` | body | [codersdk.AuthorizationRequest](schemas.md#codersdkauthorizationrequest) | true     | Authorization request |
 
 ### Example responses
 
@@ -66,4 +66,51 @@ curl -X POST http://coder-server:8080/api/v2/authcheck \
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AuthorizationResponse](schemas.md#codersdkauthorizationresponse) |
 
-To perform this operation, you must be authenticated by means of one of the following methods: **CoderSessionToken**.
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Log in user
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/users/login \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /users/login`
+
+> Body parameter
+
+```json
+{
+  "email": "user@example.com",
+  "password": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                             | Required | Description   |
+| ------ | ---- | -------------------------------------------------------------------------------- | -------- | ------------- |
+| `body` | body | [codersdk.LoginWithPasswordRequest](schemas.md#codersdkloginwithpasswordrequest) | true     | Login request |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "session_token": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                                                             |
+| ------ | ------------------------------------------------------------ | ----------- | ---------------------------------------------------------------------------------- |
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.LoginWithPasswordResponse](schemas.md#codersdkloginwithpasswordresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).

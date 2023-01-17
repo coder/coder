@@ -61,8 +61,9 @@ type WithFlags interface {
 type Option func(*ptyOptions)
 
 type ptyOptions struct {
-	logger *log.Logger
-	sshReq *ssh.Pty
+	logger    *log.Logger
+	sshReq    *ssh.Pty
+	setGPGTTY bool
 }
 
 // WithSSHRequest applies the ssh.Pty request to the PTY.
@@ -78,6 +79,14 @@ func WithSSHRequest(req ssh.Pty) Option {
 func WithLogger(logger *log.Logger) Option {
 	return func(opts *ptyOptions) {
 		opts.logger = logger
+	}
+}
+
+// WithGPGTTY sets the GPG_TTY environment variable to the PTY name. This only
+// applies to non-Windows platforms.
+func WithGPGTTY() Option {
+	return func(opts *ptyOptions) {
+		opts.setGPGTTY = true
 	}
 }
 

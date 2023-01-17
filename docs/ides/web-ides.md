@@ -169,7 +169,7 @@ resource "coder_app" "jupyter" {
 
 ![JupyterLab in Coder](../images/jupyter-on-docker.png)
 
-### RStudio
+## RStudio
 
 Configure your agent and `coder_app` like so to use RStudio. Notice the
 `subdomain=true` configuration:
@@ -206,7 +206,7 @@ resource "coder_app" "rstudio" {
 
 ![RStudio in Coder](../images/rstudio-port-forward.png)
 
-### Airflow
+## Airflow
 
 Configure your agent and `coder_app` like so to use Airflow. Notice the
 `subdomain=true` configuration:

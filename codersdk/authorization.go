@@ -24,10 +24,7 @@ type AuthorizationRequest struct {
 //
 // @Description AuthorizationCheck is used to check if the currently authenticated user (or the specified user) can do a given action to a given set of objects.
 type AuthorizationCheck struct {
-	// Object can represent a "set" of objects, such as:
-	//	- All workspaces in an organization
-	//	- All workspaces owned by me
-	//	- All workspaces across the entire product
+	// Object can represent a "set" of objects, such as: all workspaces in an organization, all workspaces owned by me, and all workspaces across the entire product.
 	// When defining an object, use the most specific language when possible to
 	// produce the smallest set. Meaning to set as many fields on 'Object' as
 	// you can. Example, if you want to check if you can update all workspaces
@@ -54,7 +51,7 @@ type AuthorizationObject struct {
 	// ResourceID (optional) reduces the set to a singular resource. This assigns
 	// a resource ID to the resource type, eg: a single workspace.
 	// The rbac library will not fetch the resource from the database, so if you
-	// are using this option, you should also set the `OwnerID` and `OrganizationID`
+	// are using this option, you should also set the owner ID and organization ID
 	// if possible. Be as specific as possible using all the fields relevant.
 	ResourceID string `json:"resource_id,omitempty"`
 }

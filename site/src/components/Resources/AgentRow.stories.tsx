@@ -32,6 +32,15 @@ HideSSHButton.args = {
   hideSSHButton: true,
 }
 
+export const HideVSCodeDesktopButton = Template.bind({})
+HideVSCodeDesktopButton.args = {
+  agent: MockWorkspaceAgent,
+  workspace: MockWorkspace,
+  applicationsHost: "",
+  showApps: true,
+  hideVSCodeDesktopButton: true,
+}
+
 export const NotShowingApps = Template.bind({})
 NotShowingApps.args = {
   agent: MockWorkspaceAgent,
@@ -74,5 +83,13 @@ Timeout.args = {
   agent: MockWorkspaceAgentTimeout,
   workspace: MockWorkspace,
   applicationsHost: "",
+  showApps: true,
+}
+
+export const ShowingPortForward = Template.bind({})
+ShowingPortForward.args = {
+  agent: MockWorkspaceAgent,
+  workspace: MockWorkspace,
+  applicationsHost: "https://coder.com",
   showApps: true,
 }

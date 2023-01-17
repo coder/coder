@@ -22,7 +22,7 @@ const (
 )
 
 type WorkspaceApp struct {
-	ID uuid.UUID `json:"id"`
+	ID uuid.UUID `json:"id" format:"uuid"`
 	// URL is the address being proxied to inside the workspace.
 	// If external is specified, this will be opened on the client.
 	URL string `json:"url"`
@@ -42,14 +42,14 @@ type WorkspaceApp struct {
 	// and there is no app wildcard configured on the server, the app will not
 	// be accessible in the UI.
 	Subdomain    bool                     `json:"subdomain"`
-	SharingLevel WorkspaceAppSharingLevel `json:"sharing_level"`
+	SharingLevel WorkspaceAppSharingLevel `json:"sharing_level" enums:"owner,authenticated,public"`
 	// Healthcheck specifies the configuration for checking app health.
 	Healthcheck Healthcheck        `json:"healthcheck"`
 	Health      WorkspaceAppHealth `json:"health"`
 }
 
 type Healthcheck struct {
-	// URL specifies the url to check for the app health.
+	// URL specifies the endpoint to check for the app health.
 	URL string `json:"url"`
 	// Interval specifies the seconds between each health check.
 	Interval int32 `json:"interval"`

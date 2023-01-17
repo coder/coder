@@ -26,19 +26,19 @@ const (
 
 // Organization is the JSON representation of a Coder organization.
 type Organization struct {
-	ID        uuid.UUID `json:"id" validate:"required"`
+	ID        uuid.UUID `json:"id" validate:"required" format:"uuid"`
 	Name      string    `json:"name" validate:"required"`
-	CreatedAt time.Time `json:"created_at" validate:"required"`
-	UpdatedAt time.Time `json:"updated_at" validate:"required"`
+	CreatedAt time.Time `json:"created_at" validate:"required" format:"date-time"`
+	UpdatedAt time.Time `json:"updated_at" validate:"required" format:"date-time"`
 }
 
 // CreateTemplateVersionRequest enables callers to create a new Template Version.
 type CreateTemplateVersionRequest struct {
 	Name string `json:"name,omitempty" validate:"omitempty,template_name"`
 	// TemplateID optionally associates a version with a template.
-	TemplateID      uuid.UUID                `json:"template_id,omitempty"`
-	StorageMethod   ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required"`
-	FileID          uuid.UUID                `json:"file_id,omitempty" validate:"required_without=ExampleID"`
+	TemplateID      uuid.UUID                `json:"template_id,omitempty" format:"uuid"`
+	StorageMethod   ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required" enums:"file"`
+	FileID          uuid.UUID                `json:"file_id,omitempty" validate:"required_without=ExampleID" format:"uuid"`
 	ExampleID       string                   `json:"example_id,omitempty" validate:"required_without=FileID"`
 	Provisioner     ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo,required"`
 	ProvisionerTags map[string]string        `json:"tags"`
@@ -67,7 +67,7 @@ type CreateTemplateRequest struct {
 	// This is required on creation to enable a user-flow of validating a
 	// template works. There is no reason the data-model cannot support empty
 	// templates, but it doesn't make sense for users.
-	VersionID       uuid.UUID                `json:"template_version_id" validate:"required"`
+	VersionID       uuid.UUID                `json:"template_version_id" validate:"required" format:"uuid"`
 	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
 
 	// DefaultTTLMillis allows optionally specifying the default TTL
@@ -81,13 +81,14 @@ type CreateTemplateRequest struct {
 
 // CreateWorkspaceRequest provides options for creating a new workspace.
 type CreateWorkspaceRequest struct {
-	TemplateID        uuid.UUID `json:"template_id" validate:"required"`
+	TemplateID        uuid.UUID `json:"template_id" validate:"required" format:"uuid"`
 	Name              string    `json:"name" validate:"workspace_name,required"`
 	AutostartSchedule *string   `json:"autostart_schedule"`
 	TTLMillis         *int64    `json:"ttl_ms,omitempty"`
 	// ParameterValues allows for additional parameters to be provided
 	// during the initial provision.
-	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
+	ParameterValues     []CreateParameterRequest  `json:"parameter_values,omitempty"`
+	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
 }
 
 func (c *Client) Organization(ctx context.Context, id uuid.UUID) (Organization, error) {

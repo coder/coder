@@ -1,19 +1,16 @@
 # GitHub release workflow.
-name: release
+name: Release
 on:
   push:
     tags:
       - "v*"
   workflow_dispatch:
     inputs:
-      snapshot:
-        description: Force a dev version to be generated, implies dry_run.
-        type: boolean
-        required: true
       dry_run:
-        description: Perform a dry-run release.
+        description: Perform a dry-run release (devel). Note that ref must be an annotated tag when run without dry-run.
         type: boolean
         required: true
+        default: false
 
 permissions:
   # Required to publish a release
@@ -23,15 +20,24 @@ permissions:
   # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
   id-token: write
 
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
 env:
-  CODER_RELEASE: ${{ github.event.inputs.snapshot && 'false' || 'true' }}
+  # Use `inputs` (vs `github.event.inputs`) to ensure that booleans are actual
+  # booleans, not strings.
+  # https://github.blog/changelog/2022-06-10-github-actions-inputs-unified-across-manual-and-reusable-workflows/
+  CODER_RELEASE: ${{ !inputs.dry_run }}
+  CODER_DRY_RUN: ${{ inputs.dry_run }}
 
 jobs:
   release:
+    name: Build and publish
     runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
     env:
       # Necessary for Docker manifest
       DOCKER_CLI_EXPERIMENTAL: "enabled"
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v3
         with:
@@ -44,6 +50,37 @@ jobs:
       # https://github.com/actions/checkout/issues/290
       - name: Fetch git tags
         run: git fetch --tags --force
+
+      - name: Print version
+        id: version
+        run: |
+          set -euo pipefail
+          version="$(./scripts/version.sh)"
+          echo "version=$version" >> $GITHUB_OUTPUT
+          # Speed up future version.sh calls.
+          echo "CODER_FORCE_VERSION=$version" >> $GITHUB_ENV
+          echo "$version"
+
+      - name: Create release notes
+        env:
+          # We always have to set this since there might be commits on
+          # main that didn't have a PR.
+          CODER_IGNORE_MISSING_COMMIT_METADATA: "1"
+        run: |
+          set -euo pipefail
+          ref=HEAD
+          old_version="$(git describe --abbrev=0 "$ref^1")"
+          version="$(./scripts/version.sh)"
+
+          # Generate notes.
+          release_notes_file="$(mktemp -t release_notes.XXXXXX)"
+          ./scripts/release/generate_release_notes.sh --old-version "$old_version" --new-version "$version" --ref "$ref" >> "$release_notes_file"
+          echo CODER_RELEASE_NOTES_FILE="$release_notes_file" >> $GITHUB_ENV
+
+      - name: Show release notes
+        run: |
+          set -euo pipefail
+          cat "$CODER_RELEASE_NOTES_FILE"
 
       - name: Docker Login
         uses: docker/login-action@v2
@@ -157,8 +194,17 @@ jobs:
 
       - name: Publish release
         run: |
+          set -euo pipefail
+
+          publish_args=()
+          if [[ $CODER_DRY_RUN == *t* ]]; then
+            publish_args+=(--dry-run)
+          fi
+          declare -p publish_args
+
           ./scripts/release/publish.sh \
-            ${{ (github.event.inputs.dry_run || github.event.inputs.snapshot) && '--dry-run' }} \
+            "${publish_args[@]}" \
+            --release-notes-file "$CODER_RELEASE_NOTES_FILE" \
             ./build/*_installer.exe \
             ./build/*.zip \
             ./build/*.tar.gz \
@@ -176,9 +222,10 @@ jobs:
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Setup GCloud SDK
-        uses: 'google-github-actions/setup-gcloud@v0'
+        uses: "google-github-actions/setup-gcloud@v1"
 
       - name: Publish Helm Chart
+        if: ${{ !inputs.dry_run }}
         run: |
           set -euo pipefail
           version="$(./scripts/version.sh)"
@@ -189,12 +236,13 @@ jobs:
           gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/coder_helm_${version}.tgz gs://helm.coder.com/v2
           gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/index.yaml gs://helm.coder.com/v2
 
-      - name: Upload artifacts to actions (if dry-run or snapshot)
-        if: ${{ github.event.inputs.dry_run || github.event.inputs.snapshot }}
+      - name: Upload artifacts to actions (if dry-run)
+        if: ${{ inputs.dry_run }}
         uses: actions/upload-artifact@v2
         with:
           name: release-artifacts
           path: |
+            ./build/*_installer.exe
             ./build/*.zip
             ./build/*.tar.gz
             ./build/*.tgz
@@ -202,3 +250,80 @@ jobs:
             ./build/*.deb
             ./build/*.rpm
           retention-days: 7
+
+  publish-winget:
+    runs-on: windows-latest
+    needs: release
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      # If the event that triggered the build was an annotated tag (which our
+      # tags are supposed to be), actions/checkout has a bug where the tag in
+      # question is only a lightweight tag and not a full annotated tag. This
+      # command seems to fix it.
+      # https://github.com/actions/checkout/issues/290
+      - name: Fetch git tags
+        run: git fetch --tags --force
+
+      - name: Install wingetcreate
+        run: |
+          Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+
+      - name: Submit updated manifest to winget-pkgs
+        run: |
+          # The package version is the same as the tag minus the leading "v".
+          # The version in this output already has the leading "v" removed but
+          # we do it again to be safe.
+          $version = "${{ needs.release.outputs.version }}".Trim('v')
+
+          $release_assets = gh release view --repo coder/coder "v${version}" --json assets | `
+            ConvertFrom-Json
+          # Get the installer URL from the release assets.
+          $installer_url = $release_assets.assets | `
+            Where-Object name -Match ".*_windows_amd64_installer.exe$" | `
+            Select -ExpandProperty url
+
+          echo "Installer URL: ${installer_url}"
+          echo "Package version: ${version}"
+
+          # Bail if dry-run.
+          if ($env:CODER_DRY_RUN -match "t") {
+            echo "Skipping submission due to dry-run."
+            exit 0
+          }
+
+          # The URL "|X64" suffix forces the architecture as it cannot be
+          # sniffed properly from the URL. wingetcreate checks both the URL and
+          # binary magic bytes for the architecture and they need to both match,
+          # but they only check for `x64`, `win64` and `_64` in the URL. Our URL
+          # contains `amd64` which doesn't match sadly.
+          #
+          # wingetcreate will still do the binary magic bytes check, so if we
+          # accidentally change the architecture of the installer, it will fail
+          # submission.
+          .\wingetcreate.exe update Coder.Coder `
+            --submit `
+            --version "${version}" `
+            --urls "${installer_url}|X64" `
+            --token "${{ secrets.CDRCI_GITHUB_TOKEN }}"
+
+        env:
+          # For gh CLI:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Comment on PR
+        run: |
+          # Find the PR that wingetcreate just made.
+          $version = "${{ needs.release.outputs.version }}".Trim('v')
+          $pr_list = gh pr list --repo microsoft/winget-pkgs --search "author:cdrci Coder.Coder version ${version}" --limit 1 --json number | `
+            ConvertFrom-Json`
+          $pr_number = $pr_list[0].number
+
+          gh pr comment --repo microsoft/winget-pkgs "${pr_number}" --body "🤖 cc: @deansheather @matifali"
+
+        env:
+          # For gh CLI. We need a real token since we're commenting on a PR in a
+          # different repo.
+          GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}

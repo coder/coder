@@ -2,13 +2,9 @@
 
 We recommend automating Coder deployments through the CLI. Examples include [updating templates via CI/CD pipelines](../templates/change-management.md).
 
-## Tokens
+## Authentication
 
-Long-lived tokens can be generated to perform actions on behalf of your user account:
-
-```console
-coder tokens create
-```
+Coder uses authentication tokens to grant machine users access to the REST API. Follow the [Authentication](../api/authentication.md) page to learn how to generate long-lived tokens.
 
 ## CLI
 
@@ -23,14 +19,13 @@ coder workspaces ls
 
 ## REST API
 
-You can use tokens with the Coder's REST API using the `Coder-Session-Token` HTTP header.
+You can review the [API reference](../api/index.md) to find the necessary routes and payload. Alternatively, you can enable the [Swagger](https://swagger.io/) endpoint to read the documentation and do requests against the API:
 
 ```console
-curl 'https://dev.coder.com/api/v2/workspaces' \
-  -H 'Coder-Session-Token: *****'
+coder server --swagger-enable
 ```
 
-> At this time, we do not publish an API reference. However, [codersdk](https://github.com/coder/coder/tree/main/codersdk) can be grepped to find the necessary routes and payloads.
+By default, the local Swagger endpoint is http://localhost:3000/swagger.
 
 ## Golang SDK
 

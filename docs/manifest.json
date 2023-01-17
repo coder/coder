@@ -1,5 +1,5 @@
 {
-  "versions": ["main", "v0.8.1", "v0.7.12"],
+  "versions": ["main"],
   "routes": [
     {
       "title": "About",
@@ -326,28 +326,68 @@
       "icon_path": "./images/icons/api.svg",
       "children": [
         {
-          "title": "Authentication",
-          "path": "./api/authentication.md"
+          "title": "General",
+          "path": "./api/general.md"
+        },
+        {
+          "title": "Agents",
+          "path": "./api/agents.md"
         },
         {
           "title": "Applications",
           "path": "./api/applications.md"
         },
         {
+          "title": "Audit",
+          "path": "./api/audit.md"
+        },
+        {
+          "title": "Authentication",
+          "path": "./api/authentication.md"
+        },
+        {
           "title": "Authorization",
           "path": "./api/authorization.md"
+        },
+        {
+          "title": "Builds",
+          "path": "./api/builds.md"
+        },
+        {
+          "title": "Enterprise",
+          "path": "./api/enterprise.md"
+        },
+        {
+          "title": "Files",
+          "path": "./api/files.md"
+        },
+        {
+          "title": "Members",
+          "path": "./api/members.md"
+        },
+        {
+          "title": "Organizations",
+          "path": "./api/organizations.md"
+        },
+        {
+          "title": "Parameters",
+          "path": "./api/parameters.md"
+        },
+        {
+          "title": "Schemas",
+          "path": "./api/schemas.md"
         },
         {
           "title": "Templates",
           "path": "./api/templates.md"
         },
         {
-          "title": "Workspaces",
-          "path": "./api/workspaces.md"
+          "title": "Users",
+          "path": "./api/users.md"
         },
         {
-          "title": "Schemas",
-          "path": "./api/schemas.md"
+          "title": "Workspaces",
+          "path": "./api/workspaces.md"
         }
       ]
     }

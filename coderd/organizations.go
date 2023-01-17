@@ -16,6 +16,14 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+// @Summary Get organization by ID
+// @ID get-organization-by-id
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Organizations
+// @Param organization path string true "Organization ID" format(uuid)
+// @Success 200 {object} codersdk.Organization
+// @Router /organizations/{organization} [get]
 func (api *API) organization(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
@@ -29,6 +37,15 @@ func (api *API) organization(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, convertOrganization(organization))
 }
 
+// @Summary Create organization
+// @ID create-organization
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Organizations
+// @Param request body codersdk.CreateOrganizationRequest true "Create organization request"
+// @Success 201 {object} codersdk.Organization
+// @Router /organizations [post]
 func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)

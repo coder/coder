@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.6.0"
+      version = "0.6.6"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -95,7 +95,7 @@ resource "docker_image" "main" {
   name = "coder-${data.coder_workspace.me.id}"
   build {
     path = "./build"
-    build_arg = {
+    build_args = {
       USER = local.username
     }
   }

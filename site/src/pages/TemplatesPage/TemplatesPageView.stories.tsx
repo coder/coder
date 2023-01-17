@@ -1,7 +1,6 @@
 import { ComponentMeta, Story } from "@storybook/react"
 import {
   makeMockApiError,
-  MockEntitlements,
   MockOrganization,
   MockPermissions,
   MockTemplate,
@@ -21,7 +20,6 @@ const Template: Story<TemplatesPageViewProps> = (args) => (
 
 export const WithTemplates = Template.bind({})
 WithTemplates.args = {
-  entitlements: MockEntitlements,
   context: {
     organizationId: MockOrganization.id,
     permissions: MockPermissions,
@@ -60,22 +58,6 @@ WithTemplatesSmallViewPort.parameters = {
 
 export const EmptyCanCreate = Template.bind({})
 EmptyCanCreate.args = {
-  entitlements: MockEntitlements,
-  context: {
-    organizationId: MockOrganization.id,
-    permissions: MockPermissions,
-    error: undefined,
-    templates: [],
-    examples: [MockTemplateExample, MockTemplateExample2],
-  },
-}
-
-export const EmptyCanCreateExperimental = Template.bind({})
-EmptyCanCreateExperimental.args = {
-  entitlements: {
-    ...MockEntitlements,
-    experimental: true,
-  },
   context: {
     organizationId: MockOrganization.id,
     permissions: MockPermissions,
@@ -87,7 +69,6 @@ EmptyCanCreateExperimental.args = {
 
 export const EmptyCannotCreate = Template.bind({})
 EmptyCannotCreate.args = {
-  entitlements: MockEntitlements,
   context: {
     organizationId: MockOrganization.id,
     permissions: {
@@ -102,7 +83,6 @@ EmptyCannotCreate.args = {
 
 export const Error = Template.bind({})
 Error.args = {
-  entitlements: MockEntitlements,
   context: {
     organizationId: MockOrganization.id,
     permissions: {

@@ -50,6 +50,7 @@ export interface WorkspaceProps {
   builds?: TypesGen.WorkspaceBuild[]
   canUpdateWorkspace: boolean
   hideSSHButton?: boolean
+  hideVSCodeDesktopButton?: boolean
   workspaceErrors: Partial<Record<WorkspaceErrors, Error | unknown>>
   buildInfo?: TypesGen.BuildInfoResponse
   applicationsHost?: string
@@ -75,6 +76,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   canUpdateWorkspace,
   workspaceErrors,
   hideSSHButton,
+  hideVSCodeDesktopButton,
   buildInfo,
   applicationsHost,
   template,
@@ -215,6 +217,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
                 applicationsHost={applicationsHost}
                 showApps={canUpdateWorkspace}
                 hideSSHButton={hideSSHButton}
+                hideVSCodeDesktopButton={hideVSCodeDesktopButton}
                 serverVersion={serverVersion}
               />
             )}

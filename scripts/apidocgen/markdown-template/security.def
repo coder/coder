@@ -1,27 +1,15 @@
 <!-- APIDOCGEN: BEGIN SECTION -->
-{{= data.tags.section }}# Authentication
-{{ for (var s in data.api.components.securitySchemes) { }}
-{{ var sd = data.api.components.securitySchemes[s]; }}
-{{? sd.type == 'apiKey' }}
-- API Key ({{=s}})
-  - Parameter Name: **{{=sd.name}}**, in: {{=sd.in}}. {{=sd.description || ''}}
-{{?}}
-{{? sd.type == 'http'}}
-- HTTP Authentication, scheme: {{=sd.scheme}}{{? sd.description }}<br/>{{=sd.description}}{{?}}
-{{?}}
-{{? sd.type == 'oauth2'}}
-- oAuth2 authentication. {{=sd.description || ''}}
-{{ for (var f in sd.flows) { }}
-{{ var flow = sd.flows[f]; }}
-    - Flow: {{=f}}
-{{? flow.authorizationUrl}}    - Authorization URL = [{{=flow.authorizationUrl}}]({{=flow.authorizationUrl}}){{?}}
-{{? flow.tokenUrl}}    - Token URL = [{{=flow.tokenUrl}}]({{=flow.tokenUrl}}){{?}}
-{{? flow.scopes && Object.keys(flow.scopes).length}}
-|Scope|Scope Description|
-|---|---|
-{{ for (var sc in flow.scopes) { }}|{{=sc}}|{{=data.utils.join(flow.scopes[sc])}}|
-{{ } /* of scopes */ }}
-{{?}}
-{{ } /* of flows */ }}
-{{?}}
-{{ } /* of securitySchemes */ }}
+# Authentication
+
+Long-lived tokens can be generated to perform actions on behalf of your user account:
+
+```console
+coder tokens create
+```
+
+You can use tokens with the Coder's REST API using the `Coder-Session-Token` HTTP header.
+
+```console
+curl 'http://coder-server:8080/api/v2/workspaces' \
+  -H 'Coder-Session-Token: *****'
+```

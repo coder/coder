@@ -23,6 +23,14 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+// @Summary Get workspace build
+// @ID get-workspace-build
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Builds
+// @Param workspacebuild path string true "Workspace build ID"
+// @Success 200 {object} codersdk.WorkspaceBuild
+// @Router /workspacebuilds/{workspacebuild} [get]
 func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
@@ -64,6 +72,18 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, apiBuild)
 }
 
+// @Summary Get workspace builds by workspace ID
+// @ID get-workspace-builds-by-workspace-id
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Builds
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Param after_id query string false "After ID" format(uuid)
+// @Param limit query int false "Page limit"
+// @Param offset query int false "Page offset"
+// @Param since query string false "Since timestamp" format(date-time)
+// @Success 200 {array} codersdk.WorkspaceBuild
+// @Router /workspaces/{workspace}/builds [get]
 func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
@@ -171,6 +191,16 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, apiBuilds)
 }
 
+// @Summary Get workspace build by user, workspace name, and build number
+// @ID get-workspace-build-by-user-workspace-name-and-build-number
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Builds
+// @Param user path string true "User ID, name, or me"
+// @Param workspacename path string true "Workspace name"
+// @Param buildnumber path string true "Build number" format(number)
+// @Success 200 {object} codersdk.WorkspaceBuild
+// @Router /users/{user}/workspace/{workspacename}/builds/{buildnumber} [get]
 func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	owner := httpmw.UserParam(r)
@@ -254,6 +284,19 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 	httpapi.Write(ctx, rw, http.StatusOK, apiBuild)
 }
 
+// Azure supports instance identity verification:
+// https://docs.microsoft.com/en-us/azure/virtual-machines/windows/instance-metadata-service?tabs=linux#tabgroup_14
+//
+// @Summary Create workspace build
+// @ID create-workspace-build
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Builds
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Param request body codersdk.CreateWorkspaceBuildRequest true "Create workspace build request"
+// @Success 200 {object} codersdk.WorkspaceBuild
+// @Router /workspaces/{workspace}/builds [post]
 func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -368,12 +411,12 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	case codersdk.ProvisionerJobFailed:
-		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("The provided template version %q has failed to import: %q. You cannot build workspaces with it!", templateVersion.Name, templateVersionJob.Error.String),
 		})
 		return
 	case codersdk.ProvisionerJobCanceled:
-		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "The provided template version was canceled during import. You cannot builds workspaces with it!",
 		})
 		return
@@ -535,6 +578,14 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusCreated, apiBuild)
 }
 
+// @Summary Cancel workspace build
+// @ID cancel-workspace-build
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Builds
+// @Param workspacebuild path string true "Workspace build ID"
+// @Success 200 {object} codersdk.Response
+// @Router /workspacebuilds/{workspacebuild}/cancel [patch]
 func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
@@ -575,13 +626,13 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 	if job.CompletedAt.Valid {
-		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Job has already completed!",
 		})
 		return
 	}
 	if job.CanceledAt.Valid {
-		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Job has already been marked as canceled!",
 		})
 		return
@@ -630,6 +681,14 @@ func (api *API) verifyUserCanCancelWorkspaceBuilds(ctx context.Context, userID u
 	return slices.Contains(user.RBACRoles, rbac.RoleOwner()), nil // only user with "owner" role can cancel workspace builds
 }
 
+// @Summary Get workspace resources for workspace build
+// @ID get-workspace-resources-for-workspace-build
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Builds
+// @Param workspacebuild path string true "Workspace build ID"
+// @Success 200 {array} codersdk.WorkspaceResource
+// @Router /workspacebuilds/{workspacebuild}/resources [get]
 func (api *API) workspaceBuildResources(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
@@ -657,6 +716,17 @@ func (api *API) workspaceBuildResources(rw http.ResponseWriter, r *http.Request)
 	api.provisionerJobResources(rw, r, job)
 }
 
+// @Summary Get workspace build logs
+// @ID get-workspace-build-logs
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Builds
+// @Param workspacebuild path string true "Workspace build ID"
+// @Param before query int false "Before Unix timestamp"
+// @Param after query int false "After Unix timestamp"
+// @Param follow query bool false "Follow log stream"
+// @Success 200 {array} codersdk.ProvisionerJobLog
+// @Router /workspacebuilds/{workspacebuild}/logs [get]
 func (api *API) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
@@ -684,6 +754,14 @@ func (api *API) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 	api.provisionerJobLogs(rw, r, job)
 }
 
+// @Summary Get provisioner state for workspace build
+// @ID get-provisioner-state-for-workspace-build
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Builds
+// @Param workspacebuild path string true "Workspace build ID"
+// @Success 200 {object} codersdk.WorkspaceBuild
+// @Router /workspacebuilds/{workspacebuild}/state [get]
 func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
@@ -829,7 +907,8 @@ func (api *API) convertWorkspaceBuilds(
 		templateVersionByID[templateVersion.ID] = templateVersion
 	}
 
-	var apiBuilds []codersdk.WorkspaceBuild
+	// Should never be nil for API consistency
+	apiBuilds := []codersdk.WorkspaceBuild{}
 	for _, build := range workspaceBuilds {
 		job, exists := jobByID[build.JobID]
 		if !exists {

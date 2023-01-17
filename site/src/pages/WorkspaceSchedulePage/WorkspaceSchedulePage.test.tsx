@@ -21,6 +21,8 @@ import {
 } from "components/WorkspaceScheduleForm/WorkspaceScheduleForm"
 import { WorkspaceSchedulePage } from "./WorkspaceSchedulePage"
 import i18next from "i18next"
+import { server } from "testHelpers/server"
+import { rest } from "msw"
 
 const { t } = i18next
 
@@ -293,6 +295,39 @@ describe("WorkspaceSchedulePage", () => {
       const title = t("dialogTitle", { ns: "workspaceSchedulePage" })
       const dialog = screen.queryByText(title)
       expect(dialog).not.toBeInTheDocument()
+    })
+  })
+
+  describe("autostop", () => {
+    it("uses template default ttl when first enabled", async () => {
+      // have auto-stop disabled
+      server.use(
+        rest.get(
+          "/api/v2/users/:userId/workspace/:workspaceName",
+          (req, res, ctx) => {
+            return res(
+              ctx.status(200),
+              ctx.json({ ...MockWorkspace, ttl_ms: 0 }),
+            )
+          },
+        ),
+      )
+      renderWithAuth(<WorkspaceSchedulePage />, {
+        route: `/@${MockUser.username}/${MockWorkspace.name}/schedule`,
+        path: "/@:username/:workspace/schedule",
+      })
+      const user = userEvent.setup()
+      const autoStopToggle = await screen.findByLabelText(
+        FormLanguage.stopSwitch,
+      )
+      // enable auto-stop
+      await user.click(autoStopToggle)
+      // find helper text that describes the mock template's 24 hour default
+      const autoStopHelperText = await screen.findByText(
+        "Your workspace will shut down a day after",
+        { exact: false },
+      )
+      expect(autoStopHelperText).toBeDefined()
     })
   })
 })

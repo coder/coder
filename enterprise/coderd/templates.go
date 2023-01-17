@@ -18,6 +18,14 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+// @Summary Get template ACLs
+// @ID get-template-acls
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param template path string true "Template ID" format(uuid)
+// @Success 200 {array} codersdk.TemplateUser
+// @Router /templates/{template}/acl [get]
 func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx      = r.Context()
@@ -92,6 +100,16 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary Update template ACL
+// @ID update-template-acl
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Enterprise
+// @Param template path string true "Template ID" format(uuid)
+// @Param request body codersdk.UpdateTemplateACL true "Update template request"
+// @Success 200 {object} codersdk.Response
+// @Router /templates/{template}/acl [patch]
 func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()

@@ -34,6 +34,10 @@ dependencies gh
 COMMIT_METADATA_BREAKING=0
 declare -A COMMIT_METADATA_TITLE COMMIT_METADATA_CATEGORY
 
+# This environment variable can be set to 1 to ignore missing commit metadata,
+# useful for dry-runs.
+ignore_missing_metadata=${CODER_IGNORE_MISSING_COMMIT_METADATA:-0}
+
 main() {
 	# Match a commit prefix pattern, e.g. feat: or feat(site):.
 	prefix_pattern="^([a-z]+)(\([a-z]*\))?:"
@@ -44,6 +48,9 @@ main() {
 	breaking_title="^[a-z]+(\([a-z]*\))?!:"
 	breaking_label=release/breaking
 	breaking_category=breaking
+
+	# Security related changes are labeled `security`.
+	security_label=security
 
 	# Get abbreviated and full commit hashes and titles for each commit.
 	mapfile -t commits < <(git log --no-merges --pretty=format:"%h %H %s" "$range")
@@ -86,7 +93,11 @@ main() {
 
 		# Safety-check, guarantee all commits had their metadata fetched.
 		if [[ ! -v labels[$commit_sha_long] ]]; then
-			error "Metadata missing for commit $commit_sha_short"
+			if [[ $ignore_missing_metadata != 1 ]]; then
+				error "Metadata missing for commit $commit_sha_short"
+			else
+				log "WARNING: Metadata missing for commit $commit_sha_short"
+			fi
 		fi
 
 		# Store the commit title for later use.
@@ -96,9 +107,12 @@ main() {
 
 		# First, check the title for breaking changes. This avoids doing a
 		# GH API request if there's a match.
-		if [[ $commit_prefix =~ $breaking_title ]] || [[ ${labels[$commit_sha_long]} = *"label:$breaking_label"* ]]; then
+		if [[ $commit_prefix =~ $breaking_title ]] || [[ ${labels[$commit_sha_long]:-} = *"label:$breaking_label"* ]]; then
 			COMMIT_METADATA_CATEGORY[$commit_sha_short]=$breaking_category
 			COMMIT_METADATA_BREAKING=1
+			continue
+		elif [[ ${labels[$commit_sha_long]:-} = *"label:$security_label"* ]]; then
+			COMMIT_METADATA_CATEGORY[$commit_sha_short]=$security_label
 			continue
 		fi
 
@@ -106,7 +120,8 @@ main() {
 			commit_prefix=${BASH_REMATCH[1]}
 		fi
 		case $commit_prefix in
-		feat | fix)
+		# From: https://github.com/commitizen/conventional-commit-types
+		feat | fix | docs | style | refactor | perf | test | build | ci | chore | revert)
 			COMMIT_METADATA_CATEGORY[$commit_sha_short]=$commit_prefix
 			;;
 		*)
@@ -130,6 +145,9 @@ export_commit_metadata() {
 if [[ ${_COMMIT_METADATA_CACHE:-} == "${range}:"* ]]; then
 	eval "${_COMMIT_METADATA_CACHE#*:}"
 else
+	if [[ $ignore_missing_metadata == 1 ]]; then
+		log "WARNING: Ignoring missing commit metadata, breaking changes may be missed."
+	fi
 	main
 fi
 

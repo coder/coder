@@ -5,9 +5,6 @@
 		}
 
 		const pRef = p.$ref.replace("#/components/schemas/","");
-		if (pRef == "codersdk.NullTime") {
-			return "string(time) or `null`";
-		}
 		return "[" + pRef + "](#" + pRef.replace(".","").toLowerCase() + ")";
 	}
 
@@ -28,12 +25,27 @@
 		return "`" + p.displayName + "`";
 	}
 
+	function correctLetterCase(description) {
+		const dictionary = ["id", "url"];
+
+		const words = description.split(' ');
+		var corrected = [];
+		words.forEach(word => {
+			if (dictionary.includes(word.toLowerCase())) {
+				corrected.push(word.toUpperCase());
+				return;
+			}
+			corrected.push(word);
+		});
+		return corrected.join(" ");
+	}
+
 	function renderDescription(p) {
 		if (!p.description) {
 			return "";
 		}
 
-		const description = p.description.replaceAll("<br><br>", "\n").replaceAll("<br>", " ");
+		let description = p.description.replace(/<br><br>/g, "\n").replace(/<br>/g, " ");
 		const words = description.split(' ');
 		if (words.length == 0) {
 			return "";
@@ -41,12 +53,16 @@
 
 		const countUppercase = words[0].length - words[0].replace(/[A-Z]/g, '').length;
 		if (countUppercase > 1) {
-			let displayName = p.displayName.replaceAll("» **additionalProperties**", "It");
-			displayName = displayName.charAt(0).toUpperCase() + displayName.replaceAll("_", " ").toLowerCase().slice(1);
-			return displayName + " " + words.slice(1).join(' ');
+			let displayName = p.displayName.replace(/» \*\*additionalProperties\*\*/g, "It").replace("» ", "");
+			displayName = displayName.charAt(0).toUpperCase() + displayName.replace(/_/g, " ").toLowerCase().slice(1);
+			description = displayName + " " + words.slice(1).join(' ');
 		}
-		return description;
+		return correctLetterCase(description);
 	}
+
+	/* Export functions that are used by other template partials. */
+	data.functions = {};
+	data.functions.renderDescription = renderDescription;
 }}
 
 {{? data.api.components && data.api.components.securitySchemes }}{{#def.security}}{{?}}
@@ -81,12 +97,13 @@
 > This page is incomplete, stay tuned.
 
 {{ for (var s in data.components.schemas) {
-	if (s == "codersdk.NullTime") {
-		continue;
-	}
+  var origSchema = data.components.schemas[s];
+  var schema = data.api.components.schemas[s];
+
+  if (schema.description && schema.description.startsWith("x-apidocgen:skip")) {
+	continue;
+  }
 }}
-{{ var origSchema = data.components.schemas[s]; }}
-{{ var schema = data.api.components.schemas[s]; }}
 
 {{= data.tags.section }}
 ## {{=s}}
@@ -120,10 +137,10 @@
 
 {{? block===blocks[0] }}
 {{= data.tags.section }}
-
 ### Properties
 {{?}}
 
+{{? block.rows.length > 0 && block.rows[0].displayName != "*anonymous*"}}
 {{? block.rows.length}}|Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|{{?}}
 {{~ block.rows :p}}|{{= renderDisplayName(p)}}|{{= renderPropertyType(p)}}|{{=p.required}}|{{=p.restrictions||''}}|{{= renderDescription(p)}}|
@@ -132,16 +149,24 @@
 {{? (blocks[0].rows.length === 0) && (blocks.length === 1) }}
 *None*
 {{?}}
+{{?}}
 
 {{? enums.length > 0 }}
 {{= data.tags.section }}
 
 #### Enumerated Values
 
+{{? block.rows.length > 0 && block.rows[0].displayName != "*anonymous*"}}
 |Property|Value|
 |---|---|
-{{~ enums :e}}|{{=e.name}}|{{=data.utils.toPrimitive(e.value)}}|
+{{~ enums :e}}|`{{=e.name}}`|`{{=data.utils.toPrimitive(e.value)}}`|
 {{~}}
+{{??}}
+|Value|
+|---|
+{{~ enums :e}}|`{{=data.utils.toPrimitive(e.value)}}`|
+{{~}}
+{{?}}
 
 {{= data.tags.endSection }}
 {{?}}

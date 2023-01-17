@@ -24,6 +24,27 @@
 		}
 		return renderSingleResponseType(r);
 	}
+
+	function renderDisplayName(p) {
+		if (p.displayName == "*anonymous*") {
+			return "[array item]";
+		}
+		let displayName = p.displayName.replace("**additionalProperties**", "[any property]");
+		return displayName;
+	}
+
+	function renderResponsePropertyType(p) {
+		if (p.$ref) {
+			const href = p.$ref.replace(".","").toLowerCase();
+			return "[" + p.$ref + "](schemas.md#" + href + ")";
+		}
+
+		if (p.type == 'array') {
+			return p.type;
+		}
+
+		return p.safeType;
+	}
 }}
 {{ data.responses = data.utils.getResponses(data); }}
 {{ data.responseSchemas = false; }}
@@ -77,7 +98,7 @@ Status Code **{{=response.status}}**
 {{?}}
 |Name|Type|Required|Restrictions|Description|
 |---|---|---|---|---|
-{{~block.rows :p}}|{{=p.displayName}}|{{? p.$ref}}`{{=p.$ref}}`{{?}}{{? !p.$ref}}{{=p.type}}{{?}}|{{=p.required}}|{{=p.restrictions||''}}|{{=p.description||''}}|
+{{~block.rows :p}}|`{{=renderDisplayName(p)}}`|{{=renderResponsePropertyType(p)}}|{{=p.required}}|{{=p.restrictions||''}}|{{=data.functions.renderDescription(p)}}|
 {{~}}
 {{~}}
 {{?}}
@@ -87,7 +108,7 @@ Status Code **{{=response.status}}**
 
 |Property|Value|
 |---|---|
-{{~ enums :e}}|{{=e.name}}|{{=data.utils.toPrimitive(e.value)}}|
+{{~ enums :e}}|`{{=e.name}}`|`{{=data.utils.toPrimitive(e.value)}}`|
 {{~}}
 
 {{?}}

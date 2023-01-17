@@ -48,6 +48,16 @@ var Keys = map[string]ed25519.PublicKey{"2022-08-12": ed25519.PublicKey(key20220
 //     we generally don't want the old features to immediately break without warning.  With a grace
 //     period on the license, features will continue to work from the old license until its grace
 //     period, then the users will get a warning allowing them to gracefully stop using the feature.
+//
+// @Summary Add new license
+// @ID add-new-license
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Organizations
+// @Param request body codersdk.AddLicenseRequest true "Add license request"
+// @Success 201 {object} codersdk.License
+// @Router /licenses [post]
 func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.AGPL.Authorize(r, rbac.ActionCreate, rbac.ResourceLicense) {
@@ -121,6 +131,13 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusCreated, convertLicense(dl, rawClaims))
 }
 
+// @Summary Get licenses
+// @ID get-licenses
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Success 200 {array} codersdk.License
+// @Router /licenses [get]
 func (api *API) licenses(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	licenses, err := api.Database.GetLicenses(ctx)
@@ -155,6 +172,14 @@ func (api *API) licenses(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, sdkLicenses)
 }
 
+// @Summary Delete license
+// @ID delete-license
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param id path string true "License ID" format(number)
+// @Success 200
+// @Router /licenses/{id} [delete]
 func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.AGPL.Authorize(r, rbac.ActionDelete, rbac.ResourceLicense) {

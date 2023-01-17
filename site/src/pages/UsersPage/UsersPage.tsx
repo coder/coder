@@ -1,4 +1,4 @@
-import { useActor, useMachine } from "@xstate/react"
+import { useMachine } from "@xstate/react"
 import { User } from "api/typesGenerated"
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog"
 import {
@@ -6,15 +6,15 @@ import {
   nonInitialPage,
 } from "components/PaginationWidget/utils"
 import { usePermissions } from "hooks/usePermissions"
-import { FC, ReactNode, useContext, useEffect } from "react"
+import { FC, ReactNode } from "react"
 import { Helmet } from "react-helmet-async"
 import { useNavigate } from "react-router"
 import { useSearchParams } from "react-router-dom"
+import { siteRolesMachine } from "xServices/roles/siteRolesXService"
 import { usersMachine } from "xServices/users/usersXService"
 import { ConfirmDialog } from "../../components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { ResetPasswordDialog } from "../../components/Dialogs/ResetPasswordDialog/ResetPasswordDialog"
 import { pageTitle } from "../../util/page"
-import { XServiceContext } from "../../xServices/StateContext"
 import { UsersPageView } from "./UsersPageView"
 
 export const Language = {
@@ -30,7 +30,6 @@ const getSelectedUser = (id: string, users?: User[]) =>
   users?.find((u) => u.id === id)
 
 export const UsersPage: FC<{ children?: ReactNode }> = () => {
-  const xServices = useContext(XServiceContext)
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const filter = searchParams.get("filter") ?? ""
@@ -57,7 +56,11 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
   } = usersState.context
 
   const { updateUsers: canEditUsers } = usePermissions()
-  const [rolesState, rolesSend] = useActor(xServices.siteRolesXService)
+  const [rolesState] = useMachine(siteRolesMachine, {
+    context: {
+      hasPermission: canEditUsers,
+    },
+  })
   const { roles } = rolesState.context
 
   // Is loading if
@@ -66,16 +69,6 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
   const isLoading =
     usersState.matches("gettingUsers") ||
     (canEditUsers && rolesState.matches("gettingRoles"))
-
-  // Fetch roles on component mount
-  useEffect(() => {
-    // Only fetch the roles if the user has permission for it
-    if (canEditUsers) {
-      rolesSend({
-        type: "GET_ROLES",
-      })
-    }
-  }, [canEditUsers, rolesSend])
 
   return (
     <>

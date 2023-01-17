@@ -1,14 +1,12 @@
 package coderd
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -27,10 +25,17 @@ import (
 	"github.com/coder/coder/coderd/userpassword"
 	"github.com/coder/coder/coderd/util/slice"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/examples"
 )
 
 // Returns whether the initial user has been created or not.
+//
+// @Summary Check initial user created
+// @ID check-initial-user-created
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Success 200 {object} codersdk.Response
+// @Router /users/first [get]
 func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	userCount, err := api.Database.GetUserCount(ctx)
@@ -55,6 +60,16 @@ func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
 }
 
 // Creates the initial user for a Coder deployment.
+//
+// @Summary Create initial user
+// @ID create-initial-user
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Users
+// @Param request body codersdk.CreateFirstUserRequest true "First user request"
+// @Success 201 {object} codersdk.CreateFirstUserResponse
+// @Router /users/first [post]
 func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var createUser codersdk.CreateFirstUserRequest
@@ -132,66 +147,23 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Auto-import any designated templates into the new organization.
-	for _, template := range api.AutoImportTemplates {
-		archive, err := examples.Archive(string(template))
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error importing template.",
-				Detail:  xerrors.Errorf("load template archive for %q: %w", template, err).Error(),
-			})
-			return
-		}
-
-		// Determine which parameter values to use.
-		parameters := map[string]string{}
-		switch template {
-		case AutoImportTemplateKubernetes:
-
-			// Determine the current namespace we're in.
-			const namespaceFile = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
-			namespace, err := os.ReadFile(namespaceFile)
-			if err != nil {
-				parameters["use_kubeconfig"] = "true" // use ~/.config/kubeconfig
-				parameters["namespace"] = "coder-workspaces"
-			} else {
-				parameters["use_kubeconfig"] = "false" // use SA auth
-				parameters["namespace"] = string(bytes.TrimSpace(namespace))
-			}
-
-		default:
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error importing template.",
-				Detail:  fmt.Sprintf("cannot auto-import %q template", template),
-			})
-			return
-		}
-
-		tpl, err := api.autoImportTemplate(ctx, autoImportTemplateOpts{
-			name:    string(template),
-			archive: archive,
-			params:  parameters,
-			userID:  user.ID,
-			orgID:   organizationID,
-		})
-		if err != nil {
-			api.Logger.Warn(ctx, "failed to auto-import template", slog.F("template", template), slog.F("parameters", parameters), slog.Error(err))
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error importing template.",
-				Detail:  xerrors.Errorf("failed to import template %q: %w", template, err).Error(),
-			})
-			return
-		}
-
-		api.Logger.Info(ctx, "auto-imported template", slog.F("id", tpl.ID), slog.F("template", template), slog.F("parameters", parameters))
-	}
-
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.CreateFirstUserResponse{
 		UserID:         user.ID,
 		OrganizationID: organizationID,
 	})
 }
 
+// @Summary Get users
+// @ID get-users
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param q query string false "Search query"
+// @Param after_id query string false "After ID" format(uuid)
+// @Param limit query int false "Page limit"
+// @Param offset query int false "Page offset"
+// @Success 200 {object} codersdk.GetUsersResponse
+// @Router /users [get]
 func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	query := r.URL.Query().Get("q")
@@ -271,6 +243,16 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 }
 
 // Creates a new user.
+//
+// @Summary Create new user
+// @ID create-new-user
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Users
+// @Param request body codersdk.CreateUserRequest true "Create user request"
+// @Success 201 {object} codersdk.User
+// @Router /users [post]
 func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	auditor := *api.Auditor.Load()
@@ -357,6 +339,14 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusCreated, convertUser(user, []uuid.UUID{req.OrganizationID}))
 }
 
+// @Summary Delete user
+// @ID delete-user
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Success 200 {object} codersdk.User
+// @Router /users/{user} [delete]
 func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	auditor := *api.Auditor.Load()
@@ -412,6 +402,15 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 
 // Returns the parameterized user requested. All validation
 // is completed in the middleware for this route.
+//
+// @Summary Get user by name
+// @ID get-user-by-name
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Success 200 {object} codersdk.User
+// @Router /users/{user} [get]
 func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
@@ -433,6 +432,16 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, convertUser(user, organizationIDs))
 }
 
+// @Summary Update user profile
+// @ID update-user-profile
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Param request body codersdk.UpdateUserProfileRequest true "Updated profile"
+// @Success 200 {object} codersdk.User
+// @Router /users/{user}/profile [put]
 func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -513,6 +522,30 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, convertUser(updatedUserProfile, organizationIDs))
 }
 
+// @Summary Suspend user account
+// @ID suspend-user-account
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Success 200 {object} codersdk.User
+// @Router /users/{user}/status/suspend [put]
+func (api *API) putSuspendUserAccount() func(rw http.ResponseWriter, r *http.Request) {
+	return api.putUserStatus(database.UserStatusSuspended)
+}
+
+// @Summary Activate user account
+// @ID activate-user-account
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Success 200 {object} codersdk.User
+// @Router /users/{user}/status/activate [put]
+func (api *API) putActivateUserAccount() func(rw http.ResponseWriter, r *http.Request) {
+	return api.putUserStatus(database.UserStatusActive)
+}
+
 func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseWriter, r *http.Request) {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		var (
@@ -582,6 +615,15 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 	}
 }
 
+// @Summary Update user password
+// @ID update-user-password
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Param request body codersdk.UpdateUserPasswordRequest true "Update password request"
+// @Success 204
+// @Router /users/{user}/password [put]
 func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -699,6 +741,14 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
 }
 
+// @Summary Get user roles
+// @ID get-user-roles
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Success 200 {object} codersdk.User
+// @Router /users/{user}/roles [get]
 func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
@@ -742,6 +792,16 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
+// @Summary Assign role to user
+// @ID assign-role-to-user
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Param request body codersdk.UpdateRoles true "Update roles request"
+// @Success 200 {object} codersdk.User
+// @Router /users/{user}/roles [put]
 func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx = r.Context()
@@ -847,6 +907,15 @@ func (api *API) updateSiteUserRoles(ctx context.Context, args database.UpdateUse
 }
 
 // Returns organizations the parameterized user has access to.
+//
+// @Summary Get organizations by user
+// @ID get-organizations-by-user
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Success 200 {array} codersdk.Organization
+// @Router /users/{user}/organizations [get]
 func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
@@ -882,6 +951,15 @@ func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, publicOrganizations)
 }
 
+// @Summary Get organization by user and organization name
+// @ID get-organization-by-user-and-organization-name
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Param organizationname path string true "Organization name"
+// @Success 200 {object} codersdk.Organization
+// @Router /users/{user}/organizations/{organizationname} [get]
 func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organizationName := chi.URLParam(r, "organizationname")
@@ -909,6 +987,16 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 }
 
 // Authenticates the user with an email and password.
+//
+// @Summary Log in user
+// @ID log-in-user
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Authorization
+// @Param request body codersdk.LoginWithPasswordRequest true "Login request"
+// @Success 201 {object} codersdk.LoginWithPasswordResponse
+// @Router /users/login [post]
 func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var loginWithPassword codersdk.LoginWithPasswordRequest
@@ -979,6 +1067,14 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 }
 
 // Clear the user's session cookie.
+//
+// @Summary Log out user
+// @ID log-out-user
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Success 200 {object} codersdk.Response
+// @Router /users/logout [post]
 func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	// Get a blank token cookie.

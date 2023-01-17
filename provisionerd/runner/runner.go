@@ -163,7 +163,7 @@ func (r *Runner) Run() {
 		}
 
 		concurrentGauge.Dec()
-		r.metrics.JobTimings.WithLabelValues(r.job.Provisioner, status).Observe(float64(time.Since(start).Milliseconds()))
+		r.metrics.JobTimings.WithLabelValues(r.job.Provisioner, status).Observe(time.Since(start).Seconds())
 	}()
 
 	r.mutex.Lock()
@@ -434,6 +434,7 @@ func (r *Runner) do(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob)
 			slog.F("workspace_name", jobType.WorkspaceBuild.WorkspaceName),
 			slog.F("state_length", len(jobType.WorkspaceBuild.State)),
 			slog.F("parameters", jobType.WorkspaceBuild.ParameterValues),
+			slog.F("rich_parameter_values", jobType.WorkspaceBuild.RichParameterValues),
 		)
 		return r.runWorkspaceBuild(ctx)
 	default:
@@ -566,7 +567,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		Stage:     "Detecting persistent resources",
 		CreatedAt: time.Now().UnixMilli(),
 	})
-	startResources, err := r.runTemplateImportProvision(ctx, updateResponse.ParameterValues, &sdkproto.Provision_Metadata{
+	startResources, parameters, err := r.runTemplateImportProvision(ctx, updateResponse.ParameterValues, &sdkproto.Provision_Metadata{
 		CoderUrl:            r.job.GetTemplateImport().Metadata.CoderUrl,
 		WorkspaceTransition: sdkproto.WorkspaceTransition_START,
 	})
@@ -581,7 +582,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		Stage:     "Detecting ephemeral resources",
 		CreatedAt: time.Now().UnixMilli(),
 	})
-	stopResources, err := r.runTemplateImportProvision(ctx, updateResponse.ParameterValues, &sdkproto.Provision_Metadata{
+	stopResources, _, err := r.runTemplateImportProvision(ctx, updateResponse.ParameterValues, &sdkproto.Provision_Metadata{
 		CoderUrl:            r.job.GetTemplateImport().Metadata.CoderUrl,
 		WorkspaceTransition: sdkproto.WorkspaceTransition_STOP,
 	})
@@ -595,6 +596,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 			TemplateImport: &proto.CompletedJob_TemplateImport{
 				StartResources: startResources,
 				StopResources:  stopResources,
+				RichParameters: parameters,
 			},
 		},
 	}, nil
@@ -646,7 +648,7 @@ func (r *Runner) runTemplateImportParse(ctx context.Context) ([]*sdkproto.Parame
 // Performs a dry-run provision when importing a template.
 // This is used to detect resources that would be provisioned
 // for a workspace in various states.
-func (r *Runner) runTemplateImportProvision(ctx context.Context, values []*sdkproto.ParameterValue, metadata *sdkproto.Provision_Metadata) ([]*sdkproto.Resource, error) {
+func (r *Runner) runTemplateImportProvision(ctx context.Context, values []*sdkproto.ParameterValue, metadata *sdkproto.Provision_Metadata) ([]*sdkproto.Resource, []*sdkproto.RichParameter, error) {
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
@@ -661,7 +663,7 @@ func (r *Runner) runTemplateImportProvision(ctx context.Context, values []*sdkpr
 	// to send the cancel to the provisioner
 	stream, err := r.provisioner.Provision(ctx)
 	if err != nil {
-		return nil, xerrors.Errorf("provision: %w", err)
+		return nil, nil, xerrors.Errorf("provision: %w", err)
 	}
 	defer stream.Close()
 	go func() {
@@ -688,13 +690,13 @@ func (r *Runner) runTemplateImportProvision(ctx context.Context, values []*sdkpr
 		},
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("start provision: %w", err)
+		return nil, nil, xerrors.Errorf("start provision: %w", err)
 	}
 
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
-			return nil, xerrors.Errorf("recv import provision: %w", err)
+			return nil, nil, xerrors.Errorf("recv import provision: %w", err)
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Provision_Response_Log:
@@ -715,7 +717,7 @@ func (r *Runner) runTemplateImportProvision(ctx context.Context, values []*sdkpr
 					slog.F("error", msgType.Complete.Error),
 				)
 
-				return nil, xerrors.New(msgType.Complete.Error)
+				return nil, nil, xerrors.New(msgType.Complete.Error)
 			}
 
 			r.logger.Info(context.Background(), "parse dry-run provision successful",
@@ -724,9 +726,9 @@ func (r *Runner) runTemplateImportProvision(ctx context.Context, values []*sdkpr
 				slog.F("state_length", len(msgType.Complete.State)),
 			)
 
-			return msgType.Complete.Resources, nil
+			return msgType.Complete.Resources, msgType.Complete.Parameters, nil
 		default:
-			return nil, xerrors.Errorf("invalid message type %q received from provisioner",
+			return nil, nil, xerrors.Errorf("invalid message type %q received from provisioner",
 				reflect.TypeOf(msg.Type).String())
 		}
 	}
@@ -765,7 +767,7 @@ func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *p
 	}
 
 	// Run the template import provision task since it's already a dry run.
-	resources, err := r.runTemplateImportProvision(ctx,
+	resources, _, err := r.runTemplateImportProvision(ctx,
 		r.job.GetTemplateDryRun().GetParameterValues(),
 		metadata,
 	)

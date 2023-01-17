@@ -95,6 +95,9 @@ Coder volume definitions.
   secret:
     secretName: {{ $secret.name | quote }}
 {{ end -}}
+{{ if gt (len .Values.coder.volumes) 0 -}}
+{{ toYaml .Values.coder.volumes }}
+{{ end -}}
 {{- end }}
 
 {{/*
@@ -123,6 +126,9 @@ Coder volume mounts.
   mountPath: "/etc/ssl/certs/{{ $secret.name }}.crt"
   subPath: {{ $secret.key | quote }}
   readOnly: true
+{{ end -}}
+{{ if gt (len .Values.coder.volumeMounts) 0 -}}
+{{ toYaml .Values.coder.volumeMounts }}
 {{ end -}}
 {{- end }}
 

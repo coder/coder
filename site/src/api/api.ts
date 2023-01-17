@@ -133,6 +133,18 @@ export const getApiKey = async (): Promise<TypesGen.GenerateAPIKeyResponse> => {
   return response.data
 }
 
+export const getTokens = async (): Promise<TypesGen.APIKey[]> => {
+  const response = await axios.get<TypesGen.APIKey[]>(
+    "/api/v2/users/me/keys/tokens",
+  )
+  return response.data
+}
+
+export const deleteAPIKey = async (keyId: string): Promise<void> => {
+  const response = await axios.delete("/api/v2/users/me/keys/" + keyId)
+  return response.data
+}
+
 export const getUsers = async (
   options: TypesGen.UsersRequest,
 ): Promise<TypesGen.GetUsersResponse> => {
@@ -723,15 +735,15 @@ export const getFile = async (fileId: string): Promise<ArrayBuffer> => {
   return response.data
 }
 
-export const getServiceBanner = async (): Promise<TypesGen.ServiceBanner> => {
-  const response = await axios.get(`/api/v2/service-banner`)
+export const getAppearance = async (): Promise<TypesGen.AppearanceConfig> => {
+  const response = await axios.get(`/api/v2/appearance`)
   return response.data
 }
 
-export const setServiceBanner = async (
-  b: TypesGen.ServiceBanner,
-): Promise<TypesGen.ServiceBanner> => {
-  const response = await axios.put(`/api/v2/service-banner`, b)
+export const updateAppearance = async (
+  b: TypesGen.AppearanceConfig,
+): Promise<TypesGen.AppearanceConfig> => {
+  const response = await axios.put(`/api/v2/appearance`, b)
   return response.data
 }
 

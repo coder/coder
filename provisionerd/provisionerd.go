@@ -132,9 +132,6 @@ type Metrics struct {
 
 func NewMetrics(reg prometheus.Registerer) Metrics {
 	auto := promauto.With(reg)
-	durationToFloatMs := func(d time.Duration) float64 {
-		return float64(d.Milliseconds())
-	}
 
 	return Metrics{
 		Runner: runner.Metrics{
@@ -147,17 +144,17 @@ func NewMetrics(reg prometheus.Registerer) Metrics {
 			JobTimings: auto.NewHistogramVec(prometheus.HistogramOpts{
 				Namespace: "coderd",
 				Subsystem: "provisionerd",
-				Name:      "job_timings_ms",
-				Help:      "The provisioner job time duration.",
+				Name:      "job_timings_seconds",
+				Help:      "The provisioner job time duration in seconds.",
 				Buckets: []float64{
-					durationToFloatMs(1 * time.Second),
-					durationToFloatMs(10 * time.Second),
-					durationToFloatMs(30 * time.Second),
-					durationToFloatMs(1 * time.Minute),
-					durationToFloatMs(5 * time.Minute),
-					durationToFloatMs(10 * time.Minute),
-					durationToFloatMs(30 * time.Minute),
-					durationToFloatMs(1 * time.Hour),
+					1, // 1s
+					10,
+					30,
+					60, // 1min
+					60 * 5,
+					60 * 10,
+					60 * 30, // 30min
+					60 * 60, // 1hr
 				},
 			}, []string{"provisioner", "status"}),
 		},

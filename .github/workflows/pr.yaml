@@ -1,16 +1,20 @@
-name: Lint PR
+name: Pull Request
 
 on:
   pull_request_target:
     types:
+      - labeled
+      - unlabeled
       - opened
       - reopened
       - edited
-      - synchronize
+
+# Only run one instance per PR to ensure in-order execution.
+concurrency: pr-${{ github.ref }}
 
 jobs:
-  main:
-    name: Validate PR title
+  lint-title:
+    name: Lint title
     runs-on: ubuntu-latest
     steps:
       - uses: amannn/action-semantic-pull-request@v5
@@ -18,3 +22,114 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           requireScope: false
+
+  release-labels:
+    name: Release labels
+    runs-on: ubuntu-latest
+    # Depend on lint so that title is Conventional Commits-compatible.
+    needs: [lint-title]
+    # Skip tagging for draft PRs.
+    if: ${{ success() && !github.event.pull_request.draft }}
+    steps:
+      - uses: actions/github-script@v6
+        with:
+          # This script ensures PR title and labels are in sync:
+          #
+          # When release/breaking label is:
+          # - Added, rename PR title to include ! (e.g. feat!:)
+          # - Removed, rename PR title to strip ! (e.g. feat:)
+          #
+          # When title is:
+          # - Renamed (+!), add the release/breaking label
+          # - Renamed (-!), remove the release/breaking label
+          script: |
+            const releaseLabels = {
+              breaking: "release/breaking",
+            }
+
+            const { action, changes, label, pull_request } = context.payload
+            const { title } = pull_request
+            const labels = pull_request.labels.map((label) => label.name)
+            const isBreakingTitle = isBreaking(title)
+
+            // Debug information.
+            console.log("Action: %s", action)
+            console.log("Title: %s", title)
+            console.log("Labels: %s", labels.join(", "))
+
+            const params = {
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            }
+
+            if (action === "opened" || action === "reopened") {
+              if (isBreakingTitle && !labels.includes(releaseLabels.breaking)) {
+                console.log('Add "%s" label', releaseLabels.breaking)
+                await github.rest.issues.addLabels({
+                  ...params,
+                  labels: [releaseLabels.breaking],
+                })
+              }
+            }
+
+            if (action === "edited" && changes.title) {
+              if (isBreakingTitle && !labels.includes(releaseLabels.breaking)) {
+                console.log('Add "%s" label', releaseLabels.breaking)
+                await github.rest.issues.addLabels({
+                  ...params,
+                  labels: [releaseLabels.breaking],
+                })
+              }
+
+              if (!isBreakingTitle && labels.includes(releaseLabels.breaking)) {
+                const wasBreakingTitle = isBreaking(changes.title.from)
+                if (wasBreakingTitle) {
+                  console.log('Remove "%s" label', releaseLabels.breaking)
+                  await github.rest.issues.removeLabel({
+                    ...params,
+                    name: releaseLabels.breaking,
+                  })
+                } else {
+                  console.log('Rename title from "%s" to "%s"', title, toBreaking(title))
+                  await github.rest.issues.update({
+                    ...params,
+                    title: toBreaking(title),
+                  })
+                }
+              }
+            }
+
+            if (action === "labeled") {
+              if (label.name === releaseLabels.breaking && !isBreakingTitle) {
+                console.log('Rename title from "%s" to "%s"', title, toBreaking(title))
+                await github.rest.issues.update({
+                  ...params,
+                  title: toBreaking(title),
+                })
+              }
+            }
+
+            if (action === "unlabeled") {
+              if (label.name === releaseLabels.breaking && isBreakingTitle) {
+                console.log('Rename title from "%s" to "%s"', title, fromBreaking(title))
+                await github.rest.issues.update({
+                  ...params,
+                  title: fromBreaking(title),
+                })
+              }
+            }
+
+            function isBreaking(t) {
+              return t.split(" ")[0].endsWith("!:")
+            }
+
+            function toBreaking(t) {
+              const parts = t.split(" ")
+              return [parts[0].replace(/:$/, "!:"), ...parts.slice(1)].join(" ")
+            }
+
+            function fromBreaking(t) {
+              const parts = t.split(" ")
+              return [parts[0].replace(/!:$/, ":"), ...parts.slice(1)].join(" ")
+            }
