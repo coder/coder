@@ -35,6 +35,11 @@ export interface AuditLogRowProps {
   defaultIsDiffOpen?: boolean
 }
 
+interface GroupMember {
+  user_id: string
+  group_id: string
+}
+
 export const AuditLogRow: React.FC<AuditLogRowProps> = ({
   auditLog,
   defaultIsDiffOpen = false,
@@ -58,10 +63,10 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
       ...auditLog.diff,
       members: {
         old: auditLog.diff.members.old?.map(
-          (groupMember: any) => groupMember.user_id,
+          (groupMember: GroupMember) => groupMember.user_id,
         ),
         new: auditLog.diff.members.new?.map(
-          (groupMember: any) => groupMember.user_id,
+          (groupMember: GroupMember) => groupMember.user_id,
         ),
         secret: auditLog.diff.members.secret,
       },
