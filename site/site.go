@@ -72,7 +72,14 @@ func Handler(siteFS fs.FS, binFS http.FileSystem, binHashes map[string]string) h
 
 		// Set ETag header to the SHA1 hash of the file contents.
 		name := filePath(r.URL.Path)
-		if name == "" || strings.Contains(name, "/") {
+		if name == "" || name == "/" {
+			// Serve the directory listing.
+			http.FileServer(binFS).ServeHTTP(rw, r)
+			return
+		}
+		if strings.Contains(name, "/") {
+			// We only serve files from the root of this directory, so avoid any
+			// shenanigans by blocking slashes in the URL path.
 			http.NotFound(rw, r)
 			return
 		}
@@ -489,7 +496,7 @@ func ExtractOrReadBinFS(dest string, siteFS fs.FS) (http.FileSystem, map[string]
 			}
 
 			// Nothing we can do, serve the cache directory, thus allowing
-			// binaries to be places there.
+			// binaries to be placed there.
 			binFS, err := mkdest()
 			if err != nil {
 				return nil, nil, xerrors.Errorf("mkdest failed: %w", err)
@@ -725,8 +732,8 @@ type binHashCache struct {
 	binFS http.FileSystem
 
 	hashes map[string]string
-	mut    *sync.RWMutex
-	sf     *singleflight.Group
+	mut    sync.RWMutex
+	sf     singleflight.Group
 	sem    chan struct{}
 }
 
@@ -734,8 +741,8 @@ func newBinHashCache(binFS http.FileSystem, binHashes map[string]string) *binHas
 	b := &binHashCache{
 		binFS:  binFS,
 		hashes: make(map[string]string, len(binHashes)),
-		mut:    &sync.RWMutex{},
-		sf:     &singleflight.Group{},
+		mut:    sync.RWMutex{},
+		sf:     singleflight.Group{},
 		sem:    make(chan struct{}, 4),
 	}
 	// Make a copy since we're gonna be mutating it.
