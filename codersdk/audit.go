@@ -38,7 +38,9 @@ func (r ResourceType) FriendlyString() string {
 	case ResourceTypeWorkspace:
 		return "workspace"
 	case ResourceTypeWorkspaceBuild:
-		return "workspace build"
+		// workspace builds have a unique friendly string
+		// see coderd/audit.go:298 for explanation
+		return "workspace"
 	case ResourceTypeGitSSHKey:
 		return "git ssh key"
 	case ResourceTypeAPIKey:
@@ -86,14 +88,14 @@ type AuditDiffField struct {
 }
 
 type AuditLog struct {
-	ID             uuid.UUID    `json:"id"`
-	RequestID      uuid.UUID    `json:"request_id"`
-	Time           time.Time    `json:"time"`
-	OrganizationID uuid.UUID    `json:"organization_id"`
+	ID             uuid.UUID    `json:"id" format:"uuid"`
+	RequestID      uuid.UUID    `json:"request_id" format:"uuid"`
+	Time           time.Time    `json:"time" format:"date-time"`
+	OrganizationID uuid.UUID    `json:"organization_id" format:"uuid"`
 	IP             netip.Addr   `json:"ip"`
 	UserAgent      string       `json:"user_agent"`
 	ResourceType   ResourceType `json:"resource_type"`
-	ResourceID     uuid.UUID    `json:"resource_id"`
+	ResourceID     uuid.UUID    `json:"resource_id" format:"uuid"`
 	// ResourceTarget is the name of the resource.
 	ResourceTarget   string          `json:"resource_target"`
 	ResourceIcon     string          `json:"resource_icon"`
@@ -102,6 +104,8 @@ type AuditLog struct {
 	StatusCode       int32           `json:"status_code"`
 	AdditionalFields json.RawMessage `json:"additional_fields"`
 	Description      string          `json:"description"`
+	ResourceLink     string          `json:"resource_link"`
+	IsDeleted        bool            `json:"is_deleted"`
 
 	User *User `json:"user"`
 }
@@ -117,10 +121,10 @@ type AuditLogResponse struct {
 }
 
 type CreateTestAuditLogRequest struct {
-	Action       AuditAction  `json:"action,omitempty"`
-	ResourceType ResourceType `json:"resource_type,omitempty"`
-	ResourceID   uuid.UUID    `json:"resource_id,omitempty"`
-	Time         time.Time    `json:"time,omitempty"`
+	Action       AuditAction  `json:"action,omitempty" enums:"create,write,delete,start,stop"`
+	ResourceType ResourceType `json:"resource_type,omitempty" enums:"organization,template,template_version,user,workspace,workspace_build,git_ssh_key,api_key,group"`
+	ResourceID   uuid.UUID    `json:"resource_id,omitempty" format:"uuid"`
+	Time         time.Time    `json:"time,omitempty" format:"date-time"`
 }
 
 // AuditLogs retrieves audit logs from the given page.

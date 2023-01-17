@@ -10,7 +10,7 @@ This is an example configuration of how to use Coder with [caddy](https://caddys
 
 1. Start with our example configuration
 
-   ```sh
+   ```console
    # Create a project folder
    cd $HOME
    mkdir coder-with-caddy
@@ -30,7 +30,7 @@ This is an example configuration of how to use Coder with [caddy](https://caddys
 
 1. Start Coder. Set `CODER_ACCESS_URL` and `CODER_WILDCARD_ACCESS_URL` to the domain you're using in your Caddyfile.
 
-   ```sh
+   ```console
    export CODER_ACCESS_URL=https://coder.example.com
    export CODER_WILDCARD_ACCESS_URL=*.coder.example.com
    docker compose up -d # Run on startup
@@ -60,19 +60,19 @@ This is an example configuration of how to use Coder with [caddy](https://caddys
 
    If you're [keeping Caddy running](https://caddyserver.com/docs/running) via a system service:
 
-   ```sh
+   ```console
    sudo systemctl restart caddy
    ```
 
    Or run a standalone server:
 
-   ```sh
+   ```console
    caddy run
    ```
 
 1. Optionally, use [ufw](https://wiki.ubuntu.com/UncomplicatedFirewall) or another firewall to disable external traffic outside of Caddy.
 
-   ```sh
+   ```console
    # Check status of UncomplicatedFirewall
    sudo ufw status
 

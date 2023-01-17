@@ -2,12 +2,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import { useMachine } from "@xstate/react"
 import { FC, useEffect, useRef, useState } from "react"
 import { Helmet } from "react-helmet-async"
-import {
-  useLocation,
-  useNavigate,
-  useParams,
-  useSearchParams,
-} from "react-router-dom"
+import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { colors } from "theme/colors"
 import { v4 as uuidv4 } from "uuid"
 import * as XTerm from "xterm"
@@ -29,7 +24,6 @@ const TerminalPage: FC<
     readonly renderer?: XTerm.RendererType
   }>
 > = ({ renderer }) => {
-  const location = useLocation()
   const navigate = useNavigate()
   const styles = useStyles()
   const { username, workspace } = useParams()
@@ -127,17 +121,19 @@ const TerminalPage: FC<
   // the reconnection token and workspace name found
   // from the router.
   useEffect(() => {
-    const search = new URLSearchParams(location.search)
-    search.set("reconnect", reconnectionToken)
+    if (searchParams.get("reconnect") === reconnectionToken) {
+      return
+    }
+    searchParams.set("reconnect", reconnectionToken)
     navigate(
       {
-        search: search.toString(),
+        search: searchParams.toString(),
       },
       {
         replace: true,
       },
     )
-  }, [location.search, navigate, reconnectionToken])
+  }, [searchParams, navigate, reconnectionToken])
 
   // Apply terminal options based on connection state.
   useEffect(() => {

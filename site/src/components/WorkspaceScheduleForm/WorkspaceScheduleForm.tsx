@@ -21,7 +21,6 @@ import {
   defaultSchedule,
   emptySchedule,
 } from "pages/WorkspaceSchedulePage/schedule"
-import { defaultTTL } from "pages/WorkspaceSchedulePage/ttl"
 import { ChangeEvent, FC } from "react"
 import * as Yup from "yup"
 import { getFormHelpers } from "../../util/formUtils"
@@ -63,7 +62,7 @@ export const Language = {
   ttlLabel: "Time until shutdown (hours)",
   ttlCausesShutdownHelperText: "Your workspace will shut down",
   ttlCausesShutdownAfterStart:
-    "after its next start. We delay shutdown by an hour whenever we detect activity",
+    "after its next start. We delay shutdown by this time whenever we detect activity",
   ttlCausesNoShutdownHelperText:
     "Your workspace will not automatically shut down.",
   formTitle: "Workspace schedule",
@@ -81,6 +80,7 @@ export interface WorkspaceScheduleFormProps {
   onSubmit: (values: WorkspaceScheduleFormValues) => void
   // for storybook
   initialTouched?: FormikTouched<WorkspaceScheduleFormValues>
+  defaultTTL: number
 }
 
 export interface WorkspaceScheduleFormValues {
@@ -192,6 +192,7 @@ export const WorkspaceScheduleForm: FC<
   onCancel,
   onSubmit,
   initialTouched,
+  defaultTTL,
 }) => {
   const styles = useStyles()
 
@@ -279,7 +280,7 @@ export const WorkspaceScheduleForm: FC<
   }
 
   return (
-    <FullPageForm onCancel={onCancel} title={Language.formTitle}>
+    <FullPageForm title={Language.formTitle}>
       <form onSubmit={form.handleSubmit} className={styles.form}>
         <Stack>
           {Boolean(submitScheduleError) && (

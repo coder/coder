@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/examples"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/testutil"
@@ -128,6 +129,66 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		require.Len(t, auditor.AuditLogs, 1)
 		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[0].Action)
 	})
+	t.Run("Example", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		ls, err := examples.List()
+		require.NoError(t, err)
+
+		// try a bad example ID
+		_, err = client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
+			Name:          "my-example",
+			StorageMethod: codersdk.ProvisionerStorageMethodFile,
+			ExampleID:     "not a real ID",
+			Provisioner:   codersdk.ProvisionerTypeEcho,
+		})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "not found")
+
+		// try file and example IDs
+		_, err = client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
+			Name:          "my-example",
+			StorageMethod: codersdk.ProvisionerStorageMethodFile,
+			ExampleID:     ls[0].ID,
+			FileID:        uuid.New(),
+			Provisioner:   codersdk.ProvisionerTypeEcho,
+		})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "example_id")
+		require.ErrorContains(t, err, "file_id")
+
+		// try a good example ID
+		tv, err := client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
+			Name:          "my-example",
+			StorageMethod: codersdk.ProvisionerStorageMethodFile,
+			ExampleID:     ls[0].ID,
+			Provisioner:   codersdk.ProvisionerTypeEcho,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "my-example", tv.Name)
+
+		// ensure the template tar was uploaded correctly
+		fl, ct, err := client.Download(ctx, tv.Job.FileID)
+		require.NoError(t, err)
+		require.Equal(t, "application/x-tar", ct)
+		tar, err := examples.Archive(ls[0].ID)
+		require.NoError(t, err)
+		require.EqualValues(t, tar, fl)
+
+		// ensure we don't get file conflicts on multiple uses of the same example
+		tv, err = client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
+			Name:          "my-example",
+			StorageMethod: codersdk.ProvisionerStorageMethodFile,
+			ExampleID:     ls[0].ID,
+			Provisioner:   codersdk.ProvisionerTypeEcho,
+		})
+		require.NoError(t, err)
+	})
 }
 
 func TestPatchCancelTemplateVersion(t *testing.T) {
@@ -145,7 +206,7 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		err := client.CancelTemplateVersion(ctx, version.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 	t.Run("AlreadyCanceled", func(t *testing.T) {
 		t.Parallel()
@@ -177,7 +238,7 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		err = client.CancelTemplateVersion(ctx, version.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 		require.Eventually(t, func() bool {
 			var err error
 			version, err = client.TemplateVersion(ctx, version.ID)
@@ -239,7 +300,7 @@ func TestTemplateVersionSchema(t *testing.T) {
 		_, err := client.TemplateVersionSchema(ctx, version.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
@@ -319,7 +380,7 @@ func TestTemplateVersionParameters(t *testing.T) {
 		_, err := client.TemplateVersionParameters(ctx, version.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
@@ -386,7 +447,7 @@ func TestTemplateVersionResources(t *testing.T) {
 		_, err := client.TemplateVersionResources(ctx, version.ID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
@@ -600,7 +661,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 			Type: "cool_resource_type",
 		}
 
-		client := coderdtest.New(t, &coderdtest.Options{APIRateLimit: -1, IncludeProvisionerDaemon: true})
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
@@ -688,7 +749,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 
 	t.Run("Cancel", func(t *testing.T) {
@@ -767,7 +828,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 			err = client.CancelTemplateVersionDryRun(ctx, version.ID, job.ID)
 			var apiErr *codersdk.Error
 			require.ErrorAs(t, err, &apiErr)
-			require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 		})
 
 		t.Run("AlreadyCanceled", func(t *testing.T) {
@@ -812,7 +873,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 			err = client.CancelTemplateVersionDryRun(ctx, version.ID, job.ID)
 			var apiErr *codersdk.Error
 			require.ErrorAs(t, err, &apiErr)
-			require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 		})
 	})
 }
@@ -821,7 +882,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 func TestPaginatedTemplateVersions(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, &coderdtest.Options{APIRateLimit: -1})
+	client := coderdtest.New(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -961,5 +1022,79 @@ func TestTemplateVersionByOrganizationAndName(t *testing.T) {
 
 		_, err := client.TemplateVersionByOrganizationAndName(ctx, user.OrganizationID, version.Name)
 		require.NoError(t, err)
+	})
+}
+
+func TestPreviousTemplateVersion(t *testing.T) {
+	t.Parallel()
+	t.Run("Previous version not found", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create two templates to be sure it is not returning a previous version
+		// from another template
+		templateAVersion1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, templateAVersion1.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, templateAVersion1.ID)
+		// Create two versions for the template B to be sure if we try to get the
+		// previous version of the first version it will returns a 404
+		templateBVersion1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		templateB := coderdtest.CreateTemplate(t, client, user.OrganizationID, templateBVersion1.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, templateBVersion1.ID)
+		templateBVersion2 := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, nil, templateB.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, templateBVersion2.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.PreviousTemplateVersion(ctx, user.OrganizationID, templateBVersion1.Name)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+	})
+
+	t.Run("Previous version found", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create two templates to be sure it is not returning a previous version
+		// from another template
+		templateAVersion1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, templateAVersion1.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, templateAVersion1.ID)
+		// Create two versions for the template B so we can try to get the previous
+		// version of version 2
+		templateBVersion1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		templateB := coderdtest.CreateTemplate(t, client, user.OrganizationID, templateBVersion1.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, templateBVersion1.ID)
+		templateBVersion2 := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, nil, templateB.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, templateBVersion2.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		result, err := client.PreviousTemplateVersion(ctx, user.OrganizationID, templateBVersion2.Name)
+		require.NoError(t, err)
+		require.Equal(t, templateBVersion1.ID, result.ID)
+	})
+}
+
+func TestTemplateExamples(t *testing.T) {
+	t.Parallel()
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		ex, err := client.TemplateExamples(ctx, user.OrganizationID)
+		require.NoError(t, err)
+		ls, err := examples.List()
+		require.NoError(t, err)
+		require.EqualValues(t, ls, ex)
 	})
 }

@@ -5,8 +5,6 @@ import { displaySuccess } from "../../components/GlobalSnackbar/utils"
 
 export const Language = {
   successProfileUpdate: "Updated settings.",
-  successSecurityUpdate: "Updated password.",
-  successRegenerateSSHKey: "SSH Key regenerated successfully",
 }
 
 export const checks = {
@@ -18,6 +16,7 @@ export const checks = {
   viewAuditLog: "viewAuditLog",
   viewDeploymentConfig: "viewDeploymentConfig",
   createGroup: "createGroup",
+  viewUpdateCheck: "viewUpdateCheck",
 } as const
 
 export const permissionsToCheck = {
@@ -69,6 +68,12 @@ export const permissionsToCheck = {
     },
     action: "create",
   },
+  [checks.viewUpdateCheck]: {
+    object: {
+      resource_type: "update_check",
+    },
+    action: "read",
+  },
 } as const
 
 export type Permissions = Record<keyof typeof permissionsToCheck, boolean>
@@ -80,26 +85,16 @@ export interface AuthContext {
   getMethodsError?: Error | unknown
   authError?: Error | unknown
   updateProfileError?: Error | unknown
-  updateSecurityError?: Error | unknown
   me?: TypesGen.User
   methods?: TypesGen.AuthMethods
   permissions?: Permissions
   checkPermissionsError?: Error | unknown
-  // SSH
-  sshKey?: TypesGen.GitSSHKey
-  getSSHKeyError?: Error | unknown
-  regenerateSSHKeyError?: Error | unknown
 }
 
 export type AuthEvent =
   | { type: "SIGN_OUT" }
   | { type: "SIGN_IN"; email: string; password: string }
   | { type: "UPDATE_PROFILE"; data: TypesGen.UpdateUserProfileRequest }
-  | { type: "UPDATE_SECURITY"; data: TypesGen.UpdateUserPasswordRequest }
-  | { type: "GET_SSH_KEY" }
-  | { type: "REGENERATE_SSH_KEY" }
-  | { type: "CONFIRM_REGENERATE_SSH_KEY" }
-  | { type: "CANCEL_REGENERATE_SSH_KEY" }
   | { type: "GET_AUTH_METHODS" }
 
 export const authMachine =
@@ -131,14 +126,15 @@ export const authMachine =
           checkPermissions: {
             data: TypesGen.AuthorizationResponse
           }
-          getSSHKey: {
-            data: TypesGen.GitSSHKey
-          }
-          regenerateSSHKey: {
-            data: TypesGen.GitSSHKey
-          }
           hasFirstUser: {
             data: boolean
+          }
+          signOut: {
+            data:
+              | {
+                  redirectUrl: string
+                }
+              | undefined
           }
         },
       },
@@ -275,79 +271,6 @@ export const authMachine =
                 },
               },
             },
-            ssh: {
-              initial: "idle",
-              states: {
-                idle: {
-                  on: {
-                    GET_SSH_KEY: {
-                      target: "gettingSSHKey",
-                    },
-                  },
-                },
-                gettingSSHKey: {
-                  entry: "clearGetSSHKeyError",
-                  invoke: {
-                    src: "getSSHKey",
-                    onDone: [
-                      {
-                        actions: "assignSSHKey",
-                        target: "loaded",
-                      },
-                    ],
-                    onError: [
-                      {
-                        actions: "assignGetSSHKeyError",
-                        target: "idle",
-                      },
-                    ],
-                  },
-                },
-                loaded: {
-                  initial: "idle",
-                  states: {
-                    idle: {
-                      on: {
-                        REGENERATE_SSH_KEY: {
-                          target: "confirmSSHKeyRegenerate",
-                        },
-                      },
-                    },
-                    confirmSSHKeyRegenerate: {
-                      on: {
-                        CANCEL_REGENERATE_SSH_KEY: {
-                          target: "idle",
-                        },
-                        CONFIRM_REGENERATE_SSH_KEY: {
-                          target: "regeneratingSSHKey",
-                        },
-                      },
-                    },
-                    regeneratingSSHKey: {
-                      entry: "clearRegenerateSSHKeyError",
-                      invoke: {
-                        src: "regenerateSSHKey",
-                        onDone: [
-                          {
-                            actions: [
-                              "assignSSHKey",
-                              "notifySuccessSSHKeyRegenerated",
-                            ],
-                            target: "idle",
-                          },
-                        ],
-                        onError: [
-                          {
-                            actions: "assignRegenerateSSHKeyError",
-                            target: "idle",
-                          },
-                        ],
-                      },
-                    },
-                  },
-                },
-              },
-            },
             methods: {
               initial: "idle",
               states: {
@@ -378,41 +301,6 @@ export const authMachine =
                 },
               },
             },
-            security: {
-              initial: "idle",
-              states: {
-                idle: {
-                  initial: "noError",
-                  states: {
-                    noError: {},
-                    error: {},
-                  },
-                  on: {
-                    UPDATE_SECURITY: {
-                      target: "updatingSecurity",
-                    },
-                  },
-                },
-                updatingSecurity: {
-                  entry: "clearUpdateSecurityError",
-                  invoke: {
-                    src: "updateSecurity",
-                    onDone: [
-                      {
-                        actions: "notifySuccessSecurityUpdate",
-                        target: "#authState.signedIn.security.idle.noError",
-                      },
-                    ],
-                    onError: [
-                      {
-                        actions: "assignUpdateSecurityError",
-                        target: "#authState.signedIn.security.idle.error",
-                      },
-                    ],
-                  },
-                },
-              },
-            },
           },
           on: {
             SIGN_OUT: {
@@ -425,6 +313,10 @@ export const authMachine =
             src: "signOut",
             id: "signOut",
             onDone: [
+              {
+                actions: ["unassignMe", "clearAuthError", "redirect"],
+                cond: "hasRedirectUrl",
+              },
               {
                 actions: ["unassignMe", "clearAuthError"],
                 target: "gettingMethods",
@@ -469,7 +361,30 @@ export const authMachine =
         signIn: async (_, event) => {
           return await API.login(event.email, event.password)
         },
-        signOut: API.logout,
+        signOut: async () => {
+          // Get app hostname so we can see if we need to log out of app URLs.
+          // We need to load this before we log out of the API as this is an
+          // authenticated endpoint.
+          const appHost = await API.getApplicationsHost()
+          await API.logout()
+
+          if (appHost.host !== "") {
+            const { protocol, host } = window.location
+            const redirect_uri = encodeURIComponent(
+              `${protocol}//${host}/login`,
+            )
+            // The path doesn't matter but we use /api because the dev server
+            // proxies /api to the backend.
+            const uri = `${protocol}//${appHost.host.replace(
+              "*",
+              "coder-logout",
+            )}/api/logout?redirect_uri=${redirect_uri}`
+
+            return {
+              redirectUrl: uri,
+            }
+          }
+        },
         getMe: API.getUser,
         getMethods: API.getAuthMethods,
         updateProfile: async (context, event) => {
@@ -479,21 +394,11 @@ export const authMachine =
 
           return API.updateProfile(context.me.id, event.data)
         },
-        updateSecurity: async (context, event) => {
-          if (!context.me) {
-            throw new Error("No current user found")
-          }
-
-          return API.updateUserPassword(context.me.id, event.data)
-        },
         checkPermissions: async () => {
           return API.checkAuthorization({
             checks: permissionsToCheck,
           })
         },
-        // SSH
-        getSSHKey: () => API.getUserSSHKey(),
-        regenerateSSHKey: () => API.regenerateUserSSHKey(),
         // First user
         hasFirstUser: () => API.hasFirstUser(),
       },
@@ -538,15 +443,6 @@ export const authMachine =
         clearUpdateProfileError: assign({
           updateProfileError: (_) => undefined,
         }),
-        clearUpdateSecurityError: assign({
-          updateSecurityError: (_) => undefined,
-        }),
-        notifySuccessSecurityUpdate: () => {
-          displaySuccess(Language.successSecurityUpdate)
-        },
-        assignUpdateSecurityError: assign({
-          updateSecurityError: (_, event) => event.data,
-        }),
         assignPermissions: assign({
           // Setting event.data as Permissions to be more stricted. So we know
           // what permissions we asked for.
@@ -558,28 +454,20 @@ export const authMachine =
         clearGetPermissionsError: assign({
           checkPermissionsError: (_) => undefined,
         }),
-        // SSH
-        assignSSHKey: assign({
-          sshKey: (_, event) => event.data,
-        }),
-        assignGetSSHKeyError: assign({
-          getSSHKeyError: (_, event) => event.data,
-        }),
-        clearGetSSHKeyError: assign({
-          getSSHKeyError: (_) => undefined,
-        }),
-        assignRegenerateSSHKeyError: assign({
-          regenerateSSHKeyError: (_, event) => event.data,
-        }),
-        clearRegenerateSSHKeyError: assign({
-          regenerateSSHKeyError: (_) => undefined,
-        }),
-        notifySuccessSSHKeyRegenerated: () => {
-          displaySuccess(Language.successRegenerateSSHKey)
+        redirect: (_, { data }) => {
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- data can be undefined
+          if (!data) {
+            throw new Error(
+              "Redirect only should be called with data.redirectUrl",
+            )
+          }
+
+          window.location.replace(data.redirectUrl)
         },
       },
       guards: {
         isTrue: (_, event) => event.data,
+        hasRedirectUrl: (_, { data }) => Boolean(data),
       },
     },
   )

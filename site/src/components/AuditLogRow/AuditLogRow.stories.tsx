@@ -9,6 +9,7 @@ import {
   MockAuditLog,
   MockAuditLog2,
   MockAuditLogWithWorkspaceBuild,
+  MockAuditLogWithDeletedResource,
 } from "testHelpers/entities"
 import { AuditLogRow, AuditLogRowProps } from "./AuditLogRow"
 
@@ -65,4 +66,9 @@ WithLongDiffRow.args = {
 export const WithWorkspaceBuild = Template.bind({})
 WithWorkspaceBuild.args = {
   auditLog: MockAuditLogWithWorkspaceBuild,
+}
+
+export const DeletedResource = Template.bind({})
+DeletedResource.args = {
+  auditLog: MockAuditLogWithDeletedResource,
 }

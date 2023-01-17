@@ -13,7 +13,6 @@ This main.go generates typescript types from the codersdk types in Go.
   - [ ] External Types (uses `any` atm)
     - Some custom external types are hardcoded in (eg: time.Time)
 
-
 ## Type overrides
 
 ```golang

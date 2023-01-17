@@ -10,6 +10,7 @@ export type TemplateVersionFiles = Record<string, string>
 export const getTemplateVersionFiles = async (
   version: TemplateVersion,
   allowedExtensions: string[],
+  allowedFiles: string[],
 ): Promise<TemplateVersionFiles> => {
   const files: TemplateVersionFiles = {}
   const tarFile = await getFile(version.job.file_id)
@@ -20,7 +21,10 @@ export const getTemplateVersionFiles = async (
     const filename = paths[paths.length - 1]
     const [_, extension] = filename.split(".")
 
-    if (allowedExtensions.includes(extension)) {
+    if (
+      allowedExtensions.includes(extension) ||
+      allowedFiles.includes(filename)
+    ) {
       blobs[filename] = file.blob
     }
   })

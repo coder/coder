@@ -1,6 +1,5 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { FC, ReactNode } from "react"
-import { Footer } from "../../components/Footer/Footer"
 
 export const useStyles = makeStyles((theme) => ({
   root: {
@@ -16,8 +15,12 @@ export const useStyles = makeStyles((theme) => ({
   },
   container: {
     marginTop: theme.spacing(-8),
-    minWidth: "320px",
-    maxWidth: "320px",
+    maxWidth: 385,
+  },
+  footer: {
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+    marginTop: theme.spacing(3),
   },
 }))
 
@@ -28,7 +31,9 @@ export const SignInLayout: FC<{ children: ReactNode }> = ({ children }) => {
     <div className={styles.root}>
       <div className={styles.layout}>
         <div className={styles.container}>{children}</div>
-        <Footer />
+        <div className={styles.footer}>
+          {`\u00a9 ${new Date().getFullYear()} Coder Technologies, Inc.`}
+        </div>
       </div>
     </div>
   )

@@ -31,7 +31,7 @@ init)
 
 		trap 'echo exit; kill -9 $sleep_pid 2>/dev/null' EXIT
 		trap 'echo interrupt; exit 1' INT
-		trap 'echo terminate"; exit 2' TERM
+		trap 'echo terminate; exit 2' TERM
 
 		echo init_start
 		wait
@@ -45,7 +45,7 @@ apply)
 
 	trap 'json_print exit; kill -9 $sleep_pid 2>/dev/null' EXIT
 	trap 'json_print interrupt; exit 1' INT
-	trap 'json_print terminate"; exit 2' TERM
+	trap 'json_print terminate; exit 2' TERM
 
 	json_print apply_start
 	wait

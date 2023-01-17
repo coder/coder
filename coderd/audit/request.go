@@ -157,7 +157,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 		}
 
 		ip := parseIP(p.Request.RemoteAddr)
-		err := p.Audit.Export(ctx, database.AuditLog{
+		auditLog := database.AuditLog{
 			ID:               uuid.New(),
 			Time:             database.Now(),
 			UserID:           httpmw.APIKey(p.Request).UserID,
@@ -171,9 +171,13 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			StatusCode:       int32(sw.Status),
 			RequestID:        httpmw.RequestID(p.Request),
 			AdditionalFields: p.AdditionalFields,
-		})
+		}
+		err := p.Audit.Export(ctx, auditLog)
 		if err != nil {
-			p.Log.Error(logCtx, "export audit log", slog.Error(err))
+			p.Log.Error(logCtx, "export audit log",
+				slog.F("audit_log", auditLog),
+				slog.Error(err),
+			)
 			return
 		}
 	}
@@ -192,7 +196,7 @@ func BuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T]) {
 		p.AdditionalFields = json.RawMessage("{}")
 	}
 
-	err := p.Audit.Export(ctx, database.AuditLog{
+	auditLog := database.AuditLog{
 		ID:               uuid.New(),
 		Time:             database.Now(),
 		UserID:           p.UserID,
@@ -206,9 +210,13 @@ func BuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T]) {
 		StatusCode:       int32(p.Status),
 		RequestID:        p.JobID,
 		AdditionalFields: p.AdditionalFields,
-	})
+	}
+	err := p.Audit.Export(ctx, auditLog)
 	if err != nil {
-		p.Log.Error(ctx, "export audit log", slog.Error(err))
+		p.Log.Error(ctx, "export audit log",
+			slog.F("audit_log", auditLog),
+			slog.Error(err),
+		)
 		return
 	}
 }

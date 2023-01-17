@@ -171,6 +171,8 @@ func TestWorkspaceBuilds(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.Len(t, builds, 0)
+		// Should never be nil for API consistency
+		require.NotNil(t, builds)
 
 		builds, err = client.WorkspaceBuilds(ctx,
 			codersdk.WorkspaceBuildsRequest{WorkspaceID: workspace.ID, Since: database.Now().Add(-time.Hour)},
@@ -629,4 +631,111 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	workspace, err = client.DeletedWorkspace(ctx, workspace.ID)
 	require.NoError(t, err)
 	require.EqualValues(t, codersdk.WorkspaceStatusDeleted, workspace.LatestBuild.Status)
+}
+
+func TestWorkspaceBuildWithRichParameters(t *testing.T) {
+	t.Parallel()
+
+	const (
+		firstParameterName        = "first_parameter"
+		firstParameterDescription = "This is first parameter"
+		firstParameterValue       = "1"
+
+		secondParameterName        = "second_parameter"
+		secondParameterDescription = "This is second parameter"
+		secondParameterValue       = "2"
+	)
+
+	initialBuildParameters := []codersdk.WorkspaceBuildParameter{
+		{Name: firstParameterName, Value: firstParameterValue},
+		{Name: secondParameterName, Value: secondParameterValue},
+	}
+
+	echoResponses := &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Provision_Response{
+			{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Parameters: []*proto.RichParameter{
+							{Name: firstParameterName, Description: firstParameterDescription},
+							{Name: secondParameterName, Description: secondParameterDescription},
+						},
+					},
+				},
+			}},
+		ProvisionApply: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{},
+			},
+		}},
+	}
+
+	t.Run("UpdateParameterValues", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, echoResponses)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.RichParameterValues = initialBuildParameters
+		})
+
+		workspaceBuild := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusRunning, workspaceBuild.Status)
+
+		// Update build parameters
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		const updatedParameterValue = "3"
+		nextBuildParameters := []codersdk.WorkspaceBuildParameter{
+			{Name: firstParameterName, Value: firstParameterValue},
+			{Name: secondParameterName, Value: updatedParameterValue},
+		}
+		nextWorkspaceBuild, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition:          codersdk.WorkspaceTransitionStart,
+			RichParameterValues: nextBuildParameters,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, nextWorkspaceBuild.ID)
+
+		workspaceBuildParameters, err := client.WorkspaceBuildParameters(ctx, nextWorkspaceBuild.ID)
+		require.NoError(t, err)
+		require.ElementsMatch(t, nextBuildParameters, workspaceBuildParameters)
+	})
+	t.Run("UsePreviousParameterValues", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, echoResponses)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.RichParameterValues = initialBuildParameters
+		})
+
+		firstWorkspaceBuild := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusRunning, firstWorkspaceBuild.Status)
+
+		// Start new workspace build
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		nextWorkspaceBuild, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionStart,
+		})
+		require.NoError(t, err)
+		require.NotEqual(t, firstWorkspaceBuild, nextWorkspaceBuild)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, nextWorkspaceBuild.ID)
+
+		workspaceBuildParameters, err := client.WorkspaceBuildParameters(ctx, nextWorkspaceBuild.ID)
+		require.NoError(t, err)
+		require.ElementsMatch(t, initialBuildParameters, workspaceBuildParameters)
+	})
 }

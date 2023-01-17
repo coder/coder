@@ -34,10 +34,11 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, apps []codersdk.Workspace
 		hasHealthchecksEnabled := false
 		health := make(map[uuid.UUID]codersdk.WorkspaceAppHealth, 0)
 		for _, app := range apps {
-			health[app.ID] = app.Health
-			if !hasHealthchecksEnabled && app.Health != codersdk.WorkspaceAppHealthDisabled {
-				hasHealthchecksEnabled = true
+			if app.Health == codersdk.WorkspaceAppHealthDisabled {
+				continue
 			}
+			health[app.ID] = app.Health
+			hasHealthchecksEnabled = true
 		}
 
 		// no need to run this loop if no health checks are configured.
@@ -77,7 +78,7 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, apps []codersdk.Workspace
 							return err
 						}
 						// successful healthcheck is a non-5XX status code
-						res.Body.Close()
+						_ = res.Body.Close()
 						if res.StatusCode >= http.StatusInternalServerError {
 							return xerrors.Errorf("error status code: %d", res.StatusCode)
 						}

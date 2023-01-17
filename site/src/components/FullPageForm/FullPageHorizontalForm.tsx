@@ -1,13 +1,12 @@
-import { FormCloseButton } from "../FormCloseButton/FormCloseButton"
-import { makeStyles } from "@material-ui/core/styles"
-import Typography from "@material-ui/core/Typography"
 import { Margins } from "components/Margins/Margins"
 import { FC, ReactNode } from "react"
-
-export interface FormTitleProps {
-  title: string
-  detail?: ReactNode
-}
+import {
+  PageHeader,
+  PageHeaderTitle,
+  PageHeaderSubtitle,
+} from "components/PageHeader/PageHeader"
+import Button from "@material-ui/core/Button"
+import { makeStyles } from "@material-ui/core/styles"
 
 export interface FullPageHorizontalFormProps {
   title: string
@@ -21,35 +20,25 @@ export const FullPageHorizontalForm: FC<
   const styles = useStyles()
 
   return (
-    <>
-      <header className={styles.title}>
-        <Margins size="medium">
-          <Typography variant="h3">{title}</Typography>
-          {detail && <Typography variant="caption">{detail}</Typography>}
-        </Margins>
-      </header>
+    <Margins size="medium">
+      <PageHeader
+        actions={
+          <Button size="small" onClick={onCancel}>
+            Cancel
+          </Button>
+        }
+      >
+        <PageHeaderTitle>{title}</PageHeaderTitle>
+        {detail && <PageHeaderSubtitle>{detail}</PageHeaderSubtitle>}
+      </PageHeader>
 
-      <FormCloseButton onClose={onCancel} />
-
-      <main className={styles.main}>
-        <Margins size="medium">{children}</Margins>
-      </main>
-    </>
+      <main className={styles.form}>{children}</main>
+    </Margins>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
-  title: {
-    paddingTop: theme.spacing(6),
-    paddingBottom: theme.spacing(8),
-
-    [theme.breakpoints.down("sm")]: {
-      paddingTop: theme.spacing(4),
-      paddingBottom: theme.spacing(4),
-    },
-  },
-
-  main: {
-    paddingBottom: theme.spacing(10),
+  form: {
+    marginTop: theme.spacing(1),
   },
 }))

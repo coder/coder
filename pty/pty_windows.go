@@ -130,16 +130,16 @@ func (p *ptyWindows) Close() error {
 		return nil
 	}
 	p.closed = true
-	_ = p.outputWrite.Close()
-	_ = p.outputRead.Close()
-	_ = p.inputWrite.Close()
-	_ = p.inputRead.Close()
 
 	ret, _, err := procClosePseudoConsole.Call(uintptr(p.console))
 	if ret < 0 {
 		return xerrors.Errorf("close pseudo console: %w", err)
 	}
 
+	_ = p.outputWrite.Close()
+	_ = p.outputRead.Close()
+	_ = p.inputWrite.Close()
+	_ = p.inputRead.Close()
 	return nil
 }
 

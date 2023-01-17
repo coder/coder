@@ -8,7 +8,7 @@ List template examples in our CLI with `coder templates init`.
 
 Clone this repository to create a project from any example listed here:
 
-```sh
+```console
 git clone https://github.com/coder/coder
 cd examples/templates/aws-macos
 coder templates create

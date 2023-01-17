@@ -50,6 +50,7 @@
   },
   "buildData": {
     "reason": "Reason",
-    "duration": "Duration"
+    "duration": "Duration",
+    "version": "Version"
   }
 }

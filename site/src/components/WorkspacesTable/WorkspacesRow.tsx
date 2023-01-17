@@ -1,53 +1,41 @@
-import { makeStyles, Theme } from "@material-ui/core/styles"
+import TableCell from "@material-ui/core/TableCell"
+import { makeStyles } from "@material-ui/core/styles"
 import TableRow from "@material-ui/core/TableRow"
 import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
-import useTheme from "@material-ui/styles/useTheme"
 import { useActor } from "@xstate/react"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
+import { useClickable } from "hooks/useClickable"
 import { FC } from "react"
 import { useNavigate } from "react-router-dom"
 import { getDisplayWorkspaceTemplateName } from "util/workspace"
 import { WorkspaceItemMachineRef } from "../../xServices/workspaces/workspacesXService"
 import { LastUsed } from "../LastUsed/LastUsed"
-import {
-  TableCellData,
-  TableCellDataPrimary,
-} from "../TableCellData/TableCellData"
-import { TableCellLink } from "../TableCellLink/TableCellLink"
 import { OutdatedHelpTooltip } from "../Tooltips"
 
-const Language = {
-  upToDateLabel: "Up to date",
-  outdatedLabel: "Outdated",
-}
-
-export const WorkspacesRow: FC<
-  React.PropsWithChildren<{ workspaceRef: WorkspaceItemMachineRef }>
-> = ({ workspaceRef }) => {
+export const WorkspacesRow: FC<{ workspaceRef: WorkspaceItemMachineRef }> = ({
+  workspaceRef,
+}) => {
   const styles = useStyles()
   const navigate = useNavigate()
-  const theme: Theme = useTheme()
   const [workspaceState, send] = useActor(workspaceRef)
   const { data: workspace } = workspaceState.context
   const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`
   const hasTemplateIcon =
     workspace.template_icon && workspace.template_icon !== ""
   const displayTemplateName = getDisplayWorkspaceTemplateName(workspace)
+  const clickable = useClickable(() => {
+    navigate(workspacePageLink)
+  })
 
   return (
     <TableRow
+      className={styles.row}
       hover
       data-testid={`workspace-${workspace.id}`}
-      tabIndex={0}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") {
-          navigate(workspacePageLink)
-        }
-      }}
-      className={styles.clickableTableRow}
+      {...clickable}
     >
-      <TableCellLink to={workspacePageLink}>
+      <TableCell>
         <AvatarData
           highlightTitle
           title={workspace.name}
@@ -60,78 +48,61 @@ export const WorkspacesRow: FC<
             ) : undefined
           }
         />
-      </TableCellLink>
+      </TableCell>
 
-      <TableCellLink to={workspacePageLink}>
-        <TableCellDataPrimary>{displayTemplateName}</TableCellDataPrimary>
-      </TableCellLink>
-      <TableCellLink to={workspacePageLink}>
-        <TableCellData>
-          <LastUsed lastUsedAt={workspace.last_used_at} />
-        </TableCellData>
-      </TableCellLink>
+      <TableCell>{displayTemplateName}</TableCell>
 
-      <TableCellLink to={workspacePageLink}>
-        {workspace.outdated ? (
-          <span className={styles.outdatedLabel}>
-            {Language.outdatedLabel}
+      <TableCell>
+        <div className={styles.version}>
+          {workspace.latest_build.template_version_name}
+          {workspace.outdated && (
             <OutdatedHelpTooltip
               onUpdateVersion={() => {
                 send("UPDATE_VERSION")
               }}
             />
-          </span>
-        ) : (
-          <span style={{ color: theme.palette.text.secondary }}>
-            {Language.upToDateLabel}
-          </span>
-        )}
-      </TableCellLink>
+          )}
+        </div>
+      </TableCell>
 
-      <TableCellLink to={workspacePageLink}>
+      <TableCell>
+        <LastUsed lastUsedAt={workspace.last_used_at} />
+      </TableCell>
+
+      <TableCell>
         <WorkspaceStatusBadge build={workspace.latest_build} />
-      </TableCellLink>
-      <TableCellLink to={workspacePageLink}>
+      </TableCell>
+
+      <TableCell>
         <div className={styles.arrowCell}>
           <KeyboardArrowRight className={styles.arrowRight} />
         </div>
-      </TableCellLink>
+      </TableCell>
     </TableRow>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
-  clickableTableRow: {
-    "&:hover td": {
-      backgroundColor: theme.palette.action.hover,
-    },
+  row: {
+    cursor: "pointer",
 
     "&:focus": {
       outline: `1px solid ${theme.palette.secondary.dark}`,
-    },
-
-    "& .MuiTableCell-root:last-child": {
-      paddingRight: theme.spacing(2),
+      outlineOffset: -1,
     },
   },
+
   arrowRight: {
     color: theme.palette.text.secondary,
     width: 20,
     height: 20,
   },
+
   arrowCell: {
     display: "flex",
+    paddingLeft: theme.spacing(2),
   },
-  outdatedLabel: {
-    color: theme.palette.error.main,
-    display: "flex",
-    alignItems: "center",
-    gap: theme.spacing(0.5),
-  },
-  buildTime: {
-    color: theme.palette.text.secondary,
-    fontSize: 12,
-  },
+
   templateIconWrapper: {
     // Same size then the avatar component
     width: 36,
@@ -141,5 +112,9 @@ const useStyles = makeStyles((theme) => ({
     "& img": {
       width: "100%",
     },
+  },
+
+  version: {
+    display: "flex",
   },
 }))

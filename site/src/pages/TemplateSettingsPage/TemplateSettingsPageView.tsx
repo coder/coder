@@ -47,14 +47,14 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
 }) => {
   const classes = useStyles()
   const isLoading = !template && !errors.getTemplateError
-  const { t } = useTranslation("templatePage")
+  const { t } = useTranslation("templateSettingsPage")
 
   if (isDeleted) {
     return <Navigate to="/templates" />
   }
 
   return (
-    <FullPageForm title={t("templateSettings.title")} onCancel={onCancel}>
+    <FullPageForm title={t("title")}>
       {Boolean(errors.getTemplateError) && (
         <Stack className={classes.errorContainer}>
           <AlertBanner severity="error" error={errors.getTemplateError} />
@@ -78,24 +78,22 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
           />
           <Stack className={classes.dangerContainer}>
             <div className={classes.dangerHeader}>
-              {t("templateSettings.dangerZone.dangerZoneHeader")}
+              {t("dangerZone.dangerZoneHeader")}
             </div>
 
             <Stack className={classes.dangerBorder}>
               <Stack spacing={0}>
                 <p className={classes.deleteTemplateHeader}>
-                  {t("templateSettings.dangerZone.deleteTemplateHeader")}
+                  {t("dangerZone.deleteTemplateHeader")}
                 </p>
-                <span>
-                  {t("templateSettings.dangerZone.deleteTemplateCaption")}
-                </span>
+                <span>{t("dangerZone.deleteTemplateCaption")}</span>
               </Stack>
               <Button
                 className={classes.deleteButton}
                 onClick={onDelete}
-                aria-label={t("templateSettings.dangerZone.deleteCta")}
+                aria-label={t("dangerZone.deleteCta")}
               >
-                {t("templateSettings.dangerZone.deleteCta")}
+                {t("dangerZone.deleteCta")}
               </Button>
             </Stack>
           </Stack>

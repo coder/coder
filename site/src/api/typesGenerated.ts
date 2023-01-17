@@ -31,6 +31,12 @@ export interface AgentStatsReportResponse {
   readonly tx_bytes: number
 }
 
+// From codersdk/appearance.go
+export interface AppearanceConfig {
+  readonly logo_url: string
+  readonly service_banner: ServiceBannerConfig
+}
+
 // From codersdk/roles.go
 export interface AssignableRoles extends Role {
   readonly assignable: boolean
@@ -67,6 +73,8 @@ export interface AuditLog {
   readonly status_code: number
   readonly additional_fields: Record<string, string>
   readonly description: string
+  readonly resource_link: string
+  readonly is_deleted: boolean
   readonly user?: User
 }
 
@@ -187,7 +195,8 @@ export interface CreateTemplateVersionRequest {
   readonly name?: string
   readonly template_id?: string
   readonly storage_method: ProvisionerStorageMethod
-  readonly file_id: string
+  readonly file_id?: string
+  readonly example_id?: string
   readonly provisioner: ProvisionerType
   readonly tags: Record<string, string>
   readonly parameter_values?: CreateParameterRequest[]
@@ -203,6 +212,8 @@ export interface CreateTestAuditLogRequest {
 
 // From codersdk/apikey.go
 export interface CreateTokenRequest {
+  // This is likely an enum in an external package ("time.Duration")
+  readonly lifetime: number
   readonly scope: APIKeyScope
 }
 
@@ -222,6 +233,7 @@ export interface CreateWorkspaceBuildRequest {
   readonly state?: string
   readonly orphan?: boolean
   readonly parameter_values?: CreateParameterRequest[]
+  readonly rich_parameter_values?: WorkspaceBuildParameter[]
 }
 
 // From codersdk/organizations.go
@@ -231,6 +243,7 @@ export interface CreateWorkspaceRequest {
   readonly autostart_schedule?: string
   readonly ttl_ms?: number
   readonly parameter_values?: CreateParameterRequest[]
+  readonly rich_parameter_values?: WorkspaceBuildParameter[]
 }
 
 // From codersdk/templates.go
@@ -272,6 +285,7 @@ export interface DeploymentConfig {
   readonly access_url: DeploymentConfigField<string>
   readonly wildcard_access_url: DeploymentConfigField<string>
   readonly address: DeploymentConfigField<string>
+  readonly http_address: DeploymentConfigField<string>
   readonly autobuild_poll_interval: DeploymentConfigField<number>
   readonly derp: DERP
   readonly gitauth: DeploymentConfigField<GitAuthConfig[]>
@@ -289,7 +303,6 @@ export interface DeploymentConfig {
   readonly trace: TraceConfig
   readonly secure_auth_cookie: DeploymentConfigField<boolean>
   readonly ssh_keygen_algorithm: DeploymentConfigField<string>
-  readonly auto_import_templates: DeploymentConfigField<string[]>
   readonly metrics_cache_refresh_interval: DeploymentConfigField<number>
   readonly agent_stat_refresh_interval: DeploymentConfigField<number>
   readonly agent_fallback_troubleshooting_url: DeploymentConfigField<string>
@@ -297,8 +310,12 @@ export interface DeploymentConfig {
   readonly browser_only: DeploymentConfigField<boolean>
   readonly scim_api_key: DeploymentConfigField<string>
   readonly provisioner: ProvisionerConfig
-  readonly api_rate_limit: DeploymentConfigField<number>
+  readonly rate_limit: RateLimitConfig
   readonly experimental: DeploymentConfigField<boolean>
+  readonly update_check: DeploymentConfigField<boolean>
+  readonly max_token_lifetime: DeploymentConfigField<number>
+  readonly swagger: SwaggerConfig
+  readonly logging: LoggingConfig
 }
 
 // From codersdk/deploymentconfig.go
@@ -407,6 +424,13 @@ export interface ListeningPortsResponse {
   readonly ports: ListeningPort[]
 }
 
+// From codersdk/deploymentconfig.go
+export interface LoggingConfig {
+  readonly human: DeploymentConfigField<string>
+  readonly json: DeploymentConfigField<string>
+  readonly stackdriver: DeploymentConfigField<string>
+}
+
 // From codersdk/users.go
 export interface LoginWithPasswordRequest {
   readonly email: string
@@ -439,10 +463,11 @@ export interface OIDCConfig {
   readonly allow_signups: DeploymentConfigField<boolean>
   readonly client_id: DeploymentConfigField<string>
   readonly client_secret: DeploymentConfigField<string>
-  readonly email_domain: DeploymentConfigField<string>
+  readonly email_domain: DeploymentConfigField<string[]>
   readonly issuer_url: DeploymentConfigField<string>
   readonly scopes: DeploymentConfigField<string[]>
   readonly ignore_email_verified: DeploymentConfigField<boolean>
+  readonly username_field: DeploymentConfigField<string>
 }
 
 // From codersdk/organizations.go
@@ -526,6 +551,8 @@ export interface PrometheusConfig {
 // From codersdk/deploymentconfig.go
 export interface ProvisionerConfig {
   readonly daemons: DeploymentConfigField<number>
+  readonly daemon_poll_interval: DeploymentConfigField<number>
+  readonly daemon_poll_jitter: DeploymentConfigField<number>
   readonly force_cancel_interval: DeploymentConfigField<number>
 }
 
@@ -568,6 +595,12 @@ export interface PutExtendWorkspaceRequest {
   readonly deadline: string
 }
 
+// From codersdk/deploymentconfig.go
+export interface RateLimitConfig {
+  readonly disable_all: DeploymentConfigField<boolean>
+  readonly api: DeploymentConfigField<number>
+}
+
 // From codersdk/replicas.go
 export interface Replica {
   readonly id: string
@@ -599,9 +632,23 @@ export interface ServerSentEvent {
   readonly data: any
 }
 
+// From codersdk/appearance.go
+export interface ServiceBannerConfig {
+  readonly enabled: boolean
+  readonly message?: string
+  readonly background_color?: string
+}
+
+// From codersdk/deploymentconfig.go
+export interface SwaggerConfig {
+  readonly enable: DeploymentConfigField<boolean>
+}
+
 // From codersdk/deploymentconfig.go
 export interface TLSConfig {
   readonly enable: DeploymentConfigField<boolean>
+  readonly address: DeploymentConfigField<string>
+  readonly redirect_http: DeploymentConfigField<boolean>
   readonly cert_file: DeploymentConfigField<string[]>
   readonly client_auth: DeploymentConfigField<string>
   readonly client_ca_file: DeploymentConfigField<string>
@@ -657,6 +704,17 @@ export interface TemplateDAUsResponse {
 }
 
 // From codersdk/templates.go
+export interface TemplateExample {
+  readonly id: string
+  readonly url: string
+  readonly name: string
+  readonly description: string
+  readonly icon: string
+  readonly tags: string[]
+  readonly markdown: string
+}
+
+// From codersdk/templates.go
 export interface TemplateGroup extends Group {
   readonly role: TemplateRole
 }
@@ -677,6 +735,29 @@ export interface TemplateVersion {
   readonly job: ProvisionerJob
   readonly readme: string
   readonly created_by: User
+}
+
+// From codersdk/templateversions.go
+export interface TemplateVersionParameter {
+  readonly name: string
+  readonly description: string
+  readonly type: string
+  readonly mutable: boolean
+  readonly default_value: string
+  readonly icon: string
+  readonly options: TemplateVersionParameterOption[]
+  readonly validation_error: string
+  readonly validation_regex: string
+  readonly validation_min: number
+  readonly validation_max: number
+}
+
+// From codersdk/templateversions.go
+export interface TemplateVersionParameterOption {
+  readonly name: string
+  readonly description: string
+  readonly value: string
+  readonly icon: string
 }
 
 // From codersdk/templates.go
@@ -700,6 +781,18 @@ export interface TransitionStats {
 // From codersdk/templates.go
 export interface UpdateActiveTemplateVersion {
   readonly id: string
+}
+
+// From codersdk/branding.go
+export interface UpdateBrandingRequest {
+  readonly logo_url: string
+}
+
+// From codersdk/updatecheck.go
+export interface UpdateCheckResponse {
+  readonly current: boolean
+  readonly version: string
+  readonly url: string
 }
 
 // From codersdk/users.go
@@ -860,6 +953,8 @@ export interface WorkspaceAgentResourceMetadata {
 // From codersdk/workspaceapps.go
 export interface WorkspaceApp {
   readonly id: string
+  readonly url: string
+  readonly external: boolean
   readonly slug: string
   readonly display_name: string
   readonly command?: string
@@ -891,6 +986,12 @@ export interface WorkspaceBuild {
   readonly deadline?: string
   readonly status: WorkspaceStatus
   readonly daily_cost: number
+}
+
+// From codersdk/workspacebuilds.go
+export interface WorkspaceBuildParameter {
+  readonly name: string
+  readonly value: string
 }
 
 // From codersdk/workspaces.go

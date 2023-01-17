@@ -612,6 +612,30 @@ type TemplateVersion struct {
 	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
 }
 
+type TemplateVersionParameter struct {
+	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
+	// Parameter name
+	Name string `db:"name" json:"name"`
+	// Parameter description
+	Description string `db:"description" json:"description"`
+	// Parameter type
+	Type string `db:"type" json:"type"`
+	// Is parameter mutable?
+	Mutable bool `db:"mutable" json:"mutable"`
+	// Default value
+	DefaultValue string `db:"default_value" json:"default_value"`
+	// Icon
+	Icon string `db:"icon" json:"icon"`
+	// Additional options
+	Options json.RawMessage `db:"options" json:"options"`
+	// Validation: regex pattern
+	ValidationRegex string `db:"validation_regex" json:"validation_regex"`
+	// Validation: minimum length of value
+	ValidationMin int32 `db:"validation_min" json:"validation_min"`
+	// Validation: maximum length of value
+	ValidationMax int32 `db:"validation_max" json:"validation_max"`
+}
+
 type User struct {
 	ID             uuid.UUID      `db:"id" json:"id"`
 	Email          string         `db:"email" json:"email"`
@@ -694,6 +718,7 @@ type WorkspaceApp struct {
 	Subdomain            bool               `db:"subdomain" json:"subdomain"`
 	SharingLevel         AppSharingLevel    `db:"sharing_level" json:"sharing_level"`
 	Slug                 string             `db:"slug" json:"slug"`
+	External             bool               `db:"external" json:"external"`
 }
 
 type WorkspaceBuild struct {
@@ -710,6 +735,14 @@ type WorkspaceBuild struct {
 	Deadline          time.Time           `db:"deadline" json:"deadline"`
 	Reason            BuildReason         `db:"reason" json:"reason"`
 	DailyCost         int32               `db:"daily_cost" json:"daily_cost"`
+}
+
+type WorkspaceBuildParameter struct {
+	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
+	// Parameter name
+	Name string `db:"name" json:"name"`
+	// Parameter value
+	Value string `db:"value" json:"value"`
 }
 
 type WorkspaceResource struct {
@@ -730,4 +763,5 @@ type WorkspaceResourceMetadatum struct {
 	Key                 string         `db:"key" json:"key"`
 	Value               sql.NullString `db:"value" json:"value"`
 	Sensitive           bool           `db:"sensitive" json:"sensitive"`
+	ID                  int64          `db:"id" json:"id"`
 }

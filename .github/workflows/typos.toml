@@ -10,6 +10,7 @@ doas = "doas"
 darcula = "darcula"
 Hashi = "Hashi"
 trialer = "trialer"
+encrypter = "encrypter"
 
 [files]
 extend-exclude = [

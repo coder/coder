@@ -6,7 +6,7 @@
 
 1. Run Coder as a system service.
 
-   ```sh
+   ```console
    # Optional) Set up an access URL
    sudo vim /etc/coder.d/coder.env
 
@@ -23,7 +23,7 @@
 
 1. Visit the Coder URL in the logs to set up your first account, or use the CLI:
 
-   ```sh
+   ```console
    coder login <access-url>
    ```
 
@@ -31,7 +31,7 @@
 
 After updating Coder or applying configuration changes, restart the server:
 
-```sh
+```console
 sudo systemctl restart coder
 ```
 

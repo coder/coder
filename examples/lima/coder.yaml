@@ -7,19 +7,19 @@
 
 # This example requires Lima v0.8.3 or later.
 images:
-# Try to use release-yyyyMMdd image if available. Note that release-yyyyMMdd will be removed after several months.
-- location: "https://cloud-images.ubuntu.com/releases/22.04/release-20220420/ubuntu-22.04-server-cloudimg-amd64.img"
-  arch: "x86_64"
-  digest: "sha256:de5e632e17b8965f2baf4ea6d2b824788e154d9a65df4fd419ec4019898e15cd"
-- location: "https://cloud-images.ubuntu.com/releases/22.04/release-20220420/ubuntu-22.04-server-cloudimg-arm64.img"
-  arch: "aarch64"
-  digest: "sha256:66224c7fed99ff5a5539eda406c87bbfefe8af6ff6b47d92df3187832b5b5d4f"
-# Fallback to the latest release image.
-# Hint: run `limactl prune` to invalidate the cache
-- location: "https://cloud-images.ubuntu.com/releases/22.04/release/ubuntu-22.04-server-cloudimg-amd64.img"
-  arch: "x86_64"
-- location: "https://cloud-images.ubuntu.com/releases/22.04/release/ubuntu-22.04-server-cloudimg-arm64.img"
-  arch: "aarch64"
+  # Try to use release-yyyyMMdd image if available. Note that release-yyyyMMdd will be removed after several months.
+  - location: "https://cloud-images.ubuntu.com/releases/22.04/release-20221201/ubuntu-22.04-server-cloudimg-amd64.img"
+    arch: "x86_64"
+    digest: "sha256:8a814737df484d9e2f4cb2c04c91629aea2fced6799fc36f77376f0da91dba65"
+  - location: "https://cloud-images.ubuntu.com/releases/22.04/release-20221201/ubuntu-22.04-server-cloudimg-arm64.img"
+    arch: "aarch64"
+    digest: "sha256:8a0477adcbdadefd58ae5c0625b53bbe618aedfe69983b824da8d02be0a8c961"
+  # Fallback to the latest release image.
+  # Hint: run `limactl prune` to invalidate the cache
+  - location: "https://cloud-images.ubuntu.com/releases/22.04/release/ubuntu-22.04-server-cloudimg-amd64.img"
+    arch: "x86_64"
+  - location: "https://cloud-images.ubuntu.com/releases/22.04/release/ubuntu-22.04-server-cloudimg-arm64.img"
+    arch: "aarch64"
 
 # Your home directory is mounted read-only
 mounts:
@@ -33,110 +33,107 @@ hostResolver:
   hosts:
     host.docker.internal: host.lima.internal
 provision:
-- mode: system
-  # This script defines the host.docker.internal hostname when hostResolver is disabled.
-  # It is also needed for lima 0.8.2 and earlier, which does not support hostResolver.hosts.
-  # Names defined in /etc/hosts inside the VM are not resolved inside containers when
-  # using the hostResolver; use hostResolver.hosts instead (requires lima 0.8.3 or later).
-  script: |
-    #!/bin/sh
-    set -eux -o pipefail
-    sed -i 's/host.lima.internal.*/host.lima.internal host.docker.internal/' /etc/hosts
-- mode: system
-  script: |
-    #!/bin/bash
-    set -eux -o pipefail
-    command -v docker >/dev/null 2>&1 && exit 0
-    export DEBIAN_FRONTEND=noninteractive
-    curl -fsSL https://get.docker.com | sh
-    # Ensure we have a decent logging driver set up for Docker, for debugging.
-    cat > /etc/docker/daemon.json << EOF
-    {
-            "log-driver": "journald"
-    }
-    EOF
-    systemctl restart docker
-    # In case a user forgets to set the arch correctly, just install binfmt
-    docker run --privileged --rm tonistiigi/binfmt --install all
-- mode: system
-  script: |
-    #!/bin/bash
-    set -eux -o pipefail
-    command -v terraform >/dev/null 2>&1 && exit 0
-    DEBIAN_FRONTEND=noninteractive apt-get install -qqy unzip
-    rm -fv /tmp/terraform.zip || true
-    wget -qO /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.3.0/terraform_1.3.0_linux_$(dpkg --print-architecture).zip"
-    unzip /tmp/terraform.zip -d /usr/local/bin/
-    chmod +x /usr/local/bin/terraform
-    rm -fv /tmp/terraform.zip || true
-- mode: system
-  script: |
-    #!/bin/bash
-    set -eux -o pipefail
-    command -v coder >/dev/null 2>&1 && exit 0
-    export DEBIAN_FRONTEND=noninteractive
-    export HOME=/root
-    curl -fsSL https://coder.com/install.sh | sh
-    # Ensure Coder has permissions on /var/run/docker.socket
-    usermod -aG docker coder
-    # Ensure coder listens on all interfaces
-    sed -i 's/CODER_ADDRESS=.*/CODER_ADDRESS=0.0.0.0:3000/' /etc/coder.d/coder.env
-    # Ensure coder starts on boot
-    systemctl enable coder
-    systemctl start coder
-    # Wait for Coder to have downloaded Terraform
-    timeout 60s bash -c 'until /var/cache/coder/terraform version >/dev/null 2>&1; do sleep 1; done'
-    # Coder restarts after downloading Terraform, wait for it to become available
-    timeout 60s bash -c 'until nc -z localhost 3000 > /dev/null 2>&1; do sleep 1; done'
-- mode: user
-  script: |
-    #!/bin/bash
-    set -eux -o pipefail
-    # If we are already logged in, nothing to do
-    coder templates list >/dev/null 2>&1 && exit 0
-    # Set up initial user
-    [ ! -e ~/.config/coderv2/session ] && coder login http://localhost:3000 --first-user-username admin --first-user-email admin@coder.com --first-user-password $(< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c8 | tee ${HOME}/.config/coderv2/password)
-    # Create an initial template
-    temp_template_dir=$(mktemp -d)
-    echo code-server | coder templates init "${temp_template_dir}"
-    DOCKER_ARCH="amd64"
-    if [ "$(arch)" = "aarch64" ]; then
-      DOCKER_ARCH="arm64"
-    fi
-    DOCKER_HOST=$(docker context inspect --format '{{.Endpoints.docker.Host}}')
-    printf 'docker_arch: "%s"\ndocker_host: "%s"\n' "${DOCKER_ARCH}" "${DOCKER_HOST}" | tee "${temp_template_dir}/params.yaml"
-    coder templates create "docker-code-server-${DOCKER_ARCH}" --directory "${temp_template_dir}" --parameter-file "${temp_template_dir}/params.yaml" --yes
-    rm -rfv "${temp_template_dir}"
+  - mode: system
+    # This script defines the host.docker.internal hostname when hostResolver is disabled.
+    # It is also needed for lima 0.8.2 and earlier, which does not support hostResolver.hosts.
+    # Names defined in /etc/hosts inside the VM are not resolved inside containers when
+    # using the hostResolver; use hostResolver.hosts instead (requires lima 0.8.3 or later).
+    script: |
+      #!/bin/sh
+      set -eux -o pipefail
+      sed -i 's/host.lima.internal.*/host.lima.internal host.docker.internal/' /etc/hosts
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+      command -v docker >/dev/null 2>&1 && exit 0
+      export DEBIAN_FRONTEND=noninteractive
+      curl -fsSL https://get.docker.com | sh
+      # Ensure we have a decent logging driver set up for Docker, for debugging.
+      cat > /etc/docker/daemon.json << EOF
+      {
+              "log-driver": "journald"
+      }
+      EOF
+      systemctl restart docker
+      # In case a user forgets to set the arch correctly, just install binfmt
+      docker run --privileged --rm tonistiigi/binfmt --install all
+      # Also ensure that the Lima user has access to the Docker daemon without sudo.
+      # The 'right' way to to do this is with the Docker group, but Lima keeps the
+      # SSH session around. We don't want users to have to manually delete ~/.lima/$VM/ssh.sock
+      # so we're just instead going to modify the perms on the Docker socket.
+      # See: https://github.com/lima-vm/lima/issues/528
+      chown ${LIMA_CIDATA_USER} /var/run/docker.sock
+      chmod og+rwx /var/run/docker.sock
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+      command -v coder >/dev/null 2>&1 && exit 0
+      export DEBIAN_FRONTEND=noninteractive
+      export HOME=/root
+      # Using install.sh --with-terraform requires unzip to be available.
+      apt-get install -qqy unzip
+      curl -fsSL https://coder.com/install.sh | sh -s -- --with-terraform
+      # Ensure Coder has permissions on /var/run/docker.socket
+      usermod -aG docker coder
+      # Ensure coder listens on all interfaces
+      sed -i 's/CODER_ADDRESS=.*/CODER_ADDRESS=0.0.0.0:3000/' /etc/coder.d/coder.env
+      # Also set the access URL to host.lima.internal for fast deployments
+      sed -i 's#CODER_ACCESS_URL=.*#CODER_ACCESS_URL=http://host.lima.internal:3000#' /etc/coder.d/coder.env
+      # Ensure coder starts on boot
+      systemctl enable coder
+      systemctl start coder
+      # Wait for Terraform to be installed
+      timeout 60s bash -c 'until /usr/local/bin/terraform version >/dev/null 2>&1; do sleep 1; done'
+  - mode: user
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+      # If we are already logged in, nothing to do
+      coder templates list >/dev/null 2>&1 && exit 0
+      # Set up initial user
+      [ ! -e ~/.config/coderv2/session ] && coder login http://localhost:3000 --first-user-username admin --first-user-email admin@coder.com --first-user-password $(< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c8 | tee ${HOME}/.config/coderv2/password)
+      # Create an initial template
+      temp_template_dir=$(mktemp -d)
+      echo code-server | coder templates init "${temp_template_dir}"
+      DOCKER_ARCH="amd64"
+      if [ "$(arch)" = "aarch64" ]; then
+        DOCKER_ARCH="arm64"
+      fi
+      DOCKER_HOST=$(docker context inspect --format '{{.Endpoints.docker.Host}}')
+      printf 'docker_arch: "%s"\ndocker_host: "%s"\n' "${DOCKER_ARCH}" "${DOCKER_HOST}" | tee "${temp_template_dir}/params.yaml"
+      coder templates create "docker-code-server-${DOCKER_ARCH}" --directory "${temp_template_dir}" --parameter-file "${temp_template_dir}/params.yaml" --yes
+      rm -rfv "${temp_template_dir}"
 probes:
-- description: "docker to be installed"
-  script: |
-    #!/bin/bash
-    set -eux -o pipefail
-    if ! timeout 30s bash -c "until command -v docker >/dev/null 2>&1; do sleep 3; done"; then
-      echo >&2 "docker is not installed yet"
-      exit 1
-    fi
-  hint: |
-    See "/var/log/cloud-init-output.log" in the guest.
-- description: "coder to be installed"
-  script: |
-    #!/bin/bash
-    set -eux -o pipefail
-    if ! timeout 30s bash -c "until command -v coder >/dev/null 2>&1; do sleep 3; done"; then
-      echo >&2 "coder is not installed yet"
-      exit 1
-    fi
-  hint: |
-    See "/var/log/cloud-init-output.log" in the guest.
+  - description: "docker to be installed"
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+      if ! timeout 30s bash -c "until command -v docker >/dev/null 2>&1; do sleep 3; done"; then
+        echo >&2 "docker is not installed yet"
+        exit 1
+      fi
+    hint: |
+      See "/var/log/cloud-init-output.log" in the guest.
+  - description: "coder to be installed"
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+      if ! timeout 30s bash -c "until command -v coder >/dev/null 2>&1; do sleep 3; done"; then
+        echo >&2 "coder is not installed yet"
+        exit 1
+      fi
+    hint: |
+      See "/var/log/cloud-init-output.log" in the guest.
 message: |
   All Done! Your Coder instance is accessible at http://localhost:3000
 
   Username: "admin@coder.com"
-  Password: Run `LIMA_INSTANCE=coder lima cat /home/${USER}.linux/.config/coderv2/password` 🤫
+  Password: Run `LIMA_INSTANCE={{.Instance.Name}} lima cat /home/${USER}.linux/.config/coderv2/password` 🤫
 
   Get started creating your own template now:
   ------
-  limactl shell coder
+  limactl shell {{.Instance.Name}}
   cd && coder templates init
   ------
-

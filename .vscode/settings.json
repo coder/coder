@@ -107,6 +107,7 @@
     "slogtest",
     "sourcemapped",
     "Srcs",
+    "stdbuf",
     "stretchr",
     "STTY",
     "stuntest",

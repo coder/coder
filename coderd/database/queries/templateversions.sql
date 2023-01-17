@@ -110,3 +110,19 @@ SET
 	updated_at = $3
 WHERE
 	job_id = $1;
+
+-- name: GetPreviousTemplateVersion :one
+SELECT
+	*
+FROM
+	template_versions
+WHERE
+	created_at < (
+		SELECT created_at
+		FROM template_versions AS tv
+		WHERE tv.organization_id = $1 AND tv.name = $2 AND tv.template_id = $3
+	)
+	AND organization_id = $1
+	AND template_id = $3
+ORDER BY created_at DESC
+LIMIT 1;

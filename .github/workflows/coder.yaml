@@ -34,7 +34,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: typos-action
-        uses: crate-ci/typos@v1.12.12
+        uses: crate-ci/typos@v1.13.3
         with:
           config: .github/workflows/typos.toml
       - name: Fix Helper
@@ -96,7 +96,7 @@ jobs:
         with:
           go-version: "~1.19"
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3.3.0
+        uses: golangci/golangci-lint-action@v3.3.1
         with:
           version: v1.48.0
 
@@ -198,19 +198,19 @@ jobs:
       - name: Echo Go Cache Paths
         id: go-cache-paths
         run: |
-          echo "::set-output name=go-build::$(go env GOCACHE)"
-          echo "::set-output name=go-mod::$(go env GOMODCACHE)"
+          echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Build Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
           key: ${{ github.job }}-go-build-${{ hashFiles('**/go.sum', '**/**.go') }}
 
       - name: Go Mod Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
           key: ${{ github.job }}-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Install sqlc
@@ -222,6 +222,8 @@ jobs:
         run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.26
       - name: Install goimports
         run: go install golang.org/x/tools/cmd/goimports@latest
+      - name: Install yq
+        run: go run github.com/mikefarah/yq/v4@v4.30.6
 
       - name: Install Protoc
         run: |
@@ -274,6 +276,9 @@ jobs:
           export PATH=${PATH}:$(go env GOPATH)/bin
           make --output-sync -j -B fmt
 
+      - name: Check for unstaged files
+        run: ./scripts/check_unstaged.sh
+
   test-go:
     name: "test/go"
     runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' ||  matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'windows-latest-8-cores'|| matrix.os }}
@@ -291,31 +296,34 @@ jobs:
         with:
           go-version: "~1.19"
 
+      # Sadly the new "set output" syntax (of writing env vars to
+      # $GITHUB_OUTPUT) does not work on both powershell and bash so we use the
+      # deprecated syntax here.
       - name: Echo Go Cache Paths
         id: go-cache-paths
         run: |
-          echo "::set-output name=go-build::$(go env GOCACHE)"
-          echo "::set-output name=go-mod::$(go env GOMODCACHE)"
+          echo "::set-output name=GOCACHE::$(go env GOCACHE)"
+          echo "::set-output name=GOMODCACHE::$(go env GOMODCACHE)"
 
       - name: Go Build Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.**', '**.go') }}
 
       - name: Go Mod Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Install gotestsum
-        uses: jaxxstorm/action-install-gh-release@v1.7.1
+        uses: jaxxstorm/action-install-gh-release@v1.9.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           repo: gotestyourself/gotestsum
-          tag: v1.8.2
+          tag: v1.9.0
 
       - uses: hashicorp/setup-terraform@v2
         with:
@@ -330,13 +338,20 @@ jobs:
           # prevents test caching, so we disable it on alternate operating
           # systems.
           if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
-            echo ::set-output name=cover::true
+            echo "cover=true" >> $GITHUB_OUTPUT
             export COVERAGE_FLAGS='-covermode=atomic -coverprofile="gotests.coverage" -coverpkg=./...'
           else
-            echo ::set-output name=cover::false
+            echo "cover=false" >> $GITHUB_OUTPUT
           fi
-          set -x
-          gotestsum --junitfile="gotests.xml" --packages="./..." -- -parallel=8 -timeout=3m -short -failfast $COVERAGE_FLAGS
+
+          gotestsum --junitfile="gotests.xml" --packages="./..." -- -parallel=8 -timeout=5m -short -failfast $COVERAGE_FLAGS
+
+      - uses: actions/upload-artifact@v3
+        if: success() || failure()
+        with:
+          name: gotests-${{ matrix.os }}.xml
+          path: ./gotests.xml
+          retention-days: 30
 
       - uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
@@ -368,28 +383,28 @@ jobs:
       - name: Echo Go Cache Paths
         id: go-cache-paths
         run: |
-          echo "::set-output name=go-build::$(go env GOCACHE)"
-          echo "::set-output name=go-mod::$(go env GOMODCACHE)"
+          echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Build Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum', '**/**.go') }}
 
       - name: Go Mod Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Install gotestsum
-        uses: jaxxstorm/action-install-gh-release@v1.7.1
+        uses: jaxxstorm/action-install-gh-release@v1.9.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           repo: gotestyourself/gotestsum
-          tag: v1.8.2
+          tag: v1.9.0
 
       - uses: hashicorp/setup-terraform@v2
         with:
@@ -397,7 +412,15 @@ jobs:
           terraform_wrapper: false
 
       - name: Test with PostgreSQL Database
-        run: make test-postgres
+        run: |
+          make test-postgres
+
+      - uses: actions/upload-artifact@v3
+        if: success() || failure()
+        with:
+          name: gotests-postgres.xml
+          path: ./gotests.xml
+          retention-days: 30
 
       - uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
@@ -409,7 +432,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./gotests.coverage
-          flags: unittest-go-postgres-${{ matrix.os }}
+          flags: unittest-go-postgres-linux
 
   deploy:
     name: "deploy"
@@ -428,13 +451,13 @@ jobs:
           fetch-depth: 0
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v0
+        uses: google-github-actions/auth@v1
         with:
           workload_identity_provider: projects/573722524737/locations/global/workloadIdentityPools/github/providers/github
           service_account: coder-ci@coder-dogfood.iam.gserviceaccount.com
 
       - name: Set up Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v0
+        uses: google-github-actions/setup-gcloud@v1
 
       - uses: actions/setup-go@v3
         with:
@@ -443,19 +466,19 @@ jobs:
       - name: Echo Go Cache Paths
         id: go-cache-paths
         run: |
-          echo "::set-output name=go-build::$(go env GOCACHE)"
-          echo "::set-output name=go-mod::$(go env GOMODCACHE)"
+          echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Build Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
           key: ${{ runner.os }}-release-go-build-${{ hashFiles('**/go.sum') }}
 
       - name: Go Mod Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
           key: ${{ runner.os }}-release-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Cache Node
@@ -587,19 +610,19 @@ jobs:
       - name: Echo Go Cache Paths
         id: go-cache-paths
         run: |
-          echo "::set-output name=go-build::$(go env GOCACHE)"
-          echo "::set-output name=go-mod::$(go env GOMODCACHE)"
+          echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Build Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-build }}
+          path: ${{ steps.go-cache-paths.outputs.GOCACHE }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
 
       - name: Go Mod Cache
         uses: actions/cache@v3
         with:
-          path: ${{ steps.go-cache-paths.outputs.go-mod }}
+          path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Build
@@ -673,7 +696,20 @@ jobs:
   markdown-link-check:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@master
-    - uses: gaurav-nelson/github-action-markdown-link-check@v1
-      with:
+      - uses: actions/checkout@master
+      # For the main branch:
+      - if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
+        uses: gaurav-nelson/github-action-markdown-link-check@v1
+        with:
+          use-quiet-mode: yes
+          use-verbose-mode: yes
+          config-file: .github/workflows/mlc_config.json
+      # For pull requests:
+      - if: github.ref != 'refs/heads/main' || github.event.pull_request.head.repo.fork
+        uses: gaurav-nelson/github-action-markdown-link-check@v1
+        with:
+          use-quiet-mode: yes
+          use-verbose-mode: yes
+          check-modified-files-only: yes
+          base-branch: main
           config-file: .github/workflows/mlc_config.json

@@ -99,6 +99,14 @@ func (c *committer) CommitQuota(
 	}, nil
 }
 
+// @Summary Get workspace quota by user
+// @ID get-workspace-quota-by-user
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param user path string true "User ID, name, or me"
+// @Success 200 {object} codersdk.WorkspaceQuota
+// @Router /workspace-quota/{user} [get]
 func (api *API) workspaceQuota(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 

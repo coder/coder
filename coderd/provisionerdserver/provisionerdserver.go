@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -180,12 +181,18 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 			return nil, failJob(fmt.Sprintf("convert workspace transition: %s", err))
 		}
 
+		workspaceBuildParameters, err := server.Database.GetWorkspaceBuildParameters(ctx, workspaceBuild.ID)
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("get workspace build parameters: %s", err))
+		}
+
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
-				WorkspaceBuildId: workspaceBuild.ID.String(),
-				WorkspaceName:    workspace.Name,
-				State:            workspaceBuild.ProvisionerState,
-				ParameterValues:  protoParameters,
+				WorkspaceBuildId:    workspaceBuild.ID.String(),
+				WorkspaceName:       workspace.Name,
+				State:               workspaceBuild.ProvisionerState,
+				ParameterValues:     protoParameters,
+				RichParameterValues: convertRichParameterValues(workspaceBuildParameters),
 				Metadata: &sdkproto.Provision_Metadata{
 					CoderUrl:            server.AccessURL.String(),
 					WorkspaceTransition: transition,
@@ -530,22 +537,23 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 		auditor := server.Auditor.Load()
 		build, getBuildErr := server.Database.GetWorkspaceBuildByJobID(ctx, job.ID)
 		if getBuildErr != nil {
-			server.Logger.Error(ctx, "failed to create audit log - get build err", slog.Error(err))
+			server.Logger.Error(ctx, "audit log - get build", slog.Error(err))
 		} else {
 			auditAction := auditActionFromTransition(build.Transition)
 			workspace, getWorkspaceErr := server.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
 			if getWorkspaceErr != nil {
-				server.Logger.Error(ctx, "failed to create audit log - get workspace err", slog.Error(err))
+				server.Logger.Error(ctx, "audit log - get workspace", slog.Error(err))
 			} else {
-				// We pass the workspace name to the Auditor so that it
-				// can form a friendly string for the user.
-				workspaceResourceInfo := map[string]string{
+				// We pass the below information to the Auditor so that it
+				// can form a friendly string for the user to view in the UI.
+				buildResourceInfo := map[string]string{
 					"workspaceName": workspace.Name,
+					"buildNumber":   strconv.FormatInt(int64(build.BuildNumber), 10),
 				}
 
-				wriBytes, err := json.Marshal(workspaceResourceInfo)
+				wriBytes, err := json.Marshal(buildResourceInfo)
 				if err != nil {
-					server.Logger.Error(ctx, "could not marshal workspace name", slog.Error(err))
+					server.Logger.Error(ctx, "marshal workspace resource info for failed job", slog.Error(err))
 				}
 
 				audit.BuildAudit(ctx, &audit.BuildAuditParams[database.WorkspaceBuild]{
@@ -595,6 +603,12 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 
 	switch jobType := completed.Type.(type) {
 	case *proto.CompletedJob_TemplateImport_:
+		var input TemplateVersionImportJob
+		err = json.Unmarshal(job.Input, &input)
+		if err != nil {
+			return nil, xerrors.Errorf("template version ID is expected: %w", err)
+		}
+
 		for transition, resources := range map[database.WorkspaceTransition][]*sdkproto.Resource{
 			database.WorkspaceTransitionStart: jobType.TemplateImport.StartResources,
 			database.WorkspaceTransitionStop:  jobType.TemplateImport.StopResources,
@@ -610,6 +624,33 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				if err != nil {
 					return nil, xerrors.Errorf("insert resource: %w", err)
 				}
+			}
+		}
+
+		for _, richParameter := range jobType.TemplateImport.RichParameters {
+			server.Logger.Info(ctx, "inserting template import job parameter",
+				slog.F("job_id", job.ID.String()),
+				slog.F("parameter_name", richParameter.Name),
+			)
+			options, err := json.Marshal(richParameter.Options)
+			if err != nil {
+				return nil, xerrors.Errorf("marshal parameter options: %w", err)
+			}
+			_, err = server.Database.InsertTemplateVersionParameter(ctx, database.InsertTemplateVersionParameterParams{
+				TemplateVersionID: input.TemplateVersionID,
+				Name:              richParameter.Name,
+				Description:       richParameter.Description,
+				Type:              richParameter.Type,
+				Mutable:           richParameter.Mutable,
+				DefaultValue:      richParameter.DefaultValue,
+				Icon:              richParameter.Icon,
+				Options:           options,
+				ValidationRegex:   richParameter.ValidationRegex,
+				ValidationMin:     richParameter.ValidationMin,
+				ValidationMax:     richParameter.ValidationMax,
+			})
+			if err != nil {
+				return nil, xerrors.Errorf("insert parameter: %w", err)
 			}
 		}
 
@@ -752,15 +793,16 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			auditor := server.Auditor.Load()
 			auditAction := auditActionFromTransition(workspaceBuild.Transition)
 
-			// We pass the workspace name to the Auditor so that it
-			// can form a friendly string for the user.
-			workspaceResourceInfo := map[string]string{
+			// We pass the below information to the Auditor so that it
+			// can form a friendly string for the user to view in the UI.
+			buildResourceInfo := map[string]string{
 				"workspaceName": workspace.Name,
+				"buildNumber":   strconv.FormatInt(int64(workspaceBuild.BuildNumber), 10),
 			}
 
-			wriBytes, err := json.Marshal(workspaceResourceInfo)
+			wriBytes, err := json.Marshal(buildResourceInfo)
 			if err != nil {
-				server.Logger.Error(ctx, "marshal resource info", slog.Error(err))
+				server.Logger.Error(ctx, "marshal resource info for successful job", slog.Error(err))
 			}
 
 			audit.BuildAudit(ctx, &audit.BuildAuditParams[database.WorkspaceBuild]{
@@ -851,8 +893,16 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 	}
 	snapshot.WorkspaceResources = append(snapshot.WorkspaceResources, telemetry.ConvertWorkspaceResource(resource))
 
-	appSlugs := make(map[string]struct{})
+	var (
+		agentNames = make(map[string]struct{})
+		appSlugs   = make(map[string]struct{})
+	)
 	for _, prAgent := range protoResource.Agents {
+		if _, ok := agentNames[prAgent.Name]; ok {
+			return xerrors.Errorf("duplicate agent name %q", prAgent.Name)
+		}
+		agentNames[prAgent.Name] = struct{}{}
+
 		var instanceID sql.NullString
 		if prAgent.GetInstanceId() != "" {
 			instanceID = sql.NullString{
@@ -949,6 +999,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 					String: app.Url,
 					Valid:  app.Url != "",
 				},
+				External:             app.External,
 				Subdomain:            app.Subdomain,
 				SharingLevel:         sharingLevel,
 				HealthcheckUrl:       app.Healthcheck.Url,
@@ -963,22 +1014,23 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		}
 	}
 
+	arg := database.InsertWorkspaceResourceMetadataParams{
+		WorkspaceResourceID: resource.ID,
+		Key:                 []string{},
+		Value:               []string{},
+		Sensitive:           []bool{},
+	}
 	for _, metadatum := range protoResource.Metadata {
-		var value sql.NullString
-		if !metadatum.IsNull {
-			value.String = metadatum.Value
-			value.Valid = true
+		if metadatum.IsNull {
+			continue
 		}
-
-		_, err := db.InsertWorkspaceResourceMetadata(ctx, database.InsertWorkspaceResourceMetadataParams{
-			WorkspaceResourceID: resource.ID,
-			Key:                 metadatum.Key,
-			Value:               value,
-			Sensitive:           metadatum.Sensitive,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert metadata: %w", err)
-		}
+		arg.Key = append(arg.Key, metadatum.Key)
+		arg.Value = append(arg.Value, metadatum.Value)
+		arg.Sensitive = append(arg.Sensitive, metadatum.Sensitive)
+	}
+	_, err = db.InsertWorkspaceResourceMetadata(ctx, arg)
+	if err != nil {
+		return xerrors.Errorf("insert workspace resource metadata: %w", err)
 	}
 
 	return nil
@@ -1043,6 +1095,17 @@ func convertLogSource(logSource proto.LogSource) (database.LogSource, error) {
 	}
 }
 
+func convertRichParameterValues(workspaceBuildParameters []database.WorkspaceBuildParameter) []*sdkproto.RichParameterValue {
+	protoParameters := make([]*sdkproto.RichParameterValue, len(workspaceBuildParameters))
+	for i, buildParameter := range workspaceBuildParameters {
+		protoParameters[i] = &sdkproto.RichParameterValue{
+			Name:  buildParameter.Name,
+			Value: buildParameter.Value,
+		}
+	}
+	return protoParameters
+}
+
 func convertComputedParameterValues(parameters []parameter.ComputedValue) ([]*sdkproto.ParameterValue, error) {
 	protoParameters := make([]*sdkproto.ParameterValue, len(parameters))
 	for i, computedParameter := range parameters {
@@ -1098,6 +1161,10 @@ func auditActionFromTransition(transition database.WorkspaceTransition) database
 	default:
 		return database.AuditActionWrite
 	}
+}
+
+type TemplateVersionImportJob struct {
+	TemplateVersionID uuid.UUID `json:"template_version_id"`
 }
 
 // WorkspaceProvisionJob is the payload for the "workspace_provision" job type.

@@ -106,6 +106,16 @@ func (h *HTTPAuthorizer) AuthorizeSQLFilter(r *http.Request, action rbac.Action,
 
 // checkAuthorization returns if the current API key can use the given
 // permissions, factoring in the current user's roles and the API key scopes.
+//
+// @Summary Check authorization
+// @ID check-authorization
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Authorization
+// @Param request body codersdk.AuthorizationRequest true "Authorization request"
+// @Success 200 {object} codersdk.AuthorizationResponse
+// @Router /authcheck [post]
 func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	auth := httpmw.UserAuthorization(r)
@@ -192,9 +202,10 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 			case rbac.ResourceGroup.Type:
 				dbObj, dbErr = api.Database.GetGroupByID(ctx, id)
 			default:
+				msg := fmt.Sprintf("Object type %q does not support \"resource_id\" field.", v.Object.ResourceType)
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message:     fmt.Sprintf("Object type %q does not support \"resource_id\" field.", v.Object.ResourceType),
-					Validations: []codersdk.ValidationError{{Field: "resource_type", Detail: err.Error()}},
+					Message:     msg,
+					Validations: []codersdk.ValidationError{{Field: "resource_type", Detail: msg}},
 				})
 				return
 			}
@@ -206,7 +217,7 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 			obj = dbObj.RBACObject()
 		}
 
-		err := api.Authorizer.ByRoleName(r.Context(), auth.ID.String(), auth.Roles, auth.Scope.ToRBAC(), auth.Groups, rbac.Action(v.Action), obj)
+		err := api.Authorizer.ByRoleName(ctx, auth.ID.String(), auth.Roles, auth.Scope.ToRBAC(), auth.Groups, rbac.Action(v.Action), obj)
 		response[k] = err == nil
 	}
 

@@ -8,7 +8,7 @@ for software development.
 Each Coder user has their own workspaces created from [shared
 templates](./templates.md):
 
-```sh
+```console
 # create a workspace from the template; specify any variables
 coder create --template="<templateName>" <workspaceName>
 
@@ -66,7 +66,7 @@ one hour. IDE, SSH, Port Forwarding, and coder_app activity trigger this bump.
 Use the following command to update a workspace to the latest template version.
 The workspace will be stopped and started:
 
-```sh
+```console
 coder update <workspace-name>
 ```
 
@@ -76,7 +76,7 @@ Use the following command to re-enter template input
 variables in an existing workspace. This command is useful when a workspace fails
 to build because its state is out of sync with the template.
 
-```sh
+```console
 coder update <your workspace name> --always-prompt
 ```
 
@@ -92,5 +92,6 @@ Coder stores macOS and Linux logs at the following locations:
 ---
 
 ## Up next
+
 - Learn about how to personalize your workspace with [Dotfiles](./dotfiles.md)
 - Learn about using [IDEs](./ides.md)

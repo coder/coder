@@ -36,18 +36,21 @@ func createParameterMapFromFile(parameterFile string) (map[string]string, error)
 	return nil, xerrors.Errorf("Parameter file name is not specified")
 }
 
-// Returns a parameter value from a given map, if the map exists, else takes input from the user.
-// Throws an error if the map exists but does not include a value for the parameter.
+// Returns a parameter value from a given map, if the map does not exist or does not contain the item, it takes input from the user.
+// Throws an error if there are any errors with the users input.
 func getParameterValueFromMapOrInput(cmd *cobra.Command, parameterMap map[string]string, parameterSchema codersdk.ParameterSchema) (string, error) {
 	var parameterValue string
+	var err error
 	if parameterMap != nil {
 		var ok bool
 		parameterValue, ok = parameterMap[parameterSchema.Name]
 		if !ok {
-			return "", xerrors.Errorf("Parameter value absent in parameter file for %q!", parameterSchema.Name)
+			parameterValue, err = cliui.ParameterSchema(cmd, parameterSchema)
+			if err != nil {
+				return "", err
+			}
 		}
 	} else {
-		var err error
 		parameterValue, err = cliui.ParameterSchema(cmd, parameterSchema)
 		if err != nil {
 			return "", err

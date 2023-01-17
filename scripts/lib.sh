@@ -6,6 +6,15 @@
 
 set -euo pipefail
 
+# Avoid sourcing this script multiple times to guard against when lib.sh
+# is used by another sourced script, it can lead to confusing results.
+if [[ ${SCRIPTS_LIB_IS_SOURCED:-0} == 1 ]]; then
+	return
+fi
+# Do not export to avoid this value being inherited by non-sourced
+# scripts.
+SCRIPTS_LIB_IS_SOURCED=1
+
 # realpath returns an absolute path to the given relative path. It will fail if
 # the parent directory of the path does not exist. Make sure you are in the
 # expected directory before running this to avoid errors.
@@ -66,10 +75,22 @@ execrelative() {
 	return $rc
 }
 
+dependency_check() {
+	local dep=$1
+
+	# Special case for yq that can be yq or yq4.
+	if [[ $dep == yq ]]; then
+		[[ -n "${CODER_LIBSH_YQ:-}" ]]
+		return
+	fi
+
+	command -v "$dep" >/dev/null
+}
+
 dependencies() {
 	local fail=0
 	for dep in "$@"; do
-		if ! command -v "$dep" >/dev/null; then
+		if ! dependency_check "$dep"; then
 			log "ERROR: The '$dep' dependency is required, but is not available."
 			fail=1
 		fi
@@ -110,9 +131,16 @@ maybedryrun() {
 		log "DRYRUN: $*"
 	else
 		shift
-		log $ "$@"
-		"$@"
+		logrun "$@"
 	fi
+}
+
+# logrun prints the given program and flags, and then executes it.
+#
+# Usage: logrun gh release create ...
+logrun() {
+	log $ "$*"
+	"$@"
 }
 
 # log prints a message to stderr.
@@ -129,6 +157,12 @@ error() {
 # isdarwin returns an error if the current platform is not darwin.
 isdarwin() {
 	[[ "${OSTYPE:-darwin}" == *darwin* ]]
+}
+
+# issourced returns true if the script that sourced this script is being
+# sourced by another.
+issourced() {
+	[[ "${BASH_SOURCE[1]}" != "$0" ]]
 }
 
 # We don't need to check dependencies more than once per script, but some
@@ -185,9 +219,25 @@ if [[ "${CODER_LIBSH_NO_CHECK_DEPENDENCIES:-}" != *t* ]]; then
 		log
 	fi
 
+	# Allow for yq to be installed as yq4.
+	if command -v yq4 >/dev/null; then
+		export CODER_LIBSH_YQ=yq4
+	elif command -v yq >/dev/null; then
+		if [[ $(yq --version) == *" v4."* ]]; then
+			export CODER_LIBSH_YQ=yq
+		fi
+	fi
+
 	if [[ "$libsh_bad_dependencies" == 1 ]]; then
 		error "Invalid dependencies, see above for more details."
 	fi
 
 	export CODER_LIBSH_NO_CHECK_DEPENDENCIES=true
+fi
+
+# Alias yq to the version we want by shadowing with a function.
+if [[ -n ${CODER_LIBSH_YQ:-} ]]; then
+	yq() {
+		command $CODER_LIBSH_YQ "$@"
+	}
 fi

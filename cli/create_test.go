@@ -232,13 +232,16 @@ func TestCreate(t *testing.T) {
 			ProvisionApply: echo.ProvisionComplete,
 			ProvisionPlan:  echo.ProvisionComplete,
 		})
+
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
 		tempDir := t.TempDir()
 		removeTmpDirUntilSuccessAfterTest(t, tempDir)
 		parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
-		_, _ = parameterFile.WriteString("zone: \"bananas\"")
-		cmd, root := clitest.New(t, "create", "my-workspace", "--template", template.Name, "--parameter-file", parameterFile.Name())
+		_, _ = parameterFile.WriteString("username: \"boingo\"")
+
+		cmd, root := clitest.New(t, "create", "", "--parameter-file", parameterFile.Name())
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
@@ -247,11 +250,32 @@ func TestCreate(t *testing.T) {
 		go func() {
 			defer close(doneChan)
 			err := cmd.Execute()
-			assert.EqualError(t, err, "Parameter value absent in parameter file for \"region\"!")
+			assert.NoError(t, err)
 		}()
+		matches := []struct {
+			match string
+			write string
+		}{
+			{
+				match: "Specify a name",
+				write: "my-workspace",
+			},
+			{
+				match: fmt.Sprintf("Enter a value (default: %q):", defaultValue),
+				write: "bingo",
+			},
+			{
+				match: "Confirm create?",
+				write: "yes",
+			},
+		}
+
+		for _, m := range matches {
+			pty.ExpectMatch(m.match)
+			pty.WriteLine(m.write)
+		}
 		<-doneChan
 	})
-
 	t.Run("FailedDryRun", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})

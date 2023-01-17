@@ -121,7 +121,7 @@ fatal() {
 	trap 'fatal "Script encountered an error"' ERR
 
 	cdroot
-	start_cmd API "" "${CODER_DEV_SHIM}" server --address 0.0.0.0:3000
+	start_cmd API "" "${CODER_DEV_SHIM}" server --http-address 0.0.0.0:3000 --swagger-enable --access-url "http://127.0.0.1:3000"
 
 	echo '== Waiting for Coder to become ready'
 	# Start the timeout in the background so interrupting this script
@@ -135,7 +135,7 @@ fatal() {
 
 	if [ ! -f "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup" ]; then
 		# Try to create the initial admin user.
-		if "${CODER_DEV_SHIM}" login http://127.0.0.1:3000 --first-user-username=admin --first-user-email=admin@coder.com --first-user-password="${password}"; then
+		if "${CODER_DEV_SHIM}" login http://127.0.0.1:3000 --first-user-username=admin --first-user-email=admin@coder.com --first-user-password="${password}" --first-user-trial=true; then
 			# Only create this file if an admin user was successfully
 			# created, otherwise we won't retry on a later attempt.
 			touch "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup"
@@ -172,10 +172,10 @@ fatal() {
 	CODER_HOST=http://127.0.0.1:3000 start_cmd SITE date yarn --cwd=./site dev --host
 
 	interfaces=(localhost)
-	if which ip >/dev/null 2>&1; then
+	if command -v ip >/dev/null; then
 		# shellcheck disable=SC2207
 		interfaces+=($(ip a | awk '/inet / {print $2}' | cut -d/ -f1))
-	elif which ifconfig >/dev/null 2>&1; then
+	elif command -v ifconfig >/dev/null; then
 		# shellcheck disable=SC2207
 		interfaces+=($(ifconfig | awk '/inet / {print $2}'))
 	fi

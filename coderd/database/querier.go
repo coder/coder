@@ -43,6 +43,7 @@ type sqlcQuerier interface {
 	GetDeploymentID(ctx context.Context) (string, error)
 	GetFileByHashAndCreator(ctx context.Context, arg GetFileByHashAndCreatorParams) (File, error)
 	GetFileByID(ctx context.Context, id uuid.UUID) (File, error)
+	// This will never count deleted users.
 	GetFilteredUserCount(ctx context.Context, arg GetFilteredUserCountParams) (int64, error)
 	GetGitAuthLink(ctx context.Context, arg GetGitAuthLinkParams) (GitAuthLink, error)
 	GetGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, error)
@@ -50,11 +51,13 @@ type sqlcQuerier interface {
 	GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrgAndNameParams) (Group, error)
 	GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]User, error)
 	GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]Group, error)
+	GetLastUpdateCheck(ctx context.Context) (string, error)
 	GetLatestAgentStat(ctx context.Context, agentID uuid.UUID) (AgentStat, error)
 	GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (WorkspaceBuild, error)
 	GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceBuild, error)
 	GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuild, error)
 	GetLicenses(ctx context.Context) ([]License, error)
+	GetLogoURL(ctx context.Context) (string, error)
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationByName(ctx context.Context, name string) (Organization, error)
 	GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.UUID) ([]GetOrganizationIDsByMemberIDsRow, error)
@@ -65,6 +68,7 @@ type sqlcQuerier interface {
 	GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error)
 	GetParameterSchemasCreatedAfter(ctx context.Context, createdAt time.Time) ([]ParameterSchema, error)
 	GetParameterValueByScopeAndName(ctx context.Context, arg GetParameterValueByScopeAndNameParams) (ParameterValue, error)
+	GetPreviousTemplateVersion(ctx context.Context, arg GetPreviousTemplateVersionParams) (TemplateVersion, error)
 	GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID) (ProvisionerDaemon, error)
 	GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, error)
 	GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (ProvisionerJob, error)
@@ -74,6 +78,7 @@ type sqlcQuerier interface {
 	GetQuotaAllowanceForUser(ctx context.Context, userID uuid.UUID) (int64, error)
 	GetQuotaConsumedForUser(ctx context.Context, ownerID uuid.UUID) (int64, error)
 	GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]Replica, error)
+	GetServiceBanner(ctx context.Context) (string, error)
 	GetTemplateAverageBuildTime(ctx context.Context, arg GetTemplateAverageBuildTimeParams) (GetTemplateAverageBuildTimeRow, error)
 	GetTemplateByID(ctx context.Context, id uuid.UUID) (Template, error)
 	GetTemplateByOrganizationAndName(ctx context.Context, arg GetTemplateByOrganizationAndNameParams) (Template, error)
@@ -82,6 +87,7 @@ type sqlcQuerier interface {
 	GetTemplateVersionByJobID(ctx context.Context, jobID uuid.UUID) (TemplateVersion, error)
 	GetTemplateVersionByOrganizationAndName(ctx context.Context, arg GetTemplateVersionByOrganizationAndNameParams) (TemplateVersion, error)
 	GetTemplateVersionByTemplateIDAndName(ctx context.Context, arg GetTemplateVersionByTemplateIDAndNameParams) (TemplateVersion, error)
+	GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionParameter, error)
 	GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UUID) ([]TemplateVersion, error)
 	GetTemplateVersionsByTemplateID(ctx context.Context, arg GetTemplateVersionsByTemplateIDParams) ([]TemplateVersion, error)
 	GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]TemplateVersion, error)
@@ -94,6 +100,7 @@ type sqlcQuerier interface {
 	GetUserGroups(ctx context.Context, userID uuid.UUID) ([]Group, error)
 	GetUserLinkByLinkedID(ctx context.Context, linkedID string) (UserLink, error)
 	GetUserLinkByUserIDLoginType(ctx context.Context, arg GetUserLinkByUserIDLoginTypeParams) (UserLink, error)
+	// This will never return deleted users.
 	GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUsersRow, error)
 	// This shouldn't check for deleted, because it's frequently used
 	// to look up references to actions. eg. a user could build a workspace
@@ -111,6 +118,7 @@ type sqlcQuerier interface {
 	GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (WorkspaceBuild, error)
 	GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UUID) (WorkspaceBuild, error)
 	GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (WorkspaceBuild, error)
+	GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]WorkspaceBuildParameter, error)
 	GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg GetWorkspaceBuildsByWorkspaceIDParams) ([]WorkspaceBuild, error)
 	GetWorkspaceBuildsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceBuild, error)
 	GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (Workspace, error)
@@ -119,7 +127,6 @@ type sqlcQuerier interface {
 	GetWorkspaceCountByUserID(ctx context.Context, ownerID uuid.UUID) (int64, error)
 	GetWorkspaceOwnerCountsByTemplateIDs(ctx context.Context, ids []uuid.UUID) ([]GetWorkspaceOwnerCountsByTemplateIDsRow, error)
 	GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID) (WorkspaceResource, error)
-	GetWorkspaceResourceMetadataByResourceID(ctx context.Context, workspaceResourceID uuid.UUID) ([]WorkspaceResourceMetadatum, error)
 	GetWorkspaceResourceMetadataByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceResourceMetadatum, error)
 	GetWorkspaceResourceMetadataCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceResourceMetadatum, error)
 	GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]WorkspaceResource, error)
@@ -141,6 +148,9 @@ type sqlcQuerier interface {
 	InsertGroup(ctx context.Context, arg InsertGroupParams) (Group, error)
 	InsertGroupMember(ctx context.Context, arg InsertGroupMemberParams) error
 	InsertLicense(ctx context.Context, arg InsertLicenseParams) (License, error)
+	InsertOrUpdateLastUpdateCheck(ctx context.Context, value string) error
+	InsertOrUpdateLogoURL(ctx context.Context, value string) error
+	InsertOrUpdateServiceBanner(ctx context.Context, value string) error
 	InsertOrganization(ctx context.Context, arg InsertOrganizationParams) (Organization, error)
 	InsertOrganizationMember(ctx context.Context, arg InsertOrganizationMemberParams) (OrganizationMember, error)
 	InsertParameterSchema(ctx context.Context, arg InsertParameterSchemaParams) (ParameterSchema, error)
@@ -151,14 +161,16 @@ type sqlcQuerier interface {
 	InsertReplica(ctx context.Context, arg InsertReplicaParams) (Replica, error)
 	InsertTemplate(ctx context.Context, arg InsertTemplateParams) (Template, error)
 	InsertTemplateVersion(ctx context.Context, arg InsertTemplateVersionParams) (TemplateVersion, error)
+	InsertTemplateVersionParameter(ctx context.Context, arg InsertTemplateVersionParameterParams) (TemplateVersionParameter, error)
 	InsertUser(ctx context.Context, arg InsertUserParams) (User, error)
 	InsertUserLink(ctx context.Context, arg InsertUserLinkParams) (UserLink, error)
 	InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) (Workspace, error)
 	InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspaceAgentParams) (WorkspaceAgent, error)
 	InsertWorkspaceApp(ctx context.Context, arg InsertWorkspaceAppParams) (WorkspaceApp, error)
 	InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspaceBuildParams) (WorkspaceBuild, error)
+	InsertWorkspaceBuildParameters(ctx context.Context, arg InsertWorkspaceBuildParametersParams) error
 	InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error)
-	InsertWorkspaceResourceMetadata(ctx context.Context, arg InsertWorkspaceResourceMetadataParams) (WorkspaceResourceMetadatum, error)
+	InsertWorkspaceResourceMetadata(ctx context.Context, arg InsertWorkspaceResourceMetadataParams) ([]WorkspaceResourceMetadatum, error)
 	ParameterValue(ctx context.Context, id uuid.UUID) (ParameterValue, error)
 	ParameterValues(ctx context.Context, arg ParameterValuesParams) ([]ParameterValue, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error

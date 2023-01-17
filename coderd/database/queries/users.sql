@@ -20,8 +20,8 @@ SELECT
 FROM
 	users
 WHERE
-	(LOWER(username) = LOWER(@username) OR LOWER(email) = LOWER(@email))
-	AND deleted = @deleted
+	(LOWER(username) = LOWER(@username) OR LOWER(email) = LOWER(@email)) AND
+	deleted = false
 LIMIT
 	1;
 
@@ -29,7 +29,9 @@ LIMIT
 SELECT
 	COUNT(*)
 FROM
-	users WHERE deleted = false;
+	users
+WHERE
+	deleted = false;
 
 -- name: GetActiveUserCount :one
 SELECT
@@ -40,12 +42,13 @@ WHERE
     status = 'active'::user_status AND deleted = false;
 
 -- name: GetFilteredUserCount :one
+-- This will never count deleted users.
 SELECT
 	COUNT(*)
 FROM
 	users
 WHERE
-	users.deleted = @deleted
+	users.deleted = false
 	-- Start filters
 	-- Filter by name, email or username
 	AND CASE
@@ -127,12 +130,13 @@ WHERE
 	id = $1;
 
 -- name: GetUsers :many
+-- This will never return deleted users.
 SELECT
 	*, COUNT(*) OVER() AS count
 FROM
 	users
 WHERE
-	users.deleted = @deleted
+	users.deleted = false
 	AND CASE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without

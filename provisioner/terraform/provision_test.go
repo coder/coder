@@ -77,7 +77,7 @@ func readProvisionLog(t *testing.T, response proto.DRPCProvisioner_ProvisionClie
 
 		if log := msg.GetLog(); log != nil {
 			t.Log(log.Level.String(), log.Output)
-			logBuf.WriteString(log.Output)
+			_, _ = logBuf.WriteString(log.Output)
 		}
 		if c = msg.GetComplete(); c != nil {
 			require.Empty(t, c.Error)
@@ -189,8 +189,6 @@ func TestProvision_Cancel(t *testing.T) {
 
 func TestProvision(t *testing.T) {
 	t.Parallel()
-
-	ctx, api := setupProvisioner(t, nil)
 
 	testCases := []struct {
 		Name    string
@@ -328,6 +326,8 @@ func TestProvision(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.Name, func(t *testing.T) {
 			t.Parallel()
+
+			ctx, api := setupProvisioner(t, nil)
 
 			directory := t.TempDir()
 			for path, content := range testCase.Files {

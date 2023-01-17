@@ -1,7 +1,7 @@
 # Resource Persistence
 
-Coder templates have full control over workspace ephemerality. In a 
-completely ephemeral workspace, there are zero resources in the On state. In
+Coder templates have full control over workspace ephemerality. In a
+completely ephemeral workspace, there are zero resources in the Off state. In
 a completely persistent workspace, there is no difference between the Off and
 On states.
 
@@ -46,11 +46,12 @@ resource "docker_volume" "home_volume" {
 
 Because we depend on `coder_workspace.me.owner`, if the owner changes their
 username, Terraform would recreate the volume (wiping its data!) the next
-time the workspace restarts. 
+time the workspace restarts.
 
 Therefore, persistent resource names must only depend on immutable IDs such as:
-* `coder_workspace.me.owner_id`
-* `coder_workspace.me.id`
+
+- `coder_workspace.me.owner_id`
+- `coder_workspace.me.id`
 
 ```hcl
 data "coder_workspace" "me" {
@@ -64,6 +65,7 @@ resource "docker_volume" "home_volume" {
 ```
 
 ## 🛡 Bulletproofing
+
 Even if our persistent resource depends exclusively on static IDs, a change to
 the `name` format or other attributes would cause Terraform to rebuild the resource.
 

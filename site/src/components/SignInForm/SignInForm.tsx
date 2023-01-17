@@ -57,15 +57,9 @@ const validationSchema = Yup.object({
 })
 
 const useStyles = makeStyles((theme) => ({
-  wrapper: {
-    maxWidth: 385,
+  root: {
     width: "100%",
-
-    [theme.breakpoints.down("sm")]: {
-      maxWidth: "none",
-    },
   },
-
   title: {
     fontSize: theme.spacing(4),
     fontWeight: 400,
@@ -77,7 +71,6 @@ const useStyles = makeStyles((theme) => ({
       fontWeight: 600,
     },
   },
-
   buttonIcon: {
     width: 14,
     height: 14,
@@ -145,7 +138,7 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
   const loginPageTranslation = useTranslation("loginPage")
 
   return (
-    <div className={styles.wrapper}>
+    <div className={styles.root}>
       <h1 className={styles.title}>
         {loginPageTranslation.t("signInTo")}{" "}
         <strong>{commonTranslation.t("coder")}</strong>

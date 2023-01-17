@@ -63,7 +63,7 @@ Navigate to your Coder host and run the following command to start up the Coder
 server:
 
 ```console
-coder server --oidc-issuer-url="https://accounts.google.com" --oidc-email-domain="your-domain" --oidc-client-id="533...ent.com" --oidc-client-secret="G0CSP...7qSM"
+coder server --oidc-issuer-url="https://accounts.google.com" --oidc-email-domain="your-domain-1,your-domain-2" --oidc-client-id="533...ent.com" --oidc-client-secret="G0CSP...7qSM"
 ```
 
 Alternatively, if you are running Coder as a system service, you can achieve the
@@ -72,7 +72,7 @@ to the `/etc/coder.d/coder.env` file:
 
 ```console
 CODER_OIDC_ISSUER_URL="https://accounts.google.com"
-CODER_OIDC_EMAIL_DOMAIN="your-domain"
+CODER_OIDC_EMAIL_DOMAIN="your-domain-1,your-domain-2"
 CODER_OIDC_CLIENT_ID="533...ent.com"
 CODER_OIDC_CLIENT_SECRET="G0CSP...7qSM"
 ```

@@ -14,19 +14,19 @@ rm -rf ~/.cache/coder
 
 Debian, Ubuntu:
 
-```sh
+```console
 sudo apt remove coder
 ```
 
 Fedora, CentOS, RHEL, SUSE:
 
-```sh
+```console
 sudo yum remove coder
 ```
 
 Alpine:
 
-```sh
+```console
 sudo apk del coder
 ```
 

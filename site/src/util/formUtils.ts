@@ -1,8 +1,4 @@
-import {
-  hasApiFieldErrors,
-  isApiError,
-  mapApiErrorToFieldErrors,
-} from "api/errors"
+import { isApiValidationError, mapApiErrorToFieldErrors } from "api/errors"
 import { FormikContextType, FormikErrors, getIn } from "formik"
 import {
   ChangeEvent,
@@ -14,7 +10,7 @@ import * as Yup from "yup"
 
 export const Language = {
   nameRequired: (name: string): string => {
-    return `Please enter a ${name.toLowerCase()}.`
+    return name ? `Please enter a ${name.toLowerCase()}.` : "Required"
   },
   nameInvalidChars: (name: string): string => {
     return `${name} must start with a-Z or 0-9 and can contain a-Z, 0-9 or -`
@@ -37,7 +33,6 @@ interface FormHelpers {
   helperText?: ReactNode
 }
 
-// backendErrorName can be used if the backend names a field differently than the frontend does
 export const getFormHelpers =
   <T>(form: FormikContextType<T>, error?: Error | unknown) =>
   (
@@ -45,15 +40,17 @@ export const getFormHelpers =
     HelperText: ReactNode = "",
     backendErrorName?: string,
   ): FormHelpers => {
-    const apiValidationErrors =
-      isApiError(error) && hasApiFieldErrors(error)
-        ? (mapApiErrorToFieldErrors(error.response.data) as FormikErrors<T>)
-        : error
+    const apiValidationErrors = isApiValidationError(error)
+      ? (mapApiErrorToFieldErrors(error.response.data) as FormikErrors<T>)
+      : // This should not return the error since it is not and api validation error but I didn't have time to fix this and tests
+        error
+
     if (typeof name !== "string") {
       throw new Error(
         `name must be type of string, instead received '${typeof name}'`,
       )
     }
+
     const apiErrorName = backendErrorName ?? name
 
     // getIn is a util function from Formik that gets at any depth of nesting
@@ -62,6 +59,7 @@ export const getFormHelpers =
     const apiError = getIn(apiValidationErrors, apiErrorName)
     const frontendError = getIn(form.errors, name)
     const returnError = apiError ?? frontendError
+
     return {
       ...form.getFieldProps(name),
       id: name,

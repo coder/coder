@@ -14,14 +14,14 @@ import (
 // Template is the JSON representation of a Coder template. This type matches the
 // database object for now, but is abstracted for ease of change later on.
 type Template struct {
-	ID                  uuid.UUID       `json:"id"`
-	CreatedAt           time.Time       `json:"created_at"`
-	UpdatedAt           time.Time       `json:"updated_at"`
-	OrganizationID      uuid.UUID       `json:"organization_id"`
+	ID                  uuid.UUID       `json:"id" format:"uuid"`
+	CreatedAt           time.Time       `json:"created_at" format:"date-time"`
+	UpdatedAt           time.Time       `json:"updated_at" format:"date-time"`
+	OrganizationID      uuid.UUID       `json:"organization_id" format:"uuid"`
 	Name                string          `json:"name"`
 	DisplayName         string          `json:"display_name"`
-	Provisioner         ProvisionerType `json:"provisioner"`
-	ActiveVersionID     uuid.UUID       `json:"active_version_id"`
+	Provisioner         ProvisionerType `json:"provisioner" enums:"terraform"`
+	ActiveVersionID     uuid.UUID       `json:"active_version_id" format:"uuid"`
 	WorkspaceOwnerCount uint32          `json:"workspace_owner_count"`
 	// ActiveUserCount is set to -1 when loading.
 	ActiveUserCount  int                    `json:"active_user_count"`
@@ -29,20 +29,20 @@ type Template struct {
 	Description      string                 `json:"description"`
 	Icon             string                 `json:"icon"`
 	DefaultTTLMillis int64                  `json:"default_ttl_ms"`
-	CreatedByID      uuid.UUID              `json:"created_by_id"`
+	CreatedByID      uuid.UUID              `json:"created_by_id" format:"uuid"`
 	CreatedByName    string                 `json:"created_by_name"`
 
 	AllowUserCancelWorkspaceJobs bool `json:"allow_user_cancel_workspace_jobs"`
 }
 
 type TransitionStats struct {
-	P50 *int64
-	P95 *int64
+	P50 *int64 `example:"123"`
+	P95 *int64 `example:"146"`
 }
 
 type TemplateBuildTimeStats map[WorkspaceTransition]TransitionStats
 type UpdateActiveTemplateVersion struct {
-	ID uuid.UUID `json:"id" validate:"required"`
+	ID uuid.UUID `json:"id" validate:"required" format:"uuid"`
 }
 
 type TemplateRole string
@@ -60,12 +60,12 @@ type TemplateACL struct {
 
 type TemplateGroup struct {
 	Group
-	Role TemplateRole `json:"role"`
+	Role TemplateRole `json:"role" enums:"admin,use"`
 }
 
 type TemplateUser struct {
 	User
-	Role TemplateRole `json:"role"`
+	Role TemplateRole `json:"role" enums:"admin,use"`
 }
 
 type UpdateTemplateACL struct {
@@ -80,6 +80,16 @@ type UpdateTemplateMeta struct {
 	Icon                         string `json:"icon,omitempty"`
 	DefaultTTLMillis             int64  `json:"default_ttl_ms,omitempty"`
 	AllowUserCancelWorkspaceJobs bool   `json:"allow_user_cancel_workspace_jobs,omitempty"`
+}
+
+type TemplateExample struct {
+	ID          string   `json:"id" format:"uuid"`
+	URL         string   `json:"url"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Icon        string   `json:"icon"`
+	Tags        []string `json:"tags"`
+	Markdown    string   `json:"markdown"`
 }
 
 // Template returns a single template.
@@ -166,7 +176,7 @@ func (c *Client) UpdateActiveTemplateVersion(ctx context.Context, template uuid.
 // TemplateVersionsByTemplateRequest defines the request parameters for
 // TemplateVersionsByTemplate.
 type TemplateVersionsByTemplateRequest struct {
-	TemplateID uuid.UUID `json:"template_id" validate:"required"`
+	TemplateID uuid.UUID `json:"template_id" validate:"required" format:"uuid"`
 	Pagination
 }
 
@@ -200,10 +210,11 @@ func (c *Client) TemplateVersionByName(ctx context.Context, template uuid.UUID, 
 }
 
 type DAUEntry struct {
-	Date   time.Time `json:"date"`
+	Date   time.Time `json:"date" format:"date-time"`
 	Amount int       `json:"amount"`
 }
 
+// TemplateDAUsResponse contains statistics of daily active users of the template.
 type TemplateDAUsResponse struct {
 	Entries []DAUEntry `json:"entries"`
 }
@@ -237,4 +248,18 @@ type AgentStatsReportResponse struct {
 	RxBytes int64 `json:"rx_bytes"`
 	// TxBytes is the number of transmitted bytes.
 	TxBytes int64 `json:"tx_bytes"`
+}
+
+// TemplateExamples lists example templates embedded in coder.
+func (c *Client) TemplateExamples(ctx context.Context, organizationID uuid.UUID) ([]TemplateExample, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/templates/examples", organizationID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, readBodyAsError(res)
+	}
+	var templateExamples []TemplateExample
+	return templateExamples, json.NewDecoder(res.Body).Decode(&templateExamples)
 }

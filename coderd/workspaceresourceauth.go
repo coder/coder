@@ -19,6 +19,16 @@ import (
 
 // Azure supports instance identity verification:
 // https://docs.microsoft.com/en-us/azure/virtual-machines/windows/instance-metadata-service?tabs=linux#tabgroup_14
+//
+// @Summary Authenticate agent on Azure instance
+// @ID authenticate-agent-on-azure-instance
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Agents
+// @Param request body codersdk.AzureInstanceIdentityToken true "Instance identity token"
+// @Success 200 {object} codersdk.WorkspaceAgentAuthenticateResponse
+// @Router /workspaceagents/azure-instance-identity [post]
 func (api *API) postWorkspaceAuthAzureInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var req codersdk.AzureInstanceIdentityToken
@@ -39,6 +49,16 @@ func (api *API) postWorkspaceAuthAzureInstanceIdentity(rw http.ResponseWriter, r
 // AWS supports instance identity verification:
 // https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-identity-documents.html
 // Using this, we can exchange a signed instance payload for an agent token.
+//
+// @Summary Authenticate agent on AWS instance
+// @ID authenticate-agent-on-aws-instance
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Agents
+// @Param request body codersdk.AWSInstanceIdentityToken true "Instance identity token"
+// @Success 200 {object} codersdk.WorkspaceAgentAuthenticateResponse
+// @Router /workspaceagents/aws-instance-identity [post]
 func (api *API) postWorkspaceAuthAWSInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var req codersdk.AWSInstanceIdentityToken
@@ -59,6 +79,16 @@ func (api *API) postWorkspaceAuthAWSInstanceIdentity(rw http.ResponseWriter, r *
 // Google Compute Engine supports instance identity verification:
 // https://cloud.google.com/compute/docs/instances/verifying-instance-identity
 // Using this, we can exchange a signed instance payload for an agent token.
+//
+// @Summary Authenticate agent on Google Cloud instance
+// @ID authenticate-agent-on-google-cloud-instance
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Agents
+// @Param request body codersdk.GoogleInstanceIdentityToken true "Instance identity token"
+// @Success 200 {object} codersdk.WorkspaceAgentAuthenticateResponse
+// @Router /workspaceagents/google-instance-identity [post]
 func (api *API) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var req codersdk.GoogleInstanceIdentityToken

@@ -1,0 +1,1 @@
+DROP INDEX workspace_agents_auth_token_idx;

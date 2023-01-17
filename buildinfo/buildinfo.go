@@ -21,8 +21,12 @@ var (
 	version     string
 	readVersion sync.Once
 
-	// Injected with ldflags at build!
-	tag string
+	// Updated by buildinfo_slim.go on start.
+	slim bool
+
+	// Injected with ldflags at build, see scripts/build_go.sh
+	tag  string
+	agpl string // either "true" or "false", ldflags does not support bools
 )
 
 const (
@@ -66,6 +70,21 @@ func VersionsMatch(v1, v2 string) bool {
 	}
 
 	return semver.MajorMinor(v1) == semver.MajorMinor(v2)
+}
+
+// IsDev returns true if this is a development build.
+func IsDev() bool {
+	return strings.HasPrefix(Version(), develPrefix)
+}
+
+// IsSlim returns true if this is a slim build.
+func IsSlim() bool {
+	return slim
+}
+
+// IsAGPL returns true if this is an AGPL build.
+func IsAGPL() bool {
+	return strings.Contains(agpl, "t")
 }
 
 // ExternalURL returns a URL referencing the current Coder version.

@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -13,7 +14,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/tabbed/pqtype"
+	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -21,6 +24,17 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+// @Summary Get audit logs
+// @ID get-audit-logs
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Audit
+// @Param q query string true "Search query"
+// @Param after_id query string false "After ID" format(uuid)
+// @Param limit query int false "Page limit"
+// @Param offset query int false "Page offset"
+// @Success 200 {object} codersdk.AuditLogResponse
+// @Router /audit [get]
 func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceAuditLog) {
@@ -69,14 +83,22 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AuditLogResponse{
-		AuditLogs: convertAuditLogs(dblogs),
+		AuditLogs: api.convertAuditLogs(ctx, dblogs),
 		Count:     dblogs[0].Count,
 	})
 }
 
+// @Summary Generate fake audit log
+// @ID generate-fake-audit-log
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Audit
+// @Param request body codersdk.CreateTestAuditLogRequest true "Audit log request"
+// @Success 204
+// @Router /audit/testgenerate [post]
 func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceAuditLog) {
+	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceAuditLog) {
 		httpapi.Forbidden(rw)
 		return
 	}
@@ -147,17 +169,22 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-func convertAuditLogs(dblogs []database.GetAuditLogsOffsetRow) []codersdk.AuditLog {
+func (api *API) convertAuditLogs(ctx context.Context, dblogs []database.GetAuditLogsOffsetRow) []codersdk.AuditLog {
 	alogs := make([]codersdk.AuditLog, 0, len(dblogs))
 
 	for _, dblog := range dblogs {
-		alogs = append(alogs, convertAuditLog(dblog))
+		alogs = append(alogs, api.convertAuditLog(ctx, dblog))
 	}
 
 	return alogs
 }
 
-func convertAuditLog(dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
+type AdditionalFields struct {
+	WorkspaceName string
+	BuildNumber   string
+}
+
+func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
 	ip, _ := netip.AddrFromSlice(dblog.Ip.IPNet.IP)
 
 	diff := codersdk.AuditDiff{}
@@ -182,6 +209,31 @@ func convertAuditLog(dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
 		}
 	}
 
+	var (
+		additionalFieldsBytes = []byte(dblog.AdditionalFields)
+		additionalFields      AdditionalFields
+		err                   = json.Unmarshal(additionalFieldsBytes, &additionalFields)
+	)
+	if err != nil {
+		api.Logger.Error(ctx, "unmarshal additional fields", slog.Error(err))
+		resourceInfo := map[string]string{
+			"workspaceName": "unknown",
+			"buildNumber":   "unknown",
+		}
+		dblog.AdditionalFields, err = json.Marshal(resourceInfo)
+		api.Logger.Error(ctx, "marshal additional fields", slog.Error(err))
+	}
+
+	var (
+		isDeleted    = api.auditLogIsResourceDeleted(ctx, dblog)
+		resourceLink string
+	)
+	if isDeleted {
+		resourceLink = ""
+	} else {
+		resourceLink = api.auditLogResourceLink(ctx, dblog, additionalFields)
+	}
+
 	return codersdk.AuditLog{
 		ID:               dblog.ID,
 		RequestID:        dblog.RequestID,
@@ -197,32 +249,138 @@ func convertAuditLog(dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
 		Diff:             diff,
 		StatusCode:       dblog.StatusCode,
 		AdditionalFields: dblog.AdditionalFields,
-		Description:      auditLogDescription(dblog),
 		User:             user,
+		Description:      auditLogDescription(dblog, additionalFields),
+		ResourceLink:     resourceLink,
+		IsDeleted:        isDeleted,
 	}
 }
 
-func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
-	str := fmt.Sprintf("{user} %s %s",
+func auditLogDescription(alog database.GetAuditLogsOffsetRow, additionalFields AdditionalFields) string {
+	str := fmt.Sprintf("{user} %s",
 		codersdk.AuditAction(alog.Action).FriendlyString(),
-		codersdk.ResourceType(alog.ResourceType).FriendlyString(),
 	)
 
-	// Strings for workspace_builds follow the below format:
-	// "{user} started workspace build for {target}"
-	// where target is a workspace instead of the workspace build,
+	// Strings for starting/stopping workspace builds follow the below format:
+	// "{user} started build #{build_number} for workspace {target}"
+	// where target is a workspace instead of a workspace build
 	// passed in on the FE via AuditLog.AdditionalFields rather than derived in request.go:35
-	if alog.ResourceType == database.ResourceTypeWorkspaceBuild {
-		str += " for"
+	if alog.ResourceType == database.ResourceTypeWorkspaceBuild && alog.Action != database.AuditActionDelete {
+		if len(additionalFields.BuildNumber) == 0 {
+			str += " build for"
+		} else {
+			str += fmt.Sprintf(" build #%s for",
+				additionalFields.BuildNumber)
+		}
 	}
 
-	// We don't display the name for git ssh keys. It's fairly long and doesn't
+	// We don't display the name (target) for git ssh keys. It's fairly long and doesn't
 	// make too much sense to display.
-	if alog.ResourceType != database.ResourceTypeGitSshKey {
-		str += " {target}"
+	if alog.ResourceType == database.ResourceTypeGitSshKey {
+		str += fmt.Sprintf(" the %s",
+			codersdk.ResourceType(alog.ResourceType).FriendlyString())
+		return str
 	}
+
+	str += fmt.Sprintf(" %s",
+		codersdk.ResourceType(alog.ResourceType).FriendlyString())
+
+	str += " {target}"
 
 	return str
+}
+
+func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.GetAuditLogsOffsetRow) bool {
+	switch alog.ResourceType {
+	case database.ResourceTypeTemplate:
+		template, err := api.Database.GetTemplateByID(ctx, alog.ResourceID)
+		if err != nil {
+			if xerrors.Is(err, sql.ErrNoRows) {
+				return true
+			}
+			api.Logger.Error(ctx, "fetch template", slog.Error(err))
+		}
+		return template.Deleted
+	case database.ResourceTypeUser:
+		user, err := api.Database.GetUserByID(ctx, alog.ResourceID)
+		if err != nil {
+			if xerrors.Is(err, sql.ErrNoRows) {
+				return true
+			}
+			api.Logger.Error(ctx, "fetch user", slog.Error(err))
+		}
+		return user.Deleted
+	case database.ResourceTypeWorkspace:
+		workspace, err := api.Database.GetWorkspaceByID(ctx, alog.ResourceID)
+		if err != nil {
+			if xerrors.Is(err, sql.ErrNoRows) {
+				return true
+			}
+			api.Logger.Error(ctx, "fetch workspace", slog.Error(err))
+		}
+		return workspace.Deleted
+	case database.ResourceTypeWorkspaceBuild:
+		workspaceBuild, err := api.Database.GetWorkspaceBuildByID(ctx, alog.ResourceID)
+		if err != nil {
+			if xerrors.Is(err, sql.ErrNoRows) {
+				return true
+			}
+			api.Logger.Error(ctx, "fetch workspace build", slog.Error(err))
+		}
+		// We use workspace as a proxy for workspace build here
+		workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
+		if err != nil {
+			if xerrors.Is(err, sql.ErrNoRows) {
+				return true
+			}
+			api.Logger.Error(ctx, "fetch workspace", slog.Error(err))
+		}
+		return workspace.Deleted
+	default:
+		return false
+	}
+}
+
+func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAuditLogsOffsetRow, additionalFields AdditionalFields) string {
+	switch alog.ResourceType {
+	case database.ResourceTypeTemplate:
+		return fmt.Sprintf("/templates/%s",
+			alog.ResourceTarget)
+	case database.ResourceTypeUser:
+		return fmt.Sprintf("/users?filter=%s",
+			alog.ResourceTarget)
+	case database.ResourceTypeWorkspace:
+		workspace, getWorkspaceErr := api.Database.GetWorkspaceByID(ctx, alog.ResourceID)
+		if getWorkspaceErr != nil {
+			return ""
+		}
+		workspaceOwner, getWorkspaceOwnerErr := api.Database.GetUserByID(ctx, workspace.OwnerID)
+		if getWorkspaceOwnerErr != nil {
+			return ""
+		}
+		return fmt.Sprintf("/@%s/%s",
+			workspaceOwner.Username, alog.ResourceTarget)
+	case database.ResourceTypeWorkspaceBuild:
+		if len(additionalFields.WorkspaceName) == 0 || len(additionalFields.BuildNumber) == 0 {
+			return ""
+		}
+		workspaceBuild, getWorkspaceBuildErr := api.Database.GetWorkspaceBuildByID(ctx, alog.ResourceID)
+		if getWorkspaceBuildErr != nil {
+			return ""
+		}
+		workspace, getWorkspaceErr := api.Database.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
+		if getWorkspaceErr != nil {
+			return ""
+		}
+		workspaceOwner, getWorkspaceOwnerErr := api.Database.GetUserByID(ctx, workspace.OwnerID)
+		if getWorkspaceOwnerErr != nil {
+			return ""
+		}
+		return fmt.Sprintf("/@%s/%s/builds/%s",
+			workspaceOwner.Username, additionalFields.WorkspaceName, additionalFields.BuildNumber)
+	default:
+		return ""
+	}
 }
 
 // auditSearchQuery takes a query string and returns the auditLog filter.

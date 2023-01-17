@@ -129,3 +129,81 @@ func TestHealthz(t *testing.T) {
 
 	assert.Equal(t, "OK", string(body))
 }
+
+func TestSwagger(t *testing.T) {
+	t.Parallel()
+
+	const swaggerEndpoint = "/swagger"
+	t.Run("endpoint enabled", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			SwaggerEndpoint: true,
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		defer cancel()
+
+		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, swaggerEndpoint, nil)
+		require.NoError(t, err)
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		require.Contains(t, string(body), "Swagger UI")
+	})
+	t.Run("doc.json exposed", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			SwaggerEndpoint: true,
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		defer cancel()
+
+		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, swaggerEndpoint+"/doc.json", nil)
+		require.NoError(t, err)
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		require.Contains(t, string(body), `"swagger": "2.0"`)
+	})
+	t.Run("endpoint disabled by default", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		defer cancel()
+
+		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, swaggerEndpoint, nil)
+		require.NoError(t, err)
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		require.Equal(t, "<pre>\n</pre>\n", string(body))
+	})
+	t.Run("doc.json disabled by default", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		defer cancel()
+
+		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, swaggerEndpoint+"/doc.json", nil)
+		require.NoError(t, err)
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		require.Equal(t, "<pre>\n</pre>\n", string(body))
+	})
+}

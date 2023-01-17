@@ -1,0 +1,68 @@
+{{
+	function renderCodeSample(data) {
+		const originalCodeSample = data.utils.getCodeSamples(data);
+		return originalCodeSample.replace("\n```\n", "```\n");
+	}
+
+	function renderDescription(data) {
+		if (!data.operation.description) {
+			return "";
+		}
+		if (data.operation.description.startsWith("Swagger notice:")) {
+			return "";
+		}
+		return data.operation.description;
+	}
+}}
+{{= data.tags.section }}
+
+## {{= data.operationUniqueName}}
+
+{{
+  if (data.operation['x-apidocgen'] && data.operation['x-apidocgen'].skip) {
+	return "";
+  }
+}}
+
+{{ data.methodUpper = data.method.verb.toUpperCase(); }}
+{{ data.url = data.utils.slashes(data.baseUrl + data.method.path); }}
+{{ data.parameters = data.operation.parameters; }}
+{{ data.enums = []; }}
+{{ data.utils.fakeProdCons(data); }}
+{{ data.utils.fakeBodyParameter(data); }}
+{{ data.utils.mergePathParameters(data); }}
+{{ data.utils.getParameters(data); }}
+
+{{? data.options.codeSamples || data.operation["x-code-samples"] }}
+### Code samples
+
+{{=renderCodeSample(data)}}
+{{?}}
+
+`{{= data.methodUpper}} {{=data.method.path}}`
+
+{{? data.operation.summary && !data.options.tocSummary}}*{{= data.operation.summary }}*{{?}}
+
+{{= renderDescription(data)}}
+
+{{? data.operation.requestBody}}
+> Body parameter
+
+{{? data.bodyParameter.exampleValues.description }}
+> {{= data.bodyParameter.exampleValues.description }}
+{{?}}
+
+{{= data.utils.getBodyParameterExamples(data) }}
+{{?}}
+
+{{? data.parameters && data.parameters.length }}
+{{#def.parameters}}
+{{?}}
+
+{{#def.responses}}
+
+{{ data.security = data.operation.security ? data.operation.security : data.api.security; }}
+{{? data.security && data.security.length }}
+{{#def.authentication}}
+{{?}}
+{{= data.tags.endSection }}

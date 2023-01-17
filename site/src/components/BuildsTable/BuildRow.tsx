@@ -34,9 +34,18 @@ export const BuildRow: React.FC<BuildRowProps> = ({ build }) => {
           alignItems="center"
           className={styles.buildWrapper}
         >
-          <Stack direction="row" alignItems="center">
+          <Stack
+            direction="row"
+            alignItems="center"
+            className={styles.fullWidth}
+          >
             <BuildAvatar build={build} />
-            <div>
+            <Stack
+              direction="row"
+              justifyContent="space-between"
+              alignItems="center"
+              className={styles.fullWidth}
+            >
               <Stack
                 className={styles.buildSummary}
                 direction="row"
@@ -66,8 +75,13 @@ export const BuildRow: React.FC<BuildRowProps> = ({ build }) => {
                   {t("buildData.duration")}:{" "}
                   <strong>{displayWorkspaceBuildDuration(build)}</strong>
                 </span>
+
+                <span className={styles.buildInfo}>
+                  {t("buildData.version")}:{" "}
+                  <strong>{build.template_version_name}</strong>
+                </span>
               </Stack>
-            </div>
+            </Stack>
           </Stack>
         </Stack>
       </TableCell>
@@ -113,5 +127,9 @@ const useStyles = makeStyles((theme) => ({
     fontFamily: MONOSPACE_FONT_FAMILY,
     color: theme.palette.text.secondary,
     whiteSpace: "nowrap",
+  },
+
+  fullWidth: {
+    width: "100%",
   },
 }))

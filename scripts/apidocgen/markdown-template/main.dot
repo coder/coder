@@ -1,0 +1,174 @@
+{{
+	function renderSinglePropertyType(p) {
+		if (!p.$ref) {
+			return p.type;
+		}
+
+		const pRef = p.$ref.replace("#/components/schemas/","");
+		return "[" + pRef + "](#" + pRef.replace(".","").toLowerCase() + ")";
+	}
+
+	function renderPropertyType(p) {
+		if (p.type == "array") {
+			return "array of " + renderSinglePropertyType(p.schema.items);
+		}
+		return renderSinglePropertyType(p);
+	}
+
+	function renderDisplayName(p) {
+		if (p.displayName == "» **additionalProperties**") {
+			return "» `[any property]`";
+		}
+		if (p.displayName == "**additionalProperties**") {
+			return "`[any property]`";
+		}
+		return "`" + p.displayName + "`";
+	}
+
+	function correctLetterCase(description) {
+		const dictionary = ["id", "url"];
+
+		const words = description.split(' ');
+		var corrected = [];
+		words.forEach(word => {
+			if (dictionary.includes(word.toLowerCase())) {
+				corrected.push(word.toUpperCase());
+				return;
+			}
+			corrected.push(word);
+		});
+		return corrected.join(" ");
+	}
+
+	function renderDescription(p) {
+		if (!p.description) {
+			return "";
+		}
+
+		let description = p.description.replace(/<br><br>/g, "\n").replace(/<br>/g, " ");
+		const words = description.split(' ');
+		if (words.length == 0) {
+			return "";
+		}
+
+		const countUppercase = words[0].length - words[0].replace(/[A-Z]/g, '').length;
+		if (countUppercase > 1) {
+			let displayName = p.displayName.replace(/» \*\*additionalProperties\*\*/g, "It").replace("» ", "");
+			displayName = displayName.charAt(0).toUpperCase() + displayName.replace(/_/g, " ").toLowerCase().slice(1);
+			description = displayName + " " + words.slice(1).join(' ');
+		}
+		return correctLetterCase(description);
+	}
+
+	/* Export functions that are used by other template partials. */
+	data.functions = {};
+	data.functions.renderDescription = renderDescription;
+}}
+
+{{? data.api.components && data.api.components.securitySchemes }}{{#def.security}}{{?}}
+
+{{ for (var r in data.resources) { }}
+{{ data.resource = data.resources[r]; }}
+
+<!-- APIDOCGEN: BEGIN SECTION -->
+{{= data.tags.section }}# {{= r}}
+
+{{? data.resource.description }}{{= data.resource.description}}{{?}}
+
+{{ for (var m in data.resource.methods) { }}
+{{ data.operationUniqueName = m; }}
+{{ data.method = data.resource.methods[m]; }}
+{{ data.operationUniqueSlug = data.method.slug; }}
+{{ data.operation = data.method.operation; }}
+{{= data.templates.operation(data) }}
+{{ } /* of methods */ }}
+
+{{= data.tags.endSection }}
+{{ } /* of resources */ }}
+
+{{? data.api.components && data.api.components.schemas }}
+{{= data.tags.section }}
+
+<!-- APIDOCGEN: BEGIN SECTION -->
+# Schemas
+
+{{ for (var s in data.components.schemas) {
+  var origSchema = data.components.schemas[s];
+  var schema = data.api.components.schemas[s];
+
+  if (schema.description && schema.description.startsWith("x-apidocgen:skip")) {
+	continue;
+  }
+}}
+
+{{= data.tags.section }}
+## {{=s}}
+
+{{? data.options.yaml }}
+```yaml
+{{=data.utils.yaml.stringify(data.utils.getSample(schema,data.options,{quiet:true},data.api))}}
+{{??}}
+```json
+{{=data.utils.safejson(data.utils.getSample(schema,data.options,{quiet:true},data.api),null,2)}}
+{{?}}```
+
+{{ var enums = []; }}
+{{ var blocks = data.utils.schemaToArray(origSchema,-1,{trim:true,join:true},data); }}
+{{ for (var block of blocks) {
+     for (var p of block.rows) {
+       if (p.schema && p.schema.enum) {
+         for (var e of p.schema.enum) {
+           enums.push({name:p.name,value:e});
+         }
+       }
+     }
+   }
+}}
+
+{{~ blocks :block}}
+{{? block.title }}{{= block.title}}{{= '\n\n'}}{{?}}
+{{? block.externalDocs}}
+<a href="{{=block.externalDocs.url}}">{{=block.externalDocs.description||'External documentation'}}</a>
+{{?}}
+
+{{? block===blocks[0] }}
+{{= data.tags.section }}
+### Properties
+{{?}}
+
+{{? block.rows.length > 0 && block.rows[0].displayName != "*anonymous*"}}
+{{? block.rows.length}}|Name|Type|Required|Restrictions|Description|
+|---|---|---|---|---|{{?}}
+{{~ block.rows :p}}|{{= renderDisplayName(p)}}|{{= renderPropertyType(p)}}|{{=p.required}}|{{=p.restrictions||''}}|{{= renderDescription(p)}}|
+{{~}}
+{{~}}
+{{? (blocks[0].rows.length === 0) && (blocks.length === 1) }}
+*None*
+{{?}}
+{{?}}
+
+{{? enums.length > 0 }}
+{{= data.tags.section }}
+
+#### Enumerated Values
+
+{{? block.rows.length > 0 && block.rows[0].displayName != "*anonymous*"}}
+|Property|Value|
+|---|---|
+{{~ enums :e}}|`{{=e.name}}`|`{{=data.utils.toPrimitive(e.value)}}`|
+{{~}}
+{{??}}
+|Value|
+|---|
+{{~ enums :e}}|`{{=data.utils.toPrimitive(e.value)}}`|
+{{~}}
+{{?}}
+
+{{= data.tags.endSection }}
+{{?}}
+
+{{= data.tags.endSection }}
+{{= data.tags.endSection }}
+{{ } /* of schemas */ }}
+
+{{?}}

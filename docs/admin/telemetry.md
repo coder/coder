@@ -8,7 +8,7 @@ First of all, we do not collect any information that could threaten the security
 
 You can find a full list of the data we collect in the source code [here](https://github.com/coder/coder/blob/main/coderd/telemetry/telemetry.go).
 
-Telemetry can be configured with the `CODER_TELEMETRY=x` environment variable. 
+Telemetry can be configured with the `CODER_TELEMETRY=x` environment variable.
 
 For example, telemetry can be disabled with `CODER_TELEMETRY=false`.
 

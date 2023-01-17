@@ -276,6 +276,8 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		return xerrors.Errorf("ping database: %w", err)
 	}
 
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 	replica, err := m.db.UpdateReplica(ctx, database.UpdateReplicaParams{
 		ID:              m.self.ID,
 		UpdatedAt:       database.Now(),
@@ -291,8 +293,6 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 	if err != nil {
 		return xerrors.Errorf("update replica: %w", err)
 	}
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
 	if m.self.Error != replica.Error {
 		// Publish an update occurred!
 		err = m.pubsub.Publish(PubsubEvent, []byte(m.self.ID.String()))

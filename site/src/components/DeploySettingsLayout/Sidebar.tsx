@@ -1,22 +1,16 @@
 import { makeStyles } from "@material-ui/core/styles"
+import Brush from "@material-ui/icons/Brush"
 import LaunchOutlined from "@material-ui/icons/LaunchOutlined"
-import LockRounded from "@material-ui/icons/LockRounded"
-import Globe from "@material-ui/icons/Public"
+import LockRounded from "@material-ui/icons/LockOutlined"
+import Globe from "@material-ui/icons/PublicOutlined"
 import VpnKeyOutlined from "@material-ui/icons/VpnKeyOutlined"
-import { useSelector } from "@xstate/react"
 import { GitIcon } from "components/Icons/GitIcon"
 import { Stack } from "components/Stack/Stack"
-import React, {
-  ElementType,
-  PropsWithChildren,
-  ReactNode,
-  useContext,
-} from "react"
+import { ElementType, PropsWithChildren, ReactNode, FC } from "react"
 import { NavLink } from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
-import { XServiceContext } from "../../xServices/StateContext"
 
-const SidebarNavItem: React.FC<
+const SidebarNavItem: FC<
   PropsWithChildren<{ href: string; icon: ReactNode }>
 > = ({ children, href, icon }) => {
   const styles = useStyles()
@@ -38,51 +32,45 @@ const SidebarNavItem: React.FC<
   )
 }
 
-const SidebarNavItemIcon: React.FC<{ icon: ElementType }> = ({
-  icon: Icon,
-}) => {
+const SidebarNavItemIcon: FC<{ icon: ElementType }> = ({ icon: Icon }) => {
   const styles = useStyles()
   return <Icon className={styles.sidebarNavItemIcon} />
 }
 
 export const Sidebar: React.FC = () => {
   const styles = useStyles()
-  const xServices = useContext(XServiceContext)
-  const experimental = useSelector(
-    xServices.entitlementsXService,
-    (state) => state.context.entitlements.experimental,
-  )
 
   return (
     <nav className={styles.sidebar}>
       <SidebarNavItem
-        href="../general"
+        href="general"
         icon={<SidebarNavItemIcon icon={LaunchOutlined} />}
       >
         General
       </SidebarNavItem>
       <SidebarNavItem
-        href="../userauth"
+        href="appearance"
+        icon={<SidebarNavItemIcon icon={Brush} />}
+      >
+        Appearance
+      </SidebarNavItem>
+      <SidebarNavItem
+        href="userauth"
         icon={<SidebarNavItemIcon icon={VpnKeyOutlined} />}
       >
         User Authentication
       </SidebarNavItem>
-      {experimental && (
-        <SidebarNavItem
-          href="../gitauth"
-          icon={<SidebarNavItemIcon icon={GitIcon} />}
-        >
-          Git Authentication
-        </SidebarNavItem>
-      )}
       <SidebarNavItem
-        href="../network"
-        icon={<SidebarNavItemIcon icon={Globe} />}
+        href="gitauth"
+        icon={<SidebarNavItemIcon icon={GitIcon} />}
       >
+        Git Authentication
+      </SidebarNavItem>
+      <SidebarNavItem href="network" icon={<SidebarNavItemIcon icon={Globe} />}>
         Network
       </SidebarNavItem>
       <SidebarNavItem
-        href="../security"
+        href="security"
         icon={<SidebarNavItemIcon icon={LockRounded} />}
       >
         Security
@@ -99,9 +87,9 @@ const useStyles = makeStyles((theme) => ({
   sidebarNavItem: {
     color: "inherit",
     display: "block",
-    fontSize: 16,
+    fontSize: 14,
     textDecoration: "none",
-    padding: theme.spacing(1.5, 1.5, 1.5, 3),
+    padding: theme.spacing(1.5, 1.5, 1.5, 2),
     borderRadius: theme.shape.borderRadius / 2,
     transition: "background-color 0.15s ease-in-out",
     marginBottom: 1,
@@ -124,7 +112,8 @@ const useStyles = makeStyles((theme) => ({
       left: 0,
       top: 0,
       backgroundColor: theme.palette.secondary.dark,
-      borderRadius: theme.shape.borderRadius,
+      borderTopLeftRadius: theme.shape.borderRadius,
+      borderBottomLeftRadius: theme.shape.borderRadius,
     },
   },
 

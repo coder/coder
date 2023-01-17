@@ -52,7 +52,7 @@ You will also need the IP address of the server. Click on the server in the `Ins
 
 Now that we’ve gathered all the information you will need to SSH into your EC2 instance, on a terminal on your local system, navigate to the `.pem` file downloaded when you created the EC2 instance. Run the following command:
 
-```sh
+```console
 chmod 400 [mykey].pem
 ```
 
@@ -60,7 +60,7 @@ This adds the required permissions for SSH-ing into an EC2 instance.
 
 Run the following command in terminal, where `mykey` is the security key file, `username` is the username found above for the relevant EC2 operating system image, and the `ip-address` is the IPv4 address for the server:
 
-```sh
+```console
 ssh -i [mykey].pem username@ip-address
 ```
 
@@ -72,7 +72,7 @@ For this instance, we will run Coder as a system service, however you can run Co
 
 In the EC2 instance, run the following command to install Coder
 
-```sh
+```console
 curl -fsSL https://coder.com/install.sh | sh
 ```
 
@@ -80,13 +80,13 @@ curl -fsSL https://coder.com/install.sh | sh
 
 Run the following command to start Coder as a system level service:
 
-```sh
+```console
 sudo systemctl enable --now coder
 ```
 
 The following command will get you information about the Coder launch service
 
-```sh
+```console
 journalctl -u coder.service -b
 ```
 
@@ -98,7 +98,7 @@ In this instance, Coder can be accessed at the url `https://fccad1b6c901511b30cf
 
 Copy the URL and run the following command to create the first user, either on your local machine or in the AWS EC2 instance terminal.
 
-```sh
+```console
 coder login <url***.try.coder.app>
 ```
 
@@ -122,20 +122,20 @@ Coder runs as a system service under a system user `coder`. The `coder` user wil
 
 Run the following command to create a folder for the AWS credentials to live in:
 
-```sh
+```console
 sudo mkdir /home/coder/.aws
 ```
 
 Run the following commands to copy the AWS credentials and give the `coder` user access to them:
 
-```sh
+```console
 sudo cp ~/.aws/credentials /home/coder/.aws/credentials
 sudo chown coder:coder /home/coder/.aws/credentials
 ```
 
 Navigate to the `./aws-linux` folder where you created your template and run the following command to put the template on your Coder instance.
 
-```sh
+```console
 coder templates create
 ```
 

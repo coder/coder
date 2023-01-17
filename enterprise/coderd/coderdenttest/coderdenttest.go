@@ -62,7 +62,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	if options.Options == nil {
 		options.Options = &coderdtest.Options{}
 	}
-	setHandler, cancelFunc, oop := coderdtest.NewOptions(t, options.Options)
+	setHandler, cancelFunc, serverURL, oop := coderdtest.NewOptions(t, options.Options)
 	coderAPI, err := coderd.New(context.Background(), &coderd.Options{
 		RBAC:                       true,
 		AuditLogging:               options.AuditLogging,
@@ -86,7 +86,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		_ = provisionerCloser.Close()
 		_ = coderAPI.Close()
 	})
-	client := codersdk.New(coderAPI.AccessURL)
+	client := codersdk.New(serverURL)
 	client.HTTPClient = &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
@@ -113,6 +113,7 @@ type LicenseOptions struct {
 	HighAvailability           bool
 	MultipleGitAuth            bool
 	ExternalProvisionerDaemons bool
+	ServiceBanners             bool
 }
 
 // AddLicense generates a new license with the options provided and inserts it.
@@ -164,6 +165,11 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		externalProvisionerDaemons = 1
 	}
 
+	serviceBanners := int64(0)
+	if options.ServiceBanners {
+		serviceBanners = 1
+	}
+
 	c := &license.Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    "test@testing.test",
@@ -186,6 +192,7 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 			TemplateRBAC:               rbacEnabled,
 			MultipleGitAuth:            multipleGitAuth,
 			ExternalProvisionerDaemons: externalProvisionerDaemons,
+			Appearance:                 serviceBanners,
 		},
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodEdDSA, c)

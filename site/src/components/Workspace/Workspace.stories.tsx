@@ -1,7 +1,5 @@
 import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
-import dayjs from "dayjs"
-import { canExtendDeadline, canReduceDeadline } from "util/schedule"
 import * as Mocks from "../../testHelpers/entities"
 import { Workspace, WorkspaceErrors, WorkspaceProps } from "./Workspace"
 
@@ -22,18 +20,8 @@ Running.args = {
     onDeadlinePlus: () => {
       // do nothing, this is just for storybook
     },
-    deadlineMinusEnabled: () => {
-      return canReduceDeadline(dayjs(Mocks.MockWorkspace.latest_build.deadline))
-    },
-    deadlinePlusEnabled: () => {
-      return canExtendDeadline(
-        dayjs(Mocks.MockWorkspace.latest_build.deadline),
-        Mocks.MockWorkspace,
-        Mocks.MockTemplate,
-      )
-    },
-    maxDeadlineDecrease: 1000,
-    maxDeadlineIncrease: 1000,
+    maxDeadlineDecrease: 0,
+    maxDeadlineIncrease: 24,
   },
   workspace: Mocks.MockWorkspace,
   handleStart: action("start"),

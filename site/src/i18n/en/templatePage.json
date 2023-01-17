@@ -1,16 +1,4 @@
 {
   "deleteSuccess": "Template successfully deleted.",
-  "createdVersion": "created the version",
-  "templateSettings": {
-    "title": "Template settings",
-    "dangerZone": {
-      "dangerZoneHeader": "Danger Zone",
-      "deleteTemplateHeader": "Delete this template",
-      "deleteTemplateCaption": "Do you want to permanently delete this template?",
-      "deleteCta": "Delete Template"
-    }
-  },
-  "displayNameLabel": "Display name",
-  "allowUserCancelWorkspaceJobsLabel": "Allow users to cancel in-progress workspace jobs.",
-  "allowUserCancelWorkspaceJobsNotice": "Depending on your template, canceling builds may leave workspaces in an unhealthy state. This option isn't recommended for most use cases."
+  "createdVersion": "created the version"
 }

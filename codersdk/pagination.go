@@ -14,7 +14,7 @@ type Pagination struct {
 	// Offset for better performance. To use it as an alternative,
 	// set AfterID to the last UUID returned by the previous
 	// request.
-	AfterID uuid.UUID `json:"after_id,omitempty"`
+	AfterID uuid.UUID `json:"after_id,omitempty" format:"uuid"`
 	// Limit sets the maximum number of users to be returned
 	// in a single page. If the limit is <= 0, there is no limit
 	// and all users are returned.

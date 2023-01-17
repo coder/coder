@@ -20,14 +20,11 @@
 
 !include "WinMessages.nsh"
 
-; Registry Entry for environment (NT4,2000,XP)
-; All users:
+; Registry Entry for system environment (NT4,2000,XP)
 !define Environ 'HKLM "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"'
-; Current user only:
-;!define Environ 'HKCU "Environment"'
 
 
-; AddToPath - Appends dir to PATH
+; AddToPath - Appends dir to system PATH
 ;   (does not work on Win9x/ME)
 ;
 ; Usage:
@@ -45,7 +42,7 @@ Function AddToPath
   ; Native calls are used here to check actual length of PATH
 
   ; $4 = RegOpenKey(HKEY_CURRENT_USER, "Environment", &$3)
-  System::Call "advapi32::RegOpenKey(i 0x80000001, t'Environment', *i.r3) i.r4"
+  System::Call "advapi32::RegOpenKey(i 0x80000002, t'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', *i.r3) i.r4"
   IntCmp $4 0 0 done done
   ; $4 = RegQueryValueEx($3, "PATH", (DWORD*)0, (DWORD*)0, &$1, ($2=NSIS_MAX_STRLEN, &$2))
   ; RegCloseKey($3)
@@ -110,7 +107,7 @@ done:
 FunctionEnd
 
 
-; RemoveFromPath - Removes dir from PATH
+; RemoveFromPath - Removes dir from system PATH
 ;
 ; Usage:
 ;   Push "dir"

@@ -1,0 +1,702 @@
+# HELP coderd_api_websocket_durations_seconds Websocket duration distribution of requests in seconds.
+# TYPE coderd_api_websocket_durations_seconds histogram
+coderd_api_websocket_durations_seconds_bucket{path="/api/v2/workspaceagents/me/coordinate",le="0.001"} 0
+coderd_api_websocket_durations_seconds_bucket{path="/api/v2/workspaceagents/me/coordinate",le="1"} 3
+coderd_api_websocket_durations_seconds_bucket{path="/api/v2/workspaceagents/me/coordinate",le="60"} 3
+coderd_api_websocket_durations_seconds_bucket{path="/api/v2/workspaceagents/me/coordinate",le="3600"} 4
+coderd_api_websocket_durations_seconds_bucket{path="/api/v2/workspaceagents/me/coordinate",le="54000"} 4
+coderd_api_websocket_durations_seconds_bucket{path="/api/v2/workspaceagents/me/coordinate",le="108000"} 4
+coderd_api_websocket_durations_seconds_bucket{path="/api/v2/workspaceagents/me/coordinate",le="+Inf"} 4
+coderd_api_websocket_durations_seconds_sum{path="/api/v2/workspaceagents/me/coordinate"} 156.042058706
+coderd_api_websocket_durations_seconds_count{path="/api/v2/workspaceagents/me/coordinate"} 4
+coderd_api_websocket_durations_seconds_bucket{path="/api/v2/workspaceagents/{workspaceagent}/pty",le="0.001"} 0
+coderd_api_websocket_durations_seconds_bucket{path="/api/v2/workspaceagents/{workspaceagent}/pty",le="1"} 0
+coderd_api_websocket_durations_seconds_bucket{path="/api/v2/workspaceagents/{workspaceagent}/pty",le="60"} 0
+coderd_api_websocket_durations_seconds_bucket{path="/api/v2/workspaceagents/{workspaceagent}/pty",le="3600"} 1
+coderd_api_websocket_durations_seconds_bucket{path="/api/v2/workspaceagents/{workspaceagent}/pty",le="54000"} 1
+coderd_api_websocket_durations_seconds_bucket{path="/api/v2/workspaceagents/{workspaceagent}/pty",le="108000"} 1
+coderd_api_websocket_durations_seconds_bucket{path="/api/v2/workspaceagents/{workspaceagent}/pty",le="+Inf"} 1
+coderd_api_websocket_durations_seconds_sum{path="/api/v2/workspaceagents/{workspaceagent}/pty"} 119.810027963
+coderd_api_websocket_durations_seconds_count{path="/api/v2/workspaceagents/{workspaceagent}/pty"} 1
+coderd_api_websocket_durations_seconds_bucket{path="/api/v2/workspacebuilds/{workspacebuild}/logs",le="0.001"} 0
+coderd_api_websocket_durations_seconds_bucket{path="/api/v2/workspacebuilds/{workspacebuild}/logs",le="1"} 1
+coderd_api_websocket_durations_seconds_bucket{path="/api/v2/workspacebuilds/{workspacebuild}/logs",le="60"} 1
+coderd_api_websocket_durations_seconds_bucket{path="/api/v2/workspacebuilds/{workspacebuild}/logs",le="3600"} 1
+coderd_api_websocket_durations_seconds_bucket{path="/api/v2/workspacebuilds/{workspacebuild}/logs",le="54000"} 1
+coderd_api_websocket_durations_seconds_bucket{path="/api/v2/workspacebuilds/{workspacebuild}/logs",le="108000"} 1
+coderd_api_websocket_durations_seconds_bucket{path="/api/v2/workspacebuilds/{workspacebuild}/logs",le="+Inf"} 1
+coderd_api_websocket_durations_seconds_sum{path="/api/v2/workspacebuilds/{workspacebuild}/logs"} 0.015562347
+coderd_api_websocket_durations_seconds_count{path="/api/v2/workspacebuilds/{workspacebuild}/logs"} 1
+# HELP coderd_api_active_users_duration_hour The number of users that have been active within the last hour.
+# TYPE coderd_api_active_users_duration_hour gauge
+coderd_api_active_users_duration_hour 0
+# HELP coderd_api_concurrent_requests The number of concurrent API requests.
+# TYPE coderd_api_concurrent_requests gauge
+coderd_api_concurrent_requests 3
+# HELP coderd_api_concurrent_websockets The total number of concurrent API websockets.
+# TYPE coderd_api_concurrent_websockets gauge
+coderd_api_concurrent_websockets 2
+# HELP coderd_api_request_latencies_seconds Latency distribution of requests in seconds.
+# TYPE coderd_api_request_latencies_seconds histogram
+coderd_api_request_latencies_seconds_bucket{method="GET",path="",le="0.001"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="",le="0.005"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="",le="0.01"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="",le="0.025"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="",le="0.05"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="",le="0.1"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="",le="0.5"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="",le="1"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="",le="5"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="",le="10"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="",le="30"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="",le="+Inf"} 1
+coderd_api_request_latencies_seconds_sum{method="GET",path=""} 6.687792526
+coderd_api_request_latencies_seconds_count{method="GET",path=""} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/appearance/",le="0.001"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/appearance/",le="0.005"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/appearance/",le="0.01"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/appearance/",le="0.025"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/appearance/",le="0.05"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/appearance/",le="0.1"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/appearance/",le="0.5"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/appearance/",le="1"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/appearance/",le="5"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/appearance/",le="10"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/appearance/",le="30"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/appearance/",le="+Inf"} 2
+coderd_api_request_latencies_seconds_sum{method="GET",path="/api/v2/appearance/"} 0.005080632
+coderd_api_request_latencies_seconds_count{method="GET",path="/api/v2/appearance/"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/applications/host/",le="0.001"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/applications/host/",le="0.005"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/applications/host/",le="0.01"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/applications/host/",le="0.025"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/applications/host/",le="0.05"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/applications/host/",le="0.1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/applications/host/",le="0.5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/applications/host/",le="1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/applications/host/",le="5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/applications/host/",le="10"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/applications/host/",le="30"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/applications/host/",le="+Inf"} 1
+coderd_api_request_latencies_seconds_sum{method="GET",path="/api/v2/applications/host/"} 0.001333428
+coderd_api_request_latencies_seconds_count{method="GET",path="/api/v2/applications/host/"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/buildinfo",le="0.001"} 5
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/buildinfo",le="0.005"} 5
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/buildinfo",le="0.01"} 5
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/buildinfo",le="0.025"} 5
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/buildinfo",le="0.05"} 5
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/buildinfo",le="0.1"} 5
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/buildinfo",le="0.5"} 5
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/buildinfo",le="1"} 5
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/buildinfo",le="5"} 5
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/buildinfo",le="10"} 5
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/buildinfo",le="30"} 5
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/buildinfo",le="+Inf"} 5
+coderd_api_request_latencies_seconds_sum{method="GET",path="/api/v2/buildinfo"} 0.000471086
+coderd_api_request_latencies_seconds_count{method="GET",path="/api/v2/buildinfo"} 5
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/entitlements",le="0.001"} 5
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/entitlements",le="0.005"} 5
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/entitlements",le="0.01"} 5
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/entitlements",le="0.025"} 5
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/entitlements",le="0.05"} 5
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/entitlements",le="0.1"} 5
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/entitlements",le="0.5"} 5
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/entitlements",le="1"} 5
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/entitlements",le="5"} 5
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/entitlements",le="10"} 5
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/entitlements",le="30"} 5
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/entitlements",le="+Inf"} 5
+coderd_api_request_latencies_seconds_sum{method="GET",path="/api/v2/entitlements"} 0.0007040899999999999
+coderd_api_request_latencies_seconds_count{method="GET",path="/api/v2/entitlements"} 5
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/*",le="0.001"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/*",le="0.005"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/*",le="0.01"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/*",le="0.025"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/*",le="0.05"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/*",le="0.1"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/*",le="0.5"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/*",le="1"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/*",le="5"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/*",le="10"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/*",le="30"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/*",le="+Inf"} 2
+coderd_api_request_latencies_seconds_sum{method="GET",path="/api/v2/organizations/*"} 0.000904424
+coderd_api_request_latencies_seconds_count{method="GET",path="/api/v2/organizations/*"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/",le="0.001"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/",le="0.005"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/",le="0.01"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/",le="0.025"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/",le="0.05"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/",le="0.1"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/",le="0.5"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/",le="1"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/",le="5"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/",le="10"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/",le="30"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/",le="+Inf"} 2
+coderd_api_request_latencies_seconds_sum{method="GET",path="/api/v2/organizations/{organization}/templates/"} 0.045776814
+coderd_api_request_latencies_seconds_count{method="GET",path="/api/v2/organizations/{organization}/templates/"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/examples",le="0.001"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/examples",le="0.005"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/examples",le="0.01"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/examples",le="0.025"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/examples",le="0.05"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/examples",le="0.1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/examples",le="0.5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/examples",le="1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/examples",le="5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/examples",le="10"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/examples",le="30"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/examples",le="+Inf"} 1
+coderd_api_request_latencies_seconds_sum{method="GET",path="/api/v2/organizations/{organization}/templates/examples"} 0.015829003
+coderd_api_request_latencies_seconds_count{method="GET",path="/api/v2/organizations/{organization}/templates/examples"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/{templatename}",le="0.001"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/{templatename}",le="0.005"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/{templatename}",le="0.01"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/{templatename}",le="0.025"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/{templatename}",le="0.05"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/{templatename}",le="0.1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/{templatename}",le="0.5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/{templatename}",le="1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/{templatename}",le="5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/{templatename}",le="10"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/{templatename}",le="30"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/organizations/{organization}/templates/{templatename}",le="+Inf"} 1
+coderd_api_request_latencies_seconds_sum{method="GET",path="/api/v2/organizations/{organization}/templates/{templatename}"} 0.004708487
+coderd_api_request_latencies_seconds_count{method="GET",path="/api/v2/organizations/{organization}/templates/{templatename}"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/",le="0.001"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/",le="0.005"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/",le="0.01"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/",le="0.025"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/",le="0.05"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/",le="0.1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/",le="0.5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/",le="1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/",le="5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/",le="10"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/",le="30"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/",le="+Inf"} 1
+coderd_api_request_latencies_seconds_sum{method="GET",path="/api/v2/templates/{template}/"} 0.004230499
+coderd_api_request_latencies_seconds_count{method="GET",path="/api/v2/templates/{template}/"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/daus",le="0.001"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/daus",le="0.005"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/daus",le="0.01"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/daus",le="0.025"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/daus",le="0.05"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/daus",le="0.1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/daus",le="0.5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/daus",le="1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/daus",le="5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/daus",le="10"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/daus",le="30"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/daus",le="+Inf"} 1
+coderd_api_request_latencies_seconds_sum{method="GET",path="/api/v2/templates/{template}/daus"} 0.004370203
+coderd_api_request_latencies_seconds_count{method="GET",path="/api/v2/templates/{template}/daus"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/versions/",le="0.001"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/versions/",le="0.005"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/versions/",le="0.01"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/versions/",le="0.025"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/versions/",le="0.05"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/versions/",le="0.1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/versions/",le="0.5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/versions/",le="1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/versions/",le="5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/versions/",le="10"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/versions/",le="30"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templates/{template}/versions/",le="+Inf"} 1
+coderd_api_request_latencies_seconds_sum{method="GET",path="/api/v2/templates/{template}/versions/"} 0.00656286
+coderd_api_request_latencies_seconds_count{method="GET",path="/api/v2/templates/{template}/versions/"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/",le="0.001"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/",le="0.005"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/",le="0.01"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/",le="0.025"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/",le="0.05"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/",le="0.1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/",le="0.5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/",le="1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/",le="5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/",le="10"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/",le="30"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/",le="+Inf"} 1
+coderd_api_request_latencies_seconds_sum{method="GET",path="/api/v2/templateversions/{templateversion}/"} 0.010606176
+coderd_api_request_latencies_seconds_count{method="GET",path="/api/v2/templateversions/{templateversion}/"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/resources",le="0.001"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/resources",le="0.005"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/resources",le="0.01"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/resources",le="0.025"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/resources",le="0.05"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/resources",le="0.1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/resources",le="0.5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/resources",le="1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/resources",le="5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/resources",le="10"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/resources",le="30"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/resources",le="+Inf"} 1
+coderd_api_request_latencies_seconds_sum{method="GET",path="/api/v2/templateversions/{templateversion}/resources"} 0.007596192
+coderd_api_request_latencies_seconds_count{method="GET",path="/api/v2/templateversions/{templateversion}/resources"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/schema",le="0.001"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/schema",le="0.005"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/schema",le="0.01"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/schema",le="0.025"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/schema",le="0.05"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/schema",le="0.1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/schema",le="0.5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/schema",le="1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/schema",le="5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/schema",le="10"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/schema",le="30"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/templateversions/{templateversion}/schema",le="+Inf"} 1
+coderd_api_request_latencies_seconds_sum{method="GET",path="/api/v2/templateversions/{templateversion}/schema"} 0.00339007
+coderd_api_request_latencies_seconds_count{method="GET",path="/api/v2/templateversions/{templateversion}/schema"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/updatecheck",le="0.001"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/updatecheck",le="0.005"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/updatecheck",le="0.01"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/updatecheck",le="0.025"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/updatecheck",le="0.05"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/updatecheck",le="0.1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/updatecheck",le="0.5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/updatecheck",le="1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/updatecheck",le="5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/updatecheck",le="10"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/updatecheck",le="30"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/updatecheck",le="+Inf"} 1
+coderd_api_request_latencies_seconds_sum{method="GET",path="/api/v2/updatecheck"} 0.000390431
+coderd_api_request_latencies_seconds_count{method="GET",path="/api/v2/updatecheck"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/",le="0.001"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/",le="0.005"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/",le="0.01"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/",le="0.025"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/",le="0.05"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/",le="0.1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/",le="0.5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/",le="1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/",le="5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/",le="10"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/",le="30"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/",le="+Inf"} 1
+coderd_api_request_latencies_seconds_sum{method="GET",path="/api/v2/users/"} 0.003569641
+coderd_api_request_latencies_seconds_count{method="GET",path="/api/v2/users/"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/authmethods",le="0.001"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/authmethods",le="0.005"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/authmethods",le="0.01"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/authmethods",le="0.025"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/authmethods",le="0.05"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/authmethods",le="0.1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/authmethods",le="0.5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/authmethods",le="1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/authmethods",le="5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/authmethods",le="10"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/authmethods",le="30"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/authmethods",le="+Inf"} 1
+coderd_api_request_latencies_seconds_sum{method="GET",path="/api/v2/users/authmethods"} 0.000148719
+coderd_api_request_latencies_seconds_count{method="GET",path="/api/v2/users/authmethods"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/first",le="0.001"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/first",le="0.005"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/first",le="0.01"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/first",le="0.025"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/first",le="0.05"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/first",le="0.1"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/first",le="0.5"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/first",le="1"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/first",le="5"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/first",le="10"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/first",le="30"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/first",le="+Inf"} 2
+coderd_api_request_latencies_seconds_sum{method="GET",path="/api/v2/users/first"} 0.002299768
+coderd_api_request_latencies_seconds_count{method="GET",path="/api/v2/users/first"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}",le="0.001"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}",le="0.005"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}",le="0.01"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}",le="0.025"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}",le="0.05"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}",le="0.1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}",le="0.5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}",le="1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}",le="5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}",le="10"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}",le="30"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}",le="+Inf"} 1
+coderd_api_request_latencies_seconds_sum{method="GET",path="/api/v2/users/{user}"} 0.000131803
+coderd_api_request_latencies_seconds_count{method="GET",path="/api/v2/users/{user}"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/",le="0.001"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/",le="0.005"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/",le="0.01"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/",le="0.025"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/",le="0.05"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/",le="0.1"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/",le="0.5"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/",le="1"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/",le="5"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/",le="10"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/",le="30"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/",le="+Inf"} 2
+coderd_api_request_latencies_seconds_sum{method="GET",path="/api/v2/users/{user}/"} 0.012900051
+coderd_api_request_latencies_seconds_count{method="GET",path="/api/v2/users/{user}/"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/*",le="0.001"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/*",le="0.005"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/*",le="0.01"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/*",le="0.025"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/*",le="0.05"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/*",le="0.1"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/*",le="0.5"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/*",le="1"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/*",le="5"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/*",le="10"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/*",le="30"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/*",le="+Inf"} 2
+coderd_api_request_latencies_seconds_sum{method="GET",path="/api/v2/users/{user}/*"} 0.0017976070000000001
+coderd_api_request_latencies_seconds_count{method="GET",path="/api/v2/users/{user}/*"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/",le="0.001"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/",le="0.005"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/",le="0.01"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/",le="0.025"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/",le="0.05"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/",le="0.1"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/",le="0.5"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/",le="1"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/",le="5"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/",le="10"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/",le="30"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/",le="+Inf"} 2
+coderd_api_request_latencies_seconds_sum{method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/"} 0.014837208000000001
+coderd_api_request_latencies_seconds_count{method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspace-quota/{user}/",le="0.001"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspace-quota/{user}/",le="0.005"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspace-quota/{user}/",le="0.01"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspace-quota/{user}/",le="0.025"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspace-quota/{user}/",le="0.05"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspace-quota/{user}/",le="0.1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspace-quota/{user}/",le="0.5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspace-quota/{user}/",le="1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspace-quota/{user}/",le="5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspace-quota/{user}/",le="10"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspace-quota/{user}/",le="30"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspace-quota/{user}/",le="+Inf"} 1
+coderd_api_request_latencies_seconds_sum{method="GET",path="/api/v2/workspace-quota/{user}/"} 0.01856146
+coderd_api_request_latencies_seconds_count{method="GET",path="/api/v2/workspace-quota/{user}/"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaceagents/me/metadata",le="0.001"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaceagents/me/metadata",le="0.005"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaceagents/me/metadata",le="0.01"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaceagents/me/metadata",le="0.025"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaceagents/me/metadata",le="0.05"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaceagents/me/metadata",le="0.1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaceagents/me/metadata",le="0.5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaceagents/me/metadata",le="1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaceagents/me/metadata",le="5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaceagents/me/metadata",le="10"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaceagents/me/metadata",le="30"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaceagents/me/metadata",le="+Inf"} 1
+coderd_api_request_latencies_seconds_sum{method="GET",path="/api/v2/workspaceagents/me/metadata"} 0.005921315
+coderd_api_request_latencies_seconds_count{method="GET",path="/api/v2/workspaceagents/me/metadata"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces",le="0.001"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces",le="0.005"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces",le="0.01"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces",le="0.025"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces",le="0.05"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces",le="0.1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces",le="0.5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces",le="1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces",le="5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces",le="10"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces",le="30"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces",le="+Inf"} 1
+coderd_api_request_latencies_seconds_sum{method="GET",path="/api/v2/workspaces"} 0.000824226
+coderd_api_request_latencies_seconds_count{method="GET",path="/api/v2/workspaces"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces/",le="0.001"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces/",le="0.005"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces/",le="0.01"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces/",le="0.025"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces/",le="0.05"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces/",le="0.1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces/",le="0.5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces/",le="1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces/",le="5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces/",le="10"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces/",le="30"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces/",le="+Inf"} 1
+coderd_api_request_latencies_seconds_sum{method="GET",path="/api/v2/workspaces/"} 0.016112682
+coderd_api_request_latencies_seconds_count{method="GET",path="/api/v2/workspaces/"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces/{workspace}/builds/",le="0.001"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces/{workspace}/builds/",le="0.005"} 0
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces/{workspace}/builds/",le="0.01"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces/{workspace}/builds/",le="0.025"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces/{workspace}/builds/",le="0.05"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces/{workspace}/builds/",le="0.1"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces/{workspace}/builds/",le="0.5"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces/{workspace}/builds/",le="1"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces/{workspace}/builds/",le="5"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces/{workspace}/builds/",le="10"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces/{workspace}/builds/",le="30"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/api/v2/workspaces/{workspace}/builds/",le="+Inf"} 2
+coderd_api_request_latencies_seconds_sum{method="GET",path="/api/v2/workspaces/{workspace}/builds/"} 0.022512011000000002
+coderd_api_request_latencies_seconds_count{method="GET",path="/api/v2/workspaces/{workspace}/builds/"} 2
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/healthz",le="0.001"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/healthz",le="0.005"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/healthz",le="0.01"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/healthz",le="0.025"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/healthz",le="0.05"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/healthz",le="0.1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/healthz",le="0.5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/healthz",le="1"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/healthz",le="5"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/healthz",le="10"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/healthz",le="30"} 1
+coderd_api_request_latencies_seconds_bucket{method="GET",path="/healthz",le="+Inf"} 1
+coderd_api_request_latencies_seconds_sum{method="GET",path="/healthz"} 0.000109226
+coderd_api_request_latencies_seconds_count{method="GET",path="/healthz"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/authcheck/",le="0.001"} 0
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/authcheck/",le="0.005"} 4
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/authcheck/",le="0.01"} 6
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/authcheck/",le="0.025"} 6
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/authcheck/",le="0.05"} 6
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/authcheck/",le="0.1"} 6
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/authcheck/",le="0.5"} 6
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/authcheck/",le="1"} 6
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/authcheck/",le="5"} 6
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/authcheck/",le="10"} 6
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/authcheck/",le="30"} 6
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/authcheck/",le="+Inf"} 6
+coderd_api_request_latencies_seconds_sum{method="POST",path="/api/v2/authcheck/"} 0.027684736
+coderd_api_request_latencies_seconds_count{method="POST",path="/api/v2/authcheck/"} 6
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/files",le="0.001"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/files",le="0.005"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/files",le="0.01"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/files",le="0.025"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/files",le="0.05"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/files",le="0.1"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/files",le="0.5"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/files",le="1"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/files",le="5"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/files",le="10"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/files",le="30"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/files",le="+Inf"} 1
+coderd_api_request_latencies_seconds_sum{method="POST",path="/api/v2/files"} 0.000426037
+coderd_api_request_latencies_seconds_count{method="POST",path="/api/v2/files"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/organizations/{organization}/members/{user}/workspaces",le="0.001"} 0
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/organizations/{organization}/members/{user}/workspaces",le="0.005"} 0
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/organizations/{organization}/members/{user}/workspaces",le="0.01"} 0
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/organizations/{organization}/members/{user}/workspaces",le="0.025"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/organizations/{organization}/members/{user}/workspaces",le="0.05"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/organizations/{organization}/members/{user}/workspaces",le="0.1"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/organizations/{organization}/members/{user}/workspaces",le="0.5"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/organizations/{organization}/members/{user}/workspaces",le="1"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/organizations/{organization}/members/{user}/workspaces",le="5"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/organizations/{organization}/members/{user}/workspaces",le="10"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/organizations/{organization}/members/{user}/workspaces",le="30"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/organizations/{organization}/members/{user}/workspaces",le="+Inf"} 1
+coderd_api_request_latencies_seconds_sum{method="POST",path="/api/v2/organizations/{organization}/members/{user}/workspaces"} 0.014369701
+coderd_api_request_latencies_seconds_count{method="POST",path="/api/v2/organizations/{organization}/members/{user}/workspaces"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/users/login",le="0.001"} 0
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/users/login",le="0.005"} 0
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/users/login",le="0.01"} 0
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/users/login",le="0.025"} 0
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/users/login",le="0.05"} 0
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/users/login",le="0.1"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/users/login",le="0.5"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/users/login",le="1"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/users/login",le="5"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/users/login",le="10"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/users/login",le="30"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/users/login",le="+Inf"} 1
+coderd_api_request_latencies_seconds_sum{method="POST",path="/api/v2/users/login"} 0.079973393
+coderd_api_request_latencies_seconds_count{method="POST",path="/api/v2/users/login"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/workspaceagents/me/report-stats",le="0.001"} 0
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/workspaceagents/me/report-stats",le="0.005"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/workspaceagents/me/report-stats",le="0.01"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/workspaceagents/me/report-stats",le="0.025"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/workspaceagents/me/report-stats",le="0.05"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/workspaceagents/me/report-stats",le="0.1"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/workspaceagents/me/report-stats",le="0.5"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/workspaceagents/me/report-stats",le="1"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/workspaceagents/me/report-stats",le="5"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/workspaceagents/me/report-stats",le="10"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/workspaceagents/me/report-stats",le="30"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/workspaceagents/me/report-stats",le="+Inf"} 1
+coderd_api_request_latencies_seconds_sum{method="POST",path="/api/v2/workspaceagents/me/report-stats"} 0.001123106
+coderd_api_request_latencies_seconds_count{method="POST",path="/api/v2/workspaceagents/me/report-stats"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/workspaceagents/me/version",le="0.001"} 0
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/workspaceagents/me/version",le="0.005"} 0
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/workspaceagents/me/version",le="0.01"} 0
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/workspaceagents/me/version",le="0.025"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/workspaceagents/me/version",le="0.05"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/workspaceagents/me/version",le="0.1"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/workspaceagents/me/version",le="0.5"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/workspaceagents/me/version",le="1"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/workspaceagents/me/version",le="5"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/workspaceagents/me/version",le="10"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/workspaceagents/me/version",le="30"} 1
+coderd_api_request_latencies_seconds_bucket{method="POST",path="/api/v2/workspaceagents/me/version",le="+Inf"} 1
+coderd_api_request_latencies_seconds_sum{method="POST",path="/api/v2/workspaceagents/me/version"} 0.012078959
+coderd_api_request_latencies_seconds_count{method="POST",path="/api/v2/workspaceagents/me/version"} 1
+# HELP coderd_api_requests_processed_total The total number of processed API requests
+# TYPE coderd_api_requests_processed_total counter
+coderd_api_requests_processed_total{code="200",method="GET",path=""} 1
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/appearance/"} 2
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/applications/host/"} 1
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/buildinfo"} 5
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/entitlements"} 5
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/organizations/{organization}/templates/"} 2
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/organizations/{organization}/templates/examples"} 1
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/organizations/{organization}/templates/{templatename}"} 1
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/templates/{template}/"} 1
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/templates/{template}/daus"} 1
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/templates/{template}/versions/"} 1
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/templateversions/{templateversion}/"} 1
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/templateversions/{templateversion}/resources"} 1
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/templateversions/{templateversion}/schema"} 1
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/updatecheck"} 1
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/users/"} 1
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/users/authmethods"} 1
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/users/first"} 2
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/users/{user}/"} 2
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/users/{user}/workspace/{workspacename}/"} 2
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/workspace-quota/{user}/"} 1
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/workspaceagents/me/metadata"} 1
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/workspaces/"} 1
+coderd_api_requests_processed_total{code="200",method="GET",path="/api/v2/workspaces/{workspace}/builds/"} 2
+coderd_api_requests_processed_total{code="200",method="GET",path="/healthz"} 1
+coderd_api_requests_processed_total{code="200",method="POST",path="/api/v2/authcheck/"} 6
+coderd_api_requests_processed_total{code="200",method="POST",path="/api/v2/workspaceagents/me/report-stats"} 1
+coderd_api_requests_processed_total{code="200",method="POST",path="/api/v2/workspaceagents/me/version"} 1
+coderd_api_requests_processed_total{code="201",method="POST",path="/api/v2/organizations/{organization}/members/{user}/workspaces"} 1
+coderd_api_requests_processed_total{code="201",method="POST",path="/api/v2/users/login"} 1
+coderd_api_requests_processed_total{code="401",method="GET",path="/api/v2/organizations/*"} 2
+coderd_api_requests_processed_total{code="401",method="GET",path="/api/v2/users/{user}"} 1
+coderd_api_requests_processed_total{code="401",method="GET",path="/api/v2/users/{user}/*"} 2
+coderd_api_requests_processed_total{code="401",method="GET",path="/api/v2/workspaces"} 1
+coderd_api_requests_processed_total{code="401",method="POST",path="/api/v2/files"} 1
+# HELP coderd_api_workspace_latest_build_total The latest workspace builds with a status.
+# TYPE coderd_api_workspace_latest_build_total gauge
+coderd_api_workspace_latest_build_total{status="succeeded"} 1
+# HELP coderd_provisionerd_job_timings_seconds The provisioner job time duration in seconds.
+# TYPE coderd_provisionerd_job_timings_seconds histogram
+coderd_provisionerd_job_timings_seconds_bucket{provisioner="terraform",status="success",le="1"} 0
+coderd_provisionerd_job_timings_seconds_bucket{provisioner="terraform",status="success",le="10"} 0
+coderd_provisionerd_job_timings_seconds_bucket{provisioner="terraform",status="success",le="30"} 1
+coderd_provisionerd_job_timings_seconds_bucket{provisioner="terraform",status="success",le="60"} 1
+coderd_provisionerd_job_timings_seconds_bucket{provisioner="terraform",status="success",le="300"} 1
+coderd_provisionerd_job_timings_seconds_bucket{provisioner="terraform",status="success",le="600"} 1
+coderd_provisionerd_job_timings_seconds_bucket{provisioner="terraform",status="success",le="1800"} 1
+coderd_provisionerd_job_timings_seconds_bucket{provisioner="terraform",status="success",le="3600"} 1
+coderd_provisionerd_job_timings_seconds_bucket{provisioner="terraform",status="success",le="+Inf"} 1
+coderd_provisionerd_job_timings_seconds_sum{provisioner="terraform",status="success"} 14.739479476
+coderd_provisionerd_job_timings_seconds_count{provisioner="terraform",status="success"} 1
+# HELP coderd_provisionerd_jobs_current The number of currently running provisioner jobs.
+# TYPE coderd_provisionerd_jobs_current gauge
+coderd_provisionerd_jobs_current{provisioner="terraform"} 0
+# HELP go_gc_duration_seconds A summary of the pause duration of garbage collection cycles.
+# TYPE go_gc_duration_seconds summary
+go_gc_duration_seconds{quantile="0"} 2.4056e-05
+go_gc_duration_seconds{quantile="0.25"} 7.4116e-05
+go_gc_duration_seconds{quantile="0.5"} 0.000104901
+go_gc_duration_seconds{quantile="0.75"} 0.000201704
+go_gc_duration_seconds{quantile="1"} 0.017164708
+go_gc_duration_seconds_sum 0.026439568
+go_gc_duration_seconds_count 42
+# HELP go_goroutines Number of goroutines that currently exist.
+# TYPE go_goroutines gauge
+go_goroutines 125
+# HELP go_info Information about the Go environment.
+# TYPE go_info gauge
+go_info{version="go1.19.1"} 1
+# HELP go_memstats_alloc_bytes Number of bytes allocated and still in use.
+# TYPE go_memstats_alloc_bytes gauge
+go_memstats_alloc_bytes 6.3568392e+07
+# HELP go_memstats_alloc_bytes_total Total number of bytes allocated, even if freed.
+# TYPE go_memstats_alloc_bytes_total counter
+go_memstats_alloc_bytes_total 1.139801264e+09
+# HELP go_memstats_buck_hash_sys_bytes Number of bytes used by the profiling bucket hash table.
+# TYPE go_memstats_buck_hash_sys_bytes gauge
+go_memstats_buck_hash_sys_bytes 1.53062e+06
+# HELP go_memstats_frees_total Total number of frees.
+# TYPE go_memstats_frees_total counter
+go_memstats_frees_total 1.29308e+06
+# HELP go_memstats_gc_sys_bytes Number of bytes used for garbage collection system metadata.
+# TYPE go_memstats_gc_sys_bytes gauge
+go_memstats_gc_sys_bytes 2.5494696e+07
+# HELP go_memstats_heap_alloc_bytes Number of heap bytes allocated and still in use.
+# TYPE go_memstats_heap_alloc_bytes gauge
+go_memstats_heap_alloc_bytes 6.3568392e+07
+# HELP go_memstats_heap_idle_bytes Number of heap bytes waiting to be used.
+# TYPE go_memstats_heap_idle_bytes gauge
+go_memstats_heap_idle_bytes 4.14302208e+08
+# HELP go_memstats_heap_inuse_bytes Number of heap bytes that are in use.
+# TYPE go_memstats_heap_inuse_bytes gauge
+go_memstats_heap_inuse_bytes 6.971392e+07
+# HELP go_memstats_heap_objects Number of allocated objects.
+# TYPE go_memstats_heap_objects gauge
+go_memstats_heap_objects 62042
+# HELP go_memstats_heap_released_bytes Number of heap bytes released to OS.
+# TYPE go_memstats_heap_released_bytes gauge
+go_memstats_heap_released_bytes 3.59923712e+08
+# HELP go_memstats_heap_sys_bytes Number of heap bytes obtained from system.
+# TYPE go_memstats_heap_sys_bytes gauge
+go_memstats_heap_sys_bytes 4.84016128e+08
+# HELP go_memstats_last_gc_time_seconds Number of seconds since 1970 of last garbage collection.
+# TYPE go_memstats_last_gc_time_seconds gauge
+go_memstats_last_gc_time_seconds 1.6736263118982203e+09
+# HELP go_memstats_lookups_total Total number of pointer lookups.
+# TYPE go_memstats_lookups_total counter
+go_memstats_lookups_total 0
+# HELP go_memstats_mallocs_total Total number of mallocs.
+# TYPE go_memstats_mallocs_total counter
+go_memstats_mallocs_total 1.355122e+06
+# HELP go_memstats_mcache_inuse_bytes Number of bytes in use by mcache structures.
+# TYPE go_memstats_mcache_inuse_bytes gauge
+go_memstats_mcache_inuse_bytes 9600
+# HELP go_memstats_mcache_sys_bytes Number of bytes used for mcache structures obtained from system.
+# TYPE go_memstats_mcache_sys_bytes gauge
+go_memstats_mcache_sys_bytes 15600
+# HELP go_memstats_mspan_inuse_bytes Number of bytes in use by mspan structures.
+# TYPE go_memstats_mspan_inuse_bytes gauge
+go_memstats_mspan_inuse_bytes 251736
+# HELP go_memstats_mspan_sys_bytes Number of bytes used for mspan structures obtained from system.
+# TYPE go_memstats_mspan_sys_bytes gauge
+go_memstats_mspan_sys_bytes 620160
+# HELP go_memstats_next_gc_bytes Number of heap bytes when next garbage collection will take place.
+# TYPE go_memstats_next_gc_bytes gauge
+go_memstats_next_gc_bytes 1.26085704e+08
+# HELP go_memstats_other_sys_bytes Number of bytes used for other system allocations.
+# TYPE go_memstats_other_sys_bytes gauge
+go_memstats_other_sys_bytes 1.898084e+06
+# HELP go_memstats_stack_inuse_bytes Number of bytes in use by the stack allocator.
+# TYPE go_memstats_stack_inuse_bytes gauge
+go_memstats_stack_inuse_bytes 2.523136e+06
+# HELP go_memstats_stack_sys_bytes Number of bytes obtained from system for stack allocator.
+# TYPE go_memstats_stack_sys_bytes gauge
+go_memstats_stack_sys_bytes 2.523136e+06
+# HELP go_memstats_sys_bytes Number of bytes obtained from system.
+# TYPE go_memstats_sys_bytes gauge
+go_memstats_sys_bytes 5.16098424e+08
+# HELP go_threads Number of OS threads created.
+# TYPE go_threads gauge
+go_threads 13
+# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds.
+# TYPE process_cpu_seconds_total counter
+process_cpu_seconds_total 17.8
+# HELP process_max_fds Maximum number of open file descriptors.
+# TYPE process_max_fds gauge
+process_max_fds 1.048576e+06
+# HELP process_open_fds Number of open file descriptors.
+# TYPE process_open_fds gauge
+process_open_fds 28
+# HELP process_resident_memory_bytes Resident memory size in bytes.
+# TYPE process_resident_memory_bytes gauge
+process_resident_memory_bytes 3.06302976e+08
+# HELP process_start_time_seconds Start time of the process since unix epoch in seconds.
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1.67362454586e+09
+# HELP process_virtual_memory_bytes Virtual memory size in bytes.
+# TYPE process_virtual_memory_bytes gauge
+process_virtual_memory_bytes 1.406291968e+09
+# HELP process_virtual_memory_max_bytes Maximum amount of virtual memory available in bytes.
+# TYPE process_virtual_memory_max_bytes gauge
+process_virtual_memory_max_bytes 1.8446744073709552e+19
+# HELP promhttp_metric_handler_requests_in_flight Current number of scrapes being served.
+# TYPE promhttp_metric_handler_requests_in_flight gauge
+promhttp_metric_handler_requests_in_flight 1
+# HELP promhttp_metric_handler_requests_total Total number of scrapes by HTTP status code.
+# TYPE promhttp_metric_handler_requests_total counter
+promhttp_metric_handler_requests_total{code="200"} 2
+promhttp_metric_handler_requests_total{code="500"} 0
+promhttp_metric_handler_requests_total{code="503"} 0

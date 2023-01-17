@@ -30,17 +30,24 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     color: theme.palette.text.secondary,
     margin: "0px",
+
     [theme.breakpoints.down("sm")]: {
       display: "block",
+      padding: theme.spacing(2),
     },
   },
 
   statItem: {
-    padding: theme.spacing(2),
-    paddingTop: theme.spacing(1.75),
+    padding: theme.spacing(1.75),
+    paddingLeft: theme.spacing(2),
+    paddingRight: theme.spacing(2),
     display: "flex",
     alignItems: "baseline",
     gap: theme.spacing(1),
+
+    [theme.breakpoints.down("sm")]: {
+      padding: theme.spacing(1),
+    },
   },
 
   statsLabel: {
@@ -50,9 +57,10 @@ const useStyles = makeStyles((theme) => ({
 
   statsValue: {
     marginTop: theme.spacing(0.25),
-    display: "block",
+    display: "flex",
     wordWrap: "break-word",
     color: theme.palette.text.primary,
+    alignItems: "center",
 
     "& a": {
       color: theme.palette.text.primary,

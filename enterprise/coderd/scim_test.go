@@ -34,7 +34,7 @@ func makeScimUser(t testing.TB) coderd.SCIMUser {
 		},
 		Emails: []struct {
 			Primary bool   "json:\"primary\""
-			Value   string "json:\"value\""
+			Value   string "json:\"value\" format:\"email\""
 			Type    string "json:\"type\""
 			Display string "json:\"display\""
 		}{

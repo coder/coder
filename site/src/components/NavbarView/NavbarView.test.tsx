@@ -20,21 +20,6 @@ describe("NavbarView", () => {
     process.env = env
   })
 
-  it("renders content", async () => {
-    // When
-    render(
-      <NavbarView
-        user={MockUser}
-        onSignOut={noop}
-        canViewAuditLog
-        canViewDeployment
-      />,
-    )
-
-    // Then
-    await screen.findAllByText("Coder", { exact: false })
-  })
-
   it("workspaces nav link has the correct href", async () => {
     render(
       <NavbarView

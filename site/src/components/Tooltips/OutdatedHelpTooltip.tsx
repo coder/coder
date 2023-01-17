@@ -7,6 +7,9 @@ import {
   HelpTooltipText,
   HelpTooltipTitle,
 } from "./HelpTooltip"
+import InfoIcon from "@material-ui/icons/InfoOutlined"
+import { makeStyles } from "@material-ui/core/styles"
+import { colors } from "theme/colors"
 
 export const Language = {
   outdatedLabel: "Outdated",
@@ -24,8 +27,15 @@ export const OutdatedHelpTooltip: FC<React.PropsWithChildren<TooltipProps>> = ({
   onUpdateVersion,
   ariaLabel,
 }) => {
+  const styles = useStyles()
+
   return (
-    <HelpTooltip size="small">
+    <HelpTooltip
+      size="small"
+      icon={InfoIcon}
+      iconClassName={styles.icon}
+      buttonClassName={styles.button}
+    >
       <HelpTooltipTitle>{Language.outdatedLabel}</HelpTooltipTitle>
       <HelpTooltipText>{Language.versionTooltipText}</HelpTooltipText>
       <HelpTooltipLinksGroup>
@@ -40,3 +50,17 @@ export const OutdatedHelpTooltip: FC<React.PropsWithChildren<TooltipProps>> = ({
     </HelpTooltip>
   )
 }
+
+const useStyles = makeStyles(() => ({
+  icon: {
+    color: colors.yellow[5],
+  },
+
+  button: {
+    opacity: 1,
+
+    "&:hover": {
+      opacity: 1,
+    },
+  },
+}))

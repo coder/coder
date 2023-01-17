@@ -44,8 +44,8 @@ const defaultArgs = {
   context: {
     orgId: MockOrganization.id,
     versionName: MockTemplateVersion.name,
-    version: MockTemplateVersion,
-    files: {
+    currentVersion: MockTemplateVersion,
+    currentFiles: {
       "README.md": readmeContent,
       "main.tf": `{}`,
     },
@@ -60,8 +60,8 @@ Error.args = {
   ...defaultArgs,
   context: {
     ...defaultArgs.context,
-    version: undefined,
-    files: undefined,
+    currentVersion: undefined,
+    currentFiles: undefined,
     error: makeMockApiError({
       message: "Error on loading the template version",
     }),

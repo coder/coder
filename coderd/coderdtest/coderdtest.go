@@ -64,6 +64,7 @@ import (
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
+	"github.com/coder/coder/coderd/updatecheck"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
@@ -77,6 +78,10 @@ import (
 )
 
 type Options struct {
+	// AccessURL denotes a custom access URL. By default we use the httptest
+	// server's URL. Setting this may result in unexpected behavior (especially
+	// with running agents).
+	AccessURL            *url.URL
 	AppHostname          string
 	AWSCertificates      awsidentity.Certificates
 	Authorizer           rbac.Authorizer
@@ -87,8 +92,6 @@ type Options struct {
 	OIDCConfig           *coderd.OIDCConfig
 	GoogleTokenValidator *idtoken.Validator
 	SSHKeygenAlgorithm   gitsshkey.Algorithm
-	APIRateLimit         int
-	AutoImportTemplates  []coderd.AutoImportTemplate
 	AutobuildTicker      <-chan time.Time
 	AutobuildStats       chan<- executor.Stats
 	Auditor              audit.Auditor
@@ -96,17 +99,27 @@ type Options struct {
 	GitAuthConfigs       []*gitauth.Config
 	TrialGenerator       func(context.Context, string) error
 
+	// All rate limits default to -1 (unlimited) in tests if not set.
+	APIRateLimit   int
+	LoginRateLimit int
+	FilesRateLimit int
+
 	// IncludeProvisionerDaemon when true means to start an in-memory provisionerD
 	IncludeProvisionerDaemon    bool
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
 	DeploymentConfig            *codersdk.DeploymentConfig
 
+	// Set update check options to enable update check.
+	UpdateCheckOptions *updatecheck.Options
+
 	// Overriding the database is heavily discouraged.
 	// It should only be used in cases where multiple Coder
 	// test instances are running against the same database.
 	Database database.Store
 	Pubsub   database.Pubsub
+
+	SwaggerEndpoint bool
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -140,7 +153,7 @@ func newWithCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer)
 	return client, closer
 }
 
-func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.CancelFunc, *coderd.Options) {
+func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.CancelFunc, *url.URL, *coderd.Options) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -166,6 +179,17 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 	}
 	if options.DeploymentConfig == nil {
 		options.DeploymentConfig = DeploymentConfig(t)
+	}
+
+	// If no ratelimits are set, disable all rate limiting for tests.
+	if options.APIRateLimit == 0 {
+		options.APIRateLimit = -1
+	}
+	if options.LoginRateLimit == 0 {
+		options.LoginRateLimit = -1
+	}
+	if options.FilesRateLimit == 0 {
+		options.FilesRateLimit = -1
 	}
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -210,6 +234,11 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 	derpPort, err := strconv.Atoi(serverURL.Port())
 	require.NoError(t, err)
 
+	accessURL := options.AccessURL
+	if accessURL == nil {
+		accessURL = serverURL
+	}
+
 	stunAddr, stunCleanup := stuntest.ServeWithPacketListener(t, nettype.Std{})
 	t.Cleanup(stunCleanup)
 
@@ -232,12 +261,12 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			mutex.Lock()
 			defer mutex.Unlock()
 			handler = h
-		}, cancelFunc, &coderd.Options{
+		}, cancelFunc, serverURL, &coderd.Options{
 			AgentConnectionUpdateFrequency: 150 * time.Millisecond,
 			// Force a long disconnection timeout to ensure
 			// agents are not marked as disconnected during slow tests.
 			AgentInactiveDisconnectTimeout: testutil.WaitShort,
-			AccessURL:                      serverURL,
+			AccessURL:                      accessURL,
 			AppHostname:                    options.AppHostname,
 			AppHostnameRegex:               appHostnameRegex,
 			Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
@@ -256,6 +285,8 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			SSHKeygenAlgorithm:   options.SSHKeygenAlgorithm,
 			DERPServer:           derpServer,
 			APIRateLimit:         options.APIRateLimit,
+			LoginRateLimit:       options.LoginRateLimit,
+			FilesRateLimit:       options.FilesRateLimit,
 			Authorizer:           options.Authorizer,
 			Telemetry:            telemetry.NewNoop(),
 			TLSCertificates:      options.TLSCertificates,
@@ -279,10 +310,11 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 					},
 				},
 			},
-			AutoImportTemplates:         options.AutoImportTemplates,
 			MetricsCacheRefreshInterval: options.MetricsCacheRefreshInterval,
 			AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
 			DeploymentConfig:            options.DeploymentConfig,
+			UpdateCheckOptions:          options.UpdateCheckOptions,
+			SwaggerEndpoint:             options.SwaggerEndpoint,
 		}
 }
 
@@ -293,7 +325,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	if options == nil {
 		options = &Options{}
 	}
-	setHandler, cancelFunc, newOptions := NewOptions(t, options)
+	setHandler, cancelFunc, serverURL, newOptions := NewOptions(t, options)
 	// We set the handler after server creation for the access URL.
 	coderAPI := coderd.New(newOptions)
 	setHandler(coderAPI.RootHandler)
@@ -301,7 +333,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	if options.IncludeProvisionerDaemon {
 		provisionerCloser = NewProvisionerDaemon(t, coderAPI)
 	}
-	client := codersdk.New(coderAPI.AccessURL)
+	client := codersdk.New(serverURL)
 	t.Cleanup(func() {
 		cancelFunc()
 		_ = provisionerCloser.Close()
@@ -335,7 +367,7 @@ func NewProvisionerDaemon(t *testing.T, coderAPI *coderd.API) io.Closer {
 	}, &provisionerd.Options{
 		Filesystem:          fs,
 		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
-		PollInterval:        50 * time.Millisecond,
+		JobPollInterval:     50 * time.Millisecond,
 		UpdateInterval:      250 * time.Millisecond,
 		ForceCancelInterval: time.Second,
 		Provisioners: provisionerd.Provisioners{
@@ -370,7 +402,7 @@ func NewExternalProvisionerDaemon(t *testing.T, client *codersdk.Client, org uui
 	}, &provisionerd.Options{
 		Filesystem:          fs,
 		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
-		PollInterval:        50 * time.Millisecond,
+		JobPollInterval:     50 * time.Millisecond,
 		UpdateInterval:      250 * time.Millisecond,
 		ForceCancelInterval: time.Second,
 		Provisioners: provisionerd.Provisioners{
@@ -547,13 +579,17 @@ func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 func AwaitTemplateVersionJob(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
 	t.Helper()
 
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
+
 	t.Logf("waiting for template version job %s", version)
 	var templateVersion codersdk.TemplateVersion
 	require.Eventually(t, func() bool {
 		var err error
-		templateVersion, err = client.TemplateVersion(context.Background(), version)
+		templateVersion, err = client.TemplateVersion(ctx, version)
 		return assert.NoError(t, err) && templateVersion.Job.CompletedAt != nil
 	}, testutil.WaitMedium, testutil.IntervalFast)
+	t.Logf("got template version job %s", version)
 	return templateVersion
 }
 
@@ -561,13 +597,17 @@ func AwaitTemplateVersionJob(t *testing.T, client *codersdk.Client, version uuid
 func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UUID) codersdk.WorkspaceBuild {
 	t.Helper()
 
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
 	t.Logf("waiting for workspace build job %s", build)
 	var workspaceBuild codersdk.WorkspaceBuild
 	require.Eventually(t, func() bool {
 		var err error
-		workspaceBuild, err = client.WorkspaceBuild(context.Background(), build)
+		workspaceBuild, err = client.WorkspaceBuild(ctx, build)
 		return assert.NoError(t, err) && workspaceBuild.Job.CompletedAt != nil
 	}, testutil.WaitShort, testutil.IntervalFast)
+	t.Logf("got workspace build job %s", build)
 	return workspaceBuild
 }
 
@@ -575,11 +615,14 @@ func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UU
 func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID) []codersdk.WorkspaceResource {
 	t.Helper()
 
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
 	t.Logf("waiting for workspace agents (workspace %s)", workspaceID)
 	var resources []codersdk.WorkspaceResource
 	require.Eventually(t, func() bool {
 		var err error
-		workspace, err := client.Workspace(context.Background(), workspaceID)
+		workspace, err := client.Workspace(ctx, workspaceID)
 		if !assert.NoError(t, err) {
 			return false
 		}
@@ -599,6 +642,7 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, workspaceID uui
 
 		return true
 	}, testutil.WaitLong, testutil.IntervalFast)
+	t.Logf("got workspace agents (workspace %s)", workspaceID)
 	return resources
 }
 
@@ -843,7 +887,23 @@ func (o *OIDCConfig) EncodeClaims(t *testing.T, claims jwt.MapClaims) string {
 	return base64.StdEncoding.EncodeToString([]byte(signed))
 }
 
-func (o *OIDCConfig) OIDCConfig() *coderd.OIDCConfig {
+func (o *OIDCConfig) OIDCConfig(t *testing.T, userInfoClaims jwt.MapClaims) *coderd.OIDCConfig {
+	// By default, the provider can be empty.
+	// This means it won't support any endpoints!
+	provider := &oidc.Provider{}
+	if userInfoClaims != nil {
+		resp, err := json.Marshal(userInfoClaims)
+		require.NoError(t, err)
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(resp)
+		}))
+		t.Cleanup(srv.Close)
+		cfg := &oidc.ProviderConfig{
+			UserInfoURL: srv.URL,
+		}
+		provider = cfg.NewProvider(context.Background())
+	}
 	return &coderd.OIDCConfig{
 		OAuth2Config: o,
 		Verifier: oidc.NewVerifier(o.issuer, &oidc.StaticKeySet{
@@ -851,6 +911,8 @@ func (o *OIDCConfig) OIDCConfig() *coderd.OIDCConfig {
 		}, &oidc.Config{
 			SkipClientIDCheck: true,
 		}),
+		Provider:      provider,
+		UsernameField: "preferred_username",
 	}
 }
 

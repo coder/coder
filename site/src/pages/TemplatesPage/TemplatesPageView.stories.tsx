@@ -1,5 +1,12 @@
 import { ComponentMeta, Story } from "@storybook/react"
-import { makeMockApiError, MockTemplate } from "../../testHelpers/entities"
+import {
+  makeMockApiError,
+  MockOrganization,
+  MockPermissions,
+  MockTemplate,
+  MockTemplateExample,
+  MockTemplateExample2,
+} from "../../testHelpers/entities"
 import { TemplatesPageView, TemplatesPageViewProps } from "./TemplatesPageView"
 
 export default {
@@ -11,50 +18,81 @@ const Template: Story<TemplatesPageViewProps> = (args) => (
   <TemplatesPageView {...args} />
 )
 
-export const AllStates = Template.bind({})
-AllStates.args = {
-  canCreateTemplate: true,
-  templates: [
-    MockTemplate,
-    {
-      ...MockTemplate,
-      active_user_count: -1,
-      description: "🚀 Some new template that has no activity data",
-      icon: "/icon/goland.svg",
-    },
-    {
-      ...MockTemplate,
-      active_user_count: 150,
-      description: "😮 Wow, this one has a bunch of usage!",
-      icon: "",
-    },
-    {
-      ...MockTemplate,
-      description:
-        "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. ",
-    },
-  ],
+export const WithTemplates = Template.bind({})
+WithTemplates.args = {
+  context: {
+    organizationId: MockOrganization.id,
+    permissions: MockPermissions,
+    error: undefined,
+    templates: [
+      MockTemplate,
+      {
+        ...MockTemplate,
+        active_user_count: -1,
+        description: "🚀 Some new template that has no activity data",
+        icon: "/icon/goland.svg",
+      },
+      {
+        ...MockTemplate,
+        active_user_count: 150,
+        description: "😮 Wow, this one has a bunch of usage!",
+        icon: "",
+      },
+      {
+        ...MockTemplate,
+        description:
+          "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. ",
+      },
+    ],
+    examples: [],
+  },
 }
 
-export const SmallViewport = Template.bind({})
-SmallViewport.args = {
-  ...AllStates.args,
+export const WithTemplatesSmallViewPort = Template.bind({})
+WithTemplatesSmallViewPort.args = {
+  ...WithTemplates.args,
 }
-SmallViewport.parameters = {
+WithTemplatesSmallViewPort.parameters = {
   chromatic: { viewports: [600] },
 }
 
 export const EmptyCanCreate = Template.bind({})
 EmptyCanCreate.args = {
-  canCreateTemplate: true,
+  context: {
+    organizationId: MockOrganization.id,
+    permissions: MockPermissions,
+    error: undefined,
+    templates: [],
+    examples: [MockTemplateExample, MockTemplateExample2],
+  },
 }
 
 export const EmptyCannotCreate = Template.bind({})
-EmptyCannotCreate.args = {}
+EmptyCannotCreate.args = {
+  context: {
+    organizationId: MockOrganization.id,
+    permissions: {
+      ...MockPermissions,
+      createTemplates: false,
+    },
+    error: undefined,
+    templates: [],
+    examples: [MockTemplateExample, MockTemplateExample2],
+  },
+}
 
 export const Error = Template.bind({})
 Error.args = {
-  getTemplatesError: makeMockApiError({
-    message: "Something went wrong fetching templates.",
-  }),
+  context: {
+    organizationId: MockOrganization.id,
+    permissions: {
+      ...MockPermissions,
+      createTemplates: false,
+    },
+    error: makeMockApiError({
+      message: "Something went wrong fetching templates.",
+    }),
+    templates: undefined,
+    examples: undefined,
+  },
 }

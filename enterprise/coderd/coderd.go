@@ -13,6 +13,7 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/go-chi/chi/v5"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd"
@@ -42,8 +43,11 @@ func New(ctx context.Context, options *Options) (*API, error) {
 	if options.Options == nil {
 		options.Options = &coderd.Options{}
 	}
+	if options.PrometheusRegistry == nil {
+		options.PrometheusRegistry = prometheus.NewRegistry()
+	}
 	if options.Options.Authorizer == nil {
-		options.Options.Authorizer = rbac.NewAuthorizer()
+		options.Options.Authorizer = rbac.NewAuthorizer(options.PrometheusRegistry)
 	}
 	ctx, cancelFunc := context.WithCancel(ctx)
 	api := &API{
@@ -81,13 +85,13 @@ func New(ctx context.Context, options *Options) (*API, error) {
 				httpmw.ExtractOrganizationParam(api.Database),
 			)
 			r.Post("/", api.postGroupByOrganization)
-			r.Get("/", api.groups)
+			r.Get("/", api.groupsByOrganization)
 			r.Route("/{groupName}", func(r chi.Router) {
 				r.Use(
 					httpmw.ExtractGroupByNameParam(api.Database),
 				)
 
-				r.Get("/", api.group)
+				r.Get("/", api.groupByOrganization)
 			})
 		})
 		r.Route("/organizations/{organization}/provisionerdaemons", func(r chi.Router) {
@@ -126,6 +130,13 @@ func New(ctx context.Context, options *Options) (*API, error) {
 				r.Use(httpmw.ExtractUserParam(options.Database, false))
 				r.Get("/", api.workspaceQuota)
 			})
+		})
+		r.Route("/appearance", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+			)
+			r.Get("/", api.appearance)
+			r.Put("/", api.putAppearance)
 		})
 	})
 
@@ -324,6 +335,13 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	return nil
 }
 
+// @Summary Get entitlements
+// @ID get-entitlements
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Success 200 {object} codersdk.Entitlements
+// @Router /entitlements [get]
 func (api *API) serveEntitlements(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	api.entitlementsMu.RLock()

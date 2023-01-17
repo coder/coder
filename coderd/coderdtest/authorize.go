@@ -48,6 +48,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"GET:/healthz":                  {NoAuthorize: true},
 		"GET:/api/v2":                   {NoAuthorize: true},
 		"GET:/api/v2/buildinfo":         {NoAuthorize: true},
+		"GET:/api/v2/updatecheck":       {NoAuthorize: true},
 		"GET:/api/v2/users/first":       {NoAuthorize: true},
 		"POST:/api/v2/users/first":      {NoAuthorize: true},
 		"POST:/api/v2/users/login":      {NoAuthorize: true},
@@ -70,7 +71,6 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"GET:/api/v2/workspaceagents/me/coordinate":             {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/me/version":               {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/me/app-health":            {NoAuthorize: true},
-		"GET:/api/v2/workspaceagents/me/report-stats":           {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/me/report-stats":          {NoAuthorize: true},
 
 		// These endpoints have more assertions. This is good, add more endpoints to assert if you can!
@@ -177,6 +177,10 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
 		},
+		"GET:/api/v2/templateversions/{templateversion}/rich-parameters": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
+		},
 		"GET:/api/v2/templateversions/{templateversion}/resources": {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
@@ -235,11 +239,12 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"GET:/api/v2/applications/auth-redirect": {AssertAction: rbac.ActionCreate, AssertObject: rbac.ResourceAPIKey},
 
 		// These endpoints need payloads to get to the auth part. Payloads will be required
-		"PUT:/api/v2/users/{user}/roles":                                                  {StatusCode: http.StatusBadRequest, NoAuthorize: true},
-		"PUT:/api/v2/organizations/{organization}/members/{user}/roles":                   {NoAuthorize: true},
-		"POST:/api/v2/workspaces/{workspace}/builds":                                      {StatusCode: http.StatusBadRequest, NoAuthorize: true},
-		"POST:/api/v2/organizations/{organization}/templateversions":                      {StatusCode: http.StatusBadRequest, NoAuthorize: true},
-		"GET:/api/v2/organizations/{organization}/templateversions/{templateversionname}": {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+		"PUT:/api/v2/users/{user}/roles":                                                           {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+		"PUT:/api/v2/organizations/{organization}/members/{user}/roles":                            {NoAuthorize: true},
+		"POST:/api/v2/workspaces/{workspace}/builds":                                               {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+		"POST:/api/v2/organizations/{organization}/templateversions":                               {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+		"GET:/api/v2/organizations/{organization}/templateversions/{templateversionname}":          {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+		"GET:/api/v2/organizations/{organization}/templateversions/{templateversionname}/previous": {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 
 		// Endpoints that use the SQLQuery filter.
 		"GET:/api/v2/workspaces/": {
@@ -564,7 +569,7 @@ func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Obje
 
 // CompileToSQL returns a compiled version of the authorizer that will work for
 // in memory databases. This fake version will not work against a SQL database.
-func (fakePreparedAuthorizer) CompileToSQL(_ regosql.ConvertConfig) (string, error) {
+func (fakePreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
 	return "", xerrors.New("not implemented")
 }
 

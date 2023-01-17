@@ -50,3 +50,12 @@ UnknownResource.args = {
     type: "noexistentvalue",
   },
 }
+
+export const EmptyIcon = Template.bind({})
+EmptyIcon.args = {
+  resource: {
+    ...MockWorkspaceResource,
+    type: "helm_release",
+    icon: "",
+  },
+}
