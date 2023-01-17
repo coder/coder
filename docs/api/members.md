@@ -1,7 +1,5 @@
 # Members
 
-> This page is incomplete, stay tuned.
-
 ## Get member roles by organization
 
 ### Code samples

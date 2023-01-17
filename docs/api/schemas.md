@@ -1,7 +1,5 @@
 # Schemas
 
-> This page is incomplete, stay tuned.
-
 ## coderd.SCIMUser
 
 ```json
