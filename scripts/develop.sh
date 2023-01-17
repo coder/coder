@@ -172,10 +172,10 @@ fatal() {
 	CODER_HOST=http://127.0.0.1:3000 start_cmd SITE date yarn --cwd=./site dev --host
 
 	interfaces=(localhost)
-	if which ip >/dev/null 2>&1; then
+	if command -v ip >/dev/null; then
 		# shellcheck disable=SC2207
 		interfaces+=($(ip a | awk '/inet / {print $2}' | cut -d/ -f1))
-	elif which ifconfig >/dev/null 2>&1; then
+	elif command -v ifconfig >/dev/null; then
 		# shellcheck disable=SC2207
 		interfaces+=($(ifconfig | awk '/inet / {print $2}'))
 	fi
