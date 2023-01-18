@@ -16,7 +16,7 @@ a publicly accessible URL to reverse proxy your deployment for simple setup.
 
 ## Address
 
-You can change which port(s) Coder listens on. 
+You can change which port(s) Coder listens on.
 
 ```sh
 # Listen on port 80
