@@ -1,8 +1,9 @@
 import { getExperiments } from "api/api"
+import { Experiment } from "api/typesGenerated"
 import { createMachine, assign } from "xstate"
 
 export interface ExperimentsContext {
-  experiments?: string[]
+  experiments?: Experiment[]
   getExperimentsError?: Error | unknown
 }
 
@@ -15,7 +16,7 @@ export const experimentsMachine = createMachine(
       context: {} as ExperimentsContext,
       services: {} as {
         getExperiments: {
-          data: string[]
+          data: Experiment[]
         }
       },
     },

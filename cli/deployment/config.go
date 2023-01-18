@@ -450,7 +450,7 @@ func newConfig() *codersdk.DeploymentConfig {
 			Name:    "Experimental",
 			Usage:   "Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.",
 			Flag:    "experimental",
-			Default: []string{},
+			Default: []codersdk.Experiment{},
 		},
 		UpdateCheck: &codersdk.DeploymentConfigField[bool]{
 			Name:    "Update Check",
@@ -578,13 +578,13 @@ func setConfig(prefix string, vip *viper.Viper, target interface{}) {
 			if !ok {
 				panic(fmt.Sprintf("string slice is of type %T", rawSlice))
 			}
-			value := make([]string, 0, len(stringSlice))
+			value := make([]codersdk.Experiment, 0, len(stringSlice))
 			for _, entry := range stringSlice {
 				for _, val := range strings.Split(entry, ",") {
 					if val == "*" || val == "true" {
 						value = append(value, codersdk.ExperimentsAll...)
 					} else {
-						value = append(value, val)
+						value = append(value, codersdk.Experiment(val))
 					}
 				}
 			}

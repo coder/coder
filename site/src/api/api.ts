@@ -636,7 +636,7 @@ export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
   }
 }
 
-export const getExperiments = async (): Promise<string[]> => {
+export const getExperiments = async (): Promise<TypesGen.Experiment[]> => {
   try {
     const response = await axios.get("/api/v2/experiments")
     return response.data

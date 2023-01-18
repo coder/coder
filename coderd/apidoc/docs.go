@@ -5958,7 +5958,7 @@ const docTemplate = `{
                 "default": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.Experiment"
                     }
                 },
                 "enterprise": {
@@ -5985,7 +5985,7 @@ const docTemplate = `{
                 "value": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.Experiment"
                     }
                 }
             }
@@ -6131,6 +6131,15 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "codersdk.Experiment": {
+            "type": "string",
+            "enum": [
+                "vscode_local"
+            ],
+            "x-enum-varnames": [
+                "ExperimentVSCodeLocal"
+            ]
         },
         "codersdk.Feature": {
             "type": "object",

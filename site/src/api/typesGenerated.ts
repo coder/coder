@@ -342,7 +342,7 @@ export interface Entitlements {
 }
 
 // From codersdk/experiments.go
-export type Experiments = string[]
+export type Experiments = Experiment[]
 
 // From codersdk/features.go
 export interface Feature {
@@ -1081,6 +1081,10 @@ export const Entitlements: Entitlement[] = [
   "grace_period",
   "not_entitled",
 ]
+
+// From codersdk/experiments.go
+export type Experiment = "vscode_local"
+export const Experiments: Experiment[] = ["vscode_local"]
 
 // From codersdk/features.go
 export type FeatureName =

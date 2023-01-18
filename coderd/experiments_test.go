@@ -44,7 +44,7 @@ func Test_Experiments(t *testing.T) {
 		experiments, err := client.Experiments(ctx)
 		require.NoError(t, err)
 		require.NotNil(t, experiments)
-		require.ElementsMatch(t, []string{"foo", "bar"}, experiments)
+		require.ElementsMatch(t, []codersdk.Experiment{"foo", "bar"}, experiments)
 		require.True(t, experiments.Enabled("foo"))
 		require.True(t, experiments.Enabled("bar"))
 		require.False(t, experiments.Enabled("baz"))

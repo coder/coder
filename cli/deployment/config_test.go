@@ -246,7 +246,7 @@ func TestConfig(t *testing.T) {
 			"CODER_EXPERIMENTAL": "foo,bar",
 		},
 		Valid: func(config *codersdk.DeploymentConfig) {
-			expected := []string{"foo", "bar"}
+			expected := []codersdk.Experiment{"foo", "bar"}
 			require.ElementsMatch(t, expected, config.Experimental.Value)
 		},
 	}} {
