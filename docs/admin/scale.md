@@ -29,10 +29,10 @@ To support 120 concurrent workspace builds, for example:
 
 ## Recent scale tests
 
-| Environment        | Users | Concurrent builds | Concurrent connections (SSH) | Concurrent connections (web) | Coder Version | Last tested  |
-| ------------------ | ----- | ----------------- | ---------------------------- | ---------------------------- | ------------- | ------------ |
-| Kubernetes (GKE)   | 1200  | 120               | 10,000                       | 10,000                       | `v0.14.2`     | Jan 10, 2022 |
-| Docker (Single VM) | 500   | 50                | 10,000                       | 10,000                       | `v0.13.4`     | Dec 20, 2022 |
+| Environment        | Users | Concurrent builds | Concurrent connections (Terminal/SSH) | Coder Version | Last tested  |
+| ------------------ | ----- | ----------------- | ------------------------------------- | ------------- | ------------ |
+| Kubernetes (GKE)   | 1200  | 120               | 10,000                                | `v0.14.2`     | Jan 10, 2022 |
+| Docker (Single VM) | 500   | 50                | 10,000                                | `v0.13.4`     | Dec 20, 2022 |
 
 ## Scale testing utility
 
