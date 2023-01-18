@@ -37,11 +37,11 @@ func (e Experiments) Enabled(ex string) bool {
 func (c *Client) Experiments(ctx context.Context) (Experiments, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/experiments", nil)
 	if err != nil {
-		return []string{}, err
+		return nil, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return []string{}, readBodyAsError(res)
+		return nil, readBodyAsError(res)
 	}
 	var exp []string
 	return exp, json.NewDecoder(res.Body).Decode(&exp)

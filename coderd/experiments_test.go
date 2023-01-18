@@ -90,6 +90,8 @@ func Test_Experiments(t *testing.T) {
 	t.Run("Unauthorized", func(t *testing.T) {
 		t.Setenv("CODER_EXPERIMENTAL", "foo,bar")
 		client := coderdtest.New(t, nil)
+		// Explicitly omit creating a user so we're unauthorized.
+		// _ = coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
