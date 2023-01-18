@@ -29,7 +29,6 @@ func Test_Experiments(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, experiments)
 		require.Empty(t, experiments)
-		require.False(t, experiments.Enabled(codersdk.ExperimentVSCodeLocal))
 		require.False(t, experiments.Enabled("foo"))
 	})
 
