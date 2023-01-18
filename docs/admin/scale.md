@@ -4,8 +4,8 @@ We scale-test Coder with the [same utility](#scaletest-utility) that can be used
 
 Coder runs workspace operations in a queue. The number of concurrent builds will be limited to the number of provisioner daemons across all coderd replicas.
 
-- **coderd**: Coder’s primary service. Learn more about [Coder’s architecture](../../about/architecture.md)
-- **coderd replicas**: Replicas (often via Kubernetes) for high availability, this is an [enterprise feature](../../enterprise.md)
+- **coderd**: Coder’s primary service. Learn more about [Coder’s architecture](../about/architecture.md)
+- **coderd replicas**: Replicas (often via Kubernetes) for high availability, this is an [enterprise feature](../enterprise.md)
 - **concurrent workspace builds**: Workspace operations (e.g. create/stop/delete/apply) across all users
 - **concurrent connections**: Any connection to a workspace (e.g. SSH, web terminal, `coder_app`)
 - **provisioner daemons**: Coder runs one workspace build per provisioner daemon. One coderd replica can host many daemons
@@ -25,7 +25,7 @@ To support 120 concurrent workspace builds, for example:
 
 - Create a cluster/nodepool with 4 nodes, 8-core each (AWS: `t3.2xlarge` GCP: `e2-highcpu-8`)
 - Run coderd with 4 replicas, 30 provisioner daemons each. (`CODER_PROVISIONER_DAEMONS=30`)
-- Ensure Coder's [PostgreSQL server](../../admin/configure.md#postgresql-database) can use up to 1.5 cores
+- Ensure Coder's [PostgreSQL server](./configure.md#postgresql-database) can use up to 1.5 cores
 
 ## Recent scale tests
 
@@ -66,4 +66,4 @@ Concurrency is configurable. `concurrency 0` means the scaletest test will attem
 
 ## Troubleshooting
 
-If a load test fails or if you are experiencing performance issues during day-to-day use, you can leverage Coder's [prometheus metrics](../prometheus.md) to identify bottlenecks during scale tests. Additionally, you can use your existing cloud monitoring stack to measure load, view server logs, etc.
+If a load test fails or if you are experiencing performance issues during day-to-day use, you can leverage Coder's [prometheus metrics](./prometheus.md) to identify bottlenecks during scale tests. Additionally, you can use your existing cloud monitoring stack to measure load, view server logs, etc.
