@@ -431,6 +431,9 @@ func (api *API) authorizeWorkspaceApp(r *http.Request, isPathApp bool, sharingLe
 	// If path-based app sharing is disabled (which is the default), we can
 	// force the sharing level to be "owner" so that the user can only access
 	// their own apps.
+	//
+	// Site owners are blocked from accessing path-based apps unless the
+	// Dangerous.AllowPathAppSiteOwnerAccess flag is enabled in the check below.
 	if isPathApp && !api.DeploymentConfig.Dangerous.AllowPathAppSharing.Value {
 		sharingLevel = database.AppSharingLevelOwner
 	}
@@ -443,17 +446,19 @@ func (api *API) authorizeWorkspaceApp(r *http.Request, isPathApp bool, sharingLe
 		return sharingLevel == database.AppSharingLevelPublic, nil
 	}
 
-	// If owners are not allowed to access any path-based app (which is the
-	// default), we can remove the "owner" role from the list of roles so that
-	// the RBAC check doesn't give them God permissions.
-	checkRoles := roles.Roles
-	if !api.DeploymentConfig.Dangerous.AllowPathAppSiteOwnerAccess.Value {
-		checkRoles = make([]string, 0, len(roles.Roles))
-		for _, role := range roles.Roles {
-			if role != rbac.RoleOwner() {
-				checkRoles = append(checkRoles, role)
-			}
-		}
+	// Block anyone from accessing workspaces they don't own in path-based apps
+	// unless the admin disables this security feature. This blocks site-owners
+	// from accessing any apps from any user's workspaces.
+	//
+	// When the Dangerous.AllowPathAppSharing flag is not enabled, the sharing
+	// level will be forced to "owner", so this check will always be true for
+	// workspaces owned by different users.
+	if isPathApp &&
+		sharingLevel == database.AppSharingLevelOwner &&
+		workspace.OwnerID != roles.ID &&
+		!api.DeploymentConfig.Dangerous.AllowPathAppSiteOwnerAccess.Value {
+
+		return false, nil
 	}
 
 	// Do a standard RBAC check. This accounts for share level "owner" and any
@@ -462,7 +467,7 @@ func (api *API) authorizeWorkspaceApp(r *http.Request, isPathApp bool, sharingLe
 	// Regardless of share level or whether it's enabled or not, the owner of
 	// the workspace can always access applications (as long as their API key's
 	// scope allows it).
-	err := api.Authorizer.ByRoleName(ctx, roles.ID.String(), checkRoles, roles.Scope.ToRBAC(), []string{}, rbac.ActionCreate, workspace.ApplicationConnectRBAC())
+	err := api.Authorizer.ByRoleName(ctx, roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), []string{}, rbac.ActionCreate, workspace.ApplicationConnectRBAC())
 	if err == nil {
 		return true, nil
 	}
@@ -536,7 +541,7 @@ func (api *API) checkWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Re
 // they will be redirected to the route below. If the user does have a session
 // key but insufficient permissions a static error page will be rendered.
 func (api *API) verifyWorkspaceApplicationSubdomainAuth(rw http.ResponseWriter, r *http.Request, host string, workspace database.Workspace, appSharingLevel database.AppSharingLevel) bool {
-	authed, ok := api.fetchWorkspaceApplicationAuth(rw, r, true, workspace, appSharingLevel)
+	authed, ok := api.fetchWorkspaceApplicationAuth(rw, r, false, workspace, appSharingLevel)
 	if !ok {
 		return false
 	}
