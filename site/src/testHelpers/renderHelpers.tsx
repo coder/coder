@@ -5,6 +5,7 @@ import {
   screen,
   waitForElementToBeRemoved,
 } from "@testing-library/react"
+import { DashboardLayout } from "components/Dashboard/DashboardLayout"
 import { createMemoryHistory } from "history"
 import { i18n } from "i18n"
 import { FC, ReactElement } from "react"
@@ -18,7 +19,6 @@ import {
 } from "react-router-dom"
 import { RequireAuth } from "../components/RequireAuth/RequireAuth"
 import { dark } from "../theme"
-import { XServiceProvider } from "../xServices/StateContext"
 import { MockUser } from "./entities"
 
 export const history = createMemoryHistory()
@@ -29,9 +29,7 @@ export const WrapperComponent: FC<React.PropsWithChildren<unknown>> = ({
   return (
     <HelmetProvider>
       <HistoryRouter history={history}>
-        <XServiceProvider>
-          <ThemeProvider theme={dark}>{children}</ThemeProvider>
-        </XServiceProvider>
+        <ThemeProvider theme={dark}>{children}</ThemeProvider>
       </HistoryRouter>
     </HelmetProvider>
   )
@@ -59,20 +57,20 @@ export function renderWithAuth(
 ): RenderWithAuthResult {
   const renderResult = wrappedRender(
     <HelmetProvider>
-      <MemoryRouter initialEntries={[route]}>
-        <XServiceProvider>
-          <I18nextProvider i18n={i18n}>
-            <ThemeProvider theme={dark}>
-              <Routes>
-                <Route element={<RequireAuth />}>
+      <I18nextProvider i18n={i18n}>
+        <ThemeProvider theme={dark}>
+          <MemoryRouter initialEntries={[route]}>
+            <Routes>
+              <Route element={<RequireAuth />}>
+                <Route element={<DashboardLayout />}>
                   <Route path={path ?? route} element={ui} />
                 </Route>
-                {routes}
-              </Routes>
-            </ThemeProvider>
-          </I18nextProvider>
-        </XServiceProvider>
-      </MemoryRouter>
+              </Route>
+              {routes}
+            </Routes>
+          </MemoryRouter>
+        </ThemeProvider>
+      </I18nextProvider>
     </HelmetProvider>,
   )
 

@@ -1,13 +1,12 @@
-import { useActor, useMachine } from "@xstate/react"
-import { FC, useContext, useEffect } from "react"
+import { useMachine } from "@xstate/react"
+import { useAuth } from "components/AuthProvider/AuthProvider"
+import { FC, useEffect } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "util/page"
 import { setupMachine } from "xServices/setup/setupXService"
-import { XServiceContext } from "xServices/StateContext"
 import { SetupPageView } from "./SetupPageView"
 
 export const SetupPage: FC = () => {
-  const xServices = useContext(XServiceContext)
   const [authState, authSend] = useAuth()
   const [setupState, setupSend] = useMachine(setupMachine, {
     actions: {

@@ -4,25 +4,15 @@ import * as API from "../../api/api"
 import { AppearanceConfig } from "../../api/typesGenerated"
 
 export type AppearanceContext = {
-  appearance: AppearanceConfig
+  appearance?: AppearanceConfig
   getAppearanceError?: Error | unknown
   setAppearanceError?: Error | unknown
   preview: boolean
 }
 
 export type AppearanceEvent =
-  | {
-      type: "GET_APPEARANCE"
-    }
   | { type: "SET_PREVIEW_APPEARANCE"; appearance: AppearanceConfig }
-  | { type: "SET_APPEARANCE"; appearance: AppearanceConfig }
-
-const emptyAppearance: AppearanceConfig = {
-  logo_url: "",
-  service_banner: {
-    enabled: false,
-  },
-}
+  | { type: "SAVE_APPEARANCE"; appearance: AppearanceConfig }
 
 export const appearanceMachine = createMachine(
   {
@@ -42,16 +32,20 @@ export const appearanceMachine = createMachine(
       },
     },
     context: {
-      appearance: emptyAppearance,
       preview: false,
     },
-    initial: "idle",
+    initial: "gettingAppearance",
     states: {
       idle: {
         on: {
-          GET_APPEARANCE: "gettingAppearance",
-          SET_PREVIEW_APPEARANCE: "settingPreviewAppearance",
-          SET_APPEARANCE: "settingAppearance",
+          SET_PREVIEW_APPEARANCE: {
+            actions: [
+              "clearGetAppearanceError",
+              "clearSetAppearanceError",
+              "assignPreviewAppearance",
+            ],
+          },
+          SAVE_APPEARANCE: "savingAppearance",
         },
       },
       gettingAppearance: {
@@ -69,17 +63,7 @@ export const appearanceMachine = createMachine(
           },
         },
       },
-      settingPreviewAppearance: {
-        entry: [
-          "clearGetAppearanceError",
-          "clearSetAppearanceError",
-          "assignPreviewAppearance",
-        ],
-        always: {
-          target: "idle",
-        },
-      },
-      settingAppearance: {
+      savingAppearance: {
         entry: "clearSetAppearanceError",
         invoke: {
           id: "setAppearance",

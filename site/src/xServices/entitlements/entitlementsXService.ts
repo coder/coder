@@ -1,28 +1,10 @@
-import { withDefaultFeatures } from "./../../api/api"
-import { MockEntitlementsWithWarnings } from "testHelpers/entities"
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
 import { Entitlements } from "../../api/typesGenerated"
 
 export type EntitlementsContext = {
-  entitlements: Entitlements
+  entitlements?: Entitlements
   getEntitlementsError?: Error | unknown
-}
-
-export type EntitlementsEvent =
-  | {
-      type: "GET_ENTITLEMENTS"
-    }
-  | { type: "SHOW_MOCK_BANNER" }
-  | { type: "HIDE_MOCK_BANNER" }
-
-const emptyEntitlements = {
-  errors: [],
-  warnings: [],
-  features: withDefaultFeatures({}),
-  has_license: false,
-  experimental: false,
-  trial: false,
 }
 
 export const entitlementsMachine = createMachine(
@@ -32,39 +14,34 @@ export const entitlementsMachine = createMachine(
     tsTypes: {} as import("./entitlementsXService.typegen").Typegen0,
     schema: {
       context: {} as EntitlementsContext,
-      events: {} as EntitlementsEvent,
       services: {
         getEntitlements: {
           data: {} as Entitlements,
         },
       },
     },
-    context: {
-      entitlements: emptyEntitlements,
-    },
-    initial: "idle",
+    initial: "gettingEntitlements",
     states: {
-      idle: {
-        on: {
-          GET_ENTITLEMENTS: "gettingEntitlements",
-          SHOW_MOCK_BANNER: { actions: "assignMockEntitlements" },
-          HIDE_MOCK_BANNER: "gettingEntitlements",
-        },
-      },
       gettingEntitlements: {
         entry: "clearGetEntitlementsError",
         invoke: {
           id: "getEntitlements",
           src: "getEntitlements",
           onDone: {
-            target: "idle",
+            target: "success",
             actions: ["assignEntitlements"],
           },
           onError: {
-            target: "idle",
+            target: "error",
             actions: ["assignGetEntitlementsError"],
           },
         },
+      },
+      success: {
+        type: "final",
+      },
+      error: {
+        type: "final",
       },
     },
   },
@@ -78,9 +55,6 @@ export const entitlementsMachine = createMachine(
       }),
       clearGetEntitlementsError: assign({
         getEntitlementsError: (_) => undefined,
-      }),
-      assignMockEntitlements: assign({
-        entitlements: (_) => MockEntitlementsWithWarnings,
       }),
     },
     services: {
