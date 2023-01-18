@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"time"
@@ -17,11 +18,12 @@ import (
 
 func create() *cobra.Command {
 	var (
-		parameterFile string
-		templateName  string
-		startAt       string
-		stopAfter     time.Duration
-		workspaceName string
+		parameterFile     string
+		richParameterFile string
+		templateName      string
+		startAt           string
+		stopAfter         time.Duration
+		workspaceName     string
 	)
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
@@ -121,7 +123,7 @@ func create() *cobra.Command {
 				schedSpec = ptr.Ref(sched.String())
 			}
 
-			parameters, err := prepWorkspaceBuild(cmd, client, prepWorkspaceBuildArgs{
+			buildParams, err := prepWorkspaceBuild(cmd, client, prepWorkspaceBuildArgs{
 				Template:         template,
 				ExistingParams:   []codersdk.Parameter{},
 				ParameterFile:    parameterFile,
@@ -140,11 +142,12 @@ func create() *cobra.Command {
 			}
 
 			workspace, err := client.CreateWorkspace(cmd.Context(), organization.ID, codersdk.Me, codersdk.CreateWorkspaceRequest{
-				TemplateID:        template.ID,
-				Name:              workspaceName,
-				AutostartSchedule: schedSpec,
-				TTLMillis:         ptr.Ref(stopAfter.Milliseconds()),
-				ParameterValues:   parameters,
+				TemplateID:          template.ID,
+				Name:                workspaceName,
+				AutostartSchedule:   schedSpec,
+				TTLMillis:           ptr.Ref(stopAfter.Milliseconds()),
+				ParameterValues:     buildParams.parameters,
+				RichParameterValues: buildParams.richParameters,
 			})
 			if err != nil {
 				return err
@@ -163,26 +166,54 @@ func create() *cobra.Command {
 	cliui.AllowSkipPrompt(cmd)
 	cliflag.StringVarP(cmd.Flags(), &templateName, "template", "t", "CODER_TEMPLATE_NAME", "", "Specify a template name.")
 	cliflag.StringVarP(cmd.Flags(), &parameterFile, "parameter-file", "", "CODER_PARAMETER_FILE", "", "Specify a file path with parameter values.")
+	cliflag.StringVarP(cmd.Flags(), &richParameterFile, "rich-parameter-file", "", "CODER_RICH_PARAMETER_FILE", "", "Specify a file path with values for rich parameters defined in the template.")
 	cliflag.StringVarP(cmd.Flags(), &startAt, "start-at", "", "CODER_WORKSPACE_START_AT", "", "Specify the workspace autostart schedule. Check `coder schedule start --help` for the syntax.")
 	cliflag.DurationVarP(cmd.Flags(), &stopAfter, "stop-after", "", "CODER_WORKSPACE_STOP_AFTER", 8*time.Hour, "Specify a duration after which the workspace should shut down (e.g. 8h).")
 	return cmd
 }
 
 type prepWorkspaceBuildArgs struct {
-	Template         codersdk.Template
-	ExistingParams   []codersdk.Parameter
-	ParameterFile    string
-	NewWorkspaceName string
+	Template           codersdk.Template
+	ExistingParams     []codersdk.Parameter
+	ParameterFile      string
+	ExistingRichParams []codersdk.WorkspaceBuildParameter
+	RichParameterFile  string
+	NewWorkspaceName   string
+}
+
+type buildParameters struct {
+	// Parameters contains legacy parameters stored in /parameters.
+	parameters []codersdk.CreateParameterRequest
+	// Rich parameters stores values for build parameters annotated with description, icon, type, etc.
+	richParameters []codersdk.WorkspaceBuildParameter
 }
 
 // prepWorkspaceBuild will ensure a workspace build will succeed on the latest template version.
-// Any missing params will be prompted to the user.
-func prepWorkspaceBuild(cmd *cobra.Command, client *codersdk.Client, args prepWorkspaceBuildArgs) ([]codersdk.CreateParameterRequest, error) {
+// Any missing params will be prompted to the user. It supports legacy and rich parameters.
+func prepWorkspaceBuild(cmd *cobra.Command, client *codersdk.Client, args prepWorkspaceBuildArgs) (*buildParameters, error) {
 	ctx := cmd.Context()
 	templateVersion, err := client.TemplateVersion(ctx, args.Template.ActiveVersionID)
 	if err != nil {
 		return nil, err
 	}
+
+	legacyParameters, err := prepLegacyParameters(ctx, cmd, client, templateVersion, args)
+	if err != nil {
+		return nil, err
+	}
+
+	richParameters, err := prepRichParameters()
+	if err != nil {
+		return nil, err
+	}
+
+	return &buildParameters{
+		parameters:     legacyParameters,
+		richParameters: richParameters,
+	}, nil
+}
+
+func prepLegacyParameters(ctx context.Context, cmd *cobra.Command, client *codersdk.Client, templateVersion codersdk.TemplateVersion, args prepWorkspaceBuildArgs) ([]codersdk.CreateParameterRequest, error) {
 	parameterSchemas, err := client.TemplateVersionSchema(ctx, templateVersion.ID)
 	if err != nil {
 		return nil, err
@@ -278,6 +309,9 @@ PromptParamLoop:
 	if err != nil {
 		return nil, err
 	}
-
 	return parameters, nil
+}
+
+func prepRichParameters() ([]codersdk.WorkspaceBuildParameter, error) {
+	return nil, nil
 }
