@@ -982,6 +982,8 @@ export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
   }),
 }
 
+export const MockExperiments: TypesGen.Experiment[] = ["vscode_local"]
+
 export const MockAuditLog: TypesGen.AuditLog = {
   id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
   request_id: "53bded77-7b9d-4e82-8771-991a34d759f9",

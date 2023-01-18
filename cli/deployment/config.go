@@ -446,10 +446,19 @@ func newConfig() *codersdk.DeploymentConfig {
 				Default:     512,
 			},
 		},
+		// DEPRECATED: use Experiments instead.
 		Experimental: &codersdk.DeploymentConfigField[bool]{
-			Name:  "Experimental",
-			Usage: "Enable experimental features. Experimental features are not ready for production.",
-			Flag:  "experimental",
+			Name:    "Experimental",
+			Usage:   "Enable experimental features. Experimental features are not ready for production.",
+			Flag:    "experimental",
+			Default: false,
+			Hidden:  true,
+		},
+		Experiments: &codersdk.DeploymentConfigField[[]string]{
+			Name:    "Experiments",
+			Usage:   "Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.",
+			Flag:    "experiments",
+			Default: []string{},
 		},
 		UpdateCheck: &codersdk.DeploymentConfigField[bool]{
 			Name:    "Update Check",
@@ -557,12 +566,12 @@ func setConfig(prefix string, vip *viper.Viper, target interface{}) {
 			// with a comma, but Viper only supports with a space. This
 			// is a small hack around it!
 			rawSlice := reflect.ValueOf(vip.GetStringSlice(prefix)).Interface()
-			slice, ok := rawSlice.([]string)
+			stringSlice, ok := rawSlice.([]string)
 			if !ok {
 				panic(fmt.Sprintf("string slice is of type %T", rawSlice))
 			}
-			value := make([]string, 0, len(slice))
-			for _, entry := range slice {
+			value := make([]string, 0, len(stringSlice))
+			for _, entry := range stringSlice {
 				value = append(value, strings.Split(entry, ",")...)
 			}
 			val.FieldByName("Value").Set(reflect.ValueOf(value))
