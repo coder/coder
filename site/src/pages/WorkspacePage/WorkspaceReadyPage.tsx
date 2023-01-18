@@ -1,5 +1,4 @@
 import { useActor, useSelector } from "@xstate/react"
-import { Experiments, FeatureNames } from "api/types"
 import dayjs from "dayjs"
 import { useContext, useEffect } from "react"
 import { Helmet } from "react-helmet-async"
@@ -125,8 +124,8 @@ export const WorkspaceReadyPage = ({
         canUpdateWorkspace={canUpdateWorkspace}
         hideSSHButton={featureVisibility["browser_only"]}
         hideVSCodeDesktopButton={
-          !experiments.includes(Experiments.VSCodeLocal) ||
-          featureVisibility[FeatureNames.BrowserOnly]
+          !experiments.includes("vscode_local") ||
+          featureVisibility["browser_only"]
         }
         workspaceErrors={{
           [WorkspaceErrors.GET_RESOURCES_ERROR]: refreshWorkspaceWarning,
