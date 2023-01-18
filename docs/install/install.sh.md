@@ -20,7 +20,7 @@ curl -fsSL https://coder.com/install.sh | sh -s -- --help
 
 After installing, use the in-terminal instructions to start the Coder server manually via `coder server` or as a system package.
 
-By default, the Coder server runs on [127.0.0.1:3000](https://127.0.0.1:3000) and uses a [public tunnel](../admin/configure.md#tunnel) for workspace connections.
+By default, the Coder server runs on `http://127.0.0.1:3000` and uses a [public tunnel](../admin/configure.md#tunnel) for workspace connections.
 
 ## Next steps
 
