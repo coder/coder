@@ -1306,7 +1306,7 @@ func TestAppSharing(t *testing.T) {
 	}
 
 	testLevels := func(t *testing.T, isPathApp, pathAppSharingEnabled, siteOwnerPathAppAccessEnabled bool) {
-		workspace, agent, user, ownerClient, client, clientInOtherOrg, clientWithNoAuth := setup(t, pathAppSharingEnabled, siteOwnerPathAppAccessEnabled)
+		workspace, agnt, user, ownerClient, client, clientInOtherOrg, clientWithNoAuth := setup(t, pathAppSharingEnabled, siteOwnerPathAppAccessEnabled)
 
 		allowedUnlessSharingDisabled := !isPathApp || pathAppSharingEnabled
 		siteOwnerCanAccess := !isPathApp || siteOwnerPathAppAccessEnabled
@@ -1323,17 +1323,17 @@ func TestAppSharing(t *testing.T) {
 
 			// Site owner should be able to access all workspaces if
 			// enabled.
-			verifyAccess(t, isPathApp, user.Username, workspace.Name, agent.Name, proxyTestAppNameOwner, ownerClient, siteOwnerCanAccess, false)
+			verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameOwner, ownerClient, siteOwnerCanAccess, false)
 
 			// Owner should be able to access their own workspace.
-			verifyAccess(t, isPathApp, user.Username, workspace.Name, agent.Name, proxyTestAppNameOwner, client, true, false)
+			verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameOwner, client, true, false)
 
 			// Authenticated users should not have access to a workspace that
 			// they do not own.
-			verifyAccess(t, isPathApp, user.Username, workspace.Name, agent.Name, proxyTestAppNameOwner, clientInOtherOrg, false, false)
+			verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameOwner, clientInOtherOrg, false, false)
 
 			// Unauthenticated user should not have any access.
-			verifyAccess(t, isPathApp, user.Username, workspace.Name, agent.Name, proxyTestAppNameOwner, clientWithNoAuth, false, true)
+			verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameOwner, clientWithNoAuth, false, true)
 		})
 
 		t.Run("LevelAuthenticated", func(t *testing.T) {
@@ -1341,16 +1341,16 @@ func TestAppSharing(t *testing.T) {
 
 			// Site owner should be able to access all workspaces if
 			// enabled.
-			verifyAccess(t, isPathApp, user.Username, workspace.Name, agent.Name, proxyTestAppNameAuthenticated, ownerClient, siteOwnerCanAccessShared, false)
+			verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameAuthenticated, ownerClient, siteOwnerCanAccessShared, false)
 
 			// Owner should be able to access their own workspace.
-			verifyAccess(t, isPathApp, user.Username, workspace.Name, agent.Name, proxyTestAppNameAuthenticated, client, true, false)
+			verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameAuthenticated, client, true, false)
 
 			// Authenticated users should be able to access the workspace.
-			verifyAccess(t, isPathApp, user.Username, workspace.Name, agent.Name, proxyTestAppNameAuthenticated, clientInOtherOrg, allowedUnlessSharingDisabled, false)
+			verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameAuthenticated, clientInOtherOrg, allowedUnlessSharingDisabled, false)
 
 			// Unauthenticated user should not have any access.
-			verifyAccess(t, isPathApp, user.Username, workspace.Name, agent.Name, proxyTestAppNameAuthenticated, clientWithNoAuth, false, true)
+			verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameAuthenticated, clientWithNoAuth, false, true)
 		})
 
 		t.Run("LevelPublic", func(t *testing.T) {
@@ -1358,16 +1358,16 @@ func TestAppSharing(t *testing.T) {
 
 			// Site owner should be able to access all workspaces if
 			// enabled.
-			verifyAccess(t, isPathApp, user.Username, workspace.Name, agent.Name, proxyTestAppNamePublic, ownerClient, siteOwnerCanAccessShared, false)
+			verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNamePublic, ownerClient, siteOwnerCanAccessShared, false)
 
 			// Owner should be able to access their own workspace.
-			verifyAccess(t, isPathApp, user.Username, workspace.Name, agent.Name, proxyTestAppNamePublic, client, true, false)
+			verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNamePublic, client, true, false)
 
 			// Authenticated users should be able to access the workspace.
-			verifyAccess(t, isPathApp, user.Username, workspace.Name, agent.Name, proxyTestAppNamePublic, clientInOtherOrg, allowedUnlessSharingDisabled, false)
+			verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNamePublic, clientInOtherOrg, allowedUnlessSharingDisabled, false)
 
 			// Unauthenticated user should be able to access the workspace.
-			verifyAccess(t, isPathApp, user.Username, workspace.Name, agent.Name, proxyTestAppNamePublic, clientWithNoAuth, allowedUnlessSharingDisabled, !allowedUnlessSharingDisabled)
+			verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNamePublic, clientWithNoAuth, allowedUnlessSharingDisabled, !allowedUnlessSharingDisabled)
 		})
 	}
 
