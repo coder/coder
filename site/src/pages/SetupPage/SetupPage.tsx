@@ -8,7 +8,7 @@ import { SetupPageView } from "./SetupPageView"
 
 export const SetupPage: FC = () => {
   const xServices = useContext(XServiceContext)
-  const [authState, authSend] = useActor(xServices.authXService)
+  const [authState, authSend] = useAuth()
   const [setupState, setupSend] = useMachine(setupMachine, {
     actions: {
       onCreateFirstUser: ({ firstUser }) => {

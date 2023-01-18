@@ -1,6 +1,4 @@
-import { useSelector } from "@xstate/react"
 import { FullScreenLoader } from "components/Loader/FullScreenLoader"
-import { RequirePermission } from "components/RequirePermission/RequirePermission"
 import { TemplateLayout } from "components/TemplateLayout/TemplateLayout"
 import { UsersLayout } from "components/UsersLayout/UsersLayout"
 import IndexPage from "pages"
@@ -12,11 +10,8 @@ import { TemplateSettingsPage } from "pages/TemplateSettingsPage/TemplateSetting
 import TemplatesPage from "pages/TemplatesPage/TemplatesPage"
 import UsersPage from "pages/UsersPage/UsersPage"
 import WorkspacesPage from "pages/WorkspacesPage/WorkspacesPage"
-import { FC, lazy, Suspense, useContext } from "react"
+import { FC, lazy, Suspense } from "react"
 import { Route, Routes } from "react-router-dom"
-import { selectPermissions } from "xServices/auth/authSelectors"
-import { selectFeatureVisibility } from "xServices/entitlements/entitlementsSelectors"
-import { XServiceContext } from "xServices/StateContext"
 import { DashboardLayout } from "./components/DashboardLayout/DashboardLayout"
 import { RequireAuth } from "./components/RequireAuth/RequireAuth"
 import { SettingsLayout } from "./components/SettingsLayout/SettingsLayout"
@@ -123,13 +118,6 @@ const CreateTemplatePage = lazy(
 )
 
 export const AppRouter: FC = () => {
-  const xServices = useContext(XServiceContext)
-  const permissions = useSelector(xServices.authXService, selectPermissions)
-  const featureVisibility = useSelector(
-    xServices.entitlementsXService,
-    selectFeatureVisibility,
-  )
-
   return (
     <Suspense fallback={<FullScreenLoader />}>
       <Routes>
@@ -188,21 +176,7 @@ export const AppRouter: FC = () => {
               <Route path=":groupId/settings" element={<SettingsGroupPage />} />
             </Route>
 
-            <Route path="/audit">
-              <Route
-                index
-                element={
-                  <RequirePermission
-                    isFeatureVisible={
-                      featureVisibility["audit_log"] &&
-                      Boolean(permissions?.viewAuditLog)
-                    }
-                  >
-                    <AuditPage />
-                  </RequirePermission>
-                }
-              />
-            </Route>
+            <Route path="/audit" element={<AuditPage />} />
 
             <Route
               path="/settings/deployment"

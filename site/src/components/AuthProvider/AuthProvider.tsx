@@ -1,0 +1,36 @@
+import { useActor, useInterpret } from "@xstate/react"
+import { createContext, FC, PropsWithChildren, useContext } from "react"
+import { authMachine } from "xServices/auth/authXService"
+import { ActorRefFrom } from "xstate"
+
+interface AuthProviderContextValue {
+  authService: ActorRefFrom<typeof authMachine>
+}
+
+const AuthProviderContext = createContext<AuthProviderContextValue | undefined>(
+  undefined,
+)
+
+export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
+  const authService = useInterpret(authMachine)
+
+  return (
+    <AuthProviderContext.Provider value={{ authService }}>
+      {children}
+    </AuthProviderContext.Provider>
+  )
+}
+
+// The returned type is kinda complex to rewrite it
+// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types -- Read above
+export const useAuth = () => {
+  const context = useContext(AuthProviderContext)
+
+  if (!context) {
+    throw new Error("useAuth should be used inside of <AuthProvider />")
+  }
+
+  const auth = useActor(context.authService)
+
+  return auth
+}

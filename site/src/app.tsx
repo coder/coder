@@ -1,5 +1,6 @@
 import CssBaseline from "@material-ui/core/CssBaseline"
 import ThemeProvider from "@material-ui/styles/ThemeProvider"
+import { AuthProvider } from "components/AuthProvider/AuthProvider"
 import { FC } from "react"
 import { HelmetProvider } from "react-helmet-async"
 import { BrowserRouter as Router } from "react-router-dom"
@@ -8,7 +9,6 @@ import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary"
 import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar"
 import { dark } from "./theme"
 import "./theme/globalFonts"
-import { XServiceProvider } from "./xServices/StateContext"
 
 export const App: FC = () => {
   return (
@@ -17,10 +17,10 @@ export const App: FC = () => {
         <ThemeProvider theme={dark}>
           <CssBaseline />
           <ErrorBoundary>
-            <XServiceProvider>
+            <AuthProvider>
               <AppRouter />
               <GlobalSnackbar />
-            </XServiceProvider>
+            </AuthProvider>
           </ErrorBoundary>
         </ThemeProvider>
       </HelmetProvider>

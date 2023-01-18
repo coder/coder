@@ -1,4 +1,5 @@
 import { useActor } from "@xstate/react"
+import { useAuth } from "components/AuthProvider/AuthProvider"
 import { useContext, useEffect } from "react"
 import { XServiceContext } from "xServices/StateContext"
 import { ServiceBannerView } from "./ServiceBannerView"
@@ -8,7 +9,7 @@ export const ServiceBanner: React.FC = () => {
   const [appearanceState, appearanceSend] = useActor(
     xServices.appearanceXService,
   )
-  const [authState] = useActor(xServices.authXService)
+  const [authState] = useAuth()
   const { message, background_color, enabled } =
     appearanceState.context.appearance.service_banner
 
