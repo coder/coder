@@ -97,6 +97,8 @@ resource "kubernetes_persistent_volume_claim" "home" {
       "com.coder.resource"       = "true"
       "com.coder.workspace.id"   = data.coder_workspace.me.id
       "com.coder.workspace.name" = data.coder_workspace.me.name
+      "com.coder.user.id"        = data.coder_workspace.me.owner_id
+      "com.coder.user.username"  = data.coder_workspace.me.owner
     }
   }
   wait_until_bound = false
@@ -123,8 +125,8 @@ resource "kubernetes_pod" "main" {
       "com.coder.resource"       = "true"
       "com.coder.workspace.id"   = data.coder_workspace.me.id
       "com.coder.workspace.name" = data.coder_workspace.me.name
-      "com.coder.user"           = data.coder_workspace.me.owner_id
-      "com.coder.username"       = data.coder_workspace.me.owner
+      "com.coder.user.id"        = data.coder_workspace.me.owner_id
+      "com.coder.user.username"  = data.coder_workspace.me.owner
     }
   }
   spec {
