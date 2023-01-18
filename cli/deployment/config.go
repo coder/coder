@@ -752,7 +752,7 @@ func setFlags(prefix string, flagset *pflag.FlagSet, vip *viper.Viper, target in
 			_ = flagset.IntP(flg, shorthand, vip.GetInt(prefix), usage)
 		case time.Duration:
 			_ = flagset.DurationP(flg, shorthand, vip.GetDuration(prefix), usage)
-		case []string, codersdk.Experiments:
+		case []string:
 			_ = flagset.StringSliceP(flg, shorthand, vip.GetStringSlice(prefix), usage)
 		case []codersdk.GitAuthConfig:
 			// Ignore this one!

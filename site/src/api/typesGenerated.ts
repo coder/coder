@@ -1285,10 +1285,4 @@ export const WorkspaceTransitions: WorkspaceTransition[] = [
 ]
 
 // From codersdk/deploymentconfig.go
-export type Flaggable =
-  | string
-  | number
-  | boolean
-  | string[]
-  | GitAuthConfig[]
-  | Experiments
+export type Flaggable = string | number | boolean | string[] | GitAuthConfig[]

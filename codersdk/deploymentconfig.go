@@ -166,7 +166,7 @@ type LoggingConfig struct {
 }
 
 type Flaggable interface {
-	string | time.Duration | bool | int | []string | []GitAuthConfig | Experiments
+	string | time.Duration | bool | int | []string | []GitAuthConfig
 }
 
 type DeploymentConfigField[T Flaggable] struct {
