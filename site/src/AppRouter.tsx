@@ -109,6 +109,12 @@ const NetworkSettingsPage = lazy(
       "./pages/DeploySettingsPage/NetworkSettingsPage/NetworkSettingsPage"
     ),
 )
+const MetricsPage = lazy(
+  () =>
+    import(
+      "./pages/DeploySettingsPage/MetricsPage/MetricsPage"
+    ),
+)
 const GitAuthPage = lazy(() => import("./pages/GitAuthPage/GitAuthPage"))
 const TemplateVersionPage = lazy(
   () => import("./pages/TemplateVersionPage/TemplateVersionPage"),
@@ -216,6 +222,7 @@ export const AppRouter: FC = () => {
               <Route path="network" element={<NetworkSettingsPage />} />
               <Route path="userauth" element={<UserAuthSettingsPage />} />
               <Route path="gitauth" element={<GitAuthSettingsPage />} />
+              <Route path="metrics" element={<MetricsPage />} />
             </Route>
 
             <Route path="settings" element={<SettingsLayout />}>
