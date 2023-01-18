@@ -322,6 +322,8 @@ func (q *AuthzQuerier) GetUserByID(ctx context.Context, arg uuid.UUID) (User, er
 	return authorizedFetch(q.authorizer, rbac.ActionRead, q.database.GetUserByID)(ctx, arg)
 }
 
+// Rebrand GetUserCount to UsersExist
+// UsersExist(ctx context.Context) (bool, error)
 func (q *AuthzQuerier) GetUserCount(ctx context.Context) (int64, error) {
 	panic("not implemented")
 }

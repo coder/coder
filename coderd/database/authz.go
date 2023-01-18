@@ -30,6 +30,32 @@ func WithAuthorizeContext(ctx context.Context, actorID uuid.UUID, roles []string
 	})
 }
 
+func WithWorkspaceAgentTokenContext(ctx context.Context, agent WorkspaceAgent) {
+	// from agent, get workspace owner.
+	// Build a new subject for RBAC that is the owner ID and has their roles with a
+	// agent scope?
+
+
+	//var w Workspace
+	//w.OwnerID
+	//// TODO: How does an agent read the workspace? With what authz credentials?
+	//agent.ResourceID
+	//var r WorkspaceResource
+	//r.
+}
+
+func workspaceAgentTokenFromContext() {
+
+}
+
+func WithProvisionerToken() {
+
+}
+
+func provisionerTokenFromContext() {
+
+}
+
 func actorFromContext(ctx context.Context) (actor, bool) {
 	a, ok := ctx.Value(authContextKey{}).(actor)
 	return a, ok
