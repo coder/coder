@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"time"
@@ -197,23 +196,7 @@ func prepWorkspaceBuild(cmd *cobra.Command, client *codersdk.Client, args prepWo
 		return nil, err
 	}
 
-	legacyParameters, err := prepLegacyParameters(ctx, cmd, client, templateVersion, args)
-	if err != nil {
-		return nil, err
-	}
-
-	richParameters, err := prepRichParameters()
-	if err != nil {
-		return nil, err
-	}
-
-	return &buildParameters{
-		parameters:     legacyParameters,
-		richParameters: richParameters,
-	}, nil
-}
-
-func prepLegacyParameters(ctx context.Context, cmd *cobra.Command, client *codersdk.Client, templateVersion codersdk.TemplateVersion, args prepWorkspaceBuildArgs) ([]codersdk.CreateParameterRequest, error) {
+	// Legacy parameters
 	parameterSchemas, err := client.TemplateVersionSchema(ctx, templateVersion.ID)
 	if err != nil {
 		return nil, err
@@ -231,7 +214,7 @@ func prepLegacyParameters(ctx context.Context, cmd *cobra.Command, client *coder
 		}
 	}
 	disclaimerPrinted := false
-	parameters := make([]codersdk.CreateParameterRequest, 0)
+	legacyParameters := make([]codersdk.CreateParameterRequest, 0)
 PromptParamLoop:
 	for _, parameterSchema := range parameterSchemas {
 		if !parameterSchema.AllowOverrideSource {
@@ -258,7 +241,7 @@ PromptParamLoop:
 			return nil, err
 		}
 
-		parameters = append(parameters, codersdk.CreateParameterRequest{
+		legacyParameters = append(legacyParameters, codersdk.CreateParameterRequest{
 			Name:              parameterSchema.Name,
 			SourceValue:       parameterValue,
 			SourceScheme:      codersdk.ParameterSourceSchemeData,
@@ -267,10 +250,55 @@ PromptParamLoop:
 	}
 	_, _ = fmt.Fprintln(cmd.OutOrStdout())
 
+	// Rich parameters
+	templateVersionParameters, err := client.TemplateVersionRichParameters(cmd.Context(), templateVersion.ID)
+	if err != nil {
+		return nil, xerrors.Errorf("get template version rich parameters", err)
+	}
+
+	parameterMapFromFile = map[string]string{}
+	useParamFile = false
+	if args.ParameterFile != "" {
+		useParamFile = true
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("Attempting to read the variables from the rich parameter file.")+"\r\n")
+		parameterMapFromFile, err = createParameterMapFromFile(args.ParameterFile)
+		if err != nil {
+			return nil, err
+		}
+	}
+	disclaimerPrinted = false
+	richParameters := make([]codersdk.WorkspaceBuildParameter, 0)
+PromptRichParamLoop:
+	for _, templateVersionParameter := range templateVersionParameters {
+		if !disclaimerPrinted {
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("This template has customizable parameters. Values can be changed after create, but may have unintended side effects (like data loss).")+"\r\n")
+			disclaimerPrinted = true
+		}
+
+		// Param file is all or nothing
+		if !useParamFile {
+			for _, e := range args.ExistingParams {
+				if e.Name == templateVersionParameter.Name {
+					// If the param already exists, we do not need to prompt it again.
+					// The workspace scope will reuse params for each build.
+					continue PromptRichParamLoop
+				}
+			}
+		}
+
+		parameterValue, err := getWorkspaceBuildParameterValueFromMapOrInput(cmd, parameterMapFromFile, templateVersionParameter)
+		if err != nil {
+			return nil, err
+		}
+
+		richParameters = append(richParameters, *parameterValue)
+	}
+
 	// Run a dry-run with the given parameters to check correctness
 	dryRun, err := client.CreateTemplateVersionDryRun(cmd.Context(), templateVersion.ID, codersdk.CreateTemplateVersionDryRunRequest{
 		WorkspaceName:   args.NewWorkspaceName,
-		ParameterValues: parameters,
+		ParameterValues: legacyParameters,
+		// TODO RichParameterValues
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("begin workspace dry-run: %w", err)
@@ -309,9 +337,9 @@ PromptParamLoop:
 	if err != nil {
 		return nil, err
 	}
-	return parameters, nil
-}
 
-func prepRichParameters() ([]codersdk.WorkspaceBuildParameter, error) {
-	return nil, nil
+	return &buildParameters{
+		parameters:     legacyParameters,
+		richParameters: richParameters,
+	}, nil
 }
