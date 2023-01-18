@@ -19,7 +19,7 @@ const (
 	ScopeApplicationConnect Scope = "application_connect"
 )
 
-// TODO: Support passing in scopeID list for whitelisting allowed resources.
+// TODO: Support passing in scopeID list for allowlisting resources.
 var builtinScopes = map[Scope]ScopeRole{
 	// ScopeAll is a special scope that allows access to all resources. During
 	// authorize checks it is usually not used directly and skips scope checks.
