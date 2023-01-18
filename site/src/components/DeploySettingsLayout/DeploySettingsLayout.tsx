@@ -5,13 +5,16 @@ import { Sidebar } from "./Sidebar"
 import { createContext, Suspense, useContext, FC } from "react"
 import { useMachine } from "@xstate/react"
 import { Loader } from "components/Loader/Loader"
-import { DeploymentConfig } from "api/typesGenerated"
+import { DeploymentConfig, TemplateDAUsResponse } from "api/typesGenerated"
 import { deploymentConfigMachine } from "xServices/deploymentConfig/deploymentConfigMachine"
 import { RequirePermission } from "components/RequirePermission/RequirePermission"
 import { usePermissions } from "hooks/usePermissions"
 import { Outlet } from "react-router-dom"
 
-type DeploySettingsContextValue = { deploymentConfig: DeploymentConfig }
+type DeploySettingsContextValue = {
+  deploymentConfig: DeploymentConfig
+  deploymentDAUs?: TemplateDAUsResponse
+}
 
 const DeploySettingsContext = createContext<
   DeploySettingsContextValue | undefined
@@ -30,7 +33,7 @@ export const useDeploySettings = (): DeploySettingsContextValue => {
 export const DeploySettingsLayout: FC = () => {
   const [state] = useMachine(deploymentConfigMachine)
   const styles = useStyles()
-  const { deploymentConfig } = state.context
+  const { deploymentConfig, deploymentDAUs } = state.context
   const permissions = usePermissions()
 
   return (
@@ -41,7 +44,7 @@ export const DeploySettingsLayout: FC = () => {
           <main className={styles.content}>
             {deploymentConfig ? (
               <DeploySettingsContext.Provider
-                value={{ deploymentConfig: deploymentConfig }}
+                value={{ deploymentConfig: deploymentConfig, deploymentDAUs }}
               >
                 <Suspense fallback={<Loader />}>
                   <Outlet />
