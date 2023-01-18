@@ -1,3 +1,5 @@
+import Button from "@material-ui/core/Button"
+import Link from "@material-ui/core/Link"
 import Table from "@material-ui/core/Table"
 import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
@@ -8,12 +10,14 @@ import { AuditLogRow } from "components/AuditLogRow/AuditLogRow"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { EmptyState } from "components/EmptyState/EmptyState"
 import { Margins } from "components/Margins/Margins"
+import ArrowRightAltOutlined from "@material-ui/icons/ArrowRightAltOutlined"
 import {
   PageHeader,
   PageHeaderSubtitle,
   PageHeaderTitle,
 } from "components/PageHeader/PageHeader"
 import { PaginationWidget } from "components/PaginationWidget/PaginationWidget"
+import { Paywall } from "components/Paywall/Paywall"
 import { SearchBarWithFilter } from "components/SearchBarWithFilter/SearchBarWithFilter"
 import { Stack } from "components/Stack/Stack"
 import { TableLoader } from "components/TableLoader/TableLoader"
@@ -46,6 +50,7 @@ export interface AuditPageViewProps {
   onFilter: (filter: string) => void
   paginationRef: PaginationMachineRef
   isNonInitialPage: boolean
+  isAuditLogVisible: boolean
 }
 
 export const AuditPageView: FC<AuditPageViewProps> = ({
@@ -55,6 +60,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
   onFilter,
   paginationRef,
   isNonInitialPage,
+  isAuditLogVisible,
 }) => {
   const { t } = useTranslation("auditLog")
   const isLoading = auditLogs === undefined || count === undefined
@@ -72,53 +78,88 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
         <PageHeaderSubtitle>{Language.subtitle}</PageHeaderSubtitle>
       </PageHeader>
 
-      <SearchBarWithFilter
-        docs="https://coder.com/docs/coder-oss/latest/admin/audit-logs#filtering-logs"
-        filter={filter}
-        onFilter={onFilter}
-        presetFilters={presetFilters}
-      />
+      <ChooseOne>
+        <Cond condition={isAuditLogVisible}>
+          <SearchBarWithFilter
+            docs="https://coder.com/docs/coder-oss/latest/admin/audit-logs#filtering-logs"
+            filter={filter}
+            onFilter={onFilter}
+            presetFilters={presetFilters}
+          />
 
-      <TableContainer>
-        <Table>
-          <TableBody>
-            <ChooseOne>
-              <Cond condition={isLoading}>
-                <TableLoader />
-              </Cond>
-              <Cond condition={isEmpty}>
+          <TableContainer>
+            <Table>
+              <TableBody>
                 <ChooseOne>
-                  <Cond condition={isNonInitialPage}>
-                    <TableRow>
-                      <TableCell colSpan={999}>
-                        <EmptyState message={t("table.emptyPage")} />
-                      </TableCell>
-                    </TableRow>
+                  <Cond condition={isLoading}>
+                    <TableLoader />
+                  </Cond>
+                  <Cond condition={isEmpty}>
+                    <ChooseOne>
+                      <Cond condition={isNonInitialPage}>
+                        <TableRow>
+                          <TableCell colSpan={999}>
+                            <EmptyState message={t("table.emptyPage")} />
+                          </TableCell>
+                        </TableRow>
+                      </Cond>
+                      <Cond>
+                        <TableRow>
+                          <TableCell colSpan={999}>
+                            <EmptyState message={t("table.noLogs")} />
+                          </TableCell>
+                        </TableRow>
+                      </Cond>
+                    </ChooseOne>
                   </Cond>
                   <Cond>
-                    <TableRow>
-                      <TableCell colSpan={999}>
-                        <EmptyState message={t("table.noLogs")} />
-                      </TableCell>
-                    </TableRow>
+                    {auditLogs && (
+                      <Timeline
+                        items={auditLogs}
+                        getDate={(log) => new Date(log.time)}
+                        row={(log) => (
+                          <AuditLogRow key={log.id} auditLog={log} />
+                        )}
+                      />
+                    )}
                   </Cond>
                 </ChooseOne>
-              </Cond>
-              <Cond>
-                {auditLogs && (
-                  <Timeline
-                    items={auditLogs}
-                    getDate={(log) => new Date(log.time)}
-                    row={(log) => <AuditLogRow key={log.id} auditLog={log} />}
-                  />
-                )}
-              </Cond>
-            </ChooseOne>
-          </TableBody>
-        </Table>
-      </TableContainer>
+              </TableBody>
+            </Table>
+          </TableContainer>
 
-      <PaginationWidget numRecords={count} paginationRef={paginationRef} />
+          <PaginationWidget numRecords={count} paginationRef={paginationRef} />
+        </Cond>
+
+        <Cond>
+          <Paywall
+            message="Audit logs"
+            description="Audit Logs allows Auditors to monitor user operations in their deployment. To use this feature, you have to upgrade your account."
+            cta={
+              <Stack direction="row" alignItems="center">
+                <Link
+                  underline="none"
+                  href="https://coder.com/docs/coder-oss/latest/admin/upgrade"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <Button size="small" startIcon={<ArrowRightAltOutlined />}>
+                    See how to upgrade
+                  </Button>
+                </Link>
+                <Link
+                  underline="none"
+                  href="https://coder.com/docs/coder-oss/latest/admin/audit-logs"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Read the docs
+                </Link>
+              </Stack>
+            }
+          />
+        </Cond>
+      </ChooseOne>
     </Margins>
   )
 }
