@@ -30,15 +30,15 @@ export const experimentsMachine = createMachine(
           id: "getExperiments",
           onDone: [
             {
-            actions: ["assignExperiments", "clearGetExperimentsError"],
-            target: "#experimentsState.success",
-            }
+              actions: ["assignExperiments", "clearGetExperimentsError"],
+              target: "#experimentsState.success",
+            },
           ],
           onError: [
             {
-            actions: ["assignGetExperimentsError", "clearExperiments"],
-            target: "#experimentsState.failure",
-            }
+              actions: ["assignGetExperimentsError", "clearExperiments"],
+              target: "#experimentsState.failure",
+            },
           ],
         },
       },
@@ -47,7 +47,7 @@ export const experimentsMachine = createMachine(
       },
       failure: {
         type: "final",
-      }
+      },
     },
   },
   {
