@@ -11,10 +11,8 @@ import (
 
 // DeploymentConfig is the central configuration for the coder server.
 type DeploymentConfig struct {
-	AccessURL         *DeploymentConfigField[string] `json:"access_url" typescript:",notnull"`
-	WildcardAccessURL *DeploymentConfigField[string] `json:"wildcard_access_url" typescript:",notnull"`
-	// DEPRECATED: Use HTTPAddress or TLS.Address instead.
-	Address                         *DeploymentConfigField[string]          `json:"address" typescript:",notnull"`
+	AccessURL                       *DeploymentConfigField[string]          `json:"access_url" typescript:",notnull"`
+	WildcardAccessURL               *DeploymentConfigField[string]          `json:"wildcard_access_url" typescript:",notnull"`
 	HTTPAddress                     *DeploymentConfigField[string]          `json:"http_address" typescript:",notnull"`
 	AutobuildPollInterval           *DeploymentConfigField[time.Duration]   `json:"autobuild_poll_interval" typescript:",notnull"`
 	DERP                            *DERP                                   `json:"derp" typescript:",notnull"`
@@ -46,7 +44,11 @@ type DeploymentConfig struct {
 	MaxTokenLifetime                *DeploymentConfigField[time.Duration]   `json:"max_token_lifetime" typescript:",notnull"`
 	Swagger                         *SwaggerConfig                          `json:"swagger" typescript:",notnull"`
 	Logging                         *LoggingConfig                          `json:"logging" typescript:",notnull"`
+	Dangerous                       *DangerousConfig                        `json:"dangerous" typescript:",notnull"`
+	DisablePathApps                 *DeploymentConfigField[bool]            `json:"disable_path_apps" typescript:",notnull"`
 
+	// DEPRECATED: Use HTTPAddress or TLS.Address instead.
+	Address *DeploymentConfigField[string] `json:"address" typescript:",notnull"`
 	// DEPRECATED: Use Experiments instead.
 	Experimental *DeploymentConfigField[bool] `json:"experimental" typescript:",notnull"`
 }
@@ -163,6 +165,11 @@ type LoggingConfig struct {
 	Human       *DeploymentConfigField[string] `json:"human" typescript:",notnull"`
 	JSON        *DeploymentConfigField[string] `json:"json" typescript:",notnull"`
 	Stackdriver *DeploymentConfigField[string] `json:"stackdriver" typescript:",notnull"`
+}
+
+type DangerousConfig struct {
+	AllowPathAppSharing         *DeploymentConfigField[bool] `json:"allow_path_app_sharing" typescript:",notnull"`
+	AllowPathAppSiteOwnerAccess *DeploymentConfigField[bool] `json:"allow_path_app_site_owner_access" typescript:",notnull"`
 }
 
 type Flaggable interface {
