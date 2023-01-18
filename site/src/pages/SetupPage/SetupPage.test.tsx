@@ -94,8 +94,6 @@ describe("Setup Page", () => {
     )
 
     await fillForm()
-    await waitFor(() =>
-      expect(history.location.pathname).toEqual("/workspaces"),
-    )
+    await waitFor(() => expect(window.location).toBeAt("/workspaces"))
   })
 })
