@@ -19,7 +19,8 @@ func (s APIKeyScope) ToRBAC() rbac.Scope {
 
 func (t Template) RBACObject() rbac.Object {
 	obj := rbac.ResourceTemplate
-	return obj.InOrg(t.OrganizationID).
+	return obj.WithID(t.ID).
+		InOrg(t.OrganizationID).
 		WithACLUserList(t.UserACL).
 		WithGroupACL(t.GroupACL)
 }
@@ -30,42 +31,57 @@ func (TemplateVersion) RBACObject(template Template) rbac.Object {
 }
 
 func (g Group) RBACObject() rbac.Object {
-	return rbac.ResourceGroup.InOrg(g.OrganizationID)
+	return rbac.ResourceGroup.WithID(g.ID).
+		InOrg(g.OrganizationID)
 }
 
 func (w Workspace) RBACObject() rbac.Object {
-	return rbac.ResourceWorkspace.InOrg(w.OrganizationID).WithOwner(w.OwnerID.String())
+	return rbac.ResourceWorkspace.WithID(w.ID).
+		InOrg(w.OrganizationID).
+		WithOwner(w.OwnerID.String())
 }
 
 func (w Workspace) ExecutionRBAC() rbac.Object {
-	return rbac.ResourceWorkspaceExecution.InOrg(w.OrganizationID).WithOwner(w.OwnerID.String())
+	return rbac.ResourceWorkspaceExecution.
+		WithID(w.ID).
+		InOrg(w.OrganizationID).
+		WithOwner(w.OwnerID.String())
 }
 
 func (w Workspace) ApplicationConnectRBAC() rbac.Object {
-	return rbac.ResourceWorkspaceApplicationConnect.InOrg(w.OrganizationID).WithOwner(w.OwnerID.String())
+	return rbac.ResourceWorkspaceApplicationConnect.
+		WithID(w.ID).
+		InOrg(w.OrganizationID).
+		WithOwner(w.OwnerID.String())
 }
 
 func (m OrganizationMember) RBACObject() rbac.Object {
-	return rbac.ResourceOrganizationMember.InOrg(m.OrganizationID)
+	return rbac.ResourceOrganizationMember.
+		WithID(m.UserID).
+		InOrg(m.OrganizationID)
 }
 
 func (o Organization) RBACObject() rbac.Object {
-	return rbac.ResourceOrganization.InOrg(o.ID)
+	return rbac.ResourceOrganization.
+		WithID(o.ID).
+		InOrg(o.ID)
 }
 
-func (ProvisionerDaemon) RBACObject() rbac.Object {
-	return rbac.ResourceProvisionerDaemon
+func (p ProvisionerDaemon) RBACObject() rbac.Object {
+	return rbac.ResourceProvisionerDaemon.WithID(p.ID)
 }
 
 func (f File) RBACObject() rbac.Object {
-	return rbac.ResourceFile.WithOwner(f.CreatedBy.String())
+	return rbac.ResourceFile.
+		WithID(f.ID).
+		WithOwner(f.CreatedBy.String())
 }
 
 // RBACObject returns the RBAC object for the site wide user resource.
 // If you are trying to get the RBAC object for the UserData, use
 // rbac.ResourceUserData
-func (User) RBACObject() rbac.Object {
-	return rbac.ResourceUser
+func (u User) RBACObject() rbac.Object {
+	return rbac.ResourceUser.WithID(u.ID)
 }
 
 func (License) RBACObject() rbac.Object {

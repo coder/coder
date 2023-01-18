@@ -788,6 +788,76 @@ func TestAuthorizeScope(t *testing.T) {
 			{resource: ResourceWorkspaceApplicationConnect.InOrg(unusedID).WithOwner("not-me"), actions: []Action{ActionCreate}, allow: false},
 		},
 	)
+
+	workspaceID := uuid.New()
+	user = subject{
+		UserID: "me",
+		Roles: []Role{
+			must(RoleByName(RoleMember())),
+			must(RoleByName(RoleOrgMember(defOrg))),
+		},
+		Scope: ScopeRole{
+			Role: Role{
+				Name:        "workspace_agent",
+				DisplayName: "Workspace Agent",
+				Site: permissions(map[string][]Action{
+					// Only read access for workspaces.
+					ResourceWorkspace.Type: {ActionRead},
+				}),
+				Org:  map[string][]Permission{},
+				User: []Permission{},
+			},
+			AllowIDList: []string{workspaceID.String()},
+		},
+	}
+
+	testAuthorize(t, "User_WorkspaceAgent", user,
+		// Test all cases with the workspace id
+		cases(func(c authTestCase) authTestCase {
+			c.actions = []Action{ActionCreate, ActionUpdate, ActionDelete}
+			c.allow = false
+			c.resource.WithID(workspaceID)
+			return c
+		}, []authTestCase{
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.InOrg(defOrg)},
+			{resource: ResourceWorkspace.WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.All()},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.InOrg(unusedID)},
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me")},
+			{resource: ResourceWorkspace.WithOwner("not-me")},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me")},
+			{resource: ResourceWorkspace.InOrg(unusedID)},
+			{resource: ResourceWorkspace.WithOwner("not-me")},
+		}),
+		// Test cases with random ids. These should always fail from the scope.
+		cases(func(c authTestCase) authTestCase {
+			c.actions = []Action{ActionRead, ActionCreate, ActionUpdate, ActionDelete}
+			c.allow = false
+			c.resource.WithID(uuid.New())
+			return c
+		}, []authTestCase{
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.InOrg(defOrg)},
+			{resource: ResourceWorkspace.WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.All()},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.InOrg(unusedID)},
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me")},
+			{resource: ResourceWorkspace.WithOwner("not-me")},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me")},
+			{resource: ResourceWorkspace.InOrg(unusedID)},
+			{resource: ResourceWorkspace.WithOwner("not-me")},
+		}),
+		// Allowed by scope:
+		[]authTestCase{
+			{resource: ResourceWorkspace.WithID(workspaceID).InOrg(defOrg).WithOwner(user.UserID), actions: []Action{ActionRead}, allow: true},
+			// The scope will return true, but the user perms return false for resources not owned by the user.
+			{resource: ResourceWorkspace.WithID(workspaceID).InOrg(defOrg).WithOwner("not-me"), actions: []Action{ActionRead}, allow: false},
+			{resource: ResourceWorkspace.WithID(workspaceID).InOrg(unusedID).WithOwner("not-me"), actions: []Action{ActionRead}, allow: false},
+		},
+	)
 }
 
 // cases applies a given function to all test cases. This makes generalities easier to create.
