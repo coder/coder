@@ -16,6 +16,7 @@ import userAgentParser from "ua-parser-js"
 import { AuditLogDiff } from "./AuditLogDiff"
 import i18next from "i18next"
 import { AuditLogDescription } from "./AuditLogDescription"
+import { determineGroupDiff } from "./auditUtils"
 
 const httpStatusColor = (httpStatus: number): PaletteIndex => {
   if (httpStatus >= 300 && httpStatus < 500) {
@@ -35,11 +36,6 @@ export interface AuditLogRowProps {
   defaultIsDiffOpen?: boolean
 }
 
-interface GroupMember {
-  user_id: string
-  group_id: string
-}
-
 export const AuditLogRow: React.FC<AuditLogRowProps> = ({
   auditLog,
   defaultIsDiffOpen = false,
@@ -55,22 +51,10 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
     : t("auditLog:table.logRow.notAvailable")
 
   let auditDiff = auditLog.diff
+
   // groups have nested diffs (group members)
-  // so we overwrite the member diff such that
-  // only the user_id is shown.
   if (auditLog.resource_type === "group") {
-    auditDiff = {
-      ...auditLog.diff,
-      members: {
-        old: auditLog.diff.members.old?.map(
-          (groupMember: GroupMember) => groupMember.user_id,
-        ),
-        new: auditLog.diff.members.new?.map(
-          (groupMember: GroupMember) => groupMember.user_id,
-        ),
-        secret: auditLog.diff.members.secret,
-      },
-    }
+    auditDiff = determineGroupDiff(auditLog.diff)
   }
 
   const toggle = () => {
