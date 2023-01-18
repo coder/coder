@@ -45,9 +45,7 @@ export const Language = {
   chartTitle: "Daily Active Users",
 }
 
-export const DAUChart: FC<DAUChartProps> = ({
-  daus
-}) => {
+export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
   const theme: Theme = useTheme()
 
   if (daus.entries.length === 0) {

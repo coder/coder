@@ -110,10 +110,7 @@ const NetworkSettingsPage = lazy(
     ),
 )
 const MetricsPage = lazy(
-  () =>
-    import(
-      "./pages/DeploySettingsPage/MetricsPage/MetricsPage"
-    ),
+  () => import("./pages/DeploySettingsPage/MetricsPage/MetricsPage"),
 )
 const GitAuthPage = lazy(() => import("./pages/GitAuthPage/GitAuthPage"))
 const TemplateVersionPage = lazy(

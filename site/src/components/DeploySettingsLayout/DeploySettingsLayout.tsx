@@ -35,7 +35,12 @@ export const useDeploySettings = (): DeploySettingsContextValue => {
 export const DeploySettingsLayout: FC = () => {
   const [state] = useMachine(deploymentConfigMachine)
   const styles = useStyles()
-  const { deploymentConfig, deploymentDAUs, getDeploymentConfigError, getDeploymentDAUsError } = state.context
+  const {
+    deploymentConfig,
+    deploymentDAUs,
+    getDeploymentConfigError,
+    getDeploymentDAUsError,
+  } = state.context
   const permissions = usePermissions()
 
   return (
@@ -50,7 +55,7 @@ export const DeploySettingsLayout: FC = () => {
                   deploymentConfig,
                   getDeploymentConfigError,
                   deploymentDAUs,
-                  getDeploymentDAUsError
+                  getDeploymentDAUsError,
                 }}
               >
                 <Suspense fallback={<Loader />}>

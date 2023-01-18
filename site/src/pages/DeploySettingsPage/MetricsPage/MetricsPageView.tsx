@@ -8,10 +8,15 @@ interface MetricsPageViewProps {
   getDeploymentDAUsError?: unknown
 }
 
-export const MetricsPageView = ({ deploymentDAUs, getDeploymentDAUsError }: MetricsPageViewProps): JSX.Element => {
+export const MetricsPageView = ({
+  deploymentDAUs,
+  getDeploymentDAUsError,
+}: MetricsPageViewProps): JSX.Element => {
   return (
     <Stack>
-      {Boolean(getDeploymentDAUsError) && <AlertBanner error={getDeploymentDAUsError} severity="error" />}
+      {Boolean(getDeploymentDAUsError) && (
+        <AlertBanner error={getDeploymentDAUsError} severity="error" />
+      )}
       {deploymentDAUs && <DAUChart daus={deploymentDAUs} />}
     </Stack>
   )

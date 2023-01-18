@@ -9,7 +9,7 @@ import { Stack } from "components/Stack/Stack"
 import { ElementType, PropsWithChildren, ReactNode, FC } from "react"
 import { NavLink } from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
-import TrendingUpIcon from "@material-ui/icons/ShowChart";
+import TrendingUpIcon from "@material-ui/icons/ShowChart"
 
 const SidebarNavItem: FC<
   PropsWithChildren<{ href: string; icon: ReactNode }>
@@ -76,7 +76,10 @@ export const Sidebar: React.FC = () => {
       >
         Security
       </SidebarNavItem>
-      <SidebarNavItem href="metrics" icon={<SidebarNavItemIcon icon={TrendingUpIcon} />}>
+      <SidebarNavItem
+        href="metrics"
+        icon={<SidebarNavItemIcon icon={TrendingUpIcon} />}
+      >
         Metrics
       </SidebarNavItem>
     </nav>
