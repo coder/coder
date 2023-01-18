@@ -65,6 +65,13 @@ var nonCanonicalHeaders = map[string]string{
 	"Sec-Websocket-Version":    "Sec-WebSocket-Version",
 }
 
+type workspaceAppAccessMethod string
+
+const (
+	workspaceAppAccessMethodPath      workspaceAppAccessMethod = "path"
+	workspaceAppAccessMethodSubdomain workspaceAppAccessMethod = "subdomain"
+)
+
 // @Summary Get applications host
 // @ID get-applications-host
 // @Security CoderSessionToken
@@ -111,7 +118,7 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 	if app.SharingLevel != "" {
 		appSharingLevel = app.SharingLevel
 	}
-	authed, ok := api.fetchWorkspaceApplicationAuth(rw, r, true, workspace, appSharingLevel)
+	authed, ok := api.fetchWorkspaceApplicationAuth(rw, r, workspaceAppAccessMethodPath, workspace, appSharingLevel)
 	if !ok {
 		return
 	}
@@ -138,12 +145,12 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	api.proxyWorkspaceApplication(proxyApplication{
-		IsPathApp: true,
-		Workspace: workspace,
-		Agent:     agent,
-		App:       &app,
-		Port:      0,
-		Path:      chiPath,
+		AccessMethod: workspaceAppAccessMethodPath,
+		Workspace:    workspace,
+		Agent:        agent,
+		App:          &app,
+		Port:         0,
+		Path:         chiPath,
 	}, rw, r)
 }
 
@@ -250,12 +257,12 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 				}
 
 				api.proxyWorkspaceApplication(proxyApplication{
-					IsPathApp: false,
-					Workspace: workspace,
-					Agent:     agent,
-					App:       workspaceAppPtr,
-					Port:      app.Port,
-					Path:      r.URL.Path,
+					AccessMethod: workspaceAppAccessMethodSubdomain,
+					Workspace:    workspace,
+					Agent:        agent,
+					App:          workspaceAppPtr,
+					Port:         app.Port,
+					Path:         r.URL.Path,
 				}, rw, r)
 			})).ServeHTTP(rw, r.WithContext(ctx))
 		})
@@ -425,8 +432,13 @@ func (api *API) lookupWorkspaceApp(rw http.ResponseWriter, r *http.Request, agen
 }
 
 //nolint:revive
-func (api *API) authorizeWorkspaceApp(r *http.Request, isPathApp bool, sharingLevel database.AppSharingLevel, workspace database.Workspace) (bool, error) {
+func (api *API) authorizeWorkspaceApp(r *http.Request, accessMethod workspaceAppAccessMethod, sharingLevel database.AppSharingLevel, workspace database.Workspace) (bool, error) {
 	ctx := r.Context()
+
+	if accessMethod == "" {
+		accessMethod = workspaceAppAccessMethodPath
+	}
+	isPathApp := accessMethod == workspaceAppAccessMethodPath
 
 	// If path-based app sharing is disabled (which is the default), we can
 	// force the sharing level to be "owner" so that the user can only access
@@ -502,8 +514,8 @@ func (api *API) authorizeWorkspaceApp(r *http.Request, isPathApp bool, sharingLe
 // for a given app share level in the given workspace. The user's authorization
 // status is returned. If a server error occurs, a HTML error page is rendered
 // and false is returned so the caller can return early.
-func (api *API) fetchWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Request, isPathApp bool, workspace database.Workspace, appSharingLevel database.AppSharingLevel) (authed bool, ok bool) {
-	ok, err := api.authorizeWorkspaceApp(r, isPathApp, appSharingLevel, workspace)
+func (api *API) fetchWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Request, accessMethod workspaceAppAccessMethod, workspace database.Workspace, appSharingLevel database.AppSharingLevel) (authed bool, ok bool) {
+	ok, err := api.authorizeWorkspaceApp(r, accessMethod, appSharingLevel, workspace)
 	if err != nil {
 		api.Logger.Error(r.Context(), "authorize workspace app", slog.Error(err))
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
@@ -523,8 +535,8 @@ func (api *API) fetchWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Re
 // for a given app share level in the given workspace. If the user is not
 // authorized or a server error occurs, a discrete HTML error page is rendered
 // and false is returned so the caller can return early.
-func (api *API) checkWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Request, isPathApp bool, workspace database.Workspace, appSharingLevel database.AppSharingLevel) bool {
-	authed, ok := api.fetchWorkspaceApplicationAuth(rw, r, isPathApp, workspace, appSharingLevel)
+func (api *API) checkWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Request, accessMethod workspaceAppAccessMethod, workspace database.Workspace, appSharingLevel database.AppSharingLevel) bool {
+	authed, ok := api.fetchWorkspaceApplicationAuth(rw, r, accessMethod, workspace, appSharingLevel)
 	if !ok {
 		return false
 	}
@@ -541,7 +553,7 @@ func (api *API) checkWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Re
 // they will be redirected to the route below. If the user does have a session
 // key but insufficient permissions a static error page will be rendered.
 func (api *API) verifyWorkspaceApplicationSubdomainAuth(rw http.ResponseWriter, r *http.Request, host string, workspace database.Workspace, appSharingLevel database.AppSharingLevel) bool {
-	authed, ok := api.fetchWorkspaceApplicationAuth(rw, r, false, workspace, appSharingLevel)
+	authed, ok := api.fetchWorkspaceApplicationAuth(rw, r, workspaceAppAccessMethodSubdomain, workspace, appSharingLevel)
 	if !ok {
 		return false
 	}
@@ -770,9 +782,9 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 
 // proxyApplication are the required fields to proxy a workspace application.
 type proxyApplication struct {
-	IsPathApp bool
-	Workspace database.Workspace
-	Agent     database.WorkspaceAgent
+	AccessMethod workspaceAppAccessMethod
+	Workspace    database.Workspace
+	Agent        database.WorkspaceAgent
 
 	// Either App or Port must be set, but not both.
 	App  *database.WorkspaceApp
@@ -792,7 +804,7 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 	if proxyApp.App != nil && proxyApp.App.SharingLevel != "" {
 		sharingLevel = proxyApp.App.SharingLevel
 	}
-	if !api.checkWorkspaceApplicationAuth(rw, r, proxyApp.IsPathApp, proxyApp.Workspace, sharingLevel) {
+	if !api.checkWorkspaceApplicationAuth(rw, r, proxyApp.AccessMethod, proxyApp.Workspace, sharingLevel) {
 		return
 	}
 
