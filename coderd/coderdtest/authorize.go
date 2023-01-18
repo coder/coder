@@ -32,9 +32,10 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 	_, isMemoryDB := a.api.Database.(databasefake.FakeDatabase)
 
 	// Some quick reused objects
-	workspaceRBACObj := rbac.ResourceWorkspace.InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
-	workspaceExecObj := rbac.ResourceWorkspaceExecution.InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
-	applicationConnectObj := rbac.ResourceWorkspaceApplicationConnect.InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
+	workspaceRBACObj := rbac.ResourceWorkspace.WithID(a.Workspace.ID).InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
+	workspaceExecObj := rbac.ResourceWorkspaceExecution.WithID(a.Workspace.ID).InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
+	applicationConnectObj := rbac.ResourceWorkspaceApplicationConnect.WithID(a.Workspace.ID).InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
+	templateObj := rbac.ResourceTemplate.WithID(a.Template.ID).InOrg(a.Template.OrganizationID)
 
 	// skipRoutes allows skipping routes from being checked.
 	skipRoutes := map[string]string{
@@ -74,7 +75,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"POST:/api/v2/workspaceagents/me/report-stats":          {NoAuthorize: true},
 
 		// These endpoints have more assertions. This is good, add more endpoints to assert if you can!
-		"GET:/api/v2/organizations/{organization}": {AssertObject: rbac.ResourceOrganization.InOrg(a.Admin.OrganizationID)},
+		"GET:/api/v2/organizations/{organization}": {AssertObject: rbac.ResourceOrganization.WithID(a.Admin.OrganizationID).InOrg(a.Admin.OrganizationID)},
 		"GET:/api/v2/users/{user}/organizations":   {StatusCode: http.StatusOK, AssertObject: rbac.ResourceOrganization},
 		"GET:/api/v2/users/{user}/workspace/{workspacename}": {
 			AssertObject: rbac.ResourceWorkspace,
@@ -138,11 +139,11 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		},
 		"DELETE:/api/v2/templates/{template}": {
 			AssertAction: rbac.ActionDelete,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"GET:/api/v2/templates/{template}": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"POST:/api/v2/files": {AssertAction: rbac.ActionCreate, AssertObject: rbac.ResourceFile},
 		"GET:/api/v2/files/{fileID}": {
@@ -151,64 +152,64 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		},
 		"GET:/api/v2/templates/{template}/versions": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"PATCH:/api/v2/templates/{template}/versions": {
 			AssertAction: rbac.ActionUpdate,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"GET:/api/v2/templates/{template}/versions/{templateversionname}": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"GET:/api/v2/templateversions/{templateversion}": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"PATCH:/api/v2/templateversions/{templateversion}/cancel": {
 			AssertAction: rbac.ActionUpdate,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"GET:/api/v2/templateversions/{templateversion}/logs": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"GET:/api/v2/templateversions/{templateversion}/parameters": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"GET:/api/v2/templateversions/{templateversion}/rich-parameters": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"GET:/api/v2/templateversions/{templateversion}/resources": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"GET:/api/v2/templateversions/{templateversion}/schema": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"POST:/api/v2/templateversions/{templateversion}/dry-run": {
 			// The first check is to read the template
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Version.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"GET:/api/v2/templateversions/{templateversion}/dry-run/{jobID}": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Version.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"GET:/api/v2/templateversions/{templateversion}/dry-run/{jobID}/resources": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Version.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"GET:/api/v2/templateversions/{templateversion}/dry-run/{jobID}/logs": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Version.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"PATCH:/api/v2/templateversions/{templateversion}/dry-run/{jobID}/cancel": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Version.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"POST:/api/v2/parameters/{scope}/{id}": {
 			AssertAction: rbac.ActionUpdate,
@@ -224,7 +225,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		},
 		"GET:/api/v2/organizations/{organization}/templates/{templatename}": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"POST:/api/v2/organizations/{organization}/members/{user}/workspaces": {
 			AssertAction: rbac.ActionCreate,

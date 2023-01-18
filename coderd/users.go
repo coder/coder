@@ -976,9 +976,7 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if !api.Authorize(r, rbac.ActionRead,
-		rbac.ResourceOrganization.
-			InOrg(organization.ID)) {
+	if !api.Authorize(r, rbac.ActionRead, organization) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}

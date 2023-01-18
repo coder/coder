@@ -44,7 +44,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	groupObj := rbac.ResourceGroup.InOrg(admin.OrganizationID)
+	groupObj := rbac.ResourceGroup.WithID(group.ID).InOrg(admin.OrganizationID)
 	a := coderdtest.NewAuthTester(ctx, t, client, api.AGPL, admin)
 	a.URLParams["licenses/{id}"] = fmt.Sprintf("licenses/%d", lic.ID)
 	a.URLParams["groups/{group}"] = fmt.Sprintf("groups/%s", group.ID.String())

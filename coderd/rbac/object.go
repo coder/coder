@@ -186,6 +186,17 @@ func (z Object) All() Object {
 	}
 }
 
+func (z Object) WithIDString(id string) Object {
+	return Object{
+		ID:           id,
+		Owner:        z.Owner,
+		OrgID:        z.OrgID,
+		Type:         z.Type,
+		ACLUserList:  z.ACLUserList,
+		ACLGroupList: z.ACLGroupList,
+	}
+}
+
 func (z Object) WithID(id uuid.UUID) Object {
 	return Object{
 		ID:           id.String(),

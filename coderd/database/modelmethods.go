@@ -17,9 +17,13 @@ func (s APIKeyScope) ToRBAC() rbac.Scope {
 	}
 }
 
+func (k APIKey) RBACObject() rbac.Object {
+	return rbac.ResourceAPIKey.WithIDString(k.ID).
+		WithOwner(k.UserID.String())
+}
+
 func (t Template) RBACObject() rbac.Object {
-	obj := rbac.ResourceTemplate
-	return obj.WithID(t.ID).
+	return rbac.ResourceTemplate.WithID(t.ID).
 		InOrg(t.OrganizationID).
 		WithACLUserList(t.UserACL).
 		WithGroupACL(t.GroupACL)

@@ -200,6 +200,7 @@ func benchmarkSetup(orgs []uuid.UUID, users []uuid.UUID, size int, opts ...func(
 	objectList := make([]rbac.Object, size)
 	for i := range objectList {
 		objectList[i] = rbac.ResourceWorkspace.
+			WithID(uuid.New()).
 			InOrg(orgs[i%len(orgs)]).
 			WithOwner(users[i%len(users)].String()).
 			WithACLUserList(aclList).

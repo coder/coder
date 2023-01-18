@@ -638,7 +638,7 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 	}
 
 	apiKey := httpmw.APIKey(r)
-	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceAPIKey.WithOwner(apiKey.UserID.String())) {
+	if !api.Authorize(r, rbac.ActionCreate, apiKey) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
