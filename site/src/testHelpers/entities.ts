@@ -1,3 +1,4 @@
+import { withDefaultFeatures } from "./../api/api"
 import { FieldError } from "api/errors"
 import { everyOneGroup } from "util/groups"
 import * as Types from "../api/types"
@@ -938,7 +939,7 @@ export const MockEntitlements: TypesGen.Entitlements = {
   errors: [],
   warnings: [],
   has_license: false,
-  features: {},
+  features: withDefaultFeatures({}),
   experimental: false,
   trial: false,
 }
@@ -949,7 +950,7 @@ export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
   has_license: true,
   experimental: false,
   trial: false,
-  features: {
+  features: withDefaultFeatures({
     user_limit: {
       enabled: true,
       entitlement: "grace_period",
@@ -964,7 +965,7 @@ export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
       enabled: true,
       entitlement: "entitled",
     },
-  },
+  }),
 }
 
 export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
@@ -973,12 +974,12 @@ export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
   has_license: true,
   experimental: false,
   trial: false,
-  features: {
+  features: withDefaultFeatures({
     audit_log: {
       enabled: true,
       entitlement: "entitled",
     },
-  },
+  }),
 }
 
 export const MockAuditLog: TypesGen.AuditLog = {
@@ -1129,4 +1130,29 @@ export const MockAppearance: TypesGen.AppearanceConfig = {
   service_banner: {
     enabled: false,
   },
+}
+
+export const mockParameterSchema = (
+  partial: Partial<TypesGen.ParameterSchema>,
+): TypesGen.ParameterSchema => {
+  return {
+    id: "000000",
+    job_id: "000000",
+    allow_override_destination: false,
+    allow_override_source: true,
+    created_at: "",
+    default_destination_scheme: "none",
+    default_refresh: "",
+    default_source_scheme: "data",
+    default_source_value: "default-value",
+    name: "parameter name",
+    description: "Some description!",
+    redisplay_value: false,
+    validation_condition: "",
+    validation_contains: [],
+    validation_error: "",
+    validation_type_system: "",
+    validation_value_type: "",
+    ...partial,
+  }
 }

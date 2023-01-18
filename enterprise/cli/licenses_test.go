@@ -338,7 +338,7 @@ func (s *fakeLicenseAPI) deleteLicense(rw http.ResponseWriter, r *http.Request) 
 }
 
 func (*fakeLicenseAPI) entitlements(rw http.ResponseWriter, r *http.Request) {
-	features := make(map[string]codersdk.Feature)
+	features := make(map[codersdk.FeatureName]codersdk.Feature)
 	for _, f := range codersdk.FeatureNames {
 		features[f] = codersdk.Feature{
 			Entitlement: codersdk.EntitlementEntitled,

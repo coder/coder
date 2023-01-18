@@ -20,23 +20,6 @@ export const dispatchCustomEvent = <D = unknown>(
 export type CustomEventListener<D = unknown> = (event: CustomEvent<D>) => void
 
 /**
- * An event listener is a function an Event-like object.
- *
- * Especially helpful when using `element.addEventListener` with a predeclared function.
- * e.g.
- *
- * ```ts
- * const handleClick = AnnotatedEventListener<MouseEvent> = (event) => {
- *   event.preventDefault()
- * }
- *
- * window.addEventListener('click', handleClick)
- * window.removeEventListener('click', handleClick)
- * ```
- */
-export type AnnotatedEventListener<E extends Event> = (event: E) => void
-
-/**
  * Determines if an Event object is a CustomEvent.
  *
  * @remark this is especially necessary when an event originates from an iframe

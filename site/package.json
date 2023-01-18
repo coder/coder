@@ -24,7 +24,8 @@
     "test:coverage": "jest --selectProjects test --collectCoverage",
     "test:watch": "jest --selectProjects test --watch",
     "typegen": "xstate typegen 'src/**/*.ts'",
-    "stats": "STATS=true yarn build && npx http-server ./stats -p 8081 -c-1"
+    "stats": "STATS=true yarn build && npx http-server ./stats -p 8081 -c-1",
+    "deadcode": "ts-prune | grep -v \".stories\\|.typegen\\|.config\\|e2e\\|__mocks__\\|used in module\\|testHelpers\\|typesGenerated\" || echo \"No deadcode found.\""
   },
   "dependencies": {
     "@emoji-mart/data": "1.0.5",
@@ -71,6 +72,7 @@
     "remark-gfm": "3.0.1",
     "rollup-plugin-visualizer": "5.9.0",
     "sourcemapped-stacktrace": "1.1.11",
+    "ts-prune": "0.10.3",
     "tzdata": "1.0.30",
     "ua-parser-js": "1.0.2",
     "uuid": "9.0.0",
