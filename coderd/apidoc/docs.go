@@ -389,6 +389,11 @@ const docTemplate = `{
         },
         "/experiments": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],

@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
 )
@@ -19,6 +20,7 @@ func Test_Experiments(t *testing.T) {
 	// for expanding the wildcard because of how viper binds stuff.
 	t.Run("empty", func(t *testing.T) {
 		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -34,6 +36,7 @@ func Test_Experiments(t *testing.T) {
 	t.Run("multiple features", func(t *testing.T) {
 		t.Setenv("CODER_EXPERIMENTAL", "foo,bar")
 		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -50,6 +53,7 @@ func Test_Experiments(t *testing.T) {
 	t.Run("wildcard", func(t *testing.T) {
 		t.Setenv("CODER_EXPERIMENTAL", "*")
 		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -67,6 +71,7 @@ func Test_Experiments(t *testing.T) {
 	t.Run("alternate wildcard with manual opt-in", func(t *testing.T) {
 		t.Setenv("CODER_EXPERIMENTAL", "true,danger")
 		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -80,5 +85,17 @@ func Test_Experiments(t *testing.T) {
 		}
 		require.True(t, experiments.Enabled("danger"))
 		require.False(t, experiments.Enabled("herebedragons"))
+	})
+
+	t.Run("Unauthorized", func(t *testing.T) {
+		t.Setenv("CODER_EXPERIMENTAL", "foo,bar")
+		client := coderdtest.New(t, nil)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.Experiments(ctx)
+		require.Error(t, err)
+		require.ErrorContains(t, err, httpmw.SignedOutErrorMessage)
 	})
 }

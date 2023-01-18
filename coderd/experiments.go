@@ -8,6 +8,7 @@ import (
 
 // @Summary Get experiments
 // @ID get-experiments
+// @Security CoderSessionToken
 // @Produce json
 // @Tags General
 // @Success 200 {array} string

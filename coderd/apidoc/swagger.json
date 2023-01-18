@@ -331,6 +331,11 @@
     },
     "/experiments": {
       "get": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
         "produces": ["application/json"],
         "tags": ["General"],
         "summary": "Get experiments",

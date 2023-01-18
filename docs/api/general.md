@@ -1015,7 +1015,8 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```shell
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/experiments \
-  -H 'Accept: application/json'
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
 ```
 
 `GET /experiments`
@@ -1035,6 +1036,8 @@ curl -X GET http://coder-server:8080/api/v2/experiments \
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of string |
 
 <h3 id="get-experiments-responseschema">Response Schema</h3>
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Update check
 
