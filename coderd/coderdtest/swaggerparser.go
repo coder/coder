@@ -297,7 +297,6 @@ func assertPathParametersDefined(t *testing.T, comment SwaggerComment) {
 func assertSecurityDefined(t *testing.T, comment SwaggerComment) {
 	if comment.router == "/updatecheck" ||
 		comment.router == "/buildinfo" ||
-		comment.router == "/experiments" ||
 		comment.router == "/" {
 		return // endpoints do not require authorization
 	}
