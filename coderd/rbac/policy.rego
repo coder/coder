@@ -156,7 +156,7 @@ scope_allow_list {
 
 scope_allow_list {
 	# If the wildcard is listed in the allow_list, we do not care about the
-	# object.id. This line is included to prevent partial compliations from
+	# object.id. This line is included to prevent partial compilations from
 	# ever needing to include the object.id.
 	not "*" in input.subject.scope.allow_list
 	input.object.id  != ""

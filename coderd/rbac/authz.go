@@ -170,10 +170,10 @@ func NewAuthorizer(registry prometheus.Registerer) *RegoAuthorizer {
 }
 
 type authSubject struct {
-	ID     string   `json:"id"`
-	Roles  []Role   `json:"roles"`
-	Groups []string `json:"groups"`
-	Scope  Role     `json:"scope"`
+	ID     string    `json:"id"`
+	Roles  []Role    `json:"roles"`
+	Groups []string  `json:"groups"`
+	Scope  ScopeRole `json:"scope"`
 }
 
 // ByRoleName will expand all roleNames into roles before calling Authorize().
@@ -216,7 +216,7 @@ func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNa
 
 // Authorize allows passing in custom Roles.
 // This is really helpful for unit testing, as we can create custom roles to exercise edge cases.
-func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles []Role, scope Role, groups []string, action Action, object Object) error {
+func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles []Role, scope ScopeRole, groups []string, action Action, object Object) error {
 	input := map[string]interface{}{
 		"subject": authSubject{
 			ID:     subjectID,
@@ -275,7 +275,7 @@ func (a RegoAuthorizer) PrepareByRoleName(ctx context.Context, subjectID string,
 
 // Prepare will partially execute the rego policy leaving the object fields unknown (except for the type).
 // This will vastly speed up performance if batch authorization on the same type of objects is needed.
-func (RegoAuthorizer) Prepare(ctx context.Context, subjectID string, roles []Role, scope Role, groups []string, action Action, objectType string) (*PartialAuthorizer, error) {
+func (RegoAuthorizer) Prepare(ctx context.Context, subjectID string, roles []Role, scope ScopeRole, groups []string, action Action, objectType string) (*PartialAuthorizer, error) {
 	auth, err := newPartialAuthorizer(ctx, subjectID, roles, scope, groups, action, objectType)
 	if err != nil {
 		return nil, xerrors.Errorf("new partial authorizer: %w", err)

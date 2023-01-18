@@ -20,9 +20,9 @@ type subject struct {
 	// For the unit test we want to pass in the roles directly, instead of just
 	// by name. This allows us to test custom roles that do not exist in the product,
 	// but test edge cases of the implementation.
-	Roles  []Role   `json:"roles"`
-	Groups []string `json:"groups"`
-	Scope  Role     `json:"scope"`
+	Roles  []Role    `json:"roles"`
+	Groups []string  `json:"groups"`
+	Scope  ScopeRole `json:"scope"`
 }
 
 type fakeObject struct {
