@@ -38,7 +38,7 @@ ChartJS.register(
 )
 
 export interface DAUChartProps {
-  templateDAUs: TypesGen.TemplateDAUsResponse
+  daus: TypesGen.TemplateDAUsResponse
 }
 export const Language = {
   loadingText: "DAU stats are loading. Check back later.",
@@ -46,11 +46,11 @@ export const Language = {
 }
 
 export const DAUChart: FC<DAUChartProps> = ({
-  templateDAUs: templateMetricsData,
+  daus
 }) => {
   const theme: Theme = useTheme()
 
-  if (templateMetricsData.entries.length === 0) {
+  if (daus.entries.length === 0) {
     return (
       // We generate hidden element to prove this path is taken in the test
       // and through site inspection.
@@ -60,11 +60,11 @@ export const DAUChart: FC<DAUChartProps> = ({
     )
   }
 
-  const labels = templateMetricsData.entries.map((val) => {
+  const labels = daus.entries.map((val) => {
     return dayjs(val.date).format("YYYY-MM-DD")
   })
 
-  const data = templateMetricsData.entries.map((val) => {
+  const data = daus.entries.map((val) => {
     return val.amount
   })
 
