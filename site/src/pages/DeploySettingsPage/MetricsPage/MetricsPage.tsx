@@ -5,13 +5,13 @@ import { pageTitle } from "util/page"
 import { MetricsPageView } from "./MetricsPageView"
 
 const MetricsPage: FC = () => {
-  const { deploymentDAUs } = useDeploySettings()
+  const { deploymentDAUs, getDeploymentDAUsError } = useDeploySettings()
   return (
     <>
       <Helmet>
         <title>{pageTitle("General Settings")}</title>
       </Helmet>
-      <MetricsPageView deploymentDAUs={deploymentDAUs} />
+      <MetricsPageView deploymentDAUs={deploymentDAUs} getDeploymentDAUsError={getDeploymentDAUsError} />
     </>
   )
 }

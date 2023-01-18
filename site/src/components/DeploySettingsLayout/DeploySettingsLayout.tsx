@@ -13,7 +13,9 @@ import { Outlet } from "react-router-dom"
 
 type DeploySettingsContextValue = {
   deploymentConfig: DeploymentConfig
+  getDeploymentConfigError: unknown
   deploymentDAUs?: TemplateDAUsResponse
+  getDeploymentDAUsError: unknown
 }
 
 const DeploySettingsContext = createContext<
@@ -33,7 +35,7 @@ export const useDeploySettings = (): DeploySettingsContextValue => {
 export const DeploySettingsLayout: FC = () => {
   const [state] = useMachine(deploymentConfigMachine)
   const styles = useStyles()
-  const { deploymentConfig, deploymentDAUs } = state.context
+  const { deploymentConfig, deploymentDAUs, getDeploymentConfigError, getDeploymentDAUsError } = state.context
   const permissions = usePermissions()
 
   return (
@@ -44,7 +46,12 @@ export const DeploySettingsLayout: FC = () => {
           <main className={styles.content}>
             {deploymentConfig ? (
               <DeploySettingsContext.Provider
-                value={{ deploymentConfig: deploymentConfig, deploymentDAUs }}
+                value={{
+                  deploymentConfig,
+                  getDeploymentConfigError,
+                  deploymentDAUs,
+                  getDeploymentDAUsError
+                }}
               >
                 <Suspense fallback={<Loader />}>
                   <Outlet />
