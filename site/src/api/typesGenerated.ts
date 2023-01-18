@@ -281,6 +281,12 @@ export interface DERPServerConfig {
 }
 
 // From codersdk/deploymentconfig.go
+export interface DangerousConfig {
+  readonly allow_path_app_sharing: DeploymentConfigField<boolean>
+  readonly allow_path_app_site_owner_access: DeploymentConfigField<boolean>
+}
+
+// From codersdk/deploymentconfig.go
 export interface DeploymentConfig {
   readonly access_url: DeploymentConfigField<string>
   readonly wildcard_access_url: DeploymentConfigField<string>
@@ -316,6 +322,8 @@ export interface DeploymentConfig {
   readonly max_token_lifetime: DeploymentConfigField<number>
   readonly swagger: SwaggerConfig
   readonly logging: LoggingConfig
+  readonly dangerous: DangerousConfig
+  readonly disable_path_apps: DeploymentConfigField<boolean>
 }
 
 // From codersdk/deploymentconfig.go

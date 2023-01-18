@@ -5704,6 +5704,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.DangerousConfig": {
+            "type": "object",
+            "properties": {
+                "allow_path_app_sharing": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
+                "allow_path_app_site_owner_access": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                }
+            }
+        },
         "codersdk.DeploymentConfig": {
             "type": "object",
             "properties": {
@@ -5736,8 +5747,14 @@ const docTemplate = `{
                 "cache_directory": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
                 },
+                "dangerous": {
+                    "$ref": "#/definitions/codersdk.DangerousConfig"
+                },
                 "derp": {
                     "$ref": "#/definitions/codersdk.DERP"
+                },
+                "disable_path_apps": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
                 },
                 "experimental": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"

@@ -491,6 +491,26 @@ func newConfig() *codersdk.DeploymentConfig {
 				Default: "",
 			},
 		},
+		Dangerous: &codersdk.DangerousConfig{
+			AllowPathAppSharing: &codersdk.DeploymentConfigField[bool]{
+				Name:    "DANGEROUS: Allow Path App Sharing",
+				Usage:   "Allow workspace apps that are not served from subdomains to be shared. Path-based app sharing is DISABLED by default for security purposes. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious Javascript. Path-based apps can be disabled entirely with --disable-path-apps for further security.",
+				Flag:    "dangerous-allow-path-app-sharing",
+				Default: false,
+			},
+			AllowPathAppSiteOwnerAccess: &codersdk.DeploymentConfigField[bool]{
+				Name:    "DANGEROUS: Allow Site Owners to Access Path Apps",
+				Usage:   "Allow site-owners to access workspace apps from workspaces they do not own. Owners cannot access path-based apps they do not own by default. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious Javascript. Path-based apps can be disabled entirely with --disable-path-apps for further security.",
+				Flag:    "dangerous-allow-path-app-site-owner-access",
+				Default: false,
+			},
+		},
+		DisablePathApps: &codersdk.DeploymentConfigField[bool]{
+			Name:    "Disable Path Apps",
+			Usage:   "Disable workspace apps that are not served from subdomains. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious Javascript. This is recommended for security purposes if a --wildcard-access-url is configured.",
+			Flag:    "disable-path-apps",
+			Default: false,
+		},
 	}
 }
 

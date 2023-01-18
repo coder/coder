@@ -46,6 +46,8 @@ type DeploymentConfig struct {
 	MaxTokenLifetime                *DeploymentConfigField[time.Duration]   `json:"max_token_lifetime" typescript:",notnull"`
 	Swagger                         *SwaggerConfig                          `json:"swagger" typescript:",notnull"`
 	Logging                         *LoggingConfig                          `json:"logging" typescript:",notnull"`
+	Dangerous                       *DangerousConfig                        `json:"dangerous" typescript:",notnull"`
+	DisablePathApps                 *DeploymentConfigField[bool]            `json:"disable_path_apps" typescript:",notnull"`
 }
 
 type DERP struct {
@@ -160,6 +162,11 @@ type LoggingConfig struct {
 	Human       *DeploymentConfigField[string] `json:"human" typescript:",notnull"`
 	JSON        *DeploymentConfigField[string] `json:"json" typescript:",notnull"`
 	Stackdriver *DeploymentConfigField[string] `json:"stackdriver" typescript:",notnull"`
+}
+
+type DangerousConfig struct {
+	AllowPathAppSharing         *DeploymentConfigField[bool] `json:"allow_path_app_sharing" typescript:",notnull"`
+	AllowPathAppSiteOwnerAccess *DeploymentConfigField[bool] `json:"allow_path_app_site_owner_access" typescript:",notnull"`
 }
 
 type Flaggable interface {
