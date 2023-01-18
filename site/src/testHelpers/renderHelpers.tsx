@@ -5,6 +5,7 @@ import {
   screen,
   waitForElementToBeRemoved,
 } from "@testing-library/react"
+import { AuthProvider } from "components/AuthProvider/AuthProvider"
 import { DashboardLayout } from "components/Dashboard/DashboardLayout"
 import { createMemoryHistory } from "history"
 import { i18n } from "i18n"
@@ -28,9 +29,11 @@ export const WrapperComponent: FC<React.PropsWithChildren<unknown>> = ({
 }) => {
   return (
     <HelmetProvider>
-      <HistoryRouter history={history}>
-        <ThemeProvider theme={dark}>{children}</ThemeProvider>
-      </HistoryRouter>
+      <ThemeProvider theme={dark}>
+        <HistoryRouter history={history}>
+          <AuthProvider>{children}</AuthProvider>
+        </HistoryRouter>
+      </ThemeProvider>
     </HelmetProvider>
   )
 }
@@ -59,16 +62,18 @@ export function renderWithAuth(
     <HelmetProvider>
       <I18nextProvider i18n={i18n}>
         <ThemeProvider theme={dark}>
-          <MemoryRouter initialEntries={[route]}>
-            <Routes>
-              <Route element={<RequireAuth />}>
-                <Route element={<DashboardLayout />}>
-                  <Route path={path ?? route} element={ui} />
+          <AuthProvider>
+            <MemoryRouter initialEntries={[route]}>
+              <Routes>
+                <Route element={<RequireAuth />}>
+                  <Route element={<DashboardLayout />}>
+                    <Route path={path ?? route} element={ui} />
+                  </Route>
                 </Route>
-              </Route>
-              {routes}
-            </Routes>
-          </MemoryRouter>
+                {routes}
+              </Routes>
+            </MemoryRouter>
+          </AuthProvider>
         </ThemeProvider>
       </I18nextProvider>
     </HelmetProvider>,
