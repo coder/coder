@@ -34,7 +34,7 @@ func (api *API) regenerateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 
-	if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceUserData.WithOwner(user.ID.String())) {
+	if !api.Authorize(r, rbac.ActionUpdate, user.UserDataRBACObject()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -93,7 +93,7 @@ func (api *API) gitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
 
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUserData.WithOwner(user.ID.String())) {
+	if !api.Authorize(r, rbac.ActionRead, user.UserDataRBACObject()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}

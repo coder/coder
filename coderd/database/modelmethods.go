@@ -83,9 +83,13 @@ func (f File) RBACObject() rbac.Object {
 
 // RBACObject returns the RBAC object for the site wide user resource.
 // If you are trying to get the RBAC object for the UserData, use
-// rbac.ResourceUserData
+// u.UserDataRBACObject() instead.
 func (u User) RBACObject() rbac.Object {
 	return rbac.ResourceUser.WithID(u.ID)
+}
+
+func (u User) UserDataRBACObject() rbac.Object {
+	return rbac.ResourceUser.WithID(u.ID).WithOwner(u.ID.String())
 }
 
 func (License) RBACObject() rbac.Object {
