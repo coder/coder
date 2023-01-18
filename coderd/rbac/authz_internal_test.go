@@ -200,7 +200,7 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	user := subject{
 		UserID: "me",
-		Scope:  must(ScopeRole(ScopeAll)),
+		Scope:  must(ExpandScope(ScopeAll)),
 		Groups: []string{allUsersGroup},
 		Roles: []Role{
 			must(RoleByName(RoleMember())),
@@ -299,7 +299,7 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	user = subject{
 		UserID: "me",
-		Scope:  must(ScopeRole(ScopeAll)),
+		Scope:  must(ExpandScope(ScopeAll)),
 		Roles: []Role{{
 			Name: "deny-all",
 			// List out deny permissions explicitly
@@ -340,7 +340,7 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	user = subject{
 		UserID: "me",
-		Scope:  must(ScopeRole(ScopeAll)),
+		Scope:  must(ExpandScope(ScopeAll)),
 		Roles: []Role{
 			must(RoleByName(RoleOrgAdmin(defOrg))),
 			must(RoleByName(RoleMember())),
@@ -374,7 +374,7 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	user = subject{
 		UserID: "me",
-		Scope:  must(ScopeRole(ScopeAll)),
+		Scope:  must(ExpandScope(ScopeAll)),
 		Roles: []Role{
 			must(RoleByName(RoleOwner())),
 			must(RoleByName(RoleMember())),
@@ -408,7 +408,7 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	user = subject{
 		UserID: "me",
-		Scope:  must(ScopeRole(ScopeApplicationConnect)),
+		Scope:  must(ExpandScope(ScopeApplicationConnect)),
 		Roles: []Role{
 			must(RoleByName(RoleOrgMember(defOrg))),
 			must(RoleByName(RoleMember())),
@@ -507,7 +507,7 @@ func TestAuthorizeDomain(t *testing.T) {
 	// In practice this is a token scope on a regular subject
 	user = subject{
 		UserID: "me",
-		Scope:  must(ScopeRole(ScopeAll)),
+		Scope:  must(ExpandScope(ScopeAll)),
 		Roles: []Role{
 			{
 				Name: "ReadOnlyOrgAndUser",
@@ -600,7 +600,7 @@ func TestAuthorizeLevels(t *testing.T) {
 
 	user := subject{
 		UserID: "me",
-		Scope:  must(ScopeRole(ScopeAll)),
+		Scope:  must(ExpandScope(ScopeAll)),
 		Roles: []Role{
 			must(RoleByName(RoleOwner())),
 			{
@@ -661,7 +661,7 @@ func TestAuthorizeLevels(t *testing.T) {
 
 	user = subject{
 		UserID: "me",
-		Scope:  must(ScopeRole(ScopeAll)),
+		Scope:  must(ExpandScope(ScopeAll)),
 		Roles: []Role{
 			{
 				Name: "site-noise",
@@ -726,7 +726,7 @@ func TestAuthorizeScope(t *testing.T) {
 	user := subject{
 		UserID: "me",
 		Roles:  []Role{must(RoleByName(RoleOwner()))},
-		Scope:  must(ScopeRole(ScopeApplicationConnect)),
+		Scope:  must(ExpandScope(ScopeApplicationConnect)),
 	}
 
 	testAuthorize(t, "Admin_ScopeApplicationConnect", user,
@@ -760,7 +760,7 @@ func TestAuthorizeScope(t *testing.T) {
 			must(RoleByName(RoleMember())),
 			must(RoleByName(RoleOrgMember(defOrg))),
 		},
-		Scope: must(ScopeRole(ScopeApplicationConnect)),
+		Scope: must(ExpandScope(ScopeApplicationConnect)),
 	}
 
 	testAuthorize(t, "User_ScopeApplicationConnect", user,

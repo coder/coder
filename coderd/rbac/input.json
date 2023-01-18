@@ -1,6 +1,7 @@
 {
   "action": "never-match-action",
   "object": {
+    "id": "00000000-0000-0000-0000-000000000000",
     "owner": "00000000-0000-0000-0000-000000000000",
     "org_owner": "bf7b72bd-a2b1-4ef2-962c-1d698e0483f6",
     "type": "workspace",
@@ -16,6 +17,7 @@
     "scope": {
       "name": "Scope_all",
       "display_name": "All operations",
+      "allow_list": ["123", "*"],
       "site": [
         {
           "negate": false,

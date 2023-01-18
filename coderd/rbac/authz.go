@@ -197,7 +197,7 @@ func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNa
 		return err
 	}
 
-	scopeRole, err := ScopeRole(scope)
+	scopeRole, err := ExpandScope(scope)
 	if err != nil {
 		return err
 	}
@@ -252,7 +252,7 @@ func (a RegoAuthorizer) PrepareByRoleName(ctx context.Context, subjectID string,
 		return nil, err
 	}
 
-	scopeRole, err := ScopeRole(scope)
+	scopeRole, err := ExpandScope(scope)
 	if err != nil {
 		return nil, err
 	}

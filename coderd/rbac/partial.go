@@ -141,6 +141,7 @@ func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, s
 		rego.Query("data.authz.allow = true"),
 		rego.Module("policy.rego", policy),
 		rego.Unknowns([]string{
+			"input.object.id",
 			"input.object.owner",
 			"input.object.org_owner",
 			"input.object.acl_user_list",
