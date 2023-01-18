@@ -252,7 +252,7 @@
           "title": "Scaling Coder",
           "description": "Reference architecture and load testing tools",
           "icon_path": "./images/icons/scale.svg",
-          "path": "./admin/scale/index.md"
+          "path": "./admin/scale.md"
         },
         {
           "title": "Audit Logs",
