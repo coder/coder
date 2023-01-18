@@ -567,7 +567,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Value:            values,
 		})
 		if err != nil {
-			return xerrors.Errorf("insert workspace build parameter: %w", err)
+			return xerrors.Errorf("insert workspace build parameters: %w", err)
 		}
 
 		return nil

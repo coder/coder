@@ -941,8 +941,9 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 	completedPlan, failed := r.buildWorkspace(ctx, "Planning infrastructure", &sdkproto.Provision_Request{
 		Type: &sdkproto.Provision_Request_Plan{
 			Plan: &sdkproto.Provision_Plan{
-				Config:          config,
-				ParameterValues: r.job.GetWorkspaceBuild().ParameterValues,
+				Config:              config,
+				ParameterValues:     r.job.GetWorkspaceBuild().ParameterValues,
+				RichParameterValues: r.job.GetWorkspaceBuild().RichParameterValues,
 			},
 		},
 	})
