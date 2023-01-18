@@ -23,16 +23,16 @@ Workspace builds are CPU-intensive, as it relies on Terraform. Various [Terrafor
 
 To support 120 concurrent workspace builds, for example:
 
-- Create a cluster/nodepool with four 8-core nodes (AWS: `t3.2xlarge` GCP: `e2-highcpu-8`)
+- Create a cluster/nodepool with 4 nodes, 8-core each (AWS: `t3.2xlarge` GCP: `e2-highcpu-8`)
 - Run coderd with 4 replicas, 30 provisioner daemons each. (`CODER_PROVISIONER_DAEMONS=30`)
 - Ensure Coder's [PostgreSQL server](../../admin/configure.md#postgresql-database) can use up to 1.5 cores
 
 ## Recent scale tests
 
-| Environment        | Users | Concurrent builds | Concurrent connections (SSH) | Concurrent connections (web) | Last tested  |
-| ------------------ | ----- | ----------------- | ---------------------------- | ---------------------------- | ------------ |
-| Kubernetes (GKE)   | 1200  | 120               | 10,000                       | 10,000                       | Jan 10, 2022 |
-| Docker (Single VM) | 500   | 50                | 10,000                       | 10,000                       | Dec 20, 2022 |
+| Environment        | Users | Concurrent builds | Concurrent connections (SSH) | Concurrent connections (web) | Coder Version | Last tested  |
+| ------------------ | ----- | ----------------- | ---------------------------- | ---------------------------- | ------------- | ------------ |
+| Kubernetes (GKE)   | 1200  | 120               | 10,000                       | 10,000                       | `v0.14.2`     | Jan 10, 2022 |
+| Docker (Single VM) | 500   | 50                | 10,000                       | 10,000                       | `v0.13.4`     | Dec 20, 2022 |
 
 ## Scale testing utility
 
@@ -56,13 +56,13 @@ coder scaletest create-workspaces \
 
 The test does the following:
 
-- create `n` workspaces
-- establish SSH connection to each workspace
-- run `sleep 3 && echo hello` on each workspace via the web terminal
-- close connections, attempt to delete all workspaces
-- return results (e.g. `99 succeeded, 1 failed to connect`)
+1. create `1000` workspaces
+1. establish SSH connection to each workspace
+1. run `sleep 3 && echo hello` on each workspace via the web terminal
+1. close connections, attempt to delete all workspaces
+1. return results (e.g. `998 succeeded, 2 failed to connect`)
 
-Workspace jobs run concurrently, meaning that the test will attempt to connect to each workspace as soon as it is provisioned instead of waiting for all 100 workspaces to create.
+Concurrency is configurable. `concurrency 0` means the scaletest test will attempt to create & connect to all workspaces immediately.
 
 ## Troubleshooting
 
