@@ -18,7 +18,7 @@ export const deploymentConfigMachine = createMachine(
       services: {} as {
         getDeploymentConfig: {
           data: DeploymentConfig
-        },
+        }
         getDeploymentDAUs: {
           data: TemplateDAUsResponse
         }
