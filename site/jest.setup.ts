@@ -3,6 +3,7 @@ import { cleanup } from "@testing-library/react"
 import crypto from "crypto"
 import * as util from "util"
 import { server } from "./src/testHelpers/server"
+import "jest-location-mock"
 
 // Polyfill the getRandomValues that is used on utils/random.ts
 Object.defineProperty(global.self, "crypto", {
