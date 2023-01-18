@@ -605,6 +605,10 @@ func New(options *Options) *API {
 				r.Get("/", api.workspaceApplicationAuth)
 			})
 		})
+		r.Route("insights", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/daus", api.deploymentDAUs)
+		})
 	})
 
 	if options.SwaggerEndpoint {
