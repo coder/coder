@@ -15,7 +15,6 @@ export const SetupPage: FC = () => {
         if (!firstUser) {
           throw new Error("First user was not defined.")
         }
-        console.log("AUTH SEND")
         authSend({
           type: "SIGN_IN",
           email: firstUser.email,
@@ -27,7 +26,6 @@ export const SetupPage: FC = () => {
   const { createFirstUserFormErrors, createFirstUserErrorMessage } =
     setupState.context
 
-  console.log(setupState.value, setupState.context)
   useEffect(() => {
     if (authState.matches("signedIn")) {
       window.location.assign("/workspaces")
