@@ -36,7 +36,7 @@ func Test_Experiments(t *testing.T) {
 	t.Run("multiple features", func(t *testing.T) {
 		t.Parallel()
 		cfg := coderdtest.DeploymentConfig(t)
-		cfg.Experiments.Value = []string{"foo", "bar"}
+		cfg.Experiments.Value = []string{"foo", "BAR"}
 		client := coderdtest.New(t, &coderdtest.Options{
 			DeploymentConfig: cfg,
 		})
@@ -48,6 +48,7 @@ func Test_Experiments(t *testing.T) {
 		experiments, err := client.Experiments(ctx)
 		require.NoError(t, err)
 		require.NotNil(t, experiments)
+		// Should be lower-cased.
 		require.ElementsMatch(t, []codersdk.Experiment{"foo", "bar"}, experiments)
 		require.True(t, experiments.Enabled("foo"))
 		require.True(t, experiments.Enabled("bar"))
@@ -79,7 +80,7 @@ func Test_Experiments(t *testing.T) {
 	t.Run("alternate wildcard with manual opt-in", func(t *testing.T) {
 		t.Parallel()
 		cfg := coderdtest.DeploymentConfig(t)
-		cfg.Experiments.Value = []string{"*", "danger"}
+		cfg.Experiments.Value = []string{"*", "dAnGeR"}
 		client := coderdtest.New(t, &coderdtest.Options{
 			DeploymentConfig: cfg,
 		})

@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -771,7 +772,7 @@ func initExperiments(log slog.Logger, raw []string, legacyAll bool) codersdk.Exp
 		case "*":
 			exps = append(exps, codersdk.ExperimentsAll...)
 		default:
-			ex := codersdk.Experiment(v)
+			ex := codersdk.Experiment(strings.ToLower(v))
 			if !slice.Contains(codersdk.ExperimentsAll, ex) {
 				log.Warn(context.Background(), "🐉 HERE BE DRAGONS: opting into hidden experiment", slog.F("experiment", ex))
 			}
