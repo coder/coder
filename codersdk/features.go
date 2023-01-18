@@ -79,9 +79,10 @@ type Entitlements struct {
 	Warnings   []string                `json:"warnings"`
 	Errors     []string                `json:"errors"`
 	HasLicense bool                    `json:"has_license"`
+	Trial      bool                    `json:"trial"`
+
 	// DEPRECATED: use Experiments instead.
 	Experimental bool `json:"experimental"`
-	Trial        bool `json:"trial"`
 }
 
 func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
