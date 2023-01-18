@@ -1346,7 +1346,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     }
   },
   "experimental": {
-    "default": ["vscode_local"],
+    "default": true,
     "enterprise": true,
     "flag": "string",
     "hidden": true,
@@ -1354,7 +1354,18 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "secret": true,
     "shorthand": "string",
     "usage": "string",
-    "value": ["vscode_local"]
+    "value": true
+  },
+  "experiments": {
+    "default": ["string"],
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": ["string"]
   },
   "gitauth": {
     "default": [
@@ -2058,7 +2069,8 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `browser_only`                       | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
 | `cache_directory`                    | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
 | `derp`                               | [codersdk.DERP](#codersdkderp)                                                                                             | false    |              |                                                 |
-| `experimental`                       | [codersdk.DeploymentConfigField-codersdk_Experiments](#codersdkdeploymentconfigfield-codersdk_experiments)                 | false    |              |                                                 |
+| `experimental`                       | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              | Experimental Use Experiments instead.           |
+| `experiments`                        | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string)                                 | false    |              |                                                 |
 | `gitauth`                            | [codersdk.DeploymentConfigField-array_codersdk_GitAuthConfig](#codersdkdeploymentconfigfield-array_codersdk_gitauthconfig) | false    |              |                                                 |
 | `http_address`                       | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
 | `in_memory_database`                 | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
@@ -2197,36 +2209,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `shorthand`  | string  | false    |              |             |
 | `usage`      | string  | false    |              |             |
 | `value`      | boolean | false    |              |             |
-
-## codersdk.DeploymentConfigField-codersdk_Experiments
-
-```json
-{
-  "default": ["vscode_local"],
-  "enterprise": true,
-  "flag": "string",
-  "hidden": true,
-  "name": "string",
-  "secret": true,
-  "shorthand": "string",
-  "usage": "string",
-  "value": ["vscode_local"]
-}
-```
-
-### Properties
-
-| Name         | Type                                                | Required | Restrictions | Description |
-| ------------ | --------------------------------------------------- | -------- | ------------ | ----------- |
-| `default`    | array of [codersdk.Experiment](#codersdkexperiment) | false    |              |             |
-| `enterprise` | boolean                                             | false    |              |             |
-| `flag`       | string                                              | false    |              |             |
-| `hidden`     | boolean                                             | false    |              |             |
-| `name`       | string                                              | false    |              |             |
-| `secret`     | boolean                                             | false    |              |             |
-| `shorthand`  | string                                              | false    |              |             |
-| `usage`      | string                                              | false    |              |             |
-| `value`      | array of [codersdk.Experiment](#codersdkexperiment) | false    |              |             |
 
 ## codersdk.DeploymentConfigField-int
 
@@ -2371,20 +2353,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `has_license`      | boolean                              | false    |              |                                       |
 | `trial`            | boolean                              | false    |              |                                       |
 | `warnings`         | array of string                      | false    |              |                                       |
-
-## codersdk.Experiment
-
-```json
-"vscode_local"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value          |
-| -------------- |
-| `vscode_local` |
 
 ## codersdk.Feature
 

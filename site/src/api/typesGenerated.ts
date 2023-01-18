@@ -311,11 +311,12 @@ export interface DeploymentConfig {
   readonly scim_api_key: DeploymentConfigField<string>
   readonly provisioner: ProvisionerConfig
   readonly rate_limit: RateLimitConfig
-  readonly experimental: DeploymentConfigField<Experiments>
+  readonly experiments: DeploymentConfigField<string[]>
   readonly update_check: DeploymentConfigField<boolean>
   readonly max_token_lifetime: DeploymentConfigField<number>
   readonly swagger: SwaggerConfig
   readonly logging: LoggingConfig
+  readonly experimental: DeploymentConfigField<boolean>
 }
 
 // From codersdk/deploymentconfig.go
@@ -337,8 +338,8 @@ export interface Entitlements {
   readonly warnings: string[]
   readonly errors: string[]
   readonly has_license: boolean
-  readonly experimental: boolean
   readonly trial: boolean
+  readonly experimental: boolean
 }
 
 // From codersdk/experiments.go

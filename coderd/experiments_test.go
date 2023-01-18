@@ -12,14 +12,14 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
-// nolint:paralleltest  // t.Setenv
 func Test_Experiments(t *testing.T) {
-	// In these tests we set the environment variable directly, rather than
-	// modifying the deployment config. This corresponds more directly to what
-	// an end user would do. Also, modifying the deployment config doesn't work
-	// for expanding the wildcard because of how viper binds stuff.
+	t.Parallel()
 	t.Run("empty", func(t *testing.T) {
-		client := coderdtest.New(t, nil)
+		t.Parallel()
+		cfg := coderdtest.DeploymentConfig(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			DeploymentConfig: cfg,
+		})
 		_ = coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -34,8 +34,12 @@ func Test_Experiments(t *testing.T) {
 	})
 
 	t.Run("multiple features", func(t *testing.T) {
-		t.Setenv("CODER_EXPERIMENTAL", "foo,bar")
-		client := coderdtest.New(t, nil)
+		t.Parallel()
+		cfg := coderdtest.DeploymentConfig(t)
+		cfg.Experiments.Value = []string{"foo", "bar"}
+		client := coderdtest.New(t, &coderdtest.Options{
+			DeploymentConfig: cfg,
+		})
 		_ = coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -51,8 +55,12 @@ func Test_Experiments(t *testing.T) {
 	})
 
 	t.Run("wildcard", func(t *testing.T) {
-		t.Setenv("CODER_EXPERIMENTAL", "*")
-		client := coderdtest.New(t, nil)
+		t.Parallel()
+		cfg := coderdtest.DeploymentConfig(t)
+		cfg.Experiments.Value = []string{"*"}
+		client := coderdtest.New(t, &coderdtest.Options{
+			DeploymentConfig: cfg,
+		})
 		_ = coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -69,8 +77,12 @@ func Test_Experiments(t *testing.T) {
 	})
 
 	t.Run("alternate wildcard with manual opt-in", func(t *testing.T) {
-		t.Setenv("CODER_EXPERIMENTAL", "true,danger")
-		client := coderdtest.New(t, nil)
+		t.Parallel()
+		cfg := coderdtest.DeploymentConfig(t)
+		cfg.Experiments.Value = []string{"*", "danger"}
+		client := coderdtest.New(t, &coderdtest.Options{
+			DeploymentConfig: cfg,
+		})
 		_ = coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -87,9 +99,35 @@ func Test_Experiments(t *testing.T) {
 		require.False(t, experiments.Enabled("herebedragons"))
 	})
 
+	t.Run("legacy wildcard", func(t *testing.T) {
+		t.Parallel()
+		cfg := coderdtest.DeploymentConfig(t)
+		cfg.Experimental.Value = true
+		client := coderdtest.New(t, &coderdtest.Options{
+			DeploymentConfig: cfg,
+		})
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		experiments, err := client.Experiments(ctx)
+		require.NoError(t, err)
+		require.NotNil(t, experiments)
+		require.ElementsMatch(t, codersdk.ExperimentsAll, experiments)
+		for _, ex := range codersdk.ExperimentsAll {
+			require.True(t, experiments.Enabled(ex))
+		}
+		require.False(t, experiments.Enabled("danger"))
+	})
+
 	t.Run("Unauthorized", func(t *testing.T) {
-		t.Setenv("CODER_EXPERIMENTAL", "foo,bar")
-		client := coderdtest.New(t, nil)
+		t.Parallel()
+		cfg := coderdtest.DeploymentConfig(t)
+		cfg.Experiments.Value = []string{"*"}
+		client := coderdtest.New(t, &coderdtest.Options{
+			DeploymentConfig: cfg,
+		})
 		// Explicitly omit creating a user so we're unauthorized.
 		// _ = coderdtest.CreateFirstUser(t, client)
 

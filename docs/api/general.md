@@ -266,7 +266,7 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
     }
   },
   "experimental": {
-    "default": ["vscode_local"],
+    "default": true,
     "enterprise": true,
     "flag": "string",
     "hidden": true,
@@ -274,7 +274,18 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
     "secret": true,
     "shorthand": "string",
     "usage": "string",
-    "value": ["vscode_local"]
+    "value": true
+  },
+  "experiments": {
+    "default": ["string"],
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": ["string"]
   },
   "gitauth": {
     "default": [

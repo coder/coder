@@ -15,5 +15,5 @@ import (
 // @Router /experiments [get]
 func (api *API) handleExperimentsGet(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	httpapi.Write(ctx, rw, http.StatusOK, api.DeploymentConfig.Experimental.Value)
+	httpapi.Write(ctx, rw, http.StatusOK, api.Experiments)
 }

@@ -5768,7 +5768,15 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.DERP"
                 },
                 "experimental": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-codersdk_Experiments"
+                    "description": "DEPRECATED: Use Experiments instead.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                        }
+                    ]
+                },
+                "experiments": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
                 },
                 "gitauth": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-array_codersdk_GitAuthConfig"
@@ -5952,44 +5960,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.DeploymentConfigField-codersdk_Experiments": {
-            "type": "object",
-            "properties": {
-                "default": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.Experiment"
-                    }
-                },
-                "enterprise": {
-                    "type": "boolean"
-                },
-                "flag": {
-                    "type": "string"
-                },
-                "hidden": {
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "secret": {
-                    "type": "boolean"
-                },
-                "shorthand": {
-                    "type": "string"
-                },
-                "usage": {
-                    "type": "string"
-                },
-                "value": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.Experiment"
-                    }
-                }
-            }
-        },
         "codersdk.DeploymentConfigField-int": {
             "type": "object",
             "properties": {
@@ -6131,15 +6101,6 @@ const docTemplate = `{
                     }
                 }
             }
-        },
-        "codersdk.Experiment": {
-            "type": "string",
-            "enum": [
-                "vscode_local"
-            ],
-            "x-enum-varnames": [
-                "ExperimentVSCodeLocal"
-            ]
         },
         "codersdk.Feature": {
             "type": "object",

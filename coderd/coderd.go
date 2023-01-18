@@ -220,6 +220,7 @@ func New(options *Options) *API {
 		},
 		metricsCache: metricsCache,
 		Auditor:      atomic.Pointer[audit.Auditor]{},
+		Experiments:  initExperiments(options.DeploymentConfig.Experiments.Value, options.DeploymentConfig.Experimental.Value),
 	}
 	if options.UpdateCheckOptions != nil {
 		api.updateChecker = updatecheck.New(
@@ -650,6 +651,10 @@ type API struct {
 	metricsCache        *metricscache.Cache
 	workspaceAgentCache *wsconncache.Cache
 	updateChecker       *updatecheck.Checker
+
+	// Experiments contains the list of experiments currently enabled.
+	// This is used to gate features that are not yet ready for production.
+	Experiments codersdk.Experiments
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -755,4 +760,23 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 	}()
 
 	return proto.NewDRPCProvisionerDaemonClient(clientSession), nil
+}
+
+// nolint:revive
+func initExperiments(raw []string, legacyAll bool) codersdk.Experiments {
+	exp := make([]codersdk.Experiment, 0, len(raw))
+	for _, v := range raw {
+		switch v {
+		case "*":
+			exp = append(exp, codersdk.ExperimentsAll...)
+		default:
+			exp = append(exp, codersdk.Experiment(v))
+		}
+	}
+
+	// --experiments takes precedence over --experimental. It's deprecated.
+	if legacyAll && len(raw) == 0 {
+		exp = append(exp, codersdk.ExperimentsAll...)
+	}
+	return exp
 }

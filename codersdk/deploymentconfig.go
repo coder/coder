@@ -41,11 +41,14 @@ type DeploymentConfig struct {
 	SCIMAPIKey                      *DeploymentConfigField[string]          `json:"scim_api_key" typescript:",notnull"`
 	Provisioner                     *ProvisionerConfig                      `json:"provisioner" typescript:",notnull"`
 	RateLimit                       *RateLimitConfig                        `json:"rate_limit" typescript:",notnull"`
-	Experimental                    *DeploymentConfigField[Experiments]     `json:"experimental" typescript:",notnull"`
+	Experiments                     *DeploymentConfigField[[]string]        `json:"experiments" typescript:",notnull"`
 	UpdateCheck                     *DeploymentConfigField[bool]            `json:"update_check" typescript:",notnull"`
 	MaxTokenLifetime                *DeploymentConfigField[time.Duration]   `json:"max_token_lifetime" typescript:",notnull"`
 	Swagger                         *SwaggerConfig                          `json:"swagger" typescript:",notnull"`
 	Logging                         *LoggingConfig                          `json:"logging" typescript:",notnull"`
+
+	// DEPRECATED: Use Experiments instead.
+	Experimental *DeploymentConfigField[bool] `json:"experimental" typescript:",notnull"`
 }
 
 type DERP struct {
