@@ -107,9 +107,9 @@ func RichParameter(cmd *cobra.Command, templateVersionParameter codersdk.Templat
 	return value, nil
 }
 
-func templateVersionParameterOptionValues(parameter codersdk.TemplateVersionParameter) []string {
+func templateVersionParameterOptionValues(param codersdk.TemplateVersionParameter) []string {
 	var options []string
-	for _, opt := range parameter.Options {
+	for _, opt := range param.Options {
 		options = append(options, opt.Value)
 	}
 	return options

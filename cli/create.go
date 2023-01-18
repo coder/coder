@@ -253,7 +253,7 @@ PromptParamLoop:
 	// Rich parameters
 	templateVersionParameters, err := client.TemplateVersionRichParameters(cmd.Context(), templateVersion.ID)
 	if err != nil {
-		return nil, xerrors.Errorf("get template version rich parameters", err)
+		return nil, xerrors.Errorf("get template version rich parameters: %w", err)
 	}
 
 	parameterMapFromFile = map[string]string{}
