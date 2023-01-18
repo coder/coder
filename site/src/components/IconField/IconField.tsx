@@ -1,7 +1,7 @@
 import Button from "@material-ui/core/Button"
 import InputAdornment from "@material-ui/core/InputAdornment"
 import Popover from "@material-ui/core/Popover"
-import TextField, { TextFieldProps } from "@material-ui/core/TextField"
+import TextField from "@material-ui/core/TextField"
 import { OpenDropdown } from "components/DropdownArrows/DropdownArrows"
 import { useRef, FC, useState } from "react"
 import Picker from "@emoji-mart/react"
@@ -9,10 +9,9 @@ import { makeStyles } from "@material-ui/core/styles"
 import { colors } from "theme/colors"
 import { useTranslation } from "react-i18next"
 import data from "@emoji-mart/data/sets/14/twitter.json"
+import { IconFieldProps } from "./types"
 
-export const IconField: FC<
-  TextFieldProps & { onPickEmoji: (value: string) => void }
-> = ({ onPickEmoji, ...textFieldProps }) => {
+const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
   if (
     typeof textFieldProps.value !== "string" &&
     typeof textFieldProps.value !== "undefined"
@@ -111,3 +110,5 @@ const useStyles = makeStyles((theme) => ({
     paddingBottom: theme.spacing(0.5),
   },
 }))
+
+export default IconField

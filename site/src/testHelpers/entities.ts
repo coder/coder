@@ -3,7 +3,7 @@ import { FieldError } from "api/errors"
 import { everyOneGroup } from "util/groups"
 import * as Types from "../api/types"
 import * as TypesGen from "../api/typesGenerated"
-import { range } from "lodash"
+import range from "lodash/range"
 import { Permissions } from "xServices/auth/authXService"
 
 export const MockTemplateDAUResponse: TypesGen.TemplateDAUsResponse = {
