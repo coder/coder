@@ -3,8 +3,8 @@ import { Group } from "api/typesGenerated"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { FormFooter } from "components/FormFooter/FormFooter"
 import { FullPageForm } from "components/FullPageForm/FullPageForm"
+import { Loader } from "components/Loader/Loader"
 import { LazyIconField } from "components/IconField/LazyIconField"
-import { FullScreenLoader } from "components/Loader/FullScreenLoader"
 import { Margins } from "components/Margins/Margins"
 import { useFormik } from "formik"
 import { FC } from "react"
@@ -104,7 +104,7 @@ export const SettingsGroupPageView: FC<SettingsGroupPageViewProps> = ({
   return (
     <ChooseOne>
       <Cond condition={isLoading}>
-        <FullScreenLoader />
+        <Loader />
       </Cond>
 
       <Cond>
