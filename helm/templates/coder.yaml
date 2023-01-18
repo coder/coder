@@ -25,6 +25,7 @@ spec:
     metadata:
       labels:
         {{- include "coder.selectorLabels" . | nindent 8 }}
+      annotations: {{ toYaml .Values.coder.pod_annotations | nindent 4}}
     spec:
       serviceAccountName: coder
       restartPolicy: Always
