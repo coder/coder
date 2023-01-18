@@ -84,16 +84,14 @@ export const appearanceMachine = createMachine(
     actions: {
       assignPreviewAppearance: assign({
         appearance: (_, event) => event.appearance,
-        // The xState docs suggest that we can use a static value, but I failed
-        // to find a way to do that that doesn't generate type errors.
-        preview: (_, __) => true,
+        preview: (_) => true,
       }),
       notifyUpdateAppearanceSuccess: () => {
         displaySuccess("Successfully updated appearance settings!")
       },
       assignAppearance: assign({
         appearance: (_, event) => event.data as AppearanceConfig,
-        preview: (_, __) => false,
+        preview: (_) => false,
       }),
       assignGetAppearanceError: assign({
         getAppearanceError: (_, event) => event.data,
