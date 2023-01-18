@@ -1,8 +1,9 @@
+import { withDefaultFeatures } from "./../api/api"
 import { FieldError } from "api/errors"
 import { everyOneGroup } from "util/groups"
 import * as Types from "../api/types"
 import * as TypesGen from "../api/typesGenerated"
-import { range } from "lodash"
+import range from "lodash/range"
 import { Permissions } from "xServices/auth/authXService"
 
 export const MockTemplateDAUResponse: TypesGen.TemplateDAUsResponse = {
@@ -938,7 +939,7 @@ export const MockEntitlements: TypesGen.Entitlements = {
   errors: [],
   warnings: [],
   has_license: false,
-  features: {},
+  features: withDefaultFeatures({}),
   experimental: false,
   trial: false,
 }
@@ -949,7 +950,7 @@ export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
   has_license: true,
   experimental: false,
   trial: false,
-  features: {
+  features: withDefaultFeatures({
     user_limit: {
       enabled: true,
       entitlement: "grace_period",
@@ -964,7 +965,7 @@ export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
       enabled: true,
       entitlement: "entitled",
     },
-  },
+  }),
 }
 
 export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
@@ -973,12 +974,12 @@ export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
   has_license: true,
   experimental: false,
   trial: false,
-  features: {
+  features: withDefaultFeatures({
     audit_log: {
       enabled: true,
       entitlement: "entitled",
     },
-  },
+  }),
 }
 
 export const MockAuditLog: TypesGen.AuditLog = {

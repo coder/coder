@@ -2,7 +2,6 @@ package coderd_test
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"testing"
 
@@ -27,14 +26,16 @@ func TestPostLicense(t *testing.T) {
 		respLic := coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 			AccountType: license.AccountTypeSalesforce,
 			AccountID:   "testing",
-			AuditLog:    true,
+			Features: license.Features{
+				codersdk.FeatureAuditLog: 1,
+			},
 		})
 		assert.GreaterOrEqual(t, respLic.ID, int32(0))
 		// just a couple spot checks for sanity
 		assert.Equal(t, "testing", respLic.Claims["account_id"])
-		features, ok := respLic.Claims["features"].(map[string]interface{})
-		require.True(t, ok)
-		assert.Equal(t, json.Number("1"), features[codersdk.FeatureAuditLog])
+		features, err := respLic.Features()
+		require.NoError(t, err)
+		assert.EqualValues(t, 1, features[codersdk.FeatureAuditLog])
 	})
 
 	t.Run("Unauthorized", func(t *testing.T) {
@@ -78,21 +79,24 @@ func TestGetLicense(t *testing.T) {
 		defer cancel()
 
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			AccountID:    "testing",
-			AuditLog:     true,
-			SCIM:         true,
-			BrowserOnly:  true,
-			TemplateRBAC: true,
+			AccountID: "testing",
+			Features: license.Features{
+				codersdk.FeatureAuditLog:     1,
+				codersdk.FeatureSCIM:         1,
+				codersdk.FeatureBrowserOnly:  1,
+				codersdk.FeatureTemplateRBAC: 1,
+			},
 		})
 
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			AccountID:    "testing2",
-			AuditLog:     true,
-			SCIM:         true,
-			BrowserOnly:  true,
-			Trial:        true,
-			UserLimit:    200,
-			TemplateRBAC: false,
+			AccountID: "testing2",
+			Features: license.Features{
+				codersdk.FeatureAuditLog:    1,
+				codersdk.FeatureSCIM:        1,
+				codersdk.FeatureBrowserOnly: 1,
+				codersdk.FeatureUserLimit:   200,
+			},
+			Trial: true,
 		})
 
 		licenses, err := client.Licenses(ctx)
@@ -100,31 +104,27 @@ func TestGetLicense(t *testing.T) {
 		require.Len(t, licenses, 2)
 		assert.Equal(t, int32(1), licenses[0].ID)
 		assert.Equal(t, "testing", licenses[0].Claims["account_id"])
-		assert.Equal(t, map[string]interface{}{
-			codersdk.FeatureUserLimit:                  json.Number("0"),
-			codersdk.FeatureAuditLog:                   json.Number("1"),
-			codersdk.FeatureSCIM:                       json.Number("1"),
-			codersdk.FeatureBrowserOnly:                json.Number("1"),
-			codersdk.FeatureHighAvailability:           json.Number("0"),
-			codersdk.FeatureTemplateRBAC:               json.Number("1"),
-			codersdk.FeatureMultipleGitAuth:            json.Number("0"),
-			codersdk.FeatureExternalProvisionerDaemons: json.Number("0"),
-			codersdk.FeatureAppearance:                 json.Number("0"),
-		}, licenses[0].Claims["features"])
+
+		features, err := licenses[0].Features()
+		require.NoError(t, err)
+		assert.Equal(t, map[codersdk.FeatureName]int64{
+			codersdk.FeatureAuditLog:     1,
+			codersdk.FeatureSCIM:         1,
+			codersdk.FeatureBrowserOnly:  1,
+			codersdk.FeatureTemplateRBAC: 1,
+		}, features)
 		assert.Equal(t, int32(2), licenses[1].ID)
 		assert.Equal(t, "testing2", licenses[1].Claims["account_id"])
 		assert.Equal(t, true, licenses[1].Claims["trial"])
-		assert.Equal(t, map[string]interface{}{
-			codersdk.FeatureUserLimit:                  json.Number("200"),
-			codersdk.FeatureAuditLog:                   json.Number("1"),
-			codersdk.FeatureSCIM:                       json.Number("1"),
-			codersdk.FeatureBrowserOnly:                json.Number("1"),
-			codersdk.FeatureHighAvailability:           json.Number("0"),
-			codersdk.FeatureTemplateRBAC:               json.Number("0"),
-			codersdk.FeatureMultipleGitAuth:            json.Number("0"),
-			codersdk.FeatureExternalProvisionerDaemons: json.Number("0"),
-			codersdk.FeatureAppearance:                 json.Number("0"),
-		}, licenses[1].Claims["features"])
+
+		features, err = licenses[1].Features()
+		require.NoError(t, err)
+		assert.Equal(t, map[codersdk.FeatureName]int64{
+			codersdk.FeatureUserLimit:   200,
+			codersdk.FeatureAuditLog:    1,
+			codersdk.FeatureSCIM:        1,
+			codersdk.FeatureBrowserOnly: 1,
+		}, features)
 	})
 }
 
@@ -168,12 +168,16 @@ func TestDeleteLicense(t *testing.T) {
 
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 			AccountID: "testing",
-			AuditLog:  true,
+			Features: license.Features{
+				codersdk.FeatureAuditLog: 1,
+			},
 		})
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 			AccountID: "testing2",
-			AuditLog:  true,
-			UserLimit: 200,
+			Features: license.Features{
+				codersdk.FeatureAuditLog:  1,
+				codersdk.FeatureUserLimit: 200,
+			},
 		})
 
 		licenses, err := client.Licenses(ctx)

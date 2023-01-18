@@ -1,5 +1,4 @@
 import { shallowEqual, useActor, useSelector } from "@xstate/react"
-import { FeatureNames } from "api/types"
 import { useContext, FC } from "react"
 import { selectFeatureVisibility } from "xServices/entitlements/entitlementsSelectors"
 import { XServiceContext } from "../../xServices/StateContext"
@@ -17,8 +16,7 @@ export const Navbar: FC = () => {
     shallowEqual,
   )
   const canViewAuditLog =
-    featureVisibility[FeatureNames.AuditLog] &&
-    Boolean(permissions?.viewAuditLog)
+    featureVisibility["audit_log"] && Boolean(permissions?.viewAuditLog)
   const canViewDeployment = Boolean(permissions?.viewDeploymentConfig)
   const onSignOut = () => authSend("SIGN_OUT")
 

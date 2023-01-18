@@ -10,7 +10,7 @@ import { generateRandomString } from "../../util/random"
 import { BaseIcon } from "./BaseIcon"
 import { ShareIcon } from "./ShareIcon"
 
-export const Language = {
+const Language = {
   appTitle: (appName: string, identifier: string): string =>
     `${appName} - ${identifier}`,
 }

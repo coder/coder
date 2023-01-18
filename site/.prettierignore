@@ -39,6 +39,9 @@ playwright-report/*
 ../dist/
 out/
 
+# Bundle analysis
+stats/
+
 *.tfstate
 *.tfstate.backup
 *.tfplan

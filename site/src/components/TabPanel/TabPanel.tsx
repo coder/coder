@@ -3,8 +3,6 @@ import { alpha } from "@material-ui/core/styles/colorManipulator"
 import { FC } from "react"
 import { TabSidebar, TabSidebarItem } from "../TabSidebar/TabSidebar"
 
-export type AdminMenuItemCallback = (menuItem: string) => void
-
 export interface TabPanelProps {
   title: string
   menuItems: TabSidebarItem[]

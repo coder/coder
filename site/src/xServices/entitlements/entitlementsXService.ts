@@ -1,11 +1,8 @@
+import { withDefaultFeatures } from "./../../api/api"
 import { MockEntitlementsWithWarnings } from "testHelpers/entities"
 import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
 import { Entitlements } from "../../api/typesGenerated"
-
-export const Language = {
-  getEntitlementsError: "Error getting license entitlements.",
-}
 
 export type EntitlementsContext = {
   entitlements: Entitlements
@@ -22,7 +19,7 @@ export type EntitlementsEvent =
 const emptyEntitlements = {
   errors: [],
   warnings: [],
-  features: {},
+  features: withDefaultFeatures({}),
   has_license: false,
   experimental: false,
   trial: false,

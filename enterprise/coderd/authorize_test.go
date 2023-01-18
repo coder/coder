@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/testutil"
 )
 
@@ -28,7 +29,9 @@ func TestCheckACLPermissions(t *testing.T) {
 	// Create adminClient, member, and org adminClient
 	adminUser := coderdtest.CreateFirstUser(t, adminClient)
 	_ = coderdenttest.AddLicense(t, adminClient, coderdenttest.LicenseOptions{
-		TemplateRBAC: true,
+		Features: license.Features{
+			codersdk.FeatureTemplateRBAC: 1,
+		},
 	})
 
 	memberClient := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
