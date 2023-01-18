@@ -12,6 +12,7 @@ import (
 	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 )
@@ -36,7 +37,9 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			ExternalProvisionerDaemons: true,
+			Features: license.Features{
+				codersdk.FeatureExternalProvisionerDaemons: 1,
+			},
 		})
 		srv, err := client.ServeProvisionerDaemon(context.Background(), user.OrganizationID, []codersdk.ProvisionerType{
 			codersdk.ProvisionerTypeEcho,
@@ -50,7 +53,9 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			ExternalProvisionerDaemons: true,
+			Features: license.Features{
+				codersdk.FeatureExternalProvisionerDaemons: 1,
+			},
 		})
 		another := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, err := another.ServeProvisionerDaemon(context.Background(), user.OrganizationID, []codersdk.ProvisionerType{
@@ -69,7 +74,9 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			ExternalProvisionerDaemons: true,
+			Features: license.Features{
+				codersdk.FeatureExternalProvisionerDaemons: 1,
+			},
 		})
 		closer := coderdtest.NewExternalProvisionerDaemon(t, client, user.OrganizationID, map[string]string{
 			provisionerdserver.TagScope: provisionerdserver.ScopeUser,

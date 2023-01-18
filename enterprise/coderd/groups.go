@@ -32,7 +32,7 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 		ctx               = r.Context()
 		org               = httpmw.OrganizationParam(r)
 		auditor           = api.AGPL.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.Group](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.AuditableGroup](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
@@ -75,7 +75,9 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	aReq.New = group
+
+	var emptyUsers []database.User
+	aReq.New = group.Auditable(emptyUsers)
 
 	httpapi.Write(ctx, rw, http.StatusCreated, convertGroup(group, nil))
 }
@@ -93,7 +95,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		ctx               = r.Context()
 		group             = httpmw.GroupParam(r)
 		auditor           = api.AGPL.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.Group](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.AuditableGroup](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
@@ -101,7 +103,14 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		})
 	)
 	defer commitAudit()
-	aReq.Old = group
+
+	currentMembers, currentMembersErr := api.Database.GetGroupMembers(ctx, group.ID)
+	if currentMembersErr != nil {
+		httpapi.InternalServerError(rw, currentMembersErr)
+		return
+	}
+
+	aReq.Old = group.Auditable(currentMembers)
 
 	if !api.Authorize(r, rbac.ActionUpdate, group) {
 		http.NotFound(rw, r)
@@ -233,15 +242,15 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	members, err := api.Database.GetGroupMembers(ctx, group.ID)
+	patchedMembers, err := api.Database.GetGroupMembers(ctx, group.ID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
 
-	aReq.New = group
+	aReq.New = group.Auditable(patchedMembers)
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertGroup(group, members))
+	httpapi.Write(ctx, rw, http.StatusOK, convertGroup(group, patchedMembers))
 }
 
 // @Summary Delete group by name
@@ -257,7 +266,7 @@ func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 		ctx               = r.Context()
 		group             = httpmw.GroupParam(r)
 		auditor           = api.AGPL.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.Group](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.AuditableGroup](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
@@ -265,7 +274,14 @@ func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 		})
 	)
 	defer commitAudit()
-	aReq.Old = group
+
+	groupMembers, getMembersErr := api.Database.GetGroupMembers(ctx, group.ID)
+	if getMembersErr != nil {
+		httpapi.InternalServerError(rw, getMembersErr)
+		return
+	}
+
+	aReq.Old = group.Auditable(groupMembers)
 
 	if !api.Authorize(r, rbac.ActionDelete, group) {
 		httpapi.ResourceNotFound(rw)

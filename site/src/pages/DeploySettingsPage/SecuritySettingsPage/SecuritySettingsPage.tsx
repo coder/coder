@@ -1,5 +1,4 @@
 import { useActor } from "@xstate/react"
-import { FeatureNames } from "api/types"
 import { useDeploySettings } from "components/DeploySettingsLayout/DeploySettingsLayout"
 import { useContext, FC } from "react"
 import { Helmet } from "react-helmet-async"
@@ -21,13 +20,11 @@ const SecuritySettingsPage: FC = () => {
       <SecuritySettingsPageView
         deploymentConfig={deploymentConfig}
         featureAuditLogEnabled={
-          entitlementsState.context.entitlements.features[FeatureNames.AuditLog]
-            .enabled
+          entitlementsState.context.entitlements.features["audit_log"].enabled
         }
         featureBrowserOnlyEnabled={
-          entitlementsState.context.entitlements.features[
-            FeatureNames.BrowserOnly
-          ].enabled
+          entitlementsState.context.entitlements.features["browser_only"]
+            .enabled
         }
       />
     </>

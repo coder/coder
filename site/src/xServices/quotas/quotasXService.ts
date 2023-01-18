@@ -2,10 +2,6 @@ import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
 import { WorkspaceQuota } from "../../api/typesGenerated"
 
-export const Language = {
-  getQuotaError: "Failed to get Quota",
-}
-
 export type QuotaContext = {
   quota?: WorkspaceQuota
   getQuotaError?: Error | unknown

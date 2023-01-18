@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -52,6 +53,7 @@ import (
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/updatecheck"
+	"github.com/coder/coder/coderd/util/slice"
 	"github.com/coder/coder/coderd/wsconncache"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionerd/proto"
@@ -220,6 +222,7 @@ func New(options *Options) *API {
 		},
 		metricsCache: metricsCache,
 		Auditor:      atomic.Pointer[audit.Auditor]{},
+		Experiments:  initExperiments(options.Logger, options.DeploymentConfig.Experiments.Value, options.DeploymentConfig.Experimental.Value),
 	}
 	if options.UpdateCheckOptions != nil {
 		api.updateChecker = updatecheck.New(
@@ -348,6 +351,10 @@ func New(options *Options) *API {
 		r.Post("/csp/reports", api.logReportCSPViolations)
 
 		r.Get("/buildinfo", buildInfo)
+		r.Route("/experiments", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/", api.handleExperimentsGet)
+		})
 		r.Get("/updatecheck", api.updateCheck)
 		r.Route("/config", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
@@ -646,6 +653,10 @@ type API struct {
 	metricsCache        *metricscache.Cache
 	workspaceAgentCache *wsconncache.Cache
 	updateChecker       *updatecheck.Checker
+
+	// Experiments contains the list of experiments currently enabled.
+	// This is used to gate features that are not yet ready for production.
+	Experiments codersdk.Experiments
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -751,4 +762,28 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 	}()
 
 	return proto.NewDRPCProvisionerDaemonClient(clientSession), nil
+}
+
+// nolint:revive
+func initExperiments(log slog.Logger, raw []string, legacyAll bool) codersdk.Experiments {
+	exps := make([]codersdk.Experiment, 0, len(raw))
+	for _, v := range raw {
+		switch v {
+		case "*":
+			exps = append(exps, codersdk.ExperimentsAll...)
+		default:
+			ex := codersdk.Experiment(strings.ToLower(v))
+			if !slice.Contains(codersdk.ExperimentsAll, ex) {
+				log.Warn(context.Background(), "🐉 HERE BE DRAGONS: opting into hidden experiment", slog.F("experiment", ex))
+			}
+			exps = append(exps, ex)
+		}
+	}
+
+	// --experiments takes precedence over --experimental. It's deprecated.
+	if legacyAll && len(raw) == 0 {
+		log.Warn(context.Background(), "--experimental is deprecated, use --experiments='*' instead")
+		exps = append(exps, codersdk.ExperimentsAll...)
+	}
+	return exps
 }

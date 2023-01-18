@@ -387,6 +387,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/experiments": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Get experiments",
+                "operationId": "get-experiments",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Experiment"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/files": {
             "post": {
                 "security": [
@@ -5757,7 +5785,15 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
                 },
                 "experimental": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                    "description": "DEPRECATED: Use Experiments instead.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                        }
+                    ]
+                },
+                "experiments": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
                 },
                 "gitauth": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-array_codersdk_GitAuthConfig"
@@ -6060,6 +6096,7 @@ const docTemplate = `{
                     }
                 },
                 "experimental": {
+                    "description": "DEPRECATED: use Experiments instead.",
                     "type": "boolean"
                 },
                 "features": {
@@ -6081,6 +6118,15 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "codersdk.Experiment": {
+            "type": "string",
+            "enum": [
+                "vscode_local"
+            ],
+            "x-enum-varnames": [
+                "ExperimentVSCodeLocal"
+            ]
         },
         "codersdk.Feature": {
             "type": "object",

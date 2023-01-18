@@ -26,7 +26,7 @@ const validFormValues = {
   name: "Name",
   display_name: "A display name",
   description: "A description",
-  icon: "A string",
+  icon: "vscode.png",
   default_ttl_ms: 1,
   allow_user_cancel_workspace_jobs: false,
 }

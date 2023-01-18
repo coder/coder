@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/enterprise/coderd"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/testutil"
 )
 
@@ -66,7 +67,9 @@ func TestScim(t *testing.T) {
 			_ = coderdtest.CreateFirstUser(t, client)
 			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 				AccountID: "coolin",
-				SCIM:      false,
+				Features: license.Features{
+					codersdk.FeatureSCIM: 0,
+				},
 			})
 
 			res, err := client.Request(ctx, "POST", "/scim/v2/Users", struct{}{})
@@ -85,7 +88,9 @@ func TestScim(t *testing.T) {
 			_ = coderdtest.CreateFirstUser(t, client)
 			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 				AccountID: "coolin",
-				SCIM:      true,
+				Features: license.Features{
+					codersdk.FeatureSCIM: 1,
+				},
 			})
 
 			res, err := client.Request(ctx, "POST", "/scim/v2/Users", struct{}{})
@@ -105,7 +110,9 @@ func TestScim(t *testing.T) {
 			_ = coderdtest.CreateFirstUser(t, client)
 			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 				AccountID: "coolin",
-				SCIM:      true,
+				Features: license.Features{
+					codersdk.FeatureSCIM: 1,
+				},
 			})
 
 			sUser := makeScimUser(t)
@@ -136,7 +143,9 @@ func TestScim(t *testing.T) {
 			_ = coderdtest.CreateFirstUser(t, client)
 			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 				AccountID: "coolin",
-				SCIM:      false,
+				Features: license.Features{
+					codersdk.FeatureSCIM: 0,
+				},
 			})
 
 			res, err := client.Request(ctx, "PATCH", "/scim/v2/Users/bob", struct{}{})
@@ -155,7 +164,9 @@ func TestScim(t *testing.T) {
 			_ = coderdtest.CreateFirstUser(t, client)
 			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 				AccountID: "coolin",
-				SCIM:      true,
+				Features: license.Features{
+					codersdk.FeatureSCIM: 1,
+				},
 			})
 
 			res, err := client.Request(ctx, "PATCH", "/scim/v2/Users/bob", struct{}{})
@@ -175,7 +186,9 @@ func TestScim(t *testing.T) {
 			_ = coderdtest.CreateFirstUser(t, client)
 			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 				AccountID: "coolin",
-				SCIM:      true,
+				Features: license.Features{
+					codersdk.FeatureSCIM: 1,
+				},
 			})
 
 			sUser := makeScimUser(t)

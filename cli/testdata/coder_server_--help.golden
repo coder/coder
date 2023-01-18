@@ -35,7 +35,7 @@ Flags:
                                                      security purposes. Path-based apps can
                                                      make requests to the Coder API and pose a
                                                      security risk when the workspace serves
-                                                     malicious Javascript. Path-based apps can
+                                                     malicious JavaScript. Path-based apps can
                                                      be disabled entirely with
                                                      --disable-path-apps for further security.
                                                      Consumes
@@ -46,7 +46,7 @@ Flags:
                                                      do not own by default. Path-based apps
                                                      can make requests to the Coder API and
                                                      pose a security risk when the workspace
-                                                     serves malicious Javascript. Path-based
+                                                     serves malicious JavaScript. Path-based
                                                      apps can be disabled entirely with
                                                      --disable-path-apps for further security.
                                                      Consumes
@@ -87,14 +87,16 @@ Flags:
                                                      served from subdomains. Path-based apps
                                                      can make requests to the Coder API and
                                                      pose a security risk when the workspace
-                                                     serves malicious Javascript. This is
+                                                     serves malicious JavaScript. This is
                                                      recommended for security purposes if a
                                                      --wildcard-access-url is configured.
                                                      Consumes $CODER_DISABLE_PATH_APPS
-      --experimental                                 Enable experimental features.
-                                                     Experimental features are not ready for
-                                                     production.
-                                                     Consumes $CODER_EXPERIMENTAL
+      --experiments strings                          Enable one or more experiments. These are
+                                                     not ready for production. Separate
+                                                     multiple experiments with commas, or
+                                                     enter '*' to opt-in to all available
+                                                     experiments.
+                                                     Consumes $CODER_EXPERIMENTS
   -h, --help                                         help for server
       --http-address string                          HTTP bind address of the server. Unset to
                                                      disable the HTTP endpoint.
