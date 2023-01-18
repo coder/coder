@@ -2354,6 +2354,20 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `trial`            | boolean                              | false    |              |                                       |
 | `warnings`         | array of string                      | false    |              |                                       |
 
+## codersdk.Experiment
+
+```json
+"vscode_local"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value          |
+| -------------- |
+| `vscode_local` |
+
 ## codersdk.Feature
 
 ```json

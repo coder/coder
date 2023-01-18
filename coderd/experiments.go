@@ -11,7 +11,7 @@ import (
 // @Security CoderSessionToken
 // @Produce json
 // @Tags General
-// @Success 200 {array} string
+// @Success 200 {array} codersdk.Experiment
 // @Router /experiments [get]
 func (api *API) handleExperimentsGet(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
