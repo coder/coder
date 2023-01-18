@@ -489,15 +489,15 @@ func (c *Client) PostWorkspaceAgentAppHealth(ctx context.Context, req PostWorksp
 }
 
 func (c *Client) PostWorkspaceAgentVersion(ctx context.Context, version string) error {
-	// Phone home and tell the mothership what version we're on.
 	versionReq := PostWorkspaceAgentVersionRequest{Version: version}
 	res, err := c.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/version", versionReq)
 	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
 		return readBodyAsError(res)
 	}
-	// Discord the response
-	_, _ = io.Copy(io.Discard, res.Body)
-	_ = res.Body.Close()
 	return nil
 }
 
