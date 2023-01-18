@@ -52,6 +52,7 @@ import (
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/updatecheck"
+	"github.com/coder/coder/coderd/util/slice"
 	"github.com/coder/coder/coderd/wsconncache"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionerd/proto"
@@ -220,7 +221,7 @@ func New(options *Options) *API {
 		},
 		metricsCache: metricsCache,
 		Auditor:      atomic.Pointer[audit.Auditor]{},
-		Experiments:  initExperiments(options.DeploymentConfig.Experiments.Value, options.DeploymentConfig.Experimental.Value),
+		Experiments:  initExperiments(options.Logger, options.DeploymentConfig.Experiments.Value, options.DeploymentConfig.Experimental.Value),
 	}
 	if options.UpdateCheckOptions != nil {
 		api.updateChecker = updatecheck.New(
@@ -763,20 +764,25 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 }
 
 // nolint:revive
-func initExperiments(raw []string, legacyAll bool) codersdk.Experiments {
-	exp := make([]codersdk.Experiment, 0, len(raw))
+func initExperiments(log slog.Logger, raw []string, legacyAll bool) codersdk.Experiments {
+	exps := make([]codersdk.Experiment, 0, len(raw))
 	for _, v := range raw {
 		switch v {
 		case "*":
-			exp = append(exp, codersdk.ExperimentsAll...)
+			exps = append(exps, codersdk.ExperimentsAll...)
 		default:
-			exp = append(exp, codersdk.Experiment(v))
+			ex := codersdk.Experiment(v)
+			if !slice.Contains(codersdk.ExperimentsAll, ex) {
+				log.Warn(context.Background(), "🐉 HERE BE DRAGONS: opting into hidden experiment", slog.F("experiment", ex))
+			}
+			exps = append(exps, ex)
 		}
 	}
 
 	// --experiments takes precedence over --experimental. It's deprecated.
 	if legacyAll && len(raw) == 0 {
-		exp = append(exp, codersdk.ExperimentsAll...)
+		log.Warn(context.Background(), "--experimental is deprecated, use --experiments='*' instead")
+		exps = append(exps, codersdk.ExperimentsAll...)
 	}
-	return exp
+	return exps
 }
