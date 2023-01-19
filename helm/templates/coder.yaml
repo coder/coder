@@ -15,7 +15,7 @@ metadata:
   name: coder
   labels:
     {{- include "coder.labels" . | nindent 4 }}
-  annotations: {{ toYaml .Values.coder.annotations | nindent 4}}
+  annotations: {{ toYaml .Values.coder.deploymentAnnotations | nindent 4}}
 spec:
   replicas: {{ .Values.coder.replicaCount }}
   selector:
@@ -25,7 +25,7 @@ spec:
     metadata:
       labels:
         {{- include "coder.selectorLabels" . | nindent 8 }}
-      annotations: {{ toYaml .Values.coder.pod_annotations | nindent 4}}
+      annotations: {{ toYaml .Values.coder.podAnnotations | nindent 4}}
     spec:
       serviceAccountName: coder
       restartPolicy: Always
