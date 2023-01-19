@@ -9,8 +9,8 @@ import { Language } from "./LicenseBannerView"
 describe("LicenseBanner", () => {
   it("does not show when there are no warnings", async () => {
     render(<LicenseBanner />)
-    const bannerPillSingular = await screen.queryByText(Language.licenseIssue)
-    const bannerPillPlural = await screen.queryByText(Language.licenseIssues(2))
+    const bannerPillSingular = screen.queryByText(Language.licenseIssue)
+    const bannerPillPlural = screen.queryByText(Language.licenseIssues(2))
     expect(bannerPillSingular).toBe(null)
     expect(bannerPillPlural).toBe(null)
   })

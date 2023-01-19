@@ -20,8 +20,7 @@ export const hardCodedCSRFCookie = (): string => {
 export const withDefaultFeatures = (
   fs: Partial<TypesGen.Entitlements["features"]>,
 ): TypesGen.Entitlements["features"] => {
-  for (const k in TypesGen.FeatureNames) {
-    const feature = k as TypesGen.FeatureName
+  for (const feature of TypesGen.FeatureNames) {
     // Skip fields that are already filled.
     if (fs[feature] !== undefined) {
       continue
@@ -152,8 +151,7 @@ export const getTokens = async (): Promise<TypesGen.APIKey[]> => {
 }
 
 export const deleteAPIKey = async (keyId: string): Promise<void> => {
-  const response = await axios.delete("/api/v2/users/me/keys/" + keyId)
-  return response.data
+  await axios.delete("/api/v2/users/me/keys/" + keyId)
 }
 
 export const getUsers = async (

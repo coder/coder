@@ -37,6 +37,26 @@ rules:
   "@typescript-eslint/brace-style":
     ["error", "1tbs", { "allowSingleLine": false }]
   "@typescript-eslint/method-signature-style": ["error", "property"]
+  # TODO: Investigate whether to enable this rule & fix and/or disable all its complaints
+  "@typescript-eslint/no-misused-promises": "off"
+  # TODO: Investigate whether to enable this rule & fix and/or disable all its complaints
+  "@typescript-eslint/no-unsafe-argument": "off"
+  # TODO: Investigate whether to enable this rule & fix and/or disable all its complaints
+  "@typescript-eslint/no-unsafe-assignment": "off"
+  # TODO: Investigate whether to enable this rule & fix and/or disable all its complaints
+  "@typescript-eslint/no-unsafe-call": "off"
+  # TODO: Investigate whether to enable this rule & fix and/or disable all its complaints
+  "@typescript-eslint/no-unsafe-member-access": "off"
+  # TODO: Investigate whether to enable this rule & fix and/or disable all its complaints
+  "@typescript-eslint/no-unsafe-return": "off"
+  # TODO: Investigate whether to enable this rule & fix and/or disable all its complaints
+  "@typescript-eslint/require-await": "off"
+  # TODO: Investigate whether to enable this rule & fix and/or disable all its complaints
+  "@typescript-eslint/restrict-plus-operands": "off"
+  # TODO: Investigate whether to enable this rule & fix and/or disable all its complaints
+  "@typescript-eslint/restrict-template-expressions": "off"
+  # TODO: Investigate whether to enable this rule & fix and/or disable all its complaints
+  "@typescript-eslint/unbound-method": "off"
   # We're disabling the `no-namespace` rule to use a pattern of defining an interface,
   # and then defining functions that operate on that data via namespace. This is helpful for
   # dealing with immutable objects. This is a common pattern that shows up in some other
