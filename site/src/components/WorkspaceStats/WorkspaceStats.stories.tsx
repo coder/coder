@@ -1,6 +1,6 @@
 import { Story } from "@storybook/react"
 import * as Mocks from "../../testHelpers/renderHelpers"
-import { MockWorkspace } from "../../testHelpers/renderHelpers"
+import { MockWorkspace } from "testHelpers/renderHelpers"
 import {
   WorkspaceStats,
   WorkspaceStatsProps,
