@@ -3,7 +3,7 @@ import { FieldError } from "api/errors"
 import { everyOneGroup } from "util/groups"
 import * as Types from "../api/types"
 import * as TypesGen from "../api/typesGenerated"
-import { range } from "lodash"
+import range from "lodash/range"
 import { Permissions } from "xServices/auth/authXService"
 
 export const MockTemplateDAUResponse: TypesGen.TemplateDAUsResponse = {
@@ -981,6 +981,8 @@ export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
     },
   }),
 }
+
+export const MockExperiments: TypesGen.Experiment[] = ["vscode_local"]
 
 export const MockAuditLog: TypesGen.AuditLog = {
   id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",

@@ -14,6 +14,25 @@ should not be localhost.
 If an access URL is not specified, Coder will create
 a publicly accessible URL to reverse proxy your deployment for simple setup.
 
+## Address
+
+You can change which port(s) Coder listens on.
+
+```sh
+# Listen on port 80
+export CODER_HTTP_ADDRESS=0.0.0.0:80
+
+# Enable TLS and listen on port 443)
+export CODER_TLS_ENABLE=true
+export CODER_TLS_ADDRESS=0.0.0.0:443
+
+## Redirect from HTTP to HTTPS
+export CODER_TLS_REDIRECT_HTTP=true
+
+# Start the Coder server
+coder server
+```
+
 ## Wildcard access URL
 
 `CODER_WILDCARD_ACCESS_URL` is necessary for [port forwarding](../networking/port-forwarding.md#dashboard)
@@ -55,7 +74,7 @@ configure the server by setting the following variables in `/etc/coder.d/coder.e
 CODER_ACCESS_URL=https://coder.example.com
 
 # String. Address to serve the API and dashboard.
-CODER_ADDRESS=127.0.0.1:3000
+CODER_HTTP_ADDRESS=127.0.0.1:3000
 
 # String. The URL of a PostgreSQL database to connect to. If empty, PostgreSQL binaries
 # will be downloaded from Maven (https://repo1.maven.org/maven2) and store all

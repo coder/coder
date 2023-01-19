@@ -85,7 +85,6 @@ type Options struct {
 	AppHostname          string
 	AWSCertificates      awsidentity.Certificates
 	Authorizer           rbac.Authorizer
-	Experimental         bool
 	AzureCertificates    x509.VerifyOptions
 	GithubOAuth2Config   *coderd.GithubOAuth2Config
 	RealIPConfig         *httpmw.RealIPConfig

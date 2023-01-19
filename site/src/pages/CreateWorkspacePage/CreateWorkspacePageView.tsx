@@ -13,8 +13,8 @@ import * as Yup from "yup"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { makeStyles } from "@material-ui/core/styles"
 import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm"
-import { FullScreenLoader } from "components/Loader/FullScreenLoader"
 import { SelectedTemplate } from "./SelectedTemplate"
+import { Loader } from "components/Loader/Loader"
 
 export enum CreateWorkspaceErrors {
   GET_TEMPLATES_ERROR = "getTemplatesError",
@@ -101,7 +101,7 @@ export const CreateWorkspacePageView: FC<
   )
 
   if (isLoading) {
-    return <FullScreenLoader />
+    return <Loader />
   }
 
   if (props.hasTemplateErrors) {

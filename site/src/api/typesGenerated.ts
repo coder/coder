@@ -281,10 +281,15 @@ export interface DERPServerConfig {
 }
 
 // From codersdk/deploymentconfig.go
+export interface DangerousConfig {
+  readonly allow_path_app_sharing: DeploymentConfigField<boolean>
+  readonly allow_path_app_site_owner_access: DeploymentConfigField<boolean>
+}
+
+// From codersdk/deploymentconfig.go
 export interface DeploymentConfig {
   readonly access_url: DeploymentConfigField<string>
   readonly wildcard_access_url: DeploymentConfigField<string>
-  readonly address: DeploymentConfigField<string>
   readonly http_address: DeploymentConfigField<string>
   readonly autobuild_poll_interval: DeploymentConfigField<number>
   readonly derp: DERP
@@ -311,11 +316,15 @@ export interface DeploymentConfig {
   readonly scim_api_key: DeploymentConfigField<string>
   readonly provisioner: ProvisionerConfig
   readonly rate_limit: RateLimitConfig
-  readonly experimental: DeploymentConfigField<boolean>
+  readonly experiments: DeploymentConfigField<string[]>
   readonly update_check: DeploymentConfigField<boolean>
   readonly max_token_lifetime: DeploymentConfigField<number>
   readonly swagger: SwaggerConfig
   readonly logging: LoggingConfig
+  readonly dangerous: DangerousConfig
+  readonly disable_path_apps: DeploymentConfigField<boolean>
+  readonly address: DeploymentConfigField<string>
+  readonly experimental: DeploymentConfigField<boolean>
 }
 
 // From codersdk/deploymentconfig.go
@@ -337,9 +346,12 @@ export interface Entitlements {
   readonly warnings: string[]
   readonly errors: string[]
   readonly has_license: boolean
-  readonly experimental: boolean
   readonly trial: boolean
+  readonly experimental: boolean
 }
+
+// From codersdk/experiments.go
+export type Experiments = Experiment[]
 
 // From codersdk/features.go
 export interface Feature {
@@ -1078,6 +1090,10 @@ export const Entitlements: Entitlement[] = [
   "grace_period",
   "not_entitled",
 ]
+
+// From codersdk/experiments.go
+export type Experiment = "vscode_local"
+export const Experiments: Experiment[] = ["vscode_local"]
 
 // From codersdk/features.go
 export type FeatureName =

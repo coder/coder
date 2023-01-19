@@ -1,8 +1,37 @@
 package database
 
 import (
+	"sort"
+
 	"github.com/coder/coder/coderd/rbac"
 )
+
+type AuditableGroup struct {
+	Group
+	Members []GroupMember `json:"members"`
+}
+
+// Auditable returns an object that can be used in audit logs.
+// Covers both group and group member changes.
+func (g Group) Auditable(users []User) AuditableGroup {
+	members := make([]GroupMember, 0, len(users))
+	for _, u := range users {
+		members = append(members, GroupMember{
+			UserID:  u.ID,
+			GroupID: g.ID,
+		})
+	}
+
+	// consistent ordering
+	sort.Slice(members, func(i, j int) bool {
+		return members[i].UserID.String() < members[j].UserID.String()
+	})
+
+	return AuditableGroup{
+		Group:   g,
+		Members: members,
+	}
+}
 
 const AllUsersGroup = "Everyone"
 
