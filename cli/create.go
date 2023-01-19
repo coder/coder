@@ -251,7 +251,10 @@ PromptParamLoop:
 			DestinationScheme: parameterSchema.DefaultDestinationScheme,
 		})
 	}
-	_, _ = fmt.Fprintln(cmd.OutOrStdout())
+
+	if disclaimerPrinted {
+		_, _ = fmt.Fprintln(cmd.OutOrStdout())
+	}
 
 	// Rich parameters
 	templateVersionParameters, err := client.TemplateVersionRichParameters(cmd.Context(), templateVersion.ID)
@@ -300,6 +303,10 @@ PromptRichParamLoop:
 		}
 
 		richParameters = append(richParameters, *parameterValue)
+	}
+
+	if disclaimerPrinted {
+		_, _ = fmt.Fprintln(cmd.OutOrStdout())
 	}
 
 	// Run a dry-run with the given parameters to check correctness
