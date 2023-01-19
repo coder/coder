@@ -3,6 +3,7 @@ package cli_test
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,6 +13,7 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
+	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/pty/ptytest"
 )
 
@@ -136,6 +138,95 @@ func TestUpdate(t *testing.T) {
 			pty.WriteLine(value)
 		}
 
+		<-doneChan
+	})
+}
+
+func TestUpdateWithRichParameters(t *testing.T) {
+	t.Parallel()
+
+	const (
+		firstParameterName        = "first_parameter"
+		firstParameterDescription = "This is first parameter"
+		firstParameterValue       = "1"
+
+		secondParameterName        = "second_parameter"
+		secondParameterDescription = "This is second parameter"
+		secondParameterValue       = "2"
+
+		immutableParameterName        = "immutable_parameter"
+		immutableParameterDescription = "This is mutable parameter"
+		immutableParameterValue       = "3"
+	)
+
+	echoResponses := &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Provision_Response{
+			{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Parameters: []*proto.RichParameter{
+							{Name: firstParameterName, Description: firstParameterDescription, Mutable: true},
+							{Name: secondParameterName, Description: secondParameterDescription, Mutable: true},
+							{Name: immutableParameterName, Description: immutableParameterDescription, Mutable: false},
+						},
+					},
+				},
+			}},
+		ProvisionApply: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{},
+			},
+		}},
+	}
+
+	t.Run("ImmutableCannotBeCustomized", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, echoResponses)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		tempDir := t.TempDir()
+		removeTmpDirUntilSuccessAfterTest(t, tempDir)
+		parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
+		_, _ = parameterFile.WriteString(
+			firstParameterName + ": " + firstParameterValue + "\n" +
+				secondParameterName + ": " + secondParameterValue + "\n" +
+				immutableParameterName + ": " + immutableParameterValue)
+
+		cmd, root := clitest.New(t, "create", "my-workspace", "--template", template.Name, "--rich-parameter-file", parameterFile.Name(), "-y")
+		clitest.SetupConfig(t, client, root)
+		err := cmd.Execute()
+		assert.NoError(t, err)
+
+		cmd, root = clitest.New(t, "update", "my-workspace", "--always-prompt")
+		clitest.SetupConfig(t, client, root)
+
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t)
+		cmd.SetIn(pty.Input())
+		cmd.SetOut(pty.Output())
+		go func() {
+			defer close(doneChan)
+			err := cmd.Execute()
+			assert.NoError(t, err)
+		}()
+
+		matches := []string{
+			firstParameterDescription, firstParameterValue,
+			secondParameterDescription, secondParameterValue,
+			fmt.Sprintf("Parameter %q is not mutable, so can't be customized after workspace creation.", immutableParameterName), "yes",
+		}
+		for i := 0; i < len(matches); i += 2 {
+			match := matches[i]
+			value := matches[i+1]
+			pty.ExpectMatch(match)
+			pty.WriteLine(value)
+		}
 		<-doneChan
 	})
 }
