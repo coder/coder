@@ -41,7 +41,7 @@ export const AuditLogDiff: FC<{ diff: AuditLog["diff"] }> = ({ diff }) => {
                   styles.diffValueOld,
                 ])}
               >
-                {getDiffValue(valueDiff.old)}
+                {valueDiff.secret ? "••••••••" : getDiffValue(valueDiff.old)}
               </span>
             </div>
           </div>
@@ -60,7 +60,7 @@ export const AuditLogDiff: FC<{ diff: AuditLog["diff"] }> = ({ diff }) => {
                   styles.diffValueNew,
                 ])}
               >
-                {getDiffValue(valueDiff.new)}
+                {valueDiff.secret ? "••••••••" : getDiffValue(valueDiff.new)}
               </span>
             </div>
           </div>
