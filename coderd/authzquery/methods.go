@@ -37,11 +37,6 @@ func (q *AuthzQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetA
 	panic("implement me")
 }
 
-func (q *AuthzQuerier) GetDERPMeshKey(ctx context.Context) (string, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (q *AuthzQuerier) GetDeploymentID(ctx context.Context) (string, error) {
 	//TODO implement me
 	panic("implement me")
@@ -113,26 +108,6 @@ func (q *AuthzQuerier) InsertAgentStat(ctx context.Context, arg database.InsertA
 }
 
 func (q *AuthzQuerier) InsertAuditLog(ctx context.Context, arg database.InsertAuditLogParams) (database.AuditLog, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) InsertDERPMeshKey(ctx context.Context, value string) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) InsertDeploymentID(ctx context.Context, value string) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) InsertGitAuthLink(ctx context.Context, arg database.InsertGitAuthLinkParams) (database.GitAuthLink, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) InsertGitSSHKey(ctx context.Context, arg database.InsertGitSSHKeyParams) (database.GitSSHKey, error) {
 	//TODO implement me
 	panic("implement me")
 }

@@ -134,9 +134,19 @@ func (q *AuthzQuerier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (data
 	return authorizedFetch(q.authorizer, q.database.GetGitSSHKey)(ctx, userID)
 }
 
+func (q *AuthzQuerier) InsertGitSSHKey(ctx context.Context, arg database.InsertGitSSHKeyParams) (database.GitSSHKey, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (q *AuthzQuerier) GetGitAuthLink(ctx context.Context, arg database.GetGitAuthLinkParams) (database.GitAuthLink, error) {
 	// TODO @emyrk: Which permissions should be checked here? It looks like oauth has
 	// unique authz flow like workspace agents. Maybe this resource should have it's
 	// own resource type?
+	panic("implement me")
+}
+
+func (q *AuthzQuerier) InsertGitAuthLink(ctx context.Context, arg database.InsertGitAuthLinkParams) (database.GitAuthLink, error) {
+	//TODO implement me
 	panic("implement me")
 }
