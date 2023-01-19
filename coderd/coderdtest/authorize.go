@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/coder/coder/coderd/database/databasefake"
 
@@ -83,6 +84,15 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		},
 		"GET:/api/v2/users/{user}/workspace/{workspacename}/builds/{buildnumber}": {
 			AssertObject: rbac.ResourceWorkspace,
+			AssertAction: rbac.ActionRead,
+		},
+		"GET:/api/v2/users/{user}/keys/tokens": {
+			AssertObject: rbac.ResourceAPIKey,
+			AssertAction: rbac.ActionRead,
+			StatusCode:   http.StatusOK,
+		},
+		"GET:/api/v2/users/{user}/keys/{keyid}": {
+			AssertObject: rbac.ResourceAPIKey,
 			AssertAction: rbac.ActionRead,
 		},
 		"GET:/api/v2/workspacebuilds/{workspacebuild}": {
@@ -317,6 +327,15 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 	if !ok {
 		t.Fail()
 	}
+	_, err := client.CreateToken(ctx, admin.UserID.String(), codersdk.CreateTokenRequest{
+		Lifetime: time.Hour,
+		Scope:    codersdk.APIKeyScopeAll,
+	})
+	require.NoError(t, err, "create token")
+
+	apiKeys, err := client.GetTokens(ctx, admin.UserID.String())
+	require.NoError(t, err, "get tokens")
+	apiKey := apiKeys[0]
 
 	organization, err := client.Organization(ctx, admin.OrganizationID)
 	require.NoError(t, err, "fetch org")
@@ -383,6 +402,7 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 		"{jobID}":               templateVersionDryRun.ID.String(),
 		"{templatename}":        template.Name,
 		"{workspace_and_agent}": workspace.Name + "." + workspace.LatestBuild.Resources[0].Agents[0].Name,
+		"{keyid}":               apiKey.ID,
 		// Only checking template scoped params here
 		"parameters/{scope}/{id}": fmt.Sprintf("parameters/%s/%s",
 			string(templateParam.Scope), templateParam.ScopeID.String()),
