@@ -416,7 +416,7 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 	organizationIDs, err := userOrganizationIDs(ctx, api, user)
 
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser) {
+	if !api.Authorize(r, rbac.ActionRead, user) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -457,7 +457,7 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 	aReq.Old = user
 
-	if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceUser) {
+	if !api.Authorize(r, rbac.ActionUpdate, user) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -563,7 +563,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 		defer commitAudit()
 		aReq.Old = user
 
-		if !api.Authorize(r, rbac.ActionDelete, rbac.ResourceUser) {
+		if !api.Authorize(r, rbac.ActionDelete, user) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
@@ -640,7 +640,7 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 	aReq.Old = user
 
-	if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceUserData.WithOwner(user.ID.String())) {
+	if !api.Authorize(r, rbac.ActionUpdate, user.UserDataRBACObject()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -665,7 +665,7 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 
 	// admins can change passwords without sending old_password
 	if params.OldPassword == "" {
-		if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceUser) {
+		if !api.Authorize(r, rbac.ActionUpdate, user) {
 			httpapi.Forbidden(rw)
 			return
 		}
@@ -753,7 +753,7 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
 
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUserData.WithOwner(user.ID.String())) {
+	if !api.Authorize(r, rbac.ActionRead, user.UserDataRBACObject()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -832,7 +832,7 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUser) {
+	if !api.Authorize(r, rbac.ActionRead, user) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -976,9 +976,7 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if !api.Authorize(r, rbac.ActionRead,
-		rbac.ResourceOrganization.
-			InOrg(organization.ID)) {
+	if !api.Authorize(r, rbac.ActionRead, organization) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}

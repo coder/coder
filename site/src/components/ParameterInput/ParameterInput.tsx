@@ -35,11 +35,15 @@ export interface ParameterInputProps {
   disabled?: boolean
   schema: ParameterSchema
   onChange: (value: string) => void
+  defaultValue?: string
 }
 
-export const ParameterInput: FC<
-  React.PropsWithChildren<ParameterInputProps>
-> = ({ disabled, onChange, schema }) => {
+export const ParameterInput: FC<ParameterInputProps> = ({
+  disabled,
+  onChange,
+  schema,
+  defaultValue,
+}) => {
   const styles = useStyles()
 
   return (
@@ -50,21 +54,25 @@ export const ParameterInput: FC<
           disabled={disabled}
           onChange={onChange}
           schema={schema}
+          defaultValue={defaultValue}
         />
       </div>
     </Stack>
   )
 }
 
-const ParameterField: React.FC<
-  React.PropsWithChildren<ParameterInputProps>
-> = ({ disabled, onChange, schema }) => {
+const ParameterField: React.FC<ParameterInputProps> = ({
+  disabled,
+  onChange,
+  schema,
+  defaultValue,
+}) => {
   if (schema.validation_contains && schema.validation_contains.length > 0) {
     return (
       <TextField
         id={schema.name}
         size="small"
-        defaultValue={schema.default_source_value}
+        defaultValue={defaultValue ?? schema.default_source_value}
         placeholder={schema.default_source_value}
         disabled={disabled}
         onChange={(event) => {
@@ -116,6 +124,7 @@ const ParameterField: React.FC<
       size="small"
       disabled={disabled}
       placeholder={schema.default_source_value}
+      defaultValue={defaultValue ?? schema.default_source_value}
       onChange={(event) => {
         onChange(event.target.value)
       }}

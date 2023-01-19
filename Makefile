@@ -490,10 +490,9 @@ docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/me
 	cd site
 	yarn run format:write:only ../docs/admin/prometheus.md
 
-coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen -not \( -path './scripts/apidocgen/node_modules' -prune \) -type f) $(wildcard coderd/*.go) $(wildcard enterprise/coderd/*.go) $(wildcard codersdk/*.go) .swaggo
+coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) -type f) $(wildcard coderd/*.go) $(wildcard enterprise/coderd/*.go) $(wildcard codersdk/*.go) .swaggo docs/manifest.json
 	./scripts/apidocgen/generate.sh
-	cd site
-	yarn run format:write:only ../docs/api ../docs/manifest.json ../coderd/apidoc/swagger.json
+	yarn run --cwd=site format:write:only ../docs/api ../docs/manifest.json ../coderd/apidoc/swagger.json
 
 update-golden-files: cli/testdata/.gen-golden
 .PHONY: update-golden-files

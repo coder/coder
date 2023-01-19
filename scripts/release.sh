@@ -7,7 +7,7 @@ cdroot
 
 usage() {
 	cat <<EOH
-Usage: ./release.sh [--dry-run] [--ref <ref>] [--major | --minor | --patch]
+Usage: ./release.sh [--dry-run] [-h | --help] [--ref <ref>] [--major | --minor | --patch]
 
 This script should be called to create a new release.
 
@@ -17,18 +17,25 @@ based on if the release contains breaking changes or not. If the release
 contains breaking changes, a new minor version will be created. Otherwise, a
 new patch version will be created.
 
-Set --ref if you need to specify a specific commit that the new version will
-be tagged at, otherwise the latest commit will be used.
-
-Set --minor to force a minor version bump, even when there are no breaking
-changes. Likewise for --major. By default a patch version will be created.
-
-Set --dry-run to see what this script would do without making actual changes.
-
 To mark a release as containing breaking changes, the commit title should
 either contain a known prefix with an exclamation mark ("feat!:",
 "feat(api)!:") or the PR that was merged can be tagged with the
 "release/breaking" label.
+
+GitHub labels that affect release notes:
+
+- release/breaking: Shown under BREAKING CHANGES, prevents patch release.
+- security: Shown under SECURITY.
+
+Flags:
+
+Set --major or --minor to force a larger version bump, even when there are no
+breaking changes. By default a patch version will be created, --patch is no-op.
+
+Set --ref if you need to specify a specific commit that the new version will
+be tagged at, otherwise the latest commit will be used.
+
+Set --dry-run to see what this script would do without making actual changes.
 EOH
 }
 

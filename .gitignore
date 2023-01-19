@@ -36,6 +36,9 @@ cli/testdata/.gen-golden
 /dist/
 site/out/
 
+# Bundle analysis
+site/stats/
+
 *.tfstate
 *.tfstate.backup
 *.tfplan

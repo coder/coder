@@ -16,6 +16,7 @@ import userAgentParser from "ua-parser-js"
 import { AuditLogDiff } from "./AuditLogDiff"
 import i18next from "i18next"
 import { AuditLogDescription } from "./AuditLogDescription"
+import { determineGroupDiff } from "./auditUtils"
 
 const httpStatusColor = (httpStatus: number): PaletteIndex => {
   if (httpStatus >= 300 && httpStatus < 500) {
@@ -48,6 +49,13 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
   const displayBrowserInfo = browser.name
     ? `${browser.name} ${browser.version}`
     : t("auditLog:table.logRow.notAvailable")
+
+  let auditDiff = auditLog.diff
+
+  // groups have nested diffs (group members)
+  if (auditLog.resource_type === "group") {
+    auditDiff = determineGroupDiff(auditLog.diff)
+  }
 
   const toggle = () => {
     if (shouldDisplayDiff) {
@@ -153,7 +161,7 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
 
         {shouldDisplayDiff && (
           <Collapse in={isDiffOpen}>
-            <AuditLogDiff diff={auditLog.diff} />
+            <AuditLogDiff diff={auditDiff} />
           </Collapse>
         )}
       </TableCell>

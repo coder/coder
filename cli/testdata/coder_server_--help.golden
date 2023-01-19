@@ -29,6 +29,28 @@ Flags:
                                                      with systemd.
                                                      Consumes $CODER_CACHE_DIRECTORY (default
                                                      "/tmp/coder-cli-test-cache")
+      --dangerous-allow-path-app-sharing             Allow workspace apps that are not served
+                                                     from subdomains to be shared. Path-based
+                                                     app sharing is DISABLED by default for
+                                                     security purposes. Path-based apps can
+                                                     make requests to the Coder API and pose a
+                                                     security risk when the workspace serves
+                                                     malicious JavaScript. Path-based apps can
+                                                     be disabled entirely with
+                                                     --disable-path-apps for further security.
+                                                     Consumes
+                                                     $CODER_DANGEROUS_ALLOW_PATH_APP_SHARING
+      --dangerous-allow-path-app-site-owner-access   Allow site-owners to access workspace
+                                                     apps from workspaces they do not own.
+                                                     Owners cannot access path-based apps they
+                                                     do not own by default. Path-based apps
+                                                     can make requests to the Coder API and
+                                                     pose a security risk when the workspace
+                                                     serves malicious JavaScript. Path-based
+                                                     apps can be disabled entirely with
+                                                     --disable-path-apps for further security.
+                                                     Consumes
+                                                     $CODER_DANGEROUS_ALLOW_PATH_APP_SITE_OWNER_ACCESS
       --dangerous-disable-rate-limits                Disables all rate limits. This is not
                                                      recommended in production.
                                                      Consumes $CODER_RATE_LIMIT_DISABLE_ALL
@@ -61,10 +83,20 @@ Flags:
                                                      Consumes
                                                      $CODER_DERP_SERVER_STUN_ADDRESSES
                                                      (default [stun.l.google.com:19302])
-      --experimental                                 Enable experimental features.
-                                                     Experimental features are not ready for
-                                                     production.
-                                                     Consumes $CODER_EXPERIMENTAL
+      --disable-path-apps                            Disable workspace apps that are not
+                                                     served from subdomains. Path-based apps
+                                                     can make requests to the Coder API and
+                                                     pose a security risk when the workspace
+                                                     serves malicious JavaScript. This is
+                                                     recommended for security purposes if a
+                                                     --wildcard-access-url is configured.
+                                                     Consumes $CODER_DISABLE_PATH_APPS
+      --experiments strings                          Enable one or more experiments. These are
+                                                     not ready for production. Separate
+                                                     multiple experiments with commas, or
+                                                     enter '*' to opt-in to all available
+                                                     experiments.
+                                                     Consumes $CODER_EXPERIMENTS
   -h, --help                                         help for server
       --http-address string                          HTTP bind address of the server. Unset to
                                                      disable the HTTP endpoint.

@@ -10,14 +10,15 @@ import GroupsPageView from "./GroupsPageView"
 
 export const GroupsPage: FC = () => {
   const organizationId = useOrganizationId()
+  const { createGroup: canCreateGroup } = usePermissions()
+  const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility()
   const [state] = useMachine(groupsMachine, {
     context: {
       organizationId,
+      shouldFetchGroups: isTemplateRBACEnabled,
     },
   })
   const { groups } = state.context
-  const { createGroup: canCreateGroup } = usePermissions()
-  const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility()
 
   return (
     <>

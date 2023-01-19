@@ -1,5 +1,4 @@
 import { useActor } from "@xstate/react"
-import { FeatureNames } from "api/types"
 import { AppearanceConfig } from "api/typesGenerated"
 import { useContext, FC } from "react"
 import { Helmet } from "react-helmet-async"
@@ -20,7 +19,7 @@ const AppearanceSettingsPage: FC = () => {
   const appearance = appearanceXService.context.appearance
 
   const isEntitled =
-    entitlementsState.context.entitlements.features[FeatureNames.Appearance]
+    entitlementsState.context.entitlements.features["appearance"]
       .entitlement !== "not_entitled"
 
   const updateAppearance = (

@@ -121,7 +121,7 @@ EachQueryLoop:
 	return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), pa.input, nil)
 }
 
-func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, scope Role, groups []string, action Action, objectType string) (*PartialAuthorizer, error) {
+func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, scope Scope, groups []string, action Action, objectType string) (*PartialAuthorizer, error) {
 	input := map[string]interface{}{
 		"subject": authSubject{
 			ID:     subjectID,
@@ -141,6 +141,7 @@ func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, s
 		rego.Query("data.authz.allow = true"),
 		rego.Module("policy.rego", policy),
 		rego.Unknowns([]string{
+			"input.object.id",
 			"input.object.owner",
 			"input.object.org_owner",
 			"input.object.acl_user_list",
