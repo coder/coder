@@ -1236,23 +1236,23 @@ type OrganizationMember struct {
 }
 
 type ParameterSchema struct {
-	ID                       uuid.UUID                      `db:"id" json:"id"`
-	CreatedAt                time.Time                      `db:"created_at" json:"created_at"`
-	JobID                    uuid.UUID                      `db:"job_id" json:"job_id"`
-	Name                     string                         `db:"name" json:"name"`
-	Description              string                         `db:"description" json:"description"`
-	DefaultSourceScheme      NullParameterSourceScheme      `db:"default_source_scheme" json:"default_source_scheme"`
-	DefaultSourceValue       string                         `db:"default_source_value" json:"default_source_value"`
-	AllowOverrideSource      bool                           `db:"allow_override_source" json:"allow_override_source"`
-	DefaultDestinationScheme NullParameterDestinationScheme `db:"default_destination_scheme" json:"default_destination_scheme"`
-	AllowOverrideDestination bool                           `db:"allow_override_destination" json:"allow_override_destination"`
-	DefaultRefresh           string                         `db:"default_refresh" json:"default_refresh"`
-	RedisplayValue           bool                           `db:"redisplay_value" json:"redisplay_value"`
-	ValidationError          string                         `db:"validation_error" json:"validation_error"`
-	ValidationCondition      string                         `db:"validation_condition" json:"validation_condition"`
-	ValidationTypeSystem     ParameterTypeSystem            `db:"validation_type_system" json:"validation_type_system"`
-	ValidationValueType      string                         `db:"validation_value_type" json:"validation_value_type"`
-	Index                    int32                          `db:"index" json:"index"`
+	ID                       uuid.UUID                  `db:"id" json:"id"`
+	CreatedAt                time.Time                  `db:"created_at" json:"created_at"`
+	JobID                    uuid.UUID                  `db:"job_id" json:"job_id"`
+	Name                     string                     `db:"name" json:"name"`
+	Description              string                     `db:"description" json:"description"`
+	DefaultSourceScheme      ParameterSourceScheme      `db:"default_source_scheme" json:"default_source_scheme"`
+	DefaultSourceValue       string                     `db:"default_source_value" json:"default_source_value"`
+	AllowOverrideSource      bool                       `db:"allow_override_source" json:"allow_override_source"`
+	DefaultDestinationScheme ParameterDestinationScheme `db:"default_destination_scheme" json:"default_destination_scheme"`
+	AllowOverrideDestination bool                       `db:"allow_override_destination" json:"allow_override_destination"`
+	DefaultRefresh           string                     `db:"default_refresh" json:"default_refresh"`
+	RedisplayValue           bool                       `db:"redisplay_value" json:"redisplay_value"`
+	ValidationError          string                     `db:"validation_error" json:"validation_error"`
+	ValidationCondition      string                     `db:"validation_condition" json:"validation_condition"`
+	ValidationTypeSystem     ParameterTypeSystem        `db:"validation_type_system" json:"validation_type_system"`
+	ValidationValueType      string                     `db:"validation_value_type" json:"validation_value_type"`
+	Index                    int32                      `db:"index" json:"index"`
 }
 
 type ParameterValue struct {

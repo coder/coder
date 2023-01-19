@@ -3324,7 +3324,7 @@ func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAu
 			UserUsername:     sql.NullString{String: user.Username, Valid: userValid},
 			UserEmail:        sql.NullString{String: user.Email, Valid: userValid},
 			UserCreatedAt:    sql.NullTime{Time: user.CreatedAt, Valid: userValid},
-			UserStatus:       user.Status,
+			UserStatus:       database.NullUserStatus{UserStatus: user.Status, Valid: true},
 			UserRoles:        user.RBACRoles,
 			Count:            0,
 		})
