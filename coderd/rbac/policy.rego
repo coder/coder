@@ -59,7 +59,6 @@ number(set) = c {
     c := 1
 }
 
-
 # site, org, and user rules are all similar. Each rule should return a number
 # from [-1, 1]. The number corresponds to "negative", "abstain", and "positive"
 # for the given level. See the 'allow' rules for how these numbers are used.
@@ -161,8 +160,6 @@ scope_allow_list {
 	not "*" in input.subject.scope.allow_list
 	input.object.id in input.subject.scope.allow_list
 }
-
-
 
 # The allow block is quite simple. Any set with `-1` cascades down in levels.
 # Authorization looks for any `allow` statement that is true. Multiple can be true!

@@ -8,8 +8,12 @@ import (
 
 type ScopeName string
 
-// TODO: @emyrk rename this struct
-type ScopeRole struct {
+// Scope acts the exact same as a Role with the addition that is can also
+// apply an AllowIDList. Any resource being checked against a Scope will
+// reject any resource that is not in the AllowIDList.
+// To not use an AllowIDList to reject authorization, use a wildcard for the
+// AllowIDList. Eg: 'AllowIDList: []string{WildcardSymbol}'
+type Scope struct {
 	Role
 	AllowIDList []string `json:"allow_list"`
 }
@@ -20,7 +24,7 @@ const (
 )
 
 // TODO: Support passing in scopeID list for allowlisting resources.
-var builtinScopes = map[ScopeName]ScopeRole{
+var builtinScopes = map[ScopeName]Scope{
 	// ScopeAll is a special scope that allows access to all resources. During
 	// authorize checks it is usually not used directly and skips scope checks.
 	ScopeAll: {
@@ -50,10 +54,10 @@ var builtinScopes = map[ScopeName]ScopeRole{
 	},
 }
 
-func ExpandScope(scope ScopeName) (ScopeRole, error) {
+func ExpandScope(scope ScopeName) (Scope, error) {
 	role, ok := builtinScopes[scope]
 	if !ok {
-		return ScopeRole{}, xerrors.Errorf("no scope named %q", scope)
+		return Scope{}, xerrors.Errorf("no scope named %q", scope)
 	}
 	return role, nil
 }

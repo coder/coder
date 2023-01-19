@@ -20,9 +20,9 @@ type subject struct {
 	// For the unit test we want to pass in the roles directly, instead of just
 	// by name. This allows us to test custom roles that do not exist in the product,
 	// but test edge cases of the implementation.
-	Roles  []Role    `json:"roles"`
-	Groups []string  `json:"groups"`
-	Scope  ScopeRole `json:"scope"`
+	Roles  []Role   `json:"roles"`
+	Groups []string `json:"groups"`
+	Scope  Scope    `json:"scope"`
 }
 
 type fakeObject struct {
@@ -796,7 +796,7 @@ func TestAuthorizeScope(t *testing.T) {
 			must(RoleByName(RoleMember())),
 			must(RoleByName(RoleOrgMember(defOrg))),
 		},
-		Scope: ScopeRole{
+		Scope: Scope{
 			Role: Role{
 				Name:        "workspace_agent",
 				DisplayName: "Workspace Agent",
@@ -885,7 +885,7 @@ func TestAuthorizeScope(t *testing.T) {
 			must(RoleByName(RoleMember())),
 			must(RoleByName(RoleOrgMember(defOrg))),
 		},
-		Scope: ScopeRole{
+		Scope: Scope{
 			Role: Role{
 				Name:        "create_workspace",
 				DisplayName: "Create Workspace",
