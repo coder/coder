@@ -296,9 +296,9 @@ PromptRichParamLoop:
 
 	// Run a dry-run with the given parameters to check correctness
 	dryRun, err := client.CreateTemplateVersionDryRun(cmd.Context(), templateVersion.ID, codersdk.CreateTemplateVersionDryRunRequest{
-		WorkspaceName:   args.NewWorkspaceName,
-		ParameterValues: legacyParameters,
-		// TODO RichParameterValues
+		WorkspaceName:       args.NewWorkspaceName,
+		ParameterValues:     legacyParameters,
+		RichParameterValues: richParameters,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("begin workspace dry-run: %w", err)

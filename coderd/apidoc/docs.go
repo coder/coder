@@ -5491,6 +5491,12 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.CreateParameterRequest"
                     }
                 },
+                "rich_parameter_values": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceBuildParameter"
+                    }
+                },
                 "workspace_name": {
                     "type": "string"
                 }

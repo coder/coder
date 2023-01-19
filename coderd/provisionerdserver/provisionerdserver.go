@@ -235,7 +235,8 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 
 		protoJob.Type = &proto.AcquiredJob_TemplateDryRun_{
 			TemplateDryRun: &proto.AcquiredJob_TemplateDryRun{
-				ParameterValues: protoParameters,
+				ParameterValues:     protoParameters,
+				RichParameterValues: convertRichParameterValues(input.RichParameterValues),
 				Metadata: &sdkproto.Provision_Metadata{
 					CoderUrl:      server.AccessURL.String(),
 					WorkspaceName: input.WorkspaceName,
@@ -1175,9 +1176,10 @@ type WorkspaceProvisionJob struct {
 
 // TemplateVersionDryRunJob is the payload for the "template_version_dry_run" job type.
 type TemplateVersionDryRunJob struct {
-	TemplateVersionID uuid.UUID                 `json:"template_version_id"`
-	WorkspaceName     string                    `json:"workspace_name"`
-	ParameterValues   []database.ParameterValue `json:"parameter_values"`
+	TemplateVersionID   uuid.UUID                          `json:"template_version_id"`
+	WorkspaceName       string                             `json:"workspace_name"`
+	ParameterValues     []database.ParameterValue          `json:"parameter_values"`
+	RichParameterValues []database.WorkspaceBuildParameter `json:"rich_parameter_values"`
 }
 
 // ProvisionerJobLogsNotifyMessage is the payload published on
