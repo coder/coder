@@ -21,7 +21,9 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
   )
 }
 
-type UseAuthReturnType = ReturnType<typeof useActor<AuthProviderContextValue["authService"]>>
+type UseAuthReturnType = ReturnType<
+  typeof useActor<AuthProviderContextValue["authService"]>
+>
 
 export const useAuth = (): UseAuthReturnType => {
   const context = useContext(AuthProviderContext)
