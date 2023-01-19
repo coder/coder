@@ -68,7 +68,6 @@ func RichParameter(cmd *cobra.Command, templateVersionParameter codersdk.Templat
 	}
 
 	// TODO Implement full validation and show descriptions.
-	// TODO Is mutable?
 	var err error
 	var value string
 	if len(templateVersionParameter.Options) > 0 {

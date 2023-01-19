@@ -455,6 +455,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if parameters == nil {
+		// TODO Is mutable?
 		buildParameters, err := api.Database.GetWorkspaceBuildParameters(ctx, priorHistory.ID)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

@@ -60,6 +60,7 @@ func update() *cobra.Command {
 				ExistingRichParams: existingRichParams,
 				RichParameterFile:  richParameterFile,
 				NewWorkspaceName:   workspace.Name,
+				UpdateWorkspace:    true,
 			})
 			if err != nil {
 				return nil

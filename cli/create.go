@@ -178,6 +178,8 @@ type prepWorkspaceBuildArgs struct {
 	ExistingRichParams []codersdk.WorkspaceBuildParameter
 	RichParameterFile  string
 	NewWorkspaceName   string
+
+	UpdateWorkspace bool
 }
 
 type buildParameters struct {
@@ -261,7 +263,7 @@ PromptParamLoop:
 	if args.ParameterFile != "" {
 		useParamFile = true
 		_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("Attempting to read the variables from the rich parameter file.")+"\r\n")
-		parameterMapFromFile, err = createParameterMapFromFile(args.ParameterFile)
+		parameterMapFromFile, err = createParameterMapFromFile(args.RichParameterFile)
 		if err != nil {
 			return nil, err
 		}
@@ -277,13 +279,18 @@ PromptRichParamLoop:
 
 		// Param file is all or nothing
 		if !useParamFile {
-			for _, e := range args.ExistingParams {
+			for _, e := range args.ExistingRichParams {
 				if e.Name == templateVersionParameter.Name {
 					// If the param already exists, we do not need to prompt it again.
 					// The workspace scope will reuse params for each build.
 					continue PromptRichParamLoop
 				}
 			}
+		}
+
+		if args.UpdateWorkspace && !templateVersionParameter.Mutable {
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Warn.Render(fmt.Sprintf(`Parameter %q is not mutable, so can't be customized after workspace creation.`, templateVersionParameter.Name)))
+			continue
 		}
 
 		parameterValue, err := getWorkspaceBuildParameterValueFromMapOrInput(cmd, parameterMapFromFile, templateVersionParameter)
