@@ -81,6 +81,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   jest.resetAllMocks()
+  jest.setTimeout(20_000)
 })
 
 afterAll(() => {
@@ -89,8 +90,6 @@ afterAll(() => {
 
 describe("WorkspacePage", () => {
   it("requests a delete job when the user presses Delete and confirms", async () => {
-    // This is a long running test
-    jest.setTimeout(20_000)
     const user = userEvent.setup()
 
     const deleteWorkspaceMock = jest
