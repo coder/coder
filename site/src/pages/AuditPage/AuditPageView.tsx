@@ -1,5 +1,3 @@
-import Button from "@material-ui/core/Button"
-import Link from "@material-ui/core/Link"
 import Table from "@material-ui/core/Table"
 import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
@@ -10,14 +8,12 @@ import { AuditLogRow } from "components/AuditLogRow/AuditLogRow"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { EmptyState } from "components/EmptyState/EmptyState"
 import { Margins } from "components/Margins/Margins"
-import ArrowRightAltOutlined from "@material-ui/icons/ArrowRightAltOutlined"
 import {
   PageHeader,
   PageHeaderSubtitle,
   PageHeaderTitle,
 } from "components/PageHeader/PageHeader"
 import { PaginationWidget } from "components/PaginationWidget/PaginationWidget"
-import { Paywall } from "components/Paywall/Paywall"
 import { SearchBarWithFilter } from "components/SearchBarWithFilter/SearchBarWithFilter"
 import { Stack } from "components/Stack/Stack"
 import { TableLoader } from "components/TableLoader/TableLoader"
@@ -26,6 +22,7 @@ import { AuditHelpTooltip } from "components/Tooltips"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import { PaginationMachineRef } from "xServices/pagination/paginationXService"
+import { AuditPaywall } from "./AuditPaywall"
 
 export const Language = {
   title: "Audit",
@@ -132,32 +129,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
         </Cond>
 
         <Cond>
-          <Paywall
-            message="Audit logs"
-            description="Audit Logs allows Auditors to monitor user operations in their deployment. To use this feature, you have to upgrade your account."
-            cta={
-              <Stack direction="row" alignItems="center">
-                <Link
-                  underline="none"
-                  href="https://coder.com/docs/coder-oss/latest/admin/upgrade"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <Button size="small" startIcon={<ArrowRightAltOutlined />}>
-                    See how to upgrade
-                  </Button>
-                </Link>
-                <Link
-                  underline="none"
-                  href="https://coder.com/docs/coder-oss/latest/admin/audit-logs"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Read the docs
-                </Link>
-              </Stack>
-            }
-          />
+          <AuditPaywall />
         </Cond>
       </ChooseOne>
     </Margins>
