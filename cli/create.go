@@ -123,10 +123,11 @@ func create() *cobra.Command {
 			}
 
 			buildParams, err := prepWorkspaceBuild(cmd, client, prepWorkspaceBuildArgs{
-				Template:         template,
-				ExistingParams:   []codersdk.Parameter{},
-				ParameterFile:    parameterFile,
-				NewWorkspaceName: workspaceName,
+				Template:          template,
+				ExistingParams:    []codersdk.Parameter{},
+				ParameterFile:     parameterFile,
+				RichParameterFile: richParameterFile,
+				NewWorkspaceName:  workspaceName,
 			})
 			if err != nil {
 				return err

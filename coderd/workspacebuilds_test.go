@@ -646,7 +646,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 		secondParameterValue       = "2"
 
 		immutableParameterName        = "immutable_parameter"
-		immutableParameterDescription = "This is mutable parameter"
+		immutableParameterDescription = "This is immutable parameter"
 		immutableParameterValue       = "3"
 	)
 
