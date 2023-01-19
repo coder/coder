@@ -15,6 +15,11 @@ export const handlers = [
     return res(ctx.status(200), ctx.json(M.MockBuildInfo))
   }),
 
+  // experiments
+  rest.get("/api/v2/experiments", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockExperiments))
+  }),
+
   // update check
   rest.get("/api/v2/updatecheck", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockUpdateCheck))

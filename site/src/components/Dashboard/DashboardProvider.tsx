@@ -3,12 +3,14 @@ import {
   AppearanceConfig,
   BuildInfoResponse,
   Entitlements,
+  Experiments,
 } from "api/typesGenerated"
 import { FullScreenLoader } from "components/Loader/FullScreenLoader"
 import { createContext, FC, PropsWithChildren, useContext } from "react"
 import { appearanceMachine } from "xServices/appearance/appearanceXService"
 import { buildInfoMachine } from "xServices/buildInfo/buildInfoXService"
 import { entitlementsMachine } from "xServices/entitlements/entitlementsXService"
+import { experimentsMachine } from "xServices/experiments/experimentsMachine"
 
 interface Appearance {
   config: AppearanceConfig
@@ -21,6 +23,7 @@ interface DashboardProviderValue {
   buildInfo: BuildInfoResponse
   entitlements: Entitlements
   appearance: Appearance
+  experiments: Experiments
 }
 
 export const DashboardProviderContext = createContext<
@@ -31,10 +34,12 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
   const [buildInfoState] = useMachine(buildInfoMachine)
   const [entitlementsState] = useMachine(entitlementsMachine)
   const [appearanceState, appearanceSend] = useMachine(appearanceMachine)
+  const [experimentsState] = useMachine(experimentsMachine)
   const { buildInfo } = buildInfoState.context
   const { entitlements } = entitlementsState.context
   const { appearance, preview } = appearanceState.context
-  const isLoading = !buildInfo || !entitlements || !appearance
+  const { experiments } = experimentsState.context
+  const isLoading = !buildInfo || !entitlements || !appearance || !experiments
 
   const setAppearancePreview = (config: AppearanceConfig) => {
     appearanceSend({
@@ -59,6 +64,7 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
       value={{
         buildInfo,
         entitlements,
+        experiments,
         appearance: {
           preview,
           config: appearance,

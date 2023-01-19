@@ -40,8 +40,7 @@ export const WorkspaceReadyPage = ({
   const [_, bannerSend] = useActor(
     workspaceState.children["scheduleBannerMachine"],
   )
-  const { entitlements, buildInfo } = useDashboard()
-  const experimental = entitlements.experimental
+  const { buildInfo, experiments } = useDashboard()
   const featureVisibility = useFeatureVisibility()
   const {
     workspace,
@@ -117,7 +116,8 @@ export const WorkspaceReadyPage = ({
         canUpdateWorkspace={canUpdateWorkspace}
         hideSSHButton={featureVisibility["browser_only"]}
         hideVSCodeDesktopButton={
-          !experimental || featureVisibility["browser_only"]
+          !experiments.includes("vscode_local") ||
+          featureVisibility["browser_only"]
         }
         workspaceErrors={{
           [WorkspaceErrors.GET_RESOURCES_ERROR]: refreshWorkspaceWarning,
