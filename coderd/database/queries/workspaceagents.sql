@@ -80,3 +80,11 @@ SET
 	version = $2
 WHERE
 	id = $1;
+
+-- name: UpdateWorkspaceAgentStateByID :exec
+UPDATE
+	workspace_agents
+SET
+	state = $2
+WHERE
+	id = $1;

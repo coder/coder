@@ -1002,6 +1002,70 @@ func AllUserStatusValues() []UserStatus {
 	}
 }
 
+type WorkspaceAgentState string
+
+const (
+	WorkspaceAgentStateStarting     WorkspaceAgentState = "starting"
+	WorkspaceAgentStateStartTimeout WorkspaceAgentState = "start_timeout"
+	WorkspaceAgentStateStartError   WorkspaceAgentState = "start_error"
+	WorkspaceAgentStateReady        WorkspaceAgentState = "ready"
+)
+
+func (e *WorkspaceAgentState) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAgentState(s)
+	case string:
+		*e = WorkspaceAgentState(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAgentState: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceAgentState struct {
+	WorkspaceAgentState WorkspaceAgentState
+	Valid               bool // Valid is true if WorkspaceAgentState is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceAgentState) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceAgentState, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceAgentState.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceAgentState) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return ns.WorkspaceAgentState, nil
+}
+
+func (e WorkspaceAgentState) Valid() bool {
+	switch e {
+	case WorkspaceAgentStateStarting,
+		WorkspaceAgentStateStartTimeout,
+		WorkspaceAgentStateStartError,
+		WorkspaceAgentStateReady:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceAgentStateValues() []WorkspaceAgentState {
+	return []WorkspaceAgentState{
+		WorkspaceAgentStateStarting,
+		WorkspaceAgentStateStartTimeout,
+		WorkspaceAgentStateStartError,
+		WorkspaceAgentStateReady,
+	}
+}
+
 type WorkspaceAppHealth string
 
 const (
@@ -1448,6 +1512,8 @@ type WorkspaceAgent struct {
 	TroubleshootingURL string `db:"troubleshooting_url" json:"troubleshooting_url"`
 	// Path to file inside workspace containing the message of the day (MOTD) to show to the user when logging in via SSH.
 	MOTDFile string `db:"motd_file" json:"motd_file"`
+	// The current state of the workspace agent.
+	State NullWorkspaceAgentState `db:"state" json:"state"`
 }
 
 type WorkspaceApp struct {

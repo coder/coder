@@ -918,6 +918,7 @@ export interface WorkspaceAgent {
   readonly last_connected_at?: string
   readonly disconnected_at?: string
   readonly status: WorkspaceAgentStatus
+  readonly state: WorkspaceAgentState
   readonly name: string
   readonly resource_id: string
   readonly instance_id?: string
@@ -1224,6 +1225,19 @@ export const TemplateRoles: TemplateRole[] = ["", "admin", "use"]
 // From codersdk/users.go
 export type UserStatus = "active" | "suspended"
 export const UserStatuses: UserStatus[] = ["active", "suspended"]
+
+// From codersdk/workspaceagents.go
+export type WorkspaceAgentState =
+  | "ready"
+  | "start_error"
+  | "start_timeout"
+  | "starting"
+export const WorkspaceAgentStates: WorkspaceAgentState[] = [
+  "ready",
+  "start_error",
+  "start_timeout",
+  "starting",
+]
 
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentStatus =
