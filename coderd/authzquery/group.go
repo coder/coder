@@ -12,8 +12,8 @@ func (q *AuthzQuerier) DeleteGroupByID(ctx context.Context, id uuid.UUID) error 
 }
 
 func (q *AuthzQuerier) DeleteGroupMember(ctx context.Context, userID uuid.UUID) error {
-	//TODO implement me
-	panic("implement me")
+	// Deleting a group member counts as updating a group.
+	return authorizedUpdate(q.authorizer, q.database.GetGroupByID, q.database.DeleteGroupMember)(ctx, userID)
 }
 
 func (q *AuthzQuerier) GetGroupByID(ctx context.Context, id uuid.UUID) (database.Group, error) {
@@ -25,13 +25,16 @@ func (q *AuthzQuerier) GetGroupByOrgAndName(ctx context.Context, arg database.Ge
 }
 
 func (q *AuthzQuerier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]database.User, error) {
-	//TODO implement me
-	panic("implement me")
-}
+	// TODO: @emyrk feels like there should be a better way to do this.
 
-func (q *AuthzQuerier) GetUserGroups(ctx context.Context, userID uuid.UUID) ([]database.Group, error) {
-	//TODO implement me
-	panic("implement me")
+	// Get the group using the AuthzQuerier to check read access. If it works, we
+	// can fetch the members.
+	_, err := q.GetGroupByID(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+
+	return q.database.GetGroupMembers(ctx, groupID)
 }
 
 func (q *AuthzQuerier) InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (database.Group, error) {

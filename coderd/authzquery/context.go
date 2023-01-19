@@ -7,6 +7,10 @@ import (
 	"github.com/google/uuid"
 )
 
+// TODO:
+//	- We still need a system user for system functions that a user should
+//	not be able to call.
+
 type authContextKey struct{}
 
 // actor is the authorization subject for a request.

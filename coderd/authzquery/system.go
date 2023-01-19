@@ -7,6 +7,10 @@ import (
 	"github.com/coder/coder/coderd/database"
 )
 
+// TODO: @emyrk should we name system functions differently to indicate a user
+// cannot call them? Maybe we should have a separate interface for system functions?
+// So you'd do `authzQ.System().GetDERPMeshKey(ctx)` or something like that?
+
 func (q *AuthzQuerier) GetDERPMeshKey(ctx context.Context) (string, error) {
 	//TODO Implement authz check for system user.
 	return q.database.GetDERPMeshKey(ctx)

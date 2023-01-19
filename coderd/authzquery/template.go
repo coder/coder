@@ -4,8 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/coder/coder/coderd/database"
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/coderd/rbac"
+
+	"github.com/coder/coder/coderd/database"
 	"github.com/google/uuid"
 )
 
@@ -72,14 +75,23 @@ func (q *AuthzQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, crea
 	panic("implement me")
 }
 
+func (q *AuthzQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, _ rbac.PreparedAuthorized) ([]database.Template, error) {
+	//TODO Delete this function, all GetTemplates should be authorized. For now just call getTemplates on the authz querier.
+	return q.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{})
+}
+
 func (q *AuthzQuerier) GetTemplates(ctx context.Context) ([]database.Template, error) {
-	//TODO implement me
-	panic("implement me")
+	// TODO: We should remove this and only expose the GetTemplatesWithFilter
+	// This might be required as a system function.
+	return q.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{})
 }
 
 func (q *AuthzQuerier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTemplatesWithFilterParams) ([]database.Template, error) {
-	//TODO implement me
-	panic("implement me")
+	prep, err := prepareSQLFilter(ctx, q.authorizer, rbac.ActionRead, rbac.ResourceTemplate.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	}
+	return q.database.GetAuthorizedTemplates(ctx, arg, prep)
 }
 
 func (q *AuthzQuerier) InsertTemplate(ctx context.Context, arg database.InsertTemplateParams) (database.Template, error) {
@@ -138,17 +150,22 @@ func (q *AuthzQuerier) UpdateTemplateVersionDescriptionByJobID(ctx context.Conte
 	panic("implement me")
 }
 
-func (q *AuthzQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (q *AuthzQuerier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateGroup, error) {
-	//TODO implement me
-	panic("implement me")
+	// Authorized fetch on the template first.
+	// TODO: @emyrk this implementation feels like it could be better?
+	_, err := authorizedFetch(q.authorizer, q.database.GetTemplateByID)(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return q.database.GetTemplateGroupRoles(ctx, id)
 }
 
 func (q *AuthzQuerier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateUser, error) {
-	//TODO implement me
-	panic("implement me")
+	// Authorized fetch on the template first.
+	// TODO: @emyrk this implementation feels like it could be better?
+	_, err := authorizedFetch(q.authorizer, q.database.GetTemplateByID)(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return q.database.GetTemplateUserRoles(ctx, id)
 }
