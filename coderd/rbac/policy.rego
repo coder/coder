@@ -159,7 +159,6 @@ scope_allow_list {
 	# object.id. This line is included to prevent partial compilations from
 	# ever needing to include the object.id.
 	not "*" in input.subject.scope.allow_list
-	input.object.id  != ""
 	input.object.id in input.subject.scope.allow_list
 }
 

@@ -812,6 +812,25 @@ func TestAuthorizeScope(t *testing.T) {
 	}
 
 	testAuthorize(t, "User_WorkspaceAgent", user,
+		// Test cases without ID
+		cases(func(c authTestCase) authTestCase {
+			c.actions = []Action{ActionCreate, ActionUpdate, ActionDelete}
+			c.allow = false
+			return c
+		}, []authTestCase{
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.InOrg(defOrg)},
+			{resource: ResourceWorkspace.WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.All()},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.InOrg(unusedID)},
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me")},
+			{resource: ResourceWorkspace.WithOwner("not-me")},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me")},
+			{resource: ResourceWorkspace.InOrg(unusedID)},
+			{resource: ResourceWorkspace.WithOwner("not-me")},
+		}),
+
 		// Test all cases with the workspace id
 		cases(func(c authTestCase) authTestCase {
 			c.actions = []Action{ActionCreate, ActionUpdate, ActionDelete}
@@ -856,6 +875,59 @@ func TestAuthorizeScope(t *testing.T) {
 			// The scope will return true, but the user perms return false for resources not owned by the user.
 			{resource: ResourceWorkspace.WithID(workspaceID).InOrg(defOrg).WithOwner("not-me"), actions: []Action{ActionRead}, allow: false},
 			{resource: ResourceWorkspace.WithID(workspaceID).InOrg(unusedID).WithOwner("not-me"), actions: []Action{ActionRead}, allow: false},
+		},
+	)
+
+	// This scope can only create workspaces
+	user = subject{
+		UserID: "me",
+		Roles: []Role{
+			must(RoleByName(RoleMember())),
+			must(RoleByName(RoleOrgMember(defOrg))),
+		},
+		Scope: ScopeRole{
+			Role: Role{
+				Name:        "create_workspace",
+				DisplayName: "Create Workspace",
+				Site: permissions(map[string][]Action{
+					// Only read access for workspaces.
+					ResourceWorkspace.Type: {ActionCreate},
+				}),
+				Org:  map[string][]Permission{},
+				User: []Permission{},
+			},
+			// Empty string allow_list is allowed for actions like 'create'
+			AllowIDList: []string{""},
+		},
+	}
+
+	testAuthorize(t, "CreatWorkspaceScope", user,
+		// All these cases will fail because a resource ID is set.
+		cases(func(c authTestCase) authTestCase {
+			c.actions = []Action{ActionCreate, ActionRead, ActionUpdate, ActionDelete}
+			c.allow = false
+			c.resource.ID = uuid.NewString()
+			return c
+		}, []authTestCase{
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.InOrg(defOrg)},
+			{resource: ResourceWorkspace.WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.All()},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.InOrg(unusedID)},
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me")},
+			{resource: ResourceWorkspace.WithOwner("not-me")},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me")},
+			{resource: ResourceWorkspace.InOrg(unusedID)},
+			{resource: ResourceWorkspace.WithOwner("not-me")},
+		}),
+
+		// Test create allowed by scope:
+		[]authTestCase{
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.UserID), actions: []Action{ActionCreate}, allow: true},
+			// The scope will return true, but the user perms return false for resources not owned by the user.
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), actions: []Action{ActionCreate}, allow: false},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me"), actions: []Action{ActionCreate}, allow: false},
 		},
 	)
 }
