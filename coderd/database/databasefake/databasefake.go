@@ -281,6 +281,42 @@ func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, templateID uuid.UUID) (
 	return rs, nil
 }
 
+func (q *fakeQuerier) GetDeploymentDAUs(_ context.Context) ([]database.GetDeploymentDAUsRow, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	seens := make(map[time.Time]map[uuid.UUID]struct{})
+
+	for _, as := range q.agentStats {
+		date := as.CreatedAt.Truncate(time.Hour * 24)
+
+		dateEntry := seens[date]
+		if dateEntry == nil {
+			dateEntry = make(map[uuid.UUID]struct{})
+		}
+		dateEntry[as.UserID] = struct{}{}
+		seens[date] = dateEntry
+	}
+
+	seenKeys := maps.Keys(seens)
+	sort.Slice(seenKeys, func(i, j int) bool {
+		return seenKeys[i].Before(seenKeys[j])
+	})
+
+	var rs []database.GetDeploymentDAUsRow
+	for _, key := range seenKeys {
+		ids := seens[key]
+		for id := range ids {
+			rs = append(rs, database.GetDeploymentDAUsRow{
+				Date:   key,
+				UserID: id,
+			})
+		}
+	}
+
+	return rs, nil
+}
+
 func (q *fakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
 	var emptyRow database.GetTemplateAverageBuildTimeRow
 	var (
