@@ -129,3 +129,14 @@ func (q *AuthzQuerier) GetAuthorizedUserCount(ctx context.Context, arg database.
 func (q *AuthzQuerier) DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error {
 	return authorizedDelete(q.authorizer, q.database.GetGitSSHKey, q.database.DeleteGitSSHKey)(ctx, userID)
 }
+
+func (q *AuthzQuerier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
+	return authorizedFetch(q.authorizer, q.database.GetGitSSHKey)(ctx, userID)
+}
+
+func (q *AuthzQuerier) GetGitAuthLink(ctx context.Context, arg database.GetGitAuthLinkParams) (database.GitAuthLink, error) {
+	// TODO @emyrk: Which permissions should be checked here? It looks like oauth has
+	// unique authz flow like workspace agents. Maybe this resource should have it's
+	// own resource type?
+	panic("implement me")
+}

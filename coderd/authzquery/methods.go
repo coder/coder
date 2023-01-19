@@ -17,12 +17,6 @@ func (q *AuthzQuerier) AcquireProvisionerJob(ctx context.Context, arg database.A
 	panic("implement me")
 }
 
-
-func (q *AuthzQuerier) DeleteLicense(ctx context.Context, id int32) (int32, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (q *AuthzQuerier) DeleteOldAgentStats(ctx context.Context) error {
 	//TODO implement me
 	panic("implement me")
@@ -53,32 +47,12 @@ func (q *AuthzQuerier) GetDeploymentID(ctx context.Context) (string, error) {
 	panic("implement me")
 }
 
-func (q *AuthzQuerier) GetGitAuthLink(ctx context.Context, arg database.GetGitAuthLinkParams) (database.GitAuthLink, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (q *AuthzQuerier) GetLastUpdateCheck(ctx context.Context) (string, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
 func (q *AuthzQuerier) GetLatestAgentStat(ctx context.Context, agentID uuid.UUID) (database.AgentStat, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) GetLicenses(ctx context.Context) ([]database.License, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) GetLogoURL(ctx context.Context) (string, error) {
 	//TODO implement me
 	panic("implement me")
 }
@@ -133,16 +107,6 @@ func (q *AuthzQuerier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt ti
 	panic("implement me")
 }
 
-func (q *AuthzQuerier) GetServiceBanner(ctx context.Context) (string, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) GetUnexpiredLicenses(ctx context.Context) ([]database.License, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (q *AuthzQuerier) InsertAgentStat(ctx context.Context, arg database.InsertAgentStatParams) (database.AgentStat, error) {
 	//TODO implement me
 	panic("implement me")
@@ -169,11 +133,6 @@ func (q *AuthzQuerier) InsertGitAuthLink(ctx context.Context, arg database.Inser
 }
 
 func (q *AuthzQuerier) InsertGitSSHKey(ctx context.Context, arg database.InsertGitSSHKeyParams) (database.GitSSHKey, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) InsertLicense(ctx context.Context, arg database.InsertLicenseParams) (database.License, error) {
 	//TODO implement me
 	panic("implement me")
 }

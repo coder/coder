@@ -1322,6 +1322,30 @@ func (q *sqlQuerier) DeleteLicense(ctx context.Context, id int32) (int32, error)
 	return id, err
 }
 
+const getLicenseByID = `-- name: GetLicenseByID :one
+SELECT
+	id, uploaded_at, jwt, exp, uuid
+FROM
+	licenses
+WHERE
+	id = $1
+LIMIT
+	1
+`
+
+func (q *sqlQuerier) GetLicenseByID(ctx context.Context, id int32) (License, error) {
+	row := q.db.QueryRowContext(ctx, getLicenseByID, id)
+	var i License
+	err := row.Scan(
+		&i.ID,
+		&i.UploadedAt,
+		&i.JWT,
+		&i.Exp,
+		&i.Uuid,
+	)
+	return i, err
+}
+
 const getLicenses = `-- name: GetLicenses :many
 SELECT id, uploaded_at, jwt, exp, uuid
 FROM licenses

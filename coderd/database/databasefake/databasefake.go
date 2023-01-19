@@ -3459,6 +3459,18 @@ func (q *fakeQuerier) InsertLicense(
 	return l, nil
 }
 
+func (q *fakeQuerier) GetLicenseByID(_ context.Context, id int32) (database.License, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, license := range q.licenses {
+		if license.ID == id {
+			return license, nil
+		}
+	}
+	return database.License{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetLicenses(_ context.Context) ([]database.License, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

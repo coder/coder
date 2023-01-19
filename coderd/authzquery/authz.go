@@ -50,7 +50,7 @@ func authorizedDeleteWithConverter[ObjectType any, ArgumentType any,
 		// Fetch the database object
 		object, err := fetchFunc(ctx, arg)
 		if err != nil {
-			return err
+			return xerrors.Errorf("fetch object: %w", err)
 		}
 
 		// Authorize the action
@@ -103,7 +103,7 @@ func authorizedFetchWithConverter[ArgumentType any, ObjectType any,
 		// Fetch the database object
 		object, err := f(ctx, arg)
 		if err != nil {
-			return empty, err
+			return empty, xerrors.Errorf("fetch object: %w", err)
 		}
 
 		// Authorize the action

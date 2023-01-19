@@ -2,6 +2,7 @@ package database
 
 import (
 	"sort"
+	"strconv"
 
 	"github.com/coder/coder/coderd/rbac"
 )
@@ -125,8 +126,8 @@ func (u GitSSHKey) RBACObject() rbac.Object {
 	return rbac.ResourceUserData.WithID(u.UserID).WithOwner(u.UserID.String())
 }
 
-func (License) RBACObject() rbac.Object {
-	return rbac.ResourceLicense
+func (l License) RBACObject() rbac.Object {
+	return rbac.ResourceLicense.WithIDString(strconv.FormatInt(int64(l.ID), 10))
 }
 
 func ConvertUserRows(rows []GetUsersRow) []User {
