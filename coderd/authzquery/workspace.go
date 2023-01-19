@@ -4,10 +4,26 @@ import (
 	"context"
 	"time"
 
-	"github.com/coder/coder/coderd/database"
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/coderd/rbac"
+
+	"github.com/coder/coder/coderd/database"
 	"github.com/google/uuid"
 )
+
+func (q *AuthzQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, _ rbac.PreparedAuthorized) ([]database.GetWorkspacesRow, error) {
+	//TODO Delete this function, all GetWorkspaces should be authorized. For now just call GetWorkspaces on the authz querier.
+	return q.GetWorkspaces(ctx, arg)
+}
+
+func (q *AuthzQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {
+	prep, err := prepareSQLFilter(ctx, q.authorizer, rbac.ActionRead, rbac.ResourceWorkspace.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	}
+	return q.database.GetAuthorizedWorkspaces(ctx, arg, prep)
+}
 
 func (q *AuthzQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
 	//TODO implement me
@@ -151,11 +167,6 @@ func (q *AuthzQuerier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, cr
 	panic("implement me")
 }
 
-func (q *AuthzQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (q *AuthzQuerier) InsertWorkspace(ctx context.Context, arg database.InsertWorkspaceParams) (database.Workspace, error) {
 	//TODO implement me
 	panic("implement me")
@@ -247,11 +258,6 @@ func (q *AuthzQuerier) UpdateWorkspaceLastUsedAt(ctx context.Context, arg databa
 }
 
 func (q *AuthzQuerier) UpdateWorkspaceTTL(ctx context.Context, arg database.UpdateWorkspaceTTLParams) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]database.GetWorkspacesRow, error) {
 	//TODO implement me
 	panic("implement me")
 }
