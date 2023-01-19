@@ -2,6 +2,7 @@ package tailnet
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -50,6 +51,7 @@ func init() {
 type Options struct {
 	Addresses []netip.Prefix
 	DERPMap   *tailcfg.DERPMap
+	TLSConfig *tls.Config
 
 	// BlockEndpoints specifies whether P2P endpoints are blocked.
 	// If so, only DERPs can establish connections.
@@ -151,6 +153,7 @@ func NewConn(options *Options) (*Conn, error) {
 	if !ok {
 		return nil, xerrors.New("get wireguard internals")
 	}
+	magicConn.SetTLSConfig(options.TLSConfig)
 	tunDevice.SetStatisticsEnabled(options.EnableTrafficStats)
 
 	// Update the keys for the magic connection!

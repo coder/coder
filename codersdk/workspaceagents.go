@@ -2,6 +2,7 @@ package codersdk
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -369,6 +370,12 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 		return nil, xerrors.Errorf("decode conn info: %w", err)
 	}
 
+	var tlsConfig *tls.Config
+	httpTransport, ok := c.HTTPClient.Transport.(*http.Transport)
+	if ok {
+		tlsConfig = httpTransport.TLSClientConfig
+	}
+
 	ip := tailnet.IP()
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:          []netip.Prefix{netip.PrefixFrom(ip, 128)},
@@ -376,6 +383,7 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 		Logger:             options.Logger,
 		BlockEndpoints:     options.BlockEndpoints,
 		EnableTrafficStats: options.EnableTrafficStats,
+		TLSConfig:          tlsConfig,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)

@@ -333,6 +333,25 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		provisionerCloser = NewProvisionerDaemon(t, coderAPI)
 	}
 	client := codersdk.New(serverURL)
+
+	// If TLS certificates are specified, ensure the client has
+	// the same certificates!
+	if options.TLSCertificates != nil {
+		rootPool := x509.NewCertPool()
+		for _, certificate := range options.TLSCertificates {
+			for _, certificatePart := range certificate.Certificate {
+				certificate, err := x509.ParseCertificate(certificatePart)
+				require.NoError(t, err)
+				rootPool.AddCert(certificate)
+			}
+		}
+		client.HTTPClient.Transport = &http.Transport{
+			// nolint:gosec
+			TLSClientConfig: &tls.Config{
+				RootCAs: rootPool,
+			},
+		}
+	}
 	t.Cleanup(func() {
 		cancelFunc()
 		_ = provisionerCloser.Close()
@@ -632,7 +651,7 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, workspaceID uui
 		for _, resource := range workspace.LatestBuild.Resources {
 			for _, agent := range resource.Agents {
 				if agent.Status != codersdk.WorkspaceAgentConnected {
-					t.Logf("agent %s not connected yet", agent.Name)
+					// t.Logf("agent %s not connected yet", agent.Name)
 					return false
 				}
 			}

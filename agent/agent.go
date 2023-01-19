@@ -58,10 +58,13 @@ const (
 )
 
 type Options struct {
-	Filesystem             afero.Fs
-	TempDir                string
-	ExchangeToken          func(ctx context.Context) (string, error)
-	Client                 Client
+	Filesystem    afero.Fs
+	TempDir       string
+	ExchangeToken func(ctx context.Context) (string, error)
+	Client        Client
+	// DERPSkipVerify bypasses TLS verification when connecting to
+	// a DERP server.
+	DERPSkipVerify         bool
 	ReconnectingPTYTimeout time.Duration
 	EnvironmentVariables   map[string]string
 	Logger                 slog.Logger
@@ -99,6 +102,7 @@ func New(options Options) io.Closer {
 		envVars:                options.EnvironmentVariables,
 		client:                 options.Client,
 		exchangeToken:          options.ExchangeToken,
+		derpSkipVerify:         options.DERPSkipVerify,
 		filesystem:             options.Filesystem,
 		tempDir:                options.TempDir,
 	}
@@ -107,11 +111,12 @@ func New(options Options) io.Closer {
 }
 
 type agent struct {
-	logger        slog.Logger
-	client        Client
-	exchangeToken func(ctx context.Context) (string, error)
-	filesystem    afero.Fs
-	tempDir       string
+	logger         slog.Logger
+	client         Client
+	derpSkipVerify bool
+	exchangeToken  func(ctx context.Context) (string, error)
+	filesystem     afero.Fs
+	tempDir        string
 
 	reconnectingPTYs       sync.Map
 	reconnectingPTYTimeout time.Duration
@@ -195,6 +200,15 @@ func (a *agent) run(ctx context.Context) error {
 		err = gitauth.OverrideVSCodeConfigs(a.filesystem)
 		if err != nil {
 			return xerrors.Errorf("override vscode configuration for git auth: %w", err)
+		}
+	}
+
+	if a.derpSkipVerify {
+		// Skip all TLS verification for all DERP nodes.
+		for _, region := range metadata.DERPMap.Regions {
+			for _, node := range region.Nodes {
+				node.InsecureForTests = true
+			}
 		}
 	}
 

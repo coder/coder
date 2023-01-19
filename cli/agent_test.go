@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"context"
+	"crypto/tls"
 	"runtime"
 	"strings"
 	"testing"
@@ -12,12 +13,75 @@ import (
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
 func TestWorkspaceAgent(t *testing.T) {
 	t.Parallel()
+	t.Run("Insecure", func(t *testing.T) {
+		t.Parallel()
+		cert, err := tls.LoadX509KeyPair(generateTLSCertificate(t))
+		require.NoError(t, err)
+
+		agentToken := uuid.NewString()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			TLSCertificates:          []tls.Certificate{cert},
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionApply: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.Resource{{
+							Name: "somename",
+							Type: "someinstance",
+							Agents: []*proto.Agent{{
+								Auth: &proto.Agent_Token{
+									Token: agentToken,
+								},
+							}},
+						}},
+					},
+				},
+			}},
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		cmd, _ := clitest.New(t, "agent", "--agent-url", client.URL.String(), "--agent-token", agentToken, "--insecure")
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
+		errC := make(chan error)
+		go func() {
+			err := cmd.ExecuteContext(ctx)
+			assert.NoError(t, err)
+			errC <- err
+		}()
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+		workspace, err = client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err)
+		resources := workspace.LatestBuild.Resources
+		if assert.NotEmpty(t, workspace.LatestBuild.Resources) && assert.NotEmpty(t, resources[0].Agents) {
+			assert.NotEmpty(t, resources[0].Agents[0].Version)
+		}
+		dialer, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
+			// Ensure DERP is properly insecure too!
+			BlockEndpoints: true,
+		})
+		require.NoError(t, err)
+		defer dialer.Close()
+		require.True(t, dialer.AwaitReachable(context.Background()))
+		cancelFunc()
+		err = <-errC
+		require.NoError(t, err)
+	})
+
 	t.Run("Azure", func(t *testing.T) {
 		t.Parallel()
 		instanceID := "instanceidentifier"

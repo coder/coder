@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net/http"
 	"net/http/pprof"
@@ -29,6 +30,7 @@ func workspaceAgent() *cobra.Command {
 	var (
 		auth         string
 		pprofAddress string
+		insecure     bool
 		noReap       bool
 	)
 	cmd := &cobra.Command{
@@ -85,6 +87,14 @@ func workspaceAgent() *cobra.Command {
 			client := codersdk.New(coderURL)
 			// Set a reasonable timeout so requests can't hang forever!
 			client.HTTPClient.Timeout = 10 * time.Second
+			if insecure {
+				client.HTTPClient.Transport = &http.Transport{
+					TLSClientConfig: &tls.Config{
+						// nolint:gosec
+						InsecureSkipVerify: true,
+					},
+				}
+			}
 
 			// Enable pprof handler
 			// This prevents the pprof import from being accidentally deleted.
@@ -154,8 +164,9 @@ func workspaceAgent() *cobra.Command {
 			}
 
 			closer := agent.New(agent.Options{
-				Client: client,
-				Logger: logger,
+				Client:         client,
+				Logger:         logger,
+				DERPSkipVerify: insecure,
 				ExchangeToken: func(ctx context.Context) (string, error) {
 					if exchangeToken == nil {
 						return client.SessionToken(), nil
@@ -178,6 +189,7 @@ func workspaceAgent() *cobra.Command {
 
 	cliflag.StringVarP(cmd.Flags(), &auth, "auth", "", "CODER_AGENT_AUTH", "token", "Specify the authentication type to use for the agent")
 	cliflag.BoolVarP(cmd.Flags(), &noReap, "no-reap", "", "", false, "Do not start a process reaper.")
+	cliflag.BoolVarP(cmd.Flags(), &insecure, "insecure", "", "CODER_AGENT_INSECURE", false, "Allow insecure server connections when using SSL. This should not be used in production.")
 	cliflag.StringVarP(cmd.Flags(), &pprofAddress, "pprof-address", "", "CODER_AGENT_PPROF_ADDRESS", "127.0.0.1:6060", "The address to serve pprof.")
 	return cmd
 }
