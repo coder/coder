@@ -21,6 +21,16 @@ func (q *AuthzQuerier) InsertLicense(ctx context.Context, arg database.InsertLic
 	panic("implement me")
 }
 
+func (q *AuthzQuerier) InsertOrUpdateLogoURL(ctx context.Context, value string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (q *AuthzQuerier) InsertOrUpdateServiceBanner(ctx context.Context, value string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (q *AuthzQuerier) GetLicenseByID(ctx context.Context, id int32) (database.License, error) {
 	return authorizedFetch(q.authorizer, q.database.GetLicenseByID)(ctx, id)
 }
@@ -34,6 +44,11 @@ func (q *AuthzQuerier) DeleteLicense(ctx context.Context, id int32) (int32, erro
 		return -1, err
 	}
 	return id, nil
+}
+
+func (q *AuthzQuerier) GetDeploymentID(ctx context.Context) (string, error) {
+	// No authz checks
+	return q.GetDeploymentID(ctx)
 }
 
 func (q *AuthzQuerier) GetLogoURL(ctx context.Context) (string, error) {

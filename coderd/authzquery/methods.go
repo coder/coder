@@ -27,20 +27,11 @@ func (q *AuthzQuerier) DeleteParameterValueByID(ctx context.Context, id uuid.UUI
 	panic("implement me")
 }
 
-func (q *AuthzQuerier) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (q *AuthzQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (q *AuthzQuerier) GetDeploymentID(ctx context.Context) (string, error) {
-	//TODO implement me
-	panic("implement me")
-}
 
 func (q *AuthzQuerier) GetLastUpdateCheck(ctx context.Context) (string, error) {
 	//TODO implement me
@@ -97,11 +88,6 @@ func (q *AuthzQuerier) GetProvisionerLogsByIDBetween(ctx context.Context, arg da
 	panic("implement me")
 }
 
-func (q *AuthzQuerier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]database.Replica, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (q *AuthzQuerier) InsertAgentStat(ctx context.Context, arg database.InsertAgentStatParams) (database.AgentStat, error) {
 	//TODO implement me
 	panic("implement me")
@@ -113,16 +99,6 @@ func (q *AuthzQuerier) InsertAuditLog(ctx context.Context, arg database.InsertAu
 }
 
 func (q *AuthzQuerier) InsertOrUpdateLastUpdateCheck(ctx context.Context, value string) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) InsertOrUpdateLogoURL(ctx context.Context, value string) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) InsertOrUpdateServiceBanner(ctx context.Context, value string) error {
 	//TODO implement me
 	panic("implement me")
 }
@@ -148,11 +124,6 @@ func (q *AuthzQuerier) InsertProvisionerJob(ctx context.Context, arg database.In
 }
 
 func (q *AuthzQuerier) InsertProvisionerJobLogs(ctx context.Context, arg database.InsertProvisionerJobLogsParams) ([]database.ProvisionerJobLog, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) InsertReplica(ctx context.Context, arg database.InsertReplicaParams) (database.Replica, error) {
 	//TODO implement me
 	panic("implement me")
 }
@@ -193,11 +164,6 @@ func (q *AuthzQuerier) UpdateProvisionerJobWithCancelByID(ctx context.Context, a
 }
 
 func (q *AuthzQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, arg database.UpdateProvisionerJobWithCompleteByIDParams) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) UpdateReplica(ctx context.Context, arg database.UpdateReplicaParams) (database.Replica, error) {
 	//TODO implement me
 	panic("implement me")
 }

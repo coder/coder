@@ -1,8 +1,11 @@
 package authzquery
 
-import "context"
+import (
+	"context"
+	"time"
 
-// These are methods that should only be called by a system user.
+	"github.com/coder/coder/coderd/database"
+)
 
 func (q *AuthzQuerier) GetDERPMeshKey(ctx context.Context) (string, error) {
 	//TODO Implement authz check for system user.
@@ -17,4 +20,24 @@ func (q *AuthzQuerier) InsertDERPMeshKey(ctx context.Context, value string) erro
 func (q *AuthzQuerier) InsertDeploymentID(ctx context.Context, value string) error {
 	//TODO Implement authz check for system user.
 	return q.InsertDeploymentID(ctx, value)
+}
+
+func (q *AuthzQuerier) InsertReplica(ctx context.Context, arg database.InsertReplicaParams) (database.Replica, error) {
+	//TODO Implement authz check for system user.
+	return q.InsertReplica(ctx, arg)
+}
+
+func (q *AuthzQuerier) UpdateReplica(ctx context.Context, arg database.UpdateReplicaParams) (database.Replica, error) {
+	//TODO Implement authz check for system user.
+	return q.UpdateReplica(ctx, arg)
+}
+
+func (q *AuthzQuerier) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error {
+	//TODO Implement authz check for system user.
+	return q.DeleteReplicasUpdatedBefore(ctx, updatedAt)
+}
+
+func (q *AuthzQuerier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]database.Replica, error) {
+	//TODO Implement authz check for system user.
+	return q.GetReplicasUpdatedAfter(ctx, updatedAt)
 }
