@@ -3973,6 +3973,39 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/me/report-state": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Submit workspace agent state",
+                "operationId": "submit-workspace-agent-state",
+                "parameters": [
+                    {
+                        "description": "Workspace agent state request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PostWorkspaceAgentStateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Success"
+                    }
+                }
+            }
+        },
         "/workspaceagents/me/report-stats": {
             "post": {
                 "security": [
@@ -6717,6 +6750,14 @@ const docTemplate = `{
                 "ParameterSourceSchemeData"
             ]
         },
+        "codersdk.PostWorkspaceAgentStateRequest": {
+            "type": "object",
+            "properties": {
+                "state": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentState"
+                }
+            }
+        },
         "codersdk.PostWorkspaceAgentVersionRequest": {
             "description": "x-apidocgen:skip",
             "type": "object",
@@ -7693,6 +7734,19 @@ const docTemplate = `{
                 "startup_script": {
                     "type": "string"
                 },
+                "state": {
+                    "enum": [
+                        "starting",
+                        "start_timeout",
+                        "start_error",
+                        "ready"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentState"
+                        }
+                    ]
+                },
                 "status": {
                     "enum": [
                         "connecting",
@@ -7779,10 +7833,28 @@ const docTemplate = `{
                 "startup_script": {
                     "type": "string"
                 },
+                "startup_script_timeout": {
+                    "type": "integer"
+                },
                 "vscode_port_proxy_uri": {
                     "type": "string"
                 }
             }
+        },
+        "codersdk.WorkspaceAgentState": {
+            "type": "string",
+            "enum": [
+                "starting",
+                "start_timeout",
+                "start_error",
+                "ready"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAgentStateStarting",
+                "WorkspaceAgentStateStartTimeout",
+                "WorkspaceAgentStateStartError",
+                "WorkspaceAgentStateReady"
+            ]
         },
         "codersdk.WorkspaceAgentStatus": {
             "type": "string",

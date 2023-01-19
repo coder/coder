@@ -370,6 +370,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/metadata \
   "git_auth_configs": 0,
   "motd_file": "string",
   "startup_script": "string",
+  "startup_script_timeout": 0,
   "vscode_port_proxy_uri": "string"
 }
 ```
@@ -379,6 +380,41 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/metadata \
 | Status | Meaning                                                 | Description | Schema                                                                       |
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentMetadata](schemas.md#codersdkworkspaceagentmetadata) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Submit workspace agent state
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/report-state \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /workspaceagents/me/report-state`
+
+> Body parameter
+
+```json
+{
+  "state": "starting"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                         | Required | Description                   |
+| ------ | ---- | -------------------------------------------------------------------------------------------- | -------- | ----------------------------- |
+| `body` | body | [codersdk.PostWorkspaceAgentStateRequest](schemas.md#codersdkpostworkspaceagentstaterequest) | true     | Workspace agent state request |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | Success     |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -507,6 +543,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
   "operating_system": "string",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "startup_script": "string",
+  "state": "starting",
   "status": "connecting",
   "troubleshooting_url": "string",
   "updated_at": "2019-08-24T14:15:22Z",

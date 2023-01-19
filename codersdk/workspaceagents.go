@@ -142,7 +142,7 @@ type WorkspaceAgentMetadata struct {
 	DERPMap              *tailcfg.DERPMap  `json:"derpmap"`
 	EnvironmentVariables map[string]string `json:"environment_variables"`
 	StartupScript        string            `json:"startup_script"`
-	StartupScriptTimeout time.Duration     `json:"startup_script_timeout" format:"duration"`
+	StartupScriptTimeout time.Duration     `json:"startup_script_timeout"`
 	Directory            string            `json:"directory"`
 	MOTDFile             string            `json:"motd_file"`
 }

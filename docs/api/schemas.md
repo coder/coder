@@ -3320,6 +3320,20 @@ Parameter represents a set value for the scope.
 | `none` |
 | `data` |
 
+## codersdk.PostWorkspaceAgentStateRequest
+
+```json
+{
+  "state": "starting"
+}
+```
+
+### Properties
+
+| Name    | Type                                                         | Required | Restrictions | Description |
+| ------- | ------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `state` | [codersdk.WorkspaceAgentState](#codersdkworkspaceagentstate) | false    |              |             |
+
 ## codersdk.PostWorkspaceAppHealthsRequest
 
 ```json
@@ -4583,6 +4597,7 @@ Parameter represents a set value for the scope.
             "operating_system": "string",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "startup_script": "string",
+            "state": "starting",
             "status": "connecting",
             "troubleshooting_url": "string",
             "updated_at": "2019-08-24T14:15:22Z",
@@ -4702,6 +4717,7 @@ Parameter represents a set value for the scope.
   "operating_system": "string",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "startup_script": "string",
+  "state": "starting",
   "status": "connecting",
   "troubleshooting_url": "string",
   "updated_at": "2019-08-24T14:15:22Z",
@@ -4731,6 +4747,7 @@ Parameter represents a set value for the scope.
 | `operating_system`           | string                                                         | false    |              |                                                                     |
 | `resource_id`                | string                                                         | false    |              |                                                                     |
 | `startup_script`             | string                                                         | false    |              |                                                                     |
+| `state`                      | [codersdk.WorkspaceAgentState](#codersdkworkspaceagentstate)   | false    |              |                                                                     |
 | `status`                     | [codersdk.WorkspaceAgentStatus](#codersdkworkspaceagentstatus) | false    |              |                                                                     |
 | `troubleshooting_url`        | string                                                         | false    |              |                                                                     |
 | `updated_at`                 | string                                                         | false    |              |                                                                     |
@@ -4738,12 +4755,16 @@ Parameter represents a set value for the scope.
 
 #### Enumerated Values
 
-| Property | Value          |
-| -------- | -------------- |
-| `status` | `connecting`   |
-| `status` | `connected`    |
-| `status` | `disconnected` |
-| `status` | `timeout`      |
+| Property | Value           |
+| -------- | --------------- |
+| `state`  | `starting`      |
+| `state`  | `start_timeout` |
+| `state`  | `start_error`   |
+| `state`  | `ready`         |
+| `status` | `connecting`    |
+| `status` | `connected`     |
+| `status` | `disconnected`  |
+| `status` | `timeout`       |
 
 ## codersdk.WorkspaceAgentAuthenticateResponse
 
@@ -4923,23 +4944,42 @@ Parameter represents a set value for the scope.
   "git_auth_configs": 0,
   "motd_file": "string",
   "startup_script": "string",
+  "startup_script_timeout": 0,
   "vscode_port_proxy_uri": "string"
 }
 ```
 
 ### Properties
 
-| Name                    | Type                                                    | Required | Restrictions | Description                                                                                                                                                |
-| ----------------------- | ------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps`                  | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp) | false    |              |                                                                                                                                                            |
-| `derpmap`               | [tailcfg.DERPMap](#tailcfgderpmap)                      | false    |              |                                                                                                                                                            |
-| `directory`             | string                                                  | false    |              |                                                                                                                                                            |
-| `environment_variables` | object                                                  | false    |              |                                                                                                                                                            |
-| » `[any property]`      | string                                                  | false    |              |                                                                                                                                                            |
-| `git_auth_configs`      | integer                                                 | false    |              | Git auth configs stores the number of Git configurations the Coder deployment has. If this number is >0, we set up special configuration in the workspace. |
-| `motd_file`             | string                                                  | false    |              |                                                                                                                                                            |
-| `startup_script`        | string                                                  | false    |              |                                                                                                                                                            |
-| `vscode_port_proxy_uri` | string                                                  | false    |              |                                                                                                                                                            |
+| Name                     | Type                                                    | Required | Restrictions | Description                                                                                                                                                |
+| ------------------------ | ------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps`                   | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp) | false    |              |                                                                                                                                                            |
+| `derpmap`                | [tailcfg.DERPMap](#tailcfgderpmap)                      | false    |              |                                                                                                                                                            |
+| `directory`              | string                                                  | false    |              |                                                                                                                                                            |
+| `environment_variables`  | object                                                  | false    |              |                                                                                                                                                            |
+| » `[any property]`       | string                                                  | false    |              |                                                                                                                                                            |
+| `git_auth_configs`       | integer                                                 | false    |              | Git auth configs stores the number of Git configurations the Coder deployment has. If this number is >0, we set up special configuration in the workspace. |
+| `motd_file`              | string                                                  | false    |              |                                                                                                                                                            |
+| `startup_script`         | string                                                  | false    |              |                                                                                                                                                            |
+| `startup_script_timeout` | integer                                                 | false    |              |                                                                                                                                                            |
+| `vscode_port_proxy_uri`  | string                                                  | false    |              |                                                                                                                                                            |
+
+## codersdk.WorkspaceAgentState
+
+```json
+"starting"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value           |
+| --------------- |
+| `starting`      |
+| `start_timeout` |
+| `start_error`   |
+| `ready`         |
 
 ## codersdk.WorkspaceAgentStatus
 
@@ -5114,6 +5154,7 @@ Parameter represents a set value for the scope.
           "operating_system": "string",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "startup_script": "string",
+          "state": "starting",
           "status": "connecting",
           "troubleshooting_url": "string",
           "updated_at": "2019-08-24T14:15:22Z",
@@ -5279,6 +5320,7 @@ Parameter represents a set value for the scope.
       "operating_system": "string",
       "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
       "startup_script": "string",
+      "state": "starting",
       "status": "connecting",
       "troubleshooting_url": "string",
       "updated_at": "2019-08-24T14:15:22Z",
@@ -5466,6 +5508,7 @@ Parameter represents a set value for the scope.
                 "operating_system": "string",
                 "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
                 "startup_script": "string",
+                "state": "starting",
                 "status": "connecting",
                 "troubleshooting_url": "string",
                 "updated_at": "2019-08-24T14:15:22Z",

@@ -1576,6 +1576,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
         "operating_system": "string",
         "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
         "startup_script": "string",
+        "state": "starting",
         "status": "connecting",
         "troubleshooting_url": "string",
         "updated_at": "2019-08-24T14:15:22Z",
@@ -1650,6 +1651,7 @@ Status Code **200**
 | `»» operating_system`           | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» resource_id`                | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
 | `»» startup_script`             | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» state`                      | [codersdk.WorkspaceAgentState](schemas.md#codersdkworkspaceagentstate)           | false    |              |                                                                                                                                                                                                                                                |
 | `»» status`                     | [codersdk.WorkspaceAgentStatus](schemas.md#codersdkworkspaceagentstatus)         | false    |              |                                                                                                                                                                                                                                                |
 | `»» troubleshooting_url`        | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» updated_at`                 | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
@@ -1679,6 +1681,10 @@ Status Code **200**
 | `sharing_level`        | `owner`         |
 | `sharing_level`        | `authenticated` |
 | `sharing_level`        | `public`        |
+| `state`                | `starting`      |
+| `state`                | `start_timeout` |
+| `state`                | `start_error`   |
+| `state`                | `ready`         |
 | `status`               | `connecting`    |
 | `status`               | `connected`     |
 | `status`               | `disconnected`  |
@@ -1917,6 +1923,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
         "operating_system": "string",
         "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
         "startup_script": "string",
+        "state": "starting",
         "status": "connecting",
         "troubleshooting_url": "string",
         "updated_at": "2019-08-24T14:15:22Z",
@@ -1991,6 +1998,7 @@ Status Code **200**
 | `»» operating_system`           | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» resource_id`                | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
 | `»» startup_script`             | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» state`                      | [codersdk.WorkspaceAgentState](schemas.md#codersdkworkspaceagentstate)           | false    |              |                                                                                                                                                                                                                                                |
 | `»» status`                     | [codersdk.WorkspaceAgentStatus](schemas.md#codersdkworkspaceagentstatus)         | false    |              |                                                                                                                                                                                                                                                |
 | `»» troubleshooting_url`        | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» updated_at`                 | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
@@ -2020,6 +2028,10 @@ Status Code **200**
 | `sharing_level`        | `owner`         |
 | `sharing_level`        | `authenticated` |
 | `sharing_level`        | `public`        |
+| `state`                | `starting`      |
+| `state`                | `start_timeout` |
+| `state`                | `start_error`   |
+| `state`                | `ready`         |
 | `status`               | `connecting`    |
 | `status`               | `connected`     |
 | `status`               | `disconnected`  |
