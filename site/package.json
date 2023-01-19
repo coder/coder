@@ -21,6 +21,7 @@
     "storybook": "start-storybook -p 6006",
     "storybook:build": "build-storybook",
     "test": "jest --selectProjects test",
+    "test:ci": "jest --selectProjects test --silent",
     "test:coverage": "jest --selectProjects test --collectCoverage",
     "test:watch": "jest --selectProjects test --watch",
     "typegen": "xstate typegen 'src/**/*.ts'",
