@@ -383,32 +383,32 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/metadata \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Submit workspace agent state
+## Submit workspace agent lifecycle state
 
 ### Code samples
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/report-state \
+curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/report-lifecycle \
   -H 'Content-Type: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /workspaceagents/me/report-state`
+`POST /workspaceagents/me/report-lifecycle`
 
 > Body parameter
 
 ```json
 {
-  "state": "starting"
+  "state": "created"
 }
 ```
 
 ### Parameters
 
-| Name   | In   | Type                                                                                         | Required | Description                   |
-| ------ | ---- | -------------------------------------------------------------------------------------------- | -------- | ----------------------------- |
-| `body` | body | [codersdk.PostWorkspaceAgentStateRequest](schemas.md#codersdkpostworkspaceagentstaterequest) | true     | Workspace agent state request |
+| Name   | In   | Type                                                                                                 | Required | Description                       |
+| ------ | ---- | ---------------------------------------------------------------------------------------------------- | -------- | --------------------------------- |
+| `body` | body | [codersdk.PostWorkspaceAgentLifecycleRequest](schemas.md#codersdkpostworkspaceagentlifecyclerequest) | true     | Workspace agent lifecycle request |
 
 ### Responses
 
@@ -539,11 +539,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
       "preferred": true
     }
   },
+  "lifecycle_state": "created",
   "name": "string",
   "operating_system": "string",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "startup_script": "string",
-  "state": "starting",
   "status": "connecting",
   "troubleshooting_url": "string",
   "updated_at": "2019-08-24T14:15:22Z",

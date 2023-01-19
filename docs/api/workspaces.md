@@ -100,11 +100,11 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
                 "preferred": true
               }
             },
+            "lifecycle_state": "created",
             "name": "string",
             "operating_system": "string",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "startup_script": "string",
-            "state": "starting",
             "status": "connecting",
             "troubleshooting_url": "string",
             "updated_at": "2019-08-24T14:15:22Z",
@@ -262,11 +262,11 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
                 "preferred": true
               }
             },
+            "lifecycle_state": "created",
             "name": "string",
             "operating_system": "string",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "startup_script": "string",
-            "state": "starting",
             "status": "connecting",
             "troubleshooting_url": "string",
             "updated_at": "2019-08-24T14:15:22Z",
@@ -443,11 +443,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                     "preferred": true
                   }
                 },
+                "lifecycle_state": "created",
                 "name": "string",
                 "operating_system": "string",
                 "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
                 "startup_script": "string",
-                "state": "starting",
                 "status": "connecting",
                 "troubleshooting_url": "string",
                 "updated_at": "2019-08-24T14:15:22Z",
@@ -606,11 +606,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
                 "preferred": true
               }
             },
+            "lifecycle_state": "created",
             "name": "string",
             "operating_system": "string",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "startup_script": "string",
-            "state": "starting",
             "status": "connecting",
             "troubleshooting_url": "string",
             "updated_at": "2019-08-24T14:15:22Z",

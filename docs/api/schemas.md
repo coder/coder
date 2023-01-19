@@ -3320,19 +3320,19 @@ Parameter represents a set value for the scope.
 | `none` |
 | `data` |
 
-## codersdk.PostWorkspaceAgentStateRequest
+## codersdk.PostWorkspaceAgentLifecycleRequest
 
 ```json
 {
-  "state": "starting"
+  "state": "created"
 }
 ```
 
 ### Properties
 
-| Name    | Type                                                         | Required | Restrictions | Description |
-| ------- | ------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `state` | [codersdk.WorkspaceAgentState](#codersdkworkspaceagentstate) | false    |              |             |
+| Name    | Type                                                                 | Required | Restrictions | Description |
+| ------- | -------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `state` | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |             |
 
 ## codersdk.PostWorkspaceAppHealthsRequest
 
@@ -4593,11 +4593,11 @@ Parameter represents a set value for the scope.
                 "preferred": true
               }
             },
+            "lifecycle_state": "created",
             "name": "string",
             "operating_system": "string",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "startup_script": "string",
-            "state": "starting",
             "status": "connecting",
             "troubleshooting_url": "string",
             "updated_at": "2019-08-24T14:15:22Z",
@@ -4713,11 +4713,11 @@ Parameter represents a set value for the scope.
       "preferred": true
     }
   },
+  "lifecycle_state": "created",
   "name": "string",
   "operating_system": "string",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "startup_script": "string",
-  "state": "starting",
   "status": "connecting",
   "troubleshooting_url": "string",
   "updated_at": "2019-08-24T14:15:22Z",
@@ -4727,44 +4727,31 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name                         | Type                                                           | Required | Restrictions | Description                                                         |
-| ---------------------------- | -------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------- |
-| `apps`                       | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)        | false    |              |                                                                     |
-| `architecture`               | string                                                         | false    |              |                                                                     |
-| `connection_timeout_seconds` | integer                                                        | false    |              |                                                                     |
-| `created_at`                 | string                                                         | false    |              |                                                                     |
-| `directory`                  | string                                                         | false    |              |                                                                     |
-| `disconnected_at`            | string                                                         | false    |              |                                                                     |
-| `environment_variables`      | object                                                         | false    |              |                                                                     |
-| » `[any property]`           | string                                                         | false    |              |                                                                     |
-| `first_connected_at`         | string                                                         | false    |              |                                                                     |
-| `id`                         | string                                                         | false    |              |                                                                     |
-| `instance_id`                | string                                                         | false    |              |                                                                     |
-| `last_connected_at`          | string                                                         | false    |              |                                                                     |
-| `latency`                    | object                                                         | false    |              | Latency is mapped by region name (e.g. "New York City", "Seattle"). |
-| » `[any property]`           | [codersdk.DERPRegion](#codersdkderpregion)                     | false    |              |                                                                     |
-| `name`                       | string                                                         | false    |              |                                                                     |
-| `operating_system`           | string                                                         | false    |              |                                                                     |
-| `resource_id`                | string                                                         | false    |              |                                                                     |
-| `startup_script`             | string                                                         | false    |              |                                                                     |
-| `state`                      | [codersdk.WorkspaceAgentState](#codersdkworkspaceagentstate)   | false    |              |                                                                     |
-| `status`                     | [codersdk.WorkspaceAgentStatus](#codersdkworkspaceagentstatus) | false    |              |                                                                     |
-| `troubleshooting_url`        | string                                                         | false    |              |                                                                     |
-| `updated_at`                 | string                                                         | false    |              |                                                                     |
-| `version`                    | string                                                         | false    |              |                                                                     |
-
-#### Enumerated Values
-
-| Property | Value           |
-| -------- | --------------- |
-| `state`  | `starting`      |
-| `state`  | `start_timeout` |
-| `state`  | `start_error`   |
-| `state`  | `ready`         |
-| `status` | `connecting`    |
-| `status` | `connected`     |
-| `status` | `disconnected`  |
-| `status` | `timeout`       |
+| Name                         | Type                                                                 | Required | Restrictions | Description                                                         |
+| ---------------------------- | -------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------- |
+| `apps`                       | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)              | false    |              |                                                                     |
+| `architecture`               | string                                                               | false    |              |                                                                     |
+| `connection_timeout_seconds` | integer                                                              | false    |              |                                                                     |
+| `created_at`                 | string                                                               | false    |              |                                                                     |
+| `directory`                  | string                                                               | false    |              |                                                                     |
+| `disconnected_at`            | string                                                               | false    |              |                                                                     |
+| `environment_variables`      | object                                                               | false    |              |                                                                     |
+| » `[any property]`           | string                                                               | false    |              |                                                                     |
+| `first_connected_at`         | string                                                               | false    |              |                                                                     |
+| `id`                         | string                                                               | false    |              |                                                                     |
+| `instance_id`                | string                                                               | false    |              |                                                                     |
+| `last_connected_at`          | string                                                               | false    |              |                                                                     |
+| `latency`                    | object                                                               | false    |              | Latency is mapped by region name (e.g. "New York City", "Seattle"). |
+| » `[any property]`           | [codersdk.DERPRegion](#codersdkderpregion)                           | false    |              |                                                                     |
+| `lifecycle_state`            | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |                                                                     |
+| `name`                       | string                                                               | false    |              |                                                                     |
+| `operating_system`           | string                                                               | false    |              |                                                                     |
+| `resource_id`                | string                                                               | false    |              |                                                                     |
+| `startup_script`             | string                                                               | false    |              |                                                                     |
+| `status`                     | [codersdk.WorkspaceAgentStatus](#codersdkworkspaceagentstatus)       | false    |              |                                                                     |
+| `troubleshooting_url`        | string                                                               | false    |              |                                                                     |
+| `updated_at`                 | string                                                               | false    |              |                                                                     |
+| `version`                    | string                                                               | false    |              |                                                                     |
 
 ## codersdk.WorkspaceAgentAuthenticateResponse
 
@@ -4861,6 +4848,24 @@ Parameter represents a set value for the scope.
 | `password` | string | false    |              |             |
 | `url`      | string | false    |              |             |
 | `username` | string | false    |              |             |
+
+## codersdk.WorkspaceAgentLifecycle
+
+```json
+"created"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value           |
+| --------------- |
+| `created`       |
+| `starting`      |
+| `start_timeout` |
+| `start_error`   |
+| `ready`         |
 
 ## codersdk.WorkspaceAgentMetadata
 
@@ -4963,23 +4968,6 @@ Parameter represents a set value for the scope.
 | `startup_script`         | string                                                  | false    |              |                                                                                                                                                            |
 | `startup_script_timeout` | integer                                                 | false    |              |                                                                                                                                                            |
 | `vscode_port_proxy_uri`  | string                                                  | false    |              |                                                                                                                                                            |
-
-## codersdk.WorkspaceAgentState
-
-```json
-"starting"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value           |
-| --------------- |
-| `starting`      |
-| `start_timeout` |
-| `start_error`   |
-| `ready`         |
 
 ## codersdk.WorkspaceAgentStatus
 
@@ -5150,11 +5138,11 @@ Parameter represents a set value for the scope.
               "preferred": true
             }
           },
+          "lifecycle_state": "created",
           "name": "string",
           "operating_system": "string",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "startup_script": "string",
-          "state": "starting",
           "status": "connecting",
           "troubleshooting_url": "string",
           "updated_at": "2019-08-24T14:15:22Z",
@@ -5316,11 +5304,11 @@ Parameter represents a set value for the scope.
           "preferred": true
         }
       },
+      "lifecycle_state": "created",
       "name": "string",
       "operating_system": "string",
       "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
       "startup_script": "string",
-      "state": "starting",
       "status": "connecting",
       "troubleshooting_url": "string",
       "updated_at": "2019-08-24T14:15:22Z",
@@ -5504,11 +5492,11 @@ Parameter represents a set value for the scope.
                     "preferred": true
                   }
                 },
+                "lifecycle_state": "created",
                 "name": "string",
                 "operating_system": "string",
                 "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
                 "startup_script": "string",
-                "state": "starting",
                 "status": "connecting",
                 "troubleshooting_url": "string",
                 "updated_at": "2019-08-24T14:15:22Z",

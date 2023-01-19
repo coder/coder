@@ -71,7 +71,7 @@ type Client interface {
 	WorkspaceAgentMetadata(ctx context.Context) (codersdk.WorkspaceAgentMetadata, error)
 	ListenWorkspaceAgent(ctx context.Context) (net.Conn, error)
 	AgentReportStats(ctx context.Context, log slog.Logger, stats func() *codersdk.AgentStats) (io.Closer, error)
-	PostWorkspaceAgentState(ctx context.Context, state codersdk.PostWorkspaceAgentStateRequest) error
+	PostWorkspaceAgentLifecycle(ctx context.Context, state codersdk.PostWorkspaceAgentLifecycleRequest) error
 	PostWorkspaceAgentAppHealth(ctx context.Context, req codersdk.PostWorkspaceAppHealthsRequest) error
 	PostWorkspaceAgentVersion(ctx context.Context, version string) error
 }
@@ -128,8 +128,8 @@ type agent struct {
 	sessionToken atomic.Pointer[string]
 	sshServer    *ssh.Server
 
-	stateMu sync.Mutex // Protects following.
-	state   codersdk.WorkspaceAgentState
+	lifecycleMu    sync.Mutex // Protects following.
+	lifecycleState codersdk.WorkspaceAgentLifecycle
 
 	network *tailnet.Conn
 }
@@ -160,15 +160,15 @@ func (a *agent) runLoop(ctx context.Context) {
 	}
 }
 
-func (a *agent) setState(ctx context.Context, state codersdk.WorkspaceAgentState) {
-	a.stateMu.Lock()
-	defer a.stateMu.Unlock()
+func (a *agent) setLifecycle(ctx context.Context, state codersdk.WorkspaceAgentLifecycle) {
+	a.lifecycleMu.Lock()
+	defer a.lifecycleMu.Unlock()
 
-	a.state = state
+	a.lifecycleState = state
 
 	var err error
 	for r := retry.New(time.Second, 30*time.Second); r.Wait(ctx); {
-		err = a.client.PostWorkspaceAgentState(ctx, codersdk.PostWorkspaceAgentStateRequest{
+		err = a.client.PostWorkspaceAgentLifecycle(ctx, codersdk.PostWorkspaceAgentLifecycleRequest{
 			State: state,
 		})
 		if err == nil {
@@ -224,14 +224,14 @@ func (a *agent) run(ctx context.Context) error {
 				timeout = t.C
 			}
 
-			a.setState(ctx, codersdk.WorkspaceAgentStateStarting)
+			a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleStarting)
 
 			var err error
 			select {
 			case err = <-scriptDone:
 			case <-timeout:
 				a.logger.Warn(ctx, "startup script timed out")
-				a.setState(ctx, codersdk.WorkspaceAgentStateStartTimeout)
+				a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleStartTimeout)
 				err = <-scriptDone // The script can still complete after a timeout.
 			}
 			if errors.Is(err, context.Canceled) {
@@ -240,7 +240,7 @@ func (a *agent) run(ctx context.Context) error {
 			execTime := time.Since(scriptStart)
 			if err != nil {
 				a.logger.Warn(ctx, "startup script failed", slog.F("execution_time", execTime), slog.Error(err))
-				a.setState(ctx, codersdk.WorkspaceAgentStateStartError)
+				a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleStartError)
 				return
 			}
 			a.logger.Info(ctx, "startup script completed", slog.F("execution_time", execTime))
@@ -255,7 +255,7 @@ func (a *agent) run(ctx context.Context) error {
 				}
 			}
 
-			a.setState(ctx, codersdk.WorkspaceAgentStateReady)
+			a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleReady)
 		}()
 	}
 

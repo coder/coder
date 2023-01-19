@@ -99,7 +99,8 @@ CREATE TYPE user_status AS ENUM (
     'suspended'
 );
 
-CREATE TYPE workspace_agent_state AS ENUM (
+CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
+    'created',
     'starting',
     'start_timeout',
     'start_error',
@@ -456,7 +457,7 @@ CREATE TABLE workspace_agents (
     connection_timeout_seconds integer DEFAULT 0 NOT NULL,
     troubleshooting_url text DEFAULT ''::text NOT NULL,
     motd_file text DEFAULT ''::text NOT NULL,
-    state workspace_agent_state
+    lifecycle_state workspace_agent_lifecycle_state DEFAULT 'created'::workspace_agent_lifecycle_state NOT NULL
 );
 
 COMMENT ON COLUMN workspace_agents.version IS 'Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.';
@@ -467,7 +468,7 @@ COMMENT ON COLUMN workspace_agents.troubleshooting_url IS 'URL for troubleshooti
 
 COMMENT ON COLUMN workspace_agents.motd_file IS 'Path to file inside workspace containing the message of the day (MOTD) to show to the user when logging in via SSH.';
 
-COMMENT ON COLUMN workspace_agents.state IS 'The current state of the workspace agent.';
+COMMENT ON COLUMN workspace_agents.lifecycle_state IS 'The current lifecycle state of the workspace agent.';
 
 CREATE TABLE workspace_apps (
     id uuid NOT NULL,

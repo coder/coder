@@ -918,7 +918,7 @@ export interface WorkspaceAgent {
   readonly last_connected_at?: string
   readonly disconnected_at?: string
   readonly status: WorkspaceAgentStatus
-  readonly state: WorkspaceAgentState
+  readonly lifecycle_state: WorkspaceAgentLifecycle
   readonly name: string
   readonly resource_id: string
   readonly instance_id?: string
@@ -1227,12 +1227,14 @@ export type UserStatus = "active" | "suspended"
 export const UserStatuses: UserStatus[] = ["active", "suspended"]
 
 // From codersdk/workspaceagents.go
-export type WorkspaceAgentState =
+export type WorkspaceAgentLifecycle =
+  | "created"
   | "ready"
   | "start_error"
   | "start_timeout"
   | "starting"
-export const WorkspaceAgentStates: WorkspaceAgentState[] = [
+export const WorkspaceAgentLifecycles: WorkspaceAgentLifecycle[] = [
+  "created",
   "ready",
   "start_error",
   "start_timeout",

@@ -900,15 +900,15 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 	})
 }
 
-// @Summary Submit workspace agent state
-// @ID submit-workspace-agent-state
+// @Summary Submit workspace agent lifecycle state
+// @ID submit-workspace-agent-lifecycle-state
 // @Security CoderSessionToken
 // @Accept json
 // @Tags Agents
-// @Param request body codersdk.PostWorkspaceAgentStateRequest true "Workspace agent state request"
+// @Param request body codersdk.PostWorkspaceAgentLifecycleRequest true "Workspace agent lifecycle request"
 // @Success 204 "Success"
-// @Router /workspaceagents/me/report-state [post]
-func (api *API) workspaceAgentReportState(rw http.ResponseWriter, r *http.Request) {
+// @Router /workspaceagents/me/report-lifecycle [post]
+func (api *API) workspaceAgentReportLifecycle(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	workspaceAgent := httpmw.WorkspaceAgent(r)
@@ -921,7 +921,7 @@ func (api *API) workspaceAgentReportState(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	var req codersdk.PostWorkspaceAgentStateRequest
+	var req codersdk.PostWorkspaceAgentLifecycleRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -932,9 +932,9 @@ func (api *API) workspaceAgentReportState(rw http.ResponseWriter, r *http.Reques
 		slog.F("payload", req),
 	)
 
-	err = api.Database.UpdateWorkspaceAgentStateByID(ctx, database.UpdateWorkspaceAgentStateByIDParams{
-		ID:    workspaceAgent.ID,
-		State: database.WorkspaceAgentState(req.State),
+	err = api.Database.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+		ID:             workspaceAgent.ID,
+		LifecycleState: database.WorkspaceAgentLifecycleState(req.State),
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)

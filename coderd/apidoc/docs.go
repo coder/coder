@@ -3973,7 +3973,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaceagents/me/report-state": {
+        "/workspaceagents/me/report-lifecycle": {
             "post": {
                 "security": [
                     {
@@ -3986,16 +3986,16 @@ const docTemplate = `{
                 "tags": [
                     "Agents"
                 ],
-                "summary": "Submit workspace agent state",
-                "operationId": "submit-workspace-agent-state",
+                "summary": "Submit workspace agent lifecycle state",
+                "operationId": "submit-workspace-agent-lifecycle-state",
                 "parameters": [
                     {
-                        "description": "Workspace agent state request",
+                        "description": "Workspace agent lifecycle request",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.PostWorkspaceAgentStateRequest"
+                            "$ref": "#/definitions/codersdk.PostWorkspaceAgentLifecycleRequest"
                         }
                     }
                 ],
@@ -6750,11 +6750,11 @@ const docTemplate = `{
                 "ParameterSourceSchemeData"
             ]
         },
-        "codersdk.PostWorkspaceAgentStateRequest": {
+        "codersdk.PostWorkspaceAgentLifecycleRequest": {
             "type": "object",
             "properties": {
                 "state": {
-                    "$ref": "#/definitions/codersdk.WorkspaceAgentState"
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
                 }
             }
         },
@@ -7721,6 +7721,9 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.DERPRegion"
                     }
                 },
+                "lifecycle_state": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -7734,31 +7737,8 @@ const docTemplate = `{
                 "startup_script": {
                     "type": "string"
                 },
-                "state": {
-                    "enum": [
-                        "starting",
-                        "start_timeout",
-                        "start_error",
-                        "ready"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceAgentState"
-                        }
-                    ]
-                },
                 "status": {
-                    "enum": [
-                        "connecting",
-                        "connected",
-                        "disconnected",
-                        "timeout"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceAgentStatus"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentStatus"
                 },
                 "troubleshooting_url": {
                     "type": "string"
@@ -7802,6 +7782,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkspaceAgentLifecycle": {
+            "type": "string",
+            "enum": [
+                "created",
+                "starting",
+                "start_timeout",
+                "start_error",
+                "ready"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAgentLifecycleCreated",
+                "WorkspaceAgentLifecycleStarting",
+                "WorkspaceAgentLifecycleStartTimeout",
+                "WorkspaceAgentLifecycleStartError",
+                "WorkspaceAgentLifecycleReady"
+            ]
+        },
         "codersdk.WorkspaceAgentMetadata": {
             "type": "object",
             "properties": {
@@ -7840,21 +7837,6 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
-        },
-        "codersdk.WorkspaceAgentState": {
-            "type": "string",
-            "enum": [
-                "starting",
-                "start_timeout",
-                "start_error",
-                "ready"
-            ],
-            "x-enum-varnames": [
-                "WorkspaceAgentStateStarting",
-                "WorkspaceAgentStateStartTimeout",
-                "WorkspaceAgentStateStartError",
-                "WorkspaceAgentStateReady"
-            ]
         },
         "codersdk.WorkspaceAgentStatus": {
             "type": "string",

@@ -217,7 +217,7 @@ func (*client) AgentReportStats(_ context.Context, _ slog.Logger, _ func() *code
 	return io.NopCloser(strings.NewReader("")), nil
 }
 
-func (*client) PostWorkspaceAgentState(_ context.Context, _ codersdk.PostWorkspaceAgentStateRequest) error {
+func (*client) PostWorkspaceAgentLifecycle(_ context.Context, _ codersdk.PostWorkspaceAgentLifecycleRequest) error {
 	return nil
 }
 

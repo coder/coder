@@ -4869,7 +4869,7 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 
 const getWorkspaceAgentByAuthToken = `-- name: GetWorkspaceAgentByAuthToken :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, state
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state
 FROM
 	workspace_agents
 WHERE
@@ -4904,14 +4904,14 @@ func (q *sqlQuerier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken
 		&i.ConnectionTimeoutSeconds,
 		&i.TroubleshootingURL,
 		&i.MOTDFile,
-		&i.State,
+		&i.LifecycleState,
 	)
 	return i, err
 }
 
 const getWorkspaceAgentByID = `-- name: GetWorkspaceAgentByID :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, state
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state
 FROM
 	workspace_agents
 WHERE
@@ -4944,14 +4944,14 @@ func (q *sqlQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (W
 		&i.ConnectionTimeoutSeconds,
 		&i.TroubleshootingURL,
 		&i.MOTDFile,
-		&i.State,
+		&i.LifecycleState,
 	)
 	return i, err
 }
 
 const getWorkspaceAgentByInstanceID = `-- name: GetWorkspaceAgentByInstanceID :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, state
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state
 FROM
 	workspace_agents
 WHERE
@@ -4986,14 +4986,14 @@ func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInst
 		&i.ConnectionTimeoutSeconds,
 		&i.TroubleshootingURL,
 		&i.MOTDFile,
-		&i.State,
+		&i.LifecycleState,
 	)
 	return i, err
 }
 
 const getWorkspaceAgentsByResourceIDs = `-- name: GetWorkspaceAgentsByResourceIDs :many
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, state
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state
 FROM
 	workspace_agents
 WHERE
@@ -5032,7 +5032,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []
 			&i.ConnectionTimeoutSeconds,
 			&i.TroubleshootingURL,
 			&i.MOTDFile,
-			&i.State,
+			&i.LifecycleState,
 		); err != nil {
 			return nil, err
 		}
@@ -5048,7 +5048,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []
 }
 
 const getWorkspaceAgentsCreatedAfter = `-- name: GetWorkspaceAgentsCreatedAfter :many
-SELECT id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, state FROM workspace_agents WHERE created_at > $1
+SELECT id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state FROM workspace_agents WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceAgent, error) {
@@ -5083,7 +5083,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, created
 			&i.ConnectionTimeoutSeconds,
 			&i.TroubleshootingURL,
 			&i.MOTDFile,
-			&i.State,
+			&i.LifecycleState,
 		); err != nil {
 			return nil, err
 		}
@@ -5120,7 +5120,7 @@ INSERT INTO
 		motd_file
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, state
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state
 `
 
 type InsertWorkspaceAgentParams struct {
@@ -5187,7 +5187,7 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 		&i.ConnectionTimeoutSeconds,
 		&i.TroubleshootingURL,
 		&i.MOTDFile,
-		&i.State,
+		&i.LifecycleState,
 	)
 	return i, err
 }
@@ -5226,22 +5226,22 @@ func (q *sqlQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg
 	return err
 }
 
-const updateWorkspaceAgentStateByID = `-- name: UpdateWorkspaceAgentStateByID :exec
+const updateWorkspaceAgentLifecycleStateByID = `-- name: UpdateWorkspaceAgentLifecycleStateByID :exec
 UPDATE
 	workspace_agents
 SET
-	state = $2
+	lifecycle_state = $2
 WHERE
 	id = $1
 `
 
-type UpdateWorkspaceAgentStateByIDParams struct {
-	ID    uuid.UUID               `db:"id" json:"id"`
-	State NullWorkspaceAgentState `db:"state" json:"state"`
+type UpdateWorkspaceAgentLifecycleStateByIDParams struct {
+	ID             uuid.UUID                    `db:"id" json:"id"`
+	LifecycleState WorkspaceAgentLifecycleState `db:"lifecycle_state" json:"lifecycle_state"`
 }
 
-func (q *sqlQuerier) UpdateWorkspaceAgentStateByID(ctx context.Context, arg UpdateWorkspaceAgentStateByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentStateByID, arg.ID, arg.State)
+func (q *sqlQuerier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg UpdateWorkspaceAgentLifecycleStateByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentLifecycleStateByID, arg.ID, arg.LifecycleState)
 	return err
 }
 

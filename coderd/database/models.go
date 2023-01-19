@@ -1002,67 +1002,70 @@ func AllUserStatusValues() []UserStatus {
 	}
 }
 
-type WorkspaceAgentState string
+type WorkspaceAgentLifecycleState string
 
 const (
-	WorkspaceAgentStateStarting     WorkspaceAgentState = "starting"
-	WorkspaceAgentStateStartTimeout WorkspaceAgentState = "start_timeout"
-	WorkspaceAgentStateStartError   WorkspaceAgentState = "start_error"
-	WorkspaceAgentStateReady        WorkspaceAgentState = "ready"
+	WorkspaceAgentLifecycleStateCreated      WorkspaceAgentLifecycleState = "created"
+	WorkspaceAgentLifecycleStateStarting     WorkspaceAgentLifecycleState = "starting"
+	WorkspaceAgentLifecycleStateStartTimeout WorkspaceAgentLifecycleState = "start_timeout"
+	WorkspaceAgentLifecycleStateStartError   WorkspaceAgentLifecycleState = "start_error"
+	WorkspaceAgentLifecycleStateReady        WorkspaceAgentLifecycleState = "ready"
 )
 
-func (e *WorkspaceAgentState) Scan(src interface{}) error {
+func (e *WorkspaceAgentLifecycleState) Scan(src interface{}) error {
 	switch s := src.(type) {
 	case []byte:
-		*e = WorkspaceAgentState(s)
+		*e = WorkspaceAgentLifecycleState(s)
 	case string:
-		*e = WorkspaceAgentState(s)
+		*e = WorkspaceAgentLifecycleState(s)
 	default:
-		return fmt.Errorf("unsupported scan type for WorkspaceAgentState: %T", src)
+		return fmt.Errorf("unsupported scan type for WorkspaceAgentLifecycleState: %T", src)
 	}
 	return nil
 }
 
-type NullWorkspaceAgentState struct {
-	WorkspaceAgentState WorkspaceAgentState
-	Valid               bool // Valid is true if WorkspaceAgentState is not NULL
+type NullWorkspaceAgentLifecycleState struct {
+	WorkspaceAgentLifecycleState WorkspaceAgentLifecycleState
+	Valid                        bool // Valid is true if WorkspaceAgentLifecycleState is not NULL
 }
 
 // Scan implements the Scanner interface.
-func (ns *NullWorkspaceAgentState) Scan(value interface{}) error {
+func (ns *NullWorkspaceAgentLifecycleState) Scan(value interface{}) error {
 	if value == nil {
-		ns.WorkspaceAgentState, ns.Valid = "", false
+		ns.WorkspaceAgentLifecycleState, ns.Valid = "", false
 		return nil
 	}
 	ns.Valid = true
-	return ns.WorkspaceAgentState.Scan(value)
+	return ns.WorkspaceAgentLifecycleState.Scan(value)
 }
 
 // Value implements the driver Valuer interface.
-func (ns NullWorkspaceAgentState) Value() (driver.Value, error) {
+func (ns NullWorkspaceAgentLifecycleState) Value() (driver.Value, error) {
 	if !ns.Valid {
 		return nil, nil
 	}
-	return ns.WorkspaceAgentState, nil
+	return ns.WorkspaceAgentLifecycleState, nil
 }
 
-func (e WorkspaceAgentState) Valid() bool {
+func (e WorkspaceAgentLifecycleState) Valid() bool {
 	switch e {
-	case WorkspaceAgentStateStarting,
-		WorkspaceAgentStateStartTimeout,
-		WorkspaceAgentStateStartError,
-		WorkspaceAgentStateReady:
+	case WorkspaceAgentLifecycleStateCreated,
+		WorkspaceAgentLifecycleStateStarting,
+		WorkspaceAgentLifecycleStateStartTimeout,
+		WorkspaceAgentLifecycleStateStartError,
+		WorkspaceAgentLifecycleStateReady:
 		return true
 	}
 	return false
 }
 
-func AllWorkspaceAgentStateValues() []WorkspaceAgentState {
-	return []WorkspaceAgentState{
-		WorkspaceAgentStateStarting,
-		WorkspaceAgentStateStartTimeout,
-		WorkspaceAgentStateStartError,
-		WorkspaceAgentStateReady,
+func AllWorkspaceAgentLifecycleStateValues() []WorkspaceAgentLifecycleState {
+	return []WorkspaceAgentLifecycleState{
+		WorkspaceAgentLifecycleStateCreated,
+		WorkspaceAgentLifecycleStateStarting,
+		WorkspaceAgentLifecycleStateStartTimeout,
+		WorkspaceAgentLifecycleStateStartError,
+		WorkspaceAgentLifecycleStateReady,
 	}
 }
 
@@ -1512,8 +1515,8 @@ type WorkspaceAgent struct {
 	TroubleshootingURL string `db:"troubleshooting_url" json:"troubleshooting_url"`
 	// Path to file inside workspace containing the message of the day (MOTD) to show to the user when logging in via SSH.
 	MOTDFile string `db:"motd_file" json:"motd_file"`
-	// The current state of the workspace agent.
-	State NullWorkspaceAgentState `db:"state" json:"state"`
+	// The current lifecycle state of the workspace agent.
+	LifecycleState WorkspaceAgentLifecycleState `db:"lifecycle_state" json:"lifecycle_state"`
 }
 
 type WorkspaceApp struct {

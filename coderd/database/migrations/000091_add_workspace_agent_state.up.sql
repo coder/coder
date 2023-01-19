@@ -1,5 +1,5 @@
-CREATE TYPE workspace_agent_state AS ENUM ('starting', 'start_timeout', 'start_error', 'ready');
+CREATE TYPE workspace_agent_lifecycle_state AS ENUM ('created', 'starting', 'start_timeout', 'start_error', 'ready');
 
-ALTER TABLE workspace_agents ADD COLUMN state workspace_agent_state NULL DEFAULT NULL;
+ALTER TABLE workspace_agents ADD COLUMN lifecycle_state workspace_agent_lifecycle_state NOT NULL DEFAULT 'created';
 
-COMMENT ON COLUMN workspace_agents.state IS 'The current state of the workspace agent.';
+COMMENT ON COLUMN workspace_agents.lifecycle_state IS 'The current lifecycle state of the workspace agent.';

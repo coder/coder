@@ -81,10 +81,10 @@ SET
 WHERE
 	id = $1;
 
--- name: UpdateWorkspaceAgentStateByID :exec
+-- name: UpdateWorkspaceAgentLifecycleStateByID :exec
 UPDATE
 	workspace_agents
 SET
-	state = $2
+	lifecycle_state = $2
 WHERE
 	id = $1;

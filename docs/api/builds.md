@@ -96,11 +96,11 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
               "preferred": true
             }
           },
+          "lifecycle_state": "created",
           "name": "string",
           "operating_system": "string",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "startup_script": "string",
-          "state": "starting",
           "status": "connecting",
           "troubleshooting_url": "string",
           "updated_at": "2019-08-24T14:15:22Z",
@@ -239,11 +239,11 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
               "preferred": true
             }
           },
+          "lifecycle_state": "created",
           "name": "string",
           "operating_system": "string",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "startup_script": "string",
-          "state": "starting",
           "status": "connecting",
           "troubleshooting_url": "string",
           "updated_at": "2019-08-24T14:15:22Z",
@@ -525,11 +525,11 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
             "preferred": true
           }
         },
+        "lifecycle_state": "created",
         "name": "string",
         "operating_system": "string",
         "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
         "startup_script": "string",
-        "state": "starting",
         "status": "connecting",
         "troubleshooting_url": "string",
         "updated_at": "2019-08-24T14:15:22Z",
@@ -600,11 +600,11 @@ Status Code **200**
 | `»»» [any property]`            | [codersdk.DERPRegion](schemas.md#codersdkderpregion)                             | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» latency_ms`               | number                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» preferred`                | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                |
+| `»» lifecycle_state`            | [codersdk.WorkspaceAgentLifecycle](schemas.md#codersdkworkspaceagentlifecycle)   | false    |              |                                                                                                                                                                                                                                                |
 | `»» name`                       | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» operating_system`           | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» resource_id`                | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
 | `»» startup_script`             | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
-| `»» state`                      | [codersdk.WorkspaceAgentState](schemas.md#codersdkworkspaceagentstate)           | false    |              |                                                                                                                                                                                                                                                |
 | `»» status`                     | [codersdk.WorkspaceAgentStatus](schemas.md#codersdkworkspaceagentstatus)         | false    |              |                                                                                                                                                                                                                                                |
 | `»» troubleshooting_url`        | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» updated_at`                 | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
@@ -634,10 +634,11 @@ Status Code **200**
 | `sharing_level`        | `owner`         |
 | `sharing_level`        | `authenticated` |
 | `sharing_level`        | `public`        |
-| `state`                | `starting`      |
-| `state`                | `start_timeout` |
-| `state`                | `start_error`   |
-| `state`                | `ready`         |
+| `lifecycle_state`      | `created`       |
+| `lifecycle_state`      | `starting`      |
+| `lifecycle_state`      | `start_timeout` |
+| `lifecycle_state`      | `start_error`   |
+| `lifecycle_state`      | `ready`         |
 | `status`               | `connecting`    |
 | `status`               | `connected`     |
 | `status`               | `disconnected`  |
@@ -742,11 +743,11 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
               "preferred": true
             }
           },
+          "lifecycle_state": "created",
           "name": "string",
           "operating_system": "string",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "startup_script": "string",
-          "state": "starting",
           "status": "connecting",
           "troubleshooting_url": "string",
           "updated_at": "2019-08-24T14:15:22Z",
@@ -890,11 +891,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
                 "preferred": true
               }
             },
+            "lifecycle_state": "created",
             "name": "string",
             "operating_system": "string",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "startup_script": "string",
-            "state": "starting",
             "status": "connecting",
             "troubleshooting_url": "string",
             "updated_at": "2019-08-24T14:15:22Z",
@@ -997,11 +998,11 @@ Status Code **200**
 | `»»»» [any property]`            | [codersdk.DERPRegion](schemas.md#codersdkderpregion)                             | false    |              |                                                                                                                                                                                                                                                |
 | `»»»»» latency_ms`               | number                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»»»» preferred`                | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                |
+| `»»» lifecycle_state`            | [codersdk.WorkspaceAgentLifecycle](schemas.md#codersdkworkspaceagentlifecycle)   | false    |              |                                                                                                                                                                                                                                                |
 | `»»» name`                       | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» operating_system`           | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» resource_id`                | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
 | `»»» startup_script`             | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
-| `»»» state`                      | [codersdk.WorkspaceAgentState](schemas.md#codersdkworkspaceagentstate)           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» status`                     | [codersdk.WorkspaceAgentStatus](schemas.md#codersdkworkspaceagentstatus)         | false    |              |                                                                                                                                                                                                                                                |
 | `»»» troubleshooting_url`        | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» updated_at`                 | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
@@ -1049,10 +1050,11 @@ Status Code **200**
 | `sharing_level`        | `owner`         |
 | `sharing_level`        | `authenticated` |
 | `sharing_level`        | `public`        |
-| `state`                | `starting`      |
-| `state`                | `start_timeout` |
-| `state`                | `start_error`   |
-| `state`                | `ready`         |
+| `lifecycle_state`      | `created`       |
+| `lifecycle_state`      | `starting`      |
+| `lifecycle_state`      | `start_timeout` |
+| `lifecycle_state`      | `start_error`   |
+| `lifecycle_state`      | `ready`         |
 | `status`               | `connecting`    |
 | `status`               | `connected`     |
 | `status`               | `disconnected`  |
@@ -1199,11 +1201,11 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
               "preferred": true
             }
           },
+          "lifecycle_state": "created",
           "name": "string",
           "operating_system": "string",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "startup_script": "string",
-          "state": "starting",
           "status": "connecting",
           "troubleshooting_url": "string",
           "updated_at": "2019-08-24T14:15:22Z",

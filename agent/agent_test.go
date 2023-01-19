@@ -1130,7 +1130,7 @@ func (c *client) AgentReportStats(ctx context.Context, _ slog.Logger, stats func
 	}), nil
 }
 
-func (*client) PostWorkspaceAgentState(_ context.Context, _ codersdk.PostWorkspaceAgentStateRequest) error {
+func (*client) PostWorkspaceAgentLifecycle(_ context.Context, _ codersdk.PostWorkspaceAgentLifecycleRequest) error {
 	return nil
 }
 
