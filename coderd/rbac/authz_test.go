@@ -16,7 +16,7 @@ type benchmarkCase struct {
 	Roles  []string
 	Groups []string
 	UserID uuid.UUID
-	Scope  rbac.Scope
+	Scope  rbac.ScopeName
 }
 
 // benchmarkUserCases builds a set of users with different roles and groups.

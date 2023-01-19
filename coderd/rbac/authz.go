@@ -18,8 +18,8 @@ import (
 )
 
 type Authorizer interface {
-	ByRoleName(ctx context.Context, subjectID string, roleNames []string, scope Scope, groups []string, action Action, object Object) error
-	PrepareByRoleName(ctx context.Context, subjectID string, roleNames []string, scope Scope, groups []string, action Action, objectType string) (PreparedAuthorized, error)
+	ByRoleName(ctx context.Context, subjectID string, roleNames []string, scope ScopeName, groups []string, action Action, object Object) error
+	PrepareByRoleName(ctx context.Context, subjectID string, roleNames []string, scope ScopeName, groups []string, action Action, objectType string) (PreparedAuthorized, error)
 }
 
 type PreparedAuthorized interface {
@@ -33,7 +33,7 @@ type PreparedAuthorized interface {
 //
 // Ideally the 'CompileToSQL' is used instead for large sets. This cost scales
 // linearly with the number of objects passed in.
-func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, subjRoles []string, scope Scope, groups []string, action Action, objects []O) ([]O, error) {
+func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, subjRoles []string, scope ScopeName, groups []string, action Action, objects []O) ([]O, error) {
 	if len(objects) == 0 {
 		// Nothing to filter
 		return objects, nil
@@ -179,7 +179,7 @@ type authSubject struct {
 // ByRoleName will expand all roleNames into roles before calling Authorize().
 // This is the function intended to be used outside this package.
 // The role is fetched from the builtin map located in memory.
-func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNames []string, scope Scope, groups []string, action Action, object Object) error {
+func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNames []string, scope ScopeName, groups []string, action Action, object Object) error {
 	start := time.Now()
 	ctx, span := tracing.StartSpan(ctx,
 		trace.WithTimestamp(start), // Reuse the time.Now for metric and trace
@@ -239,7 +239,7 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles [
 	return nil
 }
 
-func (a RegoAuthorizer) PrepareByRoleName(ctx context.Context, subjectID string, roleNames []string, scope Scope, groups []string, action Action, objectType string) (PreparedAuthorized, error) {
+func (a RegoAuthorizer) PrepareByRoleName(ctx context.Context, subjectID string, roleNames []string, scope ScopeName, groups []string, action Action, objectType string) (PreparedAuthorized, error) {
 	start := time.Now()
 	ctx, span := tracing.StartSpan(ctx,
 		trace.WithTimestamp(start),

@@ -6,7 +6,7 @@ import (
 
 const AllUsersGroup = "Everyone"
 
-func (s APIKeyScope) ToRBAC() rbac.Scope {
+func (s APIKeyScope) ToRBAC() rbac.ScopeName {
 	switch s {
 	case APIKeyScopeAll:
 		return rbac.ScopeAll

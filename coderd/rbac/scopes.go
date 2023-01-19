@@ -6,7 +6,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
-type Scope string
+type ScopeName string
 
 // TODO: @emyrk rename this struct
 type ScopeRole struct {
@@ -15,12 +15,12 @@ type ScopeRole struct {
 }
 
 const (
-	ScopeAll                Scope = "all"
-	ScopeApplicationConnect Scope = "application_connect"
+	ScopeAll                ScopeName = "all"
+	ScopeApplicationConnect ScopeName = "application_connect"
 )
 
 // TODO: Support passing in scopeID list for allowlisting resources.
-var builtinScopes = map[Scope]ScopeRole{
+var builtinScopes = map[ScopeName]ScopeRole{
 	// ScopeAll is a special scope that allows access to all resources. During
 	// authorize checks it is usually not used directly and skips scope checks.
 	ScopeAll: {
@@ -50,7 +50,7 @@ var builtinScopes = map[Scope]ScopeRole{
 	},
 }
 
-func ExpandScope(scope Scope) (ScopeRole, error) {
+func ExpandScope(scope ScopeName) (ScopeRole, error) {
 	role, ok := builtinScopes[scope]
 	if !ok {
 		return ScopeRole{}, xerrors.Errorf("no scope named %q", scope)

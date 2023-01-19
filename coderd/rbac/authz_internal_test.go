@@ -77,7 +77,7 @@ func TestFilter(t *testing.T) {
 		SubjectID  string
 		Roles      []string
 		Action     Action
-		Scope      Scope
+		Scope      ScopeName
 		ObjectType string
 	}{
 		{

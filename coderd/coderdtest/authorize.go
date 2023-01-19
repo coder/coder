@@ -527,7 +527,7 @@ type authCall struct {
 	SubjectID string
 	Roles     []string
 	Groups    []string
-	Scope     rbac.Scope
+	Scope     rbac.ScopeName
 	Action    rbac.Action
 	Object    rbac.Object
 }
@@ -541,11 +541,11 @@ var _ rbac.Authorizer = (*RecordingAuthorizer)(nil)
 
 // ByRoleNameSQL does not record the call. This matches the postgres behavior
 // of not calling Authorize()
-func (r *RecordingAuthorizer) ByRoleNameSQL(_ context.Context, _ string, _ []string, _ rbac.Scope, _ []string, _ rbac.Action, _ rbac.Object) error {
+func (r *RecordingAuthorizer) ByRoleNameSQL(_ context.Context, _ string, _ []string, _ rbac.ScopeName, _ []string, _ rbac.Action, _ rbac.Object) error {
 	return r.AlwaysReturn
 }
 
-func (r *RecordingAuthorizer) ByRoleName(_ context.Context, subjectID string, roleNames []string, scope rbac.Scope, groups []string, action rbac.Action, object rbac.Object) error {
+func (r *RecordingAuthorizer) ByRoleName(_ context.Context, subjectID string, roleNames []string, scope rbac.ScopeName, groups []string, action rbac.Action, object rbac.Object) error {
 	r.Called = &authCall{
 		SubjectID: subjectID,
 		Roles:     roleNames,
@@ -557,7 +557,7 @@ func (r *RecordingAuthorizer) ByRoleName(_ context.Context, subjectID string, ro
 	return r.AlwaysReturn
 }
 
-func (r *RecordingAuthorizer) PrepareByRoleName(_ context.Context, subjectID string, roles []string, scope rbac.Scope, groups []string, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
+func (r *RecordingAuthorizer) PrepareByRoleName(_ context.Context, subjectID string, roles []string, scope rbac.ScopeName, groups []string, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
 	return &fakePreparedAuthorizer{
 		Original:           r,
 		SubjectID:          subjectID,
@@ -577,7 +577,7 @@ type fakePreparedAuthorizer struct {
 	Original            *RecordingAuthorizer
 	SubjectID           string
 	Roles               []string
-	Scope               rbac.Scope
+	Scope               rbac.ScopeName
 	Action              rbac.Action
 	Groups              []string
 	HardCodedSQLString  string
