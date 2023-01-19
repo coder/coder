@@ -1,6 +1,6 @@
 package authzquery
 
-// This file contains uncatorgorized methods.
+// This file contains uncategorized methods.
 
 import (
 	"context"
@@ -17,10 +17,6 @@ func (q *AuthzQuerier) AcquireProvisionerJob(ctx context.Context, arg database.A
 	panic("implement me")
 }
 
-func (q *AuthzQuerier) DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error {
-	//TODO implement me
-	panic("implement me")
-}
 
 func (q *AuthzQuerier) DeleteLicense(ctx context.Context, id int32) (int32, error) {
 	//TODO implement me

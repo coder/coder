@@ -14,11 +14,11 @@ type authContextKey struct{}
 type actor struct {
 	ID     uuid.UUID
 	Roles  []string
-	Scope  rbac.Scope
+	Scope  rbac.ScopeName
 	Groups []string
 }
 
-func WithAuthorizeContext(ctx context.Context, actorID uuid.UUID, roles []string, groups []string, scope rbac.Scope) context.Context {
+func WithAuthorizeContext(ctx context.Context, actorID uuid.UUID, roles []string, groups []string, scope rbac.ScopeName) context.Context {
 	return context.WithValue(ctx, authContextKey{}, actor{
 		ID:     actorID,
 		Roles:  roles,

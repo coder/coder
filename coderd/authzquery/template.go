@@ -20,11 +20,11 @@ func (q *AuthzQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg data
 }
 
 func (q *AuthzQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (database.Template, error) {
-	return authorizedFetch(q.authorizer, rbac.ActionRead, q.database.GetTemplateByID)(ctx, id)
+	return authorizedFetch(q.authorizer, q.database.GetTemplateByID)(ctx, id)
 }
 
 func (q *AuthzQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg database.GetTemplateByOrganizationAndNameParams) (database.Template, error) {
-	return authorizedFetch(q.authorizer, rbac.ActionRead, q.database.GetTemplateByOrganizationAndName)(ctx, arg)
+	return authorizedFetch(q.authorizer, q.database.GetTemplateByOrganizationAndName)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetTemplateDAUs(ctx context.Context, templateID uuid.UUID) ([]database.GetTemplateDAUsRow, error) {
@@ -107,8 +107,19 @@ func (q *AuthzQuerier) UpdateTemplateActiveVersionByID(ctx context.Context, arg 
 	panic("implement me")
 }
 
+func (q *AuthzQuerier) SoftDeleteTemplateByID(ctx context.Context, id uuid.UUID) error {
+	return authorizedDelete(q.authorizer, q.database.GetTemplateByID, func(ctx context.Context, id uuid.UUID) error {
+		return q.database.UpdateTemplateDeletedByID(ctx, database.UpdateTemplateDeletedByIDParams{
+			ID:        id,
+			Deleted:   true,
+			UpdatedAt: database.Now(),
+		})
+	})(ctx, id)
+}
+
+// Deprecated: use SoftDeleteTemplateByID instead.
 func (q *AuthzQuerier) UpdateTemplateDeletedByID(ctx context.Context, arg database.UpdateTemplateDeletedByIDParams) error {
-	//TODO implement me
+	//TODO delete me. This function is a placeholder for database.Store.
 	panic("implement me")
 }
 

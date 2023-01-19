@@ -3,8 +3,6 @@ package authzquery
 import (
 	"context"
 
-	"github.com/coder/coder/coderd/rbac"
-
 	"github.com/coder/coder/coderd/database"
 	"github.com/google/uuid"
 )
@@ -20,11 +18,11 @@ func (q *AuthzQuerier) GetGroupsByOrganizationID(ctx context.Context, organizati
 }
 
 func (q *AuthzQuerier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
-	return authorizedFetch(q.authorizer, rbac.ActionRead, q.database.GetOrganizationByID)(ctx, id)
+	return authorizedFetch(q.authorizer, q.database.GetOrganizationByID)(ctx, id)
 }
 
 func (q *AuthzQuerier) GetOrganizationByName(ctx context.Context, name string) (database.Organization, error) {
-	return authorizedFetch(q.authorizer, rbac.ActionRead, q.database.GetOrganizationByName)(ctx, name)
+	return authorizedFetch(q.authorizer, q.database.GetOrganizationByName)(ctx, name)
 }
 
 func (q *AuthzQuerier) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetOrganizationIDsByMemberIDsRow, error) {
@@ -33,7 +31,7 @@ func (q *AuthzQuerier) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []
 }
 
 func (q *AuthzQuerier) GetOrganizationMemberByUserID(ctx context.Context, arg database.GetOrganizationMemberByUserIDParams) (database.OrganizationMember, error) {
-	return authorizedFetch(q.authorizer, rbac.ActionRead, q.database.GetOrganizationMemberByUserID)(ctx, arg)
+	return authorizedFetch(q.authorizer, q.database.GetOrganizationMemberByUserID)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetOrganizationMembershipsByUserID(ctx context.Context, userID uuid.UUID) ([]database.OrganizationMember, error) {

@@ -8,8 +8,7 @@ import (
 )
 
 func (q *AuthzQuerier) DeleteGroupByID(ctx context.Context, id uuid.UUID) error {
-	//TODO implement me
-	panic("implement me")
+	return authorizedDelete(q.authorizer, q.database.GetGroupByID, q.database.DeleteGroupByID)(ctx, id)
 }
 
 func (q *AuthzQuerier) DeleteGroupMember(ctx context.Context, userID uuid.UUID) error {
@@ -18,13 +17,11 @@ func (q *AuthzQuerier) DeleteGroupMember(ctx context.Context, userID uuid.UUID) 
 }
 
 func (q *AuthzQuerier) GetGroupByID(ctx context.Context, id uuid.UUID) (database.Group, error) {
-	//TODO implement me
-	panic("implement me")
+	return authorizedFetch(q.authorizer, q.database.GetGroupByID)(ctx, id)
 }
 
 func (q *AuthzQuerier) GetGroupByOrgAndName(ctx context.Context, arg database.GetGroupByOrgAndNameParams) (database.Group, error) {
-	//TODO implement me
-	panic("implement me")
+	return authorizedFetch(q.authorizer, q.database.GetGroupByOrgAndName)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]database.User, error) {

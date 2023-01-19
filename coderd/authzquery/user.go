@@ -39,11 +39,11 @@ func (q *AuthzQuerier) GetQuotaConsumedForUser(ctx context.Context, ownerID uuid
 }
 
 func (q *AuthzQuerier) GetUserByEmailOrUsername(ctx context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
-	return authorizedFetch(q.authorizer, rbac.ActionRead, q.database.GetUserByEmailOrUsername)(ctx, arg)
+	return authorizedFetch(q.authorizer, q.database.GetUserByEmailOrUsername)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (database.User, error) {
-	return authorizedFetch(q.authorizer, rbac.ActionRead, q.database.GetUserByID)(ctx, id)
+	return authorizedFetch(q.authorizer, q.database.GetUserByID)(ctx, id)
 }
 
 func (q *AuthzQuerier) GetUserCount(ctx context.Context) (int64, error) {
@@ -124,4 +124,8 @@ func (q *AuthzQuerier) UpdateUserStatus(ctx context.Context, arg database.Update
 func (q *AuthzQuerier) GetAuthorizedUserCount(ctx context.Context, arg database.GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
 	//TODO implement me
 	panic("implement me")
+}
+
+func (q *AuthzQuerier) DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error {
+	return authorizedDelete(q.authorizer, q.database.GetGitSSHKey, q.database.DeleteGitSSHKey)(ctx, userID)
 }

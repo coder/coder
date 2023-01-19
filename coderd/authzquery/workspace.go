@@ -100,15 +100,15 @@ func (q *AuthzQuerier) GetWorkspaceBuildsCreatedAfter(ctx context.Context, creat
 }
 
 func (q *AuthzQuerier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (database.Workspace, error) {
-	return authorizedFetch(q.authorizer, rbac.ActionRead, q.database.GetWorkspaceByAgentID)(ctx, agentID)
+	return authorizedFetch(q.authorizer, q.database.GetWorkspaceByAgentID)(ctx, agentID)
 }
 
 func (q *AuthzQuerier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (database.Workspace, error) {
-	return authorizedFetch(q.authorizer, rbac.ActionRead, q.database.GetWorkspaceByID)(ctx, id)
+	return authorizedFetch(q.authorizer, q.database.GetWorkspaceByID)(ctx, id)
 }
 
 func (q *AuthzQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg database.GetWorkspaceByOwnerIDAndNameParams) (database.Workspace, error) {
-	return authorizedFetch(q.authorizer, rbac.ActionRead, q.database.GetWorkspaceByOwnerIDAndName)(ctx, arg)
+	return authorizedFetch(q.authorizer, q.database.GetWorkspaceByOwnerIDAndName)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetWorkspaceCountByUserID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
@@ -226,8 +226,18 @@ func (q *AuthzQuerier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg dat
 	panic("implement me")
 }
 
+func (q *AuthzQuerier) SoftDeleteWorkspaceByID(ctx context.Context, id uuid.UUID) error {
+	return authorizedDelete(q.authorizer, q.database.GetWorkspaceByID, func(ctx context.Context, id uuid.UUID) error {
+		return q.database.UpdateWorkspaceDeletedByID(ctx, database.UpdateWorkspaceDeletedByIDParams{
+			ID:      id,
+			Deleted: true,
+		})
+	})(ctx, id)
+}
+
+// Deprecated: Use SoftDeleteWorkspaceByID
 func (q *AuthzQuerier) UpdateWorkspaceDeletedByID(ctx context.Context, arg database.UpdateWorkspaceDeletedByIDParams) error {
-	//TODO implement me
+	//TODO delete me, placeholder for database.Store
 	panic("implement me")
 }
 
