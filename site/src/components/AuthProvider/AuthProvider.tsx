@@ -21,9 +21,9 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
   )
 }
 
-// The returned type is kinda complex to rewrite it
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types -- Read above
-export const useAuth = () => {
+type UseAuthReturnType = ReturnType<typeof useActor<AuthProviderContextValue["authService"]>>
+
+export const useAuth = (): UseAuthReturnType => {
   const context = useContext(AuthProviderContext)
 
   if (!context) {
