@@ -26,7 +26,7 @@ coder:
   # https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
   # coder.deploymentAnnotations -- Annotations to add to the coder's deployment
   deploymentAnnotations: {}
-  #coder.podAnnotations -- Annotations to add to the coder's pod(s)
+  # coder.podAnnotations -- Annotations to add to the coder's pod(s)
   podAnnotations: {}
 
   # coder.serviceAccount -- Configuration for the automatically created service
