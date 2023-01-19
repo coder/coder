@@ -260,7 +260,7 @@ PromptParamLoop:
 
 	parameterMapFromFile = map[string]string{}
 	useParamFile = false
-	if args.ParameterFile != "" {
+	if args.RichParameterFile != "" {
 		useParamFile = true
 		_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("Attempting to read the variables from the rich parameter file.")+"\r\n")
 		parameterMapFromFile, err = createParameterMapFromFile(args.RichParameterFile)
