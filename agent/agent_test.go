@@ -1130,6 +1130,10 @@ func (c *client) AgentReportStats(ctx context.Context, _ slog.Logger, stats func
 	}), nil
 }
 
+func (*client) PostWorkspaceAgentState(_ context.Context, _ codersdk.PostWorkspaceAgentStateRequest) error {
+	return nil
+}
+
 func (*client) PostWorkspaceAgentAppHealth(_ context.Context, _ codersdk.PostWorkspaceAppHealthsRequest) error {
 	return nil
 }

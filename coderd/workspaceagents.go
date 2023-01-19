@@ -900,6 +900,50 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 	})
 }
 
+// @Summary Submit workspace agent state
+// @ID submit-workspace-agent-state
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Agents
+// @Param request body codersdk.PostWorkspaceAgentStateRequest true "Workspace agent state request"
+// @Success 204 "Success"
+// @Router /workspaceagents/me/report-state [post]
+func (api *API) workspaceAgentReportState(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+	workspace, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to get workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	var req codersdk.PostWorkspaceAgentStateRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	api.Logger.Debug(ctx, "workspace agent state report",
+		slog.F("agent", workspaceAgent.ID),
+		slog.F("workspace", workspace.ID),
+		slog.F("payload", req),
+	)
+
+	err = api.Database.UpdateWorkspaceAgentStateByID(ctx, database.UpdateWorkspaceAgentStateByIDParams{
+		ID:    workspaceAgent.ID,
+		State: database.WorkspaceAgentState(req.State),
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+}
+
 // @Summary Submit workspace agent application health
 // @ID submit-workspace-agent-application-health
 // @Security CoderSessionToken

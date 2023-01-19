@@ -4295,12 +4295,12 @@ func (q *fakeQuerier) GetQuotaConsumedForUser(_ context.Context, userID uuid.UUI
 	return sum, nil
 }
 
-func (q *fakeQuerier) UpdateWorkspaceAgentStateByID(_ context.Context, id uuid.UUID, state database.AgentState) error {
+func (q *fakeQuerier) UpdateWorkspaceAgentStateByID(_ context.Context, arg database.UpdateWorkspaceAgentStateByIDParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 	for i, agent := range q.workspaceAgents {
-		if agent.ID == id {
-			agent.State = state
+		if agent.ID == arg.ID {
+			agent.State = arg.State
 			q.workspaceAgents[i] = agent
 			return nil
 		}

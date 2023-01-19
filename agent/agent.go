@@ -71,6 +71,7 @@ type Client interface {
 	WorkspaceAgentMetadata(ctx context.Context) (codersdk.WorkspaceAgentMetadata, error)
 	ListenWorkspaceAgent(ctx context.Context) (net.Conn, error)
 	AgentReportStats(ctx context.Context, log slog.Logger, stats func() *codersdk.AgentStats) (io.Closer, error)
+	PostWorkspaceAgentState(ctx context.Context, state codersdk.PostWorkspaceAgentStateRequest) error
 	PostWorkspaceAgentAppHealth(ctx context.Context, req codersdk.PostWorkspaceAppHealthsRequest) error
 	PostWorkspaceAgentVersion(ctx context.Context, version string) error
 }
@@ -127,6 +128,9 @@ type agent struct {
 	sessionToken atomic.Pointer[string]
 	sshServer    *ssh.Server
 
+	stateMu sync.Mutex // Protects following.
+	state   codersdk.WorkspaceAgentState
+
 	network *tailnet.Conn
 }
 
@@ -156,6 +160,30 @@ func (a *agent) runLoop(ctx context.Context) {
 	}
 }
 
+func (a *agent) setState(ctx context.Context, state codersdk.WorkspaceAgentState) {
+	a.stateMu.Lock()
+	defer a.stateMu.Unlock()
+
+	a.state = state
+
+	var err error
+	for r := retry.New(time.Second, 30*time.Second); r.Wait(ctx); {
+		err = a.client.PostWorkspaceAgentState(ctx, codersdk.PostWorkspaceAgentStateRequest{
+			State: state,
+		})
+		if err == nil {
+			return
+		}
+	}
+	if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) || a.isClosed() {
+		return
+	}
+	if err != nil {
+		// If we fail to report the state we probably shouldn't exit, log only.
+		a.logger.Error(ctx, "post state", slog.Error(err))
+	}
+}
+
 func (a *agent) run(ctx context.Context) error {
 	// This allows the agent to refresh it's token if necessary.
 	// For instance identity this is required, since the instance
@@ -180,22 +208,55 @@ func (a *agent) run(ctx context.Context) error {
 
 	// The startup script should only execute on the first run!
 	if oldMetadata == nil {
+		scriptDone := make(chan error, 1)
+		scriptStart := time.Now()
 		go func() {
-			err := a.runStartupScript(ctx, metadata.StartupScript)
+			defer close(scriptDone)
+			scriptDone <- a.runStartupScript(ctx, metadata.StartupScript)
+		}()
+		go func() {
+			var timeout <-chan time.Time
+			// If timeout is zero, an older version of the coder
+			// provider was used. Otherwise a timeout is always > 0.
+			if metadata.StartupScriptTimeout > 0 {
+				t := time.NewTimer(metadata.StartupScriptTimeout)
+				defer t.Stop()
+				timeout = t.C
+			}
+
+			a.setState(ctx, codersdk.WorkspaceAgentStateStarting)
+
+			var err error
+			select {
+			case err = <-scriptDone:
+			case <-timeout:
+				a.logger.Warn(ctx, "startup script timed out")
+				a.setState(ctx, codersdk.WorkspaceAgentStateStartTimeout)
+				err = <-scriptDone // The script can still complete after a timeout.
+			}
 			if errors.Is(err, context.Canceled) {
 				return
 			}
+			execTime := time.Since(scriptStart)
 			if err != nil {
-				a.logger.Warn(ctx, "agent script failed", slog.Error(err))
+				a.logger.Warn(ctx, "startup script failed", slog.F("execution_time", execTime), slog.Error(err))
+				a.setState(ctx, codersdk.WorkspaceAgentStateStartError)
+				return
 			}
-		}()
-	}
+			a.logger.Info(ctx, "startup script completed", slog.F("execution_time", execTime))
 
-	if metadata.GitAuthConfigs > 0 {
-		err = gitauth.OverrideVSCodeConfigs(a.filesystem)
-		if err != nil {
-			return xerrors.Errorf("override vscode configuration for git auth: %w", err)
-		}
+			// Perform overrides after startup script has completed to ensure
+			// there is no conflict with the user's scripts. We also want to
+			// ensure this is done before the workspace is marked as ready.
+			if metadata.GitAuthConfigs > 0 {
+				err = gitauth.OverrideVSCodeConfigs(a.filesystem)
+				if err != nil {
+					a.logger.Warn(ctx, "failed to override vscode git auth configs", slog.Error(err))
+				}
+			}
+
+			a.setState(ctx, codersdk.WorkspaceAgentStateReady)
+		}()
 	}
 
 	// This automatically closes when the context ends!

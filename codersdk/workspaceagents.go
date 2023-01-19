@@ -34,6 +34,16 @@ const (
 	WorkspaceAgentTimeout      WorkspaceAgentStatus = "timeout"
 )
 
+// WorkspaceAgentState represents the lifecycle state of a workspace agent.
+type WorkspaceAgentState string
+
+const (
+	WorkspaceAgentStateStarting     WorkspaceAgentState = "starting"
+	WorkspaceAgentStateStartTimeout WorkspaceAgentState = "start_timeout"
+	WorkspaceAgentStateStartError   WorkspaceAgentState = "start_error"
+	WorkspaceAgentStateReady        WorkspaceAgentState = "ready"
+)
+
 type WorkspaceAgent struct {
 	ID                   uuid.UUID            `json:"id" format:"uuid"`
 	CreatedAt            time.Time            `json:"created_at" format:"date-time"`
@@ -42,6 +52,7 @@ type WorkspaceAgent struct {
 	LastConnectedAt      *time.Time           `json:"last_connected_at,omitempty" format:"date-time"`
 	DisconnectedAt       *time.Time           `json:"disconnected_at,omitempty" format:"date-time"`
 	Status               WorkspaceAgentStatus `json:"status" enums:"connecting,connected,disconnected,timeout"`
+	State                WorkspaceAgentState  `json:"state" enums:"starting,start_timeout,start_error,ready"`
 	Name                 string               `json:"name"`
 	ResourceID           uuid.UUID            `json:"resource_id" format:"uuid"`
 	InstanceID           string               `json:"instance_id,omitempty"`
@@ -131,6 +142,7 @@ type WorkspaceAgentMetadata struct {
 	DERPMap              *tailcfg.DERPMap  `json:"derpmap"`
 	EnvironmentVariables map[string]string `json:"environment_variables"`
 	StartupScript        string            `json:"startup_script"`
+	StartupScriptTimeout time.Duration     `json:"startup_script_timeout" format:"duration"`
 	Directory            string            `json:"directory"`
 	MOTDFile             string            `json:"motd_file"`
 }
@@ -680,4 +692,22 @@ func (c *Client) WorkspaceAgentGitAuth(ctx context.Context, gitURL string, liste
 
 	var authResp WorkspaceAgentGitAuthResponse
 	return authResp, json.NewDecoder(res.Body).Decode(&authResp)
+}
+
+// @typescript-ignore PostWorkspaceAgentStateRequest
+type PostWorkspaceAgentStateRequest struct {
+	State WorkspaceAgentState `json:"state"`
+}
+
+func (c *Client) PostWorkspaceAgentState(ctx context.Context, req PostWorkspaceAgentStateRequest) error {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/report-state", req)
+	if err != nil {
+		return xerrors.Errorf("agent state post request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return readBodyAsError(res)
+	}
+
+	return nil
 }

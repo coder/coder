@@ -217,6 +217,10 @@ func (*client) AgentReportStats(_ context.Context, _ slog.Logger, _ func() *code
 	return io.NopCloser(strings.NewReader("")), nil
 }
 
+func (*client) PostWorkspaceAgentState(_ context.Context, _ codersdk.PostWorkspaceAgentStateRequest) error {
+	return nil
+}
+
 func (*client) PostWorkspaceAgentAppHealth(_ context.Context, _ codersdk.PostWorkspaceAppHealthsRequest) error {
 	return nil
 }
