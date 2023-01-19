@@ -3,30 +3,28 @@ import { createContext, FC, PropsWithChildren, useContext } from "react"
 import { authMachine } from "xServices/auth/authXService"
 import { ActorRefFrom } from "xstate"
 
-interface AuthProviderContextValue {
+interface AuthContextValue {
   authService: ActorRefFrom<typeof authMachine>
 }
 
-const AuthProviderContext = createContext<AuthProviderContextValue | undefined>(
-  undefined,
-)
+const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
 export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
   const authService = useInterpret(authMachine)
 
   return (
-    <AuthProviderContext.Provider value={{ authService }}>
+    <AuthContext.Provider value={{ authService }}>
       {children}
-    </AuthProviderContext.Provider>
+    </AuthContext.Provider>
   )
 }
 
 type UseAuthReturnType = ReturnType<
-  typeof useActor<AuthProviderContextValue["authService"]>
+  typeof useActor<AuthContextValue["authService"]>
 >
 
 export const useAuth = (): UseAuthReturnType => {
-  const context = useContext(AuthProviderContext)
+  const context = useContext(AuthContext)
 
   if (!context) {
     throw new Error("useAuth should be used inside of <AuthProvider />")
