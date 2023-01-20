@@ -98,7 +98,7 @@ export interface AuthMethod {
 export interface AuthMethods {
   readonly password: AuthMethod
   readonly github: AuthMethod
-  readonly oidc: OIDCMethod
+  readonly oidc: OIDCAuthMethod
 }
 
 // From codersdk/authorization.go
@@ -461,6 +461,12 @@ export interface OAuth2GithubConfig {
   readonly enterprise_base_url: DeploymentConfigField<string>
 }
 
+// From codersdk/users.go
+export interface OIDCAuthMethod extends AuthMethod {
+  readonly signInText: string
+  readonly iconUrl: string
+}
+
 // From codersdk/deploymentconfig.go
 export interface OIDCConfig {
   readonly allow_signups: DeploymentConfigField<boolean>
@@ -473,12 +479,6 @@ export interface OIDCConfig {
   readonly username_field: DeploymentConfigField<string>
   readonly sign_in_text: DeploymentConfigField<string>
   readonly icon_url: DeploymentConfigField<string>
-}
-
-// From codersdk/users.go
-export interface OIDCMethod extends AuthMethod {
-  readonly signInText: string
-  readonly iconUrl: string
 }
 
 // From codersdk/organizations.go

@@ -10,7 +10,7 @@ import {
 } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
 import { LoginPage } from "./LoginPage"
-import * as TypesGen from "../../api/typesGenerated"
+import * as TypesGen from "api/typesGenerated"
 
 describe("LoginPage", () => {
   beforeEach(() => {
