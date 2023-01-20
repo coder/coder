@@ -153,7 +153,9 @@ func NewConn(options *Options) (*Conn, error) {
 	if !ok {
 		return nil, xerrors.New("get wireguard internals")
 	}
-	magicConn.SetTLSConfig(options.TLSConfig)
+	if options.TLSConfig != nil {
+		magicConn.SetTLSConfig(options.TLSConfig)
+	}
 	tunDevice.SetStatisticsEnabled(options.EnableTrafficStats)
 
 	// Update the keys for the magic connection!

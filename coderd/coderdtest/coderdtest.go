@@ -651,7 +651,7 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, workspaceID uui
 		for _, resource := range workspace.LatestBuild.Resources {
 			for _, agent := range resource.Agents {
 				if agent.Status != codersdk.WorkspaceAgentConnected {
-					// t.Logf("agent %s not connected yet", agent.Name)
+					t.Logf("agent %s not connected yet", agent.Name)
 					return false
 				}
 			}
