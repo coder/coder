@@ -66,8 +66,12 @@ func (q *AuthzQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.
 }
 
 func (q *AuthzQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg database.GetTemplateVersionsByTemplateIDParams) ([]database.TemplateVersion, error) {
-	//TODO implement me
-	panic("implement me")
+	// Authorize fetch the template
+	_, err := authorizedFetch(q.authorizer, q.database.GetTemplateByID)(ctx, arg.TemplateID)
+	if err != nil {
+		return nil, err
+	}
+	return q.GetTemplateVersionsByTemplateID(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.TemplateVersion, error) {
@@ -95,8 +99,8 @@ func (q *AuthzQuerier) GetTemplatesWithFilter(ctx context.Context, arg database.
 }
 
 func (q *AuthzQuerier) InsertTemplate(ctx context.Context, arg database.InsertTemplateParams) (database.Template, error) {
-	//TODO implement me
-	panic("implement me")
+	obj := rbac.ResourceTemplate.InOrg(arg.OrganizationID)
+	return authorizedInsert(q.authorizer, rbac.ActionCreate, obj, q.database.InsertTemplate)(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertTemplateVersion(ctx context.Context, arg database.InsertTemplateVersionParams) (database.TemplateVersion, error) {
@@ -110,36 +114,30 @@ func (q *AuthzQuerier) InsertTemplateVersionParameter(ctx context.Context, arg d
 }
 
 func (q *AuthzQuerier) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {
-	// TODO: Allow preloading template in ctx cache
-	tpl, err := q.database.GetTemplateByID(ctx, arg.ID)
-	if err != nil {
-		return database.Template{}, err
-	}
-
 	// UpdateTemplateACL uses the ActionCreate action. Only users that can create the template
 	// may update the ACL.
-	err = q.authorizeContext(ctx, rbac.ActionCreate, tpl.RBACObject())
-	if err != nil {
-		return database.Template{}, err
+	fetch := func(ctx context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {
+		return q.database.GetTemplateByID(ctx, arg.ID)
 	}
-
-	return q.database.UpdateTemplateACLByID(ctx, arg)
+	return authorizedFetchAndQuery(q.authorizer, rbac.ActionCreate, fetch, q.database.UpdateTemplateACLByID)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateTemplateActiveVersionByID(ctx context.Context, arg database.UpdateTemplateActiveVersionByIDParams) error {
-	return authorizedUpdate(q.authorizer, func(ctx context.Context, arg database.UpdateTemplateActiveVersionByIDParams) (database.Template, error) {
+	fetch := func(ctx context.Context, arg database.UpdateTemplateActiveVersionByIDParams) (database.Template, error) {
 		return q.database.GetTemplateByID(ctx, arg.ID)
-	}, q.database.UpdateTemplateActiveVersionByID)(ctx, arg)
+	}
+	return authorizedUpdate(q.authorizer, fetch, q.database.UpdateTemplateActiveVersionByID)(ctx, arg)
 }
 
 func (q *AuthzQuerier) SoftDeleteTemplateByID(ctx context.Context, id uuid.UUID) error {
-	return authorizedDelete(q.authorizer, q.database.GetTemplateByID, func(ctx context.Context, id uuid.UUID) error {
+	deleteF := func(ctx context.Context, id uuid.UUID) error {
 		return q.database.UpdateTemplateDeletedByID(ctx, database.UpdateTemplateDeletedByIDParams{
 			ID:        id,
 			Deleted:   true,
 			UpdatedAt: database.Now(),
 		})
-	})(ctx, id)
+	}
+	return authorizedDelete(q.authorizer, q.database.GetTemplateByID, deleteF)(ctx, id)
 }
 
 // Deprecated: use SoftDeleteTemplateByID instead.

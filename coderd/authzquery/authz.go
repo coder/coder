@@ -12,6 +12,32 @@ import (
 // - We need to handle authorizing the CRUD of objects with RBAC being related
 //   to some other object. Eg: workspace builds, group members, etc.
 
+func authorizedInsert[ObjectType any, ArgumentType any,
+	Insert func(ctx context.Context, arg ArgumentType) (ObjectType, error)](
+	// Arguments
+	authorizer rbac.Authorizer,
+	action rbac.Action,
+	object rbac.Objecter,
+	insertFunc Insert) Insert {
+
+	return func(ctx context.Context, arg ArgumentType) (empty ObjectType, err error) {
+		// Fetch the rbac subject
+		act, ok := actorFromContext(ctx)
+		if !ok {
+			return empty, xerrors.Errorf("no authorization actor in context")
+		}
+
+		// Authorize the action
+		err = authorizer.ByRoleName(ctx, act.ID.String(), act.Roles, act.Scope, act.Groups, action, object.RBACObject())
+		if err != nil {
+			return empty, xerrors.Errorf("unauthorized: %w", err)
+		}
+
+		// Insert the database object
+		return insertFunc(ctx, arg)
+	}
+}
+
 func authorizedDelete[ObjectType rbac.Objecter, ArgumentType any,
 	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 	Delete func(ctx context.Context, arg ArgumentType) error](
@@ -39,7 +65,8 @@ func authorizedUpdate[ObjectType rbac.Objecter,
 // authorizedFetchAndExecWithConverter uses authorizedFetchAndQueryWithConverter but
 // only cares about the error return type. SQL execs only return an error.
 // See authorizedFetchAndQueryWithConverter for more details.
-func authorizedFetchAndExec[ObjectType rbac.Objecter, ArgumentType any,
+func authorizedFetchAndExec[ObjectType rbac.Objecter,
+	ArgumentType any,
 	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 	Exec func(ctx context.Context, arg ArgumentType) error](
 	// Arguments

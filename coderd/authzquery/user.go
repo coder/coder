@@ -72,8 +72,8 @@ func (q *AuthzQuerier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]da
 }
 
 func (q *AuthzQuerier) InsertUser(ctx context.Context, arg database.InsertUserParams) (database.User, error) {
-	//TODO implement me
-	panic("implement me")
+	obj := rbac.ResourceUser
+	return authorizedInsert(q.authorizer, rbac.ActionCreate, obj, q.database.InsertUser)(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertUserLink(ctx context.Context, arg database.InsertUserLinkParams) (database.UserLink, error) {
