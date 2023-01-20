@@ -55,7 +55,7 @@ if [[ "$version" == "" ]]; then
 fi
 
 # Our chart fails when built on non-tag versions since `+` characters are
-# invalid in labels, i.e. `0.15.0-devel+546a8931``.
+# invalid in labels, i.e. `0.15.0-devel+546a8931`.
 helm_version="${version//+/-}"
 
 if [[ "$output_path" == "" ]]; then
