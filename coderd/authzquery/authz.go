@@ -29,11 +29,11 @@ func authorizedDelete[ObjectType rbac.Objecter, ArgumentType any,
 
 func authorizedUpdate[ObjectType rbac.Objecter, ArgumentType any,
 	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
-	Delete func(ctx context.Context, arg ArgumentType) error](
+	Exec func(ctx context.Context, arg ArgumentType) error](
 	// Arguments
 	authorizer rbac.Authorizer,
 	fetchFunc Fetch,
-	deleteFunc Delete) Delete {
+	deleteFunc Exec) Exec {
 
 	return authorizedFetchAndExecWithConverter(authorizer,
 		rbac.ActionUpdate,
@@ -123,6 +123,20 @@ func authorizedFetch[ObjectType rbac.Objecter, ArgumentType any,
 		}, fetchFunc)
 }
 
+func authorizedExec[ObjectType rbac.Objecter, ArgumentType any,
+	Exec func(ctx context.Context, arg ArgumentType) error](
+	// Arguments
+	authorizer rbac.Authorizer,
+	execFunc Exec) Exec {
+
+	return authorizedQueryWithConverter(authorizer,
+		func(o ObjectType) rbac.Object {
+			return o.RBACObject()
+		}, func(ctx context.Context, arg ArgumentType) (empty ObjectType, err error) {
+			return empty, execFunc(ctx, arg)
+		})
+}
+
 // authorizedQueryWithConverter is a generic function that wraps a database
 // query function (returns an object and an error) with authorization. The
 // returned function has the same arguments as the database function.
@@ -189,6 +203,8 @@ func authorizedFetchSet[ArgumentType any, ObjectType rbac.Objecter,
 		return rbac.Filter(ctx, authorizer, act.ID.String(), act.Roles, act.Scope, act.Groups, rbac.ActionRead, objects)
 	}
 }
+
+
 
 // prepareSQLFilter is a helper function that prepares a SQL filter using the
 // given authorization context.

@@ -120,11 +120,7 @@ func (q *AuthzQuerier) UpdateTemplateACLByID(ctx context.Context, arg database.U
 }
 
 func (q *AuthzQuerier) UpdateTemplateActiveVersionByID(ctx context.Context, arg database.UpdateTemplateActiveVersionByIDParams) error {
-	// Note: Audit logs are a bit inconsistent here. We don't return the new template from the db, so the field
-	// update is done manually.
-	return authorizedFetchAndExecWithConverter(q.authorizer, rbac.ActionUpdate, func(o database.Template) rbac.Object {
-		return o.RBACObject()
-	}, func(ctx context.Context, arg database.UpdateTemplateActiveVersionByIDParams) (database.Template, error) {
+	return authorizedUpdate(q.authorizer, func(ctx context.Context, arg database.UpdateTemplateActiveVersionByIDParams) (database.Template, error) {
 		return q.database.GetTemplateByID(ctx, arg.ID)
 	}, q.database.UpdateTemplateActiveVersionByID)(ctx, arg)
 }

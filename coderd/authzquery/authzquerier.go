@@ -7,6 +7,7 @@ import (
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/rbac"
+	"golang.org/x/xerrors"
 )
 
 // AuthzQuerier is a wrapper around the database store that performs authorization
@@ -44,4 +45,17 @@ func (q *AuthzQuerier) InTx(function func(querier database.Store) error, txOpts 
 		wrapped := NewAuthzQuerier(tx, q.authorizer)
 		return function(wrapped)
 	}, txOpts)
+}
+
+func (q *AuthzQuerier) authorizeContext(ctx context.Context, action rbac.Action, object rbac.Object) error {
+	act, ok := actorFromContext(ctx)
+	if !ok {
+		return xerrors.Errorf("no authorization actor in context")
+	}
+
+	err := q.authorizer.ByRoleName(ctx, act.ID.String(), act.Roles, act.Scope, act.Groups, action, object)
+	if err != nil {
+		return xerrors.Errorf("unauthorized: %w", err)
+	}
+	return nil
 }
