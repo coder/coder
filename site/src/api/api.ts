@@ -642,14 +642,14 @@ export const getTemplateDAUs = async (
 
 export const getDeploymentDAUs =
   async (): Promise<TypesGen.TemplateDAUsResponse> => {
-    //const response = await axios.get(`/api/v2/daus`)
-    //return response.data
-    return {
-      entries: [
-        { date: "1-1-2023", amount: 10 },
-        { date: "1-2-2023", amount: 20 },
-      ],
-    }
+    const response = await axios.get(`/api/v2/insights/daus`)
+    return response.data
+    // return {
+    //   entries: [
+    //     { date: "1-1-2023", amount: 10 },
+    //     { date: "1-2-2023", amount: 20 },
+    //   ],
+    // }
   }
 
 export const getTemplateACL = async (
