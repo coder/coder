@@ -167,8 +167,8 @@ func TestUpdateWithRichParameters(t *testing.T) {
 					Complete: &proto.Provision_Complete{
 						Parameters: []*proto.RichParameter{
 							{Name: firstParameterName, Description: firstParameterDescription, Mutable: true},
-							{Name: secondParameterName, Description: secondParameterDescription, Mutable: true},
 							{Name: immutableParameterName, Description: immutableParameterDescription, Mutable: false},
+							{Name: secondParameterName, Description: secondParameterDescription, Mutable: true},
 						},
 					},
 				},
@@ -195,8 +195,8 @@ func TestUpdateWithRichParameters(t *testing.T) {
 		parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
 		_, _ = parameterFile.WriteString(
 			firstParameterName + ": " + firstParameterValue + "\n" +
-				secondParameterName + ": " + secondParameterValue + "\n" +
-				immutableParameterName + ": " + immutableParameterValue)
+				immutableParameterName + ": " + immutableParameterValue + "\n" +
+				secondParameterName + ": " + secondParameterValue)
 
 		cmd, root := clitest.New(t, "create", "my-workspace", "--template", template.Name, "--rich-parameter-file", parameterFile.Name(), "-y")
 		clitest.SetupConfig(t, client, root)
@@ -218,14 +218,16 @@ func TestUpdateWithRichParameters(t *testing.T) {
 
 		matches := []string{
 			firstParameterDescription, firstParameterValue,
+			fmt.Sprintf("Parameter %q is not mutable, so can't be customized after workspace creation.", immutableParameterName), "",
 			secondParameterDescription, secondParameterValue,
-			fmt.Sprintf("Parameter %q is not mutable, so can't be customized after workspace creation.", immutableParameterName), "yes",
 		}
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
 			pty.ExpectMatch(match)
-			pty.WriteLine(value)
+			if value != "" {
+				pty.WriteLine(value)
+			}
 		}
 		<-doneChan
 	})
