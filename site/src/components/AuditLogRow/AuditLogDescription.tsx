@@ -21,7 +21,7 @@ export const AuditLogDescription: FC<{ auditLog: AuditLog }> = ({
     user =
       auditLog.additional_fields.buildReason &&
       auditLog.additional_fields.buildReason !== "initiator"
-        ? "Coder automatically"
+        ? t("auditLog:table.logRow.buildReason")
         : auditLog.user?.username.trim()
   }
 
