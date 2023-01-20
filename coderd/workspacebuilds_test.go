@@ -877,6 +877,12 @@ func TestWorkspaceBuildValidateRichParameters(t *testing.T) {
 			{Name: boolParameterName, Type: "bool", Mutable: true},
 		}
 
+		boolRichParameters := []*proto.RichParameter{
+			{Name: stringParameterName, Type: "string", Mutable: true},
+			{Name: numberParameterName, Type: "number", Mutable: true},
+			{Name: boolParameterName, Type: "bool", Mutable: true},
+		}
+
 		/* FIXME
 		regexRichParameters := []*proto.RichParameter{
 			{Name: stringParameterName, Type: "string", Mutable: true, ValidationRegex: "[a-z]+"},
@@ -885,25 +891,30 @@ func TestWorkspaceBuildValidateRichParameters(t *testing.T) {
 		}*/
 
 		tests := []struct {
+			parameterName  string
 			value          string
 			valid          bool
 			richParameters []*proto.RichParameter
 		}{
-			{"2", false, numberRichParameters},
-			{"3", true, numberRichParameters},
-			{"10", true, numberRichParameters},
-			{"11", false, numberRichParameters},
+			{numberParameterName, "2", false, numberRichParameters},
+			{numberParameterName, "3", true, numberRichParameters},
+			{numberParameterName, "10", true, numberRichParameters},
+			{numberParameterName, "11", false, numberRichParameters},
 
-			{"", false, stringRichParameters},
-			{"foobar", true, stringRichParameters},
+			{stringParameterName, "", false, stringRichParameters},
+			{stringParameterName, "foobar", true, stringRichParameters},
 
 			/* FIXME can't validate build parameter "string_parameter": an error must be specified with a regex validation
-			{"abcd", true, regexRichParameters},
-			{"abcd1", false, regexRichParameters},*/
+			{stringParameterName, "abcd", true, regexRichParameters},
+			{stringParameterName, "abcd1", false, regexRichParameters},*/
+
+			{boolParameterName, "true", true, boolRichParameters},
+			{boolParameterName, "false", true, boolRichParameters},
+			// FIXME {boolParameterName, "cat", false, boolRichParameters},
 		}
 
 		for _, tc := range tests {
-			t.Run("Value-"+tc.value, func(t *testing.T) {
+			t.Run(tc.parameterName+"-"+tc.value, func(t *testing.T) {
 				client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 				user := coderdtest.CreateFirstUser(t, client)
 				version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, prepareEchoResponses(tc.richParameters))
@@ -922,7 +933,7 @@ func TestWorkspaceBuildValidateRichParameters(t *testing.T) {
 				defer cancel()
 
 				nextBuildParameters := []codersdk.WorkspaceBuildParameter{
-					{Name: numberParameterName, Value: tc.value},
+					{Name: tc.parameterName, Value: tc.value},
 				}
 				nextWorkspaceBuild, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 					Transition:          codersdk.WorkspaceTransitionStart,
