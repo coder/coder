@@ -110,13 +110,23 @@ func (q *AuthzQuerier) InsertTemplateVersionParameter(ctx context.Context, arg d
 }
 
 func (q *AuthzQuerier) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {
-	//TODO implement me
-	panic("implement me")
+	// UpdateTemplateACL uses the ActionCreate action. Only users that can create the template
+	// may update the ACL.
+	return authorizedFetchAndQueryWithConverter(q.authorizer, rbac.ActionCreate, func(o database.Template) rbac.Object {
+		return o.RBACObject()
+	}, func(ctx context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {
+		return q.database.GetTemplateByID(ctx, arg.ID)
+	}, q.database.UpdateTemplateACLByID)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateTemplateActiveVersionByID(ctx context.Context, arg database.UpdateTemplateActiveVersionByIDParams) error {
-	//TODO implement me
-	panic("implement me")
+	// Note: Audit logs are a bit inconsistent here. We don't return the new template from the db, so the field
+	// update is done manually.
+	return authorizedFetchAndExecWithConverter(q.authorizer, rbac.ActionUpdate, func(o database.Template) rbac.Object {
+		return o.RBACObject()
+	}, func(ctx context.Context, arg database.UpdateTemplateActiveVersionByIDParams) (database.Template, error) {
+		return q.database.GetTemplateByID(ctx, arg.ID)
+	}, q.database.UpdateTemplateActiveVersionByID)(ctx, arg)
 }
 
 func (q *AuthzQuerier) SoftDeleteTemplateByID(ctx context.Context, id uuid.UUID) error {
