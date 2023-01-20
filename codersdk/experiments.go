@@ -8,6 +8,11 @@ import (
 
 type Experiment string
 
+const (
+// Add new experiments here!
+// ExperimentExample Experiment = "example"
+)
+
 var (
 	// ExperimentsAll should include all experiments that are safe for
 	// users to opt-in to via --experimental='*'.
