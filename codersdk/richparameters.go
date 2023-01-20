@@ -41,10 +41,15 @@ func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, bui
 		return nil
 	}
 
+	if !validationEnabled(richParameter) {
+		return nil
+	}
+
 	validation := &provider.Validation{
 		Min:   int(richParameter.ValidationMin),
 		Max:   int(richParameter.ValidationMax),
 		Regex: richParameter.ValidationRegex,
+		// TODO Error: ?,
 	}
 	return validation.Valid(richParameter.Type, buildParameter.Value)
 }
@@ -64,4 +69,8 @@ func parameterValuesAsArray(options []TemplateVersionParameterOption) []string {
 		arr = append(arr, opt.Value)
 	}
 	return arr
+}
+
+func validationEnabled(param TemplateVersionParameter) bool {
+	return len(param.ValidationRegex) > 0 || (param.ValidationMin != 0 && param.ValidationMax != 0)
 }
