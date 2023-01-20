@@ -478,6 +478,10 @@ func actionFromString(actionString string) string {
 		return actionString
 	case codersdk.AuditActionDelete:
 		return actionString
+	case codersdk.AuditActionStart:
+		return actionString
+	case codersdk.AuditActionStop:
+		return actionString
 	default:
 	}
 	return ""
