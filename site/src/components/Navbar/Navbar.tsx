@@ -1,32 +1,27 @@
-import { shallowEqual, useActor, useSelector } from "@xstate/react"
-import { FeatureNames } from "api/types"
-import { useContext, FC } from "react"
-import { selectFeatureVisibility } from "xServices/entitlements/entitlementsSelectors"
-import { XServiceContext } from "../../xServices/StateContext"
+import { useAuth } from "components/AuthProvider/AuthProvider"
+import { useDashboard } from "components/Dashboard/DashboardProvider"
+import { useFeatureVisibility } from "hooks/useFeatureVisibility"
+import { useMe } from "hooks/useMe"
+import { usePermissions } from "hooks/usePermissions"
+import { FC } from "react"
 import { NavbarView } from "../NavbarView/NavbarView"
 
 export const Navbar: FC = () => {
-  const xServices = useContext(XServiceContext)
-  const [appearanceState] = useActor(xServices.appearanceXService)
-  const [authState, authSend] = useActor(xServices.authXService)
-  const [buildInfoState] = useActor(xServices.buildInfoXService)
-  const { me, permissions } = authState.context
-  const featureVisibility = useSelector(
-    xServices.entitlementsXService,
-    selectFeatureVisibility,
-    shallowEqual,
-  )
+  const { appearance, buildInfo } = useDashboard()
+  const [_, authSend] = useAuth()
+  const me = useMe()
+  const permissions = usePermissions()
+  const featureVisibility = useFeatureVisibility()
   const canViewAuditLog =
-    featureVisibility[FeatureNames.AuditLog] &&
-    Boolean(permissions?.viewAuditLog)
-  const canViewDeployment = Boolean(permissions?.viewDeploymentConfig)
+    featureVisibility["audit_log"] && Boolean(permissions.viewAuditLog)
+  const canViewDeployment = Boolean(permissions.viewDeploymentConfig)
   const onSignOut = () => authSend("SIGN_OUT")
 
   return (
     <NavbarView
       user={me}
-      logo_url={appearanceState.context.appearance.logo_url}
-      buildInfo={buildInfoState.context.buildInfo}
+      logo_url={appearance.config.logo_url}
+      buildInfo={buildInfo}
       onSignOut={onSignOut}
       canViewAuditLog={canViewAuditLog}
       canViewDeployment={canViewDeployment}

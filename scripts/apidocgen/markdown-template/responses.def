@@ -13,6 +13,9 @@
 		if (!ref) {
 			ref = content.schema.items["x-widdershins-oldRef"];
 		}
+		if (!ref) {
+			return content.schema.items.type;
+		}
 		const aType = ref.replace("#/components/schemas/","");
 		const href = aType.replace(".","").toLowerCase();
 		return "[" + aType + "](schemas.md#" + href + ")";

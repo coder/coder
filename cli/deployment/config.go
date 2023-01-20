@@ -446,10 +446,19 @@ func newConfig() *codersdk.DeploymentConfig {
 				Default:     512,
 			},
 		},
+		// DEPRECATED: use Experiments instead.
 		Experimental: &codersdk.DeploymentConfigField[bool]{
-			Name:  "Experimental",
-			Usage: "Enable experimental features. Experimental features are not ready for production.",
-			Flag:  "experimental",
+			Name:    "Experimental",
+			Usage:   "Enable experimental features. Experimental features are not ready for production.",
+			Flag:    "experimental",
+			Default: false,
+			Hidden:  true,
+		},
+		Experiments: &codersdk.DeploymentConfigField[[]string]{
+			Name:    "Experiments",
+			Usage:   "Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.",
+			Flag:    "experiments",
+			Default: []string{},
 		},
 		UpdateCheck: &codersdk.DeploymentConfigField[bool]{
 			Name:    "Update Check",
@@ -490,6 +499,26 @@ func newConfig() *codersdk.DeploymentConfig {
 				Flag:    "log-stackdriver",
 				Default: "",
 			},
+		},
+		Dangerous: &codersdk.DangerousConfig{
+			AllowPathAppSharing: &codersdk.DeploymentConfigField[bool]{
+				Name:    "DANGEROUS: Allow Path App Sharing",
+				Usage:   "Allow workspace apps that are not served from subdomains to be shared. Path-based app sharing is DISABLED by default for security purposes. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. Path-based apps can be disabled entirely with --disable-path-apps for further security.",
+				Flag:    "dangerous-allow-path-app-sharing",
+				Default: false,
+			},
+			AllowPathAppSiteOwnerAccess: &codersdk.DeploymentConfigField[bool]{
+				Name:    "DANGEROUS: Allow Site Owners to Access Path Apps",
+				Usage:   "Allow site-owners to access workspace apps from workspaces they do not own. Owners cannot access path-based apps they do not own by default. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. Path-based apps can be disabled entirely with --disable-path-apps for further security.",
+				Flag:    "dangerous-allow-path-app-site-owner-access",
+				Default: false,
+			},
+		},
+		DisablePathApps: &codersdk.DeploymentConfigField[bool]{
+			Name:    "Disable Path Apps",
+			Usage:   "Disable workspace apps that are not served from subdomains. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. This is recommended for security purposes if a --wildcard-access-url is configured.",
+			Flag:    "disable-path-apps",
+			Default: false,
 		},
 	}
 }
@@ -557,12 +586,12 @@ func setConfig(prefix string, vip *viper.Viper, target interface{}) {
 			// with a comma, but Viper only supports with a space. This
 			// is a small hack around it!
 			rawSlice := reflect.ValueOf(vip.GetStringSlice(prefix)).Interface()
-			slice, ok := rawSlice.([]string)
+			stringSlice, ok := rawSlice.([]string)
 			if !ok {
 				panic(fmt.Sprintf("string slice is of type %T", rawSlice))
 			}
-			value := make([]string, 0, len(slice))
-			for _, entry := range slice {
+			value := make([]string, 0, len(stringSlice))
+			for _, entry := range stringSlice {
 				value = append(value, strings.Split(entry, ",")...)
 			}
 			val.FieldByName("Value").Set(reflect.ValueOf(value))

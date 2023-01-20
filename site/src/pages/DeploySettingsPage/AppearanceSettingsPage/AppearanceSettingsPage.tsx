@@ -1,10 +1,8 @@
-import { useActor } from "@xstate/react"
-import { FeatureNames } from "api/types"
 import { AppearanceConfig } from "api/typesGenerated"
-import { useContext, FC } from "react"
+import { useDashboard } from "components/Dashboard/DashboardProvider"
+import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "util/page"
-import { XServiceContext } from "xServices/StateContext"
 import { AppearanceSettingsPageView } from "./AppearanceSettingsPageView"
 
 // ServiceBanner is unlike the other Deployment Settings pages because it
@@ -12,36 +10,23 @@ import { AppearanceSettingsPageView } from "./AppearanceSettingsPageView"
 // exception because the Service Banner is visual, and configuring it from
 // the command line would be a significantly worse user experience.
 const AppearanceSettingsPage: FC = () => {
-  const xServices = useContext(XServiceContext)
-  const [appearanceXService, appearanceSend] = useActor(
-    xServices.appearanceXService,
-  )
-  const [entitlementsState] = useActor(xServices.entitlementsXService)
-  const appearance = appearanceXService.context.appearance
-
+  const { appearance, entitlements } = useDashboard()
   const isEntitled =
-    entitlementsState.context.entitlements.features[FeatureNames.Appearance]
-      .entitlement !== "not_entitled"
+    entitlements.features["appearance"].entitlement !== "not_entitled"
 
   const updateAppearance = (
     newConfig: Partial<AppearanceConfig>,
     preview: boolean,
   ) => {
     const newAppearance = {
-      ...appearance,
+      ...appearance.config,
       ...newConfig,
     }
     if (preview) {
-      appearanceSend({
-        type: "SET_PREVIEW_APPEARANCE",
-        appearance: newAppearance,
-      })
+      appearance.setPreview(newAppearance)
       return
     }
-    appearanceSend({
-      type: "SET_APPEARANCE",
-      appearance: newAppearance,
-    })
+    appearance.save(newAppearance)
   }
 
   return (
@@ -51,7 +36,7 @@ const AppearanceSettingsPage: FC = () => {
       </Helmet>
 
       <AppearanceSettingsPageView
-        appearance={appearance}
+        appearance={appearance.config}
         isEntitled={isEntitled}
         updateAppearance={updateAppearance}
       />

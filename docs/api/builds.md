@@ -1,7 +1,5 @@
 # Builds
 
-> This page is incomplete, stay tuned.
-
 ## Get workspace build by user, workspace name, and build number
 
 ### Code samples

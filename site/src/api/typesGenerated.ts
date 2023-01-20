@@ -282,10 +282,15 @@ export interface DERPServerConfig {
 }
 
 // From codersdk/deploymentconfig.go
+export interface DangerousConfig {
+  readonly allow_path_app_sharing: DeploymentConfigField<boolean>
+  readonly allow_path_app_site_owner_access: DeploymentConfigField<boolean>
+}
+
+// From codersdk/deploymentconfig.go
 export interface DeploymentConfig {
   readonly access_url: DeploymentConfigField<string>
   readonly wildcard_access_url: DeploymentConfigField<string>
-  readonly address: DeploymentConfigField<string>
   readonly http_address: DeploymentConfigField<string>
   readonly autobuild_poll_interval: DeploymentConfigField<number>
   readonly derp: DERP
@@ -312,11 +317,15 @@ export interface DeploymentConfig {
   readonly scim_api_key: DeploymentConfigField<string>
   readonly provisioner: ProvisionerConfig
   readonly rate_limit: RateLimitConfig
-  readonly experimental: DeploymentConfigField<boolean>
+  readonly experiments: DeploymentConfigField<string[]>
   readonly update_check: DeploymentConfigField<boolean>
   readonly max_token_lifetime: DeploymentConfigField<number>
   readonly swagger: SwaggerConfig
   readonly logging: LoggingConfig
+  readonly dangerous: DangerousConfig
+  readonly disable_path_apps: DeploymentConfigField<boolean>
+  readonly address: DeploymentConfigField<string>
+  readonly experimental: DeploymentConfigField<boolean>
 }
 
 // From codersdk/deploymentconfig.go
@@ -334,13 +343,16 @@ export interface DeploymentConfigField<T extends Flaggable> {
 
 // From codersdk/features.go
 export interface Entitlements {
-  readonly features: Record<string, Feature>
+  readonly features: Record<FeatureName, Feature>
   readonly warnings: string[]
   readonly errors: string[]
   readonly has_license: boolean
-  readonly experimental: boolean
   readonly trial: boolean
+  readonly experimental: boolean
 }
+
+// From codersdk/experiments.go
+export type Experiments = Experiment[]
 
 // From codersdk/features.go
 export interface Feature {
@@ -1052,42 +1064,103 @@ export interface WorkspacesResponse {
 
 // From codersdk/apikey.go
 export type APIKeyScope = "all" | "application_connect"
+export const APIKeyScopes: APIKeyScope[] = ["all", "application_connect"]
 
 // From codersdk/audit.go
 export type AuditAction = "create" | "delete" | "start" | "stop" | "write"
+export const AuditActions: AuditAction[] = [
+  "create",
+  "delete",
+  "start",
+  "stop",
+  "write",
+]
 
 // From codersdk/workspacebuilds.go
 export type BuildReason = "autostart" | "autostop" | "initiator"
+export const BuildReasons: BuildReason[] = [
+  "autostart",
+  "autostop",
+  "initiator",
+]
 
 // From codersdk/features.go
 export type Entitlement = "entitled" | "grace_period" | "not_entitled"
+export const Entitlements: Entitlement[] = [
+  "entitled",
+  "grace_period",
+  "not_entitled",
+]
+
+// From codersdk/experiments.go
+export type Experiment = never
+export const Experiments: Experiment[] = []
+
+// From codersdk/features.go
+export type FeatureName =
+  | "appearance"
+  | "audit_log"
+  | "browser_only"
+  | "external_provisioner_daemons"
+  | "high_availability"
+  | "multiple_git_auth"
+  | "scim"
+  | "template_rbac"
+  | "user_limit"
+export const FeatureNames: FeatureName[] = [
+  "appearance",
+  "audit_log",
+  "browser_only",
+  "external_provisioner_daemons",
+  "high_availability",
+  "multiple_git_auth",
+  "scim",
+  "template_rbac",
+  "user_limit",
+]
 
 // From codersdk/agentconn.go
 export type ListeningPortNetwork = "tcp"
+export const ListeningPortNetworks: ListeningPortNetwork[] = ["tcp"]
 
 // From codersdk/provisionerdaemons.go
 export type LogLevel = "debug" | "error" | "info" | "trace" | "warn"
+export const LogLevels: LogLevel[] = ["debug", "error", "info", "trace", "warn"]
 
 // From codersdk/provisionerdaemons.go
 export type LogSource = "provisioner" | "provisioner_daemon"
+export const LogSources: LogSource[] = ["provisioner", "provisioner_daemon"]
 
 // From codersdk/apikey.go
 export type LoginType = "github" | "oidc" | "password" | "token"
+export const LoginTypes: LoginType[] = ["github", "oidc", "password", "token"]
 
 // From codersdk/parameters.go
 export type ParameterDestinationScheme =
   | "environment_variable"
   | "none"
   | "provisioner_variable"
+export const ParameterDestinationSchemes: ParameterDestinationScheme[] = [
+  "environment_variable",
+  "none",
+  "provisioner_variable",
+]
 
 // From codersdk/parameters.go
 export type ParameterScope = "import_job" | "template" | "workspace"
+export const ParameterScopes: ParameterScope[] = [
+  "import_job",
+  "template",
+  "workspace",
+]
 
 // From codersdk/parameters.go
 export type ParameterSourceScheme = "data" | "none"
+export const ParameterSourceSchemes: ParameterSourceScheme[] = ["data", "none"]
 
 // From codersdk/parameters.go
 export type ParameterTypeSystem = "hcl" | "none"
+export const ParameterTypeSystems: ParameterTypeSystem[] = ["hcl", "none"]
 
 // From codersdk/provisionerdaemons.go
 export type ProvisionerJobStatus =
@@ -1097,12 +1170,22 @@ export type ProvisionerJobStatus =
   | "pending"
   | "running"
   | "succeeded"
+export const ProvisionerJobStatuses: ProvisionerJobStatus[] = [
+  "canceled",
+  "canceling",
+  "failed",
+  "pending",
+  "running",
+  "succeeded",
+]
 
 // From codersdk/organizations.go
 export type ProvisionerStorageMethod = "file"
+export const ProvisionerStorageMethods: ProvisionerStorageMethod[] = ["file"]
 
 // From codersdk/organizations.go
 export type ProvisionerType = "echo" | "terraform"
+export const ProvisionerTypes: ProvisionerType[] = ["echo", "terraform"]
 
 // From codersdk/audit.go
 export type ResourceType =
@@ -1115,15 +1198,33 @@ export type ResourceType =
   | "user"
   | "workspace"
   | "workspace_build"
+export const ResourceTypes: ResourceType[] = [
+  "api_key",
+  "git_ssh_key",
+  "group",
+  "organization",
+  "template",
+  "template_version",
+  "user",
+  "workspace",
+  "workspace_build",
+]
 
 // From codersdk/sse.go
 export type ServerSentEventType = "data" | "error" | "ping"
+export const ServerSentEventTypes: ServerSentEventType[] = [
+  "data",
+  "error",
+  "ping",
+]
 
 // From codersdk/templates.go
 export type TemplateRole = "" | "admin" | "use"
+export const TemplateRoles: TemplateRole[] = ["", "admin", "use"]
 
 // From codersdk/users.go
 export type UserStatus = "active" | "suspended"
+export const UserStatuses: UserStatus[] = ["active", "suspended"]
 
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentStatus =
@@ -1131,6 +1232,12 @@ export type WorkspaceAgentStatus =
   | "connecting"
   | "disconnected"
   | "timeout"
+export const WorkspaceAgentStatuses: WorkspaceAgentStatus[] = [
+  "connected",
+  "connecting",
+  "disconnected",
+  "timeout",
+]
 
 // From codersdk/workspaceapps.go
 export type WorkspaceAppHealth =
@@ -1138,9 +1245,20 @@ export type WorkspaceAppHealth =
   | "healthy"
   | "initializing"
   | "unhealthy"
+export const WorkspaceAppHealths: WorkspaceAppHealth[] = [
+  "disabled",
+  "healthy",
+  "initializing",
+  "unhealthy",
+]
 
 // From codersdk/workspaceapps.go
 export type WorkspaceAppSharingLevel = "authenticated" | "owner" | "public"
+export const WorkspaceAppSharingLevels: WorkspaceAppSharingLevel[] = [
+  "authenticated",
+  "owner",
+  "public",
+]
 
 // From codersdk/workspacebuilds.go
 export type WorkspaceStatus =
@@ -1154,9 +1272,26 @@ export type WorkspaceStatus =
   | "starting"
   | "stopped"
   | "stopping"
+export const WorkspaceStatuses: WorkspaceStatus[] = [
+  "canceled",
+  "canceling",
+  "deleted",
+  "deleting",
+  "failed",
+  "pending",
+  "running",
+  "starting",
+  "stopped",
+  "stopping",
+]
 
 // From codersdk/workspacebuilds.go
 export type WorkspaceTransition = "delete" | "start" | "stop"
+export const WorkspaceTransitions: WorkspaceTransition[] = [
+  "delete",
+  "start",
+  "stop",
+]
 
 // From codersdk/deploymentconfig.go
 export type Flaggable = string | number | boolean | string[] | GitAuthConfig[]

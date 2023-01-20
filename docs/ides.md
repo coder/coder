@@ -3,7 +3,7 @@
 The following desktop IDEs have been tested with Coder, though any IDE with SSH
 support should work:
 
-- [VS Code Remote SSH](#vs-code-remote)
+- [Visual Studio Code](#visual-studio-code)
 - [JetBrains with Gateway](./ides/gateway.md)
   - IntelliJ IDEA
   - CLion
@@ -15,6 +15,24 @@ support should work:
 - Web IDEs (code-server, JupyterLab, JetBrains Projector)
   - Note: These are [configured in the template](./ides/web-ides.md)
 - [Emacs](./ides/emacs-tramp.md)
+
+## Visual Studio Code
+
+Click `VS Code Desktop` in the dashboard to one-click enter a workspace. This automatically installs the [Coder Remote](https://github.com/coder/vscode-coder) extension, authenticates with Coder, and connects to the workspace.
+
+![Demo](https://github.com/coder/vscode-coder/raw/main/demo.gif?raw=true)
+
+> The `VS Code Desktop` button can be hidden by enabling [Browser-only connections](./networking.md#browser-only-connections-enterprise).
+
+### Manual Installation
+
+Launch VS Code Quick Open (Ctrl+P), paste the following command, and press enter.
+
+```text
+ext install coder.coder-remote
+```
+
+Alternatively, manually install the VSIX from the [latest release](https://github.com/coder/vscode-coder/releases/latest).
 
 ## SSH configuration
 
@@ -42,20 +60,6 @@ $ ssh coder.<workspaceName>
 
 Your workspace is now accessible via `ssh coder.<workspace_name>` (e.g.,
 `ssh coder.myEnv` if your workspace is named `myEnv`).
-
-## VS Code Remote
-
-Once you've configured SSH, you can work on projects from your local copy of VS
-Code, connected to your Coder workspace for compute, etc.
-
-1. Open VS Code locally.
-
-1. Install the [Remote -
-   SSH](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-ssh)
-   extension.
-
-1. In VS Code's left-hand nav bar, click **Remote Explorer** and right-click on
-   a workspace to connect.
 
 ## JetBrains Gateway
 

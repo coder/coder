@@ -1,10 +1,8 @@
-import { useSelector } from "@xstate/react"
-import { FeatureNames } from "api/types"
-import { useContext } from "react"
+import { FeatureName } from "api/typesGenerated"
+import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { selectFeatureVisibility } from "xServices/entitlements/entitlementsSelectors"
-import { XServiceContext } from "xServices/StateContext"
 
-export const useFeatureVisibility = (): Record<FeatureNames, boolean> => {
-  const xServices = useContext(XServiceContext)
-  return useSelector(xServices.entitlementsXService, selectFeatureVisibility)
+export const useFeatureVisibility = (): Record<FeatureName, boolean> => {
+  const { entitlements } = useDashboard()
+  return selectFeatureVisibility(entitlements)
 }

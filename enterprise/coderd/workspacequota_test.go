@@ -10,6 +10,7 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/testutil"
@@ -45,7 +46,9 @@ func TestWorkspaceQuota(t *testing.T) {
 
 		user := coderdtest.CreateFirstUser(t, client)
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBAC: true,
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
 		})
 
 		verifyQuota(ctx, t, client, 0, 0)

@@ -1,9 +1,20 @@
 import react from "@vitejs/plugin-react"
 import path from "path"
-import { defineConfig } from "vite"
+import { defineConfig, PluginOption } from "vite"
+import { visualizer } from "rollup-plugin-visualizer"
+
+const plugins: PluginOption[] = [react()]
+
+if (process.env.STATS !== undefined) {
+  plugins.push(
+    visualizer({
+      filename: "./stats/index.html",
+    }),
+  )
+}
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: plugins,
   publicDir: path.resolve(__dirname, "./static"),
   build: {
     outDir: path.resolve(__dirname, "./out"),

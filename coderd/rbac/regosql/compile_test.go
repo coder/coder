@@ -143,6 +143,17 @@ func TestRegoQueries(t *testing.T) {
 			VariableConverter: regosql.NoACLConverter(),
 		},
 		{
+			Name: "AllowList",
+			Queries: []string{
+				`input.object.id != "" `,
+				`input.object.id in ["9046b041-58ed-47a3-9c3a-de302577875a"]`,
+			},
+			// Special case where the bool is wrapped
+			ExpectedSQL: p(`(id :: text != '') OR ` +
+				`(id :: text = ANY(ARRAY ['9046b041-58ed-47a3-9c3a-de302577875a']))`),
+			VariableConverter: regosql.NoACLConverter(),
+		},
+		{
 			Name: "TwoExpressions",
 			Queries: []string{
 				`true; true`,

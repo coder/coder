@@ -40,17 +40,6 @@ export const EnterpriseBadge: FC = () => {
   )
 }
 
-export const VersionBadge: FC<{
-  version: string
-}> = ({ version }) => {
-  const styles = useStyles()
-  return (
-    <span className={combineClasses([styles.badge, styles.versionBadge])}>
-      Version: {version}
-    </span>
-  )
-}
-
 export const Badges: FC<PropsWithChildren> = ({ children }) => {
   const styles = useStyles()
   return (

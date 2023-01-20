@@ -1,5 +1,5 @@
 import { FC, PropsWithChildren } from "react"
-import { Section } from "../../../components/Section/Section"
+import { Section } from "../../../components/SettingsLayout/Section"
 import { TokensPageView } from "./TokensPageView"
 import { tokensMachine } from "xServices/tokens/tokensXService"
 import { useMachine } from "@xstate/react"
@@ -22,10 +22,10 @@ export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
   const { getTokensError, tokens, deleteTokenId } = tokensState.context
   const styles = useStyles()
   const description = (
-    <p>
+    <>
       {Language.descriptionPrefix}{" "}
       <code className={styles.code}>coder tokens create</code> command.
-    </p>
+    </>
   )
 
   const content = (

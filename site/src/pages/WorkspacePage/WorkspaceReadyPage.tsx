@@ -1,7 +1,8 @@
-import { useActor, useSelector } from "@xstate/react"
-import { FeatureNames } from "api/types"
+import { useActor } from "@xstate/react"
+import { useDashboard } from "components/Dashboard/DashboardProvider"
 import dayjs from "dayjs"
-import { useContext, useEffect } from "react"
+import { useFeatureVisibility } from "hooks/useFeatureVisibility"
+import { useEffect } from "react"
 import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
@@ -11,7 +12,6 @@ import {
   getMaxDeadlineChange,
   getMinDeadline,
 } from "util/schedule"
-import { selectFeatureVisibility } from "xServices/entitlements/entitlementsSelectors"
 import { quotaMachine } from "xServices/quotas/quotasXService"
 import { StateFrom } from "xstate"
 import { DeleteDialog } from "../../components/Dialogs/DeleteDialog/DeleteDialog"
@@ -21,7 +21,6 @@ import {
 } from "../../components/Workspace/Workspace"
 import { pageTitle } from "../../util/page"
 import { getFaviconByStatus } from "../../util/workspace"
-import { XServiceContext } from "../../xServices/StateContext"
 import {
   WorkspaceEvent,
   workspaceMachine,
@@ -41,16 +40,8 @@ export const WorkspaceReadyPage = ({
   const [_, bannerSend] = useActor(
     workspaceState.children["scheduleBannerMachine"],
   )
-  const xServices = useContext(XServiceContext)
-  const experimental = useSelector(
-    xServices.entitlementsXService,
-    (state) => state.context.entitlements.experimental,
-  )
-  const featureVisibility = useSelector(
-    xServices.entitlementsXService,
-    selectFeatureVisibility,
-  )
-  const [buildInfoState] = useActor(xServices.buildInfoXService)
+  const { buildInfo } = useDashboard()
+  const featureVisibility = useFeatureVisibility()
   const {
     workspace,
     template,
@@ -123,17 +114,15 @@ export const WorkspaceReadyPage = ({
         resources={workspace.latest_build.resources}
         builds={builds}
         canUpdateWorkspace={canUpdateWorkspace}
-        hideSSHButton={featureVisibility[FeatureNames.BrowserOnly]}
-        hideVSCodeDesktopButton={
-          !experimental || featureVisibility[FeatureNames.BrowserOnly]
-        }
+        hideSSHButton={featureVisibility["browser_only"]}
+        hideVSCodeDesktopButton={featureVisibility["browser_only"]}
         workspaceErrors={{
           [WorkspaceErrors.GET_RESOURCES_ERROR]: refreshWorkspaceWarning,
           [WorkspaceErrors.GET_BUILDS_ERROR]: getBuildsError,
           [WorkspaceErrors.BUILD_ERROR]: buildError,
           [WorkspaceErrors.CANCELLATION_ERROR]: cancellationError,
         }}
-        buildInfo={buildInfoState.context.buildInfo}
+        buildInfo={buildInfo}
         applicationsHost={applicationsHost}
         template={template}
         quota_budget={quotaState.context.quota?.budget}

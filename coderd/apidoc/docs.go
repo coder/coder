@@ -387,6 +387,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/experiments": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Get experiments",
+                "operationId": "get-experiments",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/files": {
             "post": {
                 "security": [
@@ -5710,6 +5738,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.DangerousConfig": {
+            "type": "object",
+            "properties": {
+                "allow_path_app_sharing": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
+                "allow_path_app_site_owner_access": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                }
+            }
+        },
         "codersdk.DeploymentConfig": {
             "type": "object",
             "properties": {
@@ -5742,11 +5781,25 @@ const docTemplate = `{
                 "cache_directory": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
                 },
+                "dangerous": {
+                    "$ref": "#/definitions/codersdk.DangerousConfig"
+                },
                 "derp": {
                     "$ref": "#/definitions/codersdk.DERP"
                 },
-                "experimental": {
+                "disable_path_apps": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
+                "experimental": {
+                    "description": "DEPRECATED: Use Experiments instead.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                        }
+                    ]
+                },
+                "experiments": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
                 },
                 "gitauth": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-array_codersdk_GitAuthConfig"
@@ -6049,6 +6102,7 @@ const docTemplate = `{
                     }
                 },
                 "experimental": {
+                    "description": "DEPRECATED: use Experiments instead.",
                     "type": "boolean"
                 },
                 "features": {
