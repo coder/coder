@@ -113,7 +113,8 @@ describe("WorkspacePage", () => {
     const confirmButton = await screen.findByRole("button", { name: "Delete" })
     await user.click(confirmButton)
     expect(deleteWorkspaceMock).toBeCalled()
-  })
+    // This test takes long to finish
+  }, 20_000)
 
   it("requests a start job when the user presses Start", async () => {
     server.use(

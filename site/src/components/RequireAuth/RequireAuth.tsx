@@ -1,14 +1,12 @@
-import { useActor } from "@xstate/react"
-import { useContext, FC } from "react"
+import { useAuth } from "components/AuthProvider/AuthProvider"
+import { FC } from "react"
 import { Navigate, useLocation } from "react-router"
 import { Outlet } from "react-router-dom"
 import { embedRedirect } from "../../util/redirect"
-import { XServiceContext } from "../../xServices/StateContext"
 import { FullScreenLoader } from "../Loader/FullScreenLoader"
 
 export const RequireAuth: FC = () => {
-  const xServices = useContext(XServiceContext)
-  const [authState] = useActor(xServices.authXService)
+  const [authState] = useAuth()
   const location = useLocation()
   const isHomePage = location.pathname === "/"
   const navigateTo = isHomePage ? "/login" : embedRedirect(location.pathname)

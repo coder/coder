@@ -1,12 +1,10 @@
-import { useSelector } from "@xstate/react"
 import { User } from "api/typesGenerated"
-import { useContext } from "react"
+import { useAuth } from "components/AuthProvider/AuthProvider"
 import { selectUser } from "xServices/auth/authSelectors"
-import { XServiceContext } from "xServices/StateContext"
 
 export const useMe = (): User => {
-  const xServices = useContext(XServiceContext)
-  const me = useSelector(xServices.authXService, selectUser)
+  const [authState] = useAuth()
+  const me = selectUser(authState)
 
   if (!me) {
     throw new Error("User not found.")

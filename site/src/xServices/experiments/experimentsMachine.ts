@@ -20,9 +20,6 @@ export const experimentsMachine = createMachine(
         }
       },
     },
-    context: {
-      experiments: undefined,
-    },
     initial: "gettingExperiments",
     states: {
       gettingExperiments: {
