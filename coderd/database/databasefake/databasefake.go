@@ -132,13 +132,12 @@ type data struct {
 }
 
 func validateDatabaseTypeWithValid(v reflect.Value) (handled bool, err error) {
+	if v.Kind() == reflect.Struct {
+		return false, nil
+	}
+
 	if v.CanInterface() {
 		if !strings.Contains(v.Type().PkgPath(), "coderd/database") {
-			return true, nil
-		}
-		// Note: database.Null* types don't have a Valid method, so
-		// let's always skip them just in case.
-		if strings.HasPrefix(v.Type().Name(), "Null") {
 			return true, nil
 		}
 		if valid, ok := v.Interface().(interface{ Valid() bool }); ok {
@@ -173,9 +172,9 @@ func validateDatabaseType(args interface{}) error {
 	if ok, err := validateDatabaseTypeWithValid(v); ok {
 		return err
 	}
-	var errs []string
 	switch v.Kind() {
 	case reflect.Struct:
+		var errs []string
 		for i := 0; i < v.NumField(); i++ {
 			field := v.Field(i)
 			if ok, err := validateDatabaseTypeWithValid(field); ok && err != nil {
