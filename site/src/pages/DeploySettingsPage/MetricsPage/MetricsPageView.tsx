@@ -1,6 +1,7 @@
 import { DeploymentDAUsResponse } from "api/typesGenerated"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { DAUChart } from "components/DAUChart/DAUChart"
+import { Header } from "components/DeploySettingsLayout/Header"
 import { Stack } from "components/Stack/Stack"
 
 export interface MetricsPageViewProps {
@@ -14,6 +15,9 @@ export const MetricsPageView = ({
 }: MetricsPageViewProps): JSX.Element => {
   return (
     <Stack>
+      <Header
+        title="Metrics"
+      />
       {Boolean(getDeploymentDAUsError) && (
         <AlertBanner error={getDeploymentDAUsError} severity="error" />
       )}

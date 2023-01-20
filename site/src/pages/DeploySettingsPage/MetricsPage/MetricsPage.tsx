@@ -9,7 +9,7 @@ const MetricsPage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle("General Settings")}</title>
+        <title>{pageTitle("Metrics")}</title>
       </Helmet>
       <MetricsPageView
         deploymentDAUs={deploymentDAUs}
