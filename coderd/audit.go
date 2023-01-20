@@ -182,6 +182,7 @@ func (api *API) convertAuditLogs(ctx context.Context, dblogs []database.GetAudit
 type AdditionalFields struct {
 	WorkspaceName string
 	BuildNumber   string
+	BuildReason   string
 }
 
 func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
@@ -219,6 +220,7 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 		resourceInfo := map[string]string{
 			"workspaceName": "unknown",
 			"buildNumber":   "unknown",
+			"buildReason":   "unknown",
 		}
 		dblog.AdditionalFields, err = json.Marshal(resourceInfo)
 		api.Logger.Error(ctx, "marshal additional fields", slog.Error(err))
@@ -262,8 +264,8 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow, additionalFields A
 	)
 
 	// Strings for starting/stopping workspace builds follow the below format:
-	// "{user} started build #{build_number} for workspace {target}"
-	// where target is a workspace instead of a workspace build
+	// "{user | 'Coder automatically'} started build #{build_number} for workspace {target}"
+	// where target is a workspace (name) instead of a workspace build
 	// passed in on the FE via AuditLog.AdditionalFields rather than derived in request.go:35
 	if alog.ResourceType == database.ResourceTypeWorkspaceBuild && alog.Action != database.AuditActionDelete {
 		if len(additionalFields.BuildNumber) == 0 {

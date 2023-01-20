@@ -549,6 +549,7 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 				buildResourceInfo := map[string]string{
 					"workspaceName": workspace.Name,
 					"buildNumber":   strconv.FormatInt(int64(build.BuildNumber), 10),
+					"buildReason":   fmt.Sprintf("%v", build.Reason),
 				}
 
 				wriBytes, err := json.Marshal(buildResourceInfo)
@@ -798,6 +799,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			buildResourceInfo := map[string]string{
 				"workspaceName": workspace.Name,
 				"buildNumber":   strconv.FormatInt(int64(workspaceBuild.BuildNumber), 10),
+				"buildReason":   fmt.Sprintf("%v", workspaceBuild.Reason),
 			}
 
 			wriBytes, err := json.Marshal(buildResourceInfo)
