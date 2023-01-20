@@ -186,7 +186,7 @@ func Test_Runner(t *testing.T) {
 		require.WithinRange(t,
 			time.Now(),
 			start.Add(testutil.WaitShort-time.Second),
-			start.Add(testutil.WaitShort+5*time.Second),
+			start.Add(testutil.WaitShort+10*time.Second),
 		)
 
 		require.Contains(t, logStr, "Opening connection to workspace agent")

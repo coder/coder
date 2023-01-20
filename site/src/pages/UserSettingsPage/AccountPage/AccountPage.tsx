@@ -1,16 +1,14 @@
-import { useActor } from "@xstate/react"
-import { FC, useContext } from "react"
+import { FC } from "react"
 import { Section } from "../../../components/SettingsLayout/Section"
 import { AccountForm } from "../../../components/SettingsAccountForm/SettingsAccountForm"
-import { XServiceContext } from "../../../xServices/StateContext"
+import { useAuth } from "components/AuthProvider/AuthProvider"
 
 export const Language = {
   title: "Account",
 }
 
 export const AccountPage: FC = () => {
-  const xServices = useContext(XServiceContext)
-  const [authState, authSend] = useActor(xServices.authXService)
+  const [authState, authSend] = useAuth()
   const { me, permissions, updateProfileError } = authState.context
   const canEditUsers = permissions && permissions.updateUsers
 

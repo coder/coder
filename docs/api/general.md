@@ -171,6 +171,30 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
     "usage": "string",
     "value": "string"
   },
+  "dangerous": {
+    "allow_path_app_sharing": {
+      "default": true,
+      "enterprise": true,
+      "flag": "string",
+      "hidden": true,
+      "name": "string",
+      "secret": true,
+      "shorthand": "string",
+      "usage": "string",
+      "value": true
+    },
+    "allow_path_app_site_owner_access": {
+      "default": true,
+      "enterprise": true,
+      "flag": "string",
+      "hidden": true,
+      "name": "string",
+      "secret": true,
+      "shorthand": "string",
+      "usage": "string",
+      "value": true
+    }
+  },
   "derp": {
     "config": {
       "path": {
@@ -264,6 +288,17 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
         "value": ["string"]
       }
     }
+  },
+  "disable_path_apps": {
+    "default": true,
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": true
   },
   "experimental": {
     "default": true,

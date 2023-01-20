@@ -1159,6 +1159,42 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `relay_url`      | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
 | `stun_addresses` | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string) | false    |              |             |
 
+## codersdk.DangerousConfig
+
+```json
+{
+  "allow_path_app_sharing": {
+    "default": true,
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": true
+  },
+  "allow_path_app_site_owner_access": {
+    "default": true,
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": true
+  }
+}
+```
+
+### Properties
+
+| Name                               | Type                                                                       | Required | Restrictions | Description |
+| ---------------------------------- | -------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `allow_path_app_sharing`           | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool) | false    |              |             |
+| `allow_path_app_site_owner_access` | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool) | false    |              |             |
+
 ## codersdk.DeploymentConfig
 
 ```json
@@ -1250,6 +1286,30 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "shorthand": "string",
     "usage": "string",
     "value": "string"
+  },
+  "dangerous": {
+    "allow_path_app_sharing": {
+      "default": true,
+      "enterprise": true,
+      "flag": "string",
+      "hidden": true,
+      "name": "string",
+      "secret": true,
+      "shorthand": "string",
+      "usage": "string",
+      "value": true
+    },
+    "allow_path_app_site_owner_access": {
+      "default": true,
+      "enterprise": true,
+      "flag": "string",
+      "hidden": true,
+      "name": "string",
+      "secret": true,
+      "shorthand": "string",
+      "usage": "string",
+      "value": true
+    }
   },
   "derp": {
     "config": {
@@ -1344,6 +1404,17 @@ CreateParameterRequest is a structure used to create a new parameter value for a
         "value": ["string"]
       }
     }
+  },
+  "disable_path_apps": {
+    "default": true,
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": true
   },
   "experimental": {
     "default": true,
@@ -2068,7 +2139,9 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `autobuild_poll_interval`            | [codersdk.DeploymentConfigField-time_Duration](#codersdkdeploymentconfigfield-time_duration)                               | false    |              |                                                 |
 | `browser_only`                       | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
 | `cache_directory`                    | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
+| `dangerous`                          | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                                                       | false    |              |                                                 |
 | `derp`                               | [codersdk.DERP](#codersdkderp)                                                                                             | false    |              |                                                 |
+| `disable_path_apps`                  | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
 | `experimental`                       | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              | Experimental Use Experiments instead.           |
 | `experiments`                        | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string)                                 | false    |              |                                                 |
 | `gitauth`                            | [codersdk.DeploymentConfigField-array_codersdk_GitAuthConfig](#codersdkdeploymentconfigfield-array_codersdk_gitauthconfig) | false    |              |                                                 |

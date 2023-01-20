@@ -110,7 +110,7 @@ func (c *committer) CommitQuota(
 func (api *API) workspaceQuota(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
-	if !api.AGPL.Authorize(r, rbac.ActionRead, rbac.ResourceUser) {
+	if !api.AGPL.Authorize(r, rbac.ActionRead, user) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}

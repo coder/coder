@@ -1066,6 +1066,22 @@ export const MockAuditLogWithDeletedResource: TypesGen.AuditLog = {
   is_deleted: true,
 }
 
+export const MockAuditLogGitSSH: TypesGen.AuditLog = {
+  ...MockAuditLog,
+  diff: {
+    private_key: {
+      old: "",
+      new: "",
+      secret: true,
+    },
+    public_key: {
+      old: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINRUPjBSNtOAnL22+r07OSu9t3Lnm8/5OX8bRHECKS9g\n",
+      new: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEwoUPJPMekuSzMZyV0rA82TGGNzw/Uj/dhLbwiczTpV\n",
+      secret: false,
+    },
+  },
+}
+
 export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
   credits_consumed: 0,
   budget: 100,

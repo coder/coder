@@ -112,7 +112,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				return xerrors.Errorf("TLS address must be set if TLS is enabled")
 			}
 			if !cfg.TLS.Enable.Value && cfg.HTTPAddress.Value == "" {
-				return xerrors.Errorf("either HTTP or TLS must be enabled")
+				return xerrors.Errorf("TLS is disabled. Enable with --tls-enable or specify a HTTP address")
 			}
 
 			// Disable rate limits if the `--dangerous-disable-rate-limits` flag

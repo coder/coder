@@ -143,14 +143,8 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 // @Router /users/{user}/keys/{keyid} [get]
 func (api *API) apiKey(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx  = r.Context()
-		user = httpmw.UserParam(r)
+		ctx = r.Context()
 	)
-
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceAPIKey.WithOwner(user.ID.String())) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	keyID := chi.URLParam(r, "keyid")
 	key, err := api.Database.GetAPIKeyByID(ctx, keyID)
@@ -163,6 +157,11 @@ func (api *API) apiKey(rw http.ResponseWriter, r *http.Request) {
 			Message: "Internal error fetching API key.",
 			Detail:  err.Error(),
 		})
+		return
+	}
+
+	if !api.Authorize(r, rbac.ActionRead, key) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -179,14 +178,8 @@ func (api *API) apiKey(rw http.ResponseWriter, r *http.Request) {
 // @Router /users/{user}/keys/tokens [get]
 func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx  = r.Context()
-		user = httpmw.UserParam(r)
+		ctx = r.Context()
 	)
-
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceAPIKey.WithOwner(user.ID.String())) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	keys, err := api.Database.GetAPIKeysByLoginType(ctx, database.LoginTypeToken)
 	if err != nil {
@@ -197,7 +190,16 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	apiKeys := []codersdk.APIKey{}
+	keys, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, keys)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching keys.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	var apiKeys []codersdk.APIKey
 	for _, key := range keys {
 		apiKeys = append(apiKeys, convertAPIKey(key))
 	}
@@ -215,16 +217,16 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 // @Router /users/{user}/keys/{keyid} [delete]
 func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx  = r.Context()
-		user = httpmw.UserParam(r)
+		ctx   = r.Context()
+		user  = httpmw.UserParam(r)
+		keyID = chi.URLParam(r, "keyid")
 	)
 
-	if !api.Authorize(r, rbac.ActionDelete, rbac.ResourceAPIKey.WithOwner(user.ID.String())) {
+	if !api.Authorize(r, rbac.ActionDelete, rbac.ResourceAPIKey.WithIDString(keyID).WithOwner(user.ID.String())) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
 
-	keyID := chi.URLParam(r, "keyid")
 	err := api.Database.DeleteAPIKeyByID(ctx, keyID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.ResourceNotFound(rw)
