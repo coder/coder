@@ -113,10 +113,10 @@ coder:
         - podAffinityTerm:
             labelSelector:
               matchExpressions:
-                - key: app.kubernetes.io/instance
+                - key: app.coder.com
                   operator: In
                   values:
-                    - "coder"
+                    - "true"
             topologyKey: kubernetes.io/hostname
           weight: 1
 
