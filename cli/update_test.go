@@ -155,7 +155,7 @@ func TestUpdateWithRichParameters(t *testing.T) {
 		secondParameterValue       = "2"
 
 		immutableParameterName        = "immutable_parameter"
-		immutableParameterDescription = "This is mutable parameter"
+		immutableParameterDescription = "This is not mutable parameter"
 		immutableParameterValue       = "3"
 	)
 

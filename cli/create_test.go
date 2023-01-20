@@ -333,8 +333,8 @@ func TestCreateWithRichParameters(t *testing.T) {
 		secondParameterDescription = "This is second parameter"
 		secondParameterValue       = "2"
 
-		immutableParameterName        = "immutable_parameter"
-		immutableParameterDescription = "This is mutable parameter"
+		immutableParameterName        = "third_parameter"
+		immutableParameterDescription = "This is not mutable parameter"
 		immutableParameterValue       = "3"
 	)
 
