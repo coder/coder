@@ -11,6 +11,7 @@ import { ServiceBanner } from "components/ServiceBanner/ServiceBanner"
 import { updateCheckMachine } from "xServices/updateCheck/updateCheckXService"
 import { usePermissions } from "hooks/usePermissions"
 import { UpdateCheckResponse } from "api/typesGenerated"
+import { DashboardProvider } from "./DashboardProvider"
 
 export const DashboardLayout: FC = () => {
   const styles = useStyles()
@@ -23,7 +24,7 @@ export const DashboardLayout: FC = () => {
   const { error: updateCheckError, updateCheck } = updateCheckState.context
 
   return (
-    <>
+    <DashboardProvider>
       <ServiceBanner />
       <LicenseBanner />
 
@@ -50,7 +51,7 @@ export const DashboardLayout: FC = () => {
           </Suspense>
         </div>
       </div>
-    </>
+    </DashboardProvider>
   )
 }
 

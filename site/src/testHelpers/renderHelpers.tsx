@@ -5,6 +5,8 @@ import {
   screen,
   waitForElementToBeRemoved,
 } from "@testing-library/react"
+import { AuthProvider } from "components/AuthProvider/AuthProvider"
+import { DashboardLayout } from "components/Dashboard/DashboardLayout"
 import { createMemoryHistory } from "history"
 import { i18n } from "i18n"
 import { FC, ReactElement } from "react"
@@ -18,7 +20,6 @@ import {
 } from "react-router-dom"
 import { RequireAuth } from "../components/RequireAuth/RequireAuth"
 import { dark } from "../theme"
-import { XServiceProvider } from "../xServices/StateContext"
 import { MockUser } from "./entities"
 
 export const history = createMemoryHistory()
@@ -28,11 +29,11 @@ export const WrapperComponent: FC<React.PropsWithChildren<unknown>> = ({
 }) => {
   return (
     <HelmetProvider>
-      <HistoryRouter history={history}>
-        <XServiceProvider>
-          <ThemeProvider theme={dark}>{children}</ThemeProvider>
-        </XServiceProvider>
-      </HistoryRouter>
+      <ThemeProvider theme={dark}>
+        <HistoryRouter history={history}>
+          <AuthProvider>{children}</AuthProvider>
+        </HistoryRouter>
+      </ThemeProvider>
     </HelmetProvider>
   )
 }
@@ -59,20 +60,22 @@ export function renderWithAuth(
 ): RenderWithAuthResult {
   const renderResult = wrappedRender(
     <HelmetProvider>
-      <MemoryRouter initialEntries={[route]}>
-        <XServiceProvider>
-          <I18nextProvider i18n={i18n}>
-            <ThemeProvider theme={dark}>
+      <I18nextProvider i18n={i18n}>
+        <ThemeProvider theme={dark}>
+          <AuthProvider>
+            <MemoryRouter initialEntries={[route]}>
               <Routes>
                 <Route element={<RequireAuth />}>
-                  <Route path={path ?? route} element={ui} />
+                  <Route element={<DashboardLayout />}>
+                    <Route path={path ?? route} element={ui} />
+                  </Route>
                 </Route>
                 {routes}
               </Routes>
-            </ThemeProvider>
-          </I18nextProvider>
-        </XServiceProvider>
-      </MemoryRouter>
+            </MemoryRouter>
+          </AuthProvider>
+        </ThemeProvider>
+      </I18nextProvider>
     </HelmetProvider>,
   )
 

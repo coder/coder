@@ -138,8 +138,7 @@ func (api *API) fileByID(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !api.Authorize(r, rbac.ActionRead,
-		rbac.ResourceFile.WithOwner(file.CreatedBy.String())) {
+	if !api.Authorize(r, rbac.ActionRead, file) {
 		// Return 404 to not leak the file exists
 		httpapi.ResourceNotFound(rw)
 		return

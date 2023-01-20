@@ -2,6 +2,10 @@ package regosql
 
 import "github.com/coder/coder/coderd/rbac/regosql/sqltypes"
 
+func resourceIDMatcher() sqltypes.VariableMatcher {
+	return sqltypes.StringVarMatcher("id :: text", []string{"input", "object", "id"})
+}
+
 func organizationOwnerMatcher() sqltypes.VariableMatcher {
 	return sqltypes.StringVarMatcher("organization_id :: text", []string{"input", "object", "org_owner"})
 }
@@ -20,6 +24,7 @@ func userACLMatcher(m sqltypes.VariableMatcher) sqltypes.VariableMatcher {
 
 func TemplateConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
+		resourceIDMatcher(),
 		organizationOwnerMatcher(),
 		// Templates have no user owner, only owner by an organization.
 		sqltypes.AlwaysFalse(userOwnerMatcher()),
@@ -35,6 +40,7 @@ func TemplateConverter() *sqltypes.VariableConverter {
 // group or user ACL columns.
 func NoACLConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
+		resourceIDMatcher(),
 		organizationOwnerMatcher(),
 		userOwnerMatcher(),
 	)
@@ -48,6 +54,7 @@ func NoACLConverter() *sqltypes.VariableConverter {
 
 func DefaultVariableConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
+		resourceIDMatcher(),
 		organizationOwnerMatcher(),
 		userOwnerMatcher(),
 	)

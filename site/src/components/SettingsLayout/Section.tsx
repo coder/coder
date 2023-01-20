@@ -75,5 +75,6 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.secondary,
     fontSize: 16,
     marginTop: theme.spacing(0.5),
+    lineHeight: "140%",
   },
 }))

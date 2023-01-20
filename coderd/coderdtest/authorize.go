@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/coder/coder/coderd/database/databasefake"
 
@@ -32,9 +33,10 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 	_, isMemoryDB := a.api.Database.(databasefake.FakeDatabase)
 
 	// Some quick reused objects
-	workspaceRBACObj := rbac.ResourceWorkspace.InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
-	workspaceExecObj := rbac.ResourceWorkspaceExecution.InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
-	applicationConnectObj := rbac.ResourceWorkspaceApplicationConnect.InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
+	workspaceRBACObj := rbac.ResourceWorkspace.WithID(a.Workspace.ID).InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
+	workspaceExecObj := rbac.ResourceWorkspaceExecution.WithID(a.Workspace.ID).InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
+	applicationConnectObj := rbac.ResourceWorkspaceApplicationConnect.WithID(a.Workspace.ID).InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
+	templateObj := rbac.ResourceTemplate.WithID(a.Template.ID).InOrg(a.Template.OrganizationID)
 
 	// skipRoutes allows skipping routes from being checked.
 	skipRoutes := map[string]string{
@@ -48,6 +50,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"GET:/healthz":                  {NoAuthorize: true},
 		"GET:/api/v2":                   {NoAuthorize: true},
 		"GET:/api/v2/buildinfo":         {NoAuthorize: true},
+		"GET:/api/v2/experiments":       {NoAuthorize: true}, // This route requires AuthN, but not AuthZ.
 		"GET:/api/v2/updatecheck":       {NoAuthorize: true},
 		"GET:/api/v2/users/first":       {NoAuthorize: true},
 		"POST:/api/v2/users/first":      {NoAuthorize: true},
@@ -74,7 +77,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"POST:/api/v2/workspaceagents/me/report-stats":          {NoAuthorize: true},
 
 		// These endpoints have more assertions. This is good, add more endpoints to assert if you can!
-		"GET:/api/v2/organizations/{organization}": {AssertObject: rbac.ResourceOrganization.InOrg(a.Admin.OrganizationID)},
+		"GET:/api/v2/organizations/{organization}": {AssertObject: rbac.ResourceOrganization.WithID(a.Admin.OrganizationID).InOrg(a.Admin.OrganizationID)},
 		"GET:/api/v2/users/{user}/organizations":   {StatusCode: http.StatusOK, AssertObject: rbac.ResourceOrganization},
 		"GET:/api/v2/users/{user}/workspace/{workspacename}": {
 			AssertObject: rbac.ResourceWorkspace,
@@ -82,6 +85,15 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		},
 		"GET:/api/v2/users/{user}/workspace/{workspacename}/builds/{buildnumber}": {
 			AssertObject: rbac.ResourceWorkspace,
+			AssertAction: rbac.ActionRead,
+		},
+		"GET:/api/v2/users/{user}/keys/tokens": {
+			AssertObject: rbac.ResourceAPIKey,
+			AssertAction: rbac.ActionRead,
+			StatusCode:   http.StatusOK,
+		},
+		"GET:/api/v2/users/{user}/keys/{keyid}": {
+			AssertObject: rbac.ResourceAPIKey,
 			AssertAction: rbac.ActionRead,
 		},
 		"GET:/api/v2/workspacebuilds/{workspacebuild}": {
@@ -138,11 +150,11 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		},
 		"DELETE:/api/v2/templates/{template}": {
 			AssertAction: rbac.ActionDelete,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"GET:/api/v2/templates/{template}": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"POST:/api/v2/files": {AssertAction: rbac.ActionCreate, AssertObject: rbac.ResourceFile},
 		"GET:/api/v2/files/{fileID}": {
@@ -151,64 +163,64 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		},
 		"GET:/api/v2/templates/{template}/versions": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"PATCH:/api/v2/templates/{template}/versions": {
 			AssertAction: rbac.ActionUpdate,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"GET:/api/v2/templates/{template}/versions/{templateversionname}": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"GET:/api/v2/templateversions/{templateversion}": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"PATCH:/api/v2/templateversions/{templateversion}/cancel": {
 			AssertAction: rbac.ActionUpdate,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"GET:/api/v2/templateversions/{templateversion}/logs": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"GET:/api/v2/templateversions/{templateversion}/parameters": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"GET:/api/v2/templateversions/{templateversion}/rich-parameters": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"GET:/api/v2/templateversions/{templateversion}/resources": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"GET:/api/v2/templateversions/{templateversion}/schema": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"POST:/api/v2/templateversions/{templateversion}/dry-run": {
 			// The first check is to read the template
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Version.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"GET:/api/v2/templateversions/{templateversion}/dry-run/{jobID}": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Version.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"GET:/api/v2/templateversions/{templateversion}/dry-run/{jobID}/resources": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Version.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"GET:/api/v2/templateversions/{templateversion}/dry-run/{jobID}/logs": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Version.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"PATCH:/api/v2/templateversions/{templateversion}/dry-run/{jobID}/cancel": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Version.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"POST:/api/v2/parameters/{scope}/{id}": {
 			AssertAction: rbac.ActionUpdate,
@@ -224,7 +236,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		},
 		"GET:/api/v2/organizations/{organization}/templates/{templatename}": {
 			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceTemplate.InOrg(a.Template.OrganizationID),
+			AssertObject: templateObj,
 		},
 		"POST:/api/v2/organizations/{organization}/members/{user}/workspaces": {
 			AssertAction: rbac.ActionCreate,
@@ -316,6 +328,15 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 	if !ok {
 		t.Fail()
 	}
+	_, err := client.CreateToken(ctx, admin.UserID.String(), codersdk.CreateTokenRequest{
+		Lifetime: time.Hour,
+		Scope:    codersdk.APIKeyScopeAll,
+	})
+	require.NoError(t, err, "create token")
+
+	apiKeys, err := client.GetTokens(ctx, admin.UserID.String())
+	require.NoError(t, err, "get tokens")
+	apiKey := apiKeys[0]
 
 	organization, err := client.Organization(ctx, admin.OrganizationID)
 	require.NoError(t, err, "fetch org")
@@ -382,6 +403,7 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 		"{jobID}":               templateVersionDryRun.ID.String(),
 		"{templatename}":        template.Name,
 		"{workspace_and_agent}": workspace.Name + "." + workspace.LatestBuild.Resources[0].Agents[0].Name,
+		"{keyid}":               apiKey.ID,
 		// Only checking template scoped params here
 		"parameters/{scope}/{id}": fmt.Sprintf("parameters/%s/%s",
 			string(templateParam.Scope), templateParam.ScopeID.String()),
@@ -506,7 +528,7 @@ type authCall struct {
 	SubjectID string
 	Roles     []string
 	Groups    []string
-	Scope     rbac.Scope
+	Scope     rbac.ScopeName
 	Action    rbac.Action
 	Object    rbac.Object
 }
@@ -520,11 +542,11 @@ var _ rbac.Authorizer = (*RecordingAuthorizer)(nil)
 
 // ByRoleNameSQL does not record the call. This matches the postgres behavior
 // of not calling Authorize()
-func (r *RecordingAuthorizer) ByRoleNameSQL(_ context.Context, _ string, _ []string, _ rbac.Scope, _ []string, _ rbac.Action, _ rbac.Object) error {
+func (r *RecordingAuthorizer) ByRoleNameSQL(_ context.Context, _ string, _ []string, _ rbac.ScopeName, _ []string, _ rbac.Action, _ rbac.Object) error {
 	return r.AlwaysReturn
 }
 
-func (r *RecordingAuthorizer) ByRoleName(_ context.Context, subjectID string, roleNames []string, scope rbac.Scope, groups []string, action rbac.Action, object rbac.Object) error {
+func (r *RecordingAuthorizer) ByRoleName(_ context.Context, subjectID string, roleNames []string, scope rbac.ScopeName, groups []string, action rbac.Action, object rbac.Object) error {
 	r.Called = &authCall{
 		SubjectID: subjectID,
 		Roles:     roleNames,
@@ -536,7 +558,7 @@ func (r *RecordingAuthorizer) ByRoleName(_ context.Context, subjectID string, ro
 	return r.AlwaysReturn
 }
 
-func (r *RecordingAuthorizer) PrepareByRoleName(_ context.Context, subjectID string, roles []string, scope rbac.Scope, groups []string, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
+func (r *RecordingAuthorizer) PrepareByRoleName(_ context.Context, subjectID string, roles []string, scope rbac.ScopeName, groups []string, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
 	return &fakePreparedAuthorizer{
 		Original:           r,
 		SubjectID:          subjectID,
@@ -556,7 +578,7 @@ type fakePreparedAuthorizer struct {
 	Original            *RecordingAuthorizer
 	SubjectID           string
 	Roles               []string
-	Scope               rbac.Scope
+	Scope               rbac.ScopeName
 	Action              rbac.Action
 	Groups              []string
 	HardCodedSQLString  string

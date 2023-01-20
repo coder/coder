@@ -1,3 +1,5 @@
+//go:build !slim
+
 package cli
 
 import (
@@ -110,7 +112,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				return xerrors.Errorf("TLS address must be set if TLS is enabled")
 			}
 			if !cfg.TLS.Enable.Value && cfg.HTTPAddress.Value == "" {
-				return xerrors.Errorf("either HTTP or TLS must be enabled")
+				return xerrors.Errorf("TLS is disabled. Enable with --tls-enable or specify a HTTP address")
 			}
 
 			// Disable rate limits if the `--dangerous-disable-rate-limits` flag
@@ -1368,29 +1370,6 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, al
 			return team, err
 		},
 	}, nil
-}
-
-func serveHandler(ctx context.Context, logger slog.Logger, handler http.Handler, addr, name string) (closeFunc func()) {
-	logger.Debug(ctx, "http server listening", slog.F("addr", addr), slog.F("name", name))
-
-	// ReadHeaderTimeout is purposefully not enabled. It caused some issues with
-	// websockets over the dev tunnel.
-	// See: https://github.com/coder/coder/pull/3730
-	//nolint:gosec
-	srv := &http.Server{
-		Addr:    addr,
-		Handler: handler,
-	}
-	go func() {
-		err := srv.ListenAndServe()
-		if err != nil && !xerrors.Is(err, http.ErrServerClosed) {
-			logger.Error(ctx, "http server listen", slog.F("name", name), slog.Error(err))
-		}
-	}()
-
-	return func() {
-		_ = srv.Close()
-	}
 }
 
 // embeddedPostgresURL returns the URL for the embedded PostgreSQL deployment.

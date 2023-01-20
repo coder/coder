@@ -1,7 +1,5 @@
 # Templates
 
-> This page is incomplete, stay tuned.
-
 ## Create group for organization
 
 ### Code samples

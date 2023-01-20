@@ -249,6 +249,12 @@
           "icon_path": "./images/icons/plug.svg"
         },
         {
+          "title": "Scaling Coder",
+          "description": "Reference architecture and load testing tools",
+          "path": "./admin/scale.md",
+          "icon_path": "./images/icons/scale.svg"
+        },
+        {
           "title": "Audit Logs",
           "description": "Learn how to use Audit Logs in your Coder deployment",
           "path": "./admin/audit-logs.md",

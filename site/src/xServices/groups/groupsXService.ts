@@ -11,6 +11,7 @@ export const groupsMachine = createMachine(
     schema: {
       context: {} as {
         organizationId: string
+        shouldFetchGroups: boolean
         groups?: Group[]
       },
       services: {} as {
@@ -23,6 +24,7 @@ export const groupsMachine = createMachine(
     initial: "loading",
     states: {
       loading: {
+        always: [{ target: "idle", cond: "cantFetchGroups" }],
         invoke: {
           src: "loadGroups",
           onDone: {
@@ -39,6 +41,9 @@ export const groupsMachine = createMachine(
     },
   },
   {
+    guards: {
+      cantFetchGroups: ({ shouldFetchGroups }) => !shouldFetchGroups,
+    },
     services: {
       loadGroups: ({ organizationId }) => getGroups(organizationId),
     },

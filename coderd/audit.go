@@ -464,6 +464,8 @@ func resourceTypeFromString(resourceTypeString string) string {
 		return resourceTypeString
 	case codersdk.ResourceTypeAPIKey:
 		return resourceTypeString
+	case codersdk.ResourceTypeGroup:
+		return resourceTypeString
 	}
 	return ""
 }
@@ -475,6 +477,10 @@ func actionFromString(actionString string) string {
 	case codersdk.AuditActionWrite:
 		return actionString
 	case codersdk.AuditActionDelete:
+		return actionString
+	case codersdk.AuditActionStart:
+		return actionString
+	case codersdk.AuditActionStop:
 		return actionString
 	default:
 	}

@@ -1,6 +1,7 @@
 {
   "action": "never-match-action",
   "object": {
+    "id": "9046b041-58ed-47a3-9c3a-de302577875a",
     "owner": "00000000-0000-0000-0000-000000000000",
     "org_owner": "bf7b72bd-a2b1-4ef2-962c-1d698e0483f6",
     "type": "workspace",
@@ -24,7 +25,8 @@
         }
       ],
       "org": {},
-      "user": []
+      "user": [],
+      "allow_list": ["*"]
     }
   }
 }

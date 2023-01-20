@@ -1,7 +1,5 @@
 # Audit
 
-> This page is incomplete, stay tuned.
-
 ## Get audit logs
 
 ### Code samples

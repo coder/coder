@@ -1,21 +1,14 @@
-import data from "@emoji-mart/data/sets/14/twitter.json"
-import Picker from "@emoji-mart/react"
-import Button from "@material-ui/core/Button"
-import InputAdornment from "@material-ui/core/InputAdornment"
-import Popover from "@material-ui/core/Popover"
-import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
 import { Group } from "api/typesGenerated"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
-import { OpenDropdown } from "components/DropdownArrows/DropdownArrows"
 import { FormFooter } from "components/FormFooter/FormFooter"
 import { FullPageForm } from "components/FullPageForm/FullPageForm"
-import { FullScreenLoader } from "components/Loader/FullScreenLoader"
+import { Loader } from "components/Loader/Loader"
+import { LazyIconField } from "components/IconField/LazyIconField"
 import { Margins } from "components/Margins/Margins"
 import { useFormik } from "formik"
-import { useRef, useState, FC } from "react"
+import { FC } from "react"
 import { useTranslation } from "react-i18next"
-import { colors } from "theme/colors"
 import { getFormHelpers, nameValidator, onChangeTrimmed } from "util/formUtils"
 import * as Yup from "yup"
 
@@ -37,7 +30,6 @@ const UpdateGroupForm: FC<{
   onCancel: () => void
   isLoading: boolean
 }> = ({ group, errors, onSubmit, onCancel, isLoading }) => {
-  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false)
   const form = useFormik<FormData>({
     initialValues: {
       name: group.name,
@@ -48,9 +40,6 @@ const UpdateGroupForm: FC<{
     onSubmit,
   })
   const getFieldHelpers = getFormHelpers<FormData>(form, errors)
-  const hasIcon = form.values.avatar_url && form.values.avatar_url !== ""
-  const emojiButtonRef = useRef<HTMLButtonElement>(null)
-  const styles = useStyles()
   const { t } = useTranslation("common")
 
   return (
@@ -65,64 +54,15 @@ const UpdateGroupForm: FC<{
           label="Name"
           variant="outlined"
         />
-        <TextField
+
+        <LazyIconField
           {...getFieldHelpers("avatar_url")}
           onChange={onChangeTrimmed(form)}
-          autoFocus
           fullWidth
-          label="Icon"
+          label={t("form.fields.icon")}
           variant="outlined"
-          InputProps={{
-            endAdornment: hasIcon ? (
-              <InputAdornment position="end">
-                <img
-                  alt=""
-                  src={form.values.avatar_url}
-                  className={styles.adornment}
-                  // This prevent browser to display the ugly error icon if the
-                  // image path is wrong or user didn't finish typing the url
-                  onError={(e) => (e.currentTarget.style.display = "none")}
-                  onLoad={(e) => (e.currentTarget.style.display = "inline")}
-                />
-              </InputAdornment>
-            ) : undefined,
-          }}
+          onPickEmoji={(value) => form.setFieldValue("avatar_url", value)}
         />
-
-        <Button
-          fullWidth
-          ref={emojiButtonRef}
-          variant="outlined"
-          size="small"
-          endIcon={<OpenDropdown />}
-          onClick={() => {
-            setIsEmojiPickerOpen((v) => !v)
-          }}
-        >
-          {t("emojiPicker.select")}
-        </Button>
-
-        <Popover
-          id="emoji"
-          open={isEmojiPickerOpen}
-          anchorEl={emojiButtonRef.current}
-          onClose={() => {
-            setIsEmojiPickerOpen(false)
-          }}
-        >
-          <Picker
-            theme="dark"
-            data={data}
-            onEmojiSelect={(emojiData) => {
-              form
-                .setFieldValue("avatar_url", `/emojis/${emojiData.unified}.png`)
-                .catch((ex) => {
-                  console.error(ex)
-                })
-              setIsEmojiPickerOpen(false)
-            }}
-          />
-        </Popover>
 
         <TextField
           {...getFieldHelpers("quota_allowance")}
@@ -164,7 +104,7 @@ export const SettingsGroupPageView: FC<SettingsGroupPageViewProps> = ({
   return (
     <ChooseOne>
       <Cond condition={isLoading}>
-        <FullScreenLoader />
+        <Loader />
       </Cond>
 
       <Cond>
@@ -181,22 +121,5 @@ export const SettingsGroupPageView: FC<SettingsGroupPageViewProps> = ({
     </ChooseOne>
   )
 }
-
-const useStyles = makeStyles((theme) => ({
-  "@global": {
-    "em-emoji-picker": {
-      "--rgb-background": theme.palette.background.paper,
-      "--rgb-input": colors.gray[17],
-      "--rgb-color": colors.gray[4],
-    },
-  },
-  adornment: {
-    width: theme.spacing(3),
-    height: theme.spacing(3),
-  },
-  iconField: {
-    paddingBottom: theme.spacing(0.5),
-  },
-}))
 
 export default SettingsGroupPageView

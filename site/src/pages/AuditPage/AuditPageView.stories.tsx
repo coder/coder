@@ -16,6 +16,9 @@ export default {
     paginationRef: {
       defaultValue: createPaginationRef({ page: 1, limit: 25 }),
     },
+    isAuditLogVisible: {
+      defaultValue: true,
+    },
   },
 } as ComponentMeta<typeof AuditPageView>
 
@@ -43,6 +46,11 @@ NoLogs.args = {
   auditLogs: [],
   count: 0,
   isNonInitialPage: false,
+}
+
+export const NotVisible = Template.bind({})
+NotVisible.args = {
+  isAuditLogVisible: false,
 }
 
 export const AuditPageSmallViewport = Template.bind({})
