@@ -152,7 +152,7 @@ func validateDatabaseTypeWithValid(v reflect.Value) (handled bool, err error) {
 }
 
 // validateDatabaseType uses reflect to check if struct properties are types
-// with a Valid() bool fuction set. If so, call it and return an error
+// with a Valid() bool function set. If so, call it and return an error
 // if false.
 //
 // Note that we only check immediate values and struct fields. We do not
@@ -162,7 +162,7 @@ func validateDatabaseType(args interface{}) error {
 
 	// Note: database.Null* types don't have a Valid method, we skip them here
 	// because their embedded types may have a Valid method and we don't want
-	// to bother with checking both that tha Valid field is true and that the
+	// to bother with checking both that the Valid field is true and that the
 	// type it embeds validates to true. We would need to check:
 	//
 	//	dbNullEnum.Valid && dbNullEnum.Enum.Valid()
