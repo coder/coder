@@ -14,6 +14,8 @@ Create chart name and version as used by the chart label.
 
 {{/*
 Selector labels
+
+!!!!! DO NOT ADD ANY MORE SELECTORS. IT IS A BREAKING CHANGE !!!!!
 */}}
 {{- define "coder.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "coder.name" . }}
