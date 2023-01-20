@@ -20,42 +20,35 @@ func authorizedDelete[ObjectType rbac.Objecter, ArgumentType any,
 	fetchFunc Fetch,
 	deleteFunc Delete) Delete {
 
-	return authorizedFetchAndExecWithConverter(authorizer,
-		rbac.ActionDelete,
-		func(o ObjectType) rbac.Object {
-			return o.RBACObject()
-		}, fetchFunc, deleteFunc)
+	return authorizedFetchAndExec(authorizer,
+		rbac.ActionDelete, fetchFunc, deleteFunc)
 }
 
-func authorizedUpdate[ObjectType rbac.Objecter, ArgumentType any,
+func authorizedUpdate[ObjectType rbac.Objecter,
+	ArgumentType any,
 	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 	Exec func(ctx context.Context, arg ArgumentType) error](
 	// Arguments
 	authorizer rbac.Authorizer,
 	fetchFunc Fetch,
-	deleteFunc Exec) Exec {
+	updateExec Exec) Exec {
 
-	return authorizedFetchAndExecWithConverter(authorizer,
-		rbac.ActionUpdate,
-		func(o ObjectType) rbac.Object {
-			return o.RBACObject()
-		}, fetchFunc, deleteFunc)
+	return authorizedFetchAndExec(authorizer, rbac.ActionUpdate, fetchFunc, updateExec)
 }
 
 // authorizedFetchAndExecWithConverter uses authorizedFetchAndQueryWithConverter but
 // only cares about the error return type. SQL execs only return an error.
 // See authorizedFetchAndQueryWithConverter for more details.
-func authorizedFetchAndExecWithConverter[ObjectType any, ArgumentType any,
+func authorizedFetchAndExec[ObjectType rbac.Objecter, ArgumentType any,
 	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 	Exec func(ctx context.Context, arg ArgumentType) error](
 	// Arguments
 	authorizer rbac.Authorizer,
 	action rbac.Action,
-	objectToRBAC func(o ObjectType) rbac.Object,
 	fetchFunc Fetch,
 	execFunc Exec) Exec {
 
-	f := authorizedFetchAndQueryWithConverter(authorizer, action, objectToRBAC, fetchFunc, func(ctx context.Context, arg ArgumentType) (empty ObjectType, err error) {
+	f := authorizedFetchAndQuery(authorizer, action, fetchFunc, func(ctx context.Context, arg ArgumentType) (empty ObjectType, err error) {
 		return empty, execFunc(ctx, arg)
 	})
 	return func(ctx context.Context, arg ArgumentType) error {
@@ -64,26 +57,12 @@ func authorizedFetchAndExecWithConverter[ObjectType any, ArgumentType any,
 	}
 }
 
-// authorizedFetchAndQueryWithConverter is the same as authorizedFetchAndExecWithConverter
-// except it runs a query with 2 return values instead of an exec with 1 return values.
-// See authorizedFetchAndExecWithConverter
-
-// authorizedFetchAndQueryWithConverter is a generic function that wraps a database
-// query function with authorization. The returned function has the same arguments
-// as the database function.
-//
-// The function will always make a database.FetchObject before running the exec.
-//
-// TODO: In most cases the object is already fetched before calling the delete function.
-// A method should be implemented to preload the object on the context before calling
-// the delete function. This preload cache should be generic to cover more cases.
-func authorizedFetchAndQueryWithConverter[ObjectType any, ArgumentType any,
+func authorizedFetchAndQuery[ObjectType rbac.Objecter, ArgumentType any,
 	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 	Query func(ctx context.Context, arg ArgumentType) (ObjectType, error)](
 	// Arguments
 	authorizer rbac.Authorizer,
 	action rbac.Action,
-	objectToRbac func(o ObjectType) rbac.Object,
 	fetchFunc Fetch,
 	queryFunc Query) Query {
 
@@ -101,8 +80,7 @@ func authorizedFetchAndQueryWithConverter[ObjectType any, ArgumentType any,
 		}
 
 		// Authorize the action
-		rbacObject := objectToRbac(object)
-		err = authorizer.ByRoleName(ctx, act.ID.String(), act.Roles, act.Scope, act.Groups, action, rbacObject)
+		err = authorizer.ByRoleName(ctx, act.ID.String(), act.Roles, act.Scope, act.Groups, action, object.RBACObject())
 		if err != nil {
 			return empty, xerrors.Errorf("unauthorized: %w", err)
 		}
@@ -117,13 +95,10 @@ func authorizedFetch[ObjectType rbac.Objecter, ArgumentType any,
 	authorizer rbac.Authorizer,
 	fetchFunc Fetch) Fetch {
 
-	return authorizedQueryWithConverter(authorizer,
-		func(o ObjectType) rbac.Object {
-			return o.RBACObject()
-		}, fetchFunc)
+	return authorizedQuery(authorizer, rbac.ActionRead, fetchFunc)
 }
 
-// authorizedQueryWithConverter is a generic function that wraps a database
+// authorizedQuery is a generic function that wraps a database
 // query function (returns an object and an error) with authorization. The
 // returned function has the same arguments as the database function.
 //
@@ -133,11 +108,11 @@ func authorizedFetch[ObjectType rbac.Objecter, ArgumentType any,
 //
 // An optimized version of this could be written if the object's authz
 // subject properties are known by the caller.
-func authorizedQueryWithConverter[ArgumentType any, ObjectType any,
+func authorizedQuery[ArgumentType any, ObjectType rbac.Objecter,
 	DatabaseFunc func(ctx context.Context, arg ArgumentType) (ObjectType, error)](
 	// Arguments
 	authorizer rbac.Authorizer,
-	objectToRbac func(o ObjectType) rbac.Object,
+	action rbac.Action,
 	f DatabaseFunc) DatabaseFunc {
 
 	return func(ctx context.Context, arg ArgumentType) (empty ObjectType, err error) {
@@ -154,8 +129,7 @@ func authorizedQueryWithConverter[ArgumentType any, ObjectType any,
 		}
 
 		// Authorize the action
-		rbacObject := objectToRbac(object)
-		err = authorizer.ByRoleName(ctx, act.ID.String(), act.Roles, act.Scope, act.Groups, rbac.ActionRead, rbacObject)
+		err = authorizer.ByRoleName(ctx, act.ID.String(), act.Roles, act.Scope, act.Groups, action, object.RBACObject())
 		if err != nil {
 			return empty, xerrors.Errorf("unauthorized: %w", err)
 		}

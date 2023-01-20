@@ -110,13 +110,20 @@ func (q *AuthzQuerier) InsertTemplateVersionParameter(ctx context.Context, arg d
 }
 
 func (q *AuthzQuerier) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {
+	// TODO: Allow preloading template in ctx cache
+	tpl, err := q.database.GetTemplateByID(ctx, arg.ID)
+	if err != nil {
+		return database.Template{}, err
+	}
+
 	// UpdateTemplateACL uses the ActionCreate action. Only users that can create the template
 	// may update the ACL.
-	return authorizedFetchAndQueryWithConverter(q.authorizer, rbac.ActionCreate, func(o database.Template) rbac.Object {
-		return o.RBACObject()
-	}, func(ctx context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {
-		return q.database.GetTemplateByID(ctx, arg.ID)
-	}, q.database.UpdateTemplateACLByID)(ctx, arg)
+	err = q.authorizeContext(ctx, rbac.ActionCreate, tpl.RBACObject())
+	if err != nil {
+		return database.Template{}, err
+	}
+
+	return q.database.UpdateTemplateACLByID(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateTemplateActiveVersionByID(ctx context.Context, arg database.UpdateTemplateActiveVersionByIDParams) error {
