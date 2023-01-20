@@ -54,6 +54,10 @@ if [[ "$version" == "" ]]; then
 	version="$(execrelative ./version.sh)"
 fi
 
+# Our chart fails when built on non-tag versions since `+` characters are
+# invalid in labels, i.e. `0.15.0-devel+546a8931``.
+helm_version="${version//+/-}"
+
 if [[ "$output_path" == "" ]]; then
 	cdroot
 	mkdir -p build
@@ -72,8 +76,8 @@ cdroot
 cd ./helm
 log "--- Packaging helm chart for version $version ($output_path)"
 helm package \
-	--version "$version" \
-	--app-version "$version" \
+	--version "$helm_version" \
+	--app-version "$helm_version" \
 	--destination "$temp_dir" \
 	. 1>&2
 
