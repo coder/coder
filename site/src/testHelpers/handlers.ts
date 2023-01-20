@@ -10,6 +10,10 @@ export const handlers = [
     return res(ctx.status(200), ctx.json(M.MockTemplateDAUResponse))
   }),
 
+  rest.get("/api/v2/insights/daus", async (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockDeploymentDAUResponse))
+  }),
+
   // build info
   rest.get("/api/v2/buildinfo", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockBuildInfo))

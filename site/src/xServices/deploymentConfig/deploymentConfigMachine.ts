@@ -1,5 +1,5 @@
 import { getDeploymentConfig, getDeploymentDAUs } from "api/api"
-import { DeploymentConfig, TemplateDAUsResponse } from "api/typesGenerated"
+import { DeploymentConfig, DeploymentDAUsResponse } from "api/typesGenerated"
 import { createMachine, assign } from "xstate"
 
 export const deploymentConfigMachine = createMachine(
@@ -11,7 +11,7 @@ export const deploymentConfigMachine = createMachine(
       context: {} as {
         deploymentConfig?: DeploymentConfig
         getDeploymentConfigError?: unknown
-        deploymentDAUs?: TemplateDAUsResponse
+        deploymentDAUs?: DeploymentDAUsResponse
         getDeploymentDAUsError?: unknown
       },
       events: {} as { type: "LOAD" },
@@ -20,7 +20,7 @@ export const deploymentConfigMachine = createMachine(
           data: DeploymentConfig
         }
         getDeploymentDAUs: {
-          data: TemplateDAUsResponse
+          data: DeploymentDAUsResponse
         }
       },
     },

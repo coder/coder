@@ -38,7 +38,7 @@ ChartJS.register(
 )
 
 export interface DAUChartProps {
-  daus: TypesGen.TemplateDAUsResponse
+  daus: TypesGen.TemplateDAUsResponse | TypesGen.DeploymentDAUsResponse
 }
 export const Language = {
   loadingText: "DAU stats are loading. Check back later.",

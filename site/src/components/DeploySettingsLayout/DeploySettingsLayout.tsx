@@ -5,7 +5,7 @@ import { Sidebar } from "./Sidebar"
 import { createContext, Suspense, useContext, FC } from "react"
 import { useMachine } from "@xstate/react"
 import { Loader } from "components/Loader/Loader"
-import { DeploymentConfig, TemplateDAUsResponse } from "api/typesGenerated"
+import { DeploymentConfig, DeploymentDAUsResponse } from "api/typesGenerated"
 import { deploymentConfigMachine } from "xServices/deploymentConfig/deploymentConfigMachine"
 import { RequirePermission } from "components/RequirePermission/RequirePermission"
 import { usePermissions } from "hooks/usePermissions"
@@ -14,7 +14,7 @@ import { Outlet } from "react-router-dom"
 type DeploySettingsContextValue = {
   deploymentConfig: DeploymentConfig
   getDeploymentConfigError: unknown
-  deploymentDAUs?: TemplateDAUsResponse
+  deploymentDAUs?: DeploymentDAUsResponse
   getDeploymentDAUsError: unknown
 }
 

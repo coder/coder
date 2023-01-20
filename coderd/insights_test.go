@@ -75,7 +75,7 @@ func TestDeploymentMetrics(t *testing.T) {
 	daus, err := client.DeploymentDAUs(context.Background())
 	require.NoError(t, err)
 
-	require.Equal(t, &codersdk.TemplateDAUsResponse{
+	require.Equal(t, &codersdk.DeploymentDAUsResponse{
 		Entries: []codersdk.DAUEntry{},
 	}, daus, "no DAUs when stats are empty")
 
@@ -95,7 +95,7 @@ func TestDeploymentMetrics(t *testing.T) {
 	require.NoError(t, err)
 	_ = sshConn.Close()
 
-	wantDAUs := &codersdk.TemplateDAUsResponse{
+	wantDAUs := &codersdk.DeploymentDAUsResponse{
 		Entries: []codersdk.DAUEntry{
 			{
 

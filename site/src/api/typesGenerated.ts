@@ -331,6 +331,11 @@ export interface DeploymentConfigField<T extends Flaggable> {
   readonly value: T
 }
 
+// From codersdk/insights.go
+export interface DeploymentDAUsResponse {
+  readonly entries: DAUEntry[]
+}
+
 // From codersdk/features.go
 export interface Entitlements {
   readonly features: Record<string, Feature>

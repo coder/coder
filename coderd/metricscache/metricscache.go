@@ -27,7 +27,7 @@ type Cache struct {
 	database database.Store
 	log      slog.Logger
 
-	deploymentDAUResponses   atomic.Pointer[codersdk.TemplateDAUsResponse]
+	deploymentDAUResponses   atomic.Pointer[codersdk.DeploymentDAUsResponse]
 	templateDAUResponses     atomic.Pointer[map[uuid.UUID]codersdk.TemplateDAUsResponse]
 	templateUniqueUsers      atomic.Pointer[map[uuid.UUID]int]
 	templateAverageBuildTime atomic.Pointer[map[uuid.UUID]database.GetTemplateAverageBuildTimeRow]
@@ -111,7 +111,7 @@ func convertDAUResponse(rows []database.GetTemplateDAUsRow) codersdk.TemplateDAU
 	return resp
 }
 
-func convertDeploymentDAUResponse(rows []database.GetDeploymentDAUsRow) codersdk.TemplateDAUsResponse {
+func convertDeploymentDAUResponse(rows []database.GetDeploymentDAUsRow) codersdk.DeploymentDAUsResponse {
 	respMap := make(map[time.Time][]uuid.UUID)
 	for _, row := range rows {
 		uuids := respMap[row.Date]
@@ -127,7 +127,7 @@ func convertDeploymentDAUResponse(rows []database.GetDeploymentDAUsRow) codersdk
 		return a.Before(b)
 	})
 
-	var resp codersdk.TemplateDAUsResponse
+	var resp codersdk.DeploymentDAUsResponse
 	for _, date := range fillEmptyDays(dates) {
 		resp.Entries = append(resp.Entries, codersdk.DAUEntry{
 			Date:   date,
@@ -158,7 +158,7 @@ func (c *Cache) refresh(ctx context.Context) error {
 	}
 
 	var (
-		deploymentDAUs            = codersdk.TemplateDAUsResponse{}
+		deploymentDAUs            = codersdk.DeploymentDAUsResponse{}
 		templateDAUs              = make(map[uuid.UUID]codersdk.TemplateDAUsResponse, len(templates))
 		templateUniqueUsers       = make(map[uuid.UUID]int)
 		templateAverageBuildTimes = make(map[uuid.UUID]database.GetTemplateAverageBuildTimeRow)
@@ -244,7 +244,7 @@ func (c *Cache) Close() error {
 	return nil
 }
 
-func (c *Cache) DeploymentDAUs() (*codersdk.TemplateDAUsResponse, bool) {
+func (c *Cache) DeploymentDAUs() (*codersdk.DeploymentDAUsResponse, bool) {
 	m := c.deploymentDAUResponses.Load()
 	if m == nil {
 		// Data loading.

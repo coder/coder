@@ -17,7 +17,7 @@ func (api *API) deploymentDAUs(rw http.ResponseWriter, r *http.Request) {
 
 	resp, _ := api.metricsCache.DeploymentDAUs()
 	if resp == nil || resp.Entries == nil {
-		httpapi.Write(ctx, rw, http.StatusOK, &codersdk.TemplateDAUsResponse{
+		httpapi.Write(ctx, rw, http.StatusOK, &codersdk.DeploymentDAUsResponse{
 			Entries: []codersdk.DAUEntry{},
 		})
 		return

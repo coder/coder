@@ -641,7 +641,7 @@ export const getTemplateDAUs = async (
 }
 
 export const getDeploymentDAUs =
-  async (): Promise<TypesGen.TemplateDAUsResponse> => {
+  async (): Promise<TypesGen.DeploymentDAUsResponse> => {
     const response = await axios.get(`/api/v2/insights/daus`)
     return response.data
   }
