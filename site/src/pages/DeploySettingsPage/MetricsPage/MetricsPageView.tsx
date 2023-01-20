@@ -3,7 +3,7 @@ import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { DAUChart } from "components/DAUChart/DAUChart"
 import { Stack } from "components/Stack/Stack"
 
-interface MetricsPageViewProps {
+export interface MetricsPageViewProps {
   deploymentDAUs?: DeploymentDAUsResponse
   getDeploymentDAUsError?: unknown
 }
