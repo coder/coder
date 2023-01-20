@@ -147,8 +147,10 @@ func (q *AuthzQuerier) UpdateTemplateDeletedByID(ctx context.Context, arg databa
 }
 
 func (q *AuthzQuerier) UpdateTemplateMetaByID(ctx context.Context, arg database.UpdateTemplateMetaByIDParams) (database.Template, error) {
-	//TODO implement me
-	panic("implement me")
+	fetch := func(ctx context.Context, arg database.UpdateTemplateMetaByIDParams) (database.Template, error) {
+		return q.database.GetTemplateByID(ctx, arg.ID)
+	}
+	return authorizedUpdateWithReturn(q.authorizer, fetch, q.database.UpdateTemplateMetaByID)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateTemplateVersionByID(ctx context.Context, arg database.UpdateTemplateVersionByIDParams) error {

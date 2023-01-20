@@ -117,8 +117,10 @@ func (q *AuthzQuerier) UpdateUserRoles(ctx context.Context, arg database.UpdateU
 }
 
 func (q *AuthzQuerier) UpdateUserStatus(ctx context.Context, arg database.UpdateUserStatusParams) (database.User, error) {
-	//TODO implement me
-	panic("implement me")
+	fetch := func(ctx context.Context, arg database.UpdateUserStatusParams) (database.User, error) {
+		return q.database.GetUserByID(ctx, arg.ID)
+	}
+	return authorizedUpdateWithReturn(q.authorizer, fetch, q.database.UpdateUserStatus)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetAuthorizedUserCount(ctx context.Context, arg database.GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
@@ -135,8 +137,7 @@ func (q *AuthzQuerier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (data
 }
 
 func (q *AuthzQuerier) InsertGitSSHKey(ctx context.Context, arg database.InsertGitSSHKeyParams) (database.GitSSHKey, error) {
-	//TODO implement me
-	panic("implement me")
+	return authorizedInsert(q.authorizer, rbac.ActionCreate, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID), q.database.InsertGitSSHKey)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetGitAuthLink(ctx context.Context, arg database.GetGitAuthLinkParams) (database.GitAuthLink, error) {

@@ -13,8 +13,7 @@ func (q *AuthzQuerier) GetAllOrganizationMembers(ctx context.Context, organizati
 }
 
 func (q *AuthzQuerier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {
-	//TODO implement me
-	panic("implement me")
+	return authorizedFetchSet(q.authorizer, q.database.GetGroupsByOrganizationID)(ctx, organizationID)
 }
 
 func (q *AuthzQuerier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
@@ -45,8 +44,7 @@ func (q *AuthzQuerier) GetOrganizations(ctx context.Context) ([]database.Organiz
 }
 
 func (q *AuthzQuerier) GetOrganizationsByUserID(ctx context.Context, userID uuid.UUID) ([]database.Organization, error) {
-	//TODO implement me
-	panic("implement me")
+	return authorizedFetchSet(q.authorizer, q.database.GetOrganizationsByUserID)(ctx, userID)
 }
 
 func (q *AuthzQuerier) InsertOrganization(ctx context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {

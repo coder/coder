@@ -203,8 +203,10 @@ func (q *AuthzQuerier) InsertWorkspaceResourceMetadata(ctx context.Context, arg 
 }
 
 func (q *AuthzQuerier) UpdateWorkspace(ctx context.Context, arg database.UpdateWorkspaceParams) (database.Workspace, error) {
-	//TODO implement me
-	panic("implement me")
+	fetch := func(ctx context.Context, arg database.UpdateWorkspaceParams) (database.Workspace, error) {
+		return q.database.GetWorkspaceByID(ctx, arg.ID)
+	}
+	return authorizedUpdateWithReturn(q.authorizer, fetch, q.database.UpdateWorkspace)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) error {
@@ -253,11 +255,15 @@ func (q *AuthzQuerier) UpdateWorkspaceDeletedByID(ctx context.Context, arg datab
 }
 
 func (q *AuthzQuerier) UpdateWorkspaceLastUsedAt(ctx context.Context, arg database.UpdateWorkspaceLastUsedAtParams) error {
-	//TODO implement me
-	panic("implement me")
+	fetch := func(ctx context.Context, arg database.UpdateWorkspaceLastUsedAtParams) (database.Workspace, error) {
+		return q.database.GetWorkspaceByID(ctx, arg.ID)
+	}
+	return authorizedUpdate(q.authorizer, fetch, q.database.UpdateWorkspaceLastUsedAt)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateWorkspaceTTL(ctx context.Context, arg database.UpdateWorkspaceTTLParams) error {
-	//TODO implement me
-	panic("implement me")
+	fetch := func(ctx context.Context, arg database.UpdateWorkspaceTTLParams) (database.Workspace, error) {
+		return q.database.GetWorkspaceByID(ctx, arg.ID)
+	}
+	return authorizedUpdate(q.authorizer, fetch, q.database.UpdateWorkspaceTTL)(ctx, arg)
 }
