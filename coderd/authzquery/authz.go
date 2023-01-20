@@ -50,6 +50,18 @@ func authorizedDelete[ObjectType rbac.Objecter, ArgumentType any,
 		rbac.ActionDelete, fetchFunc, deleteFunc)
 }
 
+func authorizedUpdateWithReturn[ObjectType rbac.Objecter,
+	ArgumentType any,
+	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+	UpdateQuery func(ctx context.Context, arg ArgumentType) (ObjectType, error)](
+	// Arguments
+	authorizer rbac.Authorizer,
+	fetchFunc Fetch,
+	updateQuery UpdateQuery) UpdateQuery {
+
+	return authorizedFetchAndQuery(authorizer, rbac.ActionUpdate, fetchFunc, updateQuery)
+}
+
 func authorizedUpdate[ObjectType rbac.Objecter,
 	ArgumentType any,
 	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),

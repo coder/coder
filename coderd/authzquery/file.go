@@ -3,6 +3,8 @@ package authzquery
 import (
 	"context"
 
+	"github.com/coder/coder/coderd/rbac"
+
 	"github.com/coder/coder/coderd/database"
 	"github.com/google/uuid"
 )
@@ -16,6 +18,5 @@ func (q *AuthzQuerier) GetFileByID(ctx context.Context, id uuid.UUID) (database.
 }
 
 func (q *AuthzQuerier) InsertFile(ctx context.Context, arg database.InsertFileParams) (database.File, error) {
-	//TODO implement me
-	panic("implement me")
+	return authorizedInsert(q.authorizer, rbac.ActionCreate, rbac.ResourceFile.WithOwner(arg.CreatedBy.String()), q.database.InsertFile)(ctx, arg)
 }

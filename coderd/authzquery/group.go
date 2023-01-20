@@ -3,6 +3,8 @@ package authzquery
 import (
 	"context"
 
+	"github.com/coder/coder/coderd/rbac"
+
 	"github.com/coder/coder/coderd/database"
 	"github.com/google/uuid"
 )
@@ -38,21 +40,24 @@ func (q *AuthzQuerier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) (
 }
 
 func (q *AuthzQuerier) InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (database.Group, error) {
-	//TODO implement me
-	panic("implement me")
+	// This method creates a new group.
+	return authorizedInsert(q.authorizer, rbac.ActionCreate, rbac.ResourceGroup.InOrg(organizationID), q.database.InsertAllUsersGroup)(ctx, organizationID)
 }
 
 func (q *AuthzQuerier) InsertGroup(ctx context.Context, arg database.InsertGroupParams) (database.Group, error) {
-	//TODO implement me
-	panic("implement me")
+	return authorizedInsert(q.authorizer, rbac.ActionCreate, rbac.ResourceGroup.InOrg(arg.OrganizationID), q.database.InsertGroup)(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertGroupMember(ctx context.Context, arg database.InsertGroupMemberParams) error {
-	//TODO implement me
-	panic("implement me")
+	fetch := func(ctx context.Context, arg database.InsertGroupMemberParams) (database.Group, error) {
+		return q.database.GetGroupByID(ctx, arg.GroupID)
+	}
+	return authorizedUpdate(q.authorizer, fetch, q.InsertGroupMember)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateGroupByID(ctx context.Context, arg database.UpdateGroupByIDParams) (database.Group, error) {
-	//TODO implement me
-	panic("implement me")
+	fetch := func(ctx context.Context, arg database.UpdateGroupByIDParams) (database.Group, error) {
+		return q.database.GetGroupByID(ctx, arg.ID)
+	}
+	return authorizedUpdateWithReturn(q.authorizer, fetch, q.UpdateGroupByID)(ctx, arg)
 }
