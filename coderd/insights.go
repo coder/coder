@@ -8,6 +8,13 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+// @Summary Get deployment DAUs by ID
+// @ID get-deployment-daus
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Insights
+// @Success 200 {object} codersdk.DeploymentDAUsResponse
+// @Router /insights/daus [get]
 func (api *API) deploymentDAUs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceDeploymentConfig) {
