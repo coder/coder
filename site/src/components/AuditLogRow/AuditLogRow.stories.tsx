@@ -10,6 +10,7 @@ import {
   MockAuditLog2,
   MockAuditLogWithWorkspaceBuild,
   MockAuditLogWithDeletedResource,
+  MockAuditLogGitSSH,
 } from "testHelpers/entities"
 import { AuditLogRow, AuditLogRowProps } from "./AuditLogRow"
 
@@ -71,4 +72,9 @@ WithWorkspaceBuild.args = {
 export const DeletedResource = Template.bind({})
 DeletedResource.args = {
   auditLog: MockAuditLogWithDeletedResource,
+}
+
+export const SecretDiffValue = Template.bind({})
+SecretDiffValue.args = {
+  auditLog: MockAuditLogGitSSH,
 }

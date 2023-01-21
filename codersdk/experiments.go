@@ -9,9 +9,8 @@ import (
 type Experiment string
 
 const (
-	// ExperimentVSCodeLocal enables a workspace button to launch VSCode
-	// and connect using the local VSCode extension.
-	ExperimentVSCodeLocal Experiment = "vscode_local"
+// Add new experiments here!
+// ExperimentExample Experiment = "example"
 )
 
 var (
@@ -19,9 +18,7 @@ var (
 	// users to opt-in to via --experimental='*'.
 	// Experiments that are not ready for consumption by all users should
 	// not be included here and will be essentially hidden.
-	ExperimentsAll = Experiments{
-		ExperimentVSCodeLocal,
-	}
+	ExperimentsAll = Experiments{}
 )
 
 // Experiments is a list of experiments that are enabled for the deployment.

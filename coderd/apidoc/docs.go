@@ -408,7 +408,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.Experiment"
+                                "type": "string"
                             }
                         }
                     }
@@ -6118,15 +6118,6 @@ const docTemplate = `{
                     }
                 }
             }
-        },
-        "codersdk.Experiment": {
-            "type": "string",
-            "enum": [
-                "vscode_local"
-            ],
-            "x-enum-varnames": [
-                "ExperimentVSCodeLocal"
-            ]
         },
         "codersdk.Feature": {
             "type": "object",

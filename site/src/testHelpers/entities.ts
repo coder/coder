@@ -982,7 +982,7 @@ export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
   }),
 }
 
-export const MockExperiments: TypesGen.Experiment[] = ["vscode_local"]
+export const MockExperiments: TypesGen.Experiment[] = []
 
 export const MockAuditLog: TypesGen.AuditLog = {
   id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
@@ -1064,6 +1064,22 @@ export const MockAuditLogWithWorkspaceBuild: TypesGen.AuditLog = {
 export const MockAuditLogWithDeletedResource: TypesGen.AuditLog = {
   ...MockAuditLog,
   is_deleted: true,
+}
+
+export const MockAuditLogGitSSH: TypesGen.AuditLog = {
+  ...MockAuditLog,
+  diff: {
+    private_key: {
+      old: "",
+      new: "",
+      secret: true,
+    },
+    public_key: {
+      old: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINRUPjBSNtOAnL22+r07OSu9t3Lnm8/5OX8bRHECKS9g\n",
+      new: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEwoUPJPMekuSzMZyV0rA82TGGNzw/Uj/dhLbwiczTpV\n",
+      secret: false,
+    },
+  },
 }
 
 export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {

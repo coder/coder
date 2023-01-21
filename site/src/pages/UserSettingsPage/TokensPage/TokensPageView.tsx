@@ -102,7 +102,10 @@ export const TokensPageView: FC<
                       <TableCell>{lastUsedOrNever(token.last_used)}</TableCell>
 
                       <TableCell>
-                        <span style={{ color: theme.palette.text.secondary }}>
+                        <span
+                          style={{ color: theme.palette.text.secondary }}
+                          data-chromatic="ignore"
+                        >
                           {dayjs(token.expires_at).fromNow()}
                         </span>
                       </TableCell>

@@ -1092,8 +1092,8 @@ export const Entitlements: Entitlement[] = [
 ]
 
 // From codersdk/experiments.go
-export type Experiment = "vscode_local"
-export const Experiments: Experiment[] = ["vscode_local"]
+export type Experiment = never
+export const Experiments: Experiment[] = []
 
 // From codersdk/features.go
 export type FeatureName =

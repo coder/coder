@@ -99,7 +99,9 @@ resource "kubernetes_persistent_volume_claim" "home" {
       "com.coder.workspace.name" = data.coder_workspace.me.name
       "com.coder.user.id"        = data.coder_workspace.me.owner_id
       "com.coder.user.username"  = data.coder_workspace.me.owner
-      "com.coder.user.email"     = data.coder_workspace.me.owner_email
+    }
+    annotations = {
+      "com.coder.user.email" = data.coder_workspace.me.owner_email
     }
   }
   wait_until_bound = false
@@ -128,7 +130,9 @@ resource "kubernetes_pod" "main" {
       "com.coder.workspace.name" = data.coder_workspace.me.name
       "com.coder.user.id"        = data.coder_workspace.me.owner_id
       "com.coder.user.username"  = data.coder_workspace.me.owner
-      "com.coder.user.email"     = data.coder_workspace.me.owner_email
+    }
+    annotations = {
+      "com.coder.user.email" = data.coder_workspace.me.owner_email
     }
   }
   spec {

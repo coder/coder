@@ -3,6 +3,7 @@ import {
   getPaginationContext,
   nonInitialPage,
 } from "components/PaginationWidget/utils"
+import { useFeatureVisibility } from "hooks/useFeatureVisibility"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { useSearchParams } from "react-router-dom"
@@ -27,6 +28,7 @@ const AuditPage: FC = () => {
 
   const { auditLogs, count } = auditState.context
   const paginationRef = auditState.context.paginationRef as PaginationMachineRef
+  const { audit_log: isAuditLogVisible } = useFeatureVisibility()
 
   return (
     <>
@@ -42,6 +44,7 @@ const AuditPage: FC = () => {
         }}
         paginationRef={paginationRef}
         isNonInitialPage={nonInitialPage(searchParams)}
+        isAuditLogVisible={isAuditLogVisible}
       />
     </>
   )

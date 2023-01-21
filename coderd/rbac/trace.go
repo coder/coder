@@ -7,7 +7,7 @@ import (
 
 // rbacTraceAttributes are the attributes that are added to all spans created by
 // the rbac package. These attributes should help to debug slow spans.
-func rbacTraceAttributes(roles []string, groupCount int, scope Scope, action Action, objectType string, extra ...attribute.KeyValue) trace.SpanStartOption {
+func rbacTraceAttributes(roles []string, groupCount int, scope ScopeName, action Action, objectType string, extra ...attribute.KeyValue) trace.SpanStartOption {
 	return trace.WithAttributes(
 		append(extra,
 			attribute.StringSlice("subject_roles", roles),

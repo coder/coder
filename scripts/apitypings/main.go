@@ -223,8 +223,13 @@ func (g *Generator) generateAll() (*TypescriptTypes, error) {
 		sort.Strings(values)
 		var s strings.Builder
 		_, _ = s.WriteString(g.posLine(v))
+		joined := strings.Join(values, " | ")
+		if joined == "" {
+			// It's possible an enum has no values.
+			joined = "never"
+		}
 		_, _ = s.WriteString(fmt.Sprintf("export type %s = %s\n",
-			name, strings.Join(values, " | "),
+			name, joined,
 		))
 
 		var pluralName string
