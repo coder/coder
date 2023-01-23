@@ -406,6 +406,12 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
       "source_value": "string"
     }
   ],
+  "rich_parameter_values": [
+    {
+      "name": "string",
+      "value": "string"
+    }
+  ],
   "workspace_name": "string"
 }
 ```
@@ -1289,6 +1295,12 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
       "name": "string",
       "source_scheme": "none",
       "source_value": "string"
+    }
+  ],
+  "rich_parameter_values": [
+    {
+      "name": "string",
+      "value": "string"
     }
   ],
   "workspace_name": "string"

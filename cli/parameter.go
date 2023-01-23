@@ -3,10 +3,9 @@ package cli
 import (
 	"os"
 
+	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v3"
-
-	"github.com/spf13/cobra"
 
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
@@ -57,4 +56,28 @@ func getParameterValueFromMapOrInput(cmd *cobra.Command, parameterMap map[string
 		}
 	}
 	return parameterValue, nil
+}
+
+func getWorkspaceBuildParameterValueFromMapOrInput(cmd *cobra.Command, parameterMap map[string]string, templateVersionParameter codersdk.TemplateVersionParameter) (*codersdk.WorkspaceBuildParameter, error) {
+	var parameterValue string
+	var err error
+	if parameterMap != nil {
+		var ok bool
+		parameterValue, ok = parameterMap[templateVersionParameter.Name]
+		if !ok {
+			parameterValue, err = cliui.RichParameter(cmd, templateVersionParameter)
+			if err != nil {
+				return nil, err
+			}
+		}
+	} else {
+		parameterValue, err = cliui.RichParameter(cmd, templateVersionParameter)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &codersdk.WorkspaceBuildParameter{
+		Name:  templateVersionParameter.Name,
+		Value: parameterValue,
+	}, nil
 }
