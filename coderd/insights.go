@@ -8,7 +8,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-// @Summary Get deployment DAUs by ID
+// @Summary Get deployment DAUs
 // @ID get-deployment-daus
 // @Security CoderSessionToken
 // @Produce json
