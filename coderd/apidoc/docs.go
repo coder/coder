@@ -408,7 +408,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "string"
+                                "$ref": "#/definitions/codersdk.Experiment"
                             }
                         }
                     }
@@ -6172,6 +6172,15 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "codersdk.Experiment": {
+            "type": "string",
+            "enum": [
+                "authz_querier"
+            ],
+            "x-enum-varnames": [
+                "ExperimentAuthzQuerier"
+            ]
         },
         "codersdk.Feature": {
             "type": "object",
