@@ -16,19 +16,19 @@ import (
 
 // A mapping of attributes on the "coder_agent" resource.
 type agentAttributes struct {
-	Auth                     string            `mapstructure:"auth"`
-	OperatingSystem          string            `mapstructure:"os"`
-	Architecture             string            `mapstructure:"arch"`
-	Directory                string            `mapstructure:"dir"`
-	ID                       string            `mapstructure:"id"`
-	Token                    string            `mapstructure:"token"`
-	Env                      map[string]string `mapstructure:"env"`
-	StartupScript            string            `mapstructure:"startup_script"`
-	ConnectionTimeoutSeconds int32             `mapstructure:"connection_timeout"`
-	TroubleshootingURL       string            `mapstructure:"troubleshooting_url"`
-	MOTDFile                 string            `mapstructure:"motd_file"`
-	DelayLoginUntilReady     bool              `mapstructure:"delay_login_until_ready"`
-	StartupScriptTimeout     int32             `mapstructure:"startup_script_timeout"`
+	Auth                        string            `mapstructure:"auth"`
+	OperatingSystem             string            `mapstructure:"os"`
+	Architecture                string            `mapstructure:"arch"`
+	Directory                   string            `mapstructure:"dir"`
+	ID                          string            `mapstructure:"id"`
+	Token                       string            `mapstructure:"token"`
+	Env                         map[string]string `mapstructure:"env"`
+	StartupScript               string            `mapstructure:"startup_script"`
+	ConnectionTimeoutSeconds    int32             `mapstructure:"connection_timeout"`
+	TroubleshootingURL          string            `mapstructure:"troubleshooting_url"`
+	MOTDFile                    string            `mapstructure:"motd_file"`
+	DelayLoginUntilReady        bool              `mapstructure:"delay_login_until_ready"`
+	StartupScriptTimeoutSeconds int32             `mapstructure:"startup_script_timeout"`
 }
 
 // A mapping of attributes on the "coder_app" resource.
@@ -135,7 +135,7 @@ func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph strin
 			TroubleshootingUrl:          attrs.TroubleshootingURL,
 			MotdFile:                    attrs.MOTDFile,
 			DelayLoginUntilReady:        attrs.DelayLoginUntilReady,
-			StartupScriptTimeoutSeconds: attrs.StartupScriptTimeout,
+			StartupScriptTimeoutSeconds: attrs.StartupScriptTimeoutSeconds,
 		}
 		switch attrs.Auth {
 		case "token":
