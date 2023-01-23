@@ -8,6 +8,42 @@ WHERE
 LIMIT
 	1;
 
+-- name: GetWorkspaceByWorkspaceAppID :one
+SELECT
+	*
+FROM
+	workspaces
+WHERE
+		workspaces.id = (
+		SELECT
+			workspace_id
+		FROM
+			workspace_builds
+		WHERE
+				workspace_builds.job_id = (
+				SELECT
+					job_id
+				FROM
+					workspace_resources
+				WHERE
+						workspace_resources.id = (
+						SELECT
+							resource_id
+						FROM
+							workspace_agents
+						WHERE
+								workspace_agents.id = (
+								SELECT
+									agent_id
+								FROM
+									workspace_apps
+								WHERE
+									workspace_apps.id = @workspace_app_id
+								)
+					)
+			)
+	);
+
 -- name: GetWorkspaceByAgentID :one
 SELECT
 	*
@@ -241,16 +277,6 @@ WHERE
 	AND deleted != true
 GROUP BY
 	template_id;
-
--- name: GetWorkspaceCountByUserID :one
-SELECT
-	COUNT(id)
-FROM
-	workspaces
-WHERE
-	owner_id = @owner_id
-	-- Ignore deleted workspaces
-	AND deleted != true;
 
 -- name: InsertWorkspace :one
 INSERT INTO

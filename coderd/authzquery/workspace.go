@@ -144,11 +144,6 @@ func (q *AuthzQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg dat
 	return authorizedFetch(q.authorizer, q.database.GetWorkspaceByOwnerIDAndName)(ctx, arg)
 }
 
-func (q *AuthzQuerier) GetWorkspaceCountByUserID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
 func (q *AuthzQuerier) GetWorkspaceOwnerCountsByTemplateIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetWorkspaceOwnerCountsByTemplateIDsRow, error) {
 	// TODO implement me
 	panic("implement me")
@@ -179,24 +174,9 @@ func (q *AuthzQuerier) GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []
 	panic("implement me")
 }
 
-func (q *AuthzQuerier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.WorkspaceResource, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
 func (q *AuthzQuerier) InsertWorkspace(ctx context.Context, arg database.InsertWorkspaceParams) (database.Workspace, error) {
 	obj := rbac.ResourceWorkspace.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID)
 	return authorizedInsertWithReturn(q.authorizer, rbac.ActionCreate, obj, q.database.InsertWorkspace)(ctx, arg)
-}
-
-func (q *AuthzQuerier) InsertWorkspaceAgent(ctx context.Context, arg database.InsertWorkspaceAgentParams) (database.WorkspaceAgent, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) InsertWorkspaceApp(ctx context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
-	// TODO implement me
-	panic("implement me")
 }
 
 func (q *AuthzQuerier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertWorkspaceBuildParams) (database.WorkspaceBuild, error) {
@@ -210,11 +190,6 @@ func (q *AuthzQuerier) InsertWorkspaceBuildParameters(ctx context.Context, arg d
 }
 
 func (q *AuthzQuerier) InsertWorkspaceResource(ctx context.Context, arg database.InsertWorkspaceResourceParams) (database.WorkspaceResource, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) InsertWorkspaceResourceMetadata(ctx context.Context, arg database.InsertWorkspaceResourceMetadataParams) ([]database.WorkspaceResourceMetadatum, error) {
 	// TODO implement me
 	panic("implement me")
 }
@@ -237,8 +212,17 @@ func (q *AuthzQuerier) UpdateWorkspaceAgentVersionByID(ctx context.Context, arg 
 }
 
 func (q *AuthzQuerier) UpdateWorkspaceAppHealthByID(ctx context.Context, arg database.UpdateWorkspaceAppHealthByIDParams) error {
-	// TODO implement me
-	panic("implement me")
+	// TODO: This is a workspace agent operation. Should users be able to query this?
+	workspace, err := q.database.GetWorkspaceByWorkspaceAppID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+
+	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace.RBACObject())
+	if err != nil {
+		return err
+	}
+	return q.database.UpdateWorkspaceAppHealthByID(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateWorkspaceAutostart(ctx context.Context, arg database.UpdateWorkspaceAutostartParams) error {
@@ -278,7 +262,11 @@ func (q *AuthzQuerier) SoftDeleteWorkspaceByID(ctx context.Context, id uuid.UUID
 // Deprecated: Use SoftDeleteWorkspaceByID
 func (q *AuthzQuerier) UpdateWorkspaceDeletedByID(ctx context.Context, arg database.UpdateWorkspaceDeletedByIDParams) error {
 	// TODO delete me, placeholder for database.Store
-	panic("implement me")
+	fetch := func(ctx context.Context, arg database.UpdateWorkspaceDeletedByIDParams) (database.Workspace, error) {
+		return q.database.GetWorkspaceByID(ctx, arg.ID)
+	}
+	// This function is always used to delete.
+	return authorizedDelete(q.authorizer, fetch, q.database.UpdateWorkspaceDeletedByID)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateWorkspaceLastUsedAt(ctx context.Context, arg database.UpdateWorkspaceLastUsedAtParams) error {

@@ -6488,22 +6488,60 @@ func (q *sqlQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWo
 	return i, err
 }
 
-const getWorkspaceCountByUserID = `-- name: GetWorkspaceCountByUserID :one
+const getWorkspaceByWorkspaceAppID = `-- name: GetWorkspaceByWorkspaceAppID :one
 SELECT
-	COUNT(id)
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at
 FROM
 	workspaces
 WHERE
-	owner_id = $1
-	-- Ignore deleted workspaces
-	AND deleted != true
+		workspaces.id = (
+		SELECT
+			workspace_id
+		FROM
+			workspace_builds
+		WHERE
+				workspace_builds.job_id = (
+				SELECT
+					job_id
+				FROM
+					workspace_resources
+				WHERE
+						workspace_resources.id = (
+						SELECT
+							resource_id
+						FROM
+							workspace_agents
+						WHERE
+								workspace_agents.id = (
+								SELECT
+									agent_id
+								FROM
+									workspace_apps
+								WHERE
+									workspace_apps.id = $1
+								)
+					)
+			)
+	)
 `
 
-func (q *sqlQuerier) GetWorkspaceCountByUserID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceCountByUserID, ownerID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
+func (q *sqlQuerier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceAppID uuid.UUID) (Workspace, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceByWorkspaceAppID, workspaceAppID)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OwnerID,
+		&i.OrganizationID,
+		&i.TemplateID,
+		&i.Deleted,
+		&i.Name,
+		&i.AutostartSchedule,
+		&i.Ttl,
+		&i.LastUsedAt,
+	)
+	return i, err
 }
 
 const getWorkspaceOwnerCountsByTemplateIDs = `-- name: GetWorkspaceOwnerCountsByTemplateIDs :many
