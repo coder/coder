@@ -198,13 +198,19 @@ func (q *AuthzQuerier) UpdateWorkspace(ctx context.Context, arg database.UpdateW
 }
 
 func (q *AuthzQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) error {
-	// TODO implement me
-	panic("implement me")
+	// TODO: This is a workspace agent operation. Should users be able to query this?
+	fetch := func(ctx context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) (database.Workspace, error) {
+		return q.database.GetWorkspaceByAgentID(ctx, arg.ID)
+	}
+	return authorizedUpdate(q.authorizer, fetch, q.database.UpdateWorkspaceAgentConnectionByID)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateWorkspaceAgentVersionByID(ctx context.Context, arg database.UpdateWorkspaceAgentVersionByIDParams) error {
-	// TODO implement me
-	panic("implement me")
+	// TODO: This is a workspace agent operation. Should users be able to query this?
+	fetch := func(ctx context.Context, arg database.UpdateWorkspaceAgentVersionByIDParams) (database.Workspace, error) {
+		return q.database.GetWorkspaceByAgentID(ctx, arg.ID)
+	}
+	return authorizedUpdate(q.authorizer, fetch, q.database.UpdateWorkspaceAgentVersionByID)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateWorkspaceAppHealthByID(ctx context.Context, arg database.UpdateWorkspaceAppHealthByIDParams) error {
@@ -277,4 +283,8 @@ func (q *AuthzQuerier) UpdateWorkspaceTTL(ctx context.Context, arg database.Upda
 		return q.database.GetWorkspaceByID(ctx, arg.ID)
 	}
 	return authorizedUpdate(q.authorizer, fetch, q.database.UpdateWorkspaceTTL)(ctx, arg)
+}
+
+func (q *AuthzQuerier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceAppID uuid.UUID) (database.Workspace, error) {
+	return authorizedFetch(q.authorizer, q.database.GetWorkspaceByWorkspaceAppID)(ctx, workspaceAppID)
 }
