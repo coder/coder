@@ -2437,9 +2437,10 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 #### Enumerated Values
 
-| Value          |
-| -------------- |
-| `vscode_local` |
+| Value           |
+| --------------- |
+| `vscode_local`  |
+| `authz_querier` |
 
 ## codersdk.Feature
 

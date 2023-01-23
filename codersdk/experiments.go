@@ -12,6 +12,9 @@ const (
 	// ExperimentVSCodeLocal enables a workspace button to launch VSCode
 	// and connect using the local VSCode extension.
 	ExperimentVSCodeLocal Experiment = "vscode_local"
+	// ExperimentAuthzQuerier is an internal experiment that enables the ExperimentAuthzQuerier
+	// interface for all RBAC operations. NOT READY FOR PRODUCTION USE.
+	ExperimentAuthzQuerier Experiment = "authz_querier"
 )
 
 var (
