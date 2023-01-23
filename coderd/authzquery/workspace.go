@@ -37,37 +37,43 @@ func (q *AuthzQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context,
 		q.database.GetLatestWorkspaceBuildByWorkspaceID)(ctx, workspaceID)
 }
 
-func (q *AuthzQuerier) GetLatestWorkspaceBuilds(ctx context.Context) ([]database.WorkspaceBuild, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
 func (q *AuthzQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
-	// TODO implement me
-	panic("implement me")
-}
+	// This is not ideal as not all builds will be returned if the workspace cannot be read.
+	// This should probably be handled differently? Maybe join workspace builds with workspace
+	// ownership properties and filter on that.
+	workspaces, err := q.GetWorkspaces(ctx, database.GetWorkspacesParams{WorkspaceIds: ids})
+	if err != nil {
+		return nil, err
+	}
 
-func (q *AuthzQuerier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken uuid.UUID) (database.WorkspaceAgent, error) {
-	// TODO implement me
-	panic("implement me")
+	allowedIDs := make([]uuid.UUID, 0, len(workspaces))
+	for _, workspace := range workspaces {
+		allowedIDs = append(allowedIDs, workspace.ID)
+	}
+
+	return q.GetLatestWorkspaceBuildsByWorkspaceIDs(ctx, allowedIDs)
 }
 
 func (q *AuthzQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
-	// TODO implement me
-	panic("implement me")
+	fetch := func(agent database.WorkspaceAgent, _ uuid.UUID) (database.Workspace, error) {
+		return q.database.GetWorkspaceByAgentID(ctx, agent.ID)
+	}
+	// Curently agent resource is just the related workspace resource.
+	return authorizedQueryWithRelated(q.authorizer, rbac.ActionRead, fetch, q.database.GetWorkspaceAgentByID)(ctx, id)
 }
 
+// GetWorkspaceAgentByInstanceID might want to be a system call? Unsure exactly,
+// but this will fail. Need to figure out what AuthInstanceID is, and if it
+// is essentially an auth token. But the caller using this function is not
+// an authenticated user. So this authz check will fail.
 func (q *AuthzQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanceID string) (database.WorkspaceAgent, error) {
-	// TODO implement me
-	panic("implement me")
+	fetch := func(agent database.WorkspaceAgent, _ string) (database.Workspace, error) {
+		return q.database.GetWorkspaceByAgentID(ctx, agent.ID)
+	}
+	return authorizedQueryWithRelated(q.authorizer, rbac.ActionRead, fetch, q.database.GetWorkspaceAgentByInstanceID)(ctx, authInstanceID)
 }
 
 func (q *AuthzQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgent, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.WorkspaceAgent, error) {
 	// TODO implement me
 	panic("implement me")
 }
@@ -78,16 +84,15 @@ func (q *AuthzQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg 
 }
 
 func (q *AuthzQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceApp, error) {
-	// TODO implement me
-	panic("implement me")
+	fetch := func(_ []database.WorkspaceApp, agentID uuid.UUID) (database.Workspace, error) {
+		return q.database.GetWorkspaceByAgentID(ctx, agentID)
+	}
+
+	return authorizedQueryWithRelated(q.authorizer, rbac.ActionRead, fetch, q.database.GetWorkspaceAppsByAgentID)(ctx, agentID)
 }
 
 func (q *AuthzQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceApp, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) GetWorkspaceAppsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.WorkspaceApp, error) {
+	// TODO: This should be rewritten to support workspace ids, rather than agent ids imo.
 	// TODO implement me
 	panic("implement me")
 }
@@ -109,8 +114,10 @@ func (q *AuthzQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.
 }
 
 func (q *AuthzQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Context, arg database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (database.WorkspaceBuild, error) {
-	// TODO implement me
-	panic("implement me")
+	fetch := func(_ database.WorkspaceBuild, arg database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (database.Workspace, error) {
+		return q.database.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	}
+	return authorizedQueryWithRelated(q.authorizer, rbac.ActionRead, fetch, q.database.GetWorkspaceBuildByWorkspaceIDAndBuildNumber)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
@@ -119,13 +126,10 @@ func (q *AuthzQuerier) GetWorkspaceBuildParameters(ctx context.Context, workspac
 }
 
 func (q *AuthzQuerier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg database.GetWorkspaceBuildsByWorkspaceIDParams) ([]database.WorkspaceBuild, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) GetWorkspaceBuildsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.WorkspaceBuild, error) {
-	// TODO implement me
-	panic("implement me")
+	fetch := func(_ []database.WorkspaceBuild, arg database.GetWorkspaceBuildsByWorkspaceIDParams) (database.Workspace, error) {
+		return q.database.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	}
+	return authorizedQueryWithRelated(q.authorizer, rbac.ActionRead, fetch, q.database.GetWorkspaceBuildsByWorkspaceID)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (database.Workspace, error) {
@@ -238,18 +242,28 @@ func (q *AuthzQuerier) UpdateWorkspaceAppHealthByID(ctx context.Context, arg dat
 }
 
 func (q *AuthzQuerier) UpdateWorkspaceAutostart(ctx context.Context, arg database.UpdateWorkspaceAutostartParams) error {
-	// TODO implement me
-	panic("implement me")
+	fetch := func(ctx context.Context, arg database.UpdateWorkspaceAutostartParams) (database.Workspace, error) {
+		return q.database.GetWorkspaceByID(ctx, arg.ID)
+	}
+	return authorizedUpdate(q.authorizer, fetch, q.database.UpdateWorkspaceAutostart)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateWorkspaceBuildByID(ctx context.Context, arg database.UpdateWorkspaceBuildByIDParams) (database.WorkspaceBuild, error) {
-	// TODO implement me
-	panic("implement me")
-}
+	build, err := q.database.GetWorkspaceBuildByID(ctx, arg.ID)
+	if err != nil {
+		return database.WorkspaceBuild{}, err
+	}
 
-func (q *AuthzQuerier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) (database.WorkspaceBuild, error) {
-	// TODO implement me
-	panic("implement me")
+	workspace, err := q.database.GetWorkspaceByID(ctx, build.WorkspaceID)
+	if err != nil {
+		return database.WorkspaceBuild{}, err
+	}
+	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace.RBACObject())
+	if err != nil {
+		return database.WorkspaceBuild{}, err
+	}
+
+	return q.UpdateWorkspaceBuildByID(ctx, arg)
 }
 
 func (q *AuthzQuerier) SoftDeleteWorkspaceByID(ctx context.Context, id uuid.UUID) error {

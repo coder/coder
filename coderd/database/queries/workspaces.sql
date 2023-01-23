@@ -130,6 +130,12 @@ WHERE
 			END
 		ELSE true
 	END
+	-- Filter by workspace ID
+	AND CASE
+	    WHEN array_length(@workspace_ids :: uuid [ ], 1) > 0 THEN
+	        workspaces.id = ANY(@workspace_ids :: uuid [ ])
+	    ELSE true
+	END
 	-- Filter by owner_id
 	AND CASE
 		WHEN @owner_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN

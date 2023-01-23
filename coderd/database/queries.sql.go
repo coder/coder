@@ -6641,42 +6641,48 @@ WHERE
 			END
 		ELSE true
 	END
+	-- Filter by workspace ID
+	AND CASE
+	    WHEN array_length($3 :: uuid [ ], 1) > 0 THEN
+	        workspaces.id = ANY($3 :: uuid [ ])
+	    ELSE true
+	END
 	-- Filter by owner_id
 	AND CASE
-		WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			owner_id = $3
+		WHEN $4 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			owner_id = $4
 		ELSE true
 	END
 	-- Filter by owner_name
 	AND CASE
-		WHEN $4 :: text != '' THEN
-			owner_id = (SELECT id FROM users WHERE lower(username) = lower($4) AND deleted = false)
+		WHEN $5 :: text != '' THEN
+			owner_id = (SELECT id FROM users WHERE lower(username) = lower($5) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_name
 	-- There can be more than 1 template with the same name across organizations.
 	-- Use the organization filter to restrict to 1 org if needed.
 	AND CASE
-		WHEN $5 :: text != '' THEN
-			template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower($5) AND deleted = false)
+		WHEN $6 :: text != '' THEN
+			template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower($6) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_ids
 	AND CASE
-		WHEN array_length($6 :: uuid[], 1) > 0 THEN
-			template_id = ANY($6)
+		WHEN array_length($7 :: uuid[], 1) > 0 THEN
+			template_id = ANY($7)
 		ELSE true
 	END
 	-- Filter by name, matching on substring
 	AND CASE
-		WHEN $7 :: text != '' THEN
-			name ILIKE '%' || $7 || '%'
+		WHEN $8 :: text != '' THEN
+			name ILIKE '%' || $8 || '%'
 		ELSE true
 	END
 	-- Filter by agent status
 	-- has-agent: is only applicable for workspaces in "start" transition. Stopped and deleted workspaces don't have agents.
 	AND CASE
-		WHEN $8 :: text != '' THEN
+		WHEN $9 :: text != '' THEN
 			(
 				SELECT COUNT(*)
 				FROM
@@ -6688,7 +6694,7 @@ WHERE
 				WHERE
 					workspace_resources.job_id = latest_build.provisioner_job_id AND
 					latest_build.transition = 'start'::workspace_transition AND
-					$8 = (
+					$9 = (
 						CASE
 							WHEN workspace_agents.first_connected_at IS NULL THEN
 								CASE
@@ -6699,7 +6705,7 @@ WHERE
 								END
 							WHEN workspace_agents.disconnected_at > workspace_agents.last_connected_at THEN
 								'disconnected'
-							WHEN NOW() - workspace_agents.last_connected_at > INTERVAL '1 second' * $9 :: bigint THEN
+							WHEN NOW() - workspace_agents.last_connected_at > INTERVAL '1 second' * $10 :: bigint THEN
 								'disconnected'
 							WHEN workspace_agents.last_connected_at IS NOT NULL THEN
 								'connected'
@@ -6716,16 +6722,17 @@ ORDER BY
 	last_used_at DESC
 LIMIT
 	CASE
-		WHEN $11 :: integer > 0 THEN
-			$11
+		WHEN $12 :: integer > 0 THEN
+			$12
 	END
 OFFSET
-	$10
+	$11
 `
 
 type GetWorkspacesParams struct {
 	Deleted                               bool        `db:"deleted" json:"deleted"`
 	Status                                string      `db:"status" json:"status"`
+	WorkspaceIds                          []uuid.UUID `db:"workspace_ids" json:"workspace_ids"`
 	OwnerID                               uuid.UUID   `db:"owner_id" json:"owner_id"`
 	OwnerUsername                         string      `db:"owner_username" json:"owner_username"`
 	TemplateName                          string      `db:"template_name" json:"template_name"`
@@ -6756,6 +6763,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 	rows, err := q.db.QueryContext(ctx, getWorkspaces,
 		arg.Deleted,
 		arg.Status,
+		pq.Array(arg.WorkspaceIds),
 		arg.OwnerID,
 		arg.OwnerUsername,
 		arg.TemplateName,
