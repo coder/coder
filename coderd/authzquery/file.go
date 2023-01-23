@@ -18,5 +18,5 @@ func (q *AuthzQuerier) GetFileByID(ctx context.Context, id uuid.UUID) (database.
 }
 
 func (q *AuthzQuerier) InsertFile(ctx context.Context, arg database.InsertFileParams) (database.File, error) {
-	return authorizedInsert(q.authorizer, rbac.ActionCreate, rbac.ResourceFile.WithOwner(arg.CreatedBy.String()), q.database.InsertFile)(ctx, arg)
+	return authorizedInsertWithReturn(q.authorizer, rbac.ActionCreate, rbac.ResourceFile.WithOwner(arg.CreatedBy.String()), q.database.InsertFile)(ctx, arg)
 }

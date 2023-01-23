@@ -73,7 +73,7 @@ func (q *AuthzQuerier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]da
 
 func (q *AuthzQuerier) InsertUser(ctx context.Context, arg database.InsertUserParams) (database.User, error) {
 	obj := rbac.ResourceUser
-	return authorizedInsert(q.authorizer, rbac.ActionCreate, obj, q.database.InsertUser)(ctx, arg)
+	return authorizedInsertWithReturn(q.authorizer, rbac.ActionCreate, obj, q.database.InsertUser)(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertUserLink(ctx context.Context, arg database.InsertUserLinkParams) (database.UserLink, error) {
@@ -137,7 +137,7 @@ func (q *AuthzQuerier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (data
 }
 
 func (q *AuthzQuerier) InsertGitSSHKey(ctx context.Context, arg database.InsertGitSSHKeyParams) (database.GitSSHKey, error) {
-	return authorizedInsert(q.authorizer, rbac.ActionCreate, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID), q.database.InsertGitSSHKey)(ctx, arg)
+	return authorizedInsertWithReturn(q.authorizer, rbac.ActionCreate, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID), q.database.InsertGitSSHKey)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetGitAuthLink(ctx context.Context, arg database.GetGitAuthLinkParams) (database.GitAuthLink, error) {

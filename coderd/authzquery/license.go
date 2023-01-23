@@ -3,32 +3,35 @@ package authzquery
 import (
 	"context"
 
+	"github.com/coder/coder/coderd/rbac"
+
 	"github.com/coder/coder/coderd/database"
 )
 
 func (q *AuthzQuerier) GetLicenses(ctx context.Context) ([]database.License, error) {
-	//TODO implement me
-	panic("implement me")
+	fetch := func(ctx context.Context, _ interface{}) ([]database.License, error) {
+		return q.database.GetLicenses(ctx)
+	}
+	return authorizedFetchSet(q.authorizer, fetch)(ctx, nil)
 }
 
 func (q *AuthzQuerier) GetUnexpiredLicenses(ctx context.Context) ([]database.License, error) {
-	//TODO implement me
-	panic("implement me")
+	fetch := func(ctx context.Context, _ interface{}) ([]database.License, error) {
+		return q.database.GetUnexpiredLicenses(ctx)
+	}
+	return authorizedFetchSet(q.authorizer, fetch)(ctx, nil)
 }
 
 func (q *AuthzQuerier) InsertLicense(ctx context.Context, arg database.InsertLicenseParams) (database.License, error) {
-	//TODO implement me
-	panic("implement me")
+	return authorizedInsertWithReturn(q.authorizer, rbac.ActionCreate, rbac.ResourceLicense, q.database.InsertLicense)(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertOrUpdateLogoURL(ctx context.Context, value string) error {
-	//TODO implement me
-	panic("implement me")
+	return authorizedInsert(q.authorizer, rbac.ActionUpdate, rbac.ResourceDeploymentConfig, q.database.InsertOrUpdateLogoURL)(ctx, value)
 }
 
 func (q *AuthzQuerier) InsertOrUpdateServiceBanner(ctx context.Context, value string) error {
-	//TODO implement me
-	panic("implement me")
+	return authorizedInsert(q.authorizer, rbac.ActionUpdate, rbac.ResourceDeploymentConfig, q.database.InsertOrUpdateServiceBanner)(ctx, value)
 }
 
 func (q *AuthzQuerier) GetLicenseByID(ctx context.Context, id int32) (database.License, error) {

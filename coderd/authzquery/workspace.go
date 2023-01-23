@@ -169,7 +169,7 @@ func (q *AuthzQuerier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, cr
 
 func (q *AuthzQuerier) InsertWorkspace(ctx context.Context, arg database.InsertWorkspaceParams) (database.Workspace, error) {
 	obj := rbac.ResourceWorkspace.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID)
-	return authorizedInsert(q.authorizer, rbac.ActionCreate, obj, q.database.InsertWorkspace)(ctx, arg)
+	return authorizedInsertWithReturn(q.authorizer, rbac.ActionCreate, obj, q.database.InsertWorkspace)(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertWorkspaceAgent(ctx context.Context, arg database.InsertWorkspaceAgentParams) (database.WorkspaceAgent, error) {

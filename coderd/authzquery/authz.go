@@ -12,7 +12,23 @@ import (
 // - We need to handle authorizing the CRUD of objects with RBAC being related
 //   to some other object. Eg: workspace builds, group members, etc.
 
-func authorizedInsert[ObjectType any, ArgumentType any,
+func authorizedInsert[ArgumentType any,
+	Insert func(ctx context.Context, arg ArgumentType) error](
+	// Arguments
+	authorizer rbac.Authorizer,
+	action rbac.Action,
+	object rbac.Objecter,
+	insertFunc Insert) Insert {
+
+	return func(ctx context.Context, arg ArgumentType) error {
+		_, err := authorizedInsertWithReturn(authorizer, action, object, func(ctx context.Context, arg ArgumentType) (rbac.Objecter, error) {
+			return rbac.Object{}, insertFunc(ctx, arg)
+		})(ctx, arg)
+		return err
+	}
+}
+
+func authorizedInsertWithReturn[ObjectType any, ArgumentType any,
 	Insert func(ctx context.Context, arg ArgumentType) (ObjectType, error)](
 	// Arguments
 	authorizer rbac.Authorizer,
