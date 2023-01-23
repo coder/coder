@@ -531,6 +531,7 @@ func TestAgent_SFTP(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		home = "/" + strings.ReplaceAll(home, "\\", "/")
 	}
+	//nolint:dogsled
 	conn, _, _, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
@@ -562,6 +563,7 @@ func TestAgent_SCP(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
+	//nolint:dogsled
 	conn, _, _, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
@@ -666,6 +668,7 @@ func TestAgent_StartupScript(t *testing.T) {
 		t.Skip("This test doesn't work on Windows for some reason...")
 	}
 	content := "output"
+	//nolint:dogsled
 	_, _, _, fs := setupAgent(t, codersdk.WorkspaceAgentMetadata{
 		StartupScript: "echo " + content,
 	}, 0)
@@ -797,6 +800,7 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
+	//nolint:dogsled
 	conn, _, _, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
 	id := uuid.New()
 	netConn, err := conn.ReconnectingPTY(ctx, id, 100, 100, "/bin/bash")
@@ -898,6 +902,7 @@ func TestAgent_Dial(t *testing.T) {
 				}
 			}()
 
+			//nolint:dogsled
 			conn, _, _, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
 			require.True(t, conn.AwaitReachable(context.Background()))
 			conn1, err := conn.DialContext(context.Background(), l.Addr().Network(), l.Addr().String())
@@ -919,6 +924,7 @@ func TestAgent_Speedtest(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	derpMap := tailnettest.RunDERPAndSTUN(t)
+	//nolint:dogsled
 	conn, _, _, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{
 		DERPMap: derpMap,
 	}, 0)
@@ -1004,6 +1010,7 @@ func TestAgent_WriteVSCodeConfigs(t *testing.T) {
 }
 
 func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exec.Cmd {
+	//nolint:dogsled
 	agentConn, _, _, _ := setupAgent(t, codersdk.WorkspaceAgentMetadata{}, 0)
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -1050,6 +1057,7 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exe
 func setupSSHSession(t *testing.T, options codersdk.WorkspaceAgentMetadata) *ssh.Session {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
+	//nolint:dogsled
 	conn, _, _, _ := setupAgent(t, options, 0)
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
