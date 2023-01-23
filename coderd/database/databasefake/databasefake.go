@@ -3646,10 +3646,6 @@ func (q *fakeQuerier) InsertGroup(_ context.Context, arg database.InsertGroupPar
 	return group, nil
 }
 
-func (*fakeQuerier) GetUserGroups(_ context.Context, _ uuid.UUID) ([]database.Group, error) {
-	panic("not implemented")
-}
-
 func (q *fakeQuerier) GetGroupMembers(_ context.Context, groupID uuid.UUID) ([]database.User, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
