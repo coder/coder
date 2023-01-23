@@ -266,24 +266,26 @@ func (a *agent) run(ctx context.Context) error {
 				return
 			}
 			execTime := time.Since(scriptStart)
+			lifecycleStatus := codersdk.WorkspaceAgentLifecycleReady
 			if err != nil {
 				a.logger.Warn(ctx, "startup script failed", slog.F("execution_time", execTime), slog.Error(err))
-				a.setLifecycle(codersdk.WorkspaceAgentLifecycleStartError)
-				return
+				lifecycleStatus = codersdk.WorkspaceAgentLifecycleStartError
+			} else {
+				a.logger.Info(ctx, "startup script completed", slog.F("execution_time", execTime))
 			}
-			a.logger.Info(ctx, "startup script completed", slog.F("execution_time", execTime))
 
 			// Perform overrides after startup script has completed to ensure
 			// there is no conflict with the user's scripts. We also want to
 			// ensure this is done before the workspace is marked as ready.
+			// Note, this is done even in the even that startup script failed.
 			if metadata.GitAuthConfigs > 0 {
-				err = gitauth.OverrideVSCodeConfigs(a.filesystem)
+				err := gitauth.OverrideVSCodeConfigs(a.filesystem)
 				if err != nil {
 					a.logger.Warn(ctx, "failed to override vscode git auth configs", slog.Error(err))
 				}
 			}
 
-			a.setLifecycle(codersdk.WorkspaceAgentLifecycleReady)
+			a.setLifecycle(lifecycleStatus)
 		}()
 	}
 
