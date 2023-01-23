@@ -150,6 +150,7 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 		Directory:            apiAgent.Directory,
 		VSCodePortProxyURI:   vscodeProxyURI,
 		MOTDFile:             workspaceAgent.MOTDFile,
+		StartupScriptTimeout: time.Duration(apiAgent.StartupScriptTimeoutSeconds) * time.Second,
 	})
 }
 
@@ -739,22 +740,24 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		troubleshootingURL = dbAgent.TroubleshootingURL
 	}
 	workspaceAgent := codersdk.WorkspaceAgent{
-		ID:                       dbAgent.ID,
-		CreatedAt:                dbAgent.CreatedAt,
-		UpdatedAt:                dbAgent.UpdatedAt,
-		ResourceID:               dbAgent.ResourceID,
-		InstanceID:               dbAgent.AuthInstanceID.String,
-		Name:                     dbAgent.Name,
-		Architecture:             dbAgent.Architecture,
-		OperatingSystem:          dbAgent.OperatingSystem,
-		StartupScript:            dbAgent.StartupScript.String,
-		Version:                  dbAgent.Version,
-		EnvironmentVariables:     envs,
-		Directory:                dbAgent.Directory,
-		Apps:                     apps,
-		ConnectionTimeoutSeconds: dbAgent.ConnectionTimeoutSeconds,
-		TroubleshootingURL:       troubleshootingURL,
-		LifecycleState:           codersdk.WorkspaceAgentLifecycle(dbAgent.LifecycleState),
+		ID:                          dbAgent.ID,
+		CreatedAt:                   dbAgent.CreatedAt,
+		UpdatedAt:                   dbAgent.UpdatedAt,
+		ResourceID:                  dbAgent.ResourceID,
+		InstanceID:                  dbAgent.AuthInstanceID.String,
+		Name:                        dbAgent.Name,
+		Architecture:                dbAgent.Architecture,
+		OperatingSystem:             dbAgent.OperatingSystem,
+		StartupScript:               dbAgent.StartupScript.String,
+		Version:                     dbAgent.Version,
+		EnvironmentVariables:        envs,
+		Directory:                   dbAgent.Directory,
+		Apps:                        apps,
+		ConnectionTimeoutSeconds:    dbAgent.ConnectionTimeoutSeconds,
+		TroubleshootingURL:          troubleshootingURL,
+		LifecycleState:              codersdk.WorkspaceAgentLifecycle(dbAgent.LifecycleState),
+		DelayLoginUntilReady:        dbAgent.DelayLoginUntilReady,
+		StartupScriptTimeoutSeconds: dbAgent.StartupScriptTimeoutSeconds,
 	}
 	node := coordinator.Node(dbAgent.ID)
 	if node != nil {

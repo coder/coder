@@ -124,18 +124,18 @@ func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph strin
 		agentNames[tfResource.Name] = struct{}{}
 
 		agent := &proto.Agent{
-			Name:                     tfResource.Name,
-			Id:                       attrs.ID,
-			Env:                      attrs.Env,
-			StartupScript:            attrs.StartupScript,
-			OperatingSystem:          attrs.OperatingSystem,
-			Architecture:             attrs.Architecture,
-			Directory:                attrs.Directory,
-			ConnectionTimeoutSeconds: attrs.ConnectionTimeoutSeconds,
-			TroubleshootingUrl:       attrs.TroubleshootingURL,
-			MotdFile:                 attrs.MOTDFile,
-			DelayLoginUntilReady:     attrs.DelayLoginUntilReady,
-			StartupScriptTimeout:     attrs.StartupScriptTimeout,
+			Name:                        tfResource.Name,
+			Id:                          attrs.ID,
+			Env:                         attrs.Env,
+			StartupScript:               attrs.StartupScript,
+			OperatingSystem:             attrs.OperatingSystem,
+			Architecture:                attrs.Architecture,
+			Directory:                   attrs.Directory,
+			ConnectionTimeoutSeconds:    attrs.ConnectionTimeoutSeconds,
+			TroubleshootingUrl:          attrs.TroubleshootingURL,
+			MotdFile:                    attrs.MOTDFile,
+			DelayLoginUntilReady:        attrs.DelayLoginUntilReady,
+			StartupScriptTimeoutSeconds: attrs.StartupScriptTimeout,
 		}
 		switch attrs.Auth {
 		case "token":

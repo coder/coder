@@ -932,6 +932,8 @@ export interface WorkspaceAgent {
   readonly latency?: Record<string, DERPRegion>
   readonly connection_timeout_seconds: number
   readonly troubleshooting_url: string
+  readonly delay_login_until_ready: boolean
+  readonly startup_script_timeout_seconds: number
 }
 
 // From codersdk/workspaceagents.go

@@ -77,6 +77,10 @@ type WorkspaceAgent struct {
 	DERPLatency              map[string]DERPRegion `json:"latency,omitempty"`
 	ConnectionTimeoutSeconds int32                 `json:"connection_timeout_seconds"`
 	TroubleshootingURL       string                `json:"troubleshooting_url"`
+	// DelayLoginUntilReady if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).
+	DelayLoginUntilReady bool `db:"delay_login_until_ready" json:"delay_login_until_ready"`
+	// StartupScriptTimeoutSeconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.
+	StartupScriptTimeoutSeconds int32 `db:"startup_script_timeout_seconds" json:"startup_script_timeout_seconds"`
 }
 
 type WorkspaceAgentResourceMetadata struct {

@@ -7686,6 +7686,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "delay_login_until_ready": {
+                    "description": "DelayLoginUntilReady if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).",
+                    "type": "boolean"
+                },
                 "directory": {
                     "type": "string"
                 },
@@ -7736,6 +7740,10 @@ const docTemplate = `{
                 },
                 "startup_script": {
                     "type": "string"
+                },
+                "startup_script_timeout_seconds": {
+                    "description": "StartupScriptTimeoutSeconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.",
+                    "type": "integer"
                 },
                 "status": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentStatus"
