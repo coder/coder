@@ -4,8 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/coder/coder/coderd/database"
 	"github.com/google/uuid"
+
+	"github.com/coder/coder/coderd/database"
 )
 
 // TODO: @emyrk should we name system functions differently to indicate a user
