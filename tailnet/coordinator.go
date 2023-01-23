@@ -145,10 +145,14 @@ func (c *coordinator) Node(id uuid.UUID) *Node {
 }
 
 func (c *coordinator) NodeCount() int {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	return len(c.nodes)
 }
 
 func (c *coordinator) AgentCount() int {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	return len(c.agentSockets)
 }
 
@@ -299,6 +303,7 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
 		id:   unique,
 		conn: conn,
 	}
+
 	c.mutex.Unlock()
 	defer func() {
 		c.mutex.Lock()
