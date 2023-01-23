@@ -42,35 +42,36 @@ func TestCache_TemplateUsers(t *testing.T) {
 		want want
 	}{
 		{"empty", args{}, want{nil, 0}},
-		{"one hole", args{
-			rows: []database.InsertAgentStatParams{
+		{
+			"one hole", args{
+				rows: []database.InsertAgentStatParams{
+					{
+						CreatedAt: date(2022, 8, 27),
+						UserID:    zebra,
+					},
+					{
+						CreatedAt: date(2022, 8, 30),
+						UserID:    zebra,
+					},
+				},
+			}, want{[]codersdk.DAUEntry{
 				{
-					CreatedAt: date(2022, 8, 27),
-					UserID:    zebra,
+					Date:   date(2022, 8, 27),
+					Amount: 1,
 				},
 				{
-					CreatedAt: date(2022, 8, 30),
-					UserID:    zebra,
+					Date:   date(2022, 8, 28),
+					Amount: 0,
 				},
-			},
-		}, want{[]codersdk.DAUEntry{
-			{
-				Date:   date(2022, 8, 27),
-				Amount: 1,
-			},
-			{
-				Date:   date(2022, 8, 28),
-				Amount: 0,
-			},
-			{
-				Date:   date(2022, 8, 29),
-				Amount: 0,
-			},
-			{
-				Date:   date(2022, 8, 30),
-				Amount: 1,
-			},
-		}, 1},
+				{
+					Date:   date(2022, 8, 29),
+					Amount: 0,
+				},
+				{
+					Date:   date(2022, 8, 30),
+					Amount: 1,
+				},
+			}, 1},
 		},
 		{"no holes", args{
 			rows: []database.InsertAgentStatParams{
@@ -169,7 +170,8 @@ func TestCache_TemplateUsers(t *testing.T) {
 
 			templateID := uuid.New()
 			db.InsertTemplate(context.Background(), database.InsertTemplateParams{
-				ID: templateID,
+				ID:          templateID,
+				Provisioner: database.ProvisionerTypeEcho,
 			})
 
 			gotUniqueUsers, ok := cache.TemplateUniqueUsers(templateID)
@@ -233,46 +235,50 @@ func TestCache_BuildTime(t *testing.T) {
 		want want
 	}{
 		{"empty", args{}, want{-1, false}},
-		{"one/start", args{
-			rows: []jobParams{
-				{
-					startedAt:   clockTime(someDay, 10, 1, 0),
-					completedAt: clockTime(someDay, 10, 1, 10),
+		{
+			"one/start", args{
+				rows: []jobParams{
+					{
+						startedAt:   clockTime(someDay, 10, 1, 0),
+						completedAt: clockTime(someDay, 10, 1, 10),
+					},
 				},
-			},
-			transition: database.WorkspaceTransitionStart,
-		}, want{10 * 1000, true},
+				transition: database.WorkspaceTransitionStart,
+			}, want{10 * 1000, true},
 		},
-		{"two/stop", args{
-			rows: []jobParams{
-				{
-					startedAt:   clockTime(someDay, 10, 1, 0),
-					completedAt: clockTime(someDay, 10, 1, 10),
+		{
+			"two/stop", args{
+				rows: []jobParams{
+					{
+						startedAt:   clockTime(someDay, 10, 1, 0),
+						completedAt: clockTime(someDay, 10, 1, 10),
+					},
+					{
+						startedAt:   clockTime(someDay, 10, 1, 0),
+						completedAt: clockTime(someDay, 10, 1, 50),
+					},
 				},
-				{
-					startedAt:   clockTime(someDay, 10, 1, 0),
-					completedAt: clockTime(someDay, 10, 1, 50),
-				},
-			},
-			transition: database.WorkspaceTransitionStop,
-		}, want{50 * 1000, true},
+				transition: database.WorkspaceTransitionStop,
+			}, want{50 * 1000, true},
 		},
-		{"three/delete", args{
-			rows: []jobParams{
-				{
-					startedAt:   clockTime(someDay, 10, 1, 0),
-					completedAt: clockTime(someDay, 10, 1, 10),
+		{
+			"three/delete", args{
+				rows: []jobParams{
+					{
+						startedAt:   clockTime(someDay, 10, 1, 0),
+						completedAt: clockTime(someDay, 10, 1, 10),
+					},
+					{
+						startedAt:   clockTime(someDay, 10, 1, 0),
+						completedAt: clockTime(someDay, 10, 1, 50),
+					},
+					{
+						startedAt:   clockTime(someDay, 10, 1, 0),
+						completedAt: clockTime(someDay, 10, 1, 20),
+					},
 				},
-				{
-					startedAt:   clockTime(someDay, 10, 1, 0),
-					completedAt: clockTime(someDay, 10, 1, 50),
-				}, {
-					startedAt:   clockTime(someDay, 10, 1, 0),
-					completedAt: clockTime(someDay, 10, 1, 20),
-				},
-			},
-			transition: database.WorkspaceTransitionDelete,
-		}, want{20 * 1000, true},
+				transition: database.WorkspaceTransitionDelete,
+			}, want{20 * 1000, true},
 		},
 	}
 
@@ -290,7 +296,8 @@ func TestCache_BuildTime(t *testing.T) {
 			defer cache.Close()
 
 			template, err := db.InsertTemplate(ctx, database.InsertTemplateParams{
-				ID: uuid.New(),
+				ID:          uuid.New(),
+				Provisioner: database.ProvisionerTypeEcho,
 			})
 			require.NoError(t, err)
 
@@ -305,8 +312,10 @@ func TestCache_BuildTime(t *testing.T) {
 
 			for _, row := range tt.args.rows {
 				_, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-					ID:          uuid.New(),
-					Provisioner: database.ProvisionerTypeEcho,
+					ID:            uuid.New(),
+					Provisioner:   database.ProvisionerTypeEcho,
+					StorageMethod: database.ProvisionerStorageMethodFile,
+					Type:          database.ProvisionerJobTypeWorkspaceBuild,
 				})
 				require.NoError(t, err)
 
@@ -322,6 +331,7 @@ func TestCache_BuildTime(t *testing.T) {
 					TemplateVersionID: templateVersion.ID,
 					JobID:             job.ID,
 					Transition:        tt.args.transition,
+					Reason:            database.BuildReasonInitiator,
 				})
 				require.NoError(t, err)
 

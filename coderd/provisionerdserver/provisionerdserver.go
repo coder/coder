@@ -536,13 +536,13 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 	// if failed job is a workspace build, audit the outcome
 	if job.Type == database.ProvisionerJobTypeWorkspaceBuild {
 		auditor := server.Auditor.Load()
-		build, getBuildErr := server.Database.GetWorkspaceBuildByJobID(ctx, job.ID)
-		if getBuildErr != nil {
+		build, err := server.Database.GetWorkspaceBuildByJobID(ctx, job.ID)
+		if err != nil {
 			server.Logger.Error(ctx, "audit log - get build", slog.Error(err))
 		} else {
 			auditAction := auditActionFromTransition(build.Transition)
-			workspace, getWorkspaceErr := server.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
-			if getWorkspaceErr != nil {
+			workspace, err := server.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
+			if err != nil {
 				server.Logger.Error(ctx, "audit log - get workspace", slog.Error(err))
 			} else {
 				// We pass the below information to the Auditor so that it
