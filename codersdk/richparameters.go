@@ -22,18 +22,19 @@ func ValidateWorkspaceBuildParameters(richParameters []TemplateVersionParameter,
 }
 
 func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, buildParameter WorkspaceBuildParameter) error {
-	if buildParameter.Value == "" && richParameter.DefaultValue == "" {
-		return xerrors.Errorf("parameter value can't be empty")
+	value := buildParameter.Value
+	if value == "" {
+		value = richParameter.DefaultValue
 	}
 
-	if buildParameter.Value == "" {
-		return nil // Default value wins
+	if value == "" {
+		return xerrors.Errorf("parameter value can't be empty")
 	}
 
 	if len(richParameter.Options) > 0 {
 		var matched bool
 		for _, opt := range richParameter.Options {
-			if opt.Value == buildParameter.Value {
+			if opt.Value == value {
 				matched = true
 				break
 			}
@@ -46,7 +47,7 @@ func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, bui
 	}
 
 	// Method provider.Validation.Valid() does not check the boolean type correctness, so it has to be checked here.
-	if richParameter.Type == "bool" && (buildParameter.Value != "true" && buildParameter.Value != "false") {
+	if richParameter.Type == "bool" && (value != "true" && value != "false") {
 		return xerrors.Errorf(`boolean value can be either "true" or "false"`)
 	}
 
@@ -60,7 +61,7 @@ func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, bui
 		Regex: richParameter.ValidationRegex,
 		Error: richParameter.ValidationError,
 	}
-	return validation.Valid(richParameter.Type, buildParameter.Value)
+	return validation.Valid(richParameter.Type, value)
 }
 
 func findTemplateVersionParameter(params []TemplateVersionParameter, parameterName string) (*TemplateVersionParameter, bool) {
