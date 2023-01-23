@@ -361,7 +361,7 @@ func (c *Client) ListenWorkspaceAgent(ctx context.Context) (net.Conn, error) {
 				if err != nil {
 					c.Logger.Error(ctx, "workspace agent coordinate ping", slog.Error(err))
 
-					err := conn.Close(websocket.StatusAbnormalClosure, "Ping failed")
+					err := conn.Close(websocket.StatusGoingAway, "Ping failed")
 					if err != nil {
 						c.Logger.Error(ctx, "close workspace agent coordinate websocket", slog.Error(err))
 					}
