@@ -11,7 +11,10 @@ import (
 	"github.com/coder/coder/coderd/tracing"
 )
 
-func Logger(log slog.Logger) func(next http.Handler) http.Handler {
+// Logger middleware logs details about the request and response to the provided
+// slog.Logger. The "level" parameter can either be "debug" or "info", and falls
+// back to "info" if an invalid value is provided.
+func Logger(log slog.Logger, level string) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			start := time.Now()
@@ -52,7 +55,10 @@ func Logger(log slog.Logger) func(next http.Handler) http.Handler {
 			// We should not log at level ERROR for 5xx status codes because 5xx
 			// includes proxy errors etc. It also causes slogtest to fail
 			// instantly without an error message by default.
-			logLevelFn := httplog.Debug
+			logLevelFn := httplog.Info
+			if level == "debug" {
+				logLevelFn = httplog.Debug
+			}
 			if sw.Status >= http.StatusInternalServerError {
 				logLevelFn = httplog.Warn
 			}

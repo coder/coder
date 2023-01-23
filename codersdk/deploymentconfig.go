@@ -46,6 +46,7 @@ type DeploymentConfig struct {
 	Logging                         *LoggingConfig                          `json:"logging" typescript:",notnull"`
 	Dangerous                       *DangerousConfig                        `json:"dangerous" typescript:",notnull"`
 	DisablePathApps                 *DeploymentConfigField[bool]            `json:"disable_path_apps" typescript:",notnull"`
+	RequestLogLevel                 *DeploymentConfigField[string]
 
 	// DEPRECATED: Use HTTPAddress or TLS.Address instead.
 	Address *DeploymentConfigField[string] `json:"address" typescript:",notnull"`

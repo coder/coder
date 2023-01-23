@@ -520,6 +520,12 @@ func newConfig() *codersdk.DeploymentConfig {
 			Flag:    "disable-path-apps",
 			Default: false,
 		},
+		RequestLogLevel: &codersdk.DeploymentConfigField[string]{
+			Name:    "Request Log Level",
+			Usage:   `Set the log level for successful (1xx, 2xx, 3xx, 4xx) request logs. Requests that fail due to a server error (5xx) are always logged at the "warn" level. Valid values are: "info" and "debug".`,
+			Flag:    "request-log-level",
+			Default: "info",
+		},
 	}
 }
 

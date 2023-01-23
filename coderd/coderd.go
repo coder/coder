@@ -263,7 +263,7 @@ func New(options *Options) *API {
 		tracing.Middleware(api.TracerProvider),
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(api.RealIPConfig),
-		httpmw.Logger(api.Logger),
+		httpmw.Logger(api.Logger, api.DeploymentConfig.RequestLogLevel.Value),
 		httpmw.Prometheus(options.PrometheusRegistry),
 		// handleSubdomainApplications checks if the first subdomain is a valid
 		// app URL. If it is, it will serve that application.
