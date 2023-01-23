@@ -32,9 +32,10 @@ func TestUserParam(t *testing.T) {
 		r.Header.Set(codersdk.SessionCustomHeader, fmt.Sprintf("%s-%s", id, secret))
 
 		user, err := db.InsertUser(r.Context(), database.InsertUserParams{
-			ID:       uuid.New(),
-			Email:    "admin@email.com",
-			Username: "admin",
+			ID:        uuid.New(),
+			Email:     "admin@email.com",
+			Username:  "admin",
+			LoginType: database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 
