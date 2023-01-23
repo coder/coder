@@ -475,11 +475,11 @@
 
 ### Properties
 
-| Name       | Type                                       | Required | Restrictions | Description |
-| ---------- | ------------------------------------------ | -------- | ------------ | ----------- |
-| `github`   | [codersdk.AuthMethod](#codersdkauthmethod) | false    |              |             |
-| `oidc`     | [codersdk.OIDCMethod](#codersdkoidcmethod) | false    |              |             |
-| `password` | [codersdk.AuthMethod](#codersdkauthmethod) | false    |              |             |
+| Name       | Type                                               | Required | Restrictions | Description |
+| ---------- | -------------------------------------------------- | -------- | ------------ | ----------- |
+| `github`   | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
+| `oidc`     | [codersdk.OIDCAuthMethod](#codersdkoidcauthmethod) | false    |              |             |
+| `password` | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
 
 ## codersdk.AuthorizationCheck
 
@@ -3105,7 +3105,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `sign_in_text`          | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
 | `username_field`        | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
 
-## codersdk.OIDCMethod
+## codersdk.OIDCAuthMethod
 
 ```json
 {

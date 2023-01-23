@@ -4564,7 +4564,7 @@
           "$ref": "#/definitions/codersdk.AuthMethod"
         },
         "oidc": {
-          "$ref": "#/definitions/codersdk.OIDCMethod"
+          "$ref": "#/definitions/codersdk.OIDCAuthMethod"
         },
         "password": {
           "$ref": "#/definitions/codersdk.AuthMethod"
@@ -5695,7 +5695,7 @@
         }
       }
     },
-    "codersdk.OIDCMethod": {
+    "codersdk.OIDCAuthMethod": {
       "type": "object",
       "properties": {
         "enabled": {

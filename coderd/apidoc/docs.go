@@ -5154,7 +5154,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.AuthMethod"
                 },
                 "oidc": {
-                    "$ref": "#/definitions/codersdk.OIDCMethod"
+                    "$ref": "#/definitions/codersdk.OIDCAuthMethod"
                 },
                 "password": {
                     "$ref": "#/definitions/codersdk.AuthMethod"
@@ -6366,7 +6366,7 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.OIDCMethod": {
+        "codersdk.OIDCAuthMethod": {
             "type": "object",
             "properties": {
                 "enabled": {
