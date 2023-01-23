@@ -1,10 +1,13 @@
 import Link from "@material-ui/core/Link"
+import { Workspace } from "api/typesGenerated"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Maybe } from "components/Conditionals/Maybe"
-import { PaginationWidget } from "components/PaginationWidget/PaginationWidget"
+import {
+  PaginationWidgetBase,
+  PaginationWidgetBaseProps,
+} from "components/PaginationWidget/PaginationWidgetBase"
 import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
-import { PaginationMachineRef } from "xServices/pagination/paginationXService"
 import { Margins } from "../../components/Margins/Margins"
 import {
   PageHeader,
@@ -16,7 +19,6 @@ import { Stack } from "../../components/Stack/Stack"
 import { WorkspaceHelpTooltip } from "../../components/Tooltips"
 import { WorkspacesTable } from "../../components/WorkspacesTable/WorkspacesTable"
 import { workspaceFilterQuery } from "../../util/filters"
-import { WorkspaceItemMachineRef } from "../../xServices/workspaces/workspacesXService"
 
 export const Language = {
   pageTitle: "Workspaces",
@@ -28,27 +30,23 @@ export const Language = {
 }
 
 export interface WorkspacesPageViewProps {
-  isLoading?: boolean
-  workspaceRefs?: WorkspaceItemMachineRef[]
-  count?: number
-  getWorkspacesError: Error | unknown
-  filter?: string
+  error: unknown
+  workspaces?: Workspace[]
+  pagination?: PaginationWidgetBaseProps
+  filter: string
   onFilter: (query: string) => void
-  paginationRef: PaginationMachineRef
-  isNonInitialPage: boolean
+  onUpdateWorkspace: (workspace: Workspace) => void
 }
 
 export const WorkspacesPageView: FC<
   React.PropsWithChildren<WorkspacesPageViewProps>
 > = ({
-  isLoading,
-  workspaceRefs,
-  count,
-  getWorkspacesError,
+  workspaces,
+  error,
   filter,
   onFilter,
-  paginationRef,
-  isNonInitialPage,
+  pagination,
+  onUpdateWorkspace,
 }) => {
   const presetFilters = [
     { query: workspaceFilterQuery.me, name: Language.yourWorkspacesButton },
@@ -79,11 +77,11 @@ export const WorkspacesPageView: FC<
       </PageHeader>
 
       <Stack>
-        <Maybe condition={getWorkspacesError !== undefined}>
+        <Maybe condition={Boolean(error)}>
           <AlertBanner
-            error={getWorkspacesError}
+            error={error}
             severity={
-              workspaceRefs !== undefined && workspaceRefs.length > 0
+              workspaces !== undefined && workspaces.length > 0
                 ? "warning"
                 : "error"
             }
@@ -96,15 +94,12 @@ export const WorkspacesPageView: FC<
           presetFilters={presetFilters}
         />
       </Stack>
-
       <WorkspacesTable
-        isLoading={isLoading}
-        workspaceRefs={workspaceRefs}
-        filter={filter}
-        isNonInitialPage={isNonInitialPage}
+        workspaces={workspaces}
+        isUsingFilter={filter !== workspaceFilterQuery.me}
+        onUpdateWorkspace={onUpdateWorkspace}
       />
-
-      <PaginationWidget numRecords={count} paginationRef={paginationRef} />
+      {pagination && <PaginationWidgetBase {...pagination} />}
     </Margins>
   )
 }
