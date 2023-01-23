@@ -123,22 +123,53 @@ func (q *AuthzQuerier) GetTemplateVersionParameters(ctx context.Context, templat
 }
 
 func (q *AuthzQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.TemplateVersion, error) {
-	// TODO implement me
-	panic("implement me")
+	fetchRelated := func(tvs []database.TemplateVersion, ids []uuid.UUID) (rbac.Objecter, error) {
+		if len(tvs) == 0 {
+			return rbac.ResourceTemplate, nil
+		}
+		tv := tvs[0]
+		if !tv.TemplateID.Valid {
+			return rbac.ResourceTemplate, nil
+		}
+		return q.database.GetTemplateByID(ctx, tv.TemplateID.UUID)
+	}
+	return authorizedQueryWithRelated(
+		q.authorizer,
+		rbac.ActionRead,
+		fetchRelated,
+		q.database.GetTemplateVersionsByIDs,
+	)(ctx, ids)
 }
 
 func (q *AuthzQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg database.GetTemplateVersionsByTemplateIDParams) ([]database.TemplateVersion, error) {
-	// Authorize fetch the template
-	_, err := authorizedFetch(q.authorizer, q.database.GetTemplateByID)(ctx, arg.TemplateID)
-	if err != nil {
-		return nil, err
+	fetchRelated := func(tvs []database.TemplateVersion, p database.GetTemplateVersionsByTemplateIDParams) (rbac.Objecter, error) {
+		return q.database.GetTemplateByID(ctx, p.TemplateID)
 	}
-	return q.GetTemplateVersionsByTemplateID(ctx, arg)
+	return authorizedQueryWithRelated(
+		q.authorizer,
+		rbac.ActionRead,
+		fetchRelated,
+		q.database.GetTemplateVersionsByTemplateID,
+	)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.TemplateVersion, error) {
-	// TODO implement me
-	panic("implement me")
+	fetchRelated := func(tvs []database.TemplateVersion, _ time.Time) (rbac.Objecter, error) {
+		if len(tvs) == 0 {
+			return rbac.ResourceTemplate, nil
+		}
+		tv := tvs[0]
+		if !tv.TemplateID.Valid {
+			return rbac.ResourceTemplate, nil
+		}
+		return q.database.GetTemplateByID(ctx, tv.TemplateID.UUID)
+	}
+	return authorizedQueryWithRelated(
+		q.authorizer,
+		rbac.ActionRead,
+		fetchRelated,
+		q.database.GetTemplateVersionsCreatedAfter,
+	)(ctx, createdAt)
 }
 
 func (q *AuthzQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, _ rbac.PreparedAuthorized) ([]database.Template, error) {
