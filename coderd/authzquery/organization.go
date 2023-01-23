@@ -30,7 +30,7 @@ func (q *AuthzQuerier) GetOrganizationByName(ctx context.Context, name string) (
 }
 
 func (q *AuthzQuerier) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetOrganizationIDsByMemberIDsRow, error) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
@@ -39,7 +39,7 @@ func (q *AuthzQuerier) GetOrganizationMemberByUserID(ctx context.Context, arg da
 }
 
 func (q *AuthzQuerier) GetOrganizationMembershipsByUserID(ctx context.Context, userID uuid.UUID) ([]database.OrganizationMember, error) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
@@ -59,11 +59,11 @@ func (q *AuthzQuerier) InsertOrganization(ctx context.Context, arg database.Inse
 }
 
 func (q *AuthzQuerier) InsertOrganizationMember(ctx context.Context, arg database.InsertOrganizationMemberParams) (database.OrganizationMember, error) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (q *AuthzQuerier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }

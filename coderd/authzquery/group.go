@@ -5,8 +5,9 @@ import (
 
 	"github.com/coder/coder/coderd/rbac"
 
-	"github.com/coder/coder/coderd/database"
 	"github.com/google/uuid"
+
+	"github.com/coder/coder/coderd/database"
 )
 
 func (q *AuthzQuerier) DeleteGroupByID(ctx context.Context, id uuid.UUID) error {

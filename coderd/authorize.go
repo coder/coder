@@ -50,6 +50,10 @@ type HTTPAuthorizer struct {
 //		return
 //	}
 func (api *API) Authorize(r *http.Request, action rbac.Action, object rbac.Objecter) bool {
+	if api.Experiments.Enabled(codersdk.ExperimentAuthzQuerier) {
+		api.Logger.Debug(r.Context(), "skipping Authorize check because authz_querier experiment is enabled")
+		return true
+	}
 	return api.HTTPAuth.Authorize(r, action, object)
 }
 

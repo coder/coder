@@ -5,8 +5,9 @@ import (
 
 	"github.com/coder/coder/coderd/rbac"
 
-	"github.com/coder/coder/coderd/database"
 	"github.com/google/uuid"
+
+	"github.com/coder/coder/coderd/database"
 )
 
 func (q *AuthzQuerier) GetFileByHashAndCreator(ctx context.Context, arg database.GetFileByHashAndCreatorParams) (database.File, error) {

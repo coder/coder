@@ -219,6 +219,42 @@ func authorizedFetchSet[ArgumentType any, ObjectType rbac.Objecter,
 	}
 }
 
+func authorizedQueryWithRelated[ObjectType any, ArgumentType any, Related rbac.Objecter](
+	// Arguments
+	authorizer rbac.Authorizer,
+	action rbac.Action,
+	relatedFunc func(ObjectType, ArgumentType) (Related, error),
+	fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error)) func(ctx context.Context, arg ArgumentType) (ObjectType, error) {
+
+	return func(ctx context.Context, arg ArgumentType) (empty ObjectType, err error) {
+		// Fetch the rbac subject
+		act, ok := actorFromContext(ctx)
+		if !ok {
+			return empty, xerrors.Errorf("no authorization actor in context")
+		}
+
+		// Fetch the rbac object
+		obj, err := fetch(ctx, arg)
+		if err != nil {
+			return empty, xerrors.Errorf("fetch object: %w", err)
+		}
+
+		// Fetch the related object on which we actually do RBAC
+		rel, err := relatedFunc(obj, arg)
+		if err != nil {
+			return empty, xerrors.Errorf("fetch related object: %w", err)
+		}
+
+		// Authorize the action
+		err = authorizer.ByRoleName(ctx, act.ID.String(), act.Roles, act.Scope, act.Groups, action, rel.RBACObject())
+		if err != nil {
+			return empty, xerrors.Errorf("unauthorized: %w", err)
+		}
+
+		return obj, nil
+	}
+}
+
 // prepareSQLFilter is a helper function that prepares a SQL filter using the
 // given authorization context.
 func prepareSQLFilter(ctx context.Context, authorizer rbac.Authorizer, action rbac.Action, resourceType string) (rbac.PreparedAuthorized, error) {

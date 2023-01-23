@@ -5,9 +5,10 @@ import (
 	"database/sql"
 	"time"
 
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/rbac"
-	"golang.org/x/xerrors"
 )
 
 // AuthzQuerier is a wrapper around the database store that performs authorization

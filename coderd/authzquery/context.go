@@ -3,8 +3,9 @@ package authzquery
 import (
 	"context"
 
-	"github.com/coder/coder/coderd/rbac"
 	"github.com/google/uuid"
+
+	"github.com/coder/coder/coderd/rbac"
 )
 
 // TODO:
