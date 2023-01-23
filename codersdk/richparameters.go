@@ -27,10 +27,6 @@ func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, bui
 		value = richParameter.DefaultValue
 	}
 
-	if value == "" {
-		return xerrors.Errorf("parameter value can't be empty")
-	}
-
 	if len(richParameter.Options) > 0 {
 		var matched bool
 		for _, opt := range richParameter.Options {
@@ -44,11 +40,6 @@ func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, bui
 			return xerrors.Errorf("parameter value must match one of options: %s", parameterValuesAsArray(richParameter.Options))
 		}
 		return nil
-	}
-
-	// Method provider.Validation.Valid() does not check the boolean type correctness, so it has to be checked here.
-	if richParameter.Type == "bool" && (value != "true" && value != "false") {
-		return xerrors.Errorf(`boolean value can be either "true" or "false"`)
 	}
 
 	if !validationEnabled(richParameter) {
@@ -82,5 +73,7 @@ func parameterValuesAsArray(options []TemplateVersionParameterOption) []string {
 }
 
 func validationEnabled(param TemplateVersionParameter) bool {
-	return len(param.ValidationRegex) > 0 || (param.ValidationMin != 0 && param.ValidationMax != 0)
+	return len(param.ValidationRegex) > 0 ||
+		(param.ValidationMin != 0 && param.ValidationMax != 0) ||
+		param.Type == "bool" // boolean type doesn't have any custom validation rules, but the value must be checked (true/false).
 }
