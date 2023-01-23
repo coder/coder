@@ -1,16 +1,14 @@
-import { useActor } from "@xstate/react"
-import { FC, useContext } from "react"
+import { useAuth } from "components/AuthProvider/AuthProvider"
+import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
 import { Navigate, useLocation } from "react-router-dom"
 import { retrieveRedirect } from "../../util/redirect"
-import { XServiceContext } from "../../xServices/StateContext"
 import { LoginPageView } from "./LoginPageView"
 
 export const LoginPage: FC = () => {
   const location = useLocation()
-  const xServices = useContext(XServiceContext)
-  const [authState, authSend] = useActor(xServices.authXService)
+  const [authState, authSend] = useAuth()
   const redirectTo = retrieveRedirect(location.search)
   const commonTranslation = useTranslation("common")
   const loginPageTranslation = useTranslation("loginPage")

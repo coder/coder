@@ -41,6 +41,7 @@ func TestWorkspaceBuildParam(t *testing.T) {
 			Username:       username,
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
+			LoginType:      database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 
@@ -123,6 +124,8 @@ func TestWorkspaceBuildParam(t *testing.T) {
 		workspaceBuild, err := db.InsertWorkspaceBuild(context.Background(), database.InsertWorkspaceBuildParams{
 			ID:          uuid.New(),
 			WorkspaceID: workspace.ID,
+			Transition:  database.WorkspaceTransitionStart,
+			Reason:      database.BuildReasonInitiator,
 		})
 		require.NoError(t, err)
 		chi.RouteContext(r.Context()).URLParams.Add("workspacebuild", workspaceBuild.ID.String())

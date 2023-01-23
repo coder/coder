@@ -5466,8 +5466,8 @@
     },
     "codersdk.Experiment": {
       "type": "string",
-      "enum": ["vscode_local", "authz_querier"],
-      "x-enum-varnames": ["ExperimentVSCodeLocal", "ExperimentAuthzQuerier"]
+      "enum": ["authz_querier"],
+      "x-enum-varnames": ["ExperimentAuthzQuerier"]
     },
     "codersdk.Feature": {
       "type": "object",

@@ -6122,11 +6122,9 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
-                "vscode_local",
                 "authz_querier"
             ],
             "x-enum-varnames": [
-                "ExperimentVSCodeLocal",
                 "ExperimentAuthzQuerier"
             ]
         },

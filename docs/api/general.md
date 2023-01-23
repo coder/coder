@@ -1072,7 +1072,7 @@ curl -X GET http://coder-server:8080/api/v2/experiments \
 > 200 Response
 
 ```json
-["vscode_local"]
+["authz_querier"]
 ```
 
 ### Responses

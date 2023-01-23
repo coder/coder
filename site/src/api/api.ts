@@ -34,18 +34,6 @@ export const withDefaultFeatures = (
   return fs as TypesGen.Entitlements["features"]
 }
 
-// defaultEntitlements has a default set of disabled functionality.
-export const defaultEntitlements = (): TypesGen.Entitlements => {
-  return {
-    features: withDefaultFeatures({}),
-    has_license: false,
-    errors: [],
-    warnings: [],
-    experimental: false,
-    trial: false,
-  }
-}
-
 // Always attach CSRF token to all requests.
 // In puppeteer the document is undefined. In those cases, just
 // do nothing.
@@ -625,15 +613,8 @@ export const putWorkspaceExtension = async (
 }
 
 export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
-  try {
-    const response = await axios.get("/api/v2/entitlements")
-    return response.data
-  } catch (error) {
-    if (axios.isAxiosError(error) && error.response?.status === 404) {
-      return defaultEntitlements()
-    }
-    throw error
-  }
+  const response = await axios.get("/api/v2/entitlements")
+  return response.data
 }
 
 export const getExperiments = async (): Promise<TypesGen.Experiment[]> => {

@@ -198,7 +198,7 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 			Username:  dblog.UserUsername.String,
 			Email:     dblog.UserEmail.String,
 			CreatedAt: dblog.UserCreatedAt.Time,
-			Status:    codersdk.UserStatus(dblog.UserStatus),
+			Status:    codersdk.UserStatus(dblog.UserStatus.UserStatus),
 			Roles:     []codersdk.Role{},
 			AvatarURL: dblog.UserAvatarUrl.String,
 		}
@@ -477,6 +477,10 @@ func actionFromString(actionString string) string {
 	case codersdk.AuditActionWrite:
 		return actionString
 	case codersdk.AuditActionDelete:
+		return actionString
+	case codersdk.AuditActionStart:
+		return actionString
+	case codersdk.AuditActionStop:
 		return actionString
 	default:
 	}

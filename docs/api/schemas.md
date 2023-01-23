@@ -2430,7 +2430,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 ## codersdk.Experiment
 
 ```json
-"vscode_local"
+"authz_querier"
 ```
 
 ### Properties
@@ -2439,7 +2439,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 | Value           |
 | --------------- |
-| `vscode_local`  |
 | `authz_querier` |
 
 ## codersdk.Feature

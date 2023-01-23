@@ -133,6 +133,8 @@ func TestAgent_GitSSH(t *testing.T) {
 
 func TestAgent_SessionTTYShell(t *testing.T) {
 	t.Parallel()
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	t.Cleanup(cancel)
 	if runtime.GOOS == "windows" {
 		// This might be our implementation, or ConPTY itself.
 		// It's difficult to find extensive tests for it, so
@@ -140,7 +142,7 @@ func TestAgent_SessionTTYShell(t *testing.T) {
 		t.Skip("ConPTY appears to be inconsistent on Windows.")
 	}
 	session := setupSSHSession(t, codersdk.WorkspaceAgentMetadata{})
-	command := "bash"
+	command := "sh"
 	if runtime.GOOS == "windows" {
 		command = "cmd.exe"
 	}
@@ -152,11 +154,7 @@ func TestAgent_SessionTTYShell(t *testing.T) {
 	session.Stdin = ptty.Input()
 	err = session.Start(command)
 	require.NoError(t, err)
-	caret := "$"
-	if runtime.GOOS == "windows" {
-		caret = ">"
-	}
-	ptty.ExpectMatch(caret)
+	_ = ptty.Peek(ctx, 1) // wait for the prompt
 	ptty.WriteLine("echo test")
 	ptty.ExpectMatch("test")
 	ptty.WriteLine("exit")
