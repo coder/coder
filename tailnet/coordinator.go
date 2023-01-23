@@ -233,7 +233,7 @@ func (c *coordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *json
 
 	_, err = agentSocket.conn.Write(data)
 	if err != nil {
-		if errors.Is(err, io.EOF) {
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) || errors.Is(err, context.Canceled) {
 			return nil
 		}
 		return xerrors.Errorf("write json: %w", err)
@@ -308,7 +308,7 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
 	for {
 		err := c.handleNextAgentMessage(id, decoder)
 		if err != nil {
-			if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
+			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) || errors.Is(err, context.Canceled) {
 				return nil
 			}
 			return xerrors.Errorf("handle next agent message: %w", err)
