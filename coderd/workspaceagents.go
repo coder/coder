@@ -754,6 +754,7 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		Apps:                     apps,
 		ConnectionTimeoutSeconds: dbAgent.ConnectionTimeoutSeconds,
 		TroubleshootingURL:       troubleshootingURL,
+		LifecycleState:           codersdk.WorkspaceAgentLifecycle(dbAgent.LifecycleState),
 	}
 	node := coordinator.Node(dbAgent.ID)
 	if node != nil {
@@ -932,9 +933,18 @@ func (api *API) workspaceAgentReportLifecycle(rw http.ResponseWriter, r *http.Re
 		slog.F("payload", req),
 	)
 
+	lifecycleState := database.WorkspaceAgentLifecycleState(req.State)
+	if !lifecycleState.Valid() {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid lifecycle state.",
+			Detail:  fmt.Sprintf("Invalid lifecycle state %q, must be be one of %q.", req.State, database.AllWorkspaceAgentLifecycleStateValues()),
+		})
+		return
+	}
+
 	err = api.Database.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
 		ID:             workspaceAgent.ID,
-		LifecycleState: database.WorkspaceAgentLifecycleState(req.State),
+		LifecycleState: lifecycleState,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)

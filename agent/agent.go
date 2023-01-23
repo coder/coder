@@ -102,6 +102,7 @@ func New(options Options) io.Closer {
 		exchangeToken:          options.ExchangeToken,
 		filesystem:             options.Filesystem,
 		tempDir:                options.TempDir,
+		lifecycleUpdate:        make(chan struct{}, 1),
 	}
 	a.init(ctx)
 	return a
@@ -128,8 +129,9 @@ type agent struct {
 	sessionToken atomic.Pointer[string]
 	sshServer    *ssh.Server
 
-	lifecycleMu    sync.Mutex // Protects following.
-	lifecycleState codersdk.WorkspaceAgentLifecycle
+	lifecycleUpdate chan struct{}
+	lifecycleMu     sync.Mutex // Protects following.
+	lifecycleState  codersdk.WorkspaceAgentLifecycle
 
 	network *tailnet.Conn
 }
@@ -139,6 +141,8 @@ type agent struct {
 // may be happening, but regardless after the intermittent
 // failure, you'll want the agent to reconnect.
 func (a *agent) runLoop(ctx context.Context) {
+	go a.reportLifecycleLoop(ctx)
+
 	for retrier := retry.New(100*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
 		a.logger.Info(ctx, "running loop")
 		err := a.run(ctx)
@@ -160,27 +164,51 @@ func (a *agent) runLoop(ctx context.Context) {
 	}
 }
 
-func (a *agent) setLifecycle(ctx context.Context, state codersdk.WorkspaceAgentLifecycle) {
+// reportLifecycleLoop reports the current lifecycle state once.
+// Only the latest state is reported, intermediate states may be
+// lost if the agent can't communicate with the API.
+func (a *agent) reportLifecycleLoop(ctx context.Context) {
+	var lastReported codersdk.WorkspaceAgentLifecycle
+	for {
+		select {
+		case <-a.lifecycleUpdate:
+		case <-ctx.Done():
+			return
+		}
+
+		for r := retry.New(time.Second, 15*time.Second); r.Wait(ctx); {
+			a.lifecycleMu.Lock()
+			state := a.lifecycleState
+			a.lifecycleMu.Unlock()
+
+			if state == lastReported {
+				continue
+			}
+
+			err := a.client.PostWorkspaceAgentLifecycle(ctx, codersdk.PostWorkspaceAgentLifecycleRequest{
+				State: state,
+			})
+			if err == nil {
+				lastReported = state
+				break
+			}
+			if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
+				return
+			}
+			// If we fail to report the state we probably shouldn't exit, log only.
+			a.logger.Error(ctx, "post state", slog.Error(err))
+		}
+	}
+}
+
+func (a *agent) setLifecycle(state codersdk.WorkspaceAgentLifecycle) {
 	a.lifecycleMu.Lock()
 	defer a.lifecycleMu.Unlock()
 
 	a.lifecycleState = state
-
-	var err error
-	for r := retry.New(time.Second, 30*time.Second); r.Wait(ctx); {
-		err = a.client.PostWorkspaceAgentLifecycle(ctx, codersdk.PostWorkspaceAgentLifecycleRequest{
-			State: state,
-		})
-		if err == nil {
-			return
-		}
-	}
-	if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) || a.isClosed() {
-		return
-	}
-	if err != nil {
-		// If we fail to report the state we probably shouldn't exit, log only.
-		a.logger.Error(ctx, "post state", slog.Error(err))
+	select {
+	case a.lifecycleUpdate <- struct{}{}:
+	default:
 	}
 }
 
@@ -224,14 +252,14 @@ func (a *agent) run(ctx context.Context) error {
 				timeout = t.C
 			}
 
-			a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleStarting)
+			a.setLifecycle(codersdk.WorkspaceAgentLifecycleStarting)
 
 			var err error
 			select {
 			case err = <-scriptDone:
 			case <-timeout:
 				a.logger.Warn(ctx, "startup script timed out")
-				a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleStartTimeout)
+				a.setLifecycle(codersdk.WorkspaceAgentLifecycleStartTimeout)
 				err = <-scriptDone // The script can still complete after a timeout.
 			}
 			if errors.Is(err, context.Canceled) {
@@ -240,7 +268,7 @@ func (a *agent) run(ctx context.Context) error {
 			execTime := time.Since(scriptStart)
 			if err != nil {
 				a.logger.Warn(ctx, "startup script failed", slog.F("execution_time", execTime), slog.Error(err))
-				a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleStartError)
+				a.setLifecycle(codersdk.WorkspaceAgentLifecycleStartError)
 				return
 			}
 			a.logger.Info(ctx, "startup script completed", slog.F("execution_time", execTime))
@@ -255,7 +283,7 @@ func (a *agent) run(ctx context.Context) error {
 				}
 			}
 
-			a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleReady)
+			a.setLifecycle(codersdk.WorkspaceAgentLifecycleReady)
 		}()
 	}
 

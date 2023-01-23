@@ -715,7 +715,7 @@ func (c *Client) PostWorkspaceAgentLifecycle(ctx context.Context, req PostWorksp
 		return xerrors.Errorf("agent state post request: %w", err)
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode != http.StatusNoContent {
 		return readBodyAsError(res)
 	}
 

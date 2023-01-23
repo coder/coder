@@ -2789,6 +2789,7 @@ func (q *fakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 		ConnectionTimeoutSeconds: arg.ConnectionTimeoutSeconds,
 		TroubleshootingURL:       arg.TroubleshootingURL,
 		MOTDFile:                 arg.MOTDFile,
+		LifecycleState:           database.WorkspaceAgentLifecycleStateCreated,
 	}
 
 	q.workspaceAgents = append(q.workspaceAgents, agent)
@@ -4296,6 +4297,10 @@ func (q *fakeQuerier) GetQuotaConsumedForUser(_ context.Context, userID uuid.UUI
 }
 
 func (q *fakeQuerier) UpdateWorkspaceAgentLifecycleStateByID(_ context.Context, arg database.UpdateWorkspaceAgentLifecycleStateByIDParams) error {
+	if err := validateDatabaseType(arg); err != nil {
+		return err
+	}
+
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 	for i, agent := range q.workspaceAgents {
