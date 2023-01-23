@@ -104,7 +104,7 @@ func NewCoordinator() Coordinator {
 	return &coordinator{
 		closed:                   false,
 		nodes:                    map[uuid.UUID]*Node{},
-		agentSockets:             map[uuid.UUID]net.Conn{},
+		agentSockets:             map[uuid.UUID]idConn{},
 		agentToConnectionSockets: map[uuid.UUID]map[uuid.UUID]net.Conn{},
 	}
 }
@@ -123,10 +123,17 @@ type coordinator struct {
 	// nodes maps agent and connection IDs their respective node.
 	nodes map[uuid.UUID]*Node
 	// agentSockets maps agent IDs to their open websocket.
-	agentSockets map[uuid.UUID]net.Conn
+	agentSockets map[uuid.UUID]idConn
 	// agentToConnectionSockets maps agent IDs to connection IDs of conns that
 	// are subscribed to updates for that agent.
 	agentToConnectionSockets map[uuid.UUID]map[uuid.UUID]net.Conn
+}
+
+type idConn struct {
+	// id is an ephemeral UUID used to uniquely identify the owner of the
+	// connection.
+	id   uuid.UUID
+	conn net.Conn
 }
 
 // Node returns an in-memory node by ID.
@@ -135,6 +142,18 @@ func (c *coordinator) Node(id uuid.UUID) *Node {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	return c.nodes[id]
+}
+
+func (c *coordinator) NodeCount() int {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	return len(c.nodes)
+}
+
+func (c *coordinator) AgentCount() int {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	return len(c.agentSockets)
 }
 
 // ServeClient accepts a WebSocket connection that wants to connect to an agent
@@ -224,9 +243,9 @@ func (c *coordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *json
 		return xerrors.Errorf("marshal nodes: %w", err)
 	}
 
-	_, err = agentSocket.Write(data)
+	_, err = agentSocket.conn.Write(data)
 	if err != nil {
-		if errors.Is(err, io.EOF) {
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) || errors.Is(err, context.Canceled) {
 			return nil
 		}
 		return xerrors.Errorf("write json: %w", err)
@@ -268,27 +287,41 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
 		c.mutex.Lock()
 	}
 
-	// If an old agent socket is connected, we close it
-	// to avoid any leaks. This shouldn't ever occur because
-	// we expect one agent to be running.
+	// This uniquely identifies a connection that belongs to this goroutine.
+	unique := uuid.New()
+
+	// If an old agent socket is connected, we close it to avoid any leaks. This
+	// shouldn't ever occur because we expect one agent to be running, but it's
+	// possible for a race condition to happen when an agent is disconnected and
+	// attempts to reconnect before the server realizes the old connection is
+	// dead.
 	oldAgentSocket, ok := c.agentSockets[id]
 	if ok {
-		_ = oldAgentSocket.Close()
+		_ = oldAgentSocket.conn.Close()
 	}
-	c.agentSockets[id] = conn
+	c.agentSockets[id] = idConn{
+		id:   unique,
+		conn: conn,
+	}
+
 	c.mutex.Unlock()
 	defer func() {
 		c.mutex.Lock()
 		defer c.mutex.Unlock()
-		delete(c.agentSockets, id)
-		delete(c.nodes, id)
+
+		// Only delete the connection if it's ours. It could have been
+		// overwritten.
+		if idConn := c.agentSockets[id]; idConn.id == unique {
+			delete(c.agentSockets, id)
+			delete(c.nodes, id)
+		}
 	}()
 
 	decoder := json.NewDecoder(conn)
 	for {
 		err := c.handleNextAgentMessage(id, decoder)
 		if err != nil {
-			if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
+			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) || errors.Is(err, context.Canceled) {
 				return nil
 			}
 			return xerrors.Errorf("handle next agent message: %w", err)
@@ -349,7 +382,7 @@ func (c *coordinator) Close() error {
 	for _, socket := range c.agentSockets {
 		socket := socket
 		go func() {
-			_ = socket.Close()
+			_ = socket.conn.Close()
 			wg.Done()
 		}()
 	}
