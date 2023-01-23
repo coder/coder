@@ -343,7 +343,7 @@ CREATE TABLE template_version_parameters (
     validation_regex text NOT NULL,
     validation_min integer NOT NULL,
     validation_max integer NOT NULL,
-    validation_error text NOT NULL
+    validation_error text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON COLUMN template_version_parameters.name IS 'Parameter name';
