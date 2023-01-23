@@ -144,6 +144,14 @@ func (c *coordinator) Node(id uuid.UUID) *Node {
 	return c.nodes[id]
 }
 
+func (c *coordinator) NodeCount() int {
+	return len(c.nodes)
+}
+
+func (c *coordinator) AgentCount() int {
+	return len(c.agentSockets)
+}
+
 // ServeClient accepts a WebSocket connection that wants to connect to an agent
 // with the specified ID.
 func (c *coordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) error {

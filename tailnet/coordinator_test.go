@@ -214,6 +214,17 @@ func TestCoordinator(t *testing.T) {
 		clientNodes = <-agentNodeChan2
 		require.Len(t, clientNodes, 1)
 
+		counts, ok := coordinator.(interface {
+			NodeCount() int
+			AgentCount() int
+		})
+		if !ok {
+			t.Fatal("coordinator should have NodeCount() and AgentCount()")
+		}
+
+		assert.Equal(t, 2, counts.NodeCount())
+		assert.Equal(t, 1, counts.AgentCount())
+
 		err := agentWS2.Close()
 		require.NoError(t, err)
 		<-agentErrChan2
