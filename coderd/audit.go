@@ -441,6 +441,7 @@ func auditSearchQuery(query string) (database.GetAuditLogsOffsetParams, []coders
 		Email:        parser.String(searchParams, "", "email"),
 		DateFrom:     parsedDateFrom,
 		DateTo:       parsedDateTo,
+		BuildReason:  buildReasonFromString(parser.String(searchParams, "", "build_reason")),
 	}
 
 	return filter, parser.Errors
@@ -482,6 +483,19 @@ func actionFromString(actionString string) string {
 		return actionString
 	case codersdk.AuditActionStop:
 		return actionString
+	default:
+	}
+	return ""
+}
+
+func buildReasonFromString(buildReasonString string) string {
+	switch codersdk.BuildReason(buildReasonString) {
+	case codersdk.BuildReasonInitiator:
+		return buildReasonString
+	case codersdk.BuildReasonAutostart:
+		return buildReasonString
+	case codersdk.BuildReasonAutostop:
+		return buildReasonString
 	default:
 	}
 	return ""

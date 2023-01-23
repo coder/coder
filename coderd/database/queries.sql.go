@@ -379,6 +379,8 @@ FROM
 	audit_logs
 LEFT JOIN
     users ON audit_logs.user_id = users.id
+LEFT JOIN
+		workspace_builds on audit_logs.resource_type = "workspace_build" AND audit_logs.resource_id = workspace_builds.id
 WHERE
     -- Filter resource_type
 	CASE
@@ -428,6 +430,12 @@ WHERE
 			"time" <= $10
 		ELSE true
 	END
+	-- Filter by build_reason
+	AND CASE
+		WHEN $11 :: text != '' THEN
+			workspace_builds.reason = $11
+		ELSE true
+	END
 ORDER BY
     "time" DESC
 LIMIT
@@ -447,6 +455,7 @@ type GetAuditLogsOffsetParams struct {
 	Email          string    `db:"email" json:"email"`
 	DateFrom       time.Time `db:"date_from" json:"date_from"`
 	DateTo         time.Time `db:"date_to" json:"date_to"`
+	BuildReason    string    `db:"build_reason" json:"build_reason"`
 }
 
 type GetAuditLogsOffsetRow struct {
@@ -488,6 +497,7 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 		arg.Email,
 		arg.DateFrom,
 		arg.DateTo,
+		arg.BuildReason,
 	)
 	if err != nil {
 		return nil, err

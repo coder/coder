@@ -14,6 +14,8 @@ FROM
 	audit_logs
 LEFT JOIN
     users ON audit_logs.user_id = users.id
+LEFT JOIN
+		workspace_builds on audit_logs.resource_type = "workspace_build" AND audit_logs.resource_id = workspace_builds.id
 WHERE
     -- Filter resource_type
 	CASE
@@ -61,6 +63,12 @@ WHERE
 	AND CASE
 		WHEN @date_to :: timestamp with time zone != '0001-01-01 00:00:00' THEN
 			"time" <= @date_to
+		ELSE true
+	END
+	-- Filter by build_reason
+	AND CASE
+		WHEN @build_reason :: text != '' THEN
+			workspace_builds.reason = @build_reason
 		ELSE true
 	END
 ORDER BY
