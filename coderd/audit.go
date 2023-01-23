@@ -180,9 +180,9 @@ func (api *API) convertAuditLogs(ctx context.Context, dblogs []database.GetAudit
 }
 
 type AdditionalFields struct {
-	WorkspaceName string
-	BuildNumber   string
-	BuildReason   string
+	WorkspaceName string               `json:"workspace_name"`
+	BuildNumber   string               `json:"build_number"`
+	BuildReason   database.BuildReason `json:"build_reason"`
 }
 
 func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
