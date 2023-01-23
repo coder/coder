@@ -235,7 +235,8 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 
 		protoJob.Type = &proto.AcquiredJob_TemplateDryRun_{
 			TemplateDryRun: &proto.AcquiredJob_TemplateDryRun{
-				ParameterValues: protoParameters,
+				ParameterValues:     protoParameters,
+				RichParameterValues: convertRichParameterValues(input.RichParameterValues),
 				Metadata: &sdkproto.Provision_Metadata{
 					CoderUrl:      server.AccessURL.String(),
 					WorkspaceName: input.WorkspaceName,
@@ -535,13 +536,13 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 	// if failed job is a workspace build, audit the outcome
 	if job.Type == database.ProvisionerJobTypeWorkspaceBuild {
 		auditor := server.Auditor.Load()
-		build, getBuildErr := server.Database.GetWorkspaceBuildByJobID(ctx, job.ID)
-		if getBuildErr != nil {
+		build, err := server.Database.GetWorkspaceBuildByJobID(ctx, job.ID)
+		if err != nil {
 			server.Logger.Error(ctx, "audit log - get build", slog.Error(err))
 		} else {
 			auditAction := auditActionFromTransition(build.Transition)
-			workspace, getWorkspaceErr := server.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
-			if getWorkspaceErr != nil {
+			workspace, err := server.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
+			if err != nil {
 				server.Logger.Error(ctx, "audit log - get workspace", slog.Error(err))
 			} else {
 				// We pass the below information to the Auditor so that it
@@ -1175,9 +1176,10 @@ type WorkspaceProvisionJob struct {
 
 // TemplateVersionDryRunJob is the payload for the "template_version_dry_run" job type.
 type TemplateVersionDryRunJob struct {
-	TemplateVersionID uuid.UUID                 `json:"template_version_id"`
-	WorkspaceName     string                    `json:"workspace_name"`
-	ParameterValues   []database.ParameterValue `json:"parameter_values"`
+	TemplateVersionID   uuid.UUID                          `json:"template_version_id"`
+	WorkspaceName       string                             `json:"workspace_name"`
+	ParameterValues     []database.ParameterValue          `json:"parameter_values"`
+	RichParameterValues []database.WorkspaceBuildParameter `json:"rich_parameter_values"`
 }
 
 // ProvisionerJobLogsNotifyMessage is the payload published on

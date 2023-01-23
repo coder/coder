@@ -41,6 +41,7 @@ func TestTemplateParam(t *testing.T) {
 			Username:       username,
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
+			LoginType:      database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 
@@ -149,6 +150,7 @@ func TestTemplateParam(t *testing.T) {
 			ID:             uuid.New(),
 			OrganizationID: org.ID,
 			Name:           "moo",
+			Provisioner:    database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 		chi.RouteContext(r.Context()).URLParams.Add("template", template.ID.String())

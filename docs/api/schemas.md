@@ -760,16 +760,23 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "source_value": "string"
     }
   ],
+  "rich_parameter_values": [
+    {
+      "name": "string",
+      "value": "string"
+    }
+  ],
   "workspace_name": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type                                                                        | Required | Restrictions | Description                                                                        |
-| ------------------ | --------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------- |
-| `parameter_values` | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest) | false    |              | Parameter values is a structure used to create a new parameter value for a scope.] |
-| `workspace_name`   | string                                                                      | false    |              |                                                                                    |
+| Name                    | Type                                                                          | Required | Restrictions | Description                                                                        |
+| ----------------------- | ----------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------- |
+| `parameter_values`      | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest)   | false    |              | Parameter values is a structure used to create a new parameter value for a scope.] |
+| `rich_parameter_values` | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              |                                                                                    |
+| `workspace_name`        | string                                                                        | false    |              |                                                                                    |
 
 ## codersdk.CreateTestAuditLogRequest
 

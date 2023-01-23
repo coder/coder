@@ -21,18 +21,23 @@ func TestWorkspaceResourceParam(t *testing.T) {
 	setup := func(db database.Store, jobType database.ProvisionerJobType) (*http.Request, database.WorkspaceResource) {
 		r := httptest.NewRequest("GET", "/", nil)
 		job, err := db.InsertProvisionerJob(context.Background(), database.InsertProvisionerJobParams{
-			ID:   uuid.New(),
-			Type: jobType,
+			ID:            uuid.New(),
+			Type:          jobType,
+			Provisioner:   database.ProvisionerTypeEcho,
+			StorageMethod: database.ProvisionerStorageMethodFile,
 		})
 		require.NoError(t, err)
 		workspaceBuild, err := db.InsertWorkspaceBuild(context.Background(), database.InsertWorkspaceBuildParams{
-			ID:    uuid.New(),
-			JobID: job.ID,
+			ID:         uuid.New(),
+			JobID:      job.ID,
+			Transition: database.WorkspaceTransitionStart,
+			Reason:     database.BuildReasonInitiator,
 		})
 		require.NoError(t, err)
 		resource, err := db.InsertWorkspaceResource(context.Background(), database.InsertWorkspaceResourceParams{
-			ID:    uuid.New(),
-			JobID: job.ID,
+			ID:         uuid.New(),
+			JobID:      job.ID,
+			Transition: database.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
 

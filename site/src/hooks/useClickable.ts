@@ -1,6 +1,6 @@
 import { KeyboardEvent } from "react"
 
-interface UseClickableResult {
+export interface UseClickableResult {
   tabIndex: 0
   role: "button"
   onClick: () => void
