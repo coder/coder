@@ -236,6 +236,19 @@ func (a *agent) run(ctx context.Context) error {
 
 	// The startup script should only execute on the first run!
 	if oldMetadata == nil {
+		a.setLifecycle(codersdk.WorkspaceAgentLifecycleStarting)
+
+		// Perform overrides early so that Git auth can work even if users
+		// connect to a workspace that is not yet ready. We don't run this
+		// concurrently with the startup script to avoid conflicts between
+		// them.
+		if metadata.GitAuthConfigs > 0 {
+			err := gitauth.OverrideVSCodeConfigs(a.filesystem)
+			if err != nil {
+				a.logger.Warn(ctx, "failed to override vscode git auth configs", slog.Error(err))
+			}
+		}
+
 		scriptDone := make(chan error, 1)
 		scriptStart := time.Now()
 		go func() {
@@ -251,8 +264,6 @@ func (a *agent) run(ctx context.Context) error {
 				defer t.Stop()
 				timeout = t.C
 			}
-
-			a.setLifecycle(codersdk.WorkspaceAgentLifecycleStarting)
 
 			var err error
 			select {
@@ -272,17 +283,6 @@ func (a *agent) run(ctx context.Context) error {
 				lifecycleStatus = codersdk.WorkspaceAgentLifecycleStartError
 			} else {
 				a.logger.Info(ctx, "startup script completed", slog.F("execution_time", execTime))
-			}
-
-			// Perform overrides after startup script has completed to ensure
-			// there is no conflict with the user's scripts. We also want to
-			// ensure this is done before the workspace is marked as ready.
-			// Note, this is done even in the even that startup script failed.
-			if metadata.GitAuthConfigs > 0 {
-				err := gitauth.OverrideVSCodeConfigs(a.filesystem)
-				if err != nil {
-					a.logger.Warn(ctx, "failed to override vscode git auth configs", slog.Error(err))
-				}
 			}
 
 			a.setLifecycle(lifecycleStatus)
