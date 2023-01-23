@@ -380,7 +380,25 @@ FROM
 LEFT JOIN
     users ON audit_logs.user_id = users.id
 LEFT JOIN
-		workspace_builds on audit_logs.resource_type = "workspace_build" AND audit_logs.resource_id = workspace_builds.id
+		-- First join on workspaces to get the initial workspace create
+		-- to workspace build 1 id. This is because the first create is
+		-- is a different audit log than subsequent starts.
+    workspaces on
+                audit_logs.resource_type = 'workspace'
+            AND audit_logs.resource_id = workspaces.id
+    LEFT JOIN
+            workspace_builds on
+                -- Get the reason from the build if the resource type
+                -- is a workspace_build
+                (audit_logs.resource_type = 'workspace_build'
+                    AND audit_logs.resource_id = workspace_builds.id)
+                OR
+                -- Get the reason from the build #1 if this is the first
+                -- workspace create.
+                (audit_logs.resource_type = 'workspace' AND
+                audit_logs.action = 'create' AND
+                 workspaces.id = workspace_builds.workspace_id AND
+                 workspace_builds.build_number = 1)
 WHERE
     -- Filter resource_type
 	CASE
@@ -433,7 +451,7 @@ WHERE
 	-- Filter by build_reason
 	AND CASE
 		WHEN $11 :: text != '' THEN
-			workspace_builds.reason = $11
+			workspace_builds.reason :: text = $11
 		ELSE true
 	END
 ORDER BY

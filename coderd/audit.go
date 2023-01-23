@@ -67,6 +67,7 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 		Email:        filter.Email,
 		DateFrom:     filter.DateFrom,
 		DateTo:       filter.DateTo,
+		BuildReason:  filter.BuildReason,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
