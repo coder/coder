@@ -27,8 +27,14 @@ func (q *AuthzQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorksp
 }
 
 func (q *AuthzQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
-	// TODO implement me
-	panic("implement me")
+	fetch := func(_ database.WorkspaceBuild, workspaceID uuid.UUID) (database.Workspace, error) {
+		return q.database.GetWorkspaceByID(ctx, workspaceID)
+	}
+	return authorizedQueryWithRelated(
+		q.authorizer,
+		rbac.ActionRead,
+		fetch,
+		q.database.GetLatestWorkspaceBuildByWorkspaceID)(ctx, workspaceID)
 }
 
 func (q *AuthzQuerier) GetLatestWorkspaceBuilds(ctx context.Context) ([]database.WorkspaceBuild, error) {
@@ -87,8 +93,14 @@ func (q *AuthzQuerier) GetWorkspaceAppsCreatedAfter(ctx context.Context, created
 }
 
 func (q *AuthzQuerier) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (database.WorkspaceBuild, error) {
-	// TODO implement me
-	panic("implement me")
+	fetch := func(build database.WorkspaceBuild, _ uuid.UUID) (database.Workspace, error) {
+		return q.database.GetWorkspaceByID(ctx, build.WorkspaceID)
+	}
+	return authorizedQueryWithRelated(
+		q.authorizer,
+		rbac.ActionRead,
+		fetch,
+		q.database.GetWorkspaceBuildByID)(ctx, id)
 }
 
 func (q *AuthzQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UUID) (database.WorkspaceBuild, error) {
