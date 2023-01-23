@@ -67,7 +67,6 @@ func RichParameter(cmd *cobra.Command, templateVersionParameter codersdk.Templat
 		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+strings.TrimSpace(strings.Join(strings.Split(templateVersionParameter.Description, "\n"), "\n  "))+"\n")
 	}
 
-	// TODO Implement full validation and show descriptions.
 	var err error
 	var value string
 	if len(templateVersionParameter.Options) > 0 {
@@ -91,6 +90,9 @@ func RichParameter(cmd *cobra.Command, templateVersionParameter codersdk.Templat
 
 		value, err = Prompt(cmd, PromptOptions{
 			Text: Styles.Bold.Render(text),
+			Validate: func(value string) error {
+				return validateRichPrompt(value, templateVersionParameter)
+			},
 		})
 		value = strings.TrimSpace(value)
 	}
@@ -112,4 +114,11 @@ func templateVersionParameterOptionValues(param codersdk.TemplateVersionParamete
 		options = append(options, opt.Value)
 	}
 	return options
+}
+
+func validateRichPrompt(value string, p codersdk.TemplateVersionParameter) error {
+	return codersdk.ValidateWorkspaceBuildParameter(p, codersdk.WorkspaceBuildParameter{
+		Name:  p.Name,
+		Value: value,
+	})
 }

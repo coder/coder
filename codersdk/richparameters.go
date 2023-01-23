@@ -43,7 +43,7 @@ func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, bui
 
 	// Method provider.Validation.Valid() does not check the boolean type correctness, so it has to be checked here.
 	if richParameter.Type == "bool" && (buildParameter.Value != "true" && buildParameter.Value != "false") {
-		return xerrors.Errorf("%q is not a bool", richParameter.Type)
+		return xerrors.Errorf(`boolean value can be either "true" or "false"`)
 	}
 
 	if !validationEnabled(richParameter) {
