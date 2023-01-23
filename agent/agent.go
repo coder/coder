@@ -182,7 +182,7 @@ func (a *agent) reportLifecycleLoop(ctx context.Context) {
 			a.lifecycleMu.Unlock()
 
 			if state == lastReported {
-				continue
+				break
 			}
 
 			err := a.client.PostWorkspaceAgentLifecycle(ctx, codersdk.PostWorkspaceAgentLifecycleRequest{
