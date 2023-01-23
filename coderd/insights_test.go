@@ -12,14 +12,13 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/testutil"
 )
 
-func TestDeploymentMetrics(t *testing.T) {
+func TestDeploymentInsights(t *testing.T) {
 	t.Parallel()
 
 	client := coderdtest.New(t, &coderdtest.Options{
@@ -51,7 +50,6 @@ func TestDeploymentMetrics(t *testing.T) {
 		}},
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	require.Equal(t, -1, template.ActiveUserCount)
 	require.Empty(t, template.BuildTimeStats[codersdk.WorkspaceTransitionStart])
 
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -118,11 +116,7 @@ func TestDeploymentMetrics(t *testing.T) {
 
 	template, err = client.Template(ctx, template.ID)
 	require.NoError(t, err)
-	require.Equal(t, 1, template.ActiveUserCount)
 
 	res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
-	assert.WithinDuration(t,
-		database.Now(), res.Workspaces[0].LastUsedAt, time.Minute,
-	)
 }

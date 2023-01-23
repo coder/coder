@@ -114,12 +114,7 @@ func convertDAUResponse(rows []database.GetTemplateDAUsRow) codersdk.TemplateDAU
 func convertDeploymentDAUResponse(rows []database.GetDeploymentDAUsRow) codersdk.DeploymentDAUsResponse {
 	respMap := make(map[time.Time][]uuid.UUID)
 	for _, row := range rows {
-		uuids := respMap[row.Date]
-		if uuids == nil {
-			uuids = make([]uuid.UUID, 0, 8)
-		}
-		uuids = append(uuids, row.UserID)
-		respMap[row.Date] = uuids
+		respMap[row.Date] = append(respMap[row.Date], row.UserID)
 	}
 
 	dates := maps.Keys(respMap)
