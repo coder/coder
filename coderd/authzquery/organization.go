@@ -13,7 +13,7 @@ func (q *AuthzQuerier) GetAllOrganizationMembers(ctx context.Context, organizati
 	// TODO: @emyrk this is returned by the template ACL api endpoint. These users are full database.Users, which is
 	// problematic since it bypasses the rbac.ResourceUser resource. We should probably return a organizationMember or
 	// restricted user type here instead.
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 

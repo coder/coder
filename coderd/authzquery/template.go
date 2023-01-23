@@ -85,7 +85,7 @@ func (q *AuthzQuerier) GetTemplateVersionByOrganizationAndName(ctx context.Conte
 func (q *AuthzQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, arg database.GetTemplateVersionByTemplateIDAndNameParams) (database.TemplateVersion, error) {
 	fetchRelated := func(tv database.TemplateVersion, p database.GetTemplateVersionByTemplateIDAndNameParams) (rbac.Objecter, error) {
 		if !tv.TemplateID.Valid {
-			return rbac.ResourceTemplate.InOrg(p.OrganizationID), nil
+			return rbac.ResourceTemplate, nil
 		}
 		return q.database.GetTemplateByID(ctx, tv.TemplateID.UUID)
 	}
@@ -99,9 +99,21 @@ func (q *AuthzQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context
 }
 
 func (q *AuthzQuerier) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionParameter, error) {
-	fetchRelated := func(_ []database.TemplateVersionParameter) (database.Template, error) {
+	fetchRelated := func(tvps []database.TemplateVersionParameter, id uuid.UUID) (rbac.Objecter, error) {
+		if len(tvps) == 0 {
+			return rbac.ResourceTemplate, nil
+		}
+		tvp := tvps[0]
+		tv, err := q.database.GetTemplateVersionByID(ctx, tvp.TemplateVersionID)
+		if err != nil {
+			return rbac.ResourceTemplate, nil
+		}
+		if !tv.TemplateID.Valid {
+			return rbac.ResourceTemplate, nil
+		}
 		return q.database.GetTemplateByID(ctx, tv.TemplateID.UUID)
 	}
+
 	return authorizedQueryWithRelated(
 		q.authorizer,
 		rbac.ActionRead,
@@ -150,7 +162,7 @@ func (q *AuthzQuerier) GetTemplatesWithFilter(ctx context.Context, arg database.
 
 func (q *AuthzQuerier) InsertTemplate(ctx context.Context, arg database.InsertTemplateParams) (database.Template, error) {
 	obj := rbac.ResourceTemplate.InOrg(arg.OrganizationID)
-	return authorizedInsert(q.authorizer, rbac.ActionCreate, obj, q.database.InsertTemplate)(ctx, arg)
+	return authorizedInsertWithReturn(q.authorizer, rbac.ActionCreate, obj, q.database.InsertTemplate)(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertTemplateVersion(ctx context.Context, arg database.InsertTemplateVersionParams) (database.TemplateVersion, error) {
