@@ -209,6 +209,7 @@ export interface CreateTestAuditLogRequest {
   readonly resource_type?: ResourceType
   readonly resource_id?: string
   readonly time?: string
+  readonly build_reason?: BuildReason
 }
 
 // From codersdk/apikey.go

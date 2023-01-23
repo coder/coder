@@ -783,6 +783,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 ```json
 {
   "action": "create",
+  "build_reason": "autostart",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "resource_type": "organization",
   "time": "2019-08-24T14:15:22Z"
@@ -794,6 +795,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | Name            | Type                                           | Required | Restrictions | Description |
 | --------------- | ---------------------------------------------- | -------- | ------------ | ----------- |
 | `action`        | [codersdk.AuditAction](#codersdkauditaction)   | false    |              |             |
+| `build_reason`  | [codersdk.BuildReason](#codersdkbuildreason)   | false    |              |             |
 | `resource_id`   | string                                         | false    |              |             |
 | `resource_type` | [codersdk.ResourceType](#codersdkresourcetype) | false    |              |             |
 | `time`          | string                                         | false    |              |             |
@@ -807,6 +809,9 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `action`        | `delete`           |
 | `action`        | `start`            |
 | `action`        | `stop`             |
+| `build_reason`  | `autostart`        |
+| `build_reason`  | `autostop`         |
+| `build_reason`  | `initiator`        |
 | `resource_type` | `organization`     |
 | `resource_type` | `template`         |
 | `resource_type` | `template_version` |

@@ -5547,6 +5547,18 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "build_reason": {
+                    "enum": [
+                        "autostart",
+                        "autostop",
+                        "initiator"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.BuildReason"
+                        }
+                    ]
+                },
                 "resource_id": {
                     "type": "string",
                     "format": "uuid"
