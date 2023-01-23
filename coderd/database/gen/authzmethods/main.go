@@ -18,6 +18,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/coder/coderd/authzquery"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/rbac"
 )
@@ -46,8 +47,8 @@ func main() {
 	}
 
 	ctx := context.Background()
-	log := slog.Make(sloghuman.Sink(os.Stderr))
-	output, err := Generate(*packageName, skip)
+	logger := slog.Make(sloghuman.Sink(os.Stderr))
+	output, err := Generate(ctx, logger, *packageName, skip)
 	if err != nil {
 		log.Fatal(ctx, err.Error())
 	}
@@ -58,17 +59,18 @@ func main() {
 
 func existingMethods() map[string]bool {
 	existing := make(map[string]bool)
-	authzQuerier := reflect.TypeOf(database.AuthzQuerier{})
+	authzQuerier := reflect.TypeOf(authzquery.AuthzQuerier{})
 	for i := 0; i < authzQuerier.NumMethod(); i++ {
 		existing[authzQuerier.Method(i).Name] = true
 	}
 	return existing
 }
 
-func Generate(packageName string, skip map[string]bool) (string, error) {
+func Generate(ctx context.Context, logger slog.Logger, packageName string, skip map[string]bool) (string, error) {
 	tpls, err := template.ParseFS(templates, "templates/*.tmpl")
 	if err != nil {
-		log.Fatalf("failed to parse templates: %v", err)
+		logger.Error(ctx, "failed to parse templates: %v", slog.Error(err))
+		return "", err
 	}
 	parsed := generateStoreMethods(skip)
 
