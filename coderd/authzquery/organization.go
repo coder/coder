@@ -3,11 +3,16 @@ package authzquery
 import (
 	"context"
 
-	"github.com/coder/coder/coderd/database"
 	"github.com/google/uuid"
+
+	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/rbac"
 )
 
 func (q *AuthzQuerier) GetAllOrganizationMembers(ctx context.Context, organizationID uuid.UUID) ([]database.User, error) {
+	// TODO: @emyrk this is returned by the template ACL api endpoint. These users are full database.Users, which is
+	// problematic since it bypasses the rbac.ResourceUser resource. We should probably return a organizationMember or
+	// restricted user type here instead.
 	//TODO implement me
 	panic("implement me")
 }
@@ -39,8 +44,10 @@ func (q *AuthzQuerier) GetOrganizationMembershipsByUserID(ctx context.Context, u
 }
 
 func (q *AuthzQuerier) GetOrganizations(ctx context.Context) ([]database.Organization, error) {
-	//TODO implement me
-	panic("implement me")
+	fetch := func(ctx context.Context, _ interface{}) ([]database.Organization, error) {
+		return q.database.GetOrganizations(ctx)
+	}
+	return authorizedFetchSet(q.authorizer, fetch)(ctx, nil)
 }
 
 func (q *AuthzQuerier) GetOrganizationsByUserID(ctx context.Context, userID uuid.UUID) ([]database.Organization, error) {
@@ -48,8 +55,7 @@ func (q *AuthzQuerier) GetOrganizationsByUserID(ctx context.Context, userID uuid
 }
 
 func (q *AuthzQuerier) InsertOrganization(ctx context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {
-	//TODO implement me
-	panic("implement me")
+	return authorizedInsertWithReturn(q.authorizer, rbac.ActionCreate, rbac.ResourceOrganization, q.database.InsertOrganization)(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertOrganizationMember(ctx context.Context, arg database.InsertOrganizationMemberParams) (database.OrganizationMember, error) {
