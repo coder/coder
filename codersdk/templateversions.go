@@ -143,8 +143,9 @@ func (c *Client) TemplateVersionLogsAfter(ctx context.Context, version uuid.UUID
 // CreateTemplateVersionDryRunRequest defines the request parameters for
 // CreateTemplateVersionDryRun.
 type CreateTemplateVersionDryRunRequest struct {
-	WorkspaceName   string                   `json:"workspace_name"`
-	ParameterValues []CreateParameterRequest `json:"parameter_values"`
+	WorkspaceName       string                    `json:"workspace_name"`
+	ParameterValues     []CreateParameterRequest  `json:"parameter_values"`
+	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values"`
 }
 
 // CreateTemplateVersionDryRun begins a dry-run provisioner job against the

@@ -7,6 +7,9 @@ Flags:
   -h, --help                                   help for create
       --parameter-file string                  Specify a file path with parameter values.
                                                Consumes $CODER_PARAMETER_FILE
+      --rich-parameter-file string             Specify a file path with values for rich
+                                               parameters defined in the template.
+                                               Consumes $CODER_RICH_PARAMETER_FILE
       --start-at coder schedule start --help   Specify the workspace autostart schedule. Check
                                                coder schedule start --help for the syntax.
                                                Consumes $CODER_WORKSPACE_START_AT

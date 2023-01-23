@@ -165,6 +165,7 @@ func TestAPIKey(t *testing.T) {
 			ID:           id,
 			HashedSecret: hashed[:],
 			UserID:       user.ID,
+			LoginType:    database.LoginTypePassword,
 			Scope:        database.APIKeyScopeAll,
 		})
 		require.NoError(t, err)
@@ -640,6 +641,7 @@ func createUser(ctx context.Context, t *testing.T, db database.Store, opts ...fu
 		CreatedAt:      time.Now(),
 		UpdatedAt:      time.Now(),
 		RBACRoles:      []string{},
+		LoginType:      database.LoginTypePassword,
 	}
 	for _, opt := range opts {
 		opt(&insert)

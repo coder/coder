@@ -362,12 +362,22 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 		}
 	}
 
+	richParameterValues := make([]database.WorkspaceBuildParameter, len(req.RichParameterValues))
+	for i, v := range req.RichParameterValues {
+		richParameterValues[i] = database.WorkspaceBuildParameter{
+			WorkspaceBuildID: uuid.Nil,
+			Name:             v.Name,
+			Value:            v.Value,
+		}
+	}
+
 	// Marshal template version dry-run job with the parameters from the
 	// request.
 	input, err := json.Marshal(provisionerdserver.TemplateVersionDryRunJob{
-		TemplateVersionID: templateVersion.ID,
-		WorkspaceName:     req.WorkspaceName,
-		ParameterValues:   parameterValues,
+		TemplateVersionID:   templateVersion.ID,
+		WorkspaceName:       req.WorkspaceName,
+		ParameterValues:     parameterValues,
+		RichParameterValues: richParameterValues,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
