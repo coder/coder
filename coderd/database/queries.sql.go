@@ -45,7 +45,7 @@ func (q *sqlQuerier) GetLatestAgentStat(ctx context.Context, agentID uuid.UUID) 
 }
 
 const getTemplateDAUs = `-- name: GetTemplateDAUs :many
-SELECT 
+SELECT
 	(created_at at TIME ZONE 'UTC')::date as date,
 	user_id
 FROM
@@ -2425,7 +2425,7 @@ WHERE
 			-- Ensure the caller has the correct provisioner.
 			AND nested.provisioner = ANY($3 :: provisioner_type [ ])
 			-- Ensure the caller satisfies all job tags.
-			AND nested.tags <@ $4 :: jsonb 
+			AND nested.tags <@ $4 :: jsonb
 		ORDER BY
 			nested.created_at
 		FOR UPDATE
@@ -3611,7 +3611,7 @@ VALUES
         $9,
         $10,
         $11,
-		$12
+        $12
     ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error
 `
 
