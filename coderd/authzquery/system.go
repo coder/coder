@@ -95,6 +95,10 @@ func (q *AuthzQuerier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, cr
 	return q.GetWorkspaceResourcesCreatedAfter(ctx, createdAt)
 }
 
+func (q *AuthzQuerier) GetWorkspaceResourceMetadataCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.WorkspaceResourceMetadatum, error) {
+	return q.database.GetWorkspaceResourceMetadataCreatedAfter(ctx, createdAt)
+}
+
 // Provisionerd server functions
 
 func (q *AuthzQuerier) InsertWorkspaceAgent(ctx context.Context, arg database.InsertWorkspaceAgentParams) (database.WorkspaceAgent, error) {

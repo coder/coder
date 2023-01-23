@@ -2,7 +2,6 @@ package authzquery
 
 import (
 	"context"
-	"time"
 
 	"golang.org/x/xerrors"
 
@@ -159,11 +158,6 @@ func (q *AuthzQuerier) GetWorkspaceResourceMetadataByResourceIDs(ctx context.Con
 	panic("implement me")
 }
 
-func (q *AuthzQuerier) GetWorkspaceResourceMetadataCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.WorkspaceResourceMetadatum, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
 func (q *AuthzQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.WorkspaceResource, error) {
 	// TODO implement me
 	panic("implement me")
@@ -180,8 +174,10 @@ func (q *AuthzQuerier) InsertWorkspace(ctx context.Context, arg database.InsertW
 }
 
 func (q *AuthzQuerier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertWorkspaceBuildParams) (database.WorkspaceBuild, error) {
-	// TODO implement me
-	panic("implement me")
+	fetch := func(_ database.WorkspaceBuild, arg database.InsertWorkspaceBuildParams) (database.Workspace, error) {
+		return q.database.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	}
+	return authorizedQueryWithRelated(q.authorizer, rbac.ActionUpdate, fetch, q.database.InsertWorkspaceBuild)(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertWorkspaceBuildParameters(ctx context.Context, arg database.InsertWorkspaceBuildParametersParams) error {
