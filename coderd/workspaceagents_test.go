@@ -1224,7 +1224,7 @@ func gitAuthCallback(t *testing.T, id string, client *codersdk.Client) *http.Res
 func TestWorkspaceAgent_LifecycleState(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Set state", func(t *testing.T) {
+	t.Run("Set", func(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, &coderdtest.Options{
