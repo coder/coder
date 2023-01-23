@@ -35,9 +35,11 @@ const presetFilters = [
     name: "Created workspaces",
   },
   { query: "resource_type:template action:create", name: "Added templates" },
-  { query: "resource_type:user action:create", name: "Added users" },
-  { query: "resource_type:template action:delete", name: "Deleted templates" },
   { query: "resource_type:user action:delete", name: "Deleted users" },
+  {
+    query: "resource_type:workspace_build action:start",
+    name: "Started builds",
+  },
 ]
 
 export interface AuditPageViewProps {
