@@ -340,6 +340,8 @@ func (c *Client) ListenWorkspaceAgent(ctx context.Context) (net.Conn, error) {
 		return nil, readBodyAsError(res)
 	}
 
+	// Ping once every 30 seconds to ensure that the websocket is alive. If we
+	// don't get a response within 30s we kill the websocket and reconnect.
 	go func() {
 		tick := 30 * time.Second
 		ticker := time.NewTicker(tick)
