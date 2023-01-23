@@ -241,13 +241,7 @@ func (c *Cache) Close() error {
 
 func (c *Cache) DeploymentDAUs() (*codersdk.DeploymentDAUsResponse, bool) {
 	m := c.deploymentDAUResponses.Load()
-	if m == nil {
-		// Data loading.
-		return nil, false
-	}
-
-	resp := *m
-	return &resp, true
+	return m, m != nil
 }
 
 // TemplateDAUs returns an empty response if the template doesn't have users
