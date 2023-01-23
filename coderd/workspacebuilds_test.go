@@ -883,12 +883,11 @@ func TestWorkspaceBuildValidateRichParameters(t *testing.T) {
 			{Name: boolParameterName, Type: "bool", Mutable: true},
 		}
 
-		/* FIXME
 		regexRichParameters := []*proto.RichParameter{
-			{Name: stringParameterName, Type: "string", Mutable: true, ValidationRegex: "[a-z]+"},
+			{Name: stringParameterName, Type: "string", Mutable: true, ValidationRegex: "^[a-z]+$", ValidationError: "this is error"},
 			{Name: numberParameterName, Type: "number", Mutable: true},
 			{Name: boolParameterName, Type: "bool", Mutable: true},
-		}*/
+		}
 
 		tests := []struct {
 			parameterName  string
@@ -904,17 +903,18 @@ func TestWorkspaceBuildValidateRichParameters(t *testing.T) {
 			{stringParameterName, "", false, stringRichParameters},
 			{stringParameterName, "foobar", true, stringRichParameters},
 
-			/* FIXME can't validate build parameter "string_parameter": an error must be specified with a regex validation
 			{stringParameterName, "abcd", true, regexRichParameters},
-			{stringParameterName, "abcd1", false, regexRichParameters},*/
+			{stringParameterName, "abcd1", false, regexRichParameters},
 
 			{boolParameterName, "true", true, boolRichParameters},
 			{boolParameterName, "false", true, boolRichParameters},
-			// FIXME {boolParameterName, "cat", false, boolRichParameters},
+			{boolParameterName, "cat", false, boolRichParameters},
 		}
 
 		for _, tc := range tests {
 			t.Run(tc.parameterName+"-"+tc.value, func(t *testing.T) {
+				t.Parallel()
+
 				client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 				user := coderdtest.CreateFirstUser(t, client)
 				version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, prepareEchoResponses(tc.richParameters))
@@ -928,7 +928,6 @@ func TestWorkspaceBuildValidateRichParameters(t *testing.T) {
 				workspaceBuild := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 				require.Equal(t, codersdk.WorkspaceStatusRunning, workspaceBuild.Status)
 
-				// Update build parameters
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 				defer cancel()
 

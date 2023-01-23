@@ -342,7 +342,8 @@ CREATE TABLE template_version_parameters (
     options jsonb DEFAULT '[]'::jsonb NOT NULL,
     validation_regex text NOT NULL,
     validation_min integer NOT NULL,
-    validation_max integer NOT NULL
+    validation_max integer NOT NULL,
+    validation_error text NOT NULL
 );
 
 COMMENT ON COLUMN template_version_parameters.name IS 'Parameter name';
@@ -364,6 +365,8 @@ COMMENT ON COLUMN template_version_parameters.validation_regex IS 'Validation: r
 COMMENT ON COLUMN template_version_parameters.validation_min IS 'Validation: minimum length of value';
 
 COMMENT ON COLUMN template_version_parameters.validation_max IS 'Validation: maximum length of value';
+
+COMMENT ON COLUMN template_version_parameters.validation_error IS 'Validation: error displayed when the regex does not match.';
 
 CREATE TABLE template_versions (
     id uuid NOT NULL,

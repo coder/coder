@@ -2442,6 +2442,7 @@ func (q *fakeQuerier) InsertTemplateVersionParameter(_ context.Context, arg data
 		DefaultValue:      arg.DefaultValue,
 		Icon:              arg.Icon,
 		Options:           arg.Options,
+		ValidationError:   arg.ValidationError,
 		ValidationRegex:   arg.ValidationRegex,
 		ValidationMin:     arg.ValidationMin,
 		ValidationMax:     arg.ValidationMax,

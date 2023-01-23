@@ -10,7 +10,7 @@ func ValidateWorkspaceBuildParameters(richParameters []TemplateVersionParameter,
 	for _, buildParameter := range buildParameters {
 		richParameter, found := findTemplateVersionParameter(richParameters, buildParameter.Name)
 		if !found {
-			return xerrors.Errorf(`workspace build parameter is not defined in the template ("coder_parameter")`)
+			return xerrors.Errorf(`workspace build parameter is not defined in the template ("coder_parameter"): %s`, buildParameter.Name)
 		}
 
 		err := ValidateWorkspaceBuildParameter(*richParameter, buildParameter)
@@ -41,6 +41,11 @@ func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, bui
 		return nil
 	}
 
+	// Method provider.Validation.Valid() does not check the boolean type correctness, so it has to be checked here.
+	if richParameter.Type == "bool" && (buildParameter.Value != "true" && buildParameter.Value != "false") {
+		return xerrors.Errorf("%q is not a bool", richParameter.Type)
+	}
+
 	if !validationEnabled(richParameter) {
 		return nil
 	}
@@ -49,7 +54,7 @@ func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, bui
 		Min:   int(richParameter.ValidationMin),
 		Max:   int(richParameter.ValidationMax),
 		Regex: richParameter.ValidationRegex,
-		// TODO Error: ?,
+		Error: richParameter.ValidationError,
 	}
 	return validation.Valid(richParameter.Type, buildParameter.Value)
 }

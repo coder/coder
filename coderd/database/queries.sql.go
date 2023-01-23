@@ -3543,7 +3543,7 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 }
 
 const getTemplateVersionParameters = `-- name: GetTemplateVersionParameters :many
-SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max FROM template_version_parameters WHERE template_version_id = $1
+SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error FROM template_version_parameters WHERE template_version_id = $1
 `
 
 func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionParameter, error) {
@@ -3567,6 +3567,7 @@ func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateV
 			&i.ValidationRegex,
 			&i.ValidationMin,
 			&i.ValidationMax,
+			&i.ValidationError,
 		); err != nil {
 			return nil, err
 		}
@@ -3594,7 +3595,8 @@ INSERT INTO
         options,
         validation_regex,
         validation_min,
-        validation_max
+        validation_max,
+        validation_error
     )
 VALUES
     (
@@ -3608,8 +3610,9 @@ VALUES
         $8,
         $9,
         $10,
-        $11
-    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max
+        $11,
+		$12
+    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error
 `
 
 type InsertTemplateVersionParameterParams struct {
@@ -3624,6 +3627,7 @@ type InsertTemplateVersionParameterParams struct {
 	ValidationRegex   string          `db:"validation_regex" json:"validation_regex"`
 	ValidationMin     int32           `db:"validation_min" json:"validation_min"`
 	ValidationMax     int32           `db:"validation_max" json:"validation_max"`
+	ValidationError   string          `db:"validation_error" json:"validation_error"`
 }
 
 func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg InsertTemplateVersionParameterParams) (TemplateVersionParameter, error) {
@@ -3639,6 +3643,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		arg.ValidationRegex,
 		arg.ValidationMin,
 		arg.ValidationMax,
+		arg.ValidationError,
 	)
 	var i TemplateVersionParameter
 	err := row.Scan(
@@ -3653,6 +3658,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		&i.ValidationRegex,
 		&i.ValidationMin,
 		&i.ValidationMax,
+		&i.ValidationError,
 	)
 	return i, err
 }

@@ -421,6 +421,7 @@ func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph strin
 		}
 		if len(param.Validation) == 1 {
 			protoParam.ValidationRegex = param.Validation[0].Regex
+			protoParam.ValidationError = param.Validation[0].Error
 			protoParam.ValidationMax = int32(param.Validation[0].Max)
 			protoParam.ValidationMin = int32(param.Validation[0].Min)
 		}

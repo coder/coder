@@ -647,6 +647,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				Icon:              richParameter.Icon,
 				Options:           options,
 				ValidationRegex:   richParameter.ValidationRegex,
+				ValidationError:   richParameter.ValidationError,
 				ValidationMin:     richParameter.ValidationMin,
 				ValidationMax:     richParameter.ValidationMax,
 			})

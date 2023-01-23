@@ -1414,6 +1414,7 @@ func convertTemplateVersionParameter(param database.TemplateVersionParameter) (c
 		ValidationRegex: param.ValidationRegex,
 		ValidationMin:   param.ValidationMin,
 		ValidationMax:   param.ValidationMax,
+		ValidationError: param.ValidationError,
 	}, nil
 }
 
