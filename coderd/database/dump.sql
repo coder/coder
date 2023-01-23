@@ -457,7 +457,9 @@ CREATE TABLE workspace_agents (
     connection_timeout_seconds integer DEFAULT 0 NOT NULL,
     troubleshooting_url text DEFAULT ''::text NOT NULL,
     motd_file text DEFAULT ''::text NOT NULL,
-    lifecycle_state workspace_agent_lifecycle_state DEFAULT 'created'::workspace_agent_lifecycle_state NOT NULL
+    lifecycle_state workspace_agent_lifecycle_state DEFAULT 'created'::workspace_agent_lifecycle_state NOT NULL,
+    delay_login_until_ready boolean DEFAULT false NOT NULL,
+    startup_script_timeout_seconds integer DEFAULT 0 NOT NULL
 );
 
 COMMENT ON COLUMN workspace_agents.version IS 'Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.';
@@ -469,6 +471,10 @@ COMMENT ON COLUMN workspace_agents.troubleshooting_url IS 'URL for troubleshooti
 COMMENT ON COLUMN workspace_agents.motd_file IS 'Path to file inside workspace containing the message of the day (MOTD) to show to the user when logging in via SSH.';
 
 COMMENT ON COLUMN workspace_agents.lifecycle_state IS 'The current lifecycle state of the workspace agent.';
+
+COMMENT ON COLUMN workspace_agents.delay_login_until_ready IS 'If true, the agent will delay logins until it is ready (e.g. executing startup script has ended).';
+
+COMMENT ON COLUMN workspace_agents.startup_script_timeout_seconds IS 'The number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.';
 
 CREATE TABLE workspace_apps (
     id uuid NOT NULL,

@@ -117,7 +117,7 @@ message Agent {
 	string troubleshooting_url = 12;
 	string motd_file = 13;
 	bool delay_login_until_ready = 14;
-	int32 startup_script_timeout = 15;
+	int32 startup_script_timeout_seconds = 15;
 }
 
 enum AppSharingLevel {
