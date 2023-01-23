@@ -24,4 +24,6 @@ coder templates push --yes $CODER_TEMPLATE_NAME \
 ```
 
 > Looking for an example? See how we push our development image
-> and template [via GitHub actions](https://github.com/coder/coder/blob/main/.github/workflows/dogfood.yaml).
+> and template [via GitHub actions](https://github.com/coder/coder/blob/main/.github/workflows/dogfood.yaml)
+> also check this community GitHub action to automatically push template updates [update coder template](https://github.com/marketplace/actions/update-coder-template).
+
