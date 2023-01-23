@@ -953,6 +953,7 @@ func (api *API) workspaceAgentReportLifecycle(rw http.ResponseWriter, r *http.Re
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+	api.publishWorkspaceUpdate(ctx, workspace.ID)
 
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
 }
