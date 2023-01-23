@@ -27,6 +27,8 @@ type agentAttributes struct {
 	ConnectionTimeoutSeconds int32             `mapstructure:"connection_timeout"`
 	TroubleshootingURL       string            `mapstructure:"troubleshooting_url"`
 	MOTDFile                 string            `mapstructure:"motd_file"`
+	DelayLoginUntilReady     bool              `mapstructure:"delay_login_until_ready"`
+	StartupScriptTimeout     int32             `mapstructure:"startup_script_timeout"`
 }
 
 // A mapping of attributes on the "coder_app" resource.
@@ -132,6 +134,8 @@ func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph strin
 			ConnectionTimeoutSeconds: attrs.ConnectionTimeoutSeconds,
 			TroubleshootingUrl:       attrs.TroubleshootingURL,
 			MotdFile:                 attrs.MOTDFile,
+			DelayLoginUntilReady:     attrs.DelayLoginUntilReady,
+			StartupScriptTimeout:     attrs.StartupScriptTimeout,
 		}
 		switch attrs.Auth {
 		case "token":

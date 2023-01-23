@@ -105,6 +105,8 @@ func TestConvertResources(t *testing.T) {
 					Architecture:             "amd64",
 					Auth:                     &proto.Agent_Token{},
 					ConnectionTimeoutSeconds: 120,
+					DelayLoginUntilReady:     false,
+					StartupScriptTimeout:     300,
 				}, {
 					Name:                     "dev2",
 					OperatingSystem:          "darwin",
@@ -112,6 +114,8 @@ func TestConvertResources(t *testing.T) {
 					Auth:                     &proto.Agent_Token{},
 					ConnectionTimeoutSeconds: 1,
 					MotdFile:                 "/etc/motd",
+					DelayLoginUntilReady:     false,
+					StartupScriptTimeout:     30,
 				}, {
 					Name:                     "dev3",
 					OperatingSystem:          "windows",
@@ -119,6 +123,8 @@ func TestConvertResources(t *testing.T) {
 					Auth:                     &proto.Agent_Token{},
 					ConnectionTimeoutSeconds: 120,
 					TroubleshootingUrl:       "https://coder.com/troubleshoot",
+					DelayLoginUntilReady:     true,
+					StartupScriptTimeout:     300,
 				}},
 			}},
 		},
@@ -231,7 +237,8 @@ func TestConvertResources(t *testing.T) {
 						ConnectionTimeoutSeconds: 120,
 					}},
 				},
-			}},
+			},
+		},
 		"rich-parameters": {
 			resources: []*proto.Resource{{
 				Name: "dev",
