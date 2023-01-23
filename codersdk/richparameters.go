@@ -22,8 +22,12 @@ func ValidateWorkspaceBuildParameters(richParameters []TemplateVersionParameter,
 }
 
 func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, buildParameter WorkspaceBuildParameter) error {
-	if buildParameter.Value == "" {
+	if buildParameter.Value == "" && richParameter.DefaultValue == "" {
 		return xerrors.Errorf("parameter value can't be empty")
+	}
+
+	if buildParameter.Value == "" {
+		return nil // Default value wins
 	}
 
 	if len(richParameter.Options) > 0 {
