@@ -465,10 +465,10 @@ Expire-Date: 0
 		"--forward-gpg",
 	)
 	clitest.SetupConfig(t, client, root)
-	pty := ptytest.New(t)
-	cmd.SetIn(pty.Input())
-	cmd.SetOut(pty.Output())
-	cmd.SetErr(pty.Output())
+	tpty := ptytest.New(t)
+	cmd.SetIn(tpty.Input())
+	cmd.SetOut(tpty.Output())
+	cmd.SetErr(tpty.Output())
 	cmdDone := tGo(t, func() {
 		err := cmd.ExecuteContext(ctx)
 		assert.NoError(t, err, "ssh command failed")
@@ -482,38 +482,38 @@ Expire-Date: 0
 
 	// Wait for the prompt or any output really to indicate the command has
 	// started and accepting input on stdin.
-	_ = pty.Peek(ctx, 1)
+	_ = tpty.Peek(ctx, 1)
 
-	pty.WriteLine("echo hello 'world'")
-	pty.ExpectMatch("hello world")
+	tpty.WriteLine("echo hello 'world'")
+	tpty.ExpectMatch("hello world")
 
 	// Check the GNUPGHOME was correctly inherited via shell.
-	pty.WriteLine("env && echo env-''-command-done")
-	match := pty.ExpectMatch("env--command-done")
+	tpty.WriteLine("env && echo env-''-command-done")
+	match := tpty.ExpectMatch("env--command-done")
 	require.Contains(t, match, "GNUPGHOME="+gnupgHomeWorkspace, match)
 
 	// Get the agent extra socket path in the "workspace" via shell.
-	pty.WriteLine("gpgconf --list-dir agent-socket && echo gpgconf-''-agentsocket-command-done")
-	pty.ExpectMatch(workspaceAgentSocketPath)
-	pty.ExpectMatch("gpgconf--agentsocket-command-done")
+	tpty.WriteLine("gpgconf --list-dir agent-socket && echo gpgconf-''-agentsocket-command-done")
+	tpty.ExpectMatch(workspaceAgentSocketPath)
+	tpty.ExpectMatch("gpgconf--agentsocket-command-done")
 
 	// List the keys in the "workspace".
-	pty.WriteLine("gpg --list-keys && echo gpg-''-listkeys-command-done")
-	listKeysOutput := pty.ExpectMatch("gpg--listkeys-command-done")
+	tpty.WriteLine("gpg --list-keys && echo gpg-''-listkeys-command-done")
+	listKeysOutput := tpty.ExpectMatch("gpg--listkeys-command-done")
 	require.Contains(t, listKeysOutput, "[ultimate] Coder Test <test@coder.com>")
 	require.Contains(t, listKeysOutput, "[ultimate] Dean Sheather (work key) <dean@coder.com>")
 
 	// Try to sign something. This demonstrates that the forwarding is
 	// working as expected, since the workspace doesn't have access to the
 	// private key directly and must use the forwarded agent.
-	pty.WriteLine("echo 'hello world' | gpg --clearsign && echo gpg-''-sign-command-done")
-	pty.ExpectMatch("BEGIN PGP SIGNED MESSAGE")
-	pty.ExpectMatch("Hash:")
-	pty.ExpectMatch("hello world")
-	pty.ExpectMatch("gpg--sign-command-done")
+	tpty.WriteLine("echo 'hello world' | gpg --clearsign && echo gpg-''-sign-command-done")
+	tpty.ExpectMatch("BEGIN PGP SIGNED MESSAGE")
+	tpty.ExpectMatch("Hash:")
+	tpty.ExpectMatch("hello world")
+	tpty.ExpectMatch("gpg--sign-command-done")
 
 	// And we're done.
-	pty.WriteLine("exit")
+	tpty.WriteLine("exit")
 	<-cmdDone
 }
 
