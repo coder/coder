@@ -340,6 +340,39 @@ func (c *Client) ListenWorkspaceAgent(ctx context.Context) (net.Conn, error) {
 		return nil, readBodyAsError(res)
 	}
 
+	go func() {
+		tick := 30 * time.Second
+		ticker := time.NewTicker(tick)
+		defer ticker.Stop()
+		defer func() {
+			c.Logger.Debug(ctx, "coordinate pinger exited")
+		}()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case start := <-ticker.C:
+				ctx, cancel := context.WithTimeout(ctx, tick)
+
+				err := conn.Ping(ctx)
+				if err != nil {
+					c.Logger.Error(ctx, "workspace agent coordinate ping", slog.Error(err))
+
+					err := conn.Close(websocket.StatusAbnormalClosure, "Ping failed")
+					if err != nil {
+						c.Logger.Error(ctx, "close workspace agent coordinate websocket", slog.Error(err))
+					}
+
+					cancel()
+					return
+				}
+
+				c.Logger.Debug(ctx, "got coordinate pong", slog.F("took", time.Since(start)))
+				cancel()
+			}
+		}
+	}()
+
 	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
 }
 

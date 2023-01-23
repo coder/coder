@@ -83,6 +83,7 @@ func workspaceAgent() *cobra.Command {
 				slog.F("version", version),
 			)
 			client := codersdk.New(coderURL)
+			client.Logger = logger
 			// Set a reasonable timeout so requests can't hang forever!
 			client.HTTPClient.Timeout = 10 * time.Second
 

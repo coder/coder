@@ -430,6 +430,9 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 // runCoordinator runs a coordinator and returns whether a reconnect
 // should occur.
 func (a *agent) runCoordinator(ctx context.Context, network *tailnet.Conn) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	coordinator, err := a.client.ListenWorkspaceAgent(ctx)
 	if err != nil {
 		return err
