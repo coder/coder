@@ -3,40 +3,40 @@ package authzquery
 import (
 	"context"
 
+	"golang.org/x/xerrors"
+
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/rbac"
 )
 
+// TODO: We need the idea of a restricted user. Right now we always return a full user,
+// which is problematic since we don't want to leak information about users.
+
 func (q *AuthzQuerier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) GetActiveUserCount(ctx context.Context) (int64, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) GetFilteredUserCount(ctx context.Context, arg database.GetFilteredUserCountParams) (int64, error) {
-	// TODO implement me
-	panic("implement me")
+	err := q.authorizeContext(ctx, rbac.ActionUpdate,
+		rbac.ResourceUserData.WithOwner(userID.String()).WithID(userID))
+	if err != nil {
+		return err
+	}
+	return q.database.DeleteAPIKeysByUserID(ctx, userID)
 }
 
 func (q *AuthzQuerier) GetQuotaAllowanceForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
-	// TODO implement me
-	panic("implement me")
+	err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUser.WithID(userID))
+	if err != nil {
+		return -1, err
+	}
+	return q.database.GetQuotaAllowanceForUser(ctx, userID)
 }
 
-func (q *AuthzQuerier) GetQuotaConsumedForUser(ctx context.Context, ownerID uuid.UUID) (int64, error) {
-	// TODO implement me
-	panic("implement me")
+func (q *AuthzQuerier) GetQuotaConsumedForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
+	err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUser.WithID(userID))
+	if err != nil {
+		return -1, err
+	}
+	return q.database.GetQuotaConsumedForUser(ctx, userID)
 }
 
 func (q *AuthzQuerier) GetUserByEmailOrUsername(ctx context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
@@ -47,9 +47,21 @@ func (q *AuthzQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (database.
 	return authorizedFetch(q.authorizer, q.database.GetUserByID)(ctx, id)
 }
 
+func (q *AuthzQuerier) GetAuthorizedUserCount(ctx context.Context, arg database.GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
+	return q.GetAuthorizedUserCount(ctx, arg, prepared)
+}
+
+func (q *AuthzQuerier) GetFilteredUserCount(ctx context.Context, arg database.GetFilteredUserCountParams) (int64, error) {
+	prep, err := prepareSQLFilter(ctx, q.authorizer, rbac.ActionRead, rbac.ResourceUser.Type)
+	if err != nil {
+		return -1, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	}
+	// TODO: This should be the only implementation.
+	return q.GetAuthorizedUserCount(ctx, arg, prep)
+}
+
 func (q *AuthzQuerier) GetUserCount(ctx context.Context) (int64, error) {
-	// TODO implement me
-	panic("implement me")
+	return q.GetFilteredUserCount(ctx, database.GetFilteredUserCountParams{})
 }
 
 func (q *AuthzQuerier) GetUserLinkByLinkedID(ctx context.Context, linkedID string) (database.UserLink, error) {
@@ -63,13 +75,38 @@ func (q *AuthzQuerier) GetUserLinkByUserIDLoginType(ctx context.Context, arg dat
 }
 
 func (q *AuthzQuerier) GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error) {
-	// TODO implement me
-	panic("implement me")
+	// TODO: We should use GetUsersWithCount with a better method signature.
+	return authorizedFetchSet(q.authorizer, q.database.GetUsers)(ctx, arg)
+}
+
+func (q *AuthzQuerier) GetUsersWithCount(ctx context.Context, arg database.GetUsersParams) ([]database.User, int64, error) {
+	// TODO Implement this with a SQL filter. The count is incorrect without it.
+	rowUsers, err := q.database.GetUsers(ctx, arg)
+	if err != nil {
+		return nil, -1, err
+	}
+
+	if len(rowUsers) == 0 {
+		return []database.User{}, 0, nil
+	}
+
+	act, ok := actorFromContext(ctx)
+	if !ok {
+		return nil, -1, xerrors.Errorf("no authorization actor in context")
+	}
+
+	// TODO: Is this correct? Should we return a retricted user?
+	users := database.ConvertUserRows(rowUsers)
+	users, err = rbac.Filter(ctx, q.authorizer, act.ID.String(), act.Roles, act.Scope, act.Groups, rbac.ActionRead, users)
+	if err != nil {
+		return nil, -1, err
+	}
+
+	return database.ConvertUserRows(rowUsers), rowUsers[0].Count, nil
 }
 
 func (q *AuthzQuerier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]database.User, error) {
-	// TODO implement me
-	panic("implement me")
+	return authorizedFetchSet(q.authorizer, q.database.GetUsersByIDs)(ctx, ids)
 }
 
 func (q *AuthzQuerier) InsertUser(ctx context.Context, arg database.InsertUserParams) (database.User, error) {
@@ -82,19 +119,33 @@ func (q *AuthzQuerier) InsertUserLink(ctx context.Context, arg database.InsertUs
 	panic("implement me")
 }
 
+func (q *AuthzQuerier) SoftDeleteUserByID(ctx context.Context, id uuid.UUID) error {
+	deleteF := func(ctx context.Context, id uuid.UUID) error {
+		return q.database.UpdateUserDeletedByID(ctx, database.UpdateUserDeletedByIDParams{
+			ID:      id,
+			Deleted: true,
+		})
+	}
+	return authorizedDelete(q.authorizer, q.database.GetUserByID, deleteF)(ctx, id)
+}
+
 func (q *AuthzQuerier) UpdateUserDeletedByID(ctx context.Context, arg database.UpdateUserDeletedByIDParams) error {
-	// TODO implement me
+	// TODO delete me. This function is a placeholder for database.Store.
 	panic("implement me")
 }
 
 func (q *AuthzQuerier) UpdateUserHashedPassword(ctx context.Context, arg database.UpdateUserHashedPasswordParams) error {
-	// TODO implement me
-	panic("implement me")
+	fetch := func(ctx context.Context, arg database.UpdateUserHashedPasswordParams) (database.User, error) {
+		return q.database.GetUserByID(ctx, arg.ID)
+	}
+	return authorizedUpdate(q.authorizer, fetch, q.database.UpdateUserHashedPassword)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateUserLastSeenAt(ctx context.Context, arg database.UpdateUserLastSeenAtParams) (database.User, error) {
-	// TODO implement me
-	panic("implement me")
+	fetch := func(ctx context.Context, arg database.UpdateUserLastSeenAtParams) (database.User, error) {
+		return q.database.GetUserByID(ctx, arg.ID)
+	}
+	return authorizedUpdateWithReturn(q.authorizer, fetch, q.database.UpdateUserLastSeenAt)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateUserLink(ctx context.Context, arg database.UpdateUserLinkParams) (database.UserLink, error) {
@@ -108,8 +159,10 @@ func (q *AuthzQuerier) UpdateUserLinkedID(ctx context.Context, arg database.Upda
 }
 
 func (q *AuthzQuerier) UpdateUserProfile(ctx context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
-	// TODO implement me
-	panic("implement me")
+	fetch := func(ctx context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
+		return q.GetUserByID(ctx, arg.ID)
+	}
+	return authorizedUpdateWithReturn(q.authorizer, fetch, q.database.UpdateUserProfile)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateUserRoles(ctx context.Context, arg database.UpdateUserRolesParams) (database.User, error) {
@@ -122,11 +175,6 @@ func (q *AuthzQuerier) UpdateUserStatus(ctx context.Context, arg database.Update
 		return q.database.GetUserByID(ctx, arg.ID)
 	}
 	return authorizedUpdateWithReturn(q.authorizer, fetch, q.database.UpdateUserStatus)(ctx, arg)
-}
-
-func (q *AuthzQuerier) GetAuthorizedUserCount(ctx context.Context, arg database.GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
-	// TODO implement me
-	panic("implement me")
 }
 
 func (q *AuthzQuerier) DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error {

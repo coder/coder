@@ -122,6 +122,10 @@ func (u User) UserDataRBACObject() rbac.Object {
 	return rbac.ResourceUser.WithID(u.ID).WithOwner(u.ID.String())
 }
 
+func (u GetUsersRow) RBACObject() rbac.Object {
+	return rbac.ResourceUser.WithID(u.ID)
+}
+
 func (u GitSSHKey) RBACObject() rbac.Object {
 	return rbac.ResourceUserData.WithID(u.UserID).WithOwner(u.UserID.String())
 }
