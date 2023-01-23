@@ -129,9 +129,16 @@ func (q *AuthzQuerier) SoftDeleteUserByID(ctx context.Context, id uuid.UUID) err
 	return authorizedDelete(q.authorizer, q.database.GetUserByID, deleteF)(ctx, id)
 }
 
+// UpdateUserDeletedByID
+// Deprecated: Delete this function in favor of 'SoftDeleteUserByID'. Deletes are
+// irreversible.
 func (q *AuthzQuerier) UpdateUserDeletedByID(ctx context.Context, arg database.UpdateUserDeletedByIDParams) error {
-	// TODO delete me. This function is a placeholder for database.Store.
-	panic("implement me")
+	fetch := func(ctx context.Context, arg database.UpdateUserDeletedByIDParams) (database.User, error) {
+		return q.database.GetUserByID(ctx, arg.ID)
+	}
+	// This uses the rbac.ActionDelete action always as this function should always delete.
+	// We should delete this function in favor of 'SoftDeleteUserByID'.
+	return authorizedDelete(q.authorizer, fetch, q.database.UpdateUserDeletedByID)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateUserHashedPassword(ctx context.Context, arg database.UpdateUserHashedPasswordParams) error {
@@ -165,11 +172,6 @@ func (q *AuthzQuerier) UpdateUserProfile(ctx context.Context, arg database.Updat
 	return authorizedUpdateWithReturn(q.authorizer, fetch, q.database.UpdateUserProfile)(ctx, arg)
 }
 
-func (q *AuthzQuerier) UpdateUserRoles(ctx context.Context, arg database.UpdateUserRolesParams) (database.User, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
 func (q *AuthzQuerier) UpdateUserStatus(ctx context.Context, arg database.UpdateUserStatusParams) (database.User, error) {
 	fetch := func(ctx context.Context, arg database.UpdateUserStatusParams) (database.User, error) {
 		return q.database.GetUserByID(ctx, arg.ID)
@@ -199,4 +201,56 @@ func (q *AuthzQuerier) GetGitAuthLink(ctx context.Context, arg database.GetGitAu
 func (q *AuthzQuerier) InsertGitAuthLink(ctx context.Context, arg database.InsertGitAuthLinkParams) (database.GitAuthLink, error) {
 	// TODO implement me
 	panic("implement me")
+}
+
+// UpdateUserRoles updates the site roles of a user. The validation for this function include more than
+// just a basic RBAC check.
+func (q *AuthzQuerier) UpdateUserRoles(ctx context.Context, arg database.UpdateUserRolesParams) (database.User, error) {
+	actor, ok := actorFromContext(ctx)
+	if !ok {
+		return database.User{}, xerrors.Errorf("no authorization actor in context")
+	}
+
+	// Only site roles can be updated in this function. If an unsupported role is
+	// provided, return an error.
+	for _, r := range arg.GrantedRoles {
+		if _, ok := rbac.IsOrgRole(r); ok {
+			return database.User{}, xerrors.Errorf("Must only update site wide roles")
+		}
+		if _, err := rbac.RoleByName(r); err != nil {
+			return database.User{}, xerrors.Errorf("%q is not a supported role", r)
+		}
+	}
+
+	// We need to fetch the user being updated to identify the change in roles.
+	// This requires read access on the user in question, since the user is
+	// returned from this function.
+	user, err := authorizedFetch(q.authorizer, q.database.GetUserByID)(ctx, arg.ID)
+	if err != nil {
+		return database.User{}, err
+	}
+
+	// The member role is always implied.
+	impliedTypes := append(arg.GrantedRoles, rbac.RoleMember())
+	// If the changeset is nothing, less rbac checks need to be done.
+	added, removed := rbac.ChangeRoleSet(user.RBACRoles, impliedTypes)
+
+	// Assigning a role requires the create permission.
+	if len(added) > 0 && q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceRoleAssignment) != nil {
+		return database.User{}, xerrors.Errorf("not authorized to assign roles")
+	}
+
+	// Removing a role requires the delete permission.
+	if len(removed) > 0 && q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceRoleAssignment) != nil {
+		return database.User{}, xerrors.Errorf("not authorized to delete roles")
+	}
+
+	// Just treat adding & removing as "assigning" for now.
+	for _, roleName := range append(added, removed...) {
+		if !rbac.CanAssignRole(actor.Roles, roleName) {
+			return database.User{}, xerrors.Errorf("not authorized to assign role %q", roleName)
+		}
+	}
+
+	return q.UpdateUserRoles(ctx, arg)
 }
