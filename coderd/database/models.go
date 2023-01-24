@@ -1515,7 +1515,7 @@ type WorkspaceAgent struct {
 	TroubleshootingURL string `db:"troubleshooting_url" json:"troubleshooting_url"`
 	// Path to file inside workspace containing the message of the day (MOTD) to show to the user when logging in via SSH.
 	MOTDFile string `db:"motd_file" json:"motd_file"`
-	// The current lifecycle state of the workspace agent.
+	// The current lifecycle state reported by the workspace agent.
 	LifecycleState WorkspaceAgentLifecycleState `db:"lifecycle_state" json:"lifecycle_state"`
 	// If true, the agent will delay logins until it is ready (e.g. executing startup script has ended).
 	DelayLoginUntilReady bool `db:"delay_login_until_ready" json:"delay_login_until_ready"`

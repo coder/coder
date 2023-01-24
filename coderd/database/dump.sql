@@ -470,7 +470,7 @@ COMMENT ON COLUMN workspace_agents.troubleshooting_url IS 'URL for troubleshooti
 
 COMMENT ON COLUMN workspace_agents.motd_file IS 'Path to file inside workspace containing the message of the day (MOTD) to show to the user when logging in via SSH.';
 
-COMMENT ON COLUMN workspace_agents.lifecycle_state IS 'The current lifecycle state of the workspace agent.';
+COMMENT ON COLUMN workspace_agents.lifecycle_state IS 'The current lifecycle state reported by the workspace agent.';
 
 COMMENT ON COLUMN workspace_agents.delay_login_until_ready IS 'If true, the agent will delay logins until it is ready (e.g. executing startup script has ended).';
 
