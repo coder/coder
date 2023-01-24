@@ -2,6 +2,7 @@ import TextField from "@material-ui/core/TextField"
 import * as TypesGen from "api/typesGenerated"
 import { FormFooter } from "components/FormFooter/FormFooter"
 import { ParameterInput } from "components/ParameterInput/ParameterInput"
+import { RichParameterInput } from "components/RichParameterInput/RichParameterInput"
 import { Stack } from "components/Stack/Stack"
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
@@ -30,6 +31,8 @@ export interface CreateWorkspacePageViewProps {
   templateName: string
   templates?: TypesGen.Template[]
   selectedTemplate?: TypesGen.Template
+  templateParameters?: TypesGen.TemplateVersionParameter[]
+
   templateSchema?: TypesGen.ParameterSchema[]
   createWorkspaceErrors: Partial<Record<CreateWorkspaceErrors, Error | unknown>>
   canCreateForUser?: boolean
@@ -249,6 +252,34 @@ export const CreateWorkspacePageView: FC<
             </div>
           )}
 
+          {/* Rich parameters */}
+          {props.templateParameters && props.templateParameters.length > 0 && (
+            <div className={styles.formSection}>
+              <div className={styles.formSectionInfo}>
+                <h2 className={styles.formSectionInfoTitle}>Rich template params</h2>
+                <p className={styles.formSectionInfoDescription}>
+                  Those values are provided by your template&lsquo;s Terraform
+                  configuration.
+                </p>
+              </div>
+
+              <Stack
+                direction="column"
+                spacing={4} // Spacing here is diff because the fields here don't have the MUI floating label spacing
+                className={styles.formSectionFields}
+              >
+                {props.templateParameters.map((parameter) => (
+                  <RichParameterInput
+                    disabled={form.isSubmitting}
+                    key={parameter.name}
+                    defaultValue={parameter.default_value}
+                    onChange={validate}
+                    parameter={parameter}
+                  />
+                ))}
+              </Stack>
+            </div>
+          )}
           <FormFooter
             styles={formFooterStyles}
             onCancel={props.onCancel}
@@ -332,3 +363,9 @@ const useFormFooterStyles = makeStyles((theme) => ({
     },
   },
 }))
+
+const validate = (value :string) => {
+  if (value === "1") {
+    value = value + "0"
+  }
+};
