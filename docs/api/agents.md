@@ -383,41 +383,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/metadata \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Submit workspace agent lifecycle state
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/report-lifecycle \
-  -H 'Content-Type: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`POST /workspaceagents/me/report-lifecycle`
-
-> Body parameter
-
-```json
-{
-  "state": "created"
-}
-```
-
-### Parameters
-
-| Name   | In   | Type                                                                                                 | Required | Description                       |
-| ------ | ---- | ---------------------------------------------------------------------------------------------------- | -------- | --------------------------------- |
-| `body` | body | [codersdk.PostWorkspaceAgentLifecycleRequest](schemas.md#codersdkpostworkspaceagentlifecyclerequest) | true     | Workspace agent lifecycle request |
-
-### Responses
-
-| Status | Meaning                                                         | Description | Schema |
-| ------ | --------------------------------------------------------------- | ----------- | ------ |
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | Success     |        |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## Submit workspace agent stats
 
 ### Code samples

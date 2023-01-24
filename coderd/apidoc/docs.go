@@ -4003,6 +4003,9 @@ const docTemplate = `{
                     "204": {
                         "description": "Success"
                     }
+                },
+                "x-apidocgen": {
+                    "skip": true
                 }
             }
         },

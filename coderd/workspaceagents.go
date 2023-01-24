@@ -912,6 +912,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 // @Param request body codersdk.PostWorkspaceAgentLifecycleRequest true "Workspace agent lifecycle request"
 // @Success 204 "Success"
 // @Router /workspaceagents/me/report-lifecycle [post]
+// @x-apidocgen {"skip": true}
 func (api *API) workspaceAgentReportLifecycle(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
