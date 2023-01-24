@@ -109,7 +109,7 @@ main() {
 		title=${title%$'\n'}
 		COMMIT_METADATA_TITLE[$commit_sha_short]=$title
 		if [[ -v authors[$commit_sha_long] ]]; then
-			COMMIT_METADATA_AUTHORS[$commit_sha_short]="[${authors[$commit_sha_long]}](https://github.com/${authors[$commit_sha_long]})"
+			COMMIT_METADATA_AUTHORS[$commit_sha_short]="@${authors[$commit_sha_long]}"
 		fi
 
 		# First, check the title for breaking changes. This avoids doing a
