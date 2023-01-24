@@ -185,6 +185,8 @@ func (a *agent) reportLifecycleLoop(ctx context.Context) {
 				break
 			}
 
+			a.logger.Debug(ctx, "post lifecycle state", slog.F("state", state))
+
 			err := a.client.PostWorkspaceAgentLifecycle(ctx, codersdk.PostWorkspaceAgentLifecycleRequest{
 				State: state,
 			})
@@ -201,9 +203,11 @@ func (a *agent) reportLifecycleLoop(ctx context.Context) {
 	}
 }
 
-func (a *agent) setLifecycle(state codersdk.WorkspaceAgentLifecycle) {
+func (a *agent) setLifecycle(ctx context.Context, state codersdk.WorkspaceAgentLifecycle) {
 	a.lifecycleMu.Lock()
 	defer a.lifecycleMu.Unlock()
+
+	a.logger.Debug(ctx, "set lifecycle state", slog.F("state", state), slog.F("previous", a.lifecycleState))
 
 	a.lifecycleState = state
 	select {
@@ -236,7 +240,7 @@ func (a *agent) run(ctx context.Context) error {
 
 	// The startup script should only execute on the first run!
 	if oldMetadata == nil {
-		a.setLifecycle(codersdk.WorkspaceAgentLifecycleStarting)
+		a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleStarting)
 
 		// Perform overrides early so that Git auth can work even if users
 		// connect to a workspace that is not yet ready. We don't run this
@@ -270,7 +274,7 @@ func (a *agent) run(ctx context.Context) error {
 			case err = <-scriptDone:
 			case <-timeout:
 				a.logger.Warn(ctx, "startup script timed out")
-				a.setLifecycle(codersdk.WorkspaceAgentLifecycleStartTimeout)
+				a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleStartTimeout)
 				err = <-scriptDone // The script can still complete after a timeout.
 			}
 			if errors.Is(err, context.Canceled) {
@@ -285,7 +289,7 @@ func (a *agent) run(ctx context.Context) error {
 				a.logger.Info(ctx, "startup script completed", slog.F("execution_time", execTime))
 			}
 
-			a.setLifecycle(lifecycleStatus)
+			a.setLifecycle(ctx, lifecycleStatus)
 		}()
 	}
 
