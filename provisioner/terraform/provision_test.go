@@ -320,6 +320,49 @@ func TestProvision(t *testing.T) {
 			},
 			ErrorContains: "unsupported parameter type",
 		},
+		{
+			Name: "rich-parameter-with-value",
+			Files: map[string]string{
+				"main.tf": `terraform {
+					required_providers {
+					  coder = {
+						source  = "coder/coder"
+						version = "0.6.6"
+					  }
+					}
+				  }
+
+				  data "coder_parameter" "example" {
+					name = "Example"
+					type = "string"
+					default = "foobar"
+				  }
+
+				  resource "null_resource" "example" {
+					triggers = {
+						misc = "${data.coder_parameter.example.value}"
+					}
+				  }`,
+			},
+			Request: &proto.Provision_Plan{
+				RichParameterValues: []*proto.RichParameterValue{
+					{
+						Name:  "Example",
+						Value: "foobaz",
+					},
+				},
+			},
+			Response: &proto.Provision_Response{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.Resource{{
+							Name: "example",
+							Type: "null_resource",
+						}},
+					},
+				},
+			},
+		},
 	}
 
 	for _, testCase := range testCases {

@@ -644,11 +644,16 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 		secondParameterName        = "second_parameter"
 		secondParameterDescription = "This is second parameter"
 		secondParameterValue       = "2"
+
+		immutableParameterName        = "immutable_parameter"
+		immutableParameterDescription = "This is immutable parameter"
+		immutableParameterValue       = "3"
 	)
 
 	initialBuildParameters := []codersdk.WorkspaceBuildParameter{
 		{Name: firstParameterName, Value: firstParameterValue},
 		{Name: secondParameterName, Value: secondParameterValue},
+		{Name: immutableParameterName, Value: immutableParameterValue},
 	}
 
 	echoResponses := &echo.Responses{
@@ -658,8 +663,9 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 				Type: &proto.Provision_Response_Complete{
 					Complete: &proto.Provision_Complete{
 						Parameters: []*proto.RichParameter{
-							{Name: firstParameterName, Description: firstParameterDescription},
-							{Name: secondParameterName, Description: secondParameterDescription},
+							{Name: firstParameterName, Description: firstParameterDescription, Mutable: true},
+							{Name: secondParameterName, Description: secondParameterDescription, Mutable: true},
+							{Name: immutableParameterName, Description: immutableParameterDescription, Mutable: false},
 						},
 					},
 				},
@@ -705,7 +711,12 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 
 		workspaceBuildParameters, err := client.WorkspaceBuildParameters(ctx, nextWorkspaceBuild.ID)
 		require.NoError(t, err)
-		require.ElementsMatch(t, nextBuildParameters, workspaceBuildParameters)
+
+		expected := append(nextBuildParameters, codersdk.WorkspaceBuildParameter{
+			Name:  immutableParameterName,
+			Value: immutableParameterValue,
+		})
+		require.ElementsMatch(t, expected, workspaceBuildParameters)
 	})
 	t.Run("UsePreviousParameterValues", func(t *testing.T) {
 		t.Parallel()
@@ -737,5 +748,35 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 		workspaceBuildParameters, err := client.WorkspaceBuildParameters(ctx, nextWorkspaceBuild.ID)
 		require.NoError(t, err)
 		require.ElementsMatch(t, initialBuildParameters, workspaceBuildParameters)
+	})
+
+	t.Run("DoNotModifyImmutables", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, echoResponses)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.RichParameterValues = initialBuildParameters
+		})
+
+		workspaceBuild := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusRunning, workspaceBuild.Status)
+
+		// Update build parameters
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		nextBuildParameters := []codersdk.WorkspaceBuildParameter{
+			{Name: immutableParameterName, Value: "BAD"},
+		}
+		_, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition:          codersdk.WorkspaceTransitionStart,
+			RichParameterValues: nextBuildParameters,
+		})
+		require.Error(t, err)
 	})
 }

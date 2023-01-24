@@ -11,8 +11,9 @@ import (
 
 func update() *cobra.Command {
 	var (
-		parameterFile string
-		alwaysPrompt  bool
+		parameterFile     string
+		richParameterFile string
+		alwaysPrompt      bool
 	)
 
 	cmd := &cobra.Command{
@@ -39,27 +40,37 @@ func update() *cobra.Command {
 			}
 
 			var existingParams []codersdk.Parameter
+			var existingRichParams []codersdk.WorkspaceBuildParameter
 			if !alwaysPrompt {
 				existingParams, err = client.Parameters(cmd.Context(), codersdk.ParameterWorkspace, workspace.ID)
 				if err != nil {
 					return nil
 				}
+
+				existingRichParams, err = client.WorkspaceBuildParameters(cmd.Context(), workspace.LatestBuild.ID)
+				if err != nil {
+					return nil
+				}
 			}
 
-			parameters, err := prepWorkspaceBuild(cmd, client, prepWorkspaceBuildArgs{
-				Template:         template,
-				ExistingParams:   existingParams,
-				ParameterFile:    parameterFile,
-				NewWorkspaceName: workspace.Name,
+			buildParams, err := prepWorkspaceBuild(cmd, client, prepWorkspaceBuildArgs{
+				Template:           template,
+				ExistingParams:     existingParams,
+				ParameterFile:      parameterFile,
+				ExistingRichParams: existingRichParams,
+				RichParameterFile:  richParameterFile,
+				NewWorkspaceName:   workspace.Name,
+				UpdateWorkspace:    true,
 			})
 			if err != nil {
 				return nil
 			}
 
 			build, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-				TemplateVersionID: template.ActiveVersionID,
-				Transition:        workspace.LatestBuild.Transition,
-				ParameterValues:   parameters,
+				TemplateVersionID:   template.ActiveVersionID,
+				Transition:          workspace.LatestBuild.Transition,
+				ParameterValues:     buildParams.parameters,
+				RichParameterValues: buildParams.richParameters,
 			})
 			if err != nil {
 				return err
@@ -82,5 +93,6 @@ func update() *cobra.Command {
 
 	cmd.Flags().BoolVar(&alwaysPrompt, "always-prompt", false, "Always prompt all parameters. Does not pull parameter values from existing workspace")
 	cliflag.StringVarP(cmd.Flags(), &parameterFile, "parameter-file", "", "CODER_PARAMETER_FILE", "", "Specify a file path with parameter values.")
+	cliflag.StringVarP(cmd.Flags(), &richParameterFile, "rich-parameter-file", "", "CODER_RICH_PARAMETER_FILE", "", "Specify a file path with values for rich parameters defined in the template.")
 	return cmd
 }
