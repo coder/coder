@@ -2,10 +2,7 @@ import Link from "@material-ui/core/Link"
 import { Workspace } from "api/typesGenerated"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Maybe } from "components/Conditionals/Maybe"
-import {
-  PaginationWidgetBase,
-  PaginationWidgetBaseProps,
-} from "components/PaginationWidget/PaginationWidgetBase"
+import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase"
 import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { Margins } from "../../components/Margins/Margins"
@@ -32,8 +29,11 @@ export const Language = {
 export interface WorkspacesPageViewProps {
   error: unknown
   workspaces?: Workspace[]
-  pagination?: PaginationWidgetBaseProps
+  count?: number
+  page: number
+  limit: number
   filter: string
+  onPageChange: (page: number) => void
   onFilter: (query: string) => void
   onUpdateWorkspace: (workspace: Workspace) => void
 }
@@ -44,8 +44,11 @@ export const WorkspacesPageView: FC<
   workspaces,
   error,
   filter,
+  page,
+  limit,
+  count,
   onFilter,
-  pagination,
+  onPageChange,
   onUpdateWorkspace,
 }) => {
   const presetFilters = [
@@ -99,7 +102,14 @@ export const WorkspacesPageView: FC<
         isUsingFilter={filter !== workspaceFilterQuery.me}
         onUpdateWorkspace={onUpdateWorkspace}
       />
-      {pagination && <PaginationWidgetBase {...pagination} />}
+      {count && (
+        <PaginationWidgetBase
+          count={count}
+          limit={limit}
+          onChange={onPageChange}
+          page={page}
+        />
+      )}
     </Margins>
   )
 }
