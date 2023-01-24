@@ -13,9 +13,9 @@ import (
 func (q *AuthzQuerier) GetAllOrganizationMembers(ctx context.Context, organizationID uuid.UUID) ([]database.User, error) {
 	// TODO: @emyrk this is returned by the template ACL api endpoint. These users are full database.Users, which is
 	// problematic since it bypasses the rbac.ResourceUser resource. We should probably return a organizationMember or
-	// restricted user type here instead.
-	// TODO implement me
-	panic("implement me")
+	// restricted user type here instead. The returned user also is checking the User resource, whereas we might want to
+	// really check the OrganizationMember resource.
+	return authorizedFetchSet(q.authorizer, q.database.GetAllOrganizationMembers)(ctx, organizationID)
 }
 
 func (q *AuthzQuerier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {
@@ -31,8 +31,9 @@ func (q *AuthzQuerier) GetOrganizationByName(ctx context.Context, name string) (
 }
 
 func (q *AuthzQuerier) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetOrganizationIDsByMemberIDsRow, error) {
-	// TODO implement me
-	panic("implement me")
+	// TODO: This should be rewritten to return a list of database.OrganizationMember for consistent RBAC objects.
+	// Currently this row returns a list of org ids per user, which is challenging to check against the RBAC system.
+	return authorizedFetchSet(q.authorizer, q.database.GetOrganizationIDsByMemberIDs)(ctx, ids)
 }
 
 func (q *AuthzQuerier) GetOrganizationMemberByUserID(ctx context.Context, arg database.GetOrganizationMemberByUserIDParams) (database.OrganizationMember, error) {
@@ -40,8 +41,7 @@ func (q *AuthzQuerier) GetOrganizationMemberByUserID(ctx context.Context, arg da
 }
 
 func (q *AuthzQuerier) GetOrganizationMembershipsByUserID(ctx context.Context, userID uuid.UUID) ([]database.OrganizationMember, error) {
-	// TODO implement me
-	panic("implement me")
+	return authorizedFetchSet(q.authorizer, q.database.GetOrganizationMembershipsByUserID)(ctx, userID)
 }
 
 func (q *AuthzQuerier) GetOrganizations(ctx context.Context) ([]database.Organization, error) {

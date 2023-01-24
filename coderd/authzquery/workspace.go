@@ -72,9 +72,25 @@ func (q *AuthzQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authIn
 	return authorizedQueryWithRelated(q.authorizer, rbac.ActionRead, fetch, q.database.GetWorkspaceAgentByInstanceID)(ctx, authInstanceID)
 }
 
+// GetWorkspaceAgentsByResourceIDs is an all or nothing call. If the user cannot read
+// a single agent, the entire call will fail.
 func (q *AuthzQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgent, error) {
-	// TODO implement me
-	panic("implement me")
+	// TODO: Make this more efficient. This is annoying because all these resources should be owned by the same workspace.
+	// So the authz check should just be 1 check, but we cannot do that easily here. We should see if all callers can
+	// instead do something like GetWorkspaceAgentsByWorkspaceID.
+	agents, err := q.database.GetWorkspaceAgentsByResourceIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, a := range agents {
+		// Check if we can fetch the agent.
+		_, err := q.GetWorkspaceByAgentID(ctx, a.ID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return agents, nil
 }
 
 func (q *AuthzQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg database.GetWorkspaceAppByAgentIDAndSlugParams) (database.WorkspaceApp, error) {

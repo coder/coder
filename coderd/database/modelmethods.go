@@ -100,6 +100,13 @@ func (m OrganizationMember) RBACObject() rbac.Object {
 		InOrg(m.OrganizationID)
 }
 
+func (m GetOrganizationIDsByMemberIDsRow) RBACObject() rbac.Object {
+	// TODO: This feels incorrect as we are really returning a list of orgmembers.
+	// This return type should be refactored to return a list of orgmembers, not this
+	// special type.
+	return rbac.ResourceUser.WithID(m.UserID)
+}
+
 func (o Organization) RBACObject() rbac.Object {
 	return rbac.ResourceOrganization.
 		WithID(o.ID).

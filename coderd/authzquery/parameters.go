@@ -74,9 +74,36 @@ func (q *AuthzQuerier) ParameterValue(ctx context.Context, id uuid.UUID) (databa
 	return parameter, nil
 }
 
+// ParameterValues is implemented as an all or nothing query. If the user is not
+// able to read a single parameter value, then the entire query is denied.
+// This should likely be revisited and see if the usage of this function cannot be changed.
 func (q *AuthzQuerier) ParameterValues(ctx context.Context, arg database.ParameterValuesParams) ([]database.ParameterValue, error) {
-	// TODO implement me
-	panic("implement me")
+	// This is a bit of a special case. Each parameter value returned might have a different scope. This could likely
+	// be implemented in a more efficient manner.
+	values, err := q.database.ParameterValues(ctx, arg)
+	if err != nil {
+		return nil, err
+	}
+
+	cached := make(map[uuid.UUID]bool)
+	for _, value := range values {
+		// If we already checked this scopeID, then we can skip it.
+		// All scope ids are uuids of objects and universally unique.
+		if allowed := cached[value.ScopeID]; allowed {
+			continue
+		}
+		rbacObj, err := q.parameterRBACResource(ctx, value.Scope, value.ScopeID)
+		if err != nil {
+			return nil, err
+		}
+		err = q.authorizeContext(ctx, rbac.ActionRead, rbacObj)
+		if err != nil {
+			return nil, err
+		}
+		cached[value.ScopeID] = true
+	}
+
+	return values, nil
 }
 
 func (q *AuthzQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ParameterSchema, error) {
