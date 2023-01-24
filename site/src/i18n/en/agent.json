@@ -12,11 +12,23 @@
     "noApps": "None"
   },
   "status": {
-    "timeout": "Timeout"
+    "timeout": "Timeout",
+    "startTimeout": "Start Timeout",
+    "startError": "Error"
   },
   "timeoutTooltip": {
     "title": "Agent is taking too long to connect",
     "message": "We noticed this agent is taking longer than expected to connect.",
+    "link": "Troubleshoot"
+  },
+  "startTimeoutTooltip": {
+    "title": "Agent is taking too long to start",
+    "message": "We noticed this agent is taking longer than expected to start.",
+    "link": "Troubleshoot"
+  },
+  "startErrorTooltip": {
+    "title": "Error starting agent",
+    "message": "Something went wrong during the agent start.",
     "link": "Troubleshoot"
   },
   "unableToConnect": "Unable to connect"

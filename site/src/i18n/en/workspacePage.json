@@ -36,7 +36,10 @@
     "pending": "Pending"
   },
   "agentStatus": {
-    "connected": "Connected",
+    "connected": {
+      "ready": "Ready",
+      "starting": "Starting..."
+    },
     "connecting": "Connecting...",
     "disconnected": "Disconnected",
     "timeout": "Timeout"

@@ -3,6 +3,9 @@ import {
   MockWorkspace,
   MockWorkspaceAgent,
   MockWorkspaceAgentConnecting,
+  MockWorkspaceAgentStartError,
+  MockWorkspaceAgentStarting,
+  MockWorkspaceAgentStartTimeout,
   MockWorkspaceAgentTimeout,
   MockWorkspaceApp,
 } from "testHelpers/entities"
@@ -81,6 +84,30 @@ Connecting.args = {
 export const Timeout = Template.bind({})
 Timeout.args = {
   agent: MockWorkspaceAgentTimeout,
+  workspace: MockWorkspace,
+  applicationsHost: "",
+  showApps: true,
+}
+
+export const Starting = Template.bind({})
+Starting.args = {
+  agent: MockWorkspaceAgentStarting,
+  workspace: MockWorkspace,
+  applicationsHost: "",
+  showApps: true,
+}
+
+export const StartTimeout = Template.bind({})
+StartTimeout.args = {
+  agent: MockWorkspaceAgentStartTimeout,
+  workspace: MockWorkspace,
+  applicationsHost: "",
+  showApps: true,
+}
+
+export const StartError = Template.bind({})
+StartError.args = {
+  agent: MockWorkspaceAgentStartError,
   workspace: MockWorkspace,
   applicationsHost: "",
   showApps: true,
