@@ -613,6 +613,27 @@ func New(options *Options) *API {
 				r.Get("/", api.workspaceApplicationAuth)
 			})
 		})
+
+		r.Route("/debug", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				// Ensure only owners can access debug endpoints.
+				func(next http.Handler) http.Handler {
+					return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+						if !api.Authorize(r, rbac.ActionRead, rbac.ResourceDebugInfo) {
+							httpapi.ResourceNotFound(rw)
+							return
+						}
+
+						next.ServeHTTP(rw, r)
+					})
+				},
+			)
+
+			r.HandleFunc("/coordinator", func(w http.ResponseWriter, r *http.Request) {
+				(*api.TailnetCoordinator.Load()).ServeHTTPDebug(w, r)
+			})
+		})
 	})
 
 	if options.SwaggerEndpoint {

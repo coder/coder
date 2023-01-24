@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"net/netip"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,6 +25,8 @@ import (
 // └──────────────────┘   └────────────────────┘   └───────────────────┘   └──────────────────┘
 // Coordinators have different guarantees for HA support.
 type Coordinator interface {
+	// ServeHTTPDebug
+	ServeHTTPDebug(w http.ResponseWriter, r *http.Request)
 	// Node returns an in-memory node by ID.
 	Node(id uuid.UUID) *Node
 	// ServeClient accepts a WebSocket connection that wants to connect to an agent
@@ -29,7 +34,8 @@ type Coordinator interface {
 	ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) error
 	// ServeAgent accepts a WebSocket connection to an agent that listens to
 	// incoming connections and publishes node updates.
-	ServeAgent(conn net.Conn, id uuid.UUID) error
+	// Name is just used for debug information. It can be left blank.
+	ServeAgent(conn net.Conn, id uuid.UUID, name string) error
 	// Close closes the coordinator.
 	Close() error
 }
@@ -104,8 +110,8 @@ func NewCoordinator() Coordinator {
 	return &coordinator{
 		closed:                   false,
 		nodes:                    map[uuid.UUID]*Node{},
-		agentSockets:             map[uuid.UUID]idConn{},
-		agentToConnectionSockets: map[uuid.UUID]map[uuid.UUID]net.Conn{},
+		agentSockets:             map[uuid.UUID]*trackedConn{},
+		agentToConnectionSockets: map[uuid.UUID]map[uuid.UUID]*trackedConn{},
 	}
 }
 
@@ -117,23 +123,34 @@ func NewCoordinator() Coordinator {
 // This coordinator is incompatible with multiple Coder
 // replicas as all node data is in-memory.
 type coordinator struct {
-	mutex  sync.Mutex
+	mutex  sync.RWMutex
 	closed bool
 
 	// nodes maps agent and connection IDs their respective node.
 	nodes map[uuid.UUID]*Node
 	// agentSockets maps agent IDs to their open websocket.
-	agentSockets map[uuid.UUID]idConn
+	agentSockets map[uuid.UUID]*trackedConn
 	// agentToConnectionSockets maps agent IDs to connection IDs of conns that
 	// are subscribed to updates for that agent.
-	agentToConnectionSockets map[uuid.UUID]map[uuid.UUID]net.Conn
+	agentToConnectionSockets map[uuid.UUID]map[uuid.UUID]*trackedConn
 }
 
-type idConn struct {
+type trackedConn struct {
+	net.Conn
+
 	// id is an ephemeral UUID used to uniquely identify the owner of the
 	// connection.
-	id   uuid.UUID
-	conn net.Conn
+	id uuid.UUID
+
+	name       string
+	start      int64
+	lastWrite  int64
+	overwrites int64
+}
+
+func (t *trackedConn) Write(b []byte) (n int, err error) {
+	atomic.StoreInt64(&t.lastWrite, time.Now().Unix())
+	return t.Conn.Write(b)
 }
 
 // Node returns an in-memory node by ID.
@@ -182,12 +199,18 @@ func (c *coordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) 
 	c.mutex.Lock()
 	connectionSockets, ok := c.agentToConnectionSockets[agent]
 	if !ok {
-		connectionSockets = map[uuid.UUID]net.Conn{}
+		connectionSockets = map[uuid.UUID]*trackedConn{}
 		c.agentToConnectionSockets[agent] = connectionSockets
 	}
+
+	now := time.Now().Unix()
 	// Insert this connection into a map so the agent
 	// can publish node updates.
-	connectionSockets[id] = conn
+	connectionSockets[id] = &trackedConn{
+		Conn:      conn,
+		start:     now,
+		lastWrite: now,
+	}
 	c.mutex.Unlock()
 	defer func() {
 		c.mutex.Lock()
@@ -243,7 +266,7 @@ func (c *coordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *json
 		return xerrors.Errorf("marshal nodes: %w", err)
 	}
 
-	_, err = agentSocket.conn.Write(data)
+	_, err = agentSocket.Write(data)
 	if err != nil {
 		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) || errors.Is(err, context.Canceled) {
 			return nil
@@ -256,7 +279,7 @@ func (c *coordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *json
 
 // ServeAgent accepts a WebSocket connection to an agent that
 // listens to incoming connections and publishes node updates.
-func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
+func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) error {
 	c.mutex.Lock()
 	if c.closed {
 		c.mutex.Unlock()
@@ -289,6 +312,8 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
 
 	// This uniquely identifies a connection that belongs to this goroutine.
 	unique := uuid.New()
+	now := time.Now().Unix()
+	overwrites := int64(0)
 
 	// If an old agent socket is connected, we close it to avoid any leaks. This
 	// shouldn't ever occur because we expect one agent to be running, but it's
@@ -297,11 +322,17 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
 	// dead.
 	oldAgentSocket, ok := c.agentSockets[id]
 	if ok {
-		_ = oldAgentSocket.conn.Close()
+		overwrites = oldAgentSocket.overwrites + 1
+		_ = oldAgentSocket.Close()
 	}
-	c.agentSockets[id] = idConn{
+	c.agentSockets[id] = &trackedConn{
 		id:   unique,
-		conn: conn,
+		Conn: conn,
+
+		name:       name,
+		start:      now,
+		lastWrite:  now,
+		overwrites: overwrites,
 	}
 
 	c.mutex.Unlock()
@@ -311,7 +342,7 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
 
 		// Only delete the connection if it's ours. It could have been
 		// overwritten.
-		if idConn := c.agentSockets[id]; idConn.id == unique {
+		if idConn, ok := c.agentSockets[id]; ok && idConn.id == unique {
 			delete(c.agentSockets, id)
 			delete(c.nodes, id)
 		}
@@ -382,7 +413,7 @@ func (c *coordinator) Close() error {
 	for _, socket := range c.agentSockets {
 		socket := socket
 		go func() {
-			_ = socket.conn.Close()
+			_ = socket.Close()
 			wg.Done()
 		}()
 	}
@@ -402,4 +433,72 @@ func (c *coordinator) Close() error {
 
 	wg.Wait()
 	return nil
+}
+
+func (c *coordinator) ServeHTTPDebug(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	now := time.Now()
+
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+
+	fmt.Fprintln(w, "<h1>in-memory wireguard coordinator debug</h1>")
+	fmt.Fprintf(w, "<h2 id=agents><a href=#agents>#</a> agents: total %d</h2>\n", len(c.agentSockets))
+	fmt.Fprintln(w, "<ul>")
+	for id, conn := range c.agentSockets {
+		fmt.Fprintf(w, "<li><b>%s</b> (%s): created %v ago, write %v ago, overwrites %d </li>\n",
+			conn.name,
+			id.String(),
+			now.Sub(time.Unix(conn.start, 0)).Round(time.Second),
+			now.Sub(time.Unix(conn.lastWrite, 0)).Round(time.Second),
+			conn.overwrites,
+		)
+
+		if connCount := len(c.agentToConnectionSockets[id]); connCount > 0 {
+			fmt.Fprintf(w, "<h3>connections: total %d</h3>\n", connCount)
+			fmt.Fprintln(w, "<ul>")
+			for id, conn := range c.agentToConnectionSockets[id] {
+				fmt.Fprintf(w, "<li><b>%s</b> (%s): created %v ago, write %v ago </li>\n",
+					conn.name,
+					id.String(),
+					now.Sub(time.Unix(conn.start, 0)).Round(time.Second),
+					now.Sub(time.Unix(conn.lastWrite, 0)).Round(time.Second),
+				)
+			}
+			fmt.Fprintln(w, "</ul>")
+		}
+	}
+	fmt.Fprintln(w, "</ul>")
+
+	missingAgents := map[uuid.UUID]map[uuid.UUID]*trackedConn{}
+	for agentID, conns := range c.agentToConnectionSockets {
+		if len(conns) == 0 {
+			continue
+		}
+
+		if _, ok := c.agentSockets[agentID]; !ok {
+			missingAgents[agentID] = conns
+		}
+	}
+
+	fmt.Fprintf(w, "<h2 id=missing-agents><a href=#missing-agents>#</a> missing agents: total %d</h2>\n", len(missingAgents))
+	fmt.Fprintln(w, "<ul>")
+	for agentID, conns := range missingAgents {
+		fmt.Fprintf(w, "<li><b>unknown</b> (%s): created ? ago, write ? ago, overwrites ? </li>\n",
+			agentID.String(),
+		)
+
+		fmt.Fprintf(w, "<h3>connections: total %d</h3>\n", len(conns))
+		fmt.Fprintln(w, "<ul>")
+		for id, conn := range conns {
+			fmt.Fprintf(w, "<li><b>%s</b> (%s): created %v ago, write %v ago </li>\n",
+				conn.name,
+				id.String(),
+				now.Sub(time.Unix(conn.start, 0)).Round(time.Second),
+				now.Sub(time.Unix(conn.lastWrite, 0)).Round(time.Second),
+			)
+		}
+		fmt.Fprintln(w, "</ul>")
+	}
+	fmt.Fprintln(w, "</ul>")
 }
