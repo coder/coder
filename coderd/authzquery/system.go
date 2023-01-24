@@ -128,6 +128,10 @@ func (q *AuthzQuerier) DeleteOldAgentStats(ctx context.Context) error {
 	return q.database.DeleteOldAgentStats(ctx)
 }
 
+func (q *AuthzQuerier) GetParameterSchemasCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ParameterSchema, error) {
+	return q.GetParameterSchemasCreatedAfter(ctx, createdAt)
+}
+
 // Provisionerd server functions
 
 func (q *AuthzQuerier) InsertWorkspaceAgent(ctx context.Context, arg database.InsertWorkspaceAgentParams) (database.WorkspaceAgent, error) {
@@ -172,4 +176,8 @@ func (q *AuthzQuerier) InsertTemplateVersionParameter(ctx context.Context, arg d
 
 func (q *AuthzQuerier) InsertWorkspaceResource(ctx context.Context, arg database.InsertWorkspaceResourceParams) (database.WorkspaceResource, error) {
 	return q.InsertWorkspaceResource(ctx, arg)
+}
+
+func (q *AuthzQuerier) InsertParameterSchema(ctx context.Context, arg database.InsertParameterSchemaParams) (database.ParameterSchema, error) {
+	return q.InsertParameterSchema(ctx, arg)
 }

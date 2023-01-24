@@ -64,6 +64,11 @@ func (TemplateVersion) RBACObject(template Template) rbac.Object {
 	return template.RBACObject()
 }
 
+// RBACObjectNoTemplate is for orphaned template versions.
+func (v TemplateVersion) RBACObjectNoTemplate() rbac.Object {
+	return rbac.ResourceTemplate.InOrg(v.OrganizationID)
+}
+
 func (g Group) RBACObject() rbac.Object {
 	return rbac.ResourceGroup.WithID(g.ID).
 		InOrg(g.OrganizationID)
