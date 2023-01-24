@@ -16,8 +16,9 @@ const config: PlaywrightTestConfig = {
     video: "retain-on-failure",
   },
   webServer: {
-    command: `go run -tags embed ${coderMain} server --global-config /tmp`,
+    command: `go run -tags embed ${coderMain} server --global-config $(mktemp -d -t e2e-XXXXXXXXXX)`,
     port,
+    reuseExistingServer: false,
   },
 }
 
