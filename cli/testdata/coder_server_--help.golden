@@ -209,6 +209,12 @@ Flags:
                                                      "proxy-trusted-headers". e.g.
                                                      192.168.1.0/24
                                                      Consumes $CODER_PROXY_TRUSTED_ORIGINS
+      --request-log-level string                     Set the log level for successful (1xx,
+                                                     2xx, 3xx, 4xx) request logs. Requests
+                                                     that fail due to a server error (5xx) are
+                                                     always logged at the "warn" level. Valid
+                                                     values are: "info" and "debug".
+                                                     Consumes $CODER_ (default "info")
       --secure-auth-cookie                           Controls if the 'Secure' property is set
                                                      on browser session cookies.
                                                      Consumes $CODER_SECURE_AUTH_COOKIE
