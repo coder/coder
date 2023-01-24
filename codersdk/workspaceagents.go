@@ -366,6 +366,42 @@ func (c *Client) ListenWorkspaceAgent(ctx context.Context) (net.Conn, error) {
 		return nil, readBodyAsError(res)
 	}
 
+	// Ping once every 30 seconds to ensure that the websocket is alive. If we
+	// don't get a response within 30s we kill the websocket and reconnect.
+	// See: https://github.com/coder/coder/pull/5824
+	go func() {
+		tick := 30 * time.Second
+		ticker := time.NewTicker(tick)
+		defer ticker.Stop()
+		defer func() {
+			c.Logger.Debug(ctx, "coordinate pinger exited")
+		}()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case start := <-ticker.C:
+				ctx, cancel := context.WithTimeout(ctx, tick)
+
+				err := conn.Ping(ctx)
+				if err != nil {
+					c.Logger.Error(ctx, "workspace agent coordinate ping", slog.Error(err))
+
+					err := conn.Close(websocket.StatusGoingAway, "Ping failed")
+					if err != nil {
+						c.Logger.Error(ctx, "close workspace agent coordinate websocket", slog.Error(err))
+					}
+
+					cancel()
+					return
+				}
+
+				c.Logger.Debug(ctx, "got coordinate pong", slog.F("took", time.Since(start)))
+				cancel()
+			}
+		}
+	}()
+
 	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
 }
 
