@@ -3,6 +3,7 @@ import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import AddOutlined from "@material-ui/icons/AddOutlined"
 import { Workspace } from "api/typesGenerated"
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { TableEmpty } from "components/TableEmpty/TableEmpty"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
@@ -27,25 +28,32 @@ export const WorkspacesTableBody: FC<
   }
 
   if (workspaces.length === 0) {
-    return isUsingFilter ? (
-      <TableEmpty message={t("emptyPageMessage")} />
-    ) : (
-      <TableEmpty
-        message={t("emptyCreateWorkspaceMessage")}
-        description={t("emptyCreateWorkspaceDescription")}
-        cta={
-          <Link underline="none" component={RouterLink} to="/templates">
-            <Button startIcon={<AddOutlined />}>
-              {t("createFromTemplateButton")}
-            </Button>
-          </Link>
-        }
-        image={
-          <div className={styles.emptyImage}>
-            <img src="/featured/workspaces.webp" alt="" />
-          </div>
-        }
-      />
+    return (
+      <ChooseOne>
+        <Cond condition={isUsingFilter}>
+          <TableEmpty message={t("emptyResultsMessage")} />
+        </Cond>
+
+        <Cond>
+          <TableEmpty
+            className={styles.withImage}
+            message={t("emptyCreateWorkspaceMessage")}
+            description={t("emptyCreateWorkspaceDescription")}
+            cta={
+              <Link underline="none" component={RouterLink} to="/templates">
+                <Button startIcon={<AddOutlined />}>
+                  {t("createFromTemplateButton")}
+                </Button>
+              </Link>
+            }
+            image={
+              <div className={styles.emptyImage}>
+                <img src="/featured/workspaces.webp" alt="" />
+              </div>
+            }
+          />
+        </Cond>
+      </ChooseOne>
     )
   }
 
@@ -63,6 +71,9 @@ export const WorkspacesTableBody: FC<
 }
 
 const useStyles = makeStyles((theme) => ({
+  withImage: {
+    paddingBottom: 0,
+  },
   emptyImage: {
     maxWidth: "50%",
     height: theme.spacing(34),

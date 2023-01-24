@@ -102,7 +102,7 @@ export const WorkspacesPageView: FC<
         isUsingFilter={filter !== workspaceFilterQuery.me}
         onUpdateWorkspace={onUpdateWorkspace}
       />
-      {count && (
+      {count !== undefined && (
         <PaginationWidgetBase
           count={count}
           limit={limit}
