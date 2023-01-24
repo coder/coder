@@ -1,11 +1,3 @@
--- name: GetProvisionerDaemonByID :one
-SELECT
-	*
-FROM
-	provisioner_daemons
-WHERE
-	id = $1;
-
 -- name: GetProvisionerDaemons :many
 SELECT
 	*

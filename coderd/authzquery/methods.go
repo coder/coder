@@ -4,7 +4,6 @@ package authzquery
 
 import (
 	"context"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -12,8 +11,6 @@ import (
 )
 
 var _ database.Store = (*AuthzQuerier)(nil)
-
-
 
 func (q *AuthzQuerier) GetLatestAgentStat(ctx context.Context, agentID uuid.UUID) (database.AgentStat, error) {
 	// TODO implement me
@@ -36,11 +33,6 @@ func (q *AuthzQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) 
 }
 
 func (q *AuthzQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ProvisionerJob, error) {
 	// TODO implement me
 	panic("implement me")
 }

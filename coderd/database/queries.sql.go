@@ -25,27 +25,8 @@ func (q *sqlQuerier) DeleteOldAgentStats(ctx context.Context) error {
 	return err
 }
 
-const getLatestAgentStat = `-- name: GetLatestAgentStat :one
-SELECT id, created_at, user_id, agent_id, workspace_id, template_id, payload FROM agent_stats WHERE agent_id = $1 ORDER BY created_at DESC LIMIT 1
-`
-
-func (q *sqlQuerier) GetLatestAgentStat(ctx context.Context, agentID uuid.UUID) (AgentStat, error) {
-	row := q.db.QueryRowContext(ctx, getLatestAgentStat, agentID)
-	var i AgentStat
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UserID,
-		&i.AgentID,
-		&i.WorkspaceID,
-		&i.TemplateID,
-		&i.Payload,
-	)
-	return i, err
-}
-
 const getTemplateDAUs = `-- name: GetTemplateDAUs :many
-SELECT 
+SELECT
 	(created_at at TIME ZONE 'UTC')::date as date,
 	user_id
 FROM
@@ -2153,30 +2134,6 @@ func (q *sqlQuerier) ParameterValues(ctx context.Context, arg ParameterValuesPar
 		return nil, err
 	}
 	return items, nil
-}
-
-const getProvisionerDaemonByID = `-- name: GetProvisionerDaemonByID :one
-SELECT
-	id, created_at, updated_at, name, provisioners, replica_id, tags
-FROM
-	provisioner_daemons
-WHERE
-	id = $1
-`
-
-func (q *sqlQuerier) GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID) (ProvisionerDaemon, error) {
-	row := q.db.QueryRowContext(ctx, getProvisionerDaemonByID, id)
-	var i ProvisionerDaemon
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Name,
-		pq.Array(&i.Provisioners),
-		&i.ReplicaID,
-		&i.Tags,
-	)
-	return i, err
 }
 
 const getProvisionerDaemons = `-- name: GetProvisionerDaemons :many

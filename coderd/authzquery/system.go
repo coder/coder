@@ -131,6 +131,9 @@ func (q *AuthzQuerier) DeleteOldAgentStats(ctx context.Context) error {
 func (q *AuthzQuerier) GetParameterSchemasCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ParameterSchema, error) {
 	return q.GetParameterSchemasCreatedAfter(ctx, createdAt)
 }
+func (q *AuthzQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ProvisionerJob, error) {
+	return q.GetProvisionerJobsCreatedAfter(ctx, createdAt)
+}
 
 // Provisionerd server functions
 
