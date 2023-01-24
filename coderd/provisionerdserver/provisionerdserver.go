@@ -551,7 +551,7 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 					BuildNumber: previousBuildNumber,
 				})
 				if prevBuildErr != nil {
-					server.Logger.Error(ctx, "audit log - get prev build", slog.Error(prevBuildErr))
+					previousBuild = database.WorkspaceBuild{}
 				}
 				// We pass the below information to the Auditor so that it
 				// can form a friendly string for the user to view in the UI.
@@ -811,7 +811,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				BuildNumber: previousBuildNumber,
 			})
 			if prevBuildErr != nil {
-				server.Logger.Error(ctx, "audit log - get prev build", slog.Error(prevBuildErr))
+				previousBuild = database.WorkspaceBuild{}
 			}
 
 			// We pass the below information to the Auditor so that it
