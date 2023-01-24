@@ -11,7 +11,8 @@ INSERT INTO
         options,
         validation_regex,
         validation_min,
-        validation_max
+        validation_max,
+        validation_error
     )
 VALUES
     (
@@ -25,7 +26,8 @@ VALUES
         $8,
         $9,
         $10,
-        $11
+        $11,
+        $12
     ) RETURNING *;
 
 -- name: GetTemplateVersionParameters :many

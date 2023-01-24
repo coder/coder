@@ -1448,6 +1448,8 @@ type TemplateVersionParameter struct {
 	ValidationMin int32 `db:"validation_min" json:"validation_min"`
 	// Validation: maximum length of value
 	ValidationMax int32 `db:"validation_max" json:"validation_max"`
+	// Validation: error displayed when the regex does not match.
+	ValidationError string `db:"validation_error" json:"validation_error"`
 }
 
 type User struct {
