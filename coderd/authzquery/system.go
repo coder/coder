@@ -169,3 +169,7 @@ func (q *AuthzQuerier) InsertProvisionerDaemon(ctx context.Context, arg database
 func (q *AuthzQuerier) InsertTemplateVersionParameter(ctx context.Context, arg database.InsertTemplateVersionParameterParams) (database.TemplateVersionParameter, error) {
 	return q.InsertTemplateVersionParameter(ctx, arg)
 }
+
+func (q *AuthzQuerier) InsertWorkspaceResource(ctx context.Context, arg database.InsertWorkspaceResourceParams) (database.WorkspaceResource, error) {
+	return q.InsertWorkspaceResource(ctx, arg)
+}

@@ -78,8 +78,13 @@ func (q *AuthzQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids 
 }
 
 func (q *AuthzQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg database.GetWorkspaceAppByAgentIDAndSlugParams) (database.WorkspaceApp, error) {
-	// TODO implement me
-	panic("implement me")
+	// If we can fetch the workspace, we can fetch the apps. Use the authorized call.
+	_, err := q.GetWorkspaceByID(ctx, arg.AgentID)
+	if err != nil {
+		return database.WorkspaceApp{}, err
+	}
+
+	return q.GetWorkspaceAppByAgentIDAndSlug(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceApp, error) {
@@ -91,7 +96,6 @@ func (q *AuthzQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uu
 }
 
 func (q *AuthzQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceApp, error) {
-	// TODO: This should be rewritten to support workspace ids, rather than agent ids imo.
 	// TODO implement me
 	panic("implement me")
 }
@@ -120,8 +124,14 @@ func (q *AuthzQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.
 }
 
 func (q *AuthzQuerier) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
-	// TODO implement me
-	panic("implement me")
+	// Authorized call to get the workspace build. If we can read the build,
+	// we can read the params.
+	_, err := q.GetWorkspaceBuildByID(ctx, workspaceBuildID)
+	if err != nil {
+		return nil, err
+	}
+
+	return q.GetWorkspaceBuildParameters(ctx, workspaceBuildID)
 }
 
 func (q *AuthzQuerier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg database.GetWorkspaceBuildsByWorkspaceIDParams) ([]database.WorkspaceBuild, error) {
@@ -164,8 +174,23 @@ func (q *AuthzQuerier) GetWorkspaceOwnerCountsByTemplateIDs(ctx context.Context,
 }
 
 func (q *AuthzQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID) (database.WorkspaceResource, error) {
-	// TODO implement me
-	panic("implement me")
+	// TODO: Optimize this
+	resource, err := q.database.GetWorkspaceResourceByID(ctx, id)
+	if err != nil {
+		return database.WorkspaceResource{}, err
+	}
+
+	build, err := q.database.GetWorkspaceBuildByJobID(ctx, resource.JobID)
+	if err != nil {
+		return database.WorkspaceResource{}, nil
+	}
+
+	// If the workspace can be read, then the resource can be read.
+	_, err = authorizedFetch(q.authorizer, q.database.GetWorkspaceByID)(ctx, build.WorkspaceID)
+	if err != nil {
+		return database.WorkspaceResource{}, nil
+	}
+	return resource, err
 }
 
 func (q *AuthzQuerier) GetWorkspaceResourceMetadataByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceResourceMetadatum, error) {
@@ -174,8 +199,17 @@ func (q *AuthzQuerier) GetWorkspaceResourceMetadataByResourceIDs(ctx context.Con
 }
 
 func (q *AuthzQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.WorkspaceResource, error) {
-	// TODO implement me
-	panic("implement me")
+	build, err := q.database.GetWorkspaceBuildByJobID(ctx, jobID)
+	if err != nil {
+		return nil, nil
+	}
+
+	// If the workspace can be read, then the resource can be read.
+	_, err = authorizedFetch(q.authorizer, q.database.GetWorkspaceByID)(ctx, build.WorkspaceID)
+	if err != nil {
+		return nil, nil
+	}
+	return q.GetWorkspaceResourcesByJobID(ctx, jobID)
 }
 
 func (q *AuthzQuerier) GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceResource, error) {
@@ -189,20 +223,40 @@ func (q *AuthzQuerier) InsertWorkspace(ctx context.Context, arg database.InsertW
 }
 
 func (q *AuthzQuerier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertWorkspaceBuildParams) (database.WorkspaceBuild, error) {
-	fetch := func(_ database.WorkspaceBuild, arg database.InsertWorkspaceBuildParams) (database.Workspace, error) {
+	fetch := func(build database.WorkspaceBuild, arg database.InsertWorkspaceBuildParams) (database.Workspace, error) {
 		return q.database.GetWorkspaceByID(ctx, arg.WorkspaceID)
 	}
-	return authorizedQueryWithRelated(q.authorizer, rbac.ActionUpdate, fetch, q.database.InsertWorkspaceBuild)(ctx, arg)
+
+	var action rbac.Action = rbac.ActionUpdate
+	if arg.Transition == database.WorkspaceTransitionDelete {
+		action = rbac.ActionDelete
+	}
+	return authorizedQueryWithRelated(q.authorizer, action, fetch, q.database.InsertWorkspaceBuild)(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertWorkspaceBuildParameters(ctx context.Context, arg database.InsertWorkspaceBuildParametersParams) error {
-	// TODO implement me
-	panic("implement me")
-}
+	// TODO: Optimize this. We always have the workspace and build already fetched.
+	build, err := q.GetWorkspaceBuildByID(ctx, arg.WorkspaceBuildID)
+	if err != nil {
+		return err
+	}
 
-func (q *AuthzQuerier) InsertWorkspaceResource(ctx context.Context, arg database.InsertWorkspaceResourceParams) (database.WorkspaceResource, error) {
-	// TODO implement me
-	panic("implement me")
+	var action rbac.Action = rbac.ActionUpdate
+	if build.Transition == database.WorkspaceTransitionDelete {
+		action = rbac.ActionDelete
+	}
+
+	workspace, err := q.GetWorkspaceByID(ctx, build.WorkspaceID)
+	if err != nil {
+		return err
+	}
+
+	err = q.authorizeContext(ctx, action, workspace)
+	if err != nil {
+		return err
+	}
+
+	return q.database.InsertWorkspaceBuildParameters(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateWorkspace(ctx context.Context, arg database.UpdateWorkspaceParams) (database.Workspace, error) {
