@@ -100,6 +100,12 @@ func (q *AuthzQuerier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]da
 }
 
 func (q *AuthzQuerier) InsertUser(ctx context.Context, arg database.InsertUserParams) (database.User, error) {
+	// Always check if the assigned roles can actually be assigned by this actor.
+	impliedRoles := append([]string{rbac.RoleMember()}, arg.RBACRoles...)
+	err := q.canAssignRoles(ctx, nil, impliedRoles, []string{})
+	if err != nil {
+		return database.User{}, err
+	}
 	obj := rbac.ResourceUser
 	return authorizedInsertWithReturn(q.authorizer, rbac.ActionCreate, obj, q.database.InsertUser)(ctx, arg)
 }
@@ -198,22 +204,6 @@ func (q *AuthzQuerier) UpdateUserLink(ctx context.Context, arg database.UpdateUs
 // UpdateUserRoles updates the site roles of a user. The validation for this function include more than
 // just a basic RBAC check.
 func (q *AuthzQuerier) UpdateUserRoles(ctx context.Context, arg database.UpdateUserRolesParams) (database.User, error) {
-	actor, ok := actorFromContext(ctx)
-	if !ok {
-		return database.User{}, xerrors.Errorf("no authorization actor in context")
-	}
-
-	// Only site roles can be updated in this function. If an unsupported role is
-	// provided, return an error.
-	for _, r := range arg.GrantedRoles {
-		if _, ok := rbac.IsOrgRole(r); ok {
-			return database.User{}, xerrors.Errorf("Must only update site wide roles")
-		}
-		if _, err := rbac.RoleByName(r); err != nil {
-			return database.User{}, xerrors.Errorf("%q is not a supported role", r)
-		}
-	}
-
 	// We need to fetch the user being updated to identify the change in roles.
 	// This requires read access on the user in question, since the user is
 	// returned from this function.
@@ -226,22 +216,9 @@ func (q *AuthzQuerier) UpdateUserRoles(ctx context.Context, arg database.UpdateU
 	impliedTypes := append(arg.GrantedRoles, rbac.RoleMember())
 	// If the changeset is nothing, less rbac checks need to be done.
 	added, removed := rbac.ChangeRoleSet(user.RBACRoles, impliedTypes)
-
-	// Assigning a role requires the create permission.
-	if len(added) > 0 && q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceRoleAssignment) != nil {
-		return database.User{}, xerrors.Errorf("not authorized to assign roles")
-	}
-
-	// Removing a role requires the delete permission.
-	if len(removed) > 0 && q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceRoleAssignment) != nil {
-		return database.User{}, xerrors.Errorf("not authorized to delete roles")
-	}
-
-	// Just treat adding & removing as "assigning" for now.
-	for _, roleName := range append(added, removed...) {
-		if !rbac.CanAssignRole(actor.Roles, roleName) {
-			return database.User{}, xerrors.Errorf("not authorized to assign role %q", roleName)
-		}
+	err = q.canAssignRoles(ctx, nil, added, removed)
+	if err != nil {
+		return database.User{}, err
 	}
 
 	return q.UpdateUserRoles(ctx, arg)
