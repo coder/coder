@@ -12,16 +12,6 @@ import (
 
 var _ database.Store = (*AuthzQuerier)(nil)
 
-func (q *AuthzQuerier) GetLatestAgentStat(ctx context.Context, agentID uuid.UUID) (database.AgentStat, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID) (database.ProvisionerDaemon, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
 func (q *AuthzQuerier) GetProvisionerDaemons(ctx context.Context) ([]database.ProvisionerDaemon, error) {
 	// TODO implement me
 	panic("implement me")
@@ -46,4 +36,3 @@ func (q *AuthzQuerier) UpdateGitAuthLink(ctx context.Context, arg database.Updat
 	// TODO implement me
 	panic("implement me")
 }
-
