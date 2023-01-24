@@ -1,6 +1,5 @@
 import { fireEvent, screen, within } from "@testing-library/react"
 import * as API from "../../../api/api"
-import { GlobalSnackbar } from "../../../components/GlobalSnackbar/GlobalSnackbar"
 import {
   MockGitSSHKey,
   renderWithAuth,
@@ -20,12 +19,7 @@ describe("SSH keys Page", () => {
   describe("regenerate SSH key", () => {
     describe("when it is success", () => {
       it("shows a success message and updates the ssh key on the page", async () => {
-        renderWithAuth(
-          <>
-            <SSHKeysPage />
-            <GlobalSnackbar />
-          </>,
-        )
+        renderWithAuth(<SSHKeysPage />)
 
         // Wait to the ssh be rendered on the screen
         await screen.findByText(MockGitSSHKey.public_key)
@@ -69,12 +63,7 @@ describe("SSH keys Page", () => {
 
     describe("when it fails", () => {
       it("shows an error message", async () => {
-        renderWithAuth(
-          <>
-            <SSHKeysPage />
-            <GlobalSnackbar />
-          </>,
-        )
+        renderWithAuth(<SSHKeysPage />)
 
         // Wait to the ssh be rendered on the screen
         await screen.findByText(MockGitSSHKey.public_key)
