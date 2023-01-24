@@ -189,13 +189,26 @@ func (q *AuthzQuerier) InsertTemplate(ctx context.Context, arg database.InsertTe
 }
 
 func (q *AuthzQuerier) InsertTemplateVersion(ctx context.Context, arg database.InsertTemplateVersionParams) (database.TemplateVersion, error) {
-	// TODO implement me
-	panic("implement me")
-}
+	if !arg.TemplateID.Valid {
+		// Making a new template version is the same permission as creating a new template.
+		err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceTemplate.InOrg(arg.OrganizationID))
+		if err != nil {
+			return database.TemplateVersion{}, err
+		}
+	} else {
+		// Must do an authorized fetch to prevent leaking template ids this way.
+		tpl, err := q.GetTemplateByID(ctx, arg.TemplateID.UUID)
+		if err != nil {
+			return database.TemplateVersion{}, err
+		}
+		// Check the create permission on the template.
+		err = q.authorizeContext(ctx, rbac.ActionCreate, tpl)
+		if err != nil {
+			return database.TemplateVersion{}, err
+		}
+	}
 
-func (q *AuthzQuerier) InsertTemplateVersionParameter(ctx context.Context, arg database.InsertTemplateVersionParameterParams) (database.TemplateVersionParameter, error) {
-	// TODO implement me
-	panic("implement me")
+	return q.InsertTemplateVersion(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {

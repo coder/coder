@@ -144,8 +144,23 @@ func (q *AuthzQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg dat
 }
 
 func (q *AuthzQuerier) GetWorkspaceOwnerCountsByTemplateIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetWorkspaceOwnerCountsByTemplateIDsRow, error) {
-	// TODO implement me
-	panic("implement me")
+	// Would be nice if this was just returned in the GetTemplates() call.
+	// This is not very efficient, but it is the way to ensure read access to the templates
+	// being queried. Most of the time, the templates are already fetched and authorized.
+	// TODO: Optimize this
+	tpls, err := q.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
+		IDs: ids,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	allowed := make([]uuid.UUID, 0, len(tpls))
+	for _, tpl := range tpls {
+		allowed = append(allowed, tpl.ID)
+	}
+
+	return q.GetWorkspaceOwnerCountsByTemplateIDs(ctx, allowed)
 }
 
 func (q *AuthzQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID) (database.WorkspaceResource, error) {

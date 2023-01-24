@@ -165,3 +165,7 @@ func (q *AuthzQuerier) InsertProvisionerJobLogs(ctx context.Context, arg databas
 func (q *AuthzQuerier) InsertProvisionerDaemon(ctx context.Context, arg database.InsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
 	return q.database.InsertProvisionerDaemon(ctx, arg)
 }
+
+func (q *AuthzQuerier) InsertTemplateVersionParameter(ctx context.Context, arg database.InsertTemplateVersionParameterParams) (database.TemplateVersionParameter, error) {
+	return q.InsertTemplateVersionParameter(ctx, arg)
+}
