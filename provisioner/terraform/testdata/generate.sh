@@ -9,6 +9,7 @@ for d in */; do
 
 	# This needs care to update correctly.
 	if [[ $name == "kubernetes-metadata" ]]; then
+		popd
 		continue
 	fi
 

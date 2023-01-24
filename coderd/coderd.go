@@ -541,6 +541,7 @@ func New(options *Options) *API {
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Get("/coordinate", api.workspaceAgentCoordinate)
 				r.Post("/report-stats", api.workspaceAgentReportStats)
+				r.Post("/report-lifecycle", api.workspaceAgentReportLifecycle)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(

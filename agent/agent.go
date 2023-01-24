@@ -71,6 +71,7 @@ type Client interface {
 	WorkspaceAgentMetadata(ctx context.Context) (codersdk.WorkspaceAgentMetadata, error)
 	ListenWorkspaceAgent(ctx context.Context) (net.Conn, error)
 	AgentReportStats(ctx context.Context, log slog.Logger, stats func() *codersdk.AgentStats) (io.Closer, error)
+	PostWorkspaceAgentLifecycle(ctx context.Context, state codersdk.PostWorkspaceAgentLifecycleRequest) error
 	PostWorkspaceAgentAppHealth(ctx context.Context, req codersdk.PostWorkspaceAppHealthsRequest) error
 	PostWorkspaceAgentVersion(ctx context.Context, version string) error
 }
@@ -101,6 +102,7 @@ func New(options Options) io.Closer {
 		exchangeToken:          options.ExchangeToken,
 		filesystem:             options.Filesystem,
 		tempDir:                options.TempDir,
+		lifecycleUpdate:        make(chan struct{}, 1),
 	}
 	a.init(ctx)
 	return a
@@ -127,6 +129,10 @@ type agent struct {
 	sessionToken atomic.Pointer[string]
 	sshServer    *ssh.Server
 
+	lifecycleUpdate chan struct{}
+	lifecycleMu     sync.Mutex // Protects following.
+	lifecycleState  codersdk.WorkspaceAgentLifecycle
+
 	network *tailnet.Conn
 }
 
@@ -135,6 +141,8 @@ type agent struct {
 // may be happening, but regardless after the intermittent
 // failure, you'll want the agent to reconnect.
 func (a *agent) runLoop(ctx context.Context) {
+	go a.reportLifecycleLoop(ctx)
+
 	for retrier := retry.New(100*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
 		a.logger.Info(ctx, "running loop")
 		err := a.run(ctx)
@@ -153,6 +161,58 @@ func (a *agent) runLoop(ctx context.Context) {
 			continue
 		}
 		a.logger.Warn(ctx, "run exited with error", slog.Error(err))
+	}
+}
+
+// reportLifecycleLoop reports the current lifecycle state once.
+// Only the latest state is reported, intermediate states may be
+// lost if the agent can't communicate with the API.
+func (a *agent) reportLifecycleLoop(ctx context.Context) {
+	var lastReported codersdk.WorkspaceAgentLifecycle
+	for {
+		select {
+		case <-a.lifecycleUpdate:
+		case <-ctx.Done():
+			return
+		}
+
+		for r := retry.New(time.Second, 15*time.Second); r.Wait(ctx); {
+			a.lifecycleMu.Lock()
+			state := a.lifecycleState
+			a.lifecycleMu.Unlock()
+
+			if state == lastReported {
+				break
+			}
+
+			a.logger.Debug(ctx, "post lifecycle state", slog.F("state", state))
+
+			err := a.client.PostWorkspaceAgentLifecycle(ctx, codersdk.PostWorkspaceAgentLifecycleRequest{
+				State: state,
+			})
+			if err == nil {
+				lastReported = state
+				break
+			}
+			if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
+				return
+			}
+			// If we fail to report the state we probably shouldn't exit, log only.
+			a.logger.Error(ctx, "post state", slog.Error(err))
+		}
+	}
+}
+
+func (a *agent) setLifecycle(ctx context.Context, state codersdk.WorkspaceAgentLifecycle) {
+	a.lifecycleMu.Lock()
+	defer a.lifecycleMu.Unlock()
+
+	a.logger.Debug(ctx, "set lifecycle state", slog.F("state", state), slog.F("previous", a.lifecycleState))
+
+	a.lifecycleState = state
+	select {
+	case a.lifecycleUpdate <- struct{}{}:
+	default:
 	}
 }
 
@@ -180,22 +240,60 @@ func (a *agent) run(ctx context.Context) error {
 
 	// The startup script should only execute on the first run!
 	if oldMetadata == nil {
+		a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleStarting)
+
+		// Perform overrides early so that Git auth can work even if users
+		// connect to a workspace that is not yet ready. We don't run this
+		// concurrently with the startup script to avoid conflicts between
+		// them.
+		if metadata.GitAuthConfigs > 0 {
+			// If this fails, we should consider surfacing the error in the
+			// startup log and setting the lifecycle state to be "start_error"
+			// (after startup script completion), but for now we'll just log it.
+			err := gitauth.OverrideVSCodeConfigs(a.filesystem)
+			if err != nil {
+				a.logger.Warn(ctx, "failed to override vscode git auth configs", slog.Error(err))
+			}
+		}
+
+		scriptDone := make(chan error, 1)
+		scriptStart := time.Now()
 		go func() {
-			err := a.runStartupScript(ctx, metadata.StartupScript)
+			defer close(scriptDone)
+			scriptDone <- a.runStartupScript(ctx, metadata.StartupScript)
+		}()
+		go func() {
+			var timeout <-chan time.Time
+			// If timeout is zero, an older version of the coder
+			// provider was used. Otherwise a timeout is always > 0.
+			if metadata.StartupScriptTimeout > 0 {
+				t := time.NewTimer(metadata.StartupScriptTimeout)
+				defer t.Stop()
+				timeout = t.C
+			}
+
+			var err error
+			select {
+			case err = <-scriptDone:
+			case <-timeout:
+				a.logger.Warn(ctx, "startup script timed out")
+				a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleStartTimeout)
+				err = <-scriptDone // The script can still complete after a timeout.
+			}
 			if errors.Is(err, context.Canceled) {
 				return
 			}
+			execTime := time.Since(scriptStart)
+			lifecycleStatus := codersdk.WorkspaceAgentLifecycleReady
 			if err != nil {
-				a.logger.Warn(ctx, "agent script failed", slog.Error(err))
+				a.logger.Warn(ctx, "startup script failed", slog.F("execution_time", execTime), slog.Error(err))
+				lifecycleStatus = codersdk.WorkspaceAgentLifecycleStartError
+			} else {
+				a.logger.Info(ctx, "startup script completed", slog.F("execution_time", execTime))
 			}
-		}()
-	}
 
-	if metadata.GitAuthConfigs > 0 {
-		err = gitauth.OverrideVSCodeConfigs(a.filesystem)
-		if err != nil {
-			return xerrors.Errorf("override vscode configuration for git auth: %w", err)
-		}
+			a.setLifecycle(ctx, lifecycleStatus)
+		}()
 	}
 
 	// This automatically closes when the context ends!
@@ -430,6 +528,9 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 // runCoordinator runs a coordinator and returns whether a reconnect
 // should occur.
 func (a *agent) runCoordinator(ctx context.Context, network *tailnet.Conn) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	coordinator, err := a.client.ListenWorkspaceAgent(ctx)
 	if err != nil {
 		return err

@@ -13,7 +13,8 @@
       "os": "OS: ",
       "browser": "Browser: ",
       "notAvailable": "Not available",
-      "onBehalfOf": " on behalf of {{owner}}"
+      "onBehalfOf": " on behalf of {{owner}}",
+      "buildReason": "Coder automatically"
     }
   },
   "paywall": {

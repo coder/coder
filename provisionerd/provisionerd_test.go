@@ -12,9 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/provisionerd/runner"
-	"github.com/coder/coder/testutil"
-
 	"github.com/hashicorp/yamux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,11 +23,12 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/provisionerd"
 	"github.com/coder/coder/provisionerd/proto"
+	"github.com/coder/coder/provisionerd/runner"
 	"github.com/coder/coder/provisionersdk"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/testutil"
 )
 
 func TestMain(m *testing.M) {
