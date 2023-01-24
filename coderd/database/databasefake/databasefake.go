@@ -3680,6 +3680,12 @@ func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAu
 				continue
 			}
 		}
+		if arg.BuildReason != "" {
+			workspaceBuild, err := q.GetWorkspaceBuildByID(context.Background(), alog.ResourceID)
+			if err == nil && !strings.EqualFold(arg.BuildReason, string(workspaceBuild.Reason)) {
+				continue
+			}
+		}
 
 		user, err := q.GetUserByID(ctx, alog.UserID)
 		userValid := err == nil
