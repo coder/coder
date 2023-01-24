@@ -920,6 +920,7 @@ export interface WorkspaceAgent {
   readonly last_connected_at?: string
   readonly disconnected_at?: string
   readonly status: WorkspaceAgentStatus
+  readonly lifecycle_state: WorkspaceAgentLifecycle
   readonly name: string
   readonly resource_id: string
   readonly instance_id?: string
@@ -933,6 +934,8 @@ export interface WorkspaceAgent {
   readonly latency?: Record<string, DERPRegion>
   readonly connection_timeout_seconds: number
   readonly troubleshooting_url: string
+  readonly delay_login_until_ready: boolean
+  readonly startup_script_timeout_seconds: number
 }
 
 // From codersdk/workspaceagents.go
@@ -1226,6 +1229,21 @@ export const TemplateRoles: TemplateRole[] = ["", "admin", "use"]
 // From codersdk/users.go
 export type UserStatus = "active" | "suspended"
 export const UserStatuses: UserStatus[] = ["active", "suspended"]
+
+// From codersdk/workspaceagents.go
+export type WorkspaceAgentLifecycle =
+  | "created"
+  | "ready"
+  | "start_error"
+  | "start_timeout"
+  | "starting"
+export const WorkspaceAgentLifecycles: WorkspaceAgentLifecycle[] = [
+  "created",
+  "ready",
+  "start_error",
+  "start_timeout",
+  "starting",
+]
 
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentStatus =

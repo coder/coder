@@ -111,7 +111,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"created_at":          ActionIgnore,
 		"updated_at":          ActionIgnore,
 		"workspace_id":        ActionIgnore,
-		"template_version_id": ActionIgnore,
+		"template_version_id": ActionTrack,
 		"build_number":        ActionIgnore,
 		"transition":          ActionIgnore,
 		"initiator_id":        ActionIgnore,

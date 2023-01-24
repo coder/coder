@@ -1,6 +1,6 @@
 {
   "format_version": "1.0",
-  "terraform_version": "1.3.3",
+  "terraform_version": "1.3.7",
   "values": {
     "root_module": {
       "resources": [
@@ -15,14 +15,17 @@
             "arch": "amd64",
             "auth": "token",
             "connection_timeout": 120,
+            "delay_login_until_ready": false,
             "dir": null,
             "env": null,
-            "id": "e545d734-f852-4fda-ac8f-39e3ff094e58",
+            "id": "8ba856b4-4aa9-4fbe-aa04-9af53dc93f08",
             "init_script": "",
             "motd_file": null,
             "os": "linux",
+            "shutdown_script": null,
             "startup_script": null,
-            "token": "c2c47266-af7a-467c-9ffc-30c3270ffecb",
+            "startup_script_timeout": 300,
+            "token": "c7f72bfa-c84c-4b52-898c-1c056a42141e",
             "troubleshooting_url": null
           },
           "sensitive_values": {}
@@ -38,14 +41,17 @@
             "arch": "amd64",
             "auth": "token",
             "connection_timeout": 1,
+            "delay_login_until_ready": false,
             "dir": null,
             "env": null,
-            "id": "b5e18556-d202-478f-80d9-76f34a4cb105",
+            "id": "3e79acd5-88f4-4de6-8145-a8e0e2b1129b",
             "init_script": "",
             "motd_file": "/etc/motd",
             "os": "darwin",
+            "shutdown_script": null,
             "startup_script": null,
-            "token": "795082f9-642a-4647-a595-6539edaa74a3",
+            "startup_script_timeout": 30,
+            "token": "0e2fa4e7-df44-41c4-a6e4-9e46c6f5e441",
             "troubleshooting_url": null
           },
           "sensitive_values": {}
@@ -61,14 +67,17 @@
             "arch": "arm64",
             "auth": "token",
             "connection_timeout": 120,
+            "delay_login_until_ready": true,
             "dir": null,
             "env": null,
-            "id": "27e1114a-bc92-4e35-ab57-1680f3b7658f",
+            "id": "c9df6531-41f4-4005-b1a7-b4c4712b117f",
             "init_script": "",
             "motd_file": null,
             "os": "windows",
+            "shutdown_script": null,
             "startup_script": null,
-            "token": "c4fc1679-eb42-4d9f-bca8-fcf9641a7256",
+            "startup_script_timeout": 300,
+            "token": "68f0e144-22ce-455f-be00-edef913f34a6",
             "troubleshooting_url": "https://coder.com/troubleshoot"
           },
           "sensitive_values": {}
@@ -81,7 +90,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "5577006791947779410",
+            "id": "5895060021397476995",
             "triggers": null
           },
           "sensitive_values": {},

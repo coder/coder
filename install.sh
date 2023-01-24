@@ -138,7 +138,7 @@ To run a Coder server:
   $ coder server
 
   Default URL: http://127.0.0.1:3000
-  Configuring Coder: https://coder.com/docs/coder-oss/admin/configure
+  Configuring Coder: https://coder.com/docs/v2/latest/admin/configure
 
 To connect to a Coder deployment:
 
