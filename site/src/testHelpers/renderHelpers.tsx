@@ -7,7 +7,9 @@ import {
 import { AppProviders } from "app"
 import { DashboardLayout } from "components/Dashboard/DashboardLayout"
 import { createMemoryHistory } from "history"
+import { i18n } from "i18n"
 import { FC, ReactElement } from "react"
+import { I18nextProvider } from "react-i18next"
 import {
   MemoryRouter,
   Route,
@@ -50,18 +52,20 @@ export function renderWithAuth(
   }: { route?: string; path?: string; routes?: JSX.Element } = {},
 ): RenderWithAuthResult {
   const renderResult = wrappedRender(
-    <AppProviders>
-      <MemoryRouter initialEntries={[route]}>
-        <Routes>
-          <Route element={<RequireAuth />}>
-            <Route element={<DashboardLayout />}>
-              <Route path={path ?? route} element={ui} />
+    <I18nextProvider i18n={i18n}>
+      <AppProviders>
+        <MemoryRouter initialEntries={[route]}>
+          <Routes>
+            <Route element={<RequireAuth />}>
+              <Route element={<DashboardLayout />}>
+                <Route path={path ?? route} element={ui} />
+              </Route>
             </Route>
-          </Route>
-          {routes}
-        </Routes>
-      </MemoryRouter>
-    </AppProviders>,
+            {routes}
+          </Routes>
+        </MemoryRouter>
+      </AppProviders>
+    </I18nextProvider>,
   )
 
   return {
