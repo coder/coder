@@ -11,6 +11,8 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 )
 
+var _ database.Store = (*AuthzQuerier)(nil)
+
 // AuthzQuerier is a wrapper around the database store that performs authorization
 // checks before returning data. All AuthzQuerier methods expect an authorization
 // subject present in the context. If no subject is present, most methods will

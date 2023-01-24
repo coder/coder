@@ -10,22 +10,24 @@ import (
 	"github.com/coder/coder/coderd/database"
 )
 
-var _ database.Store = (*AuthzQuerier)(nil)
-
 func (q *AuthzQuerier) GetProvisionerDaemons(ctx context.Context) ([]database.ProvisionerDaemon, error) {
-	// TODO implement me
-	panic("implement me")
+	fetch := func(ctx context.Context, _ interface{}) ([]database.ProvisionerDaemon, error) {
+		return q.GetProvisionerDaemons(ctx)
+	}
+	return authorizedFetchSet(q.authorizer, fetch)(ctx, nil)
 }
 
 func (q *AuthzQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
-	// TODO implement me
-	panic("implement me")
+	// TODO: This is missing authorization and is incorrect. This call is used by telemetry, and by 1 http route.
+	// That http handler should find a better way to fetch these jobs with easier rbac authz.
+	return q.GetProvisionerJobsByIDs(ctx, ids)
 }
 
 func (q *AuthzQuerier) GetProvisionerLogsByIDBetween(ctx context.Context, arg database.GetProvisionerLogsByIDBetweenParams) ([]database.ProvisionerJobLog, error) {
-	// TODO implement me
-	panic("implement me")
+	// Authorized read on job lets the actor also read the logs.
+	_, err := q.GetProvisionerJobByID(ctx, arg.JobID)
+	if err != nil {
+		return nil, err
+	}
+	return q.GetProvisionerLogsByIDBetween(ctx, arg)
 }
-
-
-
