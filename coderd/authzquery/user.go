@@ -104,6 +104,7 @@ func (q *AuthzQuerier) InsertUser(ctx context.Context, arg database.InsertUserPa
 	return authorizedInsertWithReturn(q.authorizer, rbac.ActionCreate, obj, q.database.InsertUser)(ctx, arg)
 }
 
+// TODO: Should this be in system.go?
 func (q *AuthzQuerier) InsertUserLink(ctx context.Context, arg database.InsertUserLinkParams) (database.UserLink, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceUser); err != nil {
 		return database.UserLink{}, err
