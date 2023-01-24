@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/rbac"
@@ -59,11 +60,81 @@ func (q *AuthzQuerier) InsertOrganization(ctx context.Context, arg database.Inse
 }
 
 func (q *AuthzQuerier) InsertOrganizationMember(ctx context.Context, arg database.InsertOrganizationMemberParams) (database.OrganizationMember, error) {
-	// TODO implement me
-	panic("implement me")
+	// All roles are added roles. Org member is always implied.
+	addedRoles := append(arg.Roles, rbac.RoleOrgMember(arg.OrganizationID))
+	err := q.canAssignRoles(ctx, &arg.OrganizationID, addedRoles, []string{})
+	if err != nil {
+		return database.OrganizationMember{}, err
+	}
+
+	obj := rbac.ResourceOrganizationMember.InOrg(arg.OrganizationID).WithID(arg.UserID)
+	return authorizedInsertWithReturn(q.authorizer, rbac.ActionCreate, obj, q.database.InsertOrganizationMember)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
-	// TODO implement me
-	panic("implement me")
+	// Authorized fetch will check that the actor has read access to the org member since the org member is returned.
+	member, err := q.GetOrganizationMemberByUserID(ctx, database.GetOrganizationMemberByUserIDParams{
+		OrganizationID: arg.OrgID,
+		UserID:         arg.UserID,
+	})
+	if err != nil {
+		return database.OrganizationMember{}, err
+	}
+
+	// The org member role is always implied.
+	impliedTypes := append(arg.GrantedRoles, rbac.RoleOrgMember(arg.OrgID))
+	added, removed := rbac.ChangeRoleSet(member.Roles, impliedTypes)
+	err = q.canAssignRoles(ctx, &arg.OrgID, added, removed)
+	if err != nil {
+		return database.OrganizationMember{}, err
+	}
+
+	return q.database.UpdateMemberRoles(ctx, arg)
+}
+
+func (q *AuthzQuerier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, removed []string) error {
+	actor, ok := actorFromContext(ctx)
+	if !ok {
+		return xerrors.Errorf("no authorization actor in context")
+	}
+
+	roleAssign := rbac.ResourceRoleAssignment
+	shouldBeOrgRoles := false
+	if orgID != nil {
+		roleAssign = roleAssign.InOrg(*orgID)
+		shouldBeOrgRoles = true
+	}
+
+	grantedRoles := append(added, removed...)
+	// Validate that the roles being assigned are valid.
+	for _, r := range grantedRoles {
+		_, isOrgRole := rbac.IsOrgRole(r)
+		if shouldBeOrgRoles && !isOrgRole {
+			return xerrors.Errorf("Must only update org roles")
+		}
+		if !shouldBeOrgRoles && isOrgRole {
+			return xerrors.Errorf("Must only update site wide roles")
+		}
+
+		// All roles should be valid roles
+		if _, err := rbac.RoleByName(r); err != nil {
+			return xerrors.Errorf("%q is not a supported role", r)
+		}
+	}
+
+	if len(added) > 0 && q.authorizeContext(ctx, rbac.ActionCreate, roleAssign) != nil {
+		return xerrors.Errorf("not authorized to assign roles")
+	}
+
+	if len(removed) > 0 && q.authorizeContext(ctx, rbac.ActionDelete, roleAssign) != nil {
+		return xerrors.Errorf("not authorized to delete roles")
+	}
+
+	for _, roleName := range grantedRoles {
+		if !rbac.CanAssignRole(actor.Roles, roleName) {
+			return xerrors.Errorf("not authorized to assign role %q", roleName)
+		}
+	}
+
+	return nil
 }
