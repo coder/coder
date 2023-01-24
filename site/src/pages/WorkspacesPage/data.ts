@@ -11,10 +11,6 @@ import {
   WorkspacesResponse,
 } from "api/typesGenerated"
 
-const getQueryKey = (page: number, query: string) => {
-  return ["workspaces", query, page]
-}
-
 type UseWorkspacesDataParams = {
   page: number
   limit: number
@@ -26,7 +22,7 @@ export const useWorkspacesData = ({
   limit,
   query,
 }: UseWorkspacesDataParams) => {
-  const queryKey = getQueryKey(page, query)
+  const queryKey = ["workspaces", query, page]
   const result = useQuery({
     queryKey,
     queryFn: () =>
