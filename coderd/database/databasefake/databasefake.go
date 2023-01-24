@@ -1213,6 +1213,23 @@ func (q *fakeQuerier) GetWorkspaceByOwnerIDAndName(_ context.Context, arg databa
 	return database.Workspace{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetWorkspaceByWorkspaceAppID(_ context.Context, workspaceAppID uuid.UUID) (database.Workspace, error) {
+	if err := validateDatabaseType(workspaceAppID); err != nil {
+		return database.Workspace{}, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, workspaceApp := range q.workspaceApps {
+		workspaceApp := workspaceApp
+		if workspaceApp.ID == workspaceAppID {
+			return q.GetWorkspaceByAgentID(context.Background(), workspaceApp.AgentID)
+		}
+	}
+	return database.Workspace{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetWorkspaceAppsByAgentID(_ context.Context, id uuid.UUID) ([]database.WorkspaceApp, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
