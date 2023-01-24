@@ -27,12 +27,5 @@ func (q *AuthzQuerier) GetProvisionerLogsByIDBetween(ctx context.Context, arg da
 	panic("implement me")
 }
 
-func (q *AuthzQuerier) InsertAgentStat(ctx context.Context, arg database.InsertAgentStatParams) (database.AgentStat, error) {
-	// TODO implement me
-	panic("implement me")
-}
 
-func (q *AuthzQuerier) UpdateGitAuthLink(ctx context.Context, arg database.UpdateGitAuthLinkParams) error {
-	// TODO implement me
-	panic("implement me")
-}
+

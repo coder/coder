@@ -274,6 +274,19 @@ func (q *AuthzQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, a
 	return authorizedUpdate(q.authorizer, fetch, q.database.UpdateWorkspaceAgentConnectionByID)(ctx, arg)
 }
 
+func (q *AuthzQuerier) InsertAgentStat(ctx context.Context, arg database.InsertAgentStatParams) (database.AgentStat, error) {
+	// TODO: This is a workspace agent operation. Should users be able to query this?
+	workspace, err := q.database.GetWorkspaceByAgentID(ctx, arg.ID)
+	if err != nil {
+		return database.AgentStat{}, err
+	}
+	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace)
+	if err != nil {
+		return database.AgentStat{}, err
+	}
+	return q.database.InsertAgentStat(ctx, arg)
+}
+
 func (q *AuthzQuerier) UpdateWorkspaceAgentVersionByID(ctx context.Context, arg database.UpdateWorkspaceAgentVersionByIDParams) error {
 	// TODO: This is a workspace agent operation. Should users be able to query this?
 	fetch := func(ctx context.Context, arg database.UpdateWorkspaceAgentVersionByIDParams) (database.Workspace, error) {

@@ -200,6 +200,14 @@ func (q *AuthzQuerier) InsertGitAuthLink(ctx context.Context, arg database.Inser
 	return q.InsertGitAuthLink(ctx, arg)
 }
 
+func (q *AuthzQuerier) UpdateGitAuthLink(ctx context.Context, arg database.UpdateGitAuthLinkParams) error {
+	// TODO: assuming ResourceUserData is correct for this.
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID)); err != nil {
+		return err
+	}
+	return q.UpdateGitAuthLink(ctx, arg)
+}
+
 func (q *AuthzQuerier) UpdateUserLink(ctx context.Context, arg database.UpdateUserLinkParams) (database.UserLink, error) {
 	// TODO: assuming ResourceUserData is correct for this.
 	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID)); err != nil {
