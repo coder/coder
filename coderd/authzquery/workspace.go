@@ -111,9 +111,18 @@ func (q *AuthzQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uu
 	return authorizedQueryWithRelated(q.authorizer, rbac.ActionRead, fetch, q.database.GetWorkspaceAppsByAgentID)(ctx, agentID)
 }
 
+// GetWorkspaceAppsByAgentIDs is an all or nothing call. If the user cannot read a single app, the entire call will fail.
 func (q *AuthzQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceApp, error) {
-	// TODO implement me
-	panic("implement me")
+	// TODO: This should be reworked. All these apps are likely owned by the same workspace, so we should be able to
+	// do 1 authz call. We should refactor this to be GetWorkspaceAppsByWorkspaceID.
+	for _, id := range ids {
+		_, err := q.GetWorkspaceAgentByID(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return q.database.GetWorkspaceAppsByAgentIDs(ctx, ids)
 }
 
 func (q *AuthzQuerier) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (database.WorkspaceBuild, error) {
@@ -128,8 +137,16 @@ func (q *AuthzQuerier) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) 
 }
 
 func (q *AuthzQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UUID) (database.WorkspaceBuild, error) {
-	// TODO implement me
-	panic("implement me")
+	build, err := q.GetWorkspaceBuildByJobID(ctx, jobID)
+	if err != nil {
+		return database.WorkspaceBuild{}, err
+	}
+	// Authorized fetch
+	_, err = q.GetWorkspaceByID(ctx, build.WorkspaceID)
+	if err != nil {
+		return database.WorkspaceBuild{}, err
+	}
+	return build, nil
 }
 
 func (q *AuthzQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Context, arg database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (database.WorkspaceBuild, error) {
@@ -209,9 +226,19 @@ func (q *AuthzQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUI
 	return resource, err
 }
 
+// GetWorkspaceResourceMetadataByResourceIDs is an all or nothing call. If a single resource is not authorized, then
+// an error is returned.
 func (q *AuthzQuerier) GetWorkspaceResourceMetadataByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceResourceMetadatum, error) {
-	// TODO implement me
-	panic("implement me")
+	// TODO: This is very inefficient. Since all these resources are likely asscoiated with the same workspace.
+	for _, id := range ids {
+		// If we can read the resource, we can read the metadata.
+		_, err := q.GetWorkspaceResourceByID(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return q.database.GetWorkspaceResourceMetadataByResourceIDs(ctx, ids)
 }
 
 func (q *AuthzQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.WorkspaceResource, error) {
@@ -228,9 +255,19 @@ func (q *AuthzQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID u
 	return q.GetWorkspaceResourcesByJobID(ctx, jobID)
 }
 
+// GetWorkspaceResourcesByJobIDs is an all or nothing call. If a single resource is not authorized, then
+// an error is returned.
 func (q *AuthzQuerier) GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceResource, error) {
-	// TODO implement me
-	panic("implement me")
+	// TODO: This is very inefficient. Since all these resources are likely asscoiated with the same workspace.
+	for _, id := range ids {
+		// If we can read the resource, we can read the metadata.
+		_, err := q.GetProvisionerJobByID(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return q.database.GetWorkspaceResourcesByJobIDs(ctx, ids)
 }
 
 func (q *AuthzQuerier) InsertWorkspace(ctx context.Context, arg database.InsertWorkspaceParams) (database.Workspace, error) {
