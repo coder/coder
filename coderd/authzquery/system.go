@@ -88,6 +88,10 @@ func (q *AuthzQuerier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg dat
 	return q.UpdateWorkspaceBuildCostByID(ctx, arg)
 }
 
+func (q *AuthzQuerier) GetLastUpdateCheck(ctx context.Context) (string, error) {
+	return q.GetLastUpdateCheck(ctx)
+}
+
 // Telemetry related functions. These functions are system functions for returning
 // telemetry data. Never called by a user.
 
@@ -111,6 +115,10 @@ func (q *AuthzQuerier) GetWorkspaceResourceMetadataCreatedAfter(ctx context.Cont
 	return q.database.GetWorkspaceResourceMetadataCreatedAfter(ctx, createdAt)
 }
 
+func (q *AuthzQuerier) DeleteOldAgentStats(ctx context.Context) error {
+	return q.DeleteOldAgentStats(ctx)
+}
+
 // Provisionerd server functions
 
 func (q *AuthzQuerier) InsertWorkspaceAgent(ctx context.Context, arg database.InsertWorkspaceAgentParams) (database.WorkspaceAgent, error) {
@@ -123,4 +131,8 @@ func (q *AuthzQuerier) InsertWorkspaceApp(ctx context.Context, arg database.Inse
 
 func (q *AuthzQuerier) InsertWorkspaceResourceMetadata(ctx context.Context, arg database.InsertWorkspaceResourceMetadataParams) ([]database.WorkspaceResourceMetadatum, error) {
 	return q.InsertWorkspaceResourceMetadata(ctx, arg)
+}
+
+func (q *AuthzQuerier) AcquireProvisionerJob(ctx context.Context, arg database.AcquireProvisionerJobParams) (database.ProvisionerJob, error) {
+	return q.database.AcquireProvisionerJob(ctx, arg)
 }

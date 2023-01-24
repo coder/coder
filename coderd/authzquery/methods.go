@@ -13,27 +13,7 @@ import (
 
 var _ database.Store = (*AuthzQuerier)(nil)
 
-func (q *AuthzQuerier) AcquireProvisionerJob(ctx context.Context, arg database.AcquireProvisionerJobParams) (database.ProvisionerJob, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) DeleteOldAgentStats(ctx context.Context) error {
-	// TODO implement me
-	panic("implement me")
-}
-
 func (q *AuthzQuerier) DeleteParameterValueByID(ctx context.Context, id uuid.UUID) error {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) GetLastUpdateCheck(ctx context.Context) (string, error) {
 	// TODO implement me
 	panic("implement me")
 }
@@ -93,11 +73,6 @@ func (q *AuthzQuerier) InsertAgentStat(ctx context.Context, arg database.InsertA
 	panic("implement me")
 }
 
-func (q *AuthzQuerier) InsertAuditLog(ctx context.Context, arg database.InsertAuditLogParams) (database.AuditLog, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
 func (q *AuthzQuerier) InsertOrUpdateLastUpdateCheck(ctx context.Context, value string) error {
 	// TODO implement me
 	panic("implement me")
@@ -142,7 +117,6 @@ func (q *AuthzQuerier) UpdateGitAuthLink(ctx context.Context, arg database.Updat
 	// TODO implement me
 	panic("implement me")
 }
-
 
 func (q *AuthzQuerier) UpdateProvisionerDaemonByID(ctx context.Context, arg database.UpdateProvisionerDaemonByIDParams) error {
 	// TODO implement me
