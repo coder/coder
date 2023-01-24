@@ -379,81 +379,90 @@ FROM
     audit_logs
     LEFT JOIN users ON audit_logs.user_id = users.id
     LEFT JOIN
-    -- First join on workspaces to get the initial workspace create
-    -- to workspace build 1 id. This is because the first create is
-    -- is a different audit log than subsequent starts.
-    workspaces ON audit_logs.resource_type = 'workspace'
-        AND audit_logs.resource_id = workspaces.id
-    LEFT JOIN workspace_builds ON
-    -- Get the reason from the build if the resource type
-    -- is a workspace_build
-    (audit_logs.resource_type = 'workspace_build'
-            AND audit_logs.resource_id = workspace_builds.id)
-        OR
-        -- Get the reason from the build #1 if this is the first
-        -- workspace create.
-        (audit_logs.resource_type = 'workspace'
-            AND audit_logs.action = 'create'
-            AND workspaces.id = workspace_builds.workspace_id
-            AND workspace_builds.build_number = 1)
+        -- First join on workspaces to get the initial workspace create
+        -- to workspace build 1 id. This is because the first create is
+        -- is a different audit log than subsequent starts.
+        workspaces ON
+		    audit_logs.resource_type = 'workspace' AND
+			audit_logs.resource_id = workspaces.id
+    LEFT JOIN
+	    workspace_builds ON
+            -- Get the reason from the build if the resource type
+            -- is a workspace_build
+            (
+			    audit_logs.resource_type = 'workspace_build'
+                AND audit_logs.resource_id = workspace_builds.id
+			)
+            OR
+            -- Get the reason from the build #1 if this is the first
+            -- workspace create.
+            (
+				audit_logs.resource_type = 'workspace' AND
+				audit_logs.action = 'create' AND
+				workspaces.id = workspace_builds.workspace_id AND
+				workspace_builds.build_number = 1
+			)
 WHERE
     -- Filter resource_type
-    CASE WHEN $3::text != '' THEN
-        resource_type = $3::resource_type
-    ELSE
-        TRUE
-    END
-    -- Filter resource_id
-    AND CASE WHEN $4::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-        resource_id = $4
-    ELSE
-        TRUE
-    END
-    -- Filter by resource_target
-    AND CASE WHEN $5::text != '' THEN
-        resource_target = $5
-    ELSE
-        TRUE
-    END
-    -- Filter action
-    AND CASE WHEN $6::text != '' THEN
-        action = $6::audit_action
-    ELSE
-        TRUE
-    END
-    -- Filter by username
-    AND CASE WHEN $7::text != '' THEN
-        users.username = $7
-    ELSE
-        TRUE
-    END
-    -- Filter by user_email
-    AND CASE WHEN $8::text != '' THEN
-        users.email = $8
-    ELSE
-        TRUE
-    END
-    -- Filter by date_from
-    AND CASE WHEN $9::timestamp with time zone != '0001-01-01 00:00:00' THEN
-        "time" >= $9
-    ELSE
-        TRUE
-    END
-    -- Filter by date_to
-    AND CASE WHEN $10::timestamp with time zone != '0001-01-01 00:00:00' THEN
-        "time" <= $10
-    ELSE
-        TRUE
-    END
+	CASE
+		WHEN $3 :: text != '' THEN
+			resource_type = $3 :: resource_type
+		ELSE true
+	END
+	-- Filter resource_id
+	AND CASE
+		WHEN $4 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			resource_id = $4
+		ELSE true
+	END
+	-- Filter by resource_target
+	AND CASE
+		WHEN $5 :: text != '' THEN
+			resource_target = $5
+		ELSE true
+	END
+	-- Filter action
+	AND CASE
+		WHEN $6 :: text != '' THEN
+			action = $6 :: audit_action
+		ELSE true
+	END
+	-- Filter by username
+	AND CASE
+		WHEN $7 :: text != '' THEN
+			users.username = $7
+		ELSE true
+	END
+	-- Filter by user_email
+	AND CASE
+		WHEN $8 :: text != '' THEN
+			users.email = $8
+		ELSE true
+	END
+	-- Filter by date_from
+	AND CASE
+		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00' THEN
+			"time" >= $9
+		ELSE true
+	END
+	-- Filter by date_to
+	AND CASE
+		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00' THEN
+			"time" <= $10
+		ELSE true
+	END
     -- Filter by build_reason
-    AND CASE WHEN $11::text != '' THEN
-        workspace_builds.reason::text = $11
-    ELSE
-        TRUE
+    AND CASE
+	    WHEN $11::text != '' THEN
+            workspace_builds.reason::text = $11
+        ELSE true
     END
 ORDER BY
     "time" DESC
-LIMIT $1 OFFSET $2
+LIMIT
+    $1
+OFFSET
+    $2
 `
 
 type GetAuditLogsOffsetParams struct {
@@ -556,10 +565,26 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 }
 
 const insertAuditLog = `-- name: InsertAuditLog :one
-INSERT INTO audit_logs (id, "time", user_id, organization_id, ip, user_agent, resource_type, resource_id, resource_target, action, diff, status_code, additional_fields, request_id, resource_icon)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-RETURNING
-    id, time, user_id, organization_id, ip, user_agent, resource_type, resource_id, resource_target, action, diff, status_code, additional_fields, request_id, resource_icon
+INSERT INTO
+	audit_logs (
+        id,
+        "time",
+        user_id,
+        organization_id,
+        ip,
+        user_agent,
+        resource_type,
+        resource_id,
+        resource_target,
+        action,
+        diff,
+        status_code,
+        additional_fields,
+        request_id,
+        resource_icon
+    )
+VALUES
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id, time, user_id, organization_id, ip, user_agent, resource_type, resource_id, resource_target, action, diff, status_code, additional_fields, request_id, resource_icon
 `
 
 type InsertAuditLogParams struct {
