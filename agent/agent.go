@@ -247,6 +247,9 @@ func (a *agent) run(ctx context.Context) error {
 		// concurrently with the startup script to avoid conflicts between
 		// them.
 		if metadata.GitAuthConfigs > 0 {
+			// If this fails, we should consider surfacing the error in the
+			// startup log and setting the lifecycle state to be "start_error"
+			// (after startup script completion), but for now we'll just log it.
 			err := gitauth.OverrideVSCodeConfigs(a.filesystem)
 			if err != nil {
 				a.logger.Warn(ctx, "failed to override vscode git auth configs", slog.Error(err))
