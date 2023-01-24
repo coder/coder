@@ -720,8 +720,8 @@ func TestAgent_Lifecycle(t *testing.T) {
 		}, testutil.WaitShort, testutil.IntervalMedium)
 		switch len(got) {
 		case 1:
-			// This can happen if lifecycle states are too
-			// fast, only the latest on is reported.
+			// This can happen if lifecycle state updates are
+			// too fast, only the latest one is reported.
 			require.Equal(t, want[1:], got)
 		default:
 			// This is the expected case.
@@ -749,8 +749,8 @@ func TestAgent_Lifecycle(t *testing.T) {
 		}, testutil.WaitShort, testutil.IntervalMedium)
 		switch len(got) {
 		case 1:
-			// This can happen if lifecycle states are too
-			// fast, only the latest on is reported.
+			// This can happen if lifecycle state updates are
+			// too fast, only the latest one is reported.
 			require.Equal(t, want[1:], got)
 		default:
 			// This is the expected case.
@@ -778,8 +778,8 @@ func TestAgent_Lifecycle(t *testing.T) {
 		}, testutil.WaitShort, testutil.IntervalMedium)
 		switch len(got) {
 		case 1:
-			// This can happen if lifecycle states are too
-			// fast, only the latest on is reported.
+			// This can happen if lifecycle state updates are
+			// too fast, only the latest one is reported.
 			require.Equal(t, want[1:], got)
 		default:
 			// This is the expected case.
