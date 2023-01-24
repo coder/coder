@@ -27,11 +27,6 @@ func (q *AuthzQuerier) GetProvisionerDaemons(ctx context.Context) ([]database.Pr
 	panic("implement me")
 }
 
-func (q *AuthzQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
 func (q *AuthzQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
 	// TODO implement me
 	panic("implement me")
@@ -52,7 +47,3 @@ func (q *AuthzQuerier) UpdateGitAuthLink(ctx context.Context, arg database.Updat
 	panic("implement me")
 }
 
-func (q *AuthzQuerier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg database.UpdateProvisionerJobWithCancelByIDParams) error {
-	// TODO implement me
-	panic("implement me")
-}
