@@ -48,15 +48,28 @@ func (q *AuthzQuerier) InTx(function func(querier database.Store) error, txOpts 
 	}, txOpts)
 }
 
-func (q *AuthzQuerier) authorizeContext(ctx context.Context, action rbac.Action, object rbac.Object) error {
+// authorizeContext is a helper function to authorize an action on an object.
+func (q *AuthzQuerier) authorizeContext(ctx context.Context, action rbac.Action, object rbac.Objecter) error {
 	act, ok := actorFromContext(ctx)
 	if !ok {
 		return xerrors.Errorf("no authorization actor in context")
 	}
 
-	err := q.authorizer.ByRoleName(ctx, act.ID.String(), act.Roles, act.Scope, act.Groups, action, object)
+	err := q.authorizer.ByRoleName(ctx, act.ID.String(), act.Roles, act.Scope, act.Groups, action, object.RBACObject())
 	if err != nil {
 		return xerrors.Errorf("unauthorized: %w", err)
 	}
 	return nil
+}
+
+type fetchObjFunc func() (rbac.Objecter, error)
+
+// authorizeContextF is a helper function to authorize an action on an object.
+// objectFunc is a function that returns the object on which to authorize.
+func (q *AuthzQuerier) authorizeContextF(ctx context.Context, action rbac.Action, fetchObj fetchObjFunc) error {
+	if obj, err := fetchObj(); err != nil {
+		return xerrors.Errorf("fetch rbac object: %w", err)
+	} else {
+		return q.authorizeContext(ctx, action, obj.RBACObject())
+	}
 }
