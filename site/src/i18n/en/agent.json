@@ -28,7 +28,7 @@
   },
   "startErrorTooltip": {
     "title": "Error starting agent",
-    "message": "Something wrong happening during the agent start.",
+    "message": "Something went wrong during the agent start.",
     "link": "Troubleshoot"
   },
   "unableToConnect": "Unable to connect"
