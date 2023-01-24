@@ -72,14 +72,16 @@ func RichParameter(cmd *cobra.Command, templateVersionParameter codersdk.Templat
 	if len(templateVersionParameter.Options) > 0 {
 		// Move the cursor up a single line for nicer display!
 		_, _ = fmt.Fprint(cmd.OutOrStdout(), "\033[1A")
-		value, err = Select(cmd, SelectOptions{
-			Options:    templateVersionParameterOptionValues(templateVersionParameter),
+		var richParameterOption *codersdk.TemplateVersionParameterOption
+		richParameterOption, err = RichSelect(cmd, RichSelectOptions{
+			Options:    templateVersionParameter.Options,
 			Default:    templateVersionParameter.DefaultValue,
 			HideSearch: true,
 		})
 		if err == nil {
 			_, _ = fmt.Fprintln(cmd.OutOrStdout())
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+Styles.Prompt.String()+Styles.Field.Render(value))
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+Styles.Prompt.String()+Styles.Field.Render(richParameterOption.Name))
+			value = richParameterOption.Value
 		}
 	} else {
 		text := "Enter a value"
