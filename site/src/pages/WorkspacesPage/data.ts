@@ -5,11 +5,14 @@ import {
   useQueryClient,
 } from "@tanstack/react-query"
 import { getWorkspaces, updateWorkspaceVersion } from "api/api"
+import { getErrorMessage } from "api/errors"
 import {
   Workspace,
   WorkspaceBuild,
   WorkspacesResponse,
 } from "api/typesGenerated"
+import { displayError } from "components/GlobalSnackbar/utils"
+import { useTranslation } from "react-i18next"
 
 type UseWorkspacesDataParams = {
   page: number
@@ -42,6 +45,7 @@ export const useWorkspacesData = ({
 
 export const useWorkspaceUpdate = (queryKey: QueryKey) => {
   const queryClient = useQueryClient()
+  const { t } = useTranslation("workspacesPage")
 
   return useMutation({
     mutationFn: updateWorkspaceVersion,
@@ -59,6 +63,10 @@ export const useWorkspaceUpdate = (queryKey: QueryKey) => {
           return assignLatestBuild(oldResponse, workspaceBuild)
         }
       })
+    },
+    onError: (error) => {
+      const message = getErrorMessage(error, t("updateVersionError"))
+      displayError(message)
     },
   })
 }
