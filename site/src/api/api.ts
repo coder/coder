@@ -290,6 +290,15 @@ export const getTemplateVersionParameters = async (
   return response.data
 }
 
+export const getTemplateVersionRichParameters = async (
+  versionId: string,
+): Promise<TypesGen.TemplateVersionParameter[]> => {
+  const response = await axios.get(
+    `/api/v2/templateversions/${versionId}/rich-parameters`,
+  )
+  return response.data
+}
+
 export const createTemplate = async (
   organizationId: string,
   data: TypesGen.CreateTemplateRequest,
