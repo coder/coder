@@ -2902,7 +2902,7 @@
   resolved "https://registry.yarnpkg.com/@tanstack/query-core/-/query-core-4.22.4.tgz#aca622d2f8800a147ece5520d956a076ab92f0ea"
   integrity sha512-t79CMwlbBnj+yL82tEcmRN93bL4U3pae2ota4t5NN2z3cIeWw74pzdWrKRwOfTvLcd+b30tC+ciDlfYOKFPGUw==
 
-"@tanstack/react-query@^4.22.4":
+"@tanstack/react-query@4.22.4":
   version "4.22.4"
   resolved "https://registry.yarnpkg.com/@tanstack/react-query/-/react-query-4.22.4.tgz#851581c645f1c9cfcd394448fedd980a39bbc3fe"
   integrity sha512-e5j5Z88XUQGeEPMyz5XF1V0mMf6Da+6URXiTpZfUb9nuHs2nlNoA+EoIvnhccE5b9YT6Yg7kARhn2L7u94M/4A==
