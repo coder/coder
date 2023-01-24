@@ -48,7 +48,7 @@ func (q *AuthzQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (database.
 }
 
 func (q *AuthzQuerier) GetAuthorizedUserCount(ctx context.Context, arg database.GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
-	return q.GetAuthorizedUserCount(ctx, arg, prepared)
+	return q.database.GetAuthorizedUserCount(ctx, arg, prepared)
 }
 
 func (q *AuthzQuerier) GetFilteredUserCount(ctx context.Context, arg database.GetFilteredUserCountParams) (int64, error) {
@@ -92,7 +92,7 @@ func (q *AuthzQuerier) GetUsersWithCount(ctx context.Context, arg database.GetUs
 		return nil, -1, err
 	}
 
-	return database.ConvertUserRows(rowUsers), rowUsers[0].Count, nil
+	return users, rowUsers[0].Count, nil
 }
 
 func (q *AuthzQuerier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]database.User, error) {
@@ -105,8 +105,10 @@ func (q *AuthzQuerier) InsertUser(ctx context.Context, arg database.InsertUserPa
 }
 
 func (q *AuthzQuerier) InsertUserLink(ctx context.Context, arg database.InsertUserLinkParams) (database.UserLink, error) {
-	// TODO implement me
-	panic("implement me")
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceUser); err != nil {
+		return database.UserLink{}, err
+	}
+	return q.database.InsertUserLink(ctx, arg)
 }
 
 func (q *AuthzQuerier) SoftDeleteUserByID(ctx context.Context, id uuid.UUID) error {
