@@ -88,6 +88,10 @@ func (q *AuthzQuerier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg dat
 	return q.UpdateWorkspaceBuildCostByID(ctx, arg)
 }
 
+func (q *AuthzQuerier) InsertOrUpdateLastUpdateCheck(ctx context.Context, value string) error {
+	return q.InsertOrUpdateLastUpdateCheck(ctx, value)
+}
+
 func (q *AuthzQuerier) GetLastUpdateCheck(ctx context.Context) (string, error) {
 	return q.GetLastUpdateCheck(ctx)
 }
@@ -135,4 +139,12 @@ func (q *AuthzQuerier) InsertWorkspaceResourceMetadata(ctx context.Context, arg 
 
 func (q *AuthzQuerier) AcquireProvisionerJob(ctx context.Context, arg database.AcquireProvisionerJobParams) (database.ProvisionerJob, error) {
 	return q.database.AcquireProvisionerJob(ctx, arg)
+}
+
+func (q *AuthzQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, arg database.UpdateProvisionerJobWithCompleteByIDParams) error {
+	return q.UpdateProvisionerJobWithCompleteByID(ctx, arg)
+}
+
+func (q *AuthzQuerier) UpdateProvisionerJobByID(ctx context.Context, arg database.UpdateProvisionerJobByIDParams) error {
+	return q.UpdateProvisionerJobByID(ctx, arg)
 }

@@ -73,11 +73,6 @@ func (q *AuthzQuerier) InsertAgentStat(ctx context.Context, arg database.InsertA
 	panic("implement me")
 }
 
-func (q *AuthzQuerier) InsertOrUpdateLastUpdateCheck(ctx context.Context, value string) error {
-	// TODO implement me
-	panic("implement me")
-}
-
 func (q *AuthzQuerier) InsertParameterSchema(ctx context.Context, arg database.InsertParameterSchemaParams) (database.ParameterSchema, error) {
 	// TODO implement me
 	panic("implement me")
@@ -118,22 +113,7 @@ func (q *AuthzQuerier) UpdateGitAuthLink(ctx context.Context, arg database.Updat
 	panic("implement me")
 }
 
-func (q *AuthzQuerier) UpdateProvisionerDaemonByID(ctx context.Context, arg database.UpdateProvisionerDaemonByIDParams) error {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) UpdateProvisionerJobByID(ctx context.Context, arg database.UpdateProvisionerJobByIDParams) error {
-	// TODO implement me
-	panic("implement me")
-}
-
 func (q *AuthzQuerier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg database.UpdateProvisionerJobWithCancelByIDParams) error {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, arg database.UpdateProvisionerJobWithCompleteByIDParams) error {
 	// TODO implement me
 	panic("implement me")
 }

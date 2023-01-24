@@ -23,12 +23,3 @@ INSERT INTO
 	)
 VALUES
 	($1, $2, $3, $4, $5) RETURNING *;
-
--- name: UpdateProvisionerDaemonByID :exec
-UPDATE
-	provisioner_daemons
-SET
-	updated_at = $2,
-	provisioners = $3
-WHERE
-	id = $1;

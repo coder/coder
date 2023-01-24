@@ -3237,26 +3237,6 @@ func (q *fakeQuerier) UpdateTemplateVersionDescriptionByJobID(_ context.Context,
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateProvisionerDaemonByID(_ context.Context, arg database.UpdateProvisionerDaemonByIDParams) error {
-	if err := validateDatabaseType(arg); err != nil {
-		return err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for index, daemon := range q.provisionerDaemons {
-		if arg.ID != daemon.ID {
-			continue
-		}
-		daemon.UpdatedAt = arg.UpdatedAt
-		daemon.Provisioners = arg.Provisioners
-		q.provisionerDaemons[index] = daemon
-		return nil
-	}
-	return sql.ErrNoRows
-}
-
 func (q *fakeQuerier) UpdateWorkspaceAgentConnectionByID(_ context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
