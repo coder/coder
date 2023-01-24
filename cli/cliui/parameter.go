@@ -110,14 +110,6 @@ func RichParameter(cmd *cobra.Command, templateVersionParameter codersdk.Templat
 	return value, nil
 }
 
-func templateVersionParameterOptionValues(param codersdk.TemplateVersionParameter) []string {
-	var options []string
-	for _, opt := range param.Options {
-		options = append(options, opt.Value)
-	}
-	return options
-}
-
 func validateRichPrompt(value string, p codersdk.TemplateVersionParameter) error {
 	return codersdk.ValidateWorkspaceBuildParameter(p, codersdk.WorkspaceBuildParameter{
 		Name:  p.Name,
