@@ -14,6 +14,18 @@ import (
 // So you'd do `authzQ.System().GetDERPMeshKey(ctx)` or something like that?
 // Cian: yes. Let's do it.
 
+func (q *AuthzQuerier) UpdateUserLinkedID(ctx context.Context, arg database.UpdateUserLinkedIDParams) (database.UserLink, error) {
+	return q.UpdateUserLinkedID(ctx, arg)
+}
+
+func (q *AuthzQuerier) GetUserLinkByLinkedID(ctx context.Context, linkedID string) (database.UserLink, error) {
+	return q.GetUserLinkByLinkedID(ctx, linkedID)
+}
+
+func (q *AuthzQuerier) GetUserLinkByUserIDLoginType(ctx context.Context, arg database.GetUserLinkByUserIDLoginTypeParams) (database.UserLink, error) {
+	return q.GetUserLinkByUserIDLoginType(ctx, arg)
+}
+
 func (q *AuthzQuerier) GetLatestWorkspaceBuilds(ctx context.Context) ([]database.WorkspaceBuild, error) {
 	// This function is a system function until we implement a join for workspace builds.
 	// This is because we need to query for all related workspaces to the returned builds.
