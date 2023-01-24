@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/rbac"
 )
 
 // TODO: @emyrk should we name system functions differently to indicate a user
@@ -84,9 +83,9 @@ func (q *AuthzQuerier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt ti
 	return q.GetReplicasUpdatedAfter(ctx, updatedAt)
 }
 
-func (q *AuthzQuerier) GetTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {
+func (q *AuthzQuerier) GetTemplates(ctx context.Context) ([]database.Template, error) {
 	// TODO Implement authz check for system user.
-	return q.GetTemplates(ctx, arg, prepared)
+	return q.GetTemplates(ctx)
 }
 
 // UpdateWorkspaceBuildCostByID is used by the provisioning system to update the cost of a workspace build.
