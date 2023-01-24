@@ -16,17 +16,6 @@ import (
 
 // Middleware adds tracing to http routes.
 func Middleware(tracerProvider trace.TracerProvider) func(http.Handler) http.Handler {
-	// We only want to create spans on the following route patterns, however
-	// we want the middleware to be very high in the middleware stack so it can
-	// capture the entire request.
-	re := patternmatcher.RoutePatterns{
-		"/api",
-		"/api/**",
-		"/@*/*/apps/**",
-		"/%40*/*/apps/**",
-		"/gitauth/*/callback",
-	}.MustCompile()
-
 	var tracer trace.Tracer
 	if tracerProvider != nil {
 		tracer = tracerProvider.Tracer(TracerName)
@@ -34,7 +23,7 @@ func Middleware(tracerProvider trace.TracerProvider) func(http.Handler) http.Han
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			if tracer == nil || !re.MatchString(r.URL.Path) {
+			if tracer == nil || !patternmatcher.APIRoutes.MatchString(r.URL.Path) {
 				next.ServeHTTP(rw, r)
 				return
 			}

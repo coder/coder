@@ -8,6 +8,16 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// APIRoutes is a RoutePatterns which matches all API routes (including apps)
+// and not frontend routes.
+var APIRoutes = RoutePatterns{
+	"/api",
+	"/api/**",
+	"/@*/*/apps/**",
+	"/%40*/*/apps/**",
+	"/gitauth/*/callback",
+}.MustCompile()
+
 // RoutePatterns provides a method to generate a regex which will match a URL
 // path against a collection of patterns. If any of the patterns match the path,
 // the regex will return a successful match.

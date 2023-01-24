@@ -5846,6 +5846,9 @@ const docTemplate = `{
                 "rate_limit": {
                     "$ref": "#/definitions/codersdk.RateLimitConfig"
                 },
+                "requestLogLevel": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
                 "scim_api_key": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
                 },

@@ -758,6 +758,17 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
       "value": true
     }
   },
+  "requestLogLevel": {
+    "default": "string",
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": "string"
+  },
   "scim_api_key": {
     "default": "string",
     "enterprise": true,
