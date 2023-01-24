@@ -3,15 +3,12 @@ package authzquery
 import (
 	"context"
 
-	"github.com/coder/coder/coderd/util/slice"
-
-	"github.com/coder/coder/coderd/rbac"
-
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/google/uuid"
-
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/util/slice"
 )
 
 func (q *AuthzQuerier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg database.UpdateProvisionerJobWithCancelByIDParams) error {
