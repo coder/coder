@@ -148,3 +148,15 @@ func (q *AuthzQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context,
 func (q *AuthzQuerier) UpdateProvisionerJobByID(ctx context.Context, arg database.UpdateProvisionerJobByIDParams) error {
 	return q.UpdateProvisionerJobByID(ctx, arg)
 }
+
+func (q *AuthzQuerier) InsertProvisionerJob(ctx context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
+	return q.InsertProvisionerJob(ctx, arg)
+}
+
+func (q *AuthzQuerier) InsertProvisionerJobLogs(ctx context.Context, arg database.InsertProvisionerJobLogsParams) ([]database.ProvisionerJobLog, error) {
+	return q.InsertProvisionerJobLogs(ctx, arg)
+}
+
+func (q *AuthzQuerier) InsertProvisionerDaemon(ctx context.Context, arg database.InsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
+	return q.InsertProvisionerDaemon(ctx, arg)
+}

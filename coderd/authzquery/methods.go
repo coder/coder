@@ -83,21 +83,6 @@ func (q *AuthzQuerier) InsertParameterValue(ctx context.Context, arg database.In
 	panic("implement me")
 }
 
-func (q *AuthzQuerier) InsertProvisionerDaemon(ctx context.Context, arg database.InsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) InsertProvisionerJob(ctx context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) InsertProvisionerJobLogs(ctx context.Context, arg database.InsertProvisionerJobLogsParams) ([]database.ProvisionerJobLog, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
 func (q *AuthzQuerier) ParameterValue(ctx context.Context, id uuid.UUID) (database.ParameterValue, error) {
 	// TODO implement me
 	panic("implement me")
