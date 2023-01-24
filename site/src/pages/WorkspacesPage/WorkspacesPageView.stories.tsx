@@ -1,4 +1,5 @@
 import { ComponentMeta, Story } from "@storybook/react"
+import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils"
 import dayjs from "dayjs"
 import uniqueId from "lodash/uniqueId"
 import {
@@ -57,6 +58,11 @@ const allWorkspaces = [
 export default {
   title: "pages/WorkspacesPageView",
   component: WorkspacesPageView,
+  argTypes: {
+    limit: {
+      defaultValue: DEFAULT_RECORDS_PER_PAGE,
+    },
+  },
 } as ComponentMeta<typeof WorkspacesPageView>
 
 const Template: Story<WorkspacesPageViewProps> = (args) => (
@@ -76,16 +82,9 @@ OwnerHasNoWorkspaces.args = {
   count: 0,
 }
 
-export const NoResults = Template.bind({})
-NoResults.args = {
+export const NoSearchResults = Template.bind({})
+NoSearchResults.args = {
   workspaces: [],
   filter: "searchtearmwithnoresults",
-  count: 0,
-}
-
-export const EmptyPage = Template.bind({})
-EmptyPage.args = {
-  workspaces: [],
-  filter: workspaceFilterQuery.me,
   count: 0,
 }

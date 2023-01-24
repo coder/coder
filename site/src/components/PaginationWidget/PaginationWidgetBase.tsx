@@ -27,7 +27,7 @@ export const PaginationWidgetBase = ({
   const isFirstPage = page === 0
   const isLastPage = page === numPages - 1
 
-  if (numPages === 1) {
+  if (numPages < 2) {
     return null
   }
 
