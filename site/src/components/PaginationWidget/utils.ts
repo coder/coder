@@ -30,7 +30,7 @@ const NUM_PAGE_BLOCKS = PAGES_TO_DISPLAY + 2
 export const buildPagedList = (
   numPages: number,
   activePage: number,
-): (string | number)[] => {
+): ("left" | "right" | number)[] => {
   if (numPages > NUM_PAGE_BLOCKS) {
     let pages = []
     const leftBound = activePage - PAGE_NEIGHBORS
@@ -44,8 +44,8 @@ export const buildPagedList = (
     const singleSpillOffset = PAGES_TO_DISPLAY - pages.length - 1
     const hasLeftOverflow = startPage > 2
     const hasRightOverflow = endPage < beforeLastPage
-    const leftOverflowPage = "left"
-    const rightOverflowPage = "right"
+    const leftOverflowPage = "left" as const
+    const rightOverflowPage = "right" as const
 
     if (hasLeftOverflow && !hasRightOverflow) {
       const extraPages = range(startPage - singleSpillOffset, startPage - 1)
