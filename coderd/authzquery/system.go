@@ -14,6 +14,18 @@ import (
 // So you'd do `authzQ.System().GetDERPMeshKey(ctx)` or something like that?
 // Cian: yes. Let's do it.
 
+func (q *AuthzQuerier) UpdateUserLinkedID(ctx context.Context, arg database.UpdateUserLinkedIDParams) (database.UserLink, error) {
+	return q.UpdateUserLinkedID(ctx, arg)
+}
+
+func (q *AuthzQuerier) GetUserLinkByLinkedID(ctx context.Context, linkedID string) (database.UserLink, error) {
+	return q.GetUserLinkByLinkedID(ctx, linkedID)
+}
+
+func (q *AuthzQuerier) GetUserLinkByUserIDLoginType(ctx context.Context, arg database.GetUserLinkByUserIDLoginTypeParams) (database.UserLink, error) {
+	return q.GetUserLinkByUserIDLoginType(ctx, arg)
+}
+
 func (q *AuthzQuerier) GetLatestWorkspaceBuilds(ctx context.Context) ([]database.WorkspaceBuild, error) {
 	// This function is a system function until we implement a join for workspace builds.
 	// This is because we need to query for all related workspaces to the returned builds.
@@ -76,6 +88,14 @@ func (q *AuthzQuerier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg dat
 	return q.UpdateWorkspaceBuildCostByID(ctx, arg)
 }
 
+func (q *AuthzQuerier) InsertOrUpdateLastUpdateCheck(ctx context.Context, value string) error {
+	return q.InsertOrUpdateLastUpdateCheck(ctx, value)
+}
+
+func (q *AuthzQuerier) GetLastUpdateCheck(ctx context.Context) (string, error) {
+	return q.GetLastUpdateCheck(ctx)
+}
+
 // Telemetry related functions. These functions are system functions for returning
 // telemetry data. Never called by a user.
 
@@ -99,6 +119,10 @@ func (q *AuthzQuerier) GetWorkspaceResourceMetadataCreatedAfter(ctx context.Cont
 	return q.database.GetWorkspaceResourceMetadataCreatedAfter(ctx, createdAt)
 }
 
+func (q *AuthzQuerier) DeleteOldAgentStats(ctx context.Context) error {
+	return q.DeleteOldAgentStats(ctx)
+}
+
 // Provisionerd server functions
 
 func (q *AuthzQuerier) InsertWorkspaceAgent(ctx context.Context, arg database.InsertWorkspaceAgentParams) (database.WorkspaceAgent, error) {
@@ -111,4 +135,28 @@ func (q *AuthzQuerier) InsertWorkspaceApp(ctx context.Context, arg database.Inse
 
 func (q *AuthzQuerier) InsertWorkspaceResourceMetadata(ctx context.Context, arg database.InsertWorkspaceResourceMetadataParams) ([]database.WorkspaceResourceMetadatum, error) {
 	return q.InsertWorkspaceResourceMetadata(ctx, arg)
+}
+
+func (q *AuthzQuerier) AcquireProvisionerJob(ctx context.Context, arg database.AcquireProvisionerJobParams) (database.ProvisionerJob, error) {
+	return q.database.AcquireProvisionerJob(ctx, arg)
+}
+
+func (q *AuthzQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, arg database.UpdateProvisionerJobWithCompleteByIDParams) error {
+	return q.UpdateProvisionerJobWithCompleteByID(ctx, arg)
+}
+
+func (q *AuthzQuerier) UpdateProvisionerJobByID(ctx context.Context, arg database.UpdateProvisionerJobByIDParams) error {
+	return q.UpdateProvisionerJobByID(ctx, arg)
+}
+
+func (q *AuthzQuerier) InsertProvisionerJob(ctx context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
+	return q.InsertProvisionerJob(ctx, arg)
+}
+
+func (q *AuthzQuerier) InsertProvisionerJobLogs(ctx context.Context, arg database.InsertProvisionerJobLogsParams) ([]database.ProvisionerJobLog, error) {
+	return q.InsertProvisionerJobLogs(ctx, arg)
+}
+
+func (q *AuthzQuerier) InsertProvisionerDaemon(ctx context.Context, arg database.InsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
+	return q.InsertProvisionerDaemon(ctx, arg)
 }

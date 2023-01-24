@@ -64,16 +64,6 @@ func (q *AuthzQuerier) GetUserCount(ctx context.Context) (int64, error) {
 	return q.GetFilteredUserCount(ctx, database.GetFilteredUserCountParams{})
 }
 
-func (q *AuthzQuerier) GetUserLinkByLinkedID(ctx context.Context, linkedID string) (database.UserLink, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) GetUserLinkByUserIDLoginType(ctx context.Context, arg database.GetUserLinkByUserIDLoginTypeParams) (database.UserLink, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
 func (q *AuthzQuerier) GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error) {
 	// TODO: We should use GetUsersWithCount with a better method signature.
 	return authorizedFetchSet(q.authorizer, q.database.GetUsers)(ctx, arg)
@@ -155,16 +145,6 @@ func (q *AuthzQuerier) UpdateUserLastSeenAt(ctx context.Context, arg database.Up
 	return authorizedUpdateWithReturn(q.authorizer, fetch, q.database.UpdateUserLastSeenAt)(ctx, arg)
 }
 
-func (q *AuthzQuerier) UpdateUserLink(ctx context.Context, arg database.UpdateUserLinkParams) (database.UserLink, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (q *AuthzQuerier) UpdateUserLinkedID(ctx context.Context, arg database.UpdateUserLinkedIDParams) (database.UserLink, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
 func (q *AuthzQuerier) UpdateUserProfile(ctx context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
 	fetch := func(ctx context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
 		return q.GetUserByID(ctx, arg.ID)
@@ -191,6 +171,10 @@ func (q *AuthzQuerier) InsertGitSSHKey(ctx context.Context, arg database.InsertG
 	return authorizedInsertWithReturn(q.authorizer, rbac.ActionCreate, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID), q.database.InsertGitSSHKey)(ctx, arg)
 }
 
+func (q *AuthzQuerier) UpdateGitSSHKey(ctx context.Context, arg database.UpdateGitSSHKeyParams) (database.GitSSHKey, error) {
+	return authorizedInsertWithReturn(q.authorizer, rbac.ActionUpdate, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID), q.database.UpdateGitSSHKey)(ctx, arg)
+}
+
 func (q *AuthzQuerier) GetGitAuthLink(ctx context.Context, arg database.GetGitAuthLinkParams) (database.GitAuthLink, error) {
 	// TODO @emyrk: Which permissions should be checked here? It looks like oauth has
 	// unique authz flow like workspace agents. Maybe this resource should have it's
@@ -199,6 +183,11 @@ func (q *AuthzQuerier) GetGitAuthLink(ctx context.Context, arg database.GetGitAu
 }
 
 func (q *AuthzQuerier) InsertGitAuthLink(ctx context.Context, arg database.InsertGitAuthLinkParams) (database.GitAuthLink, error) {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (q *AuthzQuerier) UpdateUserLink(ctx context.Context, arg database.UpdateUserLinkParams) (database.UserLink, error) {
 	// TODO implement me
 	panic("implement me")
 }

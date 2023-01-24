@@ -2259,27 +2259,6 @@ func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProv
 	return i, err
 }
 
-const updateProvisionerDaemonByID = `-- name: UpdateProvisionerDaemonByID :exec
-UPDATE
-	provisioner_daemons
-SET
-	updated_at = $2,
-	provisioners = $3
-WHERE
-	id = $1
-`
-
-type UpdateProvisionerDaemonByIDParams struct {
-	ID           uuid.UUID         `db:"id" json:"id"`
-	UpdatedAt    sql.NullTime      `db:"updated_at" json:"updated_at"`
-	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
-}
-
-func (q *sqlQuerier) UpdateProvisionerDaemonByID(ctx context.Context, arg UpdateProvisionerDaemonByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateProvisionerDaemonByID, arg.ID, arg.UpdatedAt, pq.Array(arg.Provisioners))
-	return err
-}
-
 const getProvisionerLogsByIDBetween = `-- name: GetProvisionerLogsByIDBetween :many
 SELECT
 	job_id, created_at, source, level, stage, output, id
