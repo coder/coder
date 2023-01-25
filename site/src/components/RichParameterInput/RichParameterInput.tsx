@@ -1,5 +1,4 @@
 import FormControlLabel from "@material-ui/core/FormControlLabel"
-import Icon from "@material-ui/icons/Brightness1"
 import Radio from "@material-ui/core/Radio"
 import RadioGroup from "@material-ui/core/RadioGroup"
 import { makeStyles } from "@material-ui/core/styles"
@@ -49,13 +48,13 @@ export interface RichParameterInputProps {
   disabled?: boolean
   parameter: TemplateVersionParameter
   onChange: (value: string) => void
-  defaultValue?: string
 }
 
 export const RichParameterInput: FC<RichParameterInputProps> = ({
   disabled,
   onChange,
   parameter,
+  ...props
 }) => {
   const styles = useStyles()
 
@@ -64,6 +63,7 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
       <ParameterLabel parameter={parameter} />
       <div className={styles.input}>
         <RichParameterField
+          {...props}
           disabled={disabled}
           onChange={onChange}
           parameter={parameter}
@@ -76,14 +76,14 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
 const RichParameterField: React.FC<RichParameterInputProps> = ({
   disabled,
   onChange,
-  parameter
+  parameter,
+  ...props
 }) => {
   const styles = useStyles();
 
   if (isBoolean(parameter)) {
     return (
       <RadioGroup
-        id={parameter.name}
         defaultValue={parameter.default_value}
         onChange={(event) => {
           onChange(event.target.value)
@@ -108,8 +108,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
   if (parameter.options.length > 0) {
     return (
       <RadioGroup
-        id={parameter.name}
-        defaultValue={parameter.default_value}
+        defaultValue={parameter.options[0].value}
         onChange={(event) => {
           onChange(event.target.value)
         }}
@@ -117,6 +116,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
         {
           parameter.options.map((option) => (
             <FormControlLabel
+              disabled={disabled}
               key={option.name}
               value={option.value}
               control={<Radio color="primary" size="small" disableRipple />}
@@ -147,7 +147,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
   // we should break this out into more finely scoped input fields.
   return (
     <TextField
-      id={parameter.name}
+      {...props}
       type={parameter.type}
       size="small"
       disabled={disabled}

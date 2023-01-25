@@ -6,7 +6,6 @@ import { RichParameterInput } from "components/RichParameterInput/RichParameterI
 import { Stack } from "components/Stack/Stack"
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
-import { i18n } from "i18n"
 import { FC, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { getFormHelpers, nameValidator, onChangeTrimmed } from "util/formUtils"
@@ -45,12 +44,6 @@ export interface CreateWorkspacePageViewProps {
   defaultParameterValues?: Record<string, string>
 }
 
-const { t } = i18n
-
-export const validationSchema = Yup.object({
-  name: nameValidator(t("nameLabel", { ns: "createWorkspacePage" })),
-})
-
 export const CreateWorkspacePageView: FC<
   React.PropsWithChildren<CreateWorkspacePageViewProps>
 > = (props) => {
@@ -61,11 +54,24 @@ export const CreateWorkspacePageView: FC<
     Record<string, string>
   >(props.defaultParameterValues ?? {})
 
+  const validationSchema = Yup.object({
+    name: nameValidator(t("nameLabel", { ns: "createWorkspacePage" })),
+    rich_parameter_values: Yup.array()
+      .of(
+        Yup.object().shape({
+          "name": Yup.string().required(),
+          "value": Yup.string().required().test('len', 'Must be exactly 5 characters', val => val !== undefined && val.length === 5),
+        })
+      )
+      .required()
+  })
+
   const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
     useFormik<TypesGen.CreateWorkspaceRequest>({
       initialValues: {
         name: "",
         template_id: props.selectedTemplate ? props.selectedTemplate.id : "",
+        rich_parameter_values: defaultRichParameters(props.templateParameters),
       },
       enableReinitialize: true,
       validationSchema,
@@ -268,12 +274,17 @@ export const CreateWorkspacePageView: FC<
                 spacing={4} // Spacing here is diff because the fields here don't have the MUI floating label spacing
                 className={styles.formSectionFields}
               >
-                {props.templateParameters.map((parameter) => (
+                {props.templateParameters.map((parameter, index) => (
                   <RichParameterInput
+                    {...getFieldHelpers("rich_parameter_values[" + index + "].value")}
                     disabled={form.isSubmitting}
                     key={parameter.name}
-                    defaultValue={parameter.default_value}
-                    onChange={validate}
+                    onChange={(value) => {
+                      form.setFieldValue("rich_parameter_values." + index, {
+                        name: parameter.name,
+                        value: value,
+                      });
+                    }}
                     parameter={parameter}
                   />
                 ))}
@@ -364,8 +375,27 @@ const useFormFooterStyles = makeStyles((theme) => ({
   },
 }))
 
-const validate = (value :string) => {
-  if (value === "1") {
-    value = value + "0"
+const defaultRichParameters = (templateParameters?: TypesGen.TemplateVersionParameter[]): TypesGen.WorkspaceBuildParameter[] => {
+  const defaults: TypesGen.WorkspaceBuildParameter[] = [];
+  if (!templateParameters) {
+    return defaults
   }
-};
+
+  templateParameters.forEach((parameter) => {
+    if (parameter.options.length > 0) {
+      const buildParameter: TypesGen.WorkspaceBuildParameter = {
+        name: parameter.name,
+        value: parameter.options[0].value,
+      }
+      defaults.push(buildParameter)
+      return
+    }
+
+    const buildParameter: TypesGen.WorkspaceBuildParameter = {
+      name: parameter.name,
+      value: parameter.default_value || '',
+    }
+    defaults.push(buildParameter)
+  })
+  return defaults;
+}
