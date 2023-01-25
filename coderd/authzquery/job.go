@@ -12,23 +12,23 @@ import (
 )
 
 func (q *AuthzQuerier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg database.UpdateProvisionerJobWithCancelByIDParams) error {
-	job, err := q.GetProvisionerJobByID(ctx, arg.ID)
+	job, err := q.database.GetProvisionerJobByID(ctx, arg.ID)
 	if err != nil {
 		return err
 	}
 
 	switch job.Type {
 	case database.ProvisionerJobTypeWorkspaceBuild:
-		build, err := q.GetWorkspaceBuildByJobID(ctx, arg.ID)
+		build, err := q.database.GetWorkspaceBuildByJobID(ctx, arg.ID)
 		if err != nil {
 			return err
 		}
-		workspace, err := q.GetWorkspaceByID(ctx, build.WorkspaceID)
+		workspace, err := q.database.GetWorkspaceByID(ctx, build.WorkspaceID)
 		if err != nil {
 			return err
 		}
 
-		template, err := q.GetTemplateByID(ctx, workspace.TemplateID)
+		template, err := q.database.GetTemplateByID(ctx, workspace.TemplateID)
 		if err != nil {
 			return err
 		}
@@ -51,13 +51,13 @@ func (q *AuthzQuerier) UpdateProvisionerJobWithCancelByID(ctx context.Context, a
 			return err
 		}
 	case database.ProvisionerJobTypeTemplateVersionDryRun, database.ProvisionerJobTypeTemplateVersionImport:
-		templateVersion, err := q.GetTemplateVersionByJobID(ctx, arg.ID)
+		templateVersion, err := q.database.GetTemplateVersionByJobID(ctx, arg.ID)
 		if err != nil {
 			return err
 		}
 
 		if templateVersion.TemplateID.Valid {
-			template, err := q.GetTemplateByID(ctx, templateVersion.TemplateID.UUID)
+			template, err := q.database.GetTemplateByID(ctx, templateVersion.TemplateID.UUID)
 			if err != nil {
 				return err
 			}
@@ -74,11 +74,11 @@ func (q *AuthzQuerier) UpdateProvisionerJobWithCancelByID(ctx context.Context, a
 	default:
 		return xerrors.Errorf("unknown job type: %q", job.Type)
 	}
-	return q.UpdateProvisionerJobWithCancelByID(ctx, arg)
+	return q.database.UpdateProvisionerJobWithCancelByID(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
-	job, err := q.GetProvisionerJobByID(ctx, id)
+	job, err := q.database.GetProvisionerJobByID(ctx, id)
 	if err != nil {
 		return database.ProvisionerJob{}, err
 	}

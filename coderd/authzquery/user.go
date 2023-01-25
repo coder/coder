@@ -189,7 +189,7 @@ func (q *AuthzQuerier) GetGitAuthLink(ctx context.Context, arg database.GetGitAu
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID)); err != nil {
 		return database.GitAuthLink{}, err
 	}
-	return q.GetGitAuthLink(ctx, arg)
+	return q.database.GetGitAuthLink(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertGitAuthLink(ctx context.Context, arg database.InsertGitAuthLinkParams) (database.GitAuthLink, error) {
@@ -197,7 +197,7 @@ func (q *AuthzQuerier) InsertGitAuthLink(ctx context.Context, arg database.Inser
 	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID)); err != nil {
 		return database.GitAuthLink{}, err
 	}
-	return q.InsertGitAuthLink(ctx, arg)
+	return q.database.InsertGitAuthLink(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateGitAuthLink(ctx context.Context, arg database.UpdateGitAuthLinkParams) error {
@@ -205,7 +205,7 @@ func (q *AuthzQuerier) UpdateGitAuthLink(ctx context.Context, arg database.Updat
 	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID)); err != nil {
 		return err
 	}
-	return q.UpdateGitAuthLink(ctx, arg)
+	return q.database.UpdateGitAuthLink(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateUserLink(ctx context.Context, arg database.UpdateUserLinkParams) (database.UserLink, error) {
@@ -213,7 +213,7 @@ func (q *AuthzQuerier) UpdateUserLink(ctx context.Context, arg database.UpdateUs
 	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID)); err != nil {
 		return database.UserLink{}, err
 	}
-	return q.UpdateUserLink(ctx, arg)
+	return q.database.UpdateUserLink(ctx, arg)
 }
 
 // UpdateUserRoles updates the site roles of a user. The validation for this function include more than

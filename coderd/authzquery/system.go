@@ -44,6 +44,10 @@ func (q *AuthzQuerier) GetActiveUserCount(ctx context.Context) (int64, error) {
 	return q.database.GetActiveUserCount(ctx)
 }
 
+func (q *AuthzQuerier) GetUnexpiredLicenses(ctx context.Context) ([]database.License, error) {
+	return q.database.GetUnexpiredLicenses(ctx)
+}
+
 func (q *AuthzQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error) {
 	return q.database.GetAuthorizationUserRoles(ctx, userID)
 }
@@ -129,10 +133,10 @@ func (q *AuthzQuerier) DeleteOldAgentStats(ctx context.Context) error {
 }
 
 func (q *AuthzQuerier) GetParameterSchemasCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ParameterSchema, error) {
-	return q.GetParameterSchemasCreatedAfter(ctx, createdAt)
+	return q.database.GetParameterSchemasCreatedAfter(ctx, createdAt)
 }
 func (q *AuthzQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ProvisionerJob, error) {
-	return q.GetProvisionerJobsCreatedAfter(ctx, createdAt)
+	return q.database.GetProvisionerJobsCreatedAfter(ctx, createdAt)
 }
 
 // Provisionerd server functions
@@ -174,13 +178,13 @@ func (q *AuthzQuerier) InsertProvisionerDaemon(ctx context.Context, arg database
 }
 
 func (q *AuthzQuerier) InsertTemplateVersionParameter(ctx context.Context, arg database.InsertTemplateVersionParameterParams) (database.TemplateVersionParameter, error) {
-	return q.InsertTemplateVersionParameter(ctx, arg)
+	return q.database.InsertTemplateVersionParameter(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertWorkspaceResource(ctx context.Context, arg database.InsertWorkspaceResourceParams) (database.WorkspaceResource, error) {
-	return q.InsertWorkspaceResource(ctx, arg)
+	return q.database.InsertWorkspaceResource(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertParameterSchema(ctx context.Context, arg database.InsertParameterSchemaParams) (database.ParameterSchema, error) {
-	return q.InsertParameterSchema(ctx, arg)
+	return q.database.InsertParameterSchema(ctx, arg)
 }

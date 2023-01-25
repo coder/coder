@@ -10,31 +10,31 @@ import (
 )
 
 func (q *AuthzQuerier) DeleteAPIKeyByID(ctx context.Context, id string) error {
-	return authorizedDelete(q.authorizer, q.GetAPIKeyByID, q.DeleteAPIKeyByID)(ctx, id)
+	return authorizedDelete(q.authorizer, q.database.GetAPIKeyByID, q.database.DeleteAPIKeyByID)(ctx, id)
 }
 
 func (q *AuthzQuerier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
-	return authorizedFetch(q.authorizer, q.GetAPIKeyByID)(ctx, id)
+	return authorizedFetch(q.authorizer, q.database.GetAPIKeyByID)(ctx, id)
 }
 
 func (q *AuthzQuerier) GetAPIKeysByLoginType(ctx context.Context, loginType database.LoginType) ([]database.APIKey, error) {
-	return authorizedFetchSet(q.authorizer, q.GetAPIKeysByLoginType)(ctx, loginType)
+	return authorizedFetchSet(q.authorizer, q.database.GetAPIKeysByLoginType)(ctx, loginType)
 }
 
 func (q *AuthzQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]database.APIKey, error) {
-	return authorizedFetchSet(q.authorizer, q.GetAPIKeysLastUsedAfter)(ctx, lastUsed)
+	return authorizedFetchSet(q.authorizer, q.database.GetAPIKeysLastUsedAfter)(ctx, lastUsed)
 }
 
 func (q *AuthzQuerier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
 	return authorizedInsertWithReturn(q.authorizer,
 		rbac.ActionRead,
 		rbac.ResourceAPIKey.WithOwner(arg.UserID.String()),
-		q.InsertAPIKey)(ctx, arg)
+		q.database.InsertAPIKey)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKeyByIDParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateAPIKeyByIDParams) (database.APIKey, error) {
 		return q.GetAPIKeyByID(ctx, arg.ID)
 	}
-	return authorizedUpdate(q.authorizer, fetch, q.UpdateAPIKeyByID)(ctx, arg)
+	return authorizedUpdate(q.authorizer, fetch, q.database.UpdateAPIKeyByID)(ctx, arg)
 }

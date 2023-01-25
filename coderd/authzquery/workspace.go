@@ -50,7 +50,7 @@ func (q *AuthzQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Contex
 		allowedIDs = append(allowedIDs, workspace.ID)
 	}
 
-	return q.GetLatestWorkspaceBuildsByWorkspaceIDs(ctx, allowedIDs)
+	return q.database.GetLatestWorkspaceBuildsByWorkspaceIDs(ctx, allowedIDs)
 }
 
 func (q *AuthzQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
@@ -154,7 +154,7 @@ func (q *AuthzQuerier) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) 
 }
 
 func (q *AuthzQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UUID) (database.WorkspaceBuild, error) {
-	build, err := q.GetWorkspaceBuildByJobID(ctx, jobID)
+	build, err := q.database.GetWorkspaceBuildByJobID(ctx, jobID)
 	if err != nil {
 		return database.WorkspaceBuild{}, err
 	}
@@ -181,7 +181,7 @@ func (q *AuthzQuerier) GetWorkspaceBuildParameters(ctx context.Context, workspac
 		return nil, err
 	}
 
-	return q.GetWorkspaceBuildParameters(ctx, workspaceBuildID)
+	return q.database.GetWorkspaceBuildParameters(ctx, workspaceBuildID)
 }
 
 func (q *AuthzQuerier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg database.GetWorkspaceBuildsByWorkspaceIDParams) ([]database.WorkspaceBuild, error) {

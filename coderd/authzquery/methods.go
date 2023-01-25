@@ -12,7 +12,7 @@ import (
 
 func (q *AuthzQuerier) GetProvisionerDaemons(ctx context.Context) ([]database.ProvisionerDaemon, error) {
 	fetch := func(ctx context.Context, _ interface{}) ([]database.ProvisionerDaemon, error) {
-		return q.GetProvisionerDaemons(ctx)
+		return q.database.GetProvisionerDaemons(ctx)
 	}
 	return authorizedFetchSet(q.authorizer, fetch)(ctx, nil)
 }
@@ -20,7 +20,7 @@ func (q *AuthzQuerier) GetProvisionerDaemons(ctx context.Context) ([]database.Pr
 func (q *AuthzQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
 	// TODO: This is missing authorization and is incorrect. This call is used by telemetry, and by 1 http route.
 	// That http handler should find a better way to fetch these jobs with easier rbac authz.
-	return q.GetProvisionerJobsByIDs(ctx, ids)
+	return q.database.GetProvisionerJobsByIDs(ctx, ids)
 }
 
 func (q *AuthzQuerier) GetProvisionerLogsByIDBetween(ctx context.Context, arg database.GetProvisionerLogsByIDBetweenParams) ([]database.ProvisionerJobLog, error) {
@@ -29,5 +29,5 @@ func (q *AuthzQuerier) GetProvisionerLogsByIDBetween(ctx context.Context, arg da
 	if err != nil {
 		return nil, err
 	}
-	return q.GetProvisionerLogsByIDBetween(ctx, arg)
+	return q.database.GetProvisionerLogsByIDBetween(ctx, arg)
 }

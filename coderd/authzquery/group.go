@@ -53,12 +53,12 @@ func (q *AuthzQuerier) InsertGroupMember(ctx context.Context, arg database.Inser
 	fetch := func(ctx context.Context, arg database.InsertGroupMemberParams) (database.Group, error) {
 		return q.database.GetGroupByID(ctx, arg.GroupID)
 	}
-	return authorizedUpdate(q.authorizer, fetch, q.InsertGroupMember)(ctx, arg)
+	return authorizedUpdate(q.authorizer, fetch, q.database.InsertGroupMember)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateGroupByID(ctx context.Context, arg database.UpdateGroupByIDParams) (database.Group, error) {
 	fetch := func(ctx context.Context, arg database.UpdateGroupByIDParams) (database.Group, error) {
 		return q.database.GetGroupByID(ctx, arg.ID)
 	}
-	return authorizedUpdateWithReturn(q.authorizer, fetch, q.UpdateGroupByID)(ctx, arg)
+	return authorizedUpdateWithReturn(q.authorizer, fetch, q.database.UpdateGroupByID)(ctx, arg)
 }

@@ -208,7 +208,7 @@ func (q *AuthzQuerier) InsertTemplateVersion(ctx context.Context, arg database.I
 		}
 	}
 
-	return q.InsertTemplateVersion(ctx, arg)
+	return q.database.InsertTemplateVersion(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {

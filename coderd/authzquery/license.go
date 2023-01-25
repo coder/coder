@@ -15,13 +15,6 @@ func (q *AuthzQuerier) GetLicenses(ctx context.Context) ([]database.License, err
 	return authorizedFetchSet(q.authorizer, fetch)(ctx, nil)
 }
 
-func (q *AuthzQuerier) GetUnexpiredLicenses(ctx context.Context) ([]database.License, error) {
-	fetch := func(ctx context.Context, _ interface{}) ([]database.License, error) {
-		return q.database.GetUnexpiredLicenses(ctx)
-	}
-	return authorizedFetchSet(q.authorizer, fetch)(ctx, nil)
-}
-
 func (q *AuthzQuerier) InsertLicense(ctx context.Context, arg database.InsertLicenseParams) (database.License, error) {
 	return authorizedInsertWithReturn(q.authorizer, rbac.ActionCreate, rbac.ResourceLicense, q.database.InsertLicense)(ctx, arg)
 }
@@ -51,15 +44,15 @@ func (q *AuthzQuerier) DeleteLicense(ctx context.Context, id int32) (int32, erro
 
 func (q *AuthzQuerier) GetDeploymentID(ctx context.Context) (string, error) {
 	// No authz checks
-	return q.GetDeploymentID(ctx)
+	return q.database.GetDeploymentID(ctx)
 }
 
 func (q *AuthzQuerier) GetLogoURL(ctx context.Context) (string, error) {
 	// No authz checks
-	return q.GetLogoURL(ctx)
+	return q.database.GetLogoURL(ctx)
 }
 
 func (q *AuthzQuerier) GetServiceBanner(ctx context.Context) (string, error) {
 	// No authz checks
-	return q.GetServiceBanner(ctx)
+	return q.database.GetServiceBanner(ctx)
 }
