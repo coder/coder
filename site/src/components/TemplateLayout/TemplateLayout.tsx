@@ -139,7 +139,7 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
         >
           <Stack direction="row" spacing={3} className={styles.pageTitle}>
             {hasIcon ? (
-              <Avatar src={template.icon} variant="square" fitImage />
+              <Avatar size="xl" src={template.icon} variant="square" fitImage />
             ) : (
               <Avatar size="xl">{template.name}</Avatar>
             )}
