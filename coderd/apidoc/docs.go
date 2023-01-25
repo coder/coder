@@ -370,13 +370,13 @@ const docTemplate = `{
                     }
                 ],
                 "produces": [
-                    "text/html"
+                    "text/html; charset=utf-8"
                 ],
                 "tags": [
                     "Debug"
                 ],
-                "summary": "Wireguard Coordinator Debug Info",
-                "operationId": "debuginfo-coordinator",
+                "summary": "Debug Info Wireguard Coordinator",
+                "operationId": "debug-info-wireguard-coordinator",
                 "responses": {
                     "200": {
                         "description": "OK"

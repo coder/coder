@@ -2,10 +2,10 @@ package coderd
 
 import "net/http"
 
-// @Summary Wireguard Coordinator Debug Info
-// @ID debuginfo-coordinator
+// @Summary Debug Info Wireguard Coordinator
+// @ID debug-info-wireguard-coordinator
 // @Security CoderSessionToken
-// @Produce html
+// @Produce text/html; charset=utf-8
 // @Tags Debug
 // @Success 200
 // @Router /debug/coordinator [get]

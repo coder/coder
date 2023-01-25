@@ -1,6 +1,6 @@
 # Debug
 
-## Wireguard Coordinator Debug Info
+## Debug Info Wireguard Coordinator
 
 ### Code samples
 
