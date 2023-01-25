@@ -44,7 +44,7 @@ func TestFilterError(t *testing.T) {
 	t.Parallel()
 	auth := NewAuthorizer(prometheus.NewRegistry())
 
-	_, err := Filter(context.Background(), auth, uuid.NewString(), []string{}, ScopeAll, []string{}, ActionRead, []Object{ResourceUser, ResourceWorkspace})
+	_, err := Filter(context.Background(), auth, uuid.NewString(), RoleNames{}, ScopeAll, []string{}, ActionRead, []Object{ResourceUser, ResourceWorkspace})
 	require.ErrorContains(t, err, "object types must be uniform")
 }
 
@@ -75,7 +75,7 @@ func TestFilter(t *testing.T) {
 	testCases := []struct {
 		Name       string
 		SubjectID  string
-		Roles      []string
+		Roles      RoleNames
 		Action     Action
 		Scope      ScopeName
 		ObjectType string

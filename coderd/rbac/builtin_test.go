@@ -17,7 +17,7 @@ type authSubject struct {
 	// Name is helpful for test assertions
 	Name   string
 	UserID string
-	Roles  []string
+	Roles  rbac.RoleNames
 	Groups []string
 }
 
