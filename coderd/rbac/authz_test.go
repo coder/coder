@@ -13,7 +13,7 @@ import (
 
 type benchmarkCase struct {
 	Name   string
-	Roles  []string
+	Roles  rbac.RoleNames
 	Groups []string
 	UserID uuid.UUID
 	Scope  rbac.ScopeName
