@@ -283,33 +283,6 @@ func (q *fakeQuerier) InsertAgentStat(_ context.Context, p database.InsertAgentS
 	return stat, nil
 }
 
-func (q *fakeQuerier) GetLatestAgentStat(_ context.Context, agentID uuid.UUID) (database.AgentStat, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	found := false
-	latest := database.AgentStat{}
-	for _, agentStat := range q.agentStats {
-		if agentStat.AgentID != agentID {
-			continue
-		}
-		if !found {
-			latest = agentStat
-			found = true
-			continue
-		}
-		if agentStat.CreatedAt.After(latest.CreatedAt) {
-			latest = agentStat
-			found = true
-			continue
-		}
-	}
-	if !found {
-		return database.AgentStat{}, sql.ErrNoRows
-	}
-	return latest, nil
-}
-
 func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, templateID uuid.UUID) ([]database.GetTemplateDAUsRow, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
