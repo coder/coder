@@ -5,7 +5,7 @@ import "net/http"
 // @Summary Debug Info Wireguard Coordinator
 // @ID debug-info-wireguard-coordinator
 // @Security CoderSessionToken
-// @Produce text/html; charset=utf-8
+// @Produce text/html
 // @Tags Debug
 // @Success 200
 // @Router /debug/coordinator [get]
