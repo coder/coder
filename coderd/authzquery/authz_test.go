@@ -2,7 +2,6 @@ package authzquery_test
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"testing"
 
@@ -18,6 +17,7 @@ import (
 // bugs. It isn't perfect, and only catches a subset of the possible bugs
 // as only the first db call will be made. But it is better than nothing.
 func TestAuthzQueryRecursive(t *testing.T) {
+	t.Parallel()
 	q := authzquery.NewAuthzQuerier(databasefake.New(), &coderdtest.RecordingAuthorizer{})
 	for i := 0; i < reflect.TypeOf(q).NumMethod(); i++ {
 		var ins []reflect.Value
@@ -32,7 +32,7 @@ func TestAuthzQueryRecursive(t *testing.T) {
 		if method.Name == "InTx" || method.Name == "Ping" {
 			continue
 		}
-		fmt.Println(method.Name, method.Type.NumIn(), len(ins))
+		t.Logf(method.Name, method.Type.NumIn(), len(ins))
 		reflect.ValueOf(q).Method(i).Call(ins)
 	}
 }
