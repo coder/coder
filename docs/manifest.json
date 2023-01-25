@@ -322,6 +322,11 @@
           "title": "Security",
           "description": "How to report vulnerabilities in Coder",
           "path": "./contributing/SECURITY.md"
+        },
+        {
+          "title": "Frontend",
+          "description": "Our guide for frontend development",
+          "path": "./contributing/frontend.md"
         }
       ]
     },
