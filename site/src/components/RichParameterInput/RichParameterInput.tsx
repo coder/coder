@@ -1,4 +1,5 @@
 import FormControlLabel from "@material-ui/core/FormControlLabel"
+import Icon from "@material-ui/icons/Brightness1"
 import Radio from "@material-ui/core/Radio"
 import RadioGroup from "@material-ui/core/RadioGroup"
 import { makeStyles } from "@material-ui/core/styles"
@@ -17,7 +18,21 @@ const ParameterLabel: React.FC<{ parameter: TemplateVersionParameter }> = ({ par
   if (parameter.name && parameter.description) {
     return (
       <label htmlFor={parameter.name}>
-        <span className={styles.labelName}>{parameter.name}</span>
+        <span className={styles.labelNameWithIcon}>
+          {parameter.icon && (
+            <span className={styles.iconWrapper}>
+              <img
+                className={styles.icon}
+                alt="Parameter icon"
+                src={parameter.icon}
+                style={{
+                  pointerEvents: "none",
+                }}
+              />
+              </span>
+            )}
+          <span className={styles.labelName}>{parameter.name}</span>
+        </span>
         <span className={styles.labelDescription}>{parameter.description}</span>
       </label>
     )
@@ -63,6 +78,8 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
   onChange,
   parameter
 }) => {
+  const styles = useStyles();
+
   if (isBoolean(parameter)) {
     return (
       <RadioGroup
@@ -88,6 +105,41 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
     )
   }
 
+  if (parameter.options.length > 0) {
+    return (
+      <RadioGroup
+        id={parameter.name}
+        defaultValue={parameter.default_value}
+        onChange={(event) => {
+          onChange(event.target.value)
+        }}
+      >
+        {
+          parameter.options.map((option) => (
+            <FormControlLabel
+              key={option.name}
+              value={option.value}
+              control={<Radio color="primary" size="small" disableRipple />}
+              label={(
+                <span>
+                  <img
+                      className={styles.optionIcon}
+                      alt="Parameter icon"
+                      src={parameter.icon}
+                      style={{
+                        pointerEvents: "none",
+                      }}
+                    />
+                  {option.name}
+                </span>
+              )}
+            />
+          ))
+        }
+      </RadioGroup>
+    )
+  }
+
   // A text field can technically handle all cases!
   // As other cases become more prominent (like filtering for numbers),
   // we should break this out into more finely scoped input fields.
@@ -106,11 +158,17 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
   )
 }
 
+const iconSize = 20
+const optionIconSize = 24
+
 const useStyles = makeStyles((theme) => ({
   labelName: {
     fontSize: 14,
     color: theme.palette.text.secondary,
     display: "block",
+    marginBottom: theme.spacing(1.0),
+  },
+  labelNameWithIcon: {
     marginBottom: theme.spacing(0.5),
   },
   labelDescription: {
@@ -127,5 +185,19 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     alignItems: "center",
     gap: theme.spacing(1),
+  },
+  iconWrapper: {
+    float: "left",
+  },
+  icon: {
+    height: iconSize,
+    width: iconSize,
+    marginRight: theme.spacing(1.0),
+  },
+  optionIcon: {
+    height: optionIconSize,
+    width: optionIconSize,
+    marginRight: theme.spacing(1.0),
+    float: "left",
   },
 }))
