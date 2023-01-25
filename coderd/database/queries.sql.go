@@ -2204,30 +2204,6 @@ func (q *sqlQuerier) ParameterValues(ctx context.Context, arg ParameterValuesPar
 	return items, nil
 }
 
-const getProvisionerDaemonByID = `-- name: GetProvisionerDaemonByID :one
-SELECT
-	id, created_at, updated_at, name, provisioners, replica_id, tags
-FROM
-	provisioner_daemons
-WHERE
-	id = $1
-`
-
-func (q *sqlQuerier) GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID) (ProvisionerDaemon, error) {
-	row := q.db.QueryRowContext(ctx, getProvisionerDaemonByID, id)
-	var i ProvisionerDaemon
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Name,
-		pq.Array(&i.Provisioners),
-		&i.ReplicaID,
-		&i.Tags,
-	)
-	return i, err
-}
-
 const getProvisionerDaemons = `-- name: GetProvisionerDaemons :many
 SELECT
 	id, created_at, updated_at, name, provisioners, replica_id, tags
@@ -2306,27 +2282,6 @@ func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProv
 		&i.Tags,
 	)
 	return i, err
-}
-
-const updateProvisionerDaemonByID = `-- name: UpdateProvisionerDaemonByID :exec
-UPDATE
-	provisioner_daemons
-SET
-	updated_at = $2,
-	provisioners = $3
-WHERE
-	id = $1
-`
-
-type UpdateProvisionerDaemonByIDParams struct {
-	ID           uuid.UUID         `db:"id" json:"id"`
-	UpdatedAt    sql.NullTime      `db:"updated_at" json:"updated_at"`
-	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
-}
-
-func (q *sqlQuerier) UpdateProvisionerDaemonByID(ctx context.Context, arg UpdateProvisionerDaemonByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateProvisionerDaemonByID, arg.ID, arg.UpdatedAt, pq.Array(arg.Provisioners))
-	return err
 }
 
 const getProvisionerLogsByIDBetween = `-- name: GetProvisionerLogsByIDBetween :many

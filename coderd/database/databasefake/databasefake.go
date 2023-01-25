@@ -2289,19 +2289,6 @@ func (q *fakeQuerier) GetWorkspaceAppByAgentIDAndSlug(_ context.Context, arg dat
 	return database.WorkspaceApp{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetProvisionerDaemonByID(_ context.Context, id uuid.UUID) (database.ProvisionerDaemon, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for _, provisionerDaemon := range q.provisionerDaemons {
-		if provisionerDaemon.ID != id {
-			continue
-		}
-		return provisionerDaemon, nil
-	}
-	return database.ProvisionerDaemon{}, sql.ErrNoRows
-}
-
 func (q *fakeQuerier) GetProvisionerJobByID(_ context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -3233,26 +3220,6 @@ func (q *fakeQuerier) UpdateTemplateVersionDescriptionByJobID(_ context.Context,
 		templateVersion.Readme = arg.Readme
 		templateVersion.UpdatedAt = arg.UpdatedAt
 		q.templateVersions[index] = templateVersion
-		return nil
-	}
-	return sql.ErrNoRows
-}
-
-func (q *fakeQuerier) UpdateProvisionerDaemonByID(_ context.Context, arg database.UpdateProvisionerDaemonByIDParams) error {
-	if err := validateDatabaseType(arg); err != nil {
-		return err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for index, daemon := range q.provisionerDaemons {
-		if arg.ID != daemon.ID {
-			continue
-		}
-		daemon.UpdatedAt = arg.UpdatedAt
-		daemon.Provisioners = arg.Provisioners
-		q.provisionerDaemons[index] = daemon
 		return nil
 	}
 	return sql.ErrNoRows
