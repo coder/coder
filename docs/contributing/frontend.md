@@ -60,7 +60,7 @@ We use [TanStack Query v4](https://tanstack.com/query/v4/docs/react/overview)(pr
 
 ### Where to fetch data
 
-Finding the right place to fetch data in React apps is the one million dollar question but we decided to make it only in the page components and pass the props down to the views. This makes it easier to find where data is being loaded and easy to test using Storybook - We are going to talk more about our testing strategy. So you will see components like `UsersPage` and `UsersPageView`.
+Finding the right place to fetch data in React apps is the one million dollar question but we decided to make it only in the page components and pass the props down to the views. This makes it easier to find where data is being loaded and easy to test using Storybook. So you will see components like `UsersPage` and `UsersPageView`.
 
 ### API
 
