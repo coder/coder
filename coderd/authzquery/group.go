@@ -28,12 +28,10 @@ func (q *AuthzQuerier) GetGroupByOrgAndName(ctx context.Context, arg database.Ge
 }
 
 func (q *AuthzQuerier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]database.User, error) {
-	// TODO: @emyrk feels like there should be a better way to do this.
-
-	// Get the group using the AuthzQuerier to check read access. If it works, we
-	// can fetch the members.
-	_, err := q.GetGroupByID(ctx, groupID)
-	if err != nil {
+	fetch := func() (rbac.Objecter, error) {
+		return q.database.GetGroupByID(ctx, groupID)
+	}
+	if err := q.authorizeContextF(ctx, rbac.ActionRead, fetch); err != nil {
 		return nil, err
 	}
 
