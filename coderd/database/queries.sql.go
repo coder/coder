@@ -25,27 +25,8 @@ func (q *sqlQuerier) DeleteOldAgentStats(ctx context.Context) error {
 	return err
 }
 
-const getLatestAgentStat = `-- name: GetLatestAgentStat :one
-SELECT id, created_at, user_id, agent_id, workspace_id, template_id, payload FROM agent_stats WHERE agent_id = $1 ORDER BY created_at DESC LIMIT 1
-`
-
-func (q *sqlQuerier) GetLatestAgentStat(ctx context.Context, agentID uuid.UUID) (AgentStat, error) {
-	row := q.db.QueryRowContext(ctx, getLatestAgentStat, agentID)
-	var i AgentStat
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UserID,
-		&i.AgentID,
-		&i.WorkspaceID,
-		&i.TemplateID,
-		&i.Payload,
-	)
-	return i, err
-}
-
 const getTemplateDAUs = `-- name: GetTemplateDAUs :many
-SELECT 
+SELECT
 	(created_at at TIME ZONE 'UTC')::date as date,
 	user_id
 FROM
@@ -1178,48 +1159,6 @@ func (q *sqlQuerier) GetGroupsByOrganizationID(ctx context.Context, organization
 	return items, nil
 }
 
-const getUserGroups = `-- name: GetUserGroups :many
-SELECT
-	groups.id, groups.name, groups.organization_id, groups.avatar_url, groups.quota_allowance
-FROM
-	groups
-JOIN
-	group_members
-ON
-	groups.id = group_members.group_id
-WHERE
-	group_members.user_id = $1
-`
-
-func (q *sqlQuerier) GetUserGroups(ctx context.Context, userID uuid.UUID) ([]Group, error) {
-	rows, err := q.db.QueryContext(ctx, getUserGroups, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Group
-	for rows.Next() {
-		var i Group
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.OrganizationID,
-			&i.AvatarURL,
-			&i.QuotaAllowance,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const insertAllUsersGroup = `-- name: InsertAllUsersGroup :one
 INSERT INTO groups (
 	id,
@@ -2204,30 +2143,6 @@ func (q *sqlQuerier) ParameterValues(ctx context.Context, arg ParameterValuesPar
 	return items, nil
 }
 
-const getProvisionerDaemonByID = `-- name: GetProvisionerDaemonByID :one
-SELECT
-	id, created_at, updated_at, name, provisioners, replica_id, tags
-FROM
-	provisioner_daemons
-WHERE
-	id = $1
-`
-
-func (q *sqlQuerier) GetProvisionerDaemonByID(ctx context.Context, id uuid.UUID) (ProvisionerDaemon, error) {
-	row := q.db.QueryRowContext(ctx, getProvisionerDaemonByID, id)
-	var i ProvisionerDaemon
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Name,
-		pq.Array(&i.Provisioners),
-		&i.ReplicaID,
-		&i.Tags,
-	)
-	return i, err
-}
-
 const getProvisionerDaemons = `-- name: GetProvisionerDaemons :many
 SELECT
 	id, created_at, updated_at, name, provisioners, replica_id, tags
@@ -2306,27 +2221,6 @@ func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProv
 		&i.Tags,
 	)
 	return i, err
-}
-
-const updateProvisionerDaemonByID = `-- name: UpdateProvisionerDaemonByID :exec
-UPDATE
-	provisioner_daemons
-SET
-	updated_at = $2,
-	provisioners = $3
-WHERE
-	id = $1
-`
-
-type UpdateProvisionerDaemonByIDParams struct {
-	ID           uuid.UUID         `db:"id" json:"id"`
-	UpdatedAt    sql.NullTime      `db:"updated_at" json:"updated_at"`
-	Provisioners []ProvisionerType `db:"provisioners" json:"provisioners"`
-}
-
-func (q *sqlQuerier) UpdateProvisionerDaemonByID(ctx context.Context, arg UpdateProvisionerDaemonByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateProvisionerDaemonByID, arg.ID, arg.UpdatedAt, pq.Array(arg.Provisioners))
-	return err
 }
 
 const getProvisionerLogsByIDBetween = `-- name: GetProvisionerLogsByIDBetween :many
@@ -6584,24 +6478,6 @@ func (q *sqlQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWo
 		&i.LastUsedAt,
 	)
 	return i, err
-}
-
-const getWorkspaceCountByUserID = `-- name: GetWorkspaceCountByUserID :one
-SELECT
-	COUNT(id)
-FROM
-	workspaces
-WHERE
-	owner_id = $1
-	-- Ignore deleted workspaces
-	AND deleted != true
-`
-
-func (q *sqlQuerier) GetWorkspaceCountByUserID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceCountByUserID, ownerID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
 }
 
 const getWorkspaceOwnerCountsByTemplateIDs = `-- name: GetWorkspaceOwnerCountsByTemplateIDs :many
