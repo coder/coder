@@ -12,7 +12,7 @@ All our dependencies are described in `site/package.json` but here are the most 
 - [Material V4](https://v4.mui.com/) for UI components
 - [react-router](https://reactrouter.com/en/main) for routing
 - [TanStack Query v4](https://tanstack.com/query/v4/docs/react/overview) for fetching data
-- [XState](https://xstate.js.org/docs/) for handling complex flows
+- [XState](https://xstate.js.org/docs/) for handling complex state flows
 - [axios](https://github.com/axios/axios) as fetching lib
 - [Playwright](https://playwright.dev/) for E2E testing
 - [Jest](https://jestjs.io/) for integration testing
@@ -20,7 +20,7 @@ All our dependencies are described in `site/package.json` but here are the most 
 
 ## Structure
 
-All the code related to the UI is inside the `site`` folder and we defined a few conventions to help people to navigate through it.
+All the code related to the UI is inside the `site` folder and we defined a few conventions to help people to navigate through it.
 
 - **e2e** - E2E tests
 - **src** - Source code
@@ -38,19 +38,19 @@ All the code related to the UI is inside the `site`` folder and we defined a few
 
 ## Routing
 
-We use [react-router](https://reactrouter.com/en/main) as our routing engine and adding a new route is very easy. If the new route needs to be authenticated, put it under the `<RequireAuth>` route, if it needs to live inside of the dashboard, put it under the `<DashboardLayout>`.
+We use [react-router](https://reactrouter.com/en/main) as our routing engine and adding a new route is very easy. If the new route needs to be authenticated, put it under the `<RequireAuth>` route and if it needs to live inside of the dashboard, put it under the `<DashboardLayout>` route.
 
 The `RequireAuth` component handles all the authentication logic for the routes and the `DashboardLayout` wraps the route adding a navbar and passing down common dashboard data.
 
 ## Pages
 
-Pages are the top-level components of the app. The page component lives under the `src/pages` folder and each page should have its own folder so we can better group the views, tests, utility functions and so on. We use a structure where the page component is responsible to fetch all the data and passing it down to the view. We explain this decision a bit better in the next section.
+Pages are the top-level components of the app. The page component lives under the `src/pages` folder and each page should have its own folder so we can better group the views, tests, utility functions and so on. We use a structure where the page component is responsible for fetching all the data and passing it down to the view. We explain this decision a bit better in the next section.
 
-> ℹ️ Code that is only related to the page should live inside of the page folder but if at some point it is used from other pages or components, you should consider to move it to the `src` level in the `utils`, `hooks` or `components` folder.
+> ℹ️ Code that is only related to the page should live inside of the page folder but if at some point it is used in other pages or components, you should consider moving it to the `src` level in the `utils`, `hooks` or `components` folder.
 
 ### States
 
-A page usually has three states at least: **loading**, **ready** or **success**, and **error** so remember to always handle these scenarios while you are coding a page. We also encourage you to add visual testing for these three states using the `*.stories.ts` file.
+A page usually has at least three states: **loading**, **ready** or **success**, and **error** so remember to always handle these scenarios while you are coding a page. We also encourage you to add visual testing for these three states using the `*.stories.ts` file.
 
 ## Fetching data
 
@@ -112,7 +112,7 @@ We use three types of testing in our app: **E2E**, **Integration** and **Visual 
 
 ### E2E (end-to-end)
 
-Are useful to test complete flows like "Create a user", "Import template", etc. For this one, we use [Playwright](https://playwright.dev/). If you only need to test if the page is being rendered correctly, you should probably consider using the **Visual** Testing\*\* approach.
+Are useful to test complete flows like "Create a user", "Import template", etc. For this one, we use [Playwright](https://playwright.dev/). If you only need to test if the page is being rendered correctly, you should probably consider using the **Visual Testing** approach.
 
 > ℹ️ For scenarios where you need to be authenticated, you can use `test.use({ storageState: getStatePath("authState") })`.
 
@@ -126,7 +126,7 @@ Test components without user interaction like testing if a page view is rendered
 
 ### What should I test?
 
-Choosing what to test is not always easier since there are a lot of flows and a lot of things can happen but definitely there are a few indicators that can help you with that.
+Choosing what to test is not always easy since there are a lot of flows and a lot of things can happen but these are a few indicators that can help you with that:
 
 - Things that can block the user
 - Reported bugs
