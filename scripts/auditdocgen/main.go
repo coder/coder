@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"flag"
-	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -78,7 +77,6 @@ func readAuditDoc() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("document returned", doc)
 
 	return doc, nil
 }
