@@ -20,7 +20,6 @@ AND
 LIMIT
 	1;
 
-
 -- name: GetGroupMembers :many
 SELECT
 	users.*

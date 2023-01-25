@@ -283,33 +283,6 @@ func (q *fakeQuerier) InsertAgentStat(_ context.Context, p database.InsertAgentS
 	return stat, nil
 }
 
-func (q *fakeQuerier) GetLatestAgentStat(_ context.Context, agentID uuid.UUID) (database.AgentStat, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	found := false
-	latest := database.AgentStat{}
-	for _, agentStat := range q.agentStats {
-		if agentStat.AgentID != agentID {
-			continue
-		}
-		if !found {
-			latest = agentStat
-			found = true
-			continue
-		}
-		if agentStat.CreatedAt.After(latest.CreatedAt) {
-			latest = agentStat
-			found = true
-			continue
-		}
-	}
-	if !found {
-		return database.AgentStat{}, sql.ErrNoRows
-	}
-	return latest, nil
-}
-
 func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, templateID uuid.UUID) ([]database.GetTemplateDAUsRow, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -2288,19 +2261,6 @@ func (q *fakeQuerier) GetWorkspaceAppByAgentIDAndSlug(_ context.Context, arg dat
 		return app, nil
 	}
 	return database.WorkspaceApp{}, sql.ErrNoRows
-}
-
-func (q *fakeQuerier) GetProvisionerDaemonByID(_ context.Context, id uuid.UUID) (database.ProvisionerDaemon, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for _, provisionerDaemon := range q.provisionerDaemons {
-		if provisionerDaemon.ID != id {
-			continue
-		}
-		return provisionerDaemon, nil
-	}
-	return database.ProvisionerDaemon{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) GetProvisionerJobByID(_ context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
