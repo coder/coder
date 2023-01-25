@@ -9,7 +9,7 @@ import { combineClasses } from "util/combineClasses"
 import { firstLetter } from "./firstLetter"
 
 export type AvatarProps = MuiAvatarProps & {
-  size?: "sm" | "md" | "xl"
+  size?: "md" | "xl"
   colorScheme?: "light" | "darken"
   fitImage?: boolean
 }
@@ -47,11 +47,6 @@ export const AvatarIcon: FC<{ children: JSX.Element }> = ({ children }) => {
 
 const useStyles = makeStyles((theme) => ({
   // Size styles
-  sm: {
-    width: theme.spacing(4),
-    height: theme.spacing(4),
-    fontSize: theme.spacing(2),
-  },
   // Just use the default value from theme
   md: {},
   xl: {
