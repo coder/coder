@@ -55,7 +55,6 @@ import (
 	"github.com/coder/coder/cli/deployment"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/authzquery"
 	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
@@ -180,10 +179,11 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 	}
 	// TODO: remove this once we're ready to enable authz querier by default.
 	if strings.Contains(os.Getenv("CODER_EXPERIMENTS_TEST"), "authz_querier") {
+		panic("Coming soon!")
 		if options.Authorizer != nil {
 			options.Authorizer = &RecordingAuthorizer{}
 		}
-		options.Database = authzquery.NewAuthzQuerier(options.Database, options.Authorizer)
+		// options.Database = authzquery.NewAuthzQuerier(options.Database, options.Authorizer)
 	}
 	if options.DeploymentConfig == nil {
 		options.DeploymentConfig = DeploymentConfig(t)
