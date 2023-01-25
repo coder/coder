@@ -199,6 +199,7 @@ func configSSH() *cobra.Command {
 			if err != nil && !errors.Is(err, fs.ErrNotExist) {
 				return xerrors.Errorf("read ssh config failed: %w", err)
 			}
+			before, section, after, foundSection := sshConfigSplitOnCoderSection(configRaw)
 
 			// Keep track of changes we are making.
 			var changes []string
@@ -206,7 +207,7 @@ func configSSH() *cobra.Command {
 			// Parse the previous configuration only if config-ssh
 			// has been run previously.
 			var lastConfig *sshConfigOptions
-			if section, ok := sshConfigGetCoderSection(configRaw); ok {
+			if foundSection {
 				c := sshConfigParseLastOptions(bytes.NewReader(section))
 				lastConfig = &c
 			}
@@ -249,7 +250,6 @@ func configSSH() *cobra.Command {
 			configModified := configRaw
 
 			buf := &bytes.Buffer{}
-			before, after := sshConfigSplitOnCoderSection(configModified)
 			// Write the first half of the users config file to buf.
 			_, _ = buf.Write(before)
 
@@ -418,36 +418,28 @@ func sshConfigParseLastOptions(r io.Reader) (o sshConfigOptions) {
 	return o
 }
 
-func sshConfigGetCoderSection(data []byte) (section []byte, ok bool) {
-	startIndex := bytes.Index(data, []byte(sshStartToken))
-	endIndex := bytes.Index(data, []byte(sshEndToken))
-	if startIndex != -1 && endIndex != -1 {
-		return data[startIndex : endIndex+len(sshEndToken)], true
-	}
-	return nil, false
-}
-
-// sshConfigSplitOnCoderSection splits the SSH config into two sections,
-// before contains the lines before sshStartToken and after contains the
-// lines after sshEndToken.
-func sshConfigSplitOnCoderSection(data []byte) (before, after []byte) {
-	startIndex := bytes.Index(data, []byte(sshStartToken))
-	endIndex := bytes.Index(data, []byte(sshEndToken))
-	if startIndex != -1 && endIndex != -1 {
-		// We use -1 and +1 here to also include the preceding
-		// and trailing newline, where applicable.
-		start := startIndex
-		if start > 0 {
-			start--
-		}
-		end := endIndex + len(sshEndToken)
-		if end < len(data) {
-			end++
-		}
-		return data[:start], data[end:]
+// sshConfigSplitOnCoderSection splits the SSH config into sections
+// before, in between, and after sshStartToken and sshEndToken.
+func sshConfigSplitOnCoderSection(data []byte) (before, section, after []byte, ok bool) {
+	beforeStart, afterStart, ok := bytes.Cut(data, []byte(sshStartToken))
+	if !ok {
+		return data, nil, nil, false
 	}
 
-	return data, nil
+	section, afterEnd, ok := bytes.Cut(afterStart, []byte(sshEndToken))
+	if !ok {
+		return data, nil, nil, false
+	}
+
+	// We adjust the slices here to remove the preceding and trailing
+	// newlines, where applicable.
+	if len(beforeStart) > 0 {
+		beforeStart = beforeStart[:len(beforeStart)-1]
+	}
+	if len(afterEnd) > 0 {
+		afterEnd = afterEnd[1:]
+	}
+	return beforeStart, section, afterEnd, true
 }
 
 // writeWithTempFileAndMove writes to a temporary file in the same
