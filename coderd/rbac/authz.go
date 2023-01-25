@@ -27,7 +27,7 @@ import (
 // support unavailable to the user. Eg: Scope to a single resource.
 type ExpandableRoles interface {
 	Expand() ([]Role, error)
-	// Names is fo logging and tracing purposes, we want to know the human
+	// Names is for logging and tracing purposes, we want to know the human
 	// names of the expanded roles.
 	Names() []string
 }

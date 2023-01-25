@@ -20,7 +20,8 @@ const (
 )
 
 // RoleNames is a list of user assignable role names. The role names must be
-// in the builtInRoles map.
+// in the builtInRoles map. Any non-user assignable roles will generate an
+// error on Expand.
 type RoleNames []string
 
 func (names RoleNames) Expand() ([]Role, error) {
