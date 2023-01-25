@@ -25,7 +25,8 @@ import (
 // └──────────────────┘   └────────────────────┘   └───────────────────┘   └──────────────────┘
 // Coordinators have different guarantees for HA support.
 type Coordinator interface {
-	// ServeHTTPDebug
+	// ServeHTTPDebug serves a debug webpage that shows the internal state of
+	// the coordinator.
 	ServeHTTPDebug(w http.ResponseWriter, r *http.Request)
 	// Node returns an in-memory node by ID.
 	Node(id uuid.UUID) *Node
