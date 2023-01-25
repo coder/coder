@@ -1,9 +1,8 @@
-import Avatar from "@material-ui/core/Avatar"
+import { Avatar } from "components/Avatar/Avatar"
 import Badge from "@material-ui/core/Badge"
 import { withStyles } from "@material-ui/core/styles"
 import Group from "@material-ui/icons/Group"
 import { FC } from "react"
-import { firstLetter } from "util/firstLetter"
 
 const StyledBadge = withStyles((theme) => ({
   badge: {
@@ -38,7 +37,7 @@ export const GroupAvatar: FC<GroupAvatarProps> = ({ name, avatarURL }) => {
       }}
       badgeContent={<Group />}
     >
-      <Avatar src={avatarURL}>{firstLetter(name)}</Avatar>
+      <Avatar src={avatarURL}>{name}</Avatar>
     </StyledBadge>
   )
 }

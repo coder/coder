@@ -34,7 +34,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
       {build && (
         <PageHeader>
           <Stack direction="row" alignItems="center" spacing={3}>
-            <BuildAvatar build={build} size={48} />
+            <BuildAvatar build={build} size="xl" />
             <div>
               <PageHeaderTitle>Build #{build.build_number}</PageHeaderTitle>
               <PageHeaderSubtitle condensed>

@@ -41,6 +41,7 @@ import { Template } from "api/typesGenerated"
 import { combineClasses } from "util/combineClasses"
 import { colors } from "theme/colors"
 import ArrowForwardOutlined from "@material-ui/icons/ArrowForwardOutlined"
+import { Avatar } from "components/Avatar/Avatar"
 
 export const Language = {
   developerCount: (activeCount: number): string => {
@@ -97,13 +98,8 @@ const TemplateRow: FC<{ template: Template }> = ({ template }) => {
               : template.name
           }
           subtitle={template.description}
-          highlightTitle
           avatar={
-            hasIcon && (
-              <div className={styles.templateIconWrapper}>
-                <img alt="" src={template.icon} />
-              </div>
-            )
+            hasIcon && <Avatar src={template.icon} variant="square" fitImage />
           }
         />
       </TableCell>
