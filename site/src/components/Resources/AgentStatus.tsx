@@ -139,7 +139,7 @@ const ConnectedStatus: React.FC<{
   // if delay_login_until_ready is true, the user has updated to
   // terraform-provider-coder v0.6.7 and opted in to the functionality.
   //
-  // Remove check once documentation is in place and we we do a breaking
+  // Remove check once documentation is in place and we do a breaking
   // release indicating startup script behavior has changed.
   // https://github.com/coder/coder/issues/5749
   if (agent.delay_login_until_ready) {
