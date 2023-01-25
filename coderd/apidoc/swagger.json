@@ -315,7 +315,7 @@
             "CoderSessionToken": []
           }
         ],
-        "produces": ["text/html; charset=utf-8"],
+        "produces": ["text/html"],
         "tags": ["Debug"],
         "summary": "Debug Info Wireguard Coordinator",
         "operationId": "debug-info-wireguard-coordinator",

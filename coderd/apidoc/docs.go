@@ -370,7 +370,7 @@ const docTemplate = `{
                     }
                 ],
                 "produces": [
-                    "text/html; charset=utf-8"
+                    "text/html"
                 ],
                 "tags": [
                     "Debug"
