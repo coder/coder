@@ -122,14 +122,16 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
               control={<Radio color="primary" size="small" disableRipple />}
               label={(
                 <span>
-                  <img
+                  {option.icon && (
+                    <img
                       className={styles.optionIcon}
                       alt="Parameter icon"
-                      src={parameter.icon}
+                      src={option.icon}
                       style={{
                         pointerEvents: "none",
                       }}
                     />
+                  )}
                   {option.name}
                 </span>
               )}
@@ -190,12 +192,12 @@ const useStyles = makeStyles((theme) => ({
     float: "left",
   },
   icon: {
-    height: iconSize,
+    maxHeight: iconSize,
     width: iconSize,
     marginRight: theme.spacing(1.0),
   },
   optionIcon: {
-    height: optionIconSize,
+    maxHeight: optionIconSize,
     width: optionIconSize,
     marginRight: theme.spacing(1.0),
     float: "left",
