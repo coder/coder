@@ -31,7 +31,8 @@ The supported filters are:
 - `username` - The username of the user who triggered the action.
 - `email` - The email of the user who triggered the action.
 - `date_from` - The inclusive start date with format `YYYY-MM-DD`.
-- `date_to ` - the inclusive end date with format `YYYY-MM-DD`.
+- `date_to` - The inclusive end date with format `YYYY-MM-DD`.
+- `build_reason` - To be used with `resource_type:workspace_build`, the [initiator](https://pkg.go.dev/github.com/coder/coder/codersdk#BuildReason) behind the build start or stop.
 
 ## Enabling this feature
 

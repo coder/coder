@@ -779,3 +779,10 @@ export const getTemplateVersionLogs = async (
   )
   return response.data
 }
+
+export const updateWorkspaceVersion = async (
+  workspace: TypesGen.Workspace,
+): Promise<TypesGen.WorkspaceBuild> => {
+  const template = await getTemplate(workspace.template_id)
+  return startWorkspace(workspace.id, template.active_version_id)
+}

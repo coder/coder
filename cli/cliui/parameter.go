@@ -67,20 +67,21 @@ func RichParameter(cmd *cobra.Command, templateVersionParameter codersdk.Templat
 		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+strings.TrimSpace(strings.Join(strings.Split(templateVersionParameter.Description, "\n"), "\n  "))+"\n")
 	}
 
-	// TODO Implement full validation and show descriptions.
 	var err error
 	var value string
 	if len(templateVersionParameter.Options) > 0 {
 		// Move the cursor up a single line for nicer display!
 		_, _ = fmt.Fprint(cmd.OutOrStdout(), "\033[1A")
-		value, err = Select(cmd, SelectOptions{
-			Options:    templateVersionParameterOptionValues(templateVersionParameter),
+		var richParameterOption *codersdk.TemplateVersionParameterOption
+		richParameterOption, err = RichSelect(cmd, RichSelectOptions{
+			Options:    templateVersionParameter.Options,
 			Default:    templateVersionParameter.DefaultValue,
 			HideSearch: true,
 		})
 		if err == nil {
 			_, _ = fmt.Fprintln(cmd.OutOrStdout())
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+Styles.Prompt.String()+Styles.Field.Render(value))
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+Styles.Prompt.String()+Styles.Field.Render(richParameterOption.Name))
+			value = richParameterOption.Value
 		}
 	} else {
 		text := "Enter a value"
@@ -91,6 +92,9 @@ func RichParameter(cmd *cobra.Command, templateVersionParameter codersdk.Templat
 
 		value, err = Prompt(cmd, PromptOptions{
 			Text: Styles.Bold.Render(text),
+			Validate: func(value string) error {
+				return validateRichPrompt(value, templateVersionParameter)
+			},
 		})
 		value = strings.TrimSpace(value)
 	}
@@ -106,10 +110,9 @@ func RichParameter(cmd *cobra.Command, templateVersionParameter codersdk.Templat
 	return value, nil
 }
 
-func templateVersionParameterOptionValues(param codersdk.TemplateVersionParameter) []string {
-	var options []string
-	for _, opt := range param.Options {
-		options = append(options, opt.Value)
-	}
-	return options
+func validateRichPrompt(value string, p codersdk.TemplateVersionParameter) error {
+	return codersdk.ValidateWorkspaceBuildParameter(p, codersdk.WorkspaceBuildParameter{
+		Name:  p.Name,
+		Value: value,
+	})
 }

@@ -348,18 +348,41 @@ func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDP
 
 const getAuditLogsOffset = `-- name: GetAuditLogsOffset :many
 SELECT
-	audit_logs.id, audit_logs.time, audit_logs.user_id, audit_logs.organization_id, audit_logs.ip, audit_logs.user_agent, audit_logs.resource_type, audit_logs.resource_id, audit_logs.resource_target, audit_logs.action, audit_logs.diff, audit_logs.status_code, audit_logs.additional_fields, audit_logs.request_id, audit_logs.resource_icon,
+    audit_logs.id, audit_logs.time, audit_logs.user_id, audit_logs.organization_id, audit_logs.ip, audit_logs.user_agent, audit_logs.resource_type, audit_logs.resource_id, audit_logs.resource_target, audit_logs.action, audit_logs.diff, audit_logs.status_code, audit_logs.additional_fields, audit_logs.request_id, audit_logs.resource_icon,
     users.username AS user_username,
     users.email AS user_email,
     users.created_at AS user_created_at,
     users.status AS user_status,
     users.rbac_roles AS user_roles,
     users.avatar_url AS user_avatar_url,
-		COUNT(audit_logs.*) OVER() AS count
+    COUNT(audit_logs.*) OVER () AS count
 FROM
-	audit_logs
-LEFT JOIN
-    users ON audit_logs.user_id = users.id
+    audit_logs
+    LEFT JOIN users ON audit_logs.user_id = users.id
+    LEFT JOIN
+        -- First join on workspaces to get the initial workspace create
+        -- to workspace build 1 id. This is because the first create is
+        -- is a different audit log than subsequent starts.
+        workspaces ON
+		    audit_logs.resource_type = 'workspace' AND
+			audit_logs.resource_id = workspaces.id
+    LEFT JOIN
+	    workspace_builds ON
+            -- Get the reason from the build if the resource type
+            -- is a workspace_build
+            (
+			    audit_logs.resource_type = 'workspace_build'
+                AND audit_logs.resource_id = workspace_builds.id
+			)
+            OR
+            -- Get the reason from the build #1 if this is the first
+            -- workspace create.
+            (
+				audit_logs.resource_type = 'workspace' AND
+				audit_logs.action = 'create' AND
+				workspaces.id = workspace_builds.workspace_id AND
+				workspace_builds.build_number = 1
+			)
 WHERE
     -- Filter resource_type
 	CASE
@@ -409,6 +432,12 @@ WHERE
 			"time" <= $10
 		ELSE true
 	END
+    -- Filter by build_reason
+    AND CASE
+	    WHEN $11::text != '' THEN
+            workspace_builds.reason::text = $11
+        ELSE true
+    END
 ORDER BY
     "time" DESC
 LIMIT
@@ -428,6 +457,7 @@ type GetAuditLogsOffsetParams struct {
 	Email          string    `db:"email" json:"email"`
 	DateFrom       time.Time `db:"date_from" json:"date_from"`
 	DateTo         time.Time `db:"date_to" json:"date_to"`
+	BuildReason    string    `db:"build_reason" json:"build_reason"`
 }
 
 type GetAuditLogsOffsetRow struct {
@@ -469,6 +499,7 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 		arg.Email,
 		arg.DateFrom,
 		arg.DateTo,
+		arg.BuildReason,
 	)
 	if err != nil {
 		return nil, err
@@ -3461,7 +3492,7 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 }
 
 const getTemplateVersionParameters = `-- name: GetTemplateVersionParameters :many
-SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max FROM template_version_parameters WHERE template_version_id = $1
+SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error FROM template_version_parameters WHERE template_version_id = $1
 `
 
 func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionParameter, error) {
@@ -3485,6 +3516,7 @@ func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateV
 			&i.ValidationRegex,
 			&i.ValidationMin,
 			&i.ValidationMax,
+			&i.ValidationError,
 		); err != nil {
 			return nil, err
 		}
@@ -3512,7 +3544,8 @@ INSERT INTO
         options,
         validation_regex,
         validation_min,
-        validation_max
+        validation_max,
+        validation_error
     )
 VALUES
     (
@@ -3526,8 +3559,9 @@ VALUES
         $8,
         $9,
         $10,
-        $11
-    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max
+        $11,
+        $12
+    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error
 `
 
 type InsertTemplateVersionParameterParams struct {
@@ -3542,6 +3576,7 @@ type InsertTemplateVersionParameterParams struct {
 	ValidationRegex   string          `db:"validation_regex" json:"validation_regex"`
 	ValidationMin     int32           `db:"validation_min" json:"validation_min"`
 	ValidationMax     int32           `db:"validation_max" json:"validation_max"`
+	ValidationError   string          `db:"validation_error" json:"validation_error"`
 }
 
 func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg InsertTemplateVersionParameterParams) (TemplateVersionParameter, error) {
@@ -3557,6 +3592,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		arg.ValidationRegex,
 		arg.ValidationMin,
 		arg.ValidationMax,
+		arg.ValidationError,
 	)
 	var i TemplateVersionParameter
 	err := row.Scan(
@@ -3571,6 +3607,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		&i.ValidationRegex,
 		&i.ValidationMin,
 		&i.ValidationMax,
+		&i.ValidationError,
 	)
 	return i, err
 }
@@ -4787,7 +4824,7 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 
 const getWorkspaceAgentByAuthToken = `-- name: GetWorkspaceAgentByAuthToken :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, delay_login_until_ready, startup_script_timeout_seconds
 FROM
 	workspace_agents
 WHERE
@@ -4822,13 +4859,16 @@ func (q *sqlQuerier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken
 		&i.ConnectionTimeoutSeconds,
 		&i.TroubleshootingURL,
 		&i.MOTDFile,
+		&i.LifecycleState,
+		&i.DelayLoginUntilReady,
+		&i.StartupScriptTimeoutSeconds,
 	)
 	return i, err
 }
 
 const getWorkspaceAgentByID = `-- name: GetWorkspaceAgentByID :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, delay_login_until_ready, startup_script_timeout_seconds
 FROM
 	workspace_agents
 WHERE
@@ -4861,13 +4901,16 @@ func (q *sqlQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (W
 		&i.ConnectionTimeoutSeconds,
 		&i.TroubleshootingURL,
 		&i.MOTDFile,
+		&i.LifecycleState,
+		&i.DelayLoginUntilReady,
+		&i.StartupScriptTimeoutSeconds,
 	)
 	return i, err
 }
 
 const getWorkspaceAgentByInstanceID = `-- name: GetWorkspaceAgentByInstanceID :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, delay_login_until_ready, startup_script_timeout_seconds
 FROM
 	workspace_agents
 WHERE
@@ -4902,13 +4945,16 @@ func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInst
 		&i.ConnectionTimeoutSeconds,
 		&i.TroubleshootingURL,
 		&i.MOTDFile,
+		&i.LifecycleState,
+		&i.DelayLoginUntilReady,
+		&i.StartupScriptTimeoutSeconds,
 	)
 	return i, err
 }
 
 const getWorkspaceAgentsByResourceIDs = `-- name: GetWorkspaceAgentsByResourceIDs :many
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, delay_login_until_ready, startup_script_timeout_seconds
 FROM
 	workspace_agents
 WHERE
@@ -4947,6 +4993,9 @@ func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []
 			&i.ConnectionTimeoutSeconds,
 			&i.TroubleshootingURL,
 			&i.MOTDFile,
+			&i.LifecycleState,
+			&i.DelayLoginUntilReady,
+			&i.StartupScriptTimeoutSeconds,
 		); err != nil {
 			return nil, err
 		}
@@ -4962,7 +5011,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []
 }
 
 const getWorkspaceAgentsCreatedAfter = `-- name: GetWorkspaceAgentsCreatedAfter :many
-SELECT id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file FROM workspace_agents WHERE created_at > $1
+SELECT id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, delay_login_until_ready, startup_script_timeout_seconds FROM workspace_agents WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceAgent, error) {
@@ -4997,6 +5046,9 @@ func (q *sqlQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, created
 			&i.ConnectionTimeoutSeconds,
 			&i.TroubleshootingURL,
 			&i.MOTDFile,
+			&i.LifecycleState,
+			&i.DelayLoginUntilReady,
+			&i.StartupScriptTimeoutSeconds,
 		); err != nil {
 			return nil, err
 		}
@@ -5030,30 +5082,34 @@ INSERT INTO
 		resource_metadata,
 		connection_timeout_seconds,
 		troubleshooting_url,
-		motd_file
+		motd_file,
+		delay_login_until_ready,
+		startup_script_timeout_seconds
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, delay_login_until_ready, startup_script_timeout_seconds
 `
 
 type InsertWorkspaceAgentParams struct {
-	ID                       uuid.UUID             `db:"id" json:"id"`
-	CreatedAt                time.Time             `db:"created_at" json:"created_at"`
-	UpdatedAt                time.Time             `db:"updated_at" json:"updated_at"`
-	Name                     string                `db:"name" json:"name"`
-	ResourceID               uuid.UUID             `db:"resource_id" json:"resource_id"`
-	AuthToken                uuid.UUID             `db:"auth_token" json:"auth_token"`
-	AuthInstanceID           sql.NullString        `db:"auth_instance_id" json:"auth_instance_id"`
-	Architecture             string                `db:"architecture" json:"architecture"`
-	EnvironmentVariables     pqtype.NullRawMessage `db:"environment_variables" json:"environment_variables"`
-	OperatingSystem          string                `db:"operating_system" json:"operating_system"`
-	StartupScript            sql.NullString        `db:"startup_script" json:"startup_script"`
-	Directory                string                `db:"directory" json:"directory"`
-	InstanceMetadata         pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
-	ResourceMetadata         pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
-	ConnectionTimeoutSeconds int32                 `db:"connection_timeout_seconds" json:"connection_timeout_seconds"`
-	TroubleshootingURL       string                `db:"troubleshooting_url" json:"troubleshooting_url"`
-	MOTDFile                 string                `db:"motd_file" json:"motd_file"`
+	ID                          uuid.UUID             `db:"id" json:"id"`
+	CreatedAt                   time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt                   time.Time             `db:"updated_at" json:"updated_at"`
+	Name                        string                `db:"name" json:"name"`
+	ResourceID                  uuid.UUID             `db:"resource_id" json:"resource_id"`
+	AuthToken                   uuid.UUID             `db:"auth_token" json:"auth_token"`
+	AuthInstanceID              sql.NullString        `db:"auth_instance_id" json:"auth_instance_id"`
+	Architecture                string                `db:"architecture" json:"architecture"`
+	EnvironmentVariables        pqtype.NullRawMessage `db:"environment_variables" json:"environment_variables"`
+	OperatingSystem             string                `db:"operating_system" json:"operating_system"`
+	StartupScript               sql.NullString        `db:"startup_script" json:"startup_script"`
+	Directory                   string                `db:"directory" json:"directory"`
+	InstanceMetadata            pqtype.NullRawMessage `db:"instance_metadata" json:"instance_metadata"`
+	ResourceMetadata            pqtype.NullRawMessage `db:"resource_metadata" json:"resource_metadata"`
+	ConnectionTimeoutSeconds    int32                 `db:"connection_timeout_seconds" json:"connection_timeout_seconds"`
+	TroubleshootingURL          string                `db:"troubleshooting_url" json:"troubleshooting_url"`
+	MOTDFile                    string                `db:"motd_file" json:"motd_file"`
+	DelayLoginUntilReady        bool                  `db:"delay_login_until_ready" json:"delay_login_until_ready"`
+	StartupScriptTimeoutSeconds int32                 `db:"startup_script_timeout_seconds" json:"startup_script_timeout_seconds"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspaceAgentParams) (WorkspaceAgent, error) {
@@ -5075,6 +5131,8 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 		arg.ConnectionTimeoutSeconds,
 		arg.TroubleshootingURL,
 		arg.MOTDFile,
+		arg.DelayLoginUntilReady,
+		arg.StartupScriptTimeoutSeconds,
 	)
 	var i WorkspaceAgent
 	err := row.Scan(
@@ -5100,6 +5158,9 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 		&i.ConnectionTimeoutSeconds,
 		&i.TroubleshootingURL,
 		&i.MOTDFile,
+		&i.LifecycleState,
+		&i.DelayLoginUntilReady,
+		&i.StartupScriptTimeoutSeconds,
 	)
 	return i, err
 }
@@ -5135,6 +5196,25 @@ func (q *sqlQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg
 		arg.DisconnectedAt,
 		arg.UpdatedAt,
 	)
+	return err
+}
+
+const updateWorkspaceAgentLifecycleStateByID = `-- name: UpdateWorkspaceAgentLifecycleStateByID :exec
+UPDATE
+	workspace_agents
+SET
+	lifecycle_state = $2
+WHERE
+	id = $1
+`
+
+type UpdateWorkspaceAgentLifecycleStateByIDParams struct {
+	ID             uuid.UUID                    `db:"id" json:"id"`
+	LifecycleState WorkspaceAgentLifecycleState `db:"lifecycle_state" json:"lifecycle_state"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg UpdateWorkspaceAgentLifecycleStateByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentLifecycleStateByID, arg.ID, arg.LifecycleState)
 	return err
 }
 

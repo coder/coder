@@ -301,6 +301,9 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   },
   connection_timeout_seconds: 120,
   troubleshooting_url: "https://coder.com/troubleshoot",
+  lifecycle_state: "starting",
+  delay_login_until_ready: true,
+  startup_script_timeout_seconds: 120,
 }
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
@@ -310,6 +313,7 @@ export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
   status: "disconnected",
   version: "",
   latency: {},
+  lifecycle_state: "ready",
 }
 
 export const MockWorkspaceAgentOutdated: TypesGen.WorkspaceAgent = {
@@ -333,6 +337,7 @@ export const MockWorkspaceAgentOutdated: TypesGen.WorkspaceAgent = {
       latency_ms: 221.66,
     },
   },
+  lifecycle_state: "ready",
 }
 
 export const MockWorkspaceAgentConnecting: TypesGen.WorkspaceAgent = {
@@ -342,6 +347,7 @@ export const MockWorkspaceAgentConnecting: TypesGen.WorkspaceAgent = {
   status: "connecting",
   version: "",
   latency: {},
+  lifecycle_state: "created",
 }
 
 export const MockWorkspaceAgentTimeout: TypesGen.WorkspaceAgent = {
@@ -351,6 +357,28 @@ export const MockWorkspaceAgentTimeout: TypesGen.WorkspaceAgent = {
   status: "timeout",
   version: "",
   latency: {},
+  lifecycle_state: "created",
+}
+
+export const MockWorkspaceAgentStarting: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-starting",
+  name: "a-starting-workspace-agent",
+  lifecycle_state: "starting",
+}
+
+export const MockWorkspaceAgentStartTimeout: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-start-timeout",
+  name: "a-workspace-agent-timed-out-while-running-startup-script",
+  lifecycle_state: "start_timeout",
+}
+
+export const MockWorkspaceAgentStartError: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-start-error",
+  name: "a-workspace-agent-errored-while-running-startup-script",
+  lifecycle_state: "start_error",
 }
 
 export const MockWorkspaceResource: TypesGen.WorkspaceResource = {

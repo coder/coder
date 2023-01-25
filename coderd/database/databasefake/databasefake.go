@@ -2651,6 +2651,7 @@ func (q *fakeQuerier) InsertTemplateVersionParameter(_ context.Context, arg data
 		DefaultValue:      arg.DefaultValue,
 		Icon:              arg.Icon,
 		Options:           arg.Options,
+		ValidationError:   arg.ValidationError,
 		ValidationRegex:   arg.ValidationRegex,
 		ValidationMin:     arg.ValidationMin,
 		ValidationMax:     arg.ValidationMax,
@@ -2790,6 +2791,7 @@ func (q *fakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 		ConnectionTimeoutSeconds: arg.ConnectionTimeoutSeconds,
 		TroubleshootingURL:       arg.TroubleshootingURL,
 		MOTDFile:                 arg.MOTDFile,
+		LifecycleState:           database.WorkspaceAgentLifecycleStateCreated,
 	}
 
 	q.workspaceAgents = append(q.workspaceAgents, agent)
@@ -3659,6 +3661,12 @@ func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAu
 				continue
 			}
 		}
+		if arg.BuildReason != "" {
+			workspaceBuild, err := q.GetWorkspaceBuildByID(context.Background(), alog.ResourceID)
+			if err == nil && !strings.EqualFold(arg.BuildReason, string(workspaceBuild.Reason)) {
+				continue
+			}
+		}
 
 		user, err := q.GetUserByID(ctx, alog.UserID)
 		userValid := err == nil
@@ -4282,4 +4290,21 @@ func (q *fakeQuerier) GetQuotaConsumedForUser(_ context.Context, userID uuid.UUI
 		sum += int64(lastBuild.DailyCost)
 	}
 	return sum, nil
+}
+
+func (q *fakeQuerier) UpdateWorkspaceAgentLifecycleStateByID(_ context.Context, arg database.UpdateWorkspaceAgentLifecycleStateByIDParams) error {
+	if err := validateDatabaseType(arg); err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	for i, agent := range q.workspaceAgents {
+		if agent.ID == arg.ID {
+			agent.LifecycleState = arg.LifecycleState
+			q.workspaceAgents[i] = agent
+			return nil
+		}
+	}
+	return sql.ErrNoRows
 }
