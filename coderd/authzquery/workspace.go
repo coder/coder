@@ -93,6 +93,23 @@ func (q *AuthzQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids 
 	return agents, nil
 }
 
+func (q *AuthzQuerier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg database.UpdateWorkspaceAgentLifecycleStateByIDParams) error {
+	fetch := func() (rbac.Objecter, error) {
+		agent, err := q.database.GetWorkspaceAgentByID(ctx, arg.ID)
+		if err != nil {
+			return database.Workspace{}, err
+		}
+
+		return q.database.GetWorkspaceByAgentID(ctx, agent.ID)
+	}
+
+	if err := q.authorizeContextF(ctx, rbac.ActionUpdate, fetch); err != nil {
+		return err
+	}
+
+	return q.database.UpdateWorkspaceAgentLifecycleStateByID(ctx, arg)
+}
+
 func (q *AuthzQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg database.GetWorkspaceAppByAgentIDAndSlugParams) (database.WorkspaceApp, error) {
 	// If we can fetch the workspace, we can fetch the apps. Use the authorized call.
 	_, err := q.GetWorkspaceByID(ctx, arg.AgentID)
