@@ -362,6 +362,28 @@ const docTemplate = `{
                 }
             }
         },
+        "/debug/coordinator": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Debug Info Wireguard Coordinator",
+                "operationId": "debug-info-wireguard-coordinator",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/entitlements": {
             "get": {
                 "security": [
