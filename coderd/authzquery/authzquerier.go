@@ -63,15 +63,3 @@ func (q *AuthzQuerier) authorizeContext(ctx context.Context, action rbac.Action,
 	}
 	return nil
 }
-
-type fetchObjFunc func() (rbac.Objecter, error)
-
-// authorizeContextF is a helper function to authorize an action on an object.
-// objectFunc is a function that returns the object on which to authorize.
-func (q *AuthzQuerier) authorizeContextF(ctx context.Context, action rbac.Action, fetchObj fetchObjFunc) error {
-	obj, err := fetchObj()
-	if err != nil {
-		return xerrors.Errorf("fetch rbac object: %w", err)
-	}
-	return q.authorizeContext(ctx, action, obj.RBACObject())
-}

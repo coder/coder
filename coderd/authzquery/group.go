@@ -28,10 +28,11 @@ func (q *AuthzQuerier) GetGroupByOrgAndName(ctx context.Context, arg database.Ge
 }
 
 func (q *AuthzQuerier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]database.User, error) {
-	fetch := func() (rbac.Objecter, error) {
-		return q.database.GetGroupByID(ctx, groupID)
+	group, err := q.database.GetGroupByID(ctx, groupID)
+	if err != nil {
+		return nil, err
 	}
-	if err := q.authorizeContextF(ctx, rbac.ActionRead, fetch); err != nil {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, group); err != nil {
 		return nil, err
 	}
 

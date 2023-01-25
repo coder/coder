@@ -94,16 +94,17 @@ func (q *AuthzQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids 
 }
 
 func (q *AuthzQuerier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg database.UpdateWorkspaceAgentLifecycleStateByIDParams) error {
-	fetch := func() (rbac.Objecter, error) {
-		agent, err := q.database.GetWorkspaceAgentByID(ctx, arg.ID)
-		if err != nil {
-			return database.Workspace{}, err
-		}
-
-		return q.database.GetWorkspaceByAgentID(ctx, agent.ID)
+	agent, err := q.database.GetWorkspaceAgentByID(ctx, arg.ID)
+	if err != nil {
+		return err
 	}
 
-	if err := q.authorizeContextF(ctx, rbac.ActionUpdate, fetch); err != nil {
+	workspace, err := q.database.GetWorkspaceByAgentID(ctx, agent.ID)
+	if err != nil {
+		return err
+	}
+
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, workspace); err != nil {
 		return err
 	}
 
