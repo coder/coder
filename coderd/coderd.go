@@ -630,7 +630,7 @@ func New(options *Options) *API {
 				},
 			)
 
-			r.HandleFunc("/coordinator", api.debugCoordinator)
+			r.Get("/coordinator", api.debugCoordinator)
 		})
 	})
 
