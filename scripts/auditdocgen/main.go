@@ -103,7 +103,6 @@ func updateAuditDoc(doc []byte, auditableResourcesMap AuditableResourcesMap) ([]
 	buffer.WriteString("|--|-----------------|\n")
 
 	for resourceName, resourceFields := range auditableResourcesMap {
-
 		buffer.Write([]byte("|" + resourceName + "|<table><thead><tr><th>Field</th><th>Tracked</th></tr></thead><tbody>"))
 
 		for fieldName, isTracked := range resourceFields {
