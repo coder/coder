@@ -272,6 +272,11 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceTemplate,
 		},
+
+		"GET:/api/v2/debug/coordinator": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceDebugInfo,
+		},
 	}
 
 	// Routes like proxy routes support all HTTP methods. A helper func to expand
