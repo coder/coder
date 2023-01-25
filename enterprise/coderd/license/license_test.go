@@ -134,10 +134,12 @@ func TestEntitlements(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		db.InsertUser(context.Background(), database.InsertUserParams{
-			Username: "test1",
+			Username:  "test1",
+			LoginType: database.LoginTypePassword,
 		})
 		db.InsertUser(context.Background(), database.InsertUserParams{
-			Username: "test2",
+			Username:  "test2",
+			LoginType: database.LoginTypePassword,
 		})
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{

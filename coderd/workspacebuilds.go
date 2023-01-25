@@ -377,11 +377,6 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		state = createBuild.ProvisionerState
 	}
 
-	var parameters []codersdk.WorkspaceBuildParameter
-	if createBuild.RichParameterValues != nil {
-		parameters = createBuild.RichParameterValues
-	}
-
 	if createBuild.Orphan {
 		if createBuild.Transition != codersdk.WorkspaceTransitionDelete {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -454,21 +449,59 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		state = priorHistory.ProvisionerState
 	}
 
-	if parameters == nil {
-		buildParameters, err := api.Database.GetWorkspaceBuildParameters(ctx, priorHistory.ID)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching prior workspace build parameters.",
-				Detail:  err.Error(),
-			})
-			return
+	dbTemplateVersionParameters, err := api.Database.GetTemplateVersionParameters(ctx, createBuild.TemplateVersionID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template version parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	templateVersionParameters, err := convertTemplateVersionParameters(dbTemplateVersionParameters)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error converting template version parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	err = codersdk.ValidateWorkspaceBuildParameters(templateVersionParameters, createBuild.RichParameterValues)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Error validating workspace build parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	lastBuildParameters, err := api.Database.GetWorkspaceBuildParameters(ctx, priorHistory.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching prior workspace build parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	apiLastBuildParameters := convertWorkspaceBuildParameters(lastBuildParameters)
+
+	var parameters []codersdk.WorkspaceBuildParameter
+	for _, templateVersionParameter := range templateVersionParameters {
+		// Check if parameter value is in request
+		if buildParameter, found := findWorkspaceBuildParameter(createBuild.RichParameterValues, templateVersionParameter.Name); found {
+			if !templateVersionParameter.Mutable {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: fmt.Sprintf("Parameter %q is mutable, so it can't be updated after creating workspace.", templateVersionParameter.Name),
+				})
+				return
+			}
+			parameters = append(parameters, *buildParameter)
+			continue
 		}
-		parameters = make([]codersdk.WorkspaceBuildParameter, 0, len(buildParameters))
-		for _, param := range buildParameters {
-			parameters = append(parameters, codersdk.WorkspaceBuildParameter{
-				Name:  param.Name,
-				Value: param.Value,
-			})
+
+		// Check if parameter is defined in previous build
+		if buildParameter, found := findWorkspaceBuildParameter(apiLastBuildParameters, templateVersionParameter.Name); found {
+			parameters = append(parameters, *buildParameter)
 		}
 	}
 
@@ -567,7 +600,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Value:            values,
 		})
 		if err != nil {
-			return xerrors.Errorf("insert workspace build parameter: %w", err)
+			return xerrors.Errorf("insert workspace build parameters: %w", err)
 		}
 
 		return nil
@@ -1170,4 +1203,13 @@ func convertWorkspaceBuildParameters(parameters []database.WorkspaceBuildParamet
 		apiParameters = append(apiParameters, apiParameter)
 	}
 	return apiParameters
+}
+
+func findWorkspaceBuildParameter(params []codersdk.WorkspaceBuildParameter, parameterName string) (*codersdk.WorkspaceBuildParameter, bool) {
+	for _, p := range params {
+		if p.Name == parameterName {
+			return &p, true
+		}
+	}
+	return nil, false
 }

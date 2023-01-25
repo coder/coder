@@ -2,24 +2,22 @@ import TableCell from "@material-ui/core/TableCell"
 import { makeStyles } from "@material-ui/core/styles"
 import TableRow from "@material-ui/core/TableRow"
 import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
-import { useActor } from "@xstate/react"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
 import { useClickable } from "hooks/useClickable"
 import { FC } from "react"
 import { useNavigate } from "react-router-dom"
 import { getDisplayWorkspaceTemplateName } from "util/workspace"
-import { WorkspaceItemMachineRef } from "../../xServices/workspaces/workspacesXService"
 import { LastUsed } from "../LastUsed/LastUsed"
-import { OutdatedHelpTooltip } from "../Tooltips"
+import { Workspace } from "api/typesGenerated"
+import { OutdatedHelpTooltip } from "components/Tooltips/OutdatedHelpTooltip"
 
-export const WorkspacesRow: FC<{ workspaceRef: WorkspaceItemMachineRef }> = ({
-  workspaceRef,
-}) => {
+export const WorkspacesRow: FC<{
+  workspace: Workspace
+  onUpdateWorkspace: (workspace: Workspace) => void
+}> = ({ workspace, onUpdateWorkspace }) => {
   const styles = useStyles()
   const navigate = useNavigate()
-  const [workspaceState, send] = useActor(workspaceRef)
-  const { data: workspace } = workspaceState.context
   const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`
   const hasTemplateIcon =
     workspace.template_icon && workspace.template_icon !== ""
@@ -58,7 +56,7 @@ export const WorkspacesRow: FC<{ workspaceRef: WorkspaceItemMachineRef }> = ({
           {workspace.outdated && (
             <OutdatedHelpTooltip
               onUpdateVersion={() => {
-                send("UPDATE_VERSION")
+                onUpdateWorkspace(workspace)
               }}
             />
           )}

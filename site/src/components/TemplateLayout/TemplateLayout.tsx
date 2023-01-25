@@ -4,7 +4,7 @@ import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import SettingsOutlined from "@material-ui/icons/SettingsOutlined"
-import { useMachine, useSelector } from "@xstate/react"
+import { useMachine } from "@xstate/react"
 import {
   PageHeader,
   PageHeaderSubtitle,
@@ -20,8 +20,6 @@ import {
 } from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
 import { firstLetter } from "util/firstLetter"
-import { selectPermissions } from "xServices/auth/authSelectors"
-import { XServiceContext } from "xServices/StateContext"
 import {
   TemplateContext,
   templateMachine,
@@ -30,6 +28,7 @@ import { Margins } from "components/Margins/Margins"
 import { Stack } from "components/Stack/Stack"
 import { Permissions } from "xServices/auth/authXService"
 import { Loader } from "components/Loader/Loader"
+import { usePermissions } from "hooks/usePermissions"
 
 const Language = {
   settingsButton: "Settings",
@@ -108,8 +107,7 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
     },
   })
   const { template, permissions: templatePermissions } = templateState.context
-  const xServices = useContext(XServiceContext)
-  const permissions = useSelector(xServices.authXService, selectPermissions)
+  const permissions = usePermissions()
   const hasIcon = template && template.icon && template.icon !== ""
 
   if (!template) {

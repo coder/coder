@@ -4,11 +4,14 @@ Usage:
   coder update <workspace> [flags]
 
 Flags:
-      --always-prompt           Always prompt all parameters. Does not pull parameter values
-                                from existing workspace
-  -h, --help                    help for update
-      --parameter-file string   Specify a file path with parameter values.
-                                Consumes $CODER_PARAMETER_FILE
+      --always-prompt                Always prompt all parameters. Does not pull parameter
+                                     values from existing workspace
+  -h, --help                         help for update
+      --parameter-file string        Specify a file path with parameter values.
+                                     Consumes $CODER_PARAMETER_FILE
+      --rich-parameter-file string   Specify a file path with values for rich parameters
+                                     defined in the template.
+                                     Consumes $CODER_RICH_PARAMETER_FILE
 
 Global Flags:
       --global-config coder   Path to the global coder config directory.

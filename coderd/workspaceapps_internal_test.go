@@ -35,6 +35,8 @@ func TestAPIKeyEncryption(t *testing.T) {
 		_, err := db.InsertAPIKey(ctx, database.InsertAPIKeyParams{
 			ID:           keyID,
 			HashedSecret: hashedSecret,
+			LoginType:    database.LoginTypePassword,
+			Scope:        database.APIKeyScopeAll,
 		})
 		require.NoError(t, err)
 	}

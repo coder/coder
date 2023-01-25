@@ -301,6 +301,9 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   },
   connection_timeout_seconds: 120,
   troubleshooting_url: "https://coder.com/troubleshoot",
+  lifecycle_state: "starting",
+  delay_login_until_ready: true,
+  startup_script_timeout_seconds: 120,
 }
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
@@ -310,6 +313,7 @@ export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
   status: "disconnected",
   version: "",
   latency: {},
+  lifecycle_state: "ready",
 }
 
 export const MockWorkspaceAgentOutdated: TypesGen.WorkspaceAgent = {
@@ -333,6 +337,7 @@ export const MockWorkspaceAgentOutdated: TypesGen.WorkspaceAgent = {
       latency_ms: 221.66,
     },
   },
+  lifecycle_state: "ready",
 }
 
 export const MockWorkspaceAgentConnecting: TypesGen.WorkspaceAgent = {
@@ -342,6 +347,7 @@ export const MockWorkspaceAgentConnecting: TypesGen.WorkspaceAgent = {
   status: "connecting",
   version: "",
   latency: {},
+  lifecycle_state: "created",
 }
 
 export const MockWorkspaceAgentTimeout: TypesGen.WorkspaceAgent = {
@@ -351,6 +357,28 @@ export const MockWorkspaceAgentTimeout: TypesGen.WorkspaceAgent = {
   status: "timeout",
   version: "",
   latency: {},
+  lifecycle_state: "created",
+}
+
+export const MockWorkspaceAgentStarting: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-starting",
+  name: "a-starting-workspace-agent",
+  lifecycle_state: "starting",
+}
+
+export const MockWorkspaceAgentStartTimeout: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-start-timeout",
+  name: "a-workspace-agent-timed-out-while-running-startup-script",
+  lifecycle_state: "start_timeout",
+}
+
+export const MockWorkspaceAgentStartError: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-start-error",
+  name: "a-workspace-agent-errored-while-running-startup-script",
+  lifecycle_state: "start_error",
 }
 
 export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
@@ -982,7 +1010,7 @@ export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
   }),
 }
 
-export const MockExperiments: TypesGen.Experiment[] = ["vscode_local"]
+export const MockExperiments: TypesGen.Experiment[] = []
 
 export const MockAuditLog: TypesGen.AuditLog = {
   id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
@@ -1064,6 +1092,22 @@ export const MockAuditLogWithWorkspaceBuild: TypesGen.AuditLog = {
 export const MockAuditLogWithDeletedResource: TypesGen.AuditLog = {
   ...MockAuditLog,
   is_deleted: true,
+}
+
+export const MockAuditLogGitSSH: TypesGen.AuditLog = {
+  ...MockAuditLog,
+  diff: {
+    private_key: {
+      old: "",
+      new: "",
+      secret: true,
+    },
+    public_key: {
+      old: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINRUPjBSNtOAnL22+r07OSu9t3Lnm8/5OX8bRHECKS9g\n",
+      new: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEwoUPJPMekuSzMZyV0rA82TGGNzw/Uj/dhLbwiczTpV\n",
+      secret: false,
+    },
+  },
 }
 
 export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {

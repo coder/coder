@@ -293,20 +293,21 @@ func TestSSH(t *testing.T) {
 		pty.WriteLine("exit")
 		<-cmdDone
 	})
+}
 
-	//nolint:paralleltest // This test uses t.Setenv.
-	t.Run("ForwardGPG", func(t *testing.T) {
-		if runtime.GOOS == "windows" {
-			// While GPG forwarding from a Windows client works, we currently do
-			// not support forwarding to a Windows workspace. Our tests use the
-			// same platform for the "client" and "workspace" as they run in the
-			// same process.
-			t.Skip("Test not supported on windows")
-		}
+//nolint:paralleltest // This test uses t.Setenv, parent test MUST NOT be parallel.
+func TestSSH_ForwardGPG(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// While GPG forwarding from a Windows client works, we currently do
+		// not support forwarding to a Windows workspace. Our tests use the
+		// same platform for the "client" and "workspace" as they run in the
+		// same process.
+		t.Skip("Test not supported on windows")
+	}
 
-		// This key is for dean@coder.com.
-		const randPublicKeyFingerprint = "7BDFBA0CC7F5A96537C806C427BC6335EB5117F1"
-		const randPublicKey = `-----BEGIN PGP PUBLIC KEY BLOCK-----
+	// This key is for dean@coder.com.
+	const randPublicKeyFingerprint = "7BDFBA0CC7F5A96537C806C427BC6335EB5117F1"
+	const randPublicKey = `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQINBF6SWkEBEADB8sAhBaT36VQ6HEhAmtKexLldu1HUdXNw16rdF+1wiBzSFfJN
 aPeX4Y9iFIZgC2wU0wOjJ04BpioyOLtJngbThI5WpeoQ/1yQZOpnDaCMPPLp+uJ+
@@ -359,40 +360,40 @@ p7KeSZdlk47pMBGOfnvEmoQ=
 =OxHv
 -----END PGP PUBLIC KEY BLOCK-----`
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
 
-		gpgPath, err := exec.LookPath("gpg")
-		if err != nil {
-			t.Skip("gpg not found")
-		}
-		gpgConfPath, err := exec.LookPath("gpgconf")
-		if err != nil {
-			t.Skip("gpgconf not found")
-		}
-		gpgAgentPath, err := exec.LookPath("gpg-agent")
-		if err != nil {
-			t.Skip("gpg-agent not found")
-		}
+	gpgPath, err := exec.LookPath("gpg")
+	if err != nil {
+		t.Skip("gpg not found")
+	}
+	gpgConfPath, err := exec.LookPath("gpgconf")
+	if err != nil {
+		t.Skip("gpgconf not found")
+	}
+	gpgAgentPath, err := exec.LookPath("gpg-agent")
+	if err != nil {
+		t.Skip("gpg-agent not found")
+	}
 
-		// Setup GPG home directory on the "client".
-		gnupgHomeClient := tempDirUnixSocket(t)
-		t.Setenv("GNUPGHOME", gnupgHomeClient)
+	// Setup GPG home directory on the "client".
+	gnupgHomeClient := tempDirUnixSocket(t)
+	t.Setenv("GNUPGHOME", gnupgHomeClient)
 
-		// Get the agent extra socket path.
-		var (
-			stdout = bytes.NewBuffer(nil)
-			stderr = bytes.NewBuffer(nil)
-		)
-		c := exec.CommandContext(ctx, gpgConfPath, "--list-dir", "agent-extra-socket")
-		c.Stdout = stdout
-		c.Stderr = stderr
-		err = c.Run()
-		require.NoError(t, err, "get extra socket path failed: %s", stderr.String())
-		extraSocketPath := strings.TrimSpace(stdout.String())
+	// Get the agent extra socket path.
+	var (
+		stdout = bytes.NewBuffer(nil)
+		stderr = bytes.NewBuffer(nil)
+	)
+	c := exec.CommandContext(ctx, gpgConfPath, "--list-dir", "agent-extra-socket")
+	c.Stdout = stdout
+	c.Stderr = stderr
+	err = c.Run()
+	require.NoError(t, err, "get extra socket path failed: %s", stderr.String())
+	extraSocketPath := strings.TrimSpace(stdout.String())
 
-		// Generate private key non-interactively.
-		genKeyScript := `
+	// Generate private key non-interactively.
+	genKeyScript := `
 Key-Type: 1
 Key-Length: 2048
 Subkey-Type: 1
@@ -402,119 +403,118 @@ Name-Email: test@coder.com
 Expire-Date: 0
 %no-protection
 `
-		c = exec.CommandContext(ctx, gpgPath, "--batch", "--gen-key")
-		c.Stdin = strings.NewReader(genKeyScript)
-		out, err := c.CombinedOutput()
-		require.NoError(t, err, "generate key failed: %s", out)
+	c = exec.CommandContext(ctx, gpgPath, "--batch", "--gen-key")
+	c.Stdin = strings.NewReader(genKeyScript)
+	out, err := c.CombinedOutput()
+	require.NoError(t, err, "generate key failed: %s", out)
 
-		// Import a random public key.
-		stdin := strings.NewReader(randPublicKey + "\n")
-		c = exec.CommandContext(ctx, gpgPath, "--import", "-")
-		c.Stdin = stdin
-		out, err = c.CombinedOutput()
-		require.NoError(t, err, "import key failed: %s", out)
+	// Import a random public key.
+	stdin := strings.NewReader(randPublicKey + "\n")
+	c = exec.CommandContext(ctx, gpgPath, "--import", "-")
+	c.Stdin = stdin
+	out, err = c.CombinedOutput()
+	require.NoError(t, err, "import key failed: %s", out)
 
-		// Set ultimate trust on imported key.
-		stdin = strings.NewReader(randPublicKeyFingerprint + ":6:\n")
-		c = exec.CommandContext(ctx, gpgPath, "--import-ownertrust")
-		c.Stdin = stdin
-		out, err = c.CombinedOutput()
-		require.NoError(t, err, "import ownertrust failed: %s", out)
+	// Set ultimate trust on imported key.
+	stdin = strings.NewReader(randPublicKeyFingerprint + ":6:\n")
+	c = exec.CommandContext(ctx, gpgPath, "--import-ownertrust")
+	c.Stdin = stdin
+	out, err = c.CombinedOutput()
+	require.NoError(t, err, "import ownertrust failed: %s", out)
 
-		// Start the GPG agent.
-		agentCmd := exec.CommandContext(ctx, gpgAgentPath, "--no-detach", "--extra-socket", extraSocketPath)
-		agentCmd.Env = append(agentCmd.Env, "GNUPGHOME="+gnupgHomeClient)
-		agentPTY, agentProc, err := pty.Start(agentCmd, pty.WithPTYOption(pty.WithGPGTTY()))
-		require.NoError(t, err, "launch agent failed")
-		defer func() {
-			_ = agentProc.Kill()
-			_ = agentPTY.Close()
-		}()
+	// Start the GPG agent.
+	agentCmd := exec.CommandContext(ctx, gpgAgentPath, "--no-detach", "--extra-socket", extraSocketPath)
+	agentCmd.Env = append(agentCmd.Env, "GNUPGHOME="+gnupgHomeClient)
+	agentPTY, agentProc, err := pty.Start(agentCmd, pty.WithPTYOption(pty.WithGPGTTY()))
+	require.NoError(t, err, "launch agent failed")
+	defer func() {
+		_ = agentProc.Kill()
+		_ = agentPTY.Close()
+	}()
 
-		// Get the agent socket path in the "workspace".
-		gnupgHomeWorkspace := tempDirUnixSocket(t)
+	// Get the agent socket path in the "workspace".
+	gnupgHomeWorkspace := tempDirUnixSocket(t)
 
-		stdout = bytes.NewBuffer(nil)
-		stderr = bytes.NewBuffer(nil)
-		c = exec.CommandContext(ctx, gpgConfPath, "--list-dir", "agent-socket")
-		c.Env = append(c.Env, "GNUPGHOME="+gnupgHomeWorkspace)
-		c.Stdout = stdout
-		c.Stderr = stderr
-		err = c.Run()
-		require.NoError(t, err, "get agent socket path in workspace failed: %s", stderr.String())
-		workspaceAgentSocketPath := strings.TrimSpace(stdout.String())
-		require.NotEqual(t, extraSocketPath, workspaceAgentSocketPath, "socket path should be different")
+	stdout = bytes.NewBuffer(nil)
+	stderr = bytes.NewBuffer(nil)
+	c = exec.CommandContext(ctx, gpgConfPath, "--list-dir", "agent-socket")
+	c.Env = append(c.Env, "GNUPGHOME="+gnupgHomeWorkspace)
+	c.Stdout = stdout
+	c.Stderr = stderr
+	err = c.Run()
+	require.NoError(t, err, "get agent socket path in workspace failed: %s", stderr.String())
+	workspaceAgentSocketPath := strings.TrimSpace(stdout.String())
+	require.NotEqual(t, extraSocketPath, workspaceAgentSocketPath, "socket path should be different")
 
-		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
+	client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 
-		agentClient := codersdk.New(client.URL)
-		agentClient.SetSessionToken(agentToken)
-		agentCloser := agent.New(agent.Options{
-			Client: agentClient,
-			EnvironmentVariables: map[string]string{
-				"GNUPGHOME": gnupgHomeWorkspace,
-			},
-			Logger: slogtest.Make(t, nil).Named("agent"),
-		})
-		defer agentCloser.Close()
-
-		cmd, root := clitest.New(t,
-			"ssh",
-			workspace.Name,
-			"--forward-gpg",
-		)
-		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
-		cmd.SetErr(pty.Output())
-		cmdDone := tGo(t, func() {
-			err := cmd.ExecuteContext(ctx)
-			assert.NoError(t, err, "ssh command failed")
-		})
-		// Prevent the test from hanging if the asserts below kill the test
-		// early. This will cause the command to exit with an error, which will
-		// let the t.Cleanup'd `<-done` inside of `tGo` exit and not hang.
-		// Without this, the test will hang forever on failure, preventing the
-		// real error from being printed.
-		t.Cleanup(cancel)
-
-		// Wait for the prompt or any output really to indicate the command has
-		// started and accepting input on stdin.
-		_ = pty.Peek(ctx, 1)
-
-		pty.WriteLine("echo hello 'world'")
-		pty.ExpectMatch("hello world")
-
-		// Check the GNUPGHOME was correctly inherited via shell.
-		pty.WriteLine("env && echo env-''-command-done")
-		match := pty.ExpectMatch("env--command-done")
-		require.Contains(t, match, "GNUPGHOME="+gnupgHomeWorkspace, match)
-
-		// Get the agent extra socket path in the "workspace" via shell.
-		pty.WriteLine("gpgconf --list-dir agent-socket && echo gpgconf-''-agentsocket-command-done")
-		pty.ExpectMatch(workspaceAgentSocketPath)
-		pty.ExpectMatch("gpgconf--agentsocket-command-done")
-
-		// List the keys in the "workspace".
-		pty.WriteLine("gpg --list-keys && echo gpg-''-listkeys-command-done")
-		listKeysOutput := pty.ExpectMatch("gpg--listkeys-command-done")
-		require.Contains(t, listKeysOutput, "[ultimate] Coder Test <test@coder.com>")
-		require.Contains(t, listKeysOutput, "[ultimate] Dean Sheather (work key) <dean@coder.com>")
-
-		// Try to sign something. This demonstrates that the forwarding is
-		// working as expected, since the workspace doesn't have access to the
-		// private key directly and must use the forwarded agent.
-		pty.WriteLine("echo 'hello world' | gpg --clearsign && echo gpg-''-sign-command-done")
-		pty.ExpectMatch("BEGIN PGP SIGNED MESSAGE")
-		pty.ExpectMatch("Hash:")
-		pty.ExpectMatch("hello world")
-		pty.ExpectMatch("gpg--sign-command-done")
-
-		// And we're done.
-		pty.WriteLine("exit")
-		<-cmdDone
+	agentClient := codersdk.New(client.URL)
+	agentClient.SetSessionToken(agentToken)
+	agentCloser := agent.New(agent.Options{
+		Client: agentClient,
+		EnvironmentVariables: map[string]string{
+			"GNUPGHOME": gnupgHomeWorkspace,
+		},
+		Logger: slogtest.Make(t, nil).Named("agent"),
 	})
+	defer agentCloser.Close()
+
+	cmd, root := clitest.New(t,
+		"ssh",
+		workspace.Name,
+		"--forward-gpg",
+	)
+	clitest.SetupConfig(t, client, root)
+	tpty := ptytest.New(t)
+	cmd.SetIn(tpty.Input())
+	cmd.SetOut(tpty.Output())
+	cmd.SetErr(tpty.Output())
+	cmdDone := tGo(t, func() {
+		err := cmd.ExecuteContext(ctx)
+		assert.NoError(t, err, "ssh command failed")
+	})
+	// Prevent the test from hanging if the asserts below kill the test
+	// early. This will cause the command to exit with an error, which will
+	// let the t.Cleanup'd `<-done` inside of `tGo` exit and not hang.
+	// Without this, the test will hang forever on failure, preventing the
+	// real error from being printed.
+	t.Cleanup(cancel)
+
+	// Wait for the prompt or any output really to indicate the command has
+	// started and accepting input on stdin.
+	_ = tpty.Peek(ctx, 1)
+
+	tpty.WriteLine("echo hello 'world'")
+	tpty.ExpectMatch("hello world")
+
+	// Check the GNUPGHOME was correctly inherited via shell.
+	tpty.WriteLine("env && echo env-''-command-done")
+	match := tpty.ExpectMatch("env--command-done")
+	require.Contains(t, match, "GNUPGHOME="+gnupgHomeWorkspace, match)
+
+	// Get the agent extra socket path in the "workspace" via shell.
+	tpty.WriteLine("gpgconf --list-dir agent-socket && echo gpgconf-''-agentsocket-command-done")
+	tpty.ExpectMatch(workspaceAgentSocketPath)
+	tpty.ExpectMatch("gpgconf--agentsocket-command-done")
+
+	// List the keys in the "workspace".
+	tpty.WriteLine("gpg --list-keys && echo gpg-''-listkeys-command-done")
+	listKeysOutput := tpty.ExpectMatch("gpg--listkeys-command-done")
+	require.Contains(t, listKeysOutput, "[ultimate] Coder Test <test@coder.com>")
+	require.Contains(t, listKeysOutput, "[ultimate] Dean Sheather (work key) <dean@coder.com>")
+
+	// Try to sign something. This demonstrates that the forwarding is
+	// working as expected, since the workspace doesn't have access to the
+	// private key directly and must use the forwarded agent.
+	tpty.WriteLine("echo 'hello world' | gpg --clearsign && echo gpg-''-sign-command-done")
+	tpty.ExpectMatch("BEGIN PGP SIGNED MESSAGE")
+	tpty.ExpectMatch("Hash:")
+	tpty.ExpectMatch("hello world")
+	tpty.ExpectMatch("gpg--sign-command-done")
+
+	// And we're done.
+	tpty.WriteLine("exit")
+	<-cmdDone
 }
 
 // tGoContext runs fn in a goroutine passing a context that will be

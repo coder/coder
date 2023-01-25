@@ -235,7 +235,8 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 
 		protoJob.Type = &proto.AcquiredJob_TemplateDryRun_{
 			TemplateDryRun: &proto.AcquiredJob_TemplateDryRun{
-				ParameterValues: protoParameters,
+				ParameterValues:     protoParameters,
+				RichParameterValues: convertRichParameterValues(input.RichParameterValues),
 				Metadata: &sdkproto.Provision_Metadata{
 					CoderUrl:      server.AccessURL.String(),
 					WorkspaceName: input.WorkspaceName,
@@ -535,20 +536,29 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 	// if failed job is a workspace build, audit the outcome
 	if job.Type == database.ProvisionerJobTypeWorkspaceBuild {
 		auditor := server.Auditor.Load()
-		build, getBuildErr := server.Database.GetWorkspaceBuildByJobID(ctx, job.ID)
-		if getBuildErr != nil {
+		build, err := server.Database.GetWorkspaceBuildByJobID(ctx, job.ID)
+		if err != nil {
 			server.Logger.Error(ctx, "audit log - get build", slog.Error(err))
 		} else {
 			auditAction := auditActionFromTransition(build.Transition)
-			workspace, getWorkspaceErr := server.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
-			if getWorkspaceErr != nil {
+			workspace, err := server.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
+			if err != nil {
 				server.Logger.Error(ctx, "audit log - get workspace", slog.Error(err))
 			} else {
+				previousBuildNumber := build.BuildNumber - 1
+				previousBuild, prevBuildErr := server.Database.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx, database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams{
+					WorkspaceID: workspace.ID,
+					BuildNumber: previousBuildNumber,
+				})
+				if prevBuildErr != nil {
+					previousBuild = database.WorkspaceBuild{}
+				}
 				// We pass the below information to the Auditor so that it
 				// can form a friendly string for the user to view in the UI.
 				buildResourceInfo := map[string]string{
 					"workspaceName": workspace.Name,
 					"buildNumber":   strconv.FormatInt(int64(build.BuildNumber), 10),
+					"buildReason":   fmt.Sprintf("%v", build.Reason),
 				}
 
 				wriBytes, err := json.Marshal(buildResourceInfo)
@@ -562,6 +572,7 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 					UserID:           job.InitiatorID,
 					JobID:            job.ID,
 					Action:           auditAction,
+					Old:              previousBuild,
 					New:              build,
 					Status:           http.StatusInternalServerError,
 					AdditionalFields: wriBytes,
@@ -646,6 +657,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				Icon:              richParameter.Icon,
 				Options:           options,
 				ValidationRegex:   richParameter.ValidationRegex,
+				ValidationError:   richParameter.ValidationError,
 				ValidationMin:     richParameter.ValidationMin,
 				ValidationMax:     richParameter.ValidationMax,
 			})
@@ -793,11 +805,21 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			auditor := server.Auditor.Load()
 			auditAction := auditActionFromTransition(workspaceBuild.Transition)
 
+			previousBuildNumber := workspaceBuild.BuildNumber - 1
+			previousBuild, prevBuildErr := server.Database.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx, database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams{
+				WorkspaceID: workspace.ID,
+				BuildNumber: previousBuildNumber,
+			})
+			if prevBuildErr != nil {
+				previousBuild = database.WorkspaceBuild{}
+			}
+
 			// We pass the below information to the Auditor so that it
 			// can form a friendly string for the user to view in the UI.
 			buildResourceInfo := map[string]string{
 				"workspaceName": workspace.Name,
 				"buildNumber":   strconv.FormatInt(int64(workspaceBuild.BuildNumber), 10),
+				"buildReason":   fmt.Sprintf("%v", workspaceBuild.Reason),
 			}
 
 			wriBytes, err := json.Marshal(buildResourceInfo)
@@ -811,6 +833,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				UserID:           job.InitiatorID,
 				JobID:            job.ID,
 				Action:           auditAction,
+				Old:              previousBuild,
 				New:              workspaceBuild,
 				Status:           http.StatusOK,
 				AdditionalFields: wriBytes,
@@ -946,9 +969,11 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				String: prAgent.StartupScript,
 				Valid:  prAgent.StartupScript != "",
 			},
-			ConnectionTimeoutSeconds: prAgent.GetConnectionTimeoutSeconds(),
-			TroubleshootingURL:       prAgent.GetTroubleshootingUrl(),
-			MOTDFile:                 prAgent.GetMotdFile(),
+			ConnectionTimeoutSeconds:    prAgent.GetConnectionTimeoutSeconds(),
+			TroubleshootingURL:          prAgent.GetTroubleshootingUrl(),
+			MOTDFile:                    prAgent.GetMotdFile(),
+			DelayLoginUntilReady:        prAgent.GetDelayLoginUntilReady(),
+			StartupScriptTimeoutSeconds: prAgent.GetStartupScriptTimeoutSeconds(),
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)
@@ -1175,9 +1200,10 @@ type WorkspaceProvisionJob struct {
 
 // TemplateVersionDryRunJob is the payload for the "template_version_dry_run" job type.
 type TemplateVersionDryRunJob struct {
-	TemplateVersionID uuid.UUID                 `json:"template_version_id"`
-	WorkspaceName     string                    `json:"workspace_name"`
-	ParameterValues   []database.ParameterValue `json:"parameter_values"`
+	TemplateVersionID   uuid.UUID                          `json:"template_version_id"`
+	WorkspaceName       string                             `json:"workspace_name"`
+	ParameterValues     []database.ParameterValue          `json:"parameter_values"`
+	RichParameterValues []database.WorkspaceBuildParameter `json:"rich_parameter_values"`
 }
 
 // ProvisionerJobLogsNotifyMessage is the payload published on

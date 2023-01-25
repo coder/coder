@@ -223,7 +223,7 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 		})
 		return
 	}
-	dbParameters, err := api.Database.GetTemplateVersionParameters(ctx, templateVersion.ID)
+	dbTemplateVersionParameters, err := api.Database.GetTemplateVersionParameters(ctx, templateVersion.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching template version parameters.",
@@ -231,19 +231,16 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 		})
 		return
 	}
-	params := make([]codersdk.TemplateVersionParameter, 0)
-	for _, dbParameter := range dbParameters {
-		param, err := convertTemplateVersionParameter(dbParameter)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error converting template version parameter.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		params = append(params, param)
+
+	templateVersionParameters, err := convertTemplateVersionParameters(dbTemplateVersionParameters)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error converting template version parameter.",
+			Detail:  err.Error(),
+		})
+		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, params)
+	httpapi.Write(ctx, rw, http.StatusOK, templateVersionParameters)
 }
 
 // @Summary Get parameters by template version
@@ -362,12 +359,22 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 		}
 	}
 
+	richParameterValues := make([]database.WorkspaceBuildParameter, len(req.RichParameterValues))
+	for i, v := range req.RichParameterValues {
+		richParameterValues[i] = database.WorkspaceBuildParameter{
+			WorkspaceBuildID: uuid.Nil,
+			Name:             v.Name,
+			Value:            v.Value,
+		}
+	}
+
 	// Marshal template version dry-run job with the parameters from the
 	// request.
 	input, err := json.Marshal(provisionerdserver.TemplateVersionDryRunJob{
-		TemplateVersionID: templateVersion.ID,
-		WorkspaceName:     req.WorkspaceName,
-		ParameterValues:   parameterValues,
+		TemplateVersionID:   templateVersion.ID,
+		WorkspaceName:       req.WorkspaceName,
+		ParameterValues:     parameterValues,
+		RichParameterValues: richParameterValues,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1369,6 +1376,18 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 	}
 }
 
+func convertTemplateVersionParameters(dbParams []database.TemplateVersionParameter) ([]codersdk.TemplateVersionParameter, error) {
+	params := make([]codersdk.TemplateVersionParameter, 0)
+	for _, dbParameter := range dbParams {
+		param, err := convertTemplateVersionParameter(dbParameter)
+		if err != nil {
+			return nil, err
+		}
+		params = append(params, param)
+	}
+	return params, nil
+}
+
 func convertTemplateVersionParameter(param database.TemplateVersionParameter) (codersdk.TemplateVersionParameter, error) {
 	var protoOptions []*sdkproto.RichParameterOption
 	err := json.Unmarshal(param.Options, &protoOptions)
@@ -1395,6 +1414,7 @@ func convertTemplateVersionParameter(param database.TemplateVersionParameter) (c
 		ValidationRegex: param.ValidationRegex,
 		ValidationMin:   param.ValidationMin,
 		ValidationMax:   param.ValidationMax,
+		ValidationError: param.ValidationError,
 	}, nil
 }
 

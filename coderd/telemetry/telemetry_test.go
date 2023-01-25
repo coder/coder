@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
@@ -30,64 +31,82 @@ func TestTelemetry(t *testing.T) {
 	t.Parallel()
 	t.Run("Snapshot", func(t *testing.T) {
 		t.Parallel()
+
+		var err error
+
 		db := databasefake.New()
+
 		ctx := context.Background()
-		_, err := db.InsertAPIKey(ctx, database.InsertAPIKeyParams{
-			ID:       uuid.NewString(),
-			LastUsed: database.Now(),
-			Scope:    database.APIKeyScopeAll,
+		_, err = db.InsertAPIKey(ctx, database.InsertAPIKeyParams{
+			ID:        uuid.NewString(),
+			LastUsed:  database.Now(),
+			Scope:     database.APIKeyScopeAll,
+			LoginType: database.LoginTypePassword,
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		_, err = db.InsertParameterSchema(ctx, database.InsertParameterSchemaParams{
-			ID:        uuid.New(),
-			CreatedAt: database.Now(),
+			ID:                       uuid.New(),
+			CreatedAt:                database.Now(),
+			DefaultSourceScheme:      database.ParameterSourceSchemeNone,
+			DefaultDestinationScheme: database.ParameterDestinationSchemeNone,
+			ValidationTypeSystem:     database.ParameterTypeSystemNone,
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		_, err = db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-			ID:        uuid.New(),
-			CreatedAt: database.Now(),
+			ID:            uuid.New(),
+			CreatedAt:     database.Now(),
+			Provisioner:   database.ProvisionerTypeTerraform,
+			StorageMethod: database.ProvisionerStorageMethodFile,
+			Type:          database.ProvisionerJobTypeTemplateVersionDryRun,
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		_, err = db.InsertTemplate(ctx, database.InsertTemplateParams{
-			ID:        uuid.New(),
-			CreatedAt: database.Now(),
+			ID:          uuid.New(),
+			CreatedAt:   database.Now(),
+			Provisioner: database.ProvisionerTypeTerraform,
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		_, err = db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
 			ID:        uuid.New(),
 			CreatedAt: database.Now(),
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		_, err = db.InsertUser(ctx, database.InsertUserParams{
 			ID:        uuid.New(),
 			CreatedAt: database.Now(),
+			LoginType: database.LoginTypePassword,
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		_, err = db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
 			ID:        uuid.New(),
 			CreatedAt: database.Now(),
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		_, err = db.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
-			ID:        uuid.New(),
-			CreatedAt: database.Now(),
+			ID:           uuid.New(),
+			CreatedAt:    database.Now(),
+			SharingLevel: database.AppSharingLevelOwner,
+			Health:       database.WorkspaceAppHealthDisabled,
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		_, err = db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 			ID:        uuid.New(),
 			CreatedAt: database.Now(),
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		_, err = db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
-			ID:        uuid.New(),
-			CreatedAt: database.Now(),
+			ID:         uuid.New(),
+			CreatedAt:  database.Now(),
+			Transition: database.WorkspaceTransitionStart,
+			Reason:     database.BuildReasonAutostart,
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		_, err = db.InsertWorkspaceResource(ctx, database.InsertWorkspaceResourceParams{
-			ID:        uuid.New(),
-			CreatedAt: database.Now(),
+			ID:         uuid.New(),
+			CreatedAt:  database.Now(),
+			Transition: database.WorkspaceTransitionStart,
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		_, err = db.InsertLicense(ctx, database.InsertLicenseParams{
 			UploadedAt: database.Now(),
 			JWT:        "",
@@ -97,7 +116,7 @@ func TestTelemetry(t *testing.T) {
 				Valid: true,
 			},
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		snapshot := collectSnapshot(t, db)
 		require.Len(t, snapshot.ParameterSchemas, 1)
 		require.Len(t, snapshot.ProvisionerJobs, 1)
@@ -118,6 +137,7 @@ func TestTelemetry(t *testing.T) {
 			ID:        uuid.New(),
 			Email:     "kyle@coder.com",
 			CreatedAt: database.Now(),
+			LoginType: database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 		snapshot := collectSnapshot(t, db)
