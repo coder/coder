@@ -87,6 +87,10 @@ func (q *AuthzQuerier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt ti
 	return q.database.GetReplicasUpdatedAfter(ctx, updatedAt)
 }
 
+func (q *AuthzQuerier) GetUserCount(ctx context.Context) (int64, error) {
+	return q.database.GetUserCount(ctx)
+}
+
 func (q *AuthzQuerier) GetTemplates(ctx context.Context) ([]database.Template, error) {
 	// TODO Implement authz check for system user.
 	return q.database.GetTemplates(ctx)

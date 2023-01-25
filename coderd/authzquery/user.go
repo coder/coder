@@ -60,10 +60,6 @@ func (q *AuthzQuerier) GetFilteredUserCount(ctx context.Context, arg database.Ge
 	return q.GetAuthorizedUserCount(ctx, arg, prep)
 }
 
-func (q *AuthzQuerier) GetUserCount(ctx context.Context) (int64, error) {
-	return q.GetFilteredUserCount(ctx, database.GetFilteredUserCountParams{})
-}
-
 func (q *AuthzQuerier) GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error) {
 	// TODO: We should use GetUsersWithCount with a better method signature.
 	return authorizedFetchSet(q.authorizer, q.database.GetUsers)(ctx, arg)
