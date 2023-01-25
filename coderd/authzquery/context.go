@@ -18,12 +18,24 @@ type authContextKey struct{}
 // This is **required** for all AuthzQuerier operations.
 type actor struct {
 	ID     uuid.UUID
-	Roles  []string
+	Roles  rbac.ExpandableRoles
 	Scope  rbac.ScopeName
 	Groups []string
 }
 
-func WithAuthorizeContext(ctx context.Context, actorID uuid.UUID, roles []string, groups []string, scope rbac.ScopeName) context.Context {
+func WithAuthorizeSystemContext(ctx context.Context, roles rbac.ExpandableRoles) context.Context {
+	// TODO: Add protections to search for user roles. If user roles are found,
+	// this should panic. That is a developer error that should be caught
+	// in unit tests.
+	return context.WithValue(ctx, authContextKey{}, actor{
+		ID:     uuid.Nil,
+		Roles:  roles,
+		Scope:  rbac.ScopeAll,
+		Groups: []string{},
+	})
+}
+
+func WithAuthorizeContext(ctx context.Context, actorID uuid.UUID, roles rbac.ExpandableRoles, groups []string, scope rbac.ScopeName) context.Context {
 	return context.WithValue(ctx, authContextKey{}, actor{
 		ID:     actorID,
 		Roles:  roles,
@@ -40,7 +52,7 @@ func WithAuthorizeContext(ctx context.Context, actorID uuid.UUID, roles []string
 // be a bit awkward to use at present. The arguments are required to build the
 // required authorization context. The arguments should be the owner of the
 // workspace authorization roles.
-func WithWorkspaceAgentTokenContext(ctx context.Context, workspaceID uuid.UUID, actorID uuid.UUID, roles []string, groups []string) context.Context {
+func WithWorkspaceAgentTokenContext(ctx context.Context, workspaceID uuid.UUID, actorID uuid.UUID, roles rbac.ExpandableRoles, groups []string) context.Context {
 	// TODO: This workspace ID should be applied in the scope.
 	var _ = workspaceID
 	return context.WithValue(ctx, authContextKey{}, actor{

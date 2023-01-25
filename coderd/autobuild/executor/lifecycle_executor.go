@@ -10,8 +10,10 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/coderd/authzquery"
 	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/rbac"
 )
 
 // Executor automatically starts or stops workspaces.
@@ -33,7 +35,8 @@ type Stats struct {
 // New returns a new autobuild executor.
 func New(ctx context.Context, db database.Store, log slog.Logger, tick <-chan time.Time) *Executor {
 	le := &Executor{
-		ctx:  ctx,
+		// Use an authorized context with an autostart system actor.
+		ctx:  authzquery.WithAuthorizeSystemContext(ctx, rbac.RolesAutostartSystem()),
 		db:   db,
 		tick: tick,
 		log:  log,

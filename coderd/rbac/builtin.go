@@ -32,6 +32,37 @@ func (names RoleNames) Names() []string {
 	return names
 }
 
+type Roles []Role
+
+func (roles Roles) Expand() ([]Role, error) {
+	return roles, nil
+}
+
+func (roles Roles) Names() []string {
+	names := make([]string, 0, len(roles))
+	for _, r := range roles {
+		return append(names, r.Name)
+	}
+	return names
+}
+
+// RolesAutostartSystem is the limited set of permissions required for autostart
+// to function.
+func RolesAutostartSystem() Roles {
+	return Roles{
+		Role{
+			Name:        "auto-start",
+			DisplayName: "Autostart",
+			Site: permissions(map[string][]Action{
+				ResourceWorkspace.Type: {ActionRead, ActionUpdate},
+				ResourceTemplate.Type:  {ActionRead},
+			}),
+			Org:  map[string][]Permission{},
+			User: []Permission{},
+		},
+	}
+}
+
 // The functions below ONLY need to exist for roles that are "defaulted" in some way.
 // Any other roles (like auditor), can be listed and let the user select/assigned.
 // Once we have a database implementation, the "default" roles can be defined on the

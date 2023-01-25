@@ -57,7 +57,7 @@ func (q *AuthzQuerier) authorizeContext(ctx context.Context, action rbac.Action,
 		return xerrors.Errorf("no authorization actor in context")
 	}
 
-	err := q.authorizer.ByRoleName(ctx, act.ID.String(), rbac.RoleNames(act.Roles), act.Scope, act.Groups, action, object.RBACObject())
+	err := q.authorizer.ByRoleName(ctx, act.ID.String(), act.Roles, act.Scope, act.Groups, action, object.RBACObject())
 	if err != nil {
 		return xerrors.Errorf("unauthorized: %w", err)
 	}
