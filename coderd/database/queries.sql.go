@@ -1178,48 +1178,6 @@ func (q *sqlQuerier) GetGroupsByOrganizationID(ctx context.Context, organization
 	return items, nil
 }
 
-const getUserGroups = `-- name: GetUserGroups :many
-SELECT
-	groups.id, groups.name, groups.organization_id, groups.avatar_url, groups.quota_allowance
-FROM
-	groups
-JOIN
-	group_members
-ON
-	groups.id = group_members.group_id
-WHERE
-	group_members.user_id = $1
-`
-
-func (q *sqlQuerier) GetUserGroups(ctx context.Context, userID uuid.UUID) ([]Group, error) {
-	rows, err := q.db.QueryContext(ctx, getUserGroups, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Group
-	for rows.Next() {
-		var i Group
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.OrganizationID,
-			&i.AvatarURL,
-			&i.QuotaAllowance,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const insertAllUsersGroup = `-- name: InsertAllUsersGroup :one
 INSERT INTO groups (
 	id,
