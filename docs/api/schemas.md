@@ -2439,6 +2439,20 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `trial`            | boolean                              | false    |              |                                       |
 | `warnings`         | array of string                      | false    |              |                                       |
 
+## codersdk.Experiment
+
+```json
+"authz_querier"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value           |
+| --------------- |
+| `authz_querier` |
+
 ## codersdk.Feature
 
 ```json

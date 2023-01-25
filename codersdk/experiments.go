@@ -9,8 +9,12 @@ import (
 type Experiment string
 
 const (
-// Add new experiments here!
-// ExperimentExample Experiment = "example"
+	// ExperimentAuthzQuerier is an internal experiment that enables the ExperimentAuthzQuerier
+	// interface for all RBAC operations. NOT READY FOR PRODUCTION USE.
+	ExperimentAuthzQuerier Experiment = "authz_querier"
+
+	// Add new experiments here!
+	// ExperimentExample Experiment = "example"
 )
 
 var (

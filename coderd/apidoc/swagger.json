@@ -364,7 +364,7 @@
             "schema": {
               "type": "array",
               "items": {
-                "type": "string"
+                "$ref": "#/definitions/codersdk.Experiment"
               }
             }
           }
@@ -5527,6 +5527,11 @@
           }
         }
       }
+    },
+    "codersdk.Experiment": {
+      "type": "string",
+      "enum": ["authz_querier"],
+      "x-enum-varnames": ["ExperimentAuthzQuerier"]
     },
     "codersdk.Feature": {
       "type": "object",

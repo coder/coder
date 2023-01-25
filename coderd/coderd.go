@@ -154,6 +154,14 @@ func New(options *Options) *API {
 	if options == nil {
 		options = &Options{}
 	}
+	experiments := initExperiments(options.Logger, options.DeploymentConfig.Experiments.Value, options.DeploymentConfig.Experimental.Value)
+	// TODO: remove this once we promote authz_querier out of experiments.
+	if experiments.Enabled(codersdk.ExperimentAuthzQuerier) {
+		panic("Coming soon!")
+		// if _, ok := (options.Database).(*authzquery.AuthzQuerier); !ok {
+		// 	options.Database = authzquery.NewAuthzQuerier(options.Database, options.Authorizer)
+		// }
+	}
 	if options.AppHostname != "" && options.AppHostnameRegex == nil || options.AppHostname == "" && options.AppHostnameRegex != nil {
 		panic("coderd: both AppHostname and AppHostnameRegex must be set or unset")
 	}
@@ -222,7 +230,7 @@ func New(options *Options) *API {
 		},
 		metricsCache: metricsCache,
 		Auditor:      atomic.Pointer[audit.Auditor]{},
-		Experiments:  initExperiments(options.Logger, options.DeploymentConfig.Experiments.Value, options.DeploymentConfig.Experimental.Value),
+		Experiments:  experiments,
 	}
 	if options.UpdateCheckOptions != nil {
 		api.updateChecker = updatecheck.New(

@@ -1097,8 +1097,8 @@ export const Entitlements: Entitlement[] = [
 ]
 
 // From codersdk/experiments.go
-export type Experiment = never
-export const Experiments: Experiment[] = []
+export type Experiment = "authz_querier"
+export const Experiments: Experiment[] = ["authz_querier"]
 
 // From codersdk/features.go
 export type FeatureName =
