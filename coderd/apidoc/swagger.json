@@ -308,6 +308,24 @@
         }
       }
     },
+    "/debug/coordinator": {
+      "get": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["text/html"],
+        "tags": ["Debug"],
+        "summary": "Wireguard Coordinator Debug Info",
+        "operationId": "debuginfo-coordinator",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/entitlements": {
       "get": {
         "security": [

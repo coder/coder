@@ -365,6 +365,10 @@
           "path": "./api/builds.md"
         },
         {
+          "title": "Debug",
+          "path": "./api/debug.md"
+        },
+        {
           "title": "Enterprise",
           "path": "./api/enterprise.md"
         },

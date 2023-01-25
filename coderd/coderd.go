@@ -630,9 +630,7 @@ func New(options *Options) *API {
 				},
 			)
 
-			r.HandleFunc("/coordinator", func(w http.ResponseWriter, r *http.Request) {
-				(*api.TailnetCoordinator.Load()).ServeHTTPDebug(w, r)
-			})
+			r.HandleFunc("/coordinator", api.debugCoordinator)
 		})
 	})
 
