@@ -44,7 +44,7 @@ func authorizedInsertWithReturn[ObjectType any, ArgumentType any,
 		}
 
 		// Authorize the action
-		err = authorizer.ByRoleName(ctx, act.ID.String(), act.Roles, act.Scope, act.Groups, action, object.RBACObject())
+		err = authorizer.ByRoleName(ctx, act.ID.String(), rbac.RoleNames(act.Roles), act.Scope, act.Groups, action, object.RBACObject())
 		if err != nil {
 			return empty, xerrors.Errorf("unauthorized: %w", err)
 		}
@@ -135,7 +135,7 @@ func authorizedFetchAndQuery[ObjectType rbac.Objecter, ArgumentType any,
 		}
 
 		// Authorize the action
-		err = authorizer.ByRoleName(ctx, act.ID.String(), act.Roles, act.Scope, act.Groups, action, object.RBACObject())
+		err = authorizer.ByRoleName(ctx, act.ID.String(), rbac.RoleNames(act.Roles), act.Scope, act.Groups, action, object.RBACObject())
 		if err != nil {
 			return empty, xerrors.Errorf("unauthorized: %w", err)
 		}
@@ -184,7 +184,7 @@ func authorizedQuery[ArgumentType any, ObjectType rbac.Objecter,
 		}
 
 		// Authorize the action
-		err = authorizer.ByRoleName(ctx, act.ID.String(), act.Roles, act.Scope, act.Groups, action, object.RBACObject())
+		err = authorizer.ByRoleName(ctx, act.ID.String(), rbac.RoleNames(act.Roles), act.Scope, act.Groups, action, object.RBACObject())
 		if err != nil {
 			return empty, xerrors.Errorf("unauthorized: %w", err)
 		}
@@ -215,7 +215,7 @@ func authorizedFetchSet[ArgumentType any, ObjectType rbac.Objecter,
 		}
 
 		// Authorize the action
-		return rbac.Filter(ctx, authorizer, act.ID.String(), act.Roles, act.Scope, act.Groups, rbac.ActionRead, objects)
+		return rbac.Filter(ctx, authorizer, act.ID.String(), rbac.RoleNames(act.Roles), act.Scope, act.Groups, rbac.ActionRead, objects)
 	}
 }
 
@@ -246,7 +246,7 @@ func authorizedQueryWithRelated[ObjectType any, ArgumentType any, Related rbac.O
 		}
 
 		// Authorize the action
-		err = authorizer.ByRoleName(ctx, act.ID.String(), act.Roles, act.Scope, act.Groups, action, rel.RBACObject())
+		err = authorizer.ByRoleName(ctx, act.ID.String(), rbac.RoleNames(act.Roles), act.Scope, act.Groups, action, rel.RBACObject())
 		if err != nil {
 			return empty, xerrors.Errorf("unauthorized: %w", err)
 		}
@@ -263,5 +263,5 @@ func prepareSQLFilter(ctx context.Context, authorizer rbac.Authorizer, action rb
 		return nil, xerrors.Errorf("no authorization actor in context")
 	}
 
-	return authorizer.PrepareByRoleName(ctx, act.ID.String(), act.Roles, act.Scope, act.Groups, action, resourceType)
+	return authorizer.PrepareByRoleName(ctx, act.ID.String(), rbac.RoleNames(act.Roles), act.Scope, act.Groups, action, resourceType)
 }

@@ -83,7 +83,7 @@ func (q *AuthzQuerier) GetUsersWithCount(ctx context.Context, arg database.GetUs
 
 	// TODO: Is this correct? Should we return a retricted user?
 	users := database.ConvertUserRows(rowUsers)
-	users, err = rbac.Filter(ctx, q.authorizer, act.ID.String(), act.Roles, act.Scope, act.Groups, rbac.ActionRead, users)
+	users, err = rbac.Filter(ctx, q.authorizer, act.ID.String(), rbac.RoleNames(act.Roles), act.Scope, act.Groups, rbac.ActionRead, users)
 	if err != nil {
 		return nil, -1, err
 	}
