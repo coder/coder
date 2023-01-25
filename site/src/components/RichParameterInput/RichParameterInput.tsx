@@ -4,7 +4,7 @@ import RadioGroup from "@material-ui/core/RadioGroup"
 import { makeStyles } from "@material-ui/core/styles"
 import TextField from "@material-ui/core/TextField"
 import { Stack } from "components/Stack/Stack"
-import { FC } from "react"
+import { FC, useState } from "react"
 import { TemplateVersionParameter } from "../../api/typesGenerated"
 
 const isBoolean = (parameter: TemplateVersionParameter) => {
@@ -79,6 +79,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
   parameter,
   ...props
 }) => {
+  const [parameterValue, setParameterValue] = useState(parameter.default_value)
   const styles = useStyles();
 
   if (isBoolean(parameter)) {
@@ -152,8 +153,9 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
       size="small"
       disabled={disabled}
       placeholder={parameter.default_value}
-      defaultValue={parameter.default_value}
+      value={parameterValue}
       onChange={(event) => {
+        setParameterValue(event.target.value)
         onChange(event.target.value)
       }}
     />

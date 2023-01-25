@@ -60,7 +60,7 @@ export const CreateWorkspacePageView: FC<
       .of(
         Yup.object().shape({
           "name": Yup.string().required(),
-          "value": Yup.string().required().test('len', 'Must be exactly 5 characters', val => val !== undefined && val.length === 5),
+          "value": Yup.string().required().test('len', 'Must be > 2 characters', val => val !== undefined && val.length > 2),
         })
       )
       .required()
