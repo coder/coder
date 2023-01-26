@@ -96,6 +96,10 @@ rules:
           message:
             "Use path imports to avoid pulling in unused modules. See:
             https://material-ui.com/guides/minimizing-bundle-size/"
+        - name: "@material-ui/core/Avatar"
+          message:
+            "You should use the Avatar component provided on
+            components/Avatar/Avatar"
   no-unused-vars: "off"
   "object-curly-spacing": "off"
   react-hooks/exhaustive-deps: warn

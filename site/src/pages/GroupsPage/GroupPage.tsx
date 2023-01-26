@@ -173,7 +173,6 @@ export const GroupPage: React.FC = () => {
                               <AvatarData
                                 title={member.username}
                                 subtitle={member.email}
-                                highlightTitle
                               />
                             </TableCell>
                             <TableCell width="1%">
