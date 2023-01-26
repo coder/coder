@@ -18,6 +18,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/authzquery"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/rbac"
@@ -115,6 +116,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
+			systemCtx := authzquery.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
 			// Write wraps writing a response to redirect if the handler
 			// specified it should. This redirect is used for user-facing pages
 			// like workspace applications.
@@ -159,7 +161,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 				return
 			}
 
-			key, err := cfg.DB.GetAPIKeyByID(r.Context(), keyID)
+			key, err := cfg.DB.GetAPIKeyByID(systemCtx, keyID)
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
 					optionalWrite(http.StatusUnauthorized, codersdk.Response{
@@ -192,7 +194,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 				changed = false
 			)
 			if key.LoginType == database.LoginTypeGithub || key.LoginType == database.LoginTypeOIDC {
-				link, err = cfg.DB.GetUserLinkByUserIDLoginType(r.Context(), database.GetUserLinkByUserIDLoginTypeParams{
+				link, err = cfg.DB.GetUserLinkByUserIDLoginType(systemCtx, database.GetUserLinkByUserIDLoginTypeParams{
 					UserID:    key.UserID,
 					LoginType: key.LoginType,
 				})
@@ -273,7 +275,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 				changed = true
 			}
 			if changed {
-				err := cfg.DB.UpdateAPIKeyByID(r.Context(), database.UpdateAPIKeyByIDParams{
+				err := cfg.DB.UpdateAPIKeyByID(systemCtx, database.UpdateAPIKeyByIDParams{
 					ID:        key.ID,
 					LastUsed:  key.LastUsed,
 					ExpiresAt: key.ExpiresAt,
@@ -289,7 +291,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 				// If the API Key is associated with a user_link (e.g. Github/OIDC)
 				// then we want to update the relevant oauth fields.
 				if link.UserID != uuid.Nil {
-					link, err = cfg.DB.UpdateUserLink(r.Context(), database.UpdateUserLinkParams{
+					link, err = cfg.DB.UpdateUserLink(systemCtx, database.UpdateUserLinkParams{
 						UserID:            link.UserID,
 						LoginType:         link.LoginType,
 						OAuthAccessToken:  link.OAuthAccessToken,
@@ -308,7 +310,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 				// We only want to update this occasionally to reduce DB write
 				// load. We update alongside the UserLink and APIKey since it's
 				// easier on the DB to colocate writes.
-				_, err = cfg.DB.UpdateUserLastSeenAt(ctx, database.UpdateUserLastSeenAtParams{
+				_, err = cfg.DB.UpdateUserLastSeenAt(systemCtx, database.UpdateUserLastSeenAtParams{
 					ID:         key.UserID,
 					LastSeenAt: database.Now(),
 					UpdatedAt:  database.Now(),
@@ -325,7 +327,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 			// If the key is valid, we also fetch the user roles and status.
 			// The roles are used for RBAC authorize checks, and the status
 			// is to block 'suspended' users from accessing the platform.
-			roles, err := cfg.DB.GetAuthorizationUserRoles(r.Context(), key.UserID)
+			roles, err := cfg.DB.GetAuthorizationUserRoles(systemCtx, key.UserID)
 			if err != nil {
 				write(http.StatusUnauthorized, codersdk.Response{
 					Message: internalErrorMessage,
