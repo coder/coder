@@ -473,11 +473,11 @@
           "path": "./cli/coder_scaletest.md"
         },
         {
-          "title": "scaletest_cleanup",
+          "title": "scaletest cleanup",
           "path": "./cli/coder_scaletest_cleanup.md"
         },
         {
-          "title": "scaletest_create-workspaces",
+          "title": "scaletest create-workspaces",
           "path": "./cli/coder_scaletest_create-workspaces.md"
         },
         {
@@ -485,19 +485,19 @@
           "path": "./cli/coder_schedule.md"
         },
         {
-          "title": "schedule_override-stop",
+          "title": "schedule override-stop",
           "path": "./cli/coder_schedule_override-stop.md"
         },
         {
-          "title": "schedule_show",
+          "title": "schedule show",
           "path": "./cli/coder_schedule_show.md"
         },
         {
-          "title": "schedule_start",
+          "title": "schedule start",
           "path": "./cli/coder_schedule_start.md"
         },
         {
-          "title": "schedule_stop",
+          "title": "schedule stop",
           "path": "./cli/coder_schedule_stop.md"
         },
         {
@@ -505,11 +505,11 @@
           "path": "./cli/coder_server.md"
         },
         {
-          "title": "server_postgres-builtin-serve",
+          "title": "server postgres-builtin-serve",
           "path": "./cli/coder_server_postgres-builtin-serve.md"
         },
         {
-          "title": "server_postgres-builtin-url",
+          "title": "server postgres-builtin-url",
           "path": "./cli/coder_server_postgres-builtin-url.md"
         },
         {
@@ -533,11 +533,11 @@
           "path": "./cli/coder_state.md"
         },
         {
-          "title": "state_pull",
+          "title": "state pull",
           "path": "./cli/coder_state_pull.md"
         },
         {
-          "title": "state_push",
+          "title": "state push",
           "path": "./cli/coder_state_push.md"
         },
         {
@@ -549,43 +549,43 @@
           "path": "./cli/coder_templates.md"
         },
         {
-          "title": "templates_create",
+          "title": "templates create",
           "path": "./cli/coder_templates_create.md"
         },
         {
-          "title": "templates_delete",
+          "title": "templates delete",
           "path": "./cli/coder_templates_delete.md"
         },
         {
-          "title": "templates_edit",
+          "title": "templates edit",
           "path": "./cli/coder_templates_edit.md"
         },
         {
-          "title": "templates_init",
+          "title": "templates init",
           "path": "./cli/coder_templates_init.md"
         },
         {
-          "title": "templates_list",
+          "title": "templates list",
           "path": "./cli/coder_templates_list.md"
         },
         {
-          "title": "templates_plan",
+          "title": "templates plan",
           "path": "./cli/coder_templates_plan.md"
         },
         {
-          "title": "templates_pull",
+          "title": "templates pull",
           "path": "./cli/coder_templates_pull.md"
         },
         {
-          "title": "templates_push",
+          "title": "templates push",
           "path": "./cli/coder_templates_push.md"
         },
         {
-          "title": "templates_versions",
+          "title": "templates versions",
           "path": "./cli/coder_templates_versions.md"
         },
         {
-          "title": "templates_versions_list",
+          "title": "templates versions list",
           "path": "./cli/coder_templates_versions_list.md"
         },
         {
@@ -593,15 +593,15 @@
           "path": "./cli/coder_tokens.md"
         },
         {
-          "title": "tokens_create",
+          "title": "tokens create",
           "path": "./cli/coder_tokens_create.md"
         },
         {
-          "title": "tokens_list",
+          "title": "tokens list",
           "path": "./cli/coder_tokens_list.md"
         },
         {
-          "title": "tokens_remove",
+          "title": "tokens remove",
           "path": "./cli/coder_tokens_remove.md"
         },
         {
@@ -613,23 +613,23 @@
           "path": "./cli/coder_users.md"
         },
         {
-          "title": "users_activate",
+          "title": "users activate",
           "path": "./cli/coder_users_activate.md"
         },
         {
-          "title": "users_create",
+          "title": "users create",
           "path": "./cli/coder_users_create.md"
         },
         {
-          "title": "users_list",
+          "title": "users list",
           "path": "./cli/coder_users_list.md"
         },
         {
-          "title": "users_show",
+          "title": "users show",
           "path": "./cli/coder_users_show.md"
         },
         {
-          "title": "users_suspend",
+          "title": "users suspend",
           "path": "./cli/coder_users_suspend.md"
         },
         {
