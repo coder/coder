@@ -377,6 +377,10 @@
           "path": "./api/files.md"
         },
         {
+          "title": "Insights",
+          "path": "./api/insights.md"
+        },
+        {
           "title": "Members",
           "path": "./api/members.md"
         },

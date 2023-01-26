@@ -648,6 +648,31 @@ const docTemplate = `{
                 }
             }
         },
+        "/insights/daus": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Insights"
+                ],
+                "summary": "Get deployment DAUs",
+                "operationId": "get-deployment-daus",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.DeploymentDAUsResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/licenses": {
             "get": {
                 "security": [
@@ -6146,6 +6171,17 @@ const docTemplate = `{
                 },
                 "value": {
                     "type": "integer"
+                }
+            }
+        },
+        "codersdk.DeploymentDAUsResponse": {
+            "type": "object",
+            "properties": {
+                "entries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.DAUEntry"
+                    }
                 }
             }
         },

@@ -25,5 +25,16 @@ GROUP BY
 ORDER BY
 	date ASC;
 
+-- name: GetDeploymentDAUs :many
+SELECT
+	(created_at at TIME ZONE 'UTC')::date as date,
+	user_id
+FROM
+	agent_stats
+GROUP BY
+	date, user_id
+ORDER BY
+	date ASC;
+
 -- name: DeleteOldAgentStats :exec
 DELETE FROM agent_stats WHERE created_at < NOW() - INTERVAL '30 days';
