@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
@@ -109,11 +110,17 @@ func ServeCoordinator(conn net.Conn, updateNodes func(node []*Node) error) (func
 // coordinator is incompatible with multiple Coder replicas as all node data is
 // in-memory.
 func NewCoordinator() Coordinator {
+	cache, err := lru.New[uuid.UUID, string](512)
+	if err != nil {
+		panic("make lru cache: " + err.Error())
+	}
+
 	return &coordinator{
 		closed:                   false,
 		nodes:                    map[uuid.UUID]*Node{},
 		agentSockets:             map[uuid.UUID]*trackedConn{},
 		agentToConnectionSockets: map[uuid.UUID]map[uuid.UUID]*trackedConn{},
+		agentNameCache:           cache,
 	}
 }
 
@@ -135,6 +142,10 @@ type coordinator struct {
 	// agentToConnectionSockets maps agent IDs to connection IDs of conns that
 	// are subscribed to updates for that agent.
 	agentToConnectionSockets map[uuid.UUID]map[uuid.UUID]*trackedConn
+
+	// agentNameCache holds a cache of agent names. If one of them disappears,
+	// it's helpful to have a name cached for debugging.
+	agentNameCache *lru.Cache[uuid.UUID, string]
 }
 
 type trackedConn struct {
@@ -287,6 +298,8 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) error
 		c.mutex.Unlock()
 		return xerrors.New("coordinator is closed")
 	}
+
+	c.agentNameCache.Add(id, name)
 
 	sockets, ok := c.agentToConnectionSockets[id]
 	if ok {
@@ -532,7 +545,13 @@ func (c *coordinator) ServeHTTPDebug(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprintln(w, "<ul>")
 
 		for _, agentConns := range missingAgents {
-			fmt.Fprintf(w, "<li style=\"margin-top:4px\"><b>unknown</b> (<code>%s</code>): created ? ago, write ? ago, overwrites ? </li>\n",
+			agentName, ok := c.agentNameCache.Get(agentConns.id)
+			if !ok {
+				agentName = "unknown"
+			}
+
+			fmt.Fprintf(w, "<li style=\"margin-top:4px\"><b>%s</b> (<code>%s</code>): created ? ago, write ? ago, overwrites ? </li>\n",
+				agentName,
 				agentConns.id.String(),
 			)
 
