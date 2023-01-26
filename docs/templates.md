@@ -408,7 +408,7 @@ $ coder ssh myworkspace
 ⢄⡱ Waiting for [agent] to finish starting up...
 ```
 
-To troubleshoot startup issues, check the agent logs as suggested above. For startup issues you can connect to the workspace using SSH with the `--no-wait` flag.
+To troubleshoot startup issues, check the agent logs as suggested above. For startup issues you can connect to the workspace using SSH with the `--no-wait` flag. Please note that while this makes login possible, the workspace may be in an incomplete state.
 
 ```console
 $ coder ssh myworkspace --no-wait
