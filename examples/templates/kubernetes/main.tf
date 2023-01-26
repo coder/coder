@@ -51,7 +51,7 @@ data "coder_workspace" "me" {}
 resource "coder_agent" "main" {
   os             = "linux"
   arch           = "amd64"
-  startup_script = <<EOT
+  startup_script = <<-EOT
     #!/bin/bash
 
     # home folder can be empty, so copying default bash settings

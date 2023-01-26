@@ -26,7 +26,7 @@ resource "coder_agent" "main" {
 
   delay_login_until_ready = true
   startup_script_timeout  = 180
-  startup_script          = <<EOT
+  startup_script          = <<-EOT
     set -e
     code-server --auth none >/tmp/code-server.log 2>&1 &
   EOT

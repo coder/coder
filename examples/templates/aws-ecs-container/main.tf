@@ -99,7 +99,7 @@ resource "coder_agent" "coder" {
 
   delay_login_until_ready = true
   startup_script_timeout  = 180
-  startup_script          = <<EOT
+  startup_script          = <<-EOT
     set -e
 
     # install and start code-server

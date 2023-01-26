@@ -47,7 +47,7 @@ resource "coder_agent" "main" {
   delay_login_until_ready = true
   startup_script_timeout  = 180
   env                     = { "DOTFILES_URI" = var.dotfiles_uri != "" ? var.dotfiles_uri : null }
-  startup_script          = <<EOT
+  startup_script          = <<-EOT
     set -e
     if [ -n "$DOTFILES_URI" ]; then
       echo "Installing dotfiles from $DOTFILES_URI"
