@@ -232,5 +232,5 @@ func (q *AuthzQuerier) UpdateUserRoles(ctx context.Context, arg database.UpdateU
 		return database.User{}, err
 	}
 
-	return q.UpdateUserRoles(ctx, arg)
+	return q.database.UpdateUserRoles(ctx, arg)
 }
