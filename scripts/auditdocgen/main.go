@@ -5,6 +5,7 @@ import (
 	"flag"
 	"log"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -93,6 +94,9 @@ func readAuditDoc() ([]byte, error) {
 
 // Writes a markdown table of audit log resources to a buffer
 func updateAuditDoc(doc []byte, auditableResourcesMap AuditableResourcesMap) ([]byte, error) {
+	// We must sort the resources to ensure table ordering
+	resourceNames := sortResources(auditableResourcesMap)
+
 	i := bytes.Index(doc, generatorPrefix)
 	if i < 0 {
 		return nil, xerrors.New("generator prefix tag not found")
@@ -112,10 +116,10 @@ func updateAuditDoc(doc []byte, auditableResourcesMap AuditableResourcesMap) ([]
 	buffer.WriteString("|<b>Resource<b>||\n")
 	buffer.WriteString("|--|-----------------|\n")
 
-	for resourceName, resourceFields := range auditableResourcesMap {
+	for _, resourceName := range resourceNames {
 		buffer.WriteString("|" + resourceName + "|<table><thead><tr><th>Field</th><th>Tracked</th></tr></thead><tbody>")
 
-		for fieldName, isTracked := range resourceFields {
+		for fieldName, isTracked := range auditableResourcesMap[resourceName] {
 			buffer.WriteString("<tr><td>" + fieldName + "</td><td>" + strconv.FormatBool(isTracked) + "</td></tr>")
 		}
 
@@ -131,4 +135,13 @@ func writeAuditDoc(doc []byte) error {
 	// G306: Expect WriteFile permissions to be 0600 or less
 	/* #nosec G306 */
 	return os.WriteFile(auditDocFile, doc, 0644)
+}
+
+func sortResources(resourcesMap AuditableResourcesMap) []string {
+	var resourceNames []string
+	for key := range resourcesMap {
+		resourceNames = append(resourceNames, key)
+	}
+	sort.Strings(resourceNames)
+	return resourceNames
 }
