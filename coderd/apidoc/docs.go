@@ -6331,6 +6331,20 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OIDCAuthMethod": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "iconUrl": {
+                    "type": "string"
+                },
+                "signInText": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.OIDCConfig": {
             "type": "object",
             "properties": {
@@ -6363,20 +6377,6 @@ const docTemplate = `{
                 },
                 "username_field": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
-                }
-            }
-        },
-        "codersdk.OIDCAuthMethod": {
-            "type": "object",
-            "properties": {
-                "enabled": {
-                    "type": "boolean"
-                },
-                "iconUrl": {
-                    "type": "string"
-                },
-                "signInText": {
-                    "type": "string"
                 }
             }
         },

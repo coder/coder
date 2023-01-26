@@ -2973,6 +2973,24 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `client_secret`       | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
 | `enterprise_base_url` | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
 
+## codersdk.OIDCAuthMethod
+
+```json
+{
+  "enabled": true,
+  "iconUrl": "string",
+  "signInText": "string"
+}
+```
+
+### Properties
+
+| Name         | Type    | Required | Restrictions | Description |
+| ------------ | ------- | -------- | ------------ | ----------- |
+| `enabled`    | boolean | false    |              |             |
+| `iconUrl`    | string  | false    |              |             |
+| `signInText` | string  | false    |              |             |
+
 ## codersdk.OIDCConfig
 
 ```json
@@ -3104,24 +3122,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `scopes`                | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string) | false    |              |             |
 | `sign_in_text`          | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
 | `username_field`        | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-
-## codersdk.OIDCAuthMethod
-
-```json
-{
-  "enabled": true,
-  "iconUrl": "string",
-  "signInText": "string"
-}
-```
-
-### Properties
-
-| Name         | Type    | Required | Restrictions | Description |
-| ------------ | ------- | -------- | ------------ | ----------- |
-| `enabled`    | boolean | false    |              |             |
-| `iconUrl`    | string  | false    |              |             |
-| `signInText` | string  | false    |              |             |
 
 ## codersdk.Organization
 
