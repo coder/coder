@@ -351,6 +351,13 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 				Scope:    key.Scope,
 				Groups:   roles.Groups,
 			})
+			// Set the auth context for the authzquerier as well.
+			ctx = authzquery.WithAuthorizeContext(ctx,
+				key.UserID,
+				rbac.RoleNames(roles.Roles),
+				roles.Groups,
+				rbac.ScopeName(key.Scope),
+			)
 
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
