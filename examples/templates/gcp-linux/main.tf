@@ -46,15 +46,18 @@ resource "google_compute_disk" "root" {
 }
 
 resource "coder_agent" "main" {
-  auth           = "google-instance-identity"
-  arch           = "amd64"
-  os             = "linux"
-  startup_script = <<EOT
-    #!/bin/bash
+  auth = "google-instance-identity"
+  arch = "amd64"
+  os   = "linux"
+
+  delay_login_until_ready = true
+  startup_script_timeout  = 180
+  startup_script          = <<EOT
+    set -e
 
     # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3 | tee code-server-install.log
-    code-server --auth none --port 13337 | tee code-server-install.log &
+    curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3
+    code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
   EOT
 }
 

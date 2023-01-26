@@ -83,6 +83,8 @@ resource "coder_agent" "main" {
   arch = "amd64"
   os   = "linux"
   auth = "azure-instance-identity"
+
+  delay_login_until_ready = true
 }
 
 locals {

@@ -73,6 +73,8 @@ resource "coder_agent" "main" {
   arch = "amd64"
   auth = "aws-instance-identity"
   os   = "windows"
+
+  delay_login_until_ready = true
 }
 
 locals {

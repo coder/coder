@@ -49,6 +49,8 @@ resource "coder_agent" "main" {
   auth = "google-instance-identity"
   arch = "amd64"
   os   = "windows"
+
+  delay_login_until_ready = true
 }
 
 resource "google_compute_instance" "dev" {

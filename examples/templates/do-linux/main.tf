@@ -96,6 +96,8 @@ data "coder_workspace" "me" {}
 resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"
+
+  delay_login_until_ready = true
 }
 
 resource "digitalocean_volume" "home_volume" {

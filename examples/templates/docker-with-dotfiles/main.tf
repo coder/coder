@@ -41,9 +41,19 @@ variable "dotfiles_uri" {
 }
 
 resource "coder_agent" "main" {
-  arch           = data.coder_provisioner.me.arch
-  os             = "linux"
-  startup_script = var.dotfiles_uri != "" ? "coder dotfiles -y ${var.dotfiles_uri}" : null
+  arch = data.coder_provisioner.me.arch
+  os   = "linux"
+
+  delay_login_until_ready = true
+  startup_script_timeout  = 180
+  env                     = { "DOTFILES_URI" = var.dotfiles_uri != "" ? var.dotfiles_uri : null }
+  startup_script          = <<EOT
+    set -e
+    if [ -n "$DOTFILES_URI" ]; then
+      echo "Installing dotfiles from $DOTFILES_URI"
+      coder dotfiles -y "$DOTFILES_URI"
+    fi
+  EOT
 }
 
 resource "docker_volume" "home_volume" {
