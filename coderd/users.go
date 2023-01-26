@@ -38,10 +38,7 @@ import (
 // @Success 200 {object} codersdk.Response
 // @Router /users/first [get]
 func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	if api.Experiments.Enabled(codersdk.ExperimentAuthzQuerier) {
-		ctx = authzquery.WithAuthorizeSystemContext(ctx, rbac.RolesFirstUserSetup())
-	}
+	ctx := authzquery.WithAuthorizeSystemContext(r.Context(), rbac.RolesFirstUserSetup())
 	userCount, err := api.Database.GetUserCount(ctx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -75,10 +72,7 @@ func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
 // @Success 201 {object} codersdk.CreateFirstUserResponse
 // @Router /users/first [post]
 func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	if api.Experiments.Enabled(codersdk.ExperimentAuthzQuerier) {
-		ctx = authzquery.WithAuthorizeSystemContext(ctx, rbac.RolesFirstUserSetup())
-	}
+	ctx := authzquery.WithAuthorizeSystemContext(r.Context(), rbac.RolesFirstUserSetup())
 	var createUser codersdk.CreateFirstUserRequest
 	if !httpapi.Read(ctx, rw, r, &createUser) {
 		return
