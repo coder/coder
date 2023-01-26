@@ -662,7 +662,7 @@ type fakePreparedAuthorizer struct {
 }
 
 func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Object) error {
-	return f.Original.Authorize(ctx, f.Subject, f.Action, object)
+	return f.Original.AuthorizeSQL(ctx, f.Subject, f.Action, object)
 }
 
 // CompileToSQL returns a compiled version of the authorizer that will work for

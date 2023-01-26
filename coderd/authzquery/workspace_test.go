@@ -69,7 +69,7 @@ func TestWorkspaceFunctions(t *testing.T) {
 					require.NoError(t, err)
 				},
 				Asserts: map[string][]rbac.Action{
-					// No rbac checks for this one, uses sql filter
+					// SQL filter does not generate authz calls
 				},
 			},
 		},
