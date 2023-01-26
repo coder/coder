@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"regexp"
 	"strings"
 
 	"github.com/spf13/cobra/doc"
@@ -53,11 +54,26 @@ func main() {
 		// Remove file extension and prefix
 		title := strings.Replace(file.Name(), ".md", "", 1)
 		title = strings.Replace(title, "coder_", "", 1)
+		title = strings.Replace(title, "_", " ", -1)
 
 		cliRoutes = append(cliRoutes, route{
 			Title: title,
 			Path:  "./cli/" + file.Name(),
 		})
+
+		// Remove non printable strings from generated markdown
+		// https://github.com/spf13/cobra/issues/1878
+		filepath := path.Join(markdownDocsDir, file.Name())
+		openFile, err := os.ReadFile(filepath)
+		if err != nil {
+			log.Fatal("Error on open file at ", filepath, ": ", err)
+		}
+		content := string(openFile)
+		content = stripANSI(content)
+		err = os.WriteFile(filepath, []byte(content), 0644) // #nosec
+		if err != nil {
+			log.Fatal("Error on save file at ", filepath, ": ", err)
+		}
 	}
 
 	// Read manifest
@@ -73,7 +89,7 @@ func main() {
 
 	// Update manifest
 	for i, r := range manifest.Routes {
-		if r.Title != "CLI" {
+		if r.Title != "Command Line" {
 			continue
 		}
 
@@ -88,4 +104,12 @@ func main() {
 	if err != nil {
 		log.Fatal("Error on write update on manifest.json: ", err)
 	}
+}
+
+func stripANSI(str string) string {
+	const ansi = "[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))"
+
+	var re = regexp.MustCompile(ansi)
+
+	return re.ReplaceAllString(str, "")
 }
