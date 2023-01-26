@@ -5648,15 +5648,13 @@ const docTemplate = `{
                 },
                 "resource_type": {
                     "enum": [
-                        "organization",
                         "template",
                         "template_version",
                         "user",
                         "workspace",
                         "workspace_build",
                         "git_ssh_key",
-                        "api_key",
-                        "group"
+                        "auditable_group"
                     ],
                     "allOf": [
                         {
@@ -7114,7 +7112,6 @@ const docTemplate = `{
         "codersdk.ResourceType": {
             "type": "string",
             "enum": [
-                "organization",
                 "template",
                 "template_version",
                 "user",
@@ -7125,7 +7122,6 @@ const docTemplate = `{
                 "group"
             ],
             "x-enum-varnames": [
-                "ResourceTypeOrganization",
                 "ResourceTypeTemplate",
                 "ResourceTypeTemplateVersion",
                 "ResourceTypeUser",
