@@ -1,5 +1,5 @@
 import { Story } from "@storybook/react"
-import { Avatar, AvatarProps } from "./Avatar"
+import { Avatar, AvatarIcon, AvatarProps } from "./Avatar"
 import PauseIcon from "@material-ui/icons/PauseOutlined"
 
 export default {
@@ -52,4 +52,10 @@ export const MuiIconXL = Template.bind({})
 MuiIconXL.args = {
   children: <PauseIcon />,
   size: "xl",
+}
+
+export const AvatarIconDarken = Template.bind({})
+AvatarIconDarken.args = {
+  children: <AvatarIcon src="/icon/database.svg" />,
+  colorScheme: "darken",
 }

@@ -4,7 +4,7 @@ import MuiAvatar, {
   AvatarProps as MuiAvatarProps,
 } from "@material-ui/core/Avatar"
 import { makeStyles } from "@material-ui/core/styles"
-import { cloneElement, FC } from "react"
+import { FC } from "react"
 import { combineClasses } from "util/combineClasses"
 import { firstLetter } from "./firstLetter"
 
@@ -40,9 +40,12 @@ export const Avatar: FC<AvatarProps> = ({
   )
 }
 
-export const AvatarIcon: FC<{ children: JSX.Element }> = ({ children }) => {
+/**
+ * Use it to make an img element behaves like a MaterialUI Icon component
+ */
+export const AvatarIcon: FC<{ src: string }> = ({ src }) => {
   const styles = useStyles()
-  return cloneElement(children, { className: styles.avatarIcon })
+  return <img src={src} alt="" className={styles.avatarIcon} />
 }
 
 const useStyles = makeStyles((theme) => ({
