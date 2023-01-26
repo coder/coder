@@ -124,7 +124,7 @@ func (q *AuthzQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uui
 	if err != nil {
 		return nil, err
 	}
-	return q.GetParameterSchemasByJobID(ctx, jobID)
+	return q.database.GetParameterSchemasByJobID(ctx, jobID)
 }
 
 func (q *AuthzQuerier) GetParameterValueByScopeAndName(ctx context.Context, arg database.GetParameterValueByScopeAndNameParams) (database.ParameterValue, error) {

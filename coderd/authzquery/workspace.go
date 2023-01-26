@@ -402,7 +402,7 @@ func (q *AuthzQuerier) UpdateWorkspaceBuildByID(ctx context.Context, arg databas
 		return database.WorkspaceBuild{}, err
 	}
 
-	return q.UpdateWorkspaceBuildByID(ctx, arg)
+	return q.database.UpdateWorkspaceBuildByID(ctx, arg)
 }
 
 func (q *AuthzQuerier) SoftDeleteWorkspaceByID(ctx context.Context, id uuid.UUID) error {
