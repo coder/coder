@@ -108,6 +108,7 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
   return (
     <div className={styles.stack}>
       <LinearProgress
+        data-chromatic="ignore"
         value={progressValue !== undefined ? progressValue : 0}
         variant={
           // There is an initial state where progressValue may be undefined
