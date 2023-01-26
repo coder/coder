@@ -126,7 +126,9 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
       />
       <div className={styles.barHelpers}>
         <div className={styles.label}>{`Build ${job.status}`}</div>
-        <div className={styles.label}>{progressText}</div>
+        <div className={styles.label} data-chromatic="ignore">
+          {progressText}
+        </div>
       </div>
     </div>
   )
