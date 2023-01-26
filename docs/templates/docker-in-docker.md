@@ -1,10 +1,15 @@
+# Docker in Docker
+
 There are a few ways to run Docker within container-based Coder workspaces.
 
-## Sysbox runtime (recommended)
+| Method                                                     | Description                                                                                                          | Limitations                                                                                                                                                                                                 |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Sysbox container runtime](#sysbox-container-runtime)      | Install sysbox on your Kubernetes nodes for secure docker-in-docker and systemd-in-docker. Works with GKE, EKS, AKS. | Requires [compatible nodes](https://github.com/nestybox/sysbox#host-requirements). Max of 16 sysbox pods per node. [See all](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/limitations.md) |
+| [Privileged docker sidecar](#privileged-sidecar-container) | Run docker as a privilged sidecar container.                                                                         | Requires a priviledged container. Workspaces can break out to root on the host machine.                                                                                                                     |
 
-The [Sysbox](https://github.com/nestybox/sysbox) container runtime allows unprivileged users to run system-level applications, such as Docker, securely from the workspace containers. Sysbox requires a [compatible Linux distribution](https://github.com/nestybox/sysbox/blob/master/docs/distro-compat.md) to implement these security features.
+## Sysbox container runtime
 
-> Sysbox can also be used to run systemd inside Coder workspaces. See [Systemd in Docker](#systemd-in-docker).
+The [Sysbox](https://github.com/nestybox/sysbox) container runtime allows unprivileged users to run system-level applications, such as Docker, securely from the workspace containers. Sysbox requires a [compatible Linux distribution](https://github.com/nestybox/sysbox/blob/master/docs/distro-compat.md) to implement these security features. Sysbox can also be used to run systemd inside Coder workspaces. See [Systemd in Docker](#systemd-in-docker).
 
 ### Use Sysbox in Docker-based templates
 
@@ -106,7 +111,9 @@ resource "kubernetes_pod" "dev" {
 
 ## Privileged sidecar container
 
-While less secure, you can attach a [privileged container](https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities) to your templates. This may come in handy if your nodes cannot run Sysbox.
+A [privileged container](https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities) can be added to your templates to add docker support. This may come in handy if your nodes cannot run Sysbox.
+
+> ⚠️ **Warning**: This is insecure. Workspaces will likely be able to gain root access on the host machine.
 
 ### Use a privileged sidecar container in Docker-based templates
 
@@ -211,48 +218,6 @@ resource "kubernetes_pod" "main" {
 ## Systemd in Docker
 
 Additionally, [Sysbox](https://github.com/nestybox/sysbox) can be used to give workspaces full `systemd` capabilities.
-
-### Use systemd in Docker-based templates
-
-After [installing Sysbox](https://github.com/nestybox/sysbox#installation) on the Coder host, modify your template to use the sysbox-runc runtime and start systemd:
-
-```hcl
-resource "docker_container" "workspace" {
-  image = "codercom/enterprise-base:ubuntu"
-  name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
-
-  # Use Sysbox container runtime (required)
-  runtime = "sysbox-runc"
-  # Run as root in order to start systemd (required)
-  user    = "0:0"
-
-  # Start systemd and the Coder agent
-  command = ["sh", "-c", <<EOF
-    # Start the Coder agent as the "coder" user
-    # once systemd has started up
-    sudo -u coder --preserve-env=CODER_AGENT_TOKEN /bin/bash -- <<-'    EOT' &
-    while [[ ! $(systemctl is-system-running) =~ ^(running|degraded) ]]
-    do
-      echo "Waiting for system to start... $(systemctl is-system-running)"
-      sleep 2
-    done
-    ${coder_agent.main.init_script}
-    EOT
-
-    exec /sbin/init
-    EOF
-    ,
-  ]
-  env     = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
-}
-
-resource "coder_agent" "main" {
-  arch = data.coder_provisioner.me.arch
-  os   = "linux"
-}
-```
-
-### Use systemd in Kubernetes-based templates
 
 After [installing Sysbox on Kubernetes](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/install-k8s.md),
 modify your template to use the sysbox-runc RuntimeClass. This requires the Kubernetes Terraform provider version 2.16.0 or greater.
