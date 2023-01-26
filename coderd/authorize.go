@@ -19,14 +19,15 @@ import (
 // This is faster than calling Authorize() on each object.
 func AuthorizeFilter[O rbac.Objecter](h *HTTPAuthorizer, r *http.Request, action rbac.Action, objects []O) ([]O, error) {
 	roles := httpmw.UserAuthorization(r)
-	objects, err := rbac.Filter(r.Context(), h.Authorizer, roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), roles.Groups, action, objects)
+	objects, err := rbac.Filter(r.Context(), h.Authorizer, roles.Actor, action, objects)
 	if err != nil {
 		// Log the error as Filter should not be erroring.
 		h.Logger.Error(r.Context(), "filter failed",
 			slog.Error(err),
-			slog.F("user_id", roles.ID),
+			slog.F("user_id", roles.Actor.ID),
 			slog.F("username", roles.Username),
-			slog.F("scope", roles.Scope),
+			slog.F("roles", roles.Actor.SafeRoleNames()),
+			slog.F("scope", roles.Actor.SafeScopeName()),
 			slog.F("route", r.URL.Path),
 			slog.F("action", action),
 		)
@@ -64,7 +65,7 @@ func (api *API) Authorize(r *http.Request, action rbac.Action, object rbac.Objec
 //	}
 func (h *HTTPAuthorizer) Authorize(r *http.Request, action rbac.Action, object rbac.Objecter) bool {
 	roles := httpmw.UserAuthorization(r)
-	err := h.Authorizer.ByRoleName(r.Context(), roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), roles.Groups, action, object.RBACObject())
+	err := h.Authorizer.Authorize(r.Context(), roles.Actor, action, object.RBACObject())
 	if err != nil {
 		// Log the errors for debugging
 		internalError := new(rbac.UnauthorizedError)
@@ -75,10 +76,10 @@ func (h *HTTPAuthorizer) Authorize(r *http.Request, action rbac.Action, object r
 		// Log information for debugging. This will be very helpful
 		// in the early days
 		logger.Warn(r.Context(), "unauthorized",
-			slog.F("roles", roles.Roles),
-			slog.F("user_id", roles.ID),
+			slog.F("roles", roles.Actor.SafeRoleNames()),
+			slog.F("user_id", roles.Actor.ID),
 			slog.F("username", roles.Username),
-			slog.F("scope", roles.Scope),
+			slog.F("scope", roles.Actor.SafeScopeName()),
 			slog.F("route", r.URL.Path),
 			slog.F("action", action),
 			slog.F("object", object),
@@ -96,7 +97,7 @@ func (h *HTTPAuthorizer) Authorize(r *http.Request, action rbac.Action, object r
 // Note the authorization is only for the given action and object type.
 func (h *HTTPAuthorizer) AuthorizeSQLFilter(r *http.Request, action rbac.Action, objectType string) (rbac.PreparedAuthorized, error) {
 	roles := httpmw.UserAuthorization(r)
-	prepared, err := h.Authorizer.PrepareByRoleName(r.Context(), roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), roles.Groups, action, objectType)
+	prepared, err := h.Authorizer.Prepare(r.Context(), roles.Actor, action, objectType)
 	if err != nil {
 		return nil, xerrors.Errorf("prepare filter: %w", err)
 	}
@@ -127,9 +128,10 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 
 	api.Logger.Debug(ctx, "check-auth",
 		slog.F("my_id", httpmw.APIKey(r).UserID),
-		slog.F("got_id", auth.ID),
+		slog.F("got_id", auth.Actor.ID),
 		slog.F("name", auth.Username),
-		slog.F("roles", auth.Roles), slog.F("scope", auth.Scope),
+		slog.F("roles", auth.Actor.SafeRoleNames()),
+		slog.F("scope", auth.Actor.SafeScopeName()),
 	)
 
 	response := make(codersdk.AuthorizationResponse)
@@ -169,7 +171,7 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 			Type:  v.Object.ResourceType,
 		}
 		if obj.Owner == "me" {
-			obj.Owner = auth.ID.String()
+			obj.Owner = auth.Actor.ID
 		}
 
 		// If a resource ID is specified, fetch that specific resource.
@@ -217,7 +219,7 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 			obj = dbObj.RBACObject()
 		}
 
-		err := api.Authorizer.ByRoleName(ctx, auth.ID.String(), auth.Roles, auth.Scope.ToRBAC(), auth.Groups, rbac.Action(v.Action), obj)
+		err := api.Authorizer.Authorize(ctx, auth.Actor, rbac.Action(v.Action), obj)
 		response[k] = err == nil
 	}
 

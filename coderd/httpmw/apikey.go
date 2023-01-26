@@ -52,11 +52,10 @@ func APIKey(r *http.Request) database.APIKey {
 type userAuthKey struct{}
 
 type Authorization struct {
-	ID       uuid.UUID
+	Actor rbac.Subject
+	// Username is required for logging and human friendly related
+	// identification.
 	Username string
-	Roles    rbac.RoleNames
-	Groups   []string
-	Scope    database.APIKeyScope
 }
 
 // UserAuthorizationOptional may return the roles and scope used for
@@ -343,11 +342,13 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 
 			ctx = context.WithValue(ctx, apiKeyContextKey{}, key)
 			ctx = context.WithValue(ctx, userAuthKey{}, Authorization{
-				ID:       key.UserID,
 				Username: roles.Username,
-				Roles:    roles.Roles,
-				Scope:    key.Scope,
-				Groups:   roles.Groups,
+				Actor: rbac.Subject{
+					ID:     key.UserID.String(),
+					Roles:  rbac.RoleNames(roles.Roles),
+					Groups: roles.Groups,
+					Scope:  rbac.ScopeName(key.Scope),
+				},
 			})
 
 			next.ServeHTTP(rw, r.WithContext(ctx))
