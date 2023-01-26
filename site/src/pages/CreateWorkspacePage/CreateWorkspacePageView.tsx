@@ -62,7 +62,9 @@ export const CreateWorkspacePageView: FC<
         template_id: props.selectedTemplate ? props.selectedTemplate.id : "",
         rich_parameter_values: defaultRichParameters(props.templateParameters),
       },
-      validationSchema: ValidationSchemaForRichParameters(props.templateParameters),
+      validationSchema: ValidationSchemaForRichParameters(
+        props.templateParameters,
+      ),
       enableReinitialize: true,
       initialTouched: props.initialTouched,
       onSubmit: (request) => {
@@ -251,7 +253,9 @@ export const CreateWorkspacePageView: FC<
           {props.templateParameters && props.templateParameters.length > 0 && (
             <div className={styles.formSection}>
               <div className={styles.formSectionInfo}>
-                <h2 className={styles.formSectionInfoTitle}>Rich template params</h2>
+                <h2 className={styles.formSectionInfoTitle}>
+                  Rich template params
+                </h2>
                 <p className={styles.formSectionInfoDescription}>
                   Those values are provided by your template&lsquo;s Terraform
                   configuration.
@@ -265,14 +269,16 @@ export const CreateWorkspacePageView: FC<
               >
                 {props.templateParameters.map((parameter, index) => (
                   <RichParameterInput
-                    {...getFieldHelpers("rich_parameter_values[" + index + "].value")}
+                    {...getFieldHelpers(
+                      "rich_parameter_values[" + index + "].value",
+                    )}
                     disabled={form.isSubmitting}
                     key={parameter.name}
                     onChange={(value) => {
                       form.setFieldValue("rich_parameter_values." + index, {
                         name: parameter.name,
                         value: value,
-                      });
+                      })
                     }}
                     parameter={parameter}
                   />
@@ -364,8 +370,10 @@ const useFormFooterStyles = makeStyles((theme) => ({
   },
 }))
 
-const defaultRichParameters = (templateParameters?: TypesGen.TemplateVersionParameter[]): TypesGen.WorkspaceBuildParameter[] => {
-  const defaults: TypesGen.WorkspaceBuildParameter[] = [];
+const defaultRichParameters = (
+  templateParameters?: TypesGen.TemplateVersionParameter[],
+): TypesGen.WorkspaceBuildParameter[] => {
+  const defaults: TypesGen.WorkspaceBuildParameter[] = []
   if (!templateParameters) {
     return defaults
   }
@@ -382,14 +390,16 @@ const defaultRichParameters = (templateParameters?: TypesGen.TemplateVersionPara
 
     const buildParameter: TypesGen.WorkspaceBuildParameter = {
       name: parameter.name,
-      value: parameter.default_value || '',
+      value: parameter.default_value || "",
     }
     defaults.push(buildParameter)
   })
-  return defaults;
+  return defaults
 }
 
-const ValidationSchemaForRichParameters = (templateParameters?: TypesGen.TemplateVersionParameter[]): Yup.AnySchema => {
+const ValidationSchemaForRichParameters = (
+  templateParameters?: TypesGen.TemplateVersionParameter[],
+): Yup.AnySchema => {
   const { t } = useTranslation("createWorkspacePage")
 
   if (!templateParameters) {
@@ -401,44 +411,63 @@ const ValidationSchemaForRichParameters = (templateParameters?: TypesGen.Templat
     rich_parameter_values: Yup.array()
       .of(
         Yup.object().shape({
-          "name": Yup.string().required(),
-          "value": Yup.string().required(t("validationRequiredParameter")).test("verify with template", (val, ctx) => {
-            const name = ctx.parent.name;
-            const templateParameter = templateParameters.find((parameter) => parameter.name === name);
-            if (templateParameter) {
-              switch (templateParameter.type) {
-                case 'number':
-                  if (templateParameter.validation_min === 0 && templateParameter.validation_max === 0) {
-                    return true
-                  }
-
-                  if (Number(val) < templateParameter.validation_min || templateParameter.validation_max < Number(val)) {
-                    return ctx.createError({
-                      path: ctx.path,
-                      message: t("validationNumberNotInRange", { min: templateParameter.validation_min, max: templateParameter.validation_max }) })
-                  }
-                  break
-                case 'string':
-                  {
-                    if (templateParameter.validation_regex.length === 0) {
+          name: Yup.string().required(),
+          value: Yup.string()
+            .required(t("validationRequiredParameter"))
+            .test("verify with template", (val, ctx) => {
+              const name = ctx.parent.name
+              const templateParameter = templateParameters.find(
+                (parameter) => parameter.name === name,
+              )
+              if (templateParameter) {
+                switch (templateParameter.type) {
+                  case "number":
+                    if (
+                      templateParameter.validation_min === 0 &&
+                      templateParameter.validation_max === 0
+                    ) {
                       return true
                     }
 
-                    const regex = new RegExp(templateParameter.validation_regex);
-                    if (val && !regex.test(val)) {
+                    if (
+                      Number(val) < templateParameter.validation_min ||
+                      templateParameter.validation_max < Number(val)
+                    ) {
                       return ctx.createError({
                         path: ctx.path,
-                        message: t("validationPatternNotMatched", { error: templateParameter.validation_error, pattern: templateParameter.validation_regex })
+                        message: t("validationNumberNotInRange", {
+                          min: templateParameter.validation_min,
+                          max: templateParameter.validation_max,
+                        }),
                       })
                     }
-                  }
-                  break
+                    break
+                  case "string":
+                    {
+                      if (templateParameter.validation_regex.length === 0) {
+                        return true
+                      }
+
+                      const regex = new RegExp(
+                        templateParameter.validation_regex,
+                      )
+                      if (val && !regex.test(val)) {
+                        return ctx.createError({
+                          path: ctx.path,
+                          message: t("validationPatternNotMatched", {
+                            error: templateParameter.validation_error,
+                            pattern: templateParameter.validation_regex,
+                          }),
+                        })
+                      }
+                    }
+                    break
+                }
               }
-            }
-            return true
-          })
-        })
+              return true
+            }),
+        }),
       )
-      .required()
+      .required(),
   })
 }

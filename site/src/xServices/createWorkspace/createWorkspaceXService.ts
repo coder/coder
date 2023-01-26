@@ -173,7 +173,9 @@ export const createWorkspaceMachine = createMachine(
           throw new Error("No selected template")
         }
 
-        return getTemplateVersionRichParameters(selectedTemplate.active_version_id)
+        return getTemplateVersionRichParameters(
+          selectedTemplate.active_version_id,
+        )
       },
       getTemplateSchema: (context) => {
         const { selectedTemplate } = context
@@ -242,7 +244,7 @@ export const createWorkspaceMachine = createMachine(
       assignTemplateSchema: assign({
         // Only show parameters that are allowed to be overridden.
         // CLI code: https://github.com/coder/coder/blob/main/cli/create.go#L152-L155
-        templateSchema: (_, event) => event.data
+        templateSchema: (_, event) => event.data,
       }),
       assignPermissions: assign({
         permissions: (_, event) => event.data as Record<string, boolean>,

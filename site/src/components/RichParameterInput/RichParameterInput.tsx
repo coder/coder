@@ -11,7 +11,9 @@ const isBoolean = (parameter: TemplateVersionParameter) => {
   return parameter.type === "bool"
 }
 
-const ParameterLabel: React.FC<{ parameter: TemplateVersionParameter }> = ({ parameter }) => {
+const ParameterLabel: React.FC<{ parameter: TemplateVersionParameter }> = ({
+  parameter,
+}) => {
   const styles = useStyles()
 
   if (parameter.name && parameter.description) {
@@ -28,8 +30,8 @@ const ParameterLabel: React.FC<{ parameter: TemplateVersionParameter }> = ({ par
                   pointerEvents: "none",
                 }}
               />
-              </span>
-            )}
+            </span>
+          )}
           <span className={styles.labelName}>{parameter.name}</span>
         </span>
         <span className={styles.labelDescription}>{parameter.description}</span>
@@ -80,7 +82,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
   ...props
 }) => {
   const [parameterValue, setParameterValue] = useState(parameter.default_value)
-  const styles = useStyles();
+  const styles = useStyles()
 
   if (isBoolean(parameter)) {
     return (
@@ -114,31 +116,29 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
           onChange(event.target.value)
         }}
       >
-        {
-          parameter.options.map((option) => (
-            <FormControlLabel
-              disabled={disabled}
-              key={option.name}
-              value={option.value}
-              control={<Radio color="primary" size="small" disableRipple />}
-              label={(
-                <span>
-                  {option.icon && (
-                    <img
-                      className={styles.optionIcon}
-                      alt="Parameter icon"
-                      src={option.icon}
-                      style={{
-                        pointerEvents: "none",
-                      }}
-                    />
-                  )}
-                  {option.name}
-                </span>
-              )}
-            />
-          ))
-        }
+        {parameter.options.map((option) => (
+          <FormControlLabel
+            disabled={disabled}
+            key={option.name}
+            value={option.value}
+            control={<Radio color="primary" size="small" disableRipple />}
+            label={
+              <span>
+                {option.icon && (
+                  <img
+                    className={styles.optionIcon}
+                    alt="Parameter icon"
+                    src={option.icon}
+                    style={{
+                      pointerEvents: "none",
+                    }}
+                  />
+                )}
+                {option.name}
+              </span>
+            }
+          />
+        ))}
       </RadioGroup>
     )
   }
