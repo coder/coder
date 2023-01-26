@@ -465,7 +465,7 @@ func (c *coordinator) ServeHTTPDebug(w http.ResponseWriter, _ *http.Request) {
 		})
 
 		for _, agent := range agentSockets {
-			fmt.Fprintf(w, "<li><b>%s</b> (%s): created %v ago, write %v ago, overwrites %d </li>\n",
+			fmt.Fprintf(w, "<li style=\"margin-top:4px\"><b>%s</b> (<code>%s</code>): created %v ago, write %v ago, overwrites %d </li>\n",
 				agent.conn.name,
 				agent.id.String(),
 				now.Sub(time.Unix(agent.conn.start, 0)).Round(time.Second),
@@ -474,7 +474,7 @@ func (c *coordinator) ServeHTTPDebug(w http.ResponseWriter, _ *http.Request) {
 			)
 
 			if conns := c.agentToConnectionSockets[agent.id]; len(conns) > 0 {
-				fmt.Fprintf(w, "<h3 style=\"margin:4px;font-size:16px;font-weight:400\">connections: total %d</h3>\n", len(conns))
+				fmt.Fprintf(w, "<h3 style=\"margin:0px;font-size:16px;font-weight:400\">connections: total %d</h3>\n", len(conns))
 
 				connSockets := make([]idConn, 0, len(conns))
 				for id, conn := range conns {
@@ -486,7 +486,7 @@ func (c *coordinator) ServeHTTPDebug(w http.ResponseWriter, _ *http.Request) {
 
 				fmt.Fprintln(w, "<ul>")
 				for _, connSocket := range connSockets {
-					fmt.Fprintf(w, "<li><b>%s</b> (%s): created %v ago, write %v ago </li>\n",
+					fmt.Fprintf(w, "<li><b>%s</b> (<code>%s</code>): created %v ago, write %v ago </li>\n",
 						connSocket.conn.name,
 						connSocket.id.String(),
 						now.Sub(time.Unix(connSocket.conn.start, 0)).Round(time.Second),
@@ -532,14 +532,14 @@ func (c *coordinator) ServeHTTPDebug(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprintln(w, "<ul>")
 
 		for _, agentConns := range missingAgents {
-			fmt.Fprintf(w, "<li><b>unknown</b> (%s): created ? ago, write ? ago, overwrites ? </li>\n",
+			fmt.Fprintf(w, "<li style=\"margin-top:4px\"><b>unknown</b> (<code>%s</code>): created ? ago, write ? ago, overwrites ? </li>\n",
 				agentConns.id.String(),
 			)
 
-			fmt.Fprintf(w, "<h3 style=\"margin:4px;font-size:16px;font-weight:400\">connections: total %d</h3>\n", len(agentConns.conns))
+			fmt.Fprintf(w, "<h3 style=\"margin:0px;font-size:16px;font-weight:400\">connections: total %d</h3>\n", len(agentConns.conns))
 			fmt.Fprintln(w, "<ul>")
 			for _, agentConn := range agentConns.conns {
-				fmt.Fprintf(w, "<li><b>%s</b> (%s): created %v ago, write %v ago </li>\n",
+				fmt.Fprintf(w, "<li><b>%s</b> (<code>%s</code>): created %v ago, write %v ago </li>\n",
 					agentConn.conn.name,
 					agentConn.id.String(),
 					now.Sub(time.Unix(agentConn.conn.start, 0)).Round(time.Second),
