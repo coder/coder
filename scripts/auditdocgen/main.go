@@ -95,7 +95,7 @@ func readAuditDoc() ([]byte, error) {
 // Writes a markdown table of audit log resources to a buffer
 func updateAuditDoc(doc []byte, auditableResourcesMap AuditableResourcesMap) ([]byte, error) {
 	// We must sort the resources to ensure table ordering
-	resourceNames := sortResources(auditableResourcesMap)
+	sortedResourceNames := sortResources(auditableResourcesMap)
 
 	i := bytes.Index(doc, generatorPrefix)
 	if i < 0 {
@@ -116,7 +116,7 @@ func updateAuditDoc(doc []byte, auditableResourcesMap AuditableResourcesMap) ([]
 	buffer.WriteString("|<b>Resource<b>||\n")
 	buffer.WriteString("|--|-----------------|\n")
 
-	for _, resourceName := range resourceNames {
+	for _, resourceName := range sortedResourceNames {
 		buffer.WriteString("|" + resourceName + "|<table><thead><tr><th>Field</th><th>Tracked</th></tr></thead><tbody>")
 
 		for fieldName, isTracked := range auditableResourcesMap[resourceName] {
