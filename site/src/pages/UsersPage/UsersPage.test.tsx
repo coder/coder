@@ -249,7 +249,7 @@ describe("UsersPage", () => {
         expect(API.getUsers).toBeCalledWith({ offset: 0, limit: 25, q: "" }),
       )
 
-      const pageButtons = await container.querySelectorAll(
+      const pageButtons = container.querySelectorAll(
         `button[name="Page button"]`,
       )
       // count handler says there are 2 pages of results
