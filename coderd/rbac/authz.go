@@ -17,19 +17,13 @@ import (
 	"github.com/coder/coder/coderd/tracing"
 )
 
-// ExpandableRoles is any type that can be expanded into a []Role. This is implemented
-// as an interface so we can have RoleNames for user defined roles, and implement
-// custom ExpandableRoles for system type users (eg autostart/autostop system role).
-// We want a clear divide between the two types of roles so users have no codepath
-// to interact or assign system roles.
-//
-// Note: We may also want to do the same thing with scopes to allow custom scope
-// support unavailable to the user. Eg: Scope to a single resource.
-type ExpandableRoles interface {
-	Expand() ([]Role, error)
-	// Names is for logging and tracing purposes, we want to know the human
-	// names of the expanded roles.
-	Names() []string
+// Subject is a struct that contains all the elements of a subject in an rbac
+// authorize.
+type Subject struct {
+	SubjectID string
+	Roles     ExpandableRoles
+	Groups    []string
+	Scope     ExpandableScope
 }
 
 type Authorizer interface {
