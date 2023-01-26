@@ -644,6 +644,12 @@ export const getTemplateDAUs = async (
   return response.data
 }
 
+export const getDeploymentDAUs =
+  async (): Promise<TypesGen.DeploymentDAUsResponse> => {
+    const response = await axios.get(`/api/v2/insights/daus`)
+    return response.data
+  }
+
 export const getTemplateACL = async (
   templateId: string,
 ): Promise<TypesGen.TemplateACL> => {
