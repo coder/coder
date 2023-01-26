@@ -234,6 +234,7 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subject Subject, action A
 // authorize is the internal function that does the actual authorization.
 // It is a different function so the exported one can add tracing + metrics.
 // That code tends to clutter up the actual logic, so it's separated out.
+// nolint:revive
 func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action Action, object Object) error {
 	if subject.Roles == nil {
 		return xerrors.Errorf("subject must have roles")

@@ -547,7 +547,7 @@ var _ rbac.Authorizer = (*RecordingAuthorizer)(nil)
 
 // AuthorizeSQL does not record the call. This matches the postgres behavior
 // of not calling Authorize()
-func (r *RecordingAuthorizer) AuthorizeSQL(_ context.Context, subj rbac.Subject, _ rbac.Action, _ rbac.Object) error {
+func (r *RecordingAuthorizer) AuthorizeSQL(_ context.Context, _ rbac.Subject, _ rbac.Action, _ rbac.Object) error {
 	return r.AlwaysReturn
 }
 
