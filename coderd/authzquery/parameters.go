@@ -138,7 +138,7 @@ func (q *AuthzQuerier) GetParameterValueByScopeAndName(ctx context.Context, arg 
 		return database.ParameterValue{}, err
 	}
 
-	return q.GetParameterValueByScopeAndName(ctx, arg)
+	return q.database.GetParameterValueByScopeAndName(ctx, arg)
 }
 
 func (q *AuthzQuerier) DeleteParameterValueByID(ctx context.Context, id uuid.UUID) error {
@@ -158,5 +158,5 @@ func (q *AuthzQuerier) DeleteParameterValueByID(ctx context.Context, id uuid.UUI
 		return err
 	}
 
-	return q.DeleteParameterValueByID(ctx, id)
+	return q.database.DeleteParameterValueByID(ctx, id)
 }
