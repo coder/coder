@@ -20,7 +20,8 @@ const (
 
 	// The below roles are for system internal use only and are
 	// not assignable to users.
-	firstUserSetup string = "first-user-setup"
+	system         string = "system"
+	systemReadOnly string = "system-read-only"
 	autostart      string = "auto-start"
 )
 
@@ -68,19 +69,15 @@ func RolesAutostartSystem() Roles {
 	}
 }
 
-// RolesFirstUserSetup is the limited set of permissions required for first-time setup.
-func RolesFirstUserSetup() Roles {
+// RolesAdminSystem is an all-powerful system role.
+// TODO: break this up into more granular roles.
+func RolesAdminSystem() Roles {
 	return Roles{
 		Role{
-			Name:        firstUserSetup,
-			DisplayName: "First User Setup",
+			Name:        system,
+			DisplayName: "System",
 			Site: permissions(map[string][]Action{
-				// ResourceWildcard.Type: {WildcardSymbol},
-				ResourceGroup.Type:              {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-				ResourceOrganization.Type:       {ActionRead, ActionCreate},
-				ResourceOrganizationMember.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-				ResourceRoleAssignment.Type:     {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-				ResourceUser.Type:               {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+				ResourceWildcard.Type: {WildcardSymbol},
 			}),
 			Org:  map[string][]Permission{},
 			User: []Permission{},
@@ -259,7 +256,7 @@ var (
 	// The first key is the actor role, the second is the roles they can assign.
 	//	map[actor_role][assign_role]<can_assign>
 	assignRoles = map[string]map[string]bool{
-		firstUserSetup: {
+		system: {
 			owner:     true,
 			member:    true,
 			orgAdmin:  true,
