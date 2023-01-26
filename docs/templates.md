@@ -375,24 +375,59 @@ customize them however you like.
 ## Troubleshooting templates
 
 Occasionally, you may run into scenarios where a workspace is created, but the
-agent is not connected. This means the agent or [init script](https://github.com/coder/coder/tree/main/provisionersdk/scripts)
+agent is either not connected or the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script)
+has failed or timed out.
+
+### Agent connection issues
+
+If the agent is not connected, it means the agent or [init script](https://github.com/coder/coder/tree/main/provisionersdk/scripts)
 has failed on the resource.
 
 ```console
 $ coder ssh myworkspace
-Waiting for [agent] to connect...
+⢄⡱ Waiting for [agent] to connect...
 ```
 
 While troubleshooting steps vary by resource, here are some general best
 practices:
 
-- Ensure the resource has `curl` installed
+- Ensure the resource has `curl` installed (alternatively, `wget` or `busybox`)
 - Ensure the resource can `curl` your Coder [access
   URL](./admin/configure.md#access-url)
 - Manually connect to the resource and check the agent logs (e.g., `kubectl exec`, `docker exec` or AWS console)
   - The Coder agent logs are typically stored in `/tmp/coder-agent.log`
   - The Coder agent startup script logs are typically stored in
     `/tmp/coder-startup-script.log`
+
+### Agent startup issues
+
+If the agent does not start, it means the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script) is still running or has exited with a non-zero status. This also means the [delay login until ready](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#delay_login_until_ready) option is enabled.
+
+```console
+$ coder ssh myworkspace
+⢄⡱ Waiting for [agent] to finish starting up...
+```
+
+To troubleshoot startup issues, check the agent logs as suggested above. For startup issues you can connect to the workspace using SSH with the `--no-wait` flag.
+
+```console
+$ coder ssh myworkspace --no-wait
+
+ > The workspace agent is taking longer than expected to
+   start. See troubleshooting instructions at: [...]
+
+user@myworkspace $
+```
+
+If the startup script is expected to take a long time, you can try raising the timeout defined in the template:
+
+```tf
+resource "coder_agent" "main" {
+  # ...
+  delay_login_until_ready = true
+  startup_script_timeout  = 1800 # 30 minutes in seconds.
+}
+```
 
 ## Template permissions (enterprise)
 
