@@ -418,6 +418,7 @@ gen: \
 	provisionerd/proto/provisionerd.pb.go \
 	site/src/api/typesGenerated.ts \
 	docs/admin/prometheus.md \
+	docs/cli/coder.md \
 	coderd/apidoc/swagger.json \
 	.prettierignore.include \
 	.prettierignore \
@@ -436,6 +437,7 @@ gen/mark-fresh:
 		provisionerd/proto/provisionerd.pb.go \
 		site/src/api/typesGenerated.ts \
 		docs/admin/prometheus.md \
+		docs/cli/coder.md \
 		coderd/apidoc/swagger.json \
 		.prettierignore.include \
 		.prettierignore \
@@ -489,6 +491,11 @@ docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/me
 	go run scripts/metricsdocgen/main.go
 	cd site
 	yarn run format:write:only ../docs/admin/prometheus.md
+
+docs/cli/coder.md: scripts/clidocgen/main.go
+	go run scripts/clidocgen/main.go
+	cd site
+	yarn run format:write:only ../docs/cli/**.md
 
 coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) -type f) $(wildcard coderd/*.go) $(wildcard enterprise/coderd/*.go) $(wildcard codersdk/*.go) .swaggo docs/manifest.json
 	./scripts/apidocgen/generate.sh
