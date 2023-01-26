@@ -42,8 +42,10 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 	}
 
 	// Fast path if the agent is ready (avoid showing connecting prompt).
+	// We don't take the fast path for opts.NoWait yet because we want to
+	// show the message.
 	if agent.Status == codersdk.WorkspaceAgentConnected &&
-		(!agent.DelayLoginUntilReady || opts.NoWait || agent.LifecycleState == codersdk.WorkspaceAgentLifecycleReady) {
+		(!agent.DelayLoginUntilReady || agent.LifecycleState == codersdk.WorkspaceAgentLifecycleReady) {
 		return nil
 	}
 
@@ -51,8 +53,6 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 	spin.Writer = writer
 	spin.ForceOutput = true
 	spin.Suffix = waitingMessage(agent).Spin
-	spin.Start()
-	defer spin.Stop()
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 	defer cancelFunc()
@@ -105,6 +105,20 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 			}
 		}
 	}
+
+	// Fast path for showing the error message even when using no wait,
+	// we do this just before starting the spinner to avoid needless
+	// spinning.
+	if agent.Status == codersdk.WorkspaceAgentConnected &&
+		agent.DelayLoginUntilReady && opts.NoWait {
+		showMessage()
+		return nil
+	}
+
+	// Start spinning after fast paths are handled.
+	spin.Start()
+	defer spin.Stop()
+
 	messageAfterDone := make(chan struct{})
 	go func() {
 		select {
