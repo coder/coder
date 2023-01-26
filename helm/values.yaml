@@ -21,6 +21,13 @@ coder:
     # a private registry.
     pullSecrets: []
     #  - name: "pull-secret"
+  
+  # coder.initContainers -- Init containers for the deployment. See:
+  # https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+  initContainers: []
+    # - name: init-container
+    #   image: busybox:1.28
+    #   command: ['sh', '-c', "sleep 2"]
 
   # coder.annotations -- The Deployment annotations. See:
   # https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
