@@ -95,7 +95,7 @@ func readAuditDoc() ([]byte, error) {
 // Writes a markdown table of audit log resources to a buffer
 func updateAuditDoc(doc []byte, auditableResourcesMap AuditableResourcesMap) ([]byte, error) {
 	// We must sort the resources to ensure table ordering
-	sortedResourceNames := sortResources(auditableResourcesMap)
+	sortedResourceNames := sortKeys(auditableResourcesMap)
 
 	i := bytes.Index(doc, generatorPrefix)
 	if i < 0 {
@@ -119,7 +119,11 @@ func updateAuditDoc(doc []byte, auditableResourcesMap AuditableResourcesMap) ([]
 	for _, resourceName := range sortedResourceNames {
 		buffer.WriteString("|" + resourceName + "|<table><thead><tr><th>Field</th><th>Tracked</th></tr></thead><tbody>")
 
-		for fieldName, isTracked := range auditableResourcesMap[resourceName] {
+		// We must sort the field names to ensure sub-table ordering
+		sortedFieldNames := sortKeys(auditableResourcesMap[resourceName])
+
+		for _, fieldName := range sortedFieldNames {
+			isTracked := auditableResourcesMap[resourceName][fieldName]
 			buffer.WriteString("<tr><td>" + fieldName + "</td><td>" + strconv.FormatBool(isTracked) + "</td></tr>")
 		}
 
@@ -137,11 +141,11 @@ func writeAuditDoc(doc []byte) error {
 	return os.WriteFile(auditDocFile, doc, 0644)
 }
 
-func sortResources(resourcesMap AuditableResourcesMap) []string {
-	var resourceNames []string
-	for key := range resourcesMap {
-		resourceNames = append(resourceNames, key)
+func sortKeys[T any](stringMap map[string]T) []string {
+	var keyNames []string
+	for key := range stringMap {
+		keyNames = append(keyNames, key)
 	}
-	sort.Strings(resourceNames)
-	return resourceNames
+	sort.Strings(keyNames)
+	return keyNames
 }
