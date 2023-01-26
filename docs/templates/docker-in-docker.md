@@ -113,7 +113,7 @@ resource "kubernetes_pod" "dev" {
 
 A [privileged container](https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities) can be added to your templates to add docker support. This may come in handy if your nodes cannot run Sysbox.
 
-> ⚠️ **Warning**: This is insecure. Workspaces will likely be able to gain root access on the host machine.
+> ⚠️ **Warning**: This is insecure. Workspaces will be able to gain root access to the host machine.
 
 ### Use a privileged sidecar container in Docker-based templates
 
