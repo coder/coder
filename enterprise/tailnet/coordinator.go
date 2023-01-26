@@ -622,7 +622,7 @@ func (c *haCoordinator) ServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
-	fmt.Fprintln(w, "<h1>HA wireguard coordinator debug</h1>")
+	fmt.Fprintln(w, "<h1>high-availability wireguard coordinator debug</h1>")
 	fmt.Fprintln(w, "<h4 style=\"margin-top:-25px\">warning: this only provides info from the node that served the request, if there are multiple replicas this data may be incomplete</h4>")
 
 	agpl.CoordinatorHTTPDebug(c.agentSockets, c.agentToConnectionSockets, c.agentNameCache)(w, r)
