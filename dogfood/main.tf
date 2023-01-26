@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.6.0"
+      version = "0.6.9"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -58,9 +58,12 @@ provider "coder" {}
 data "coder_workspace" "me" {}
 
 resource "coder_agent" "dev" {
-  arch           = "amd64"
-  os             = "linux"
-  startup_script = <<EOF
+  arch = "amd64"
+  os   = "linux"
+
+  delay_login_until_ready = true
+  startup_script_timeout  = 60
+  startup_script          = <<-EOT
     #!/bin/sh
     set -x
     # install and start code-server
@@ -77,7 +80,7 @@ resource "coder_agent" "dev" {
     elif [ -f ~/personalize ]; then
       echo "~/personalize is not executable, skipping..." | tee -a ~/.personalize.log
     fi
-    EOF
+  EOT
 }
 
 resource "coder_app" "code-server" {
