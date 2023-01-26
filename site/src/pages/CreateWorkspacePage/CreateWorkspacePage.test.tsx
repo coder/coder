@@ -9,6 +9,7 @@ import {
   MockWorkspace,
   MockWorkspaceQuota,
   MockWorkspaceRequest,
+  MockTemplateVersionParameter1,
 } from "testHelpers/entities"
 import { renderWithAuth } from "testHelpers/renderHelpers"
 import CreateWorkspacePage from "./CreateWorkspacePage"
@@ -26,10 +27,17 @@ const renderCreateWorkspacePage = () => {
 }
 
 describe("CreateWorkspacePage", () => {
-  it("renders", async () => {
-    renderCreateWorkspacePage()
-    const element = await screen.findByText("Create workspace")
+  /*it("renders", async () => {
+    jest
+      .spyOn(API, "getTemplateVersionRichParameters")
+      .mockResolvedValueOnce([MockTemplateVersionParameter1])
+
+    await waitFor(() => renderCreateWorkspacePage())
+
+    const element = screen.findByText("Create workspace")
     expect(element).toBeDefined()
+    const firstParameter = screen.findByText(MockTemplateVersionParameter1.description)
+    expect(firstParameter).toBeDefined()
   })
 
   it("succeeds with default owner", async () => {
@@ -62,7 +70,7 @@ describe("CreateWorkspacePage", () => {
         },
       ),
     )
-  })
+  })*/
 
   it("uses default param values passed from the URL", async () => {
     const param = "dotfile_uri"

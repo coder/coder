@@ -624,11 +624,31 @@ export const MockWorkspacesResponse: TypesGen.WorkspacesResponse = {
   count: 26,
 }
 
+export const MockTemplateVersionParameter1: TypesGen.TemplateVersionParameter = {
+  name: "first_parameter",
+  type: "string",
+  description: "This is first parameter",
+  default_value: "abc",
+  mutable: true,
+  icon: "/icons/icon.svg",
+  options: [],
+  validation_error: "",
+  validation_regex: "",
+  validation_min: 0,
+  validation_max: 0,
+}
+
 // requests the MockWorkspace
 export const MockWorkspaceRequest: TypesGen.CreateWorkspaceRequest = {
   name: "test",
   parameter_values: [],
   template_id: "test-template",
+  rich_parameter_values: [
+    {
+      name: MockTemplateVersionParameter1.name,
+      value: MockTemplateVersionParameter1.default_value,
+    }
+  ],
 }
 
 export const MockUserAgent: Types.UserAgent = {
