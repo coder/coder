@@ -402,7 +402,7 @@ const ValidationSchemaForRichParameters = (templateParameters?: TypesGen.Templat
       .of(
         Yup.object().shape({
           "name": Yup.string().required(),
-          "value": Yup.string().required("Field is required.").test("verify with template", (val, ctx) => {
+          "value": Yup.string().required(t("validationRequiredParameter")).test("verify with template", (val, ctx) => {
             const name = ctx.parent.name;
             const templateParameter = templateParameters.find((parameter) => parameter.name === name);
             if (templateParameter) {
@@ -415,7 +415,7 @@ const ValidationSchemaForRichParameters = (templateParameters?: TypesGen.Templat
                   if (Number(val) < templateParameter.validation_min || templateParameter.validation_max < Number(val)) {
                     return ctx.createError({
                       path: ctx.path,
-                      message: `Value must be between ${templateParameter.validation_min} and ${templateParameter.validation_max}.` })
+                      message: t("validationNumberNotInRange", { min: templateParameter.validation_min, max: templateParameter.validation_max }) })
                   }
                   break
                 case 'string':
@@ -428,7 +428,8 @@ const ValidationSchemaForRichParameters = (templateParameters?: TypesGen.Templat
                     if (val && !regex.test(val)) {
                       return ctx.createError({
                         path: ctx.path,
-                        message: `${templateParameter.validation_error} (value does not match the pattern ${templateParameter.validation_regex}).` })
+                        message: t("validationPatternNotMatched", { error: templateParameter.validation_error, pattern: templateParameter.validation_regex })
+                      })
                     }
                   }
                   break
