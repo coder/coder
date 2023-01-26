@@ -24,8 +24,10 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/coderd/audit"
+	"github.com/coder/coder/coderd/authzquery"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/parameter"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner"
@@ -56,6 +58,8 @@ type Server struct {
 
 // AcquireJob queries the database to lock a job.
 func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
+	// TODO: make a provisionerd role
+	ctx = authzquery.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
 	// This prevents loads of provisioner daemons from consistently
 	// querying the database when no jobs are available.
 	//
@@ -299,6 +303,8 @@ func (server *Server) CommitQuota(ctx context.Context, request *proto.CommitQuot
 }
 
 func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
+	// TODO: make a provisionerd role
+	ctx = authzquery.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
 	parsedID, err := uuid.Parse(request.JobId)
 	if err != nil {
 		return nil, xerrors.Errorf("parse job id: %w", err)
@@ -470,6 +476,8 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 }
 
 func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.Empty, error) {
+	// TODO: make a provisionerd role
+	ctx = authzquery.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
 	jobID, err := uuid.Parse(failJob.JobId)
 	if err != nil {
 		return nil, xerrors.Errorf("parse job id: %w", err)
@@ -595,6 +603,8 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 
 // CompleteJob is triggered by a provision daemon to mark a provisioner job as completed.
 func (server *Server) CompleteJob(ctx context.Context, completed *proto.CompletedJob) (*proto.Empty, error) {
+	// TODO: make a provisionerd role
+	ctx = authzquery.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
 	jobID, err := uuid.Parse(completed.JobId)
 	if err != nil {
 		return nil, xerrors.Errorf("parse job id: %w", err)
