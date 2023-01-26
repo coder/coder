@@ -12,10 +12,17 @@ export const AuditLogDescription: FC<{ auditLog: AuditLog }> = ({
   const { t } = i18next
 
   let target = auditLog.resource_target.trim()
+  let user = auditLog.user?.username.trim()
 
-  // audit logs with a resource_type of workspace build use workspace name as a target
   if (auditLog.resource_type === "workspace_build") {
+    // audit logs with a resource_type of workspace build use workspace name as a target
     target = auditLog.additional_fields.workspaceName.trim()
+    // workspaces can be started/stopped by a user, or kicked off automatically by Coder
+    user =
+      auditLog.additional_fields.buildReason &&
+      auditLog.additional_fields.buildReason !== "initiator"
+        ? t("auditLog:table.logRow.buildReason")
+        : auditLog.user?.username.trim()
   }
 
   // SSH key entries have no links
@@ -30,7 +37,7 @@ export const AuditLogDescription: FC<{ auditLog: AuditLog }> = ({
   }
 
   const truncatedDescription = auditLog.description
-    .replace("{user}", `${auditLog.user?.username.trim()}`)
+    .replace("{user}", `${user}`)
     .replace("{target}", "")
 
   return (

@@ -32,7 +32,7 @@ range="$from_ref..$to_ref"
 dependencies gh
 
 COMMIT_METADATA_BREAKING=0
-declare -A COMMIT_METADATA_TITLE COMMIT_METADATA_CATEGORY
+declare -A COMMIT_METADATA_TITLE COMMIT_METADATA_CATEGORY COMMIT_METADATA_AUTHORS
 
 # This environment variable can be set to 1 to ignore missing commit metadata,
 # useful for dry-runs.
@@ -66,22 +66,26 @@ main() {
 	#
 	# Example output:
 	#
-	#   27386d49d08455b6f8fbf2c18f38244d03fda892 label:security
-	#   d9f2aaf3b430d8b6f3d5f24032ed6357adaab1f1
-	#   fd54512858c906e66f04b0744d8715c2e0de97e6 label:stale label:enhancement
+	#   27386d49d08455b6f8fbf2c18f38244d03fda892 author:hello labels:label:security
+	#   d9f2aaf3b430d8b6f3d5f24032ed6357adaab1f1 author:world
+	#   fd54512858c906e66f04b0744d8715c2e0de97e6 author:bye labels:label:stale label:enhancement
+	from_commit_date=2023-01-18
 	mapfile -t pr_labels_raw < <(
 		gh pr list \
 			--base main \
 			--state merged \
 			--limit 10000 \
 			--search "merged:>=$from_commit_date" \
-			--json mergeCommit,labels \
-			--jq '.[] | .mergeCommit.oid + " " + (["label:" + .labels[].name] | join(" "))'
+			--json mergeCommit,labels,author \
+			--jq '.[] | "\( .mergeCommit.oid ) author:\( .author.login ) labels:\(["label:\( .labels[].name )"] | join(" "))"'
 	)
-	declare -A labels
+	declare -A authors labels
 	for entry in "${pr_labels_raw[@]}"; do
 		commit_sha_long=${entry%% *}
-		all_labels=${entry#* }
+		commit_author=${entry#* author:}
+		commit_author=${commit_author%% *}
+		authors[$commit_sha_long]=$commit_author
+		all_labels=${entry#* labels:}
 		labels[$commit_sha_long]=$all_labels
 	done
 
@@ -92,7 +96,7 @@ main() {
 		commit_prefix=${parts[2]}
 
 		# Safety-check, guarantee all commits had their metadata fetched.
-		if [[ ! -v labels[$commit_sha_long] ]]; then
+		if [[ ! -v authors[$commit_sha_long] ]] || [[ ! -v labels[$commit_sha_long] ]]; then
 			if [[ $ignore_missing_metadata != 1 ]]; then
 				error "Metadata missing for commit $commit_sha_short"
 			else
@@ -104,6 +108,9 @@ main() {
 		title=${parts[*]:2}
 		title=${title%$'\n'}
 		COMMIT_METADATA_TITLE[$commit_sha_short]=$title
+		if [[ -v authors[$commit_sha_long] ]]; then
+			COMMIT_METADATA_AUTHORS[$commit_sha_short]="@${authors[$commit_sha_long]}"
+		fi
 
 		# First, check the title for breaking changes. This avoids doing a
 		# GH API request if there's a match.
@@ -132,12 +139,12 @@ main() {
 }
 
 declare_print_commit_metadata() {
-	declare -p COMMIT_METADATA_BREAKING COMMIT_METADATA_TITLE COMMIT_METADATA_CATEGORY
+	declare -p COMMIT_METADATA_BREAKING COMMIT_METADATA_TITLE COMMIT_METADATA_CATEGORY COMMIT_METADATA_AUTHORS
 }
 
 export_commit_metadata() {
 	_COMMIT_METADATA_CACHE="${range}:$(declare_print_commit_metadata)"
-	export _COMMIT_METADATA_CACHE COMMIT_METADATA_BREAKING COMMIT_METADATA_TITLE COMMIT_METADATA_CATEGORY
+	export _COMMIT_METADATA_CACHE COMMIT_METADATA_BREAKING COMMIT_METADATA_TITLE COMMIT_METADATA_CATEGORY COMMIT_METADATA_AUTHORS
 }
 
 # _COMMIT_METADATA_CACHE is used to cache the results of this script in

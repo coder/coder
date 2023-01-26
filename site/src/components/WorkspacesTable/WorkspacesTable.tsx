@@ -4,8 +4,8 @@ import TableCell from "@material-ui/core/TableCell"
 import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
+import { Workspace } from "api/typesGenerated"
 import { FC } from "react"
-import { WorkspaceItemMachineRef } from "../../xServices/workspaces/workspacesXService"
 import { WorkspacesTableBody } from "./WorkspacesTableBody"
 
 const Language = {
@@ -18,15 +18,16 @@ const Language = {
 }
 
 export interface WorkspacesTableProps {
-  isLoading?: boolean
-  workspaceRefs?: WorkspaceItemMachineRef[]
-  filter?: string
-  isNonInitialPage: boolean
+  workspaces?: Workspace[]
+  isUsingFilter: boolean
+  onUpdateWorkspace: (workspace: Workspace) => void
 }
 
-export const WorkspacesTable: FC<
-  React.PropsWithChildren<WorkspacesTableProps>
-> = ({ isLoading, workspaceRefs, filter, isNonInitialPage }) => {
+export const WorkspacesTable: FC<WorkspacesTableProps> = ({
+  workspaces,
+  isUsingFilter,
+  onUpdateWorkspace,
+}) => {
   return (
     <TableContainer>
       <Table>
@@ -42,10 +43,9 @@ export const WorkspacesTable: FC<
         </TableHead>
         <TableBody>
           <WorkspacesTableBody
-            isLoading={isLoading}
-            workspaceRefs={workspaceRefs}
-            filter={filter}
-            isNonInitialPage={isNonInitialPage}
+            workspaces={workspaces}
+            isUsingFilter={isUsingFilter}
+            onUpdateWorkspace={onUpdateWorkspace}
           />
         </TableBody>
       </Table>

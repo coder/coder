@@ -207,7 +207,7 @@ func (c *client) ListenWorkspaceAgent(_ context.Context) (net.Conn, error) {
 		<-closed
 	})
 	go func() {
-		_ = c.coordinator.ServeAgent(serverConn, c.agentID)
+		_ = c.coordinator.ServeAgent(serverConn, c.agentID, "")
 		close(closed)
 	}()
 	return clientConn, nil
@@ -215,6 +215,10 @@ func (c *client) ListenWorkspaceAgent(_ context.Context) (net.Conn, error) {
 
 func (*client) AgentReportStats(_ context.Context, _ slog.Logger, _ func() *codersdk.AgentStats) (io.Closer, error) {
 	return io.NopCloser(strings.NewReader("")), nil
+}
+
+func (*client) PostWorkspaceAgentLifecycle(_ context.Context, _ codersdk.PostWorkspaceAgentLifecycleRequest) error {
+	return nil
 }
 
 func (*client) PostWorkspaceAgentAppHealth(_ context.Context, _ codersdk.PostWorkspaceAppHealthsRequest) error {

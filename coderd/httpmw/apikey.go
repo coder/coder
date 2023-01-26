@@ -20,6 +20,7 @@ import (
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -53,7 +54,7 @@ type userAuthKey struct{}
 type Authorization struct {
 	ID       uuid.UUID
 	Username string
-	Roles    []string
+	Roles    rbac.RoleNames
 	Groups   []string
 	Scope    database.APIKeyScope
 }

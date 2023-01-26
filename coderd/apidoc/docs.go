@@ -362,6 +362,28 @@ const docTemplate = `{
                 }
             }
         },
+        "/debug/coordinator": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Debug Info Wireguard Coordinator",
+                "operationId": "debug-info-wireguard-coordinator",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/entitlements": {
             "get": {
                 "security": [
@@ -408,7 +430,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "string"
+                                "$ref": "#/definitions/codersdk.Experiment"
                             }
                         }
                     }
@@ -3998,6 +4020,42 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/me/report-lifecycle": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Submit workspace agent lifecycle state",
+                "operationId": "submit-workspace-agent-lifecycle-state",
+                "parameters": [
+                    {
+                        "description": "Workspace agent lifecycle request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PostWorkspaceAgentLifecycleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Success"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/workspaceagents/me/report-stats": {
             "post": {
                 "security": [
@@ -5572,6 +5630,18 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "build_reason": {
+                    "enum": [
+                        "autostart",
+                        "autostop",
+                        "initiator"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.BuildReason"
+                        }
+                    ]
+                },
                 "resource_id": {
                     "type": "string",
                     "format": "uuid"
@@ -6160,6 +6230,15 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "codersdk.Experiment": {
+            "type": "string",
+            "enum": [
+                "authz_querier"
+            ],
+            "x-enum-varnames": [
+                "ExperimentAuthzQuerier"
+            ]
         },
         "codersdk.Feature": {
             "type": "object",
@@ -6758,6 +6837,14 @@ const docTemplate = `{
                 "ParameterSourceSchemeNone",
                 "ParameterSourceSchemeData"
             ]
+        },
+        "codersdk.PostWorkspaceAgentLifecycleRequest": {
+            "type": "object",
+            "properties": {
+                "state": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
+                }
+            }
         },
         "codersdk.PostWorkspaceAgentVersionRequest": {
             "description": "x-apidocgen:skip",
@@ -7687,6 +7774,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "delay_login_until_ready": {
+                    "description": "DelayLoginUntilReady if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).",
+                    "type": "boolean"
+                },
                 "directory": {
                     "type": "string"
                 },
@@ -7722,6 +7813,9 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.DERPRegion"
                     }
                 },
+                "lifecycle_state": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -7735,18 +7829,12 @@ const docTemplate = `{
                 "startup_script": {
                     "type": "string"
                 },
+                "startup_script_timeout_seconds": {
+                    "description": "StartupScriptTimeoutSeconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.",
+                    "type": "integer"
+                },
                 "status": {
-                    "enum": [
-                        "connecting",
-                        "connected",
-                        "disconnected",
-                        "timeout"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceAgentStatus"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentStatus"
                 },
                 "troubleshooting_url": {
                     "type": "string"
@@ -7790,6 +7878,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkspaceAgentLifecycle": {
+            "type": "string",
+            "enum": [
+                "created",
+                "starting",
+                "start_timeout",
+                "start_error",
+                "ready"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAgentLifecycleCreated",
+                "WorkspaceAgentLifecycleStarting",
+                "WorkspaceAgentLifecycleStartTimeout",
+                "WorkspaceAgentLifecycleStartError",
+                "WorkspaceAgentLifecycleReady"
+            ]
+        },
         "codersdk.WorkspaceAgentMetadata": {
             "type": "object",
             "properties": {
@@ -7820,6 +7925,9 @@ const docTemplate = `{
                 },
                 "startup_script": {
                     "type": "string"
+                },
+                "startup_script_timeout": {
+                    "type": "integer"
                 },
                 "vscode_port_proxy_uri": {
                     "type": "string"

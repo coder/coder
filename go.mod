@@ -67,6 +67,7 @@ require (
 	github.com/charmbracelet/lipgloss v0.6.0
 	github.com/cli/safeexec v1.0.0
 	github.com/coder/retry v1.3.0
+	github.com/coder/terraform-provider-coder v0.6.9
 	github.com/coreos/go-oidc/v3 v3.4.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/creack/pty v1.1.18
@@ -169,7 +170,6 @@ require (
 
 require (
 	cloud.google.com/go/longrunning v0.1.1 // indirect
-	github.com/coder/terraform-provider-coder v0.6.6 // indirect
 	github.com/hashicorp/go-cty v1.4.1-0.20200414143053-d3edf31b6320 // indirect
 	github.com/hashicorp/go-hclog v1.2.1 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect

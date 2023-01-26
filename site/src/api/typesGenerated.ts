@@ -209,6 +209,7 @@ export interface CreateTestAuditLogRequest {
   readonly resource_type?: ResourceType
   readonly resource_id?: string
   readonly time?: string
+  readonly build_reason?: BuildReason
 }
 
 // From codersdk/apikey.go
@@ -924,6 +925,7 @@ export interface WorkspaceAgent {
   readonly last_connected_at?: string
   readonly disconnected_at?: string
   readonly status: WorkspaceAgentStatus
+  readonly lifecycle_state: WorkspaceAgentLifecycle
   readonly name: string
   readonly resource_id: string
   readonly instance_id?: string
@@ -937,6 +939,8 @@ export interface WorkspaceAgent {
   readonly latency?: Record<string, DERPRegion>
   readonly connection_timeout_seconds: number
   readonly troubleshooting_url: string
+  readonly delay_login_until_ready: boolean
+  readonly startup_script_timeout_seconds: number
 }
 
 // From codersdk/workspaceagents.go
@@ -1098,8 +1102,8 @@ export const Entitlements: Entitlement[] = [
 ]
 
 // From codersdk/experiments.go
-export type Experiment = never
-export const Experiments: Experiment[] = []
+export type Experiment = "authz_querier"
+export const Experiments: Experiment[] = ["authz_querier"]
 
 // From codersdk/features.go
 export type FeatureName =
@@ -1230,6 +1234,21 @@ export const TemplateRoles: TemplateRole[] = ["", "admin", "use"]
 // From codersdk/users.go
 export type UserStatus = "active" | "suspended"
 export const UserStatuses: UserStatus[] = ["active", "suspended"]
+
+// From codersdk/workspaceagents.go
+export type WorkspaceAgentLifecycle =
+  | "created"
+  | "ready"
+  | "start_error"
+  | "start_timeout"
+  | "starting"
+export const WorkspaceAgentLifecycles: WorkspaceAgentLifecycle[] = [
+  "created",
+  "ready",
+  "start_error",
+  "start_timeout",
+  "starting",
+]
 
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentStatus =

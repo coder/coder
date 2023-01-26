@@ -1220,3 +1220,88 @@ func gitAuthCallback(t *testing.T, id string, client *codersdk.Client) *http.Res
 	})
 	return res
 }
+
+func TestWorkspaceAgent_LifecycleState(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Set", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		authToken := uuid.NewString()
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:         echo.ParseComplete,
+			ProvisionPlan: echo.ProvisionComplete,
+			ProvisionApply: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.Resource{{
+							Name: "example",
+							Type: "aws_instance",
+							Agents: []*proto.Agent{{
+								Id: uuid.NewString(),
+								Auth: &proto.Agent_Token{
+									Token: authToken,
+								},
+							}},
+						}},
+					},
+				},
+			}},
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		for _, res := range workspace.LatestBuild.Resources {
+			for _, a := range res.Agents {
+				require.Equal(t, codersdk.WorkspaceAgentLifecycleCreated, a.LifecycleState)
+			}
+		}
+
+		agentClient := codersdk.New(client.URL)
+		agentClient.SetSessionToken(authToken)
+
+		tests := []struct {
+			state   codersdk.WorkspaceAgentLifecycle
+			wantErr bool
+		}{
+			{codersdk.WorkspaceAgentLifecycleCreated, false},
+			{codersdk.WorkspaceAgentLifecycleStarting, false},
+			{codersdk.WorkspaceAgentLifecycleStartTimeout, false},
+			{codersdk.WorkspaceAgentLifecycleStartError, false},
+			{codersdk.WorkspaceAgentLifecycleReady, false},
+			{codersdk.WorkspaceAgentLifecycle("nonexistent_state"), true},
+			{codersdk.WorkspaceAgentLifecycle(""), true},
+		}
+		//nolint:paralleltest // No race between setting the state and getting the workspace.
+		for _, tt := range tests {
+			tt := tt
+			t.Run(string(tt.state), func(t *testing.T) {
+				ctx, _ := testutil.Context(t)
+
+				err := agentClient.PostWorkspaceAgentLifecycle(ctx, codersdk.PostWorkspaceAgentLifecycleRequest{
+					State: tt.state,
+				})
+				if tt.wantErr {
+					require.Error(t, err)
+					return
+				}
+				require.NoError(t, err, "post lifecycle state %q", tt.state)
+
+				workspace, err = client.Workspace(ctx, workspace.ID)
+				require.NoError(t, err, "get workspace")
+
+				for _, res := range workspace.LatestBuild.Resources {
+					for _, agent := range res.Agents {
+						require.Equal(t, tt.state, agent.LifecycleState)
+					}
+				}
+			})
+		}
+	})
+}
