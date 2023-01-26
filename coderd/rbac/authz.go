@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/coder/coderd/util/slice"
+
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -24,6 +26,25 @@ type Subject struct {
 	Roles  ExpandableRoles
 	Groups []string
 	Scope  ExpandableScope
+}
+
+func (s Subject) Equal(b Subject) bool {
+	if s.ID != b.ID {
+		return false
+	}
+
+	if !slice.SameElements(s.Groups, b.Groups) {
+		return false
+	}
+
+	if !slice.SameElements(s.SafeRoleNames(), b.SafeRoleNames()) {
+		return false
+	}
+
+	if s.SafeScopeName() != b.SafeScopeName() {
+		return false
+	}
+	return true
 }
 
 // SafeScopeName prevent nil pointer dereference.

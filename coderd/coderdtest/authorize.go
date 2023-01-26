@@ -576,7 +576,35 @@ func (r *RecordingAuthorizer) AllAsserted() error {
 	return nil
 }
 
-// AssertActor asserts in order.
+// UnorderedAssertActor is the same as AssertActor, except it doesn't care about
+// order. It will assert the first call that matches the actor and pair.
+// It will not assert the same call twice, so if there is a duplicate assertion,
+// the pair will need to be passed in twice.
+func (r *RecordingAuthorizer) UnorderedAssertActor(t *testing.T, actor rbac.Subject, dids ...ActionObjectPair) {
+	for _, did := range dids {
+		found := false
+	InnerCalledLoop:
+		for i, c := range r.Called {
+			if c.asserted {
+				// Do not assert an already asserted call.
+				continue
+			}
+
+			if c.Action == did.Action &&
+				c.Object.Equal(did.Object) &&
+				c.Actor.Equal(actor) {
+
+				r.Called[i].asserted = true
+				found = true
+				break InnerCalledLoop
+			}
+		}
+		require.Truef(t, found, "did not find call for %s %s", did.Action, did.Object.Type)
+	}
+}
+
+// AssertActor asserts in order. If the order of authz calls does not match,
+// this will fail.
 func (r *RecordingAuthorizer) AssertActor(t *testing.T, actor rbac.Subject, did ...ActionObjectPair) {
 	ptr := 0
 	for i, call := range r.Called {

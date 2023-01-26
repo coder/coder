@@ -176,6 +176,23 @@ type Object struct {
 	ACLGroupList map[string][]Action ` json:"acl_group_list"`
 }
 
+func (z Object) Equal(b Object) bool {
+	if z.ID != b.ID {
+		return false
+	}
+	if z.Owner != b.Owner {
+		return false
+	}
+	if z.OrgID != b.OrgID {
+		return false
+	}
+	if z.Type != b.Type {
+		return false
+	}
+	// TODO: Handle ACLS
+	return true
+}
+
 func (z Object) RBACObject() Object {
 	return z
 }

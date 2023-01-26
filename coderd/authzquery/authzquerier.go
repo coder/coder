@@ -23,6 +23,9 @@ var _ database.Store = (*AuthzQuerier)(nil)
 type AuthzQuerier struct {
 	database   database.Store
 	authorizer rbac.Authorizer
+
+	// constantActor makes all actors on context ignored.
+	constantActor *rbac.Subject
 }
 
 func NewAuthzQuerier(db database.Store, authorizer rbac.Authorizer) *AuthzQuerier {
@@ -48,6 +51,10 @@ func (q *AuthzQuerier) InTx(function func(querier database.Store) error, txOpts 
 		wrapped := NewAuthzQuerier(tx, q.authorizer)
 		return function(wrapped)
 	}, txOpts)
+}
+
+func (q *AuthzQuerier) As(subject rbac.Subject) database.Store {
+	return NewAuthzQuerier(q.database, q.authorizer, subject)
 }
 
 // authorizeContext is a helper function to authorize an action on an object.

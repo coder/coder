@@ -19,6 +19,56 @@ import (
 	"github.com/coder/coder/coderd/database/databasefake"
 )
 
+func TestWorkspaceFunctions(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		Name   string
+		Config *authorizeTest
+	}{
+		{
+			Name: "GetByID",
+			Config: &authorizeTest{
+				Data: func(t *testing.T, tc *authorizeTest) map[string]interface{} {
+					return map[string]interface{}{
+						"u-one": database.User{},
+						"w-one": database.Workspace{
+							Name:       "peter-pan",
+							OwnerID:    tc.Lookup("u-one"),
+							TemplateID: tc.Lookup("t-one"),
+						},
+						"t-one": database.Template{},
+					}
+				},
+				Test: func(ctx context.Context, t *testing.T, tc *authorizeTest, q authzquery.AuthzStore) {
+					wrk, err := q.GetWorkspaceByID(ctx, tc.Lookup("w-one"))
+					require.NoError(t, err)
+
+					wrk, err = q.GetWorkspaceByID(ctx, tc.Lookup("w-one"))
+					require.NoError(t, err)
+
+					_, err = q.GetTemplateByID(ctx, wrk.TemplateID)
+					require.NoError(t, err)
+				},
+				Asserts: map[string][]rbac.Action{
+					"w-one": {rbac.ActionRead, rbac.ActionRead},
+					"t-one": {rbac.ActionRead},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+
+			testAuthorizeFunction(t, tc.Config)
+		})
+	}
+
+}
+
 func TestWorkspace(t *testing.T) {
 	// GetWorkspaceByID
 	var (
