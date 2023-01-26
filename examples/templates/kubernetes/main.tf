@@ -52,8 +52,6 @@ resource "coder_agent" "main" {
   os             = "linux"
   arch           = "amd64"
   startup_script = <<-EOT
-    #!/bin/bash
-
     # home folder can be empty, so copying default bash settings
     if [ ! -f ~/.profile ]; then
       cp /etc/skel/.profile $HOME
