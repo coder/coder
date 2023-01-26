@@ -313,6 +313,9 @@ func New(options *Options) *API {
 				RedirectToLogin: false,
 				Optional:        true,
 			}),
+			// TODO: The ExtractUserParam middleware requires an actor in the context.
+			// As this is potentially a public endpoint, using system actor.
+			httpmw.SystemAuthCtx,
 			// Redirect to the login page if the user tries to open an app with
 			// "me" as the username and they are not logged in.
 			httpmw.ExtractUserParam(api.Database, true),
