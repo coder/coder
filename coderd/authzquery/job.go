@@ -41,7 +41,7 @@ func (q *AuthzQuerier) UpdateProvisionerJobWithCancelByID(ctx context.Context, a
 			if !ok {
 				return xerrors.Errorf("no actor in context")
 			}
-			if !slice.Contains(actor.Roles, rbac.RoleOwner()) {
+			if !slice.Contains(actor.Roles.Names(), rbac.RoleOwner()) {
 				return xerrors.Errorf("only owners can cancel workspace builds")
 			}
 		}

@@ -22,7 +22,7 @@ func TestAuthzQueryRecursive(t *testing.T) {
 	for i := 0; i < reflect.TypeOf(q).NumMethod(); i++ {
 		var ins []reflect.Value
 		ctx := authzquery.WithAuthorizeContext(context.Background(), uuid.New(),
-			[]string{rbac.RoleOwner()}, []string{}, rbac.ScopeAll)
+			rbac.RoleNames{rbac.RoleOwner()}, []string{}, rbac.ScopeAll)
 
 		ins = append(ins, reflect.ValueOf(ctx))
 		method := reflect.TypeOf(q).Method(i)
