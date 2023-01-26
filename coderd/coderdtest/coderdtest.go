@@ -180,7 +180,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 	}
 	// TODO: remove this once we're ready to enable authz querier by default.
 	if strings.Contains(os.Getenv("CODER_EXPERIMENTS_TEST"), "authz_querier") {
-		if options.Authorizer != nil {
+		if options.Authorizer == nil {
 			options.Authorizer = &RecordingAuthorizer{} // TODO: hook this up and assert
 		}
 		options.Database = authzquery.NewAuthzQuerier(options.Database, options.Authorizer)
