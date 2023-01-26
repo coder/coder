@@ -17,6 +17,8 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+var AgentStartError = xerrors.New("agent startup exited with non-zero exit status")
+
 type AgentOptions struct {
 	WorkspaceName string
 	Fetch         func(context.Context) (codersdk.WorkspaceAgent, error)
@@ -147,6 +149,9 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 					}
 				case codersdk.WorkspaceAgentLifecycleReady:
 					return nil
+				case codersdk.WorkspaceAgentLifecycleStartError:
+					showMessage()
+					return AgentStartError
 				default:
 					showMessage()
 				}
@@ -163,7 +168,6 @@ type message struct {
 	Spin         string
 	Prompt       string
 	Troubleshoot bool
-	Error        bool
 }
 
 func waitingMessage(agent codersdk.WorkspaceAgent) (m *message) {
@@ -186,10 +190,6 @@ func waitingMessage(agent codersdk.WorkspaceAgent) (m *message) {
 			}
 		}
 		_, _ = fmt.Fprint(w, "\n")
-
-		if m.Error {
-			_, _ = fmt.Fprint(w, "\nPress Ctrl+C to exit.\n")
-		}
 
 		// We want to prefix the prompt with a caret, but we want text on the
 		// following lines to align with the text on the first line (i.e. added
@@ -218,7 +218,6 @@ func waitingMessage(agent codersdk.WorkspaceAgent) (m *message) {
 		case codersdk.WorkspaceAgentLifecycleStartError:
 			m.Spin = ""
 			m.Prompt = "The workspace agent ran into a problem during startup."
-			m.Error = true
 		default:
 			// Not a failure state, no troubleshooting necessary.
 			return m

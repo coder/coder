@@ -156,14 +156,65 @@ func TestAgent_StartupTimeout(t *testing.T) {
 	setState(codersdk.WorkspaceAgentLifecycleStartTimeout)
 	ptty.ExpectMatchContext(ctx, "is taking longer")
 	ptty.ExpectMatchContext(ctx, wantURL)
-	setState(codersdk.WorkspaceAgentLifecycleStartError)
-	ptty.ExpectMatchContext(ctx, "ran into a problem")
-	// Error should exit?? For now we make it ready.
 	setState(codersdk.WorkspaceAgentLifecycleReady)
 	require.NoError(t, <-done)
 }
 
-func TestAgent_SkipDelayLoginUntilReady(t *testing.T) {
+func TestAgent_StartErrorExit(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	wantURL := "https://coder.com/this-is-a-really-long-troubleshooting-url-that-should-not-wrap"
+
+	var status, state atomic.String
+	setStatus := func(s codersdk.WorkspaceAgentStatus) { status.Store(string(s)) }
+	setState := func(s codersdk.WorkspaceAgentLifecycle) { state.Store(string(s)) }
+	cmd := &cobra.Command{
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			err := cliui.Agent(cmd.Context(), cmd.OutOrStdout(), cliui.AgentOptions{
+				WorkspaceName: "example",
+				Fetch: func(_ context.Context) (codersdk.WorkspaceAgent, error) {
+					agent := codersdk.WorkspaceAgent{
+						Status:               codersdk.WorkspaceAgentConnecting,
+						DelayLoginUntilReady: true,
+						LifecycleState:       codersdk.WorkspaceAgentLifecycleCreated,
+						TroubleshootingURL:   wantURL,
+					}
+
+					if s := status.Load(); s != "" {
+						agent.Status = codersdk.WorkspaceAgentStatus(s)
+					}
+					if s := state.Load(); s != "" {
+						agent.LifecycleState = codersdk.WorkspaceAgentLifecycle(s)
+					}
+					return agent, nil
+				},
+				FetchInterval: time.Millisecond,
+				WarnInterval:  time.Second,
+				NoWait:        false,
+			})
+			return err
+		},
+	}
+
+	ptty := ptytest.New(t)
+	cmd.SetOutput(ptty.Output())
+	cmd.SetIn(ptty.Input())
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.ExecuteContext(ctx)
+	}()
+	setStatus(codersdk.WorkspaceAgentConnected)
+	setState(codersdk.WorkspaceAgentLifecycleStarting)
+	ptty.ExpectMatchContext(ctx, "Don't panic, your workspace is starting")
+	setState(codersdk.WorkspaceAgentLifecycleStartError)
+	ptty.ExpectMatchContext(ctx, "ran into a problem")
+	require.Error(t, <-done, "lifecycle start_error should exit with error")
+}
+
+func TestAgent_NoWait(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
