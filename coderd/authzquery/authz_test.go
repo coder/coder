@@ -108,15 +108,16 @@ func testAuthorizeFunction(t *testing.T, testCase *authorizeTest) {
 	for objectName, asserts := range testCase.Asserts {
 		object := data[objectName]
 		for _, assert := range asserts {
-			pairs = append(pairs, rec.Pair(assert, object))
+			canRBAC, ok := object.(rbac.Objecter)
+			require.True(t, ok, "object %q does not implement rbac.Objecter", objectName)
+			pairs = append(pairs, rec.Pair(assert, canRBAC.RBACObject()))
 		}
 	}
 	rec.UnorderedAssertActor(t, actor, pairs...)
 	require.NoError(t, rec.AllAsserted(), "all authz checks asserted")
 }
 
-func setupTestData(t *testing.T, testCase *authorizeTest, db database.Store, ctx context.Context) map[string]rbac.Objecter {
-	rbacObjects := make(map[string]rbac.Objecter)
+func setupTestData(t *testing.T, testCase *authorizeTest, db database.Store, ctx context.Context) map[string]interface{} {
 	// Setup the test data.
 	orgID := uuid.New()
 	data := testCase.Data(t, testCase)
@@ -142,9 +143,7 @@ func setupTestData(t *testing.T, testCase *authorizeTest, db database.Store, ctx
 			})
 			require.NoError(t, err, "insert template")
 
-			// Reinsert the template.
 			data[name] = template
-			rbacObjects[name] = template
 		case database.Workspace:
 			workspace, err := db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
 				ID:                testCase.Lookup(name),
@@ -158,12 +157,42 @@ func setupTestData(t *testing.T, testCase *authorizeTest, db database.Store, ctx
 			})
 			require.NoError(t, err, "insert workspace")
 
-			// Reinsert the workspace.
 			data[name] = workspace
-			rbacObjects[name] = workspace
+		case database.WorkspaceBuild:
+			build, err := db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
+				ID:                testCase.Lookup(name),
+				CreatedAt:         time.Now(),
+				UpdatedAt:         time.Now(),
+				WorkspaceID:       takeFirst(orig.WorkspaceID, uuid.New()),
+				TemplateVersionID: takeFirst(orig.TemplateVersionID, uuid.New()),
+				BuildNumber:       takeFirst(orig.BuildNumber, 0),
+				Transition:        takeFirst(orig.Transition, database.WorkspaceTransitionStart),
+				InitiatorID:       takeFirst(orig.InitiatorID, uuid.New()),
+				JobID:             takeFirst(orig.InitiatorID, uuid.New()),
+				ProvisionerState:  []byte{},
+				Deadline:          time.Now(),
+				Reason:            takeFirst(orig.Reason, database.BuildReasonInitiator),
+			})
+			require.NoError(t, err, "insert workspace build")
+
+			data[name] = build
+		case database.User:
+			user, err := db.InsertUser(ctx, database.InsertUserParams{
+				ID:             testCase.Lookup(name),
+				Email:          takeFirst(orig.Email, namesgenerator.GetRandomName(1)),
+				Username:       takeFirst(orig.Username, namesgenerator.GetRandomName(1)),
+				HashedPassword: []byte{},
+				CreatedAt:      time.Now(),
+				UpdatedAt:      time.Now(),
+				RBACRoles:      []string{},
+				LoginType:      takeFirst(orig.LoginType, database.LoginTypePassword),
+			})
+			require.NoError(t, err, "insert user")
+
+			data[name] = user
 		}
 	}
-	return rbacObjects
+	return data
 }
 
 // takeFirst will take the first non empty value.

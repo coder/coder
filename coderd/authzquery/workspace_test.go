@@ -22,37 +22,67 @@ import (
 func TestWorkspaceFunctions(t *testing.T) {
 	t.Parallel()
 
+	const mainWorkspace = "workspace-one"
+	workspaceData := func(t *testing.T, tc *authorizeTest) map[string]interface{} {
+		return map[string]interface{}{
+			"u-one": database.User{},
+			mainWorkspace: database.Workspace{
+				Name:       "peter-pan",
+				OwnerID:    tc.Lookup("u-one"),
+				TemplateID: tc.Lookup("t-one"),
+			},
+			"t-one": database.Template{},
+			"b-one": database.WorkspaceBuild{
+				WorkspaceID: tc.Lookup(mainWorkspace),
+				//TemplateVersionID: uuid.UUID{},
+				BuildNumber: 0,
+				Transition:  database.WorkspaceTransitionStart,
+				InitiatorID: tc.Lookup("u-one"),
+				//JobID:             uuid.UUID{},
+			},
+		}
+	}
+
 	testCases := []struct {
 		Name   string
 		Config *authorizeTest
 	}{
 		{
-			Name: "GetByID",
+			Name: "GetWorkspaceByID",
 			Config: &authorizeTest{
-				Data: func(t *testing.T, tc *authorizeTest) map[string]interface{} {
-					return map[string]interface{}{
-						"u-one": database.User{},
-						"w-one": database.Workspace{
-							Name:       "peter-pan",
-							OwnerID:    tc.Lookup("u-one"),
-							TemplateID: tc.Lookup("t-one"),
-						},
-						"t-one": database.Template{},
-					}
-				},
+				Data: workspaceData,
 				Test: func(ctx context.Context, t *testing.T, tc *authorizeTest, q authzquery.AuthzStore) {
-					wrk, err := q.GetWorkspaceByID(ctx, tc.Lookup("w-one"))
-					require.NoError(t, err)
-
-					wrk, err = q.GetWorkspaceByID(ctx, tc.Lookup("w-one"))
-					require.NoError(t, err)
-
-					_, err = q.GetTemplateByID(ctx, wrk.TemplateID)
+					_, err := q.GetWorkspaceByID(ctx, tc.Lookup(mainWorkspace))
 					require.NoError(t, err)
 				},
 				Asserts: map[string][]rbac.Action{
-					"w-one": {rbac.ActionRead, rbac.ActionRead},
-					"t-one": {rbac.ActionRead},
+					mainWorkspace: {rbac.ActionRead},
+				},
+			},
+		},
+		{
+			Name: "GetWorkspaces",
+			Config: &authorizeTest{
+				Data: workspaceData,
+				Test: func(ctx context.Context, t *testing.T, tc *authorizeTest, q authzquery.AuthzStore) {
+					_, err := q.GetWorkspaces(ctx, database.GetWorkspacesParams{})
+					require.NoError(t, err)
+				},
+				Asserts: map[string][]rbac.Action{
+					// No rbac checks for this one, uses sql filter
+				},
+			},
+		},
+		{
+			Name: "GetLatestWorkspaceBuildByWorkspaceID",
+			Config: &authorizeTest{
+				Data: workspaceData,
+				Test: func(ctx context.Context, t *testing.T, tc *authorizeTest, q authzquery.AuthzStore) {
+					_, err := q.GetLatestWorkspaceBuildByWorkspaceID(ctx, tc.Lookup(mainWorkspace))
+					require.NoError(t, err)
+				},
+				Asserts: map[string][]rbac.Action{
+					mainWorkspace: {rbac.ActionRead},
 				},
 			},
 		},
