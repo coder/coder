@@ -47,24 +47,13 @@ export interface CreateWorkspacePageViewProps {
 export const CreateWorkspacePageView: FC<
   React.PropsWithChildren<CreateWorkspacePageViewProps>
 > = (props) => {
-  const { t } = useTranslation("createWorkspacePage")
   const styles = useStyles()
   const formFooterStyles = useFormFooterStyles()
   const [parameterValues, setParameterValues] = useState<
     Record<string, string>
   >(props.defaultParameterValues ?? {})
 
-  const validationSchema = Yup.object({
-    name: nameValidator(t("nameLabel", { ns: "createWorkspacePage" })),
-    rich_parameter_values: Yup.array()
-      .of(
-        Yup.object().shape({
-          "name": Yup.string().required(),
-          "value": Yup.string().required().test('len', 'Must be > 2 characters', val => val !== undefined && val.length > 2),
-        })
-      )
-      .required()
-  })
+  const { t } = useTranslation("createWorkspacePage")
 
   const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
     useFormik<TypesGen.CreateWorkspaceRequest>({
@@ -73,8 +62,8 @@ export const CreateWorkspacePageView: FC<
         template_id: props.selectedTemplate ? props.selectedTemplate.id : "",
         rich_parameter_values: defaultRichParameters(props.templateParameters),
       },
+      validationSchema: ValidationSchemaForRichParameters(props.templateParameters),
       enableReinitialize: true,
-      validationSchema,
       initialTouched: props.initialTouched,
       onSubmit: (request) => {
         if (!props.templateSchema) {
@@ -398,4 +387,32 @@ const defaultRichParameters = (templateParameters?: TypesGen.TemplateVersionPara
     defaults.push(buildParameter)
   })
   return defaults;
+}
+
+const ValidationSchemaForRichParameters = (templateParameters?: TypesGen.TemplateVersionParameter[]): Yup.AnySchema => {
+  const { t } = useTranslation("createWorkspacePage")
+
+  if (!templateParameters) {
+    return Yup.object()
+  }
+
+  return Yup.object({
+    name: nameValidator(t("nameLabel", { ns: "createWorkspacePage" })),
+    rich_parameter_values: Yup.array()
+      .of(
+        Yup.object().shape({
+          "name": Yup.string().required(),
+          "value": Yup.string().required().test('verify with template', (val, ctx) => {
+            const name = ctx.parent.name;
+            if (name === "Project ID") {
+              return ctx.createError({
+                path: ctx.path,
+                message: "Testing something" })
+            }
+            return true
+          })
+        })
+      )
+      .required()
+  })
 }
