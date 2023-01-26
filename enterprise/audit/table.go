@@ -4,7 +4,25 @@ import (
 	"reflect"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/codersdk"
 )
+
+// This mapping creates a relationship between an Auditable Resource
+// and the Audit Actions we track for that resource.
+// It is important to maintain this mapping when adding a new Auditable Resource to the
+// AuditableResources map (below) as our documentation - generated in scripts/auditdocgen/main.go -
+// depends upon it.
+var AuditActionMap = map[string][]string{
+	"GitSSHKey":          {string(codersdk.AuditActionCreate)},
+	"OrganizationMember": {},
+	"Organization":       {},
+	"Template":           {string(codersdk.AuditActionWrite), string(codersdk.AuditActionDelete)},
+	"TemplateVersion":    {string(codersdk.AuditActionCreate), string(codersdk.AuditActionWrite)},
+	"User":               {string(codersdk.AuditActionCreate), string(codersdk.AuditActionWrite), string(codersdk.AuditActionDelete)},
+	"Workspace":          {string(codersdk.AuditActionCreate), string(codersdk.AuditActionWrite), string(codersdk.AuditActionDelete)},
+	"WorkspaceBuild":     {string(codersdk.AuditActionStart), string(codersdk.AuditActionStop)},
+	"AuditableGroup":     {string(codersdk.AuditActionCreate), string(codersdk.AuditActionWrite), string(codersdk.AuditActionDelete)},
+}
 
 type Action string
 

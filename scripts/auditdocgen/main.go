@@ -117,7 +117,8 @@ func updateAuditDoc(doc []byte, auditableResourcesMap AuditableResourcesMap) ([]
 	buffer.WriteString("|--|-----------------|\n")
 
 	for _, resourceName := range sortedResourceNames {
-		buffer.WriteString("|" + resourceName + "|<table><thead><tr><th>Field</th><th>Tracked</th></tr></thead><tbody>")
+		auditActionsString := strings.Join(audit.AuditActionMap[resourceName], ", ")
+		buffer.WriteString("|" + resourceName + "<br><i>" + auditActionsString + "|<table><thead><tr><th>Field</th><th>Tracked</th></tr></thead><tbody>")
 
 		// We must sort the field names to ensure sub-table ordering
 		sortedFieldNames := sortKeys(auditableResourcesMap[resourceName])
