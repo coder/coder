@@ -13,7 +13,6 @@ import (
 	"github.com/coder/coder/coderd/authzquery"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -45,7 +44,7 @@ func ExtractUserParam(db database.Store, redirectToLoginOnMe bool) func(http.Han
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			var (
 				auth = UserAuthorization(r)
-				ctx  = authzquery.WithAuthorizeContext(r.Context(), auth.ID, auth.Roles, auth.Groups, rbac.ScopeName(auth.Scope))
+				ctx  = authzquery.WithAuthorizeContext(r.Context(), auth.Actor)
 				user database.User
 				err  error
 			)

@@ -38,20 +38,6 @@ func (names RoleNames) Names() []string {
 	return names
 }
 
-type Roles []Role
-
-func (roles Roles) Expand() ([]Role, error) {
-	return roles, nil
-}
-
-func (roles Roles) Names() []string {
-	names := make([]string, 0, len(roles))
-	for _, r := range roles {
-		return append(names, r.Name)
-	}
-	return names
-}
-
 // RolesAutostartSystem is the limited set of permissions required for autostart
 // to function.
 func RolesAutostartSystem() Roles {

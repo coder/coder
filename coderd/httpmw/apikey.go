@@ -342,23 +342,20 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 				return
 			}
 
+			// Actor is the user's authorization context.
+			actor := rbac.Subject{
+				ID:     key.UserID.String(),
+				Roles:  rbac.RoleNames(roles.Roles),
+				Groups: roles.Groups,
+				Scope:  rbac.ScopeName(key.Scope),
+			}
 			ctx = context.WithValue(ctx, apiKeyContextKey{}, key)
 			ctx = context.WithValue(ctx, userAuthKey{}, Authorization{
 				Username: roles.Username,
-				Actor: rbac.Subject{
-					ID:     key.UserID.String(),
-					Roles:  rbac.RoleNames(roles.Roles),
-					Groups: roles.Groups,
-					Scope:  rbac.ScopeName(key.Scope),
-				},
+				Actor:    actor,
 			})
 			// Set the auth context for the authzquerier as well.
-			ctx = authzquery.WithAuthorizeContext(ctx,
-				key.UserID,
-				rbac.RoleNames(roles.Roles),
-				roles.Groups,
-				rbac.ScopeName(key.Scope),
-			)
+			ctx = authzquery.WithAuthorizeContext(ctx, actor)
 
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})

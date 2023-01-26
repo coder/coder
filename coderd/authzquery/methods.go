@@ -31,3 +31,8 @@ func (q *AuthzQuerier) GetProvisionerLogsByIDBetween(ctx context.Context, arg da
 	}
 	return q.database.GetProvisionerLogsByIDBetween(ctx, arg)
 }
+
+func (q *AuthzQuerier) GetDeploymentDAUs(ctx context.Context) ([]database.GetDeploymentDAUsRow, error) {
+	//TODO implement me
+	panic("implement me")
+}

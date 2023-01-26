@@ -131,7 +131,7 @@ func (q *AuthzQuerier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, add
 	}
 
 	for _, roleName := range grantedRoles {
-		if !rbac.CanAssignRole(actor.Roles.Names(), roleName) {
+		if !rbac.CanAssignRole(actor.Roles, roleName) {
 			return xerrors.Errorf("not authorized to assign role %q", roleName)
 		}
 	}

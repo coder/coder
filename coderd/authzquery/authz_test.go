@@ -19,10 +19,15 @@ import (
 func TestAuthzQueryRecursive(t *testing.T) {
 	t.Parallel()
 	q := authzquery.NewAuthzQuerier(databasefake.New(), &coderdtest.RecordingAuthorizer{})
+	actor := rbac.Subject{
+		ID:     uuid.NewString(),
+		Roles:  rbac.RoleNames{rbac.RoleOwner()},
+		Groups: []string{},
+		Scope:  rbac.ScopeAll,
+	}
 	for i := 0; i < reflect.TypeOf(q).NumMethod(); i++ {
 		var ins []reflect.Value
-		ctx := authzquery.WithAuthorizeContext(context.Background(), uuid.New(),
-			rbac.RoleNames{rbac.RoleOwner()}, []string{}, rbac.ScopeAll)
+		ctx := authzquery.WithAuthorizeContext(context.Background(), actor)
 
 		ins = append(ins, reflect.ValueOf(ctx))
 		method := reflect.TypeOf(q).Method(i)
