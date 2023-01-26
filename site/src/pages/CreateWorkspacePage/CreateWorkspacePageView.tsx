@@ -402,12 +402,37 @@ const ValidationSchemaForRichParameters = (templateParameters?: TypesGen.Templat
       .of(
         Yup.object().shape({
           "name": Yup.string().required(),
-          "value": Yup.string().required().test('verify with template', (val, ctx) => {
+          "value": Yup.string().required("Field is required.").test("verify with template", (val, ctx) => {
             const name = ctx.parent.name;
-            if (name === "Project ID") {
-              return ctx.createError({
-                path: ctx.path,
-                message: "Testing something" })
+            const templateParameter = templateParameters.find((parameter) => parameter.name === name);
+            if (templateParameter) {
+              switch (templateParameter.type) {
+                case 'number':
+                  if (templateParameter.validation_min === 0 && templateParameter.validation_max === 0) {
+                    return true
+                  }
+
+                  if (Number(val) < templateParameter.validation_min || templateParameter.validation_max < Number(val)) {
+                    return ctx.createError({
+                      path: ctx.path,
+                      message: `Value must be between ${templateParameter.validation_min} and ${templateParameter.validation_max}.` })
+                  }
+                  break
+                case 'string':
+                  {
+                    if (templateParameter.validation_regex.length === 0) {
+                      return true
+                    }
+
+                    const regex = new RegExp(templateParameter.validation_regex);
+                    if (val && !regex.test(val)) {
+                      return ctx.createError({
+                        path: ctx.path,
+                        message: `${templateParameter.validation_error} (value does not match the pattern ${templateParameter.validation_regex}).` })
+                    }
+                  }
+                  break
+              }
             }
             return true
           })
