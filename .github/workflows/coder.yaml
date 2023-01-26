@@ -215,7 +215,7 @@ jobs:
 
       - name: Install sqlc
         run: |
-          curl -sSL https://github.com/kyleconroy/sqlc/releases/download/v1.13.0/sqlc_1.13.0_linux_amd64.tar.gz | sudo tar -C /usr/bin -xz sqlc
+          curl -sSL https://github.com/kyleconroy/sqlc/releases/download/v1.16.0/sqlc_1.16.0_linux_amd64.tar.gz | sudo tar -C /usr/bin -xz sqlc
       - name: Install protoc-gen-go
         run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
       - name: Install protoc-gen-go-drpc
@@ -556,7 +556,7 @@ jobs:
       - name: Install node_modules
         run: ./scripts/yarn_install.sh
 
-      - run: yarn test:coverage
+      - run: yarn test:ci
         working-directory: site
 
       - uses: codecov/codecov-action@v3
@@ -575,7 +575,7 @@ jobs:
     name: "test/e2e/${{ matrix.os }}"
     needs:
       - changes
-    if: false #needs.changes.outputs.docs-only == 'false'
+    if: needs.changes.outputs.docs-only == 'false'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:

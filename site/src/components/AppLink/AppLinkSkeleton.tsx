@@ -15,7 +15,7 @@ export const AppLinkSkeleton: FC<{ width: number }> = ({ width }) => {
   )
 }
 
-export const useStyles = makeStyles(() => ({
+const useStyles = makeStyles(() => ({
   skeleton: {
     borderRadius: borderRadiusSm,
   },

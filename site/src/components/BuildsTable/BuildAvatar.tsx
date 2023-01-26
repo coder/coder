@@ -1,4 +1,3 @@
-import Avatar from "@material-ui/core/Avatar"
 import Badge from "@material-ui/core/Badge"
 import { Theme, useTheme, withStyles } from "@material-ui/core/styles"
 import { FC } from "react"
@@ -8,6 +7,7 @@ import DeleteOutlined from "@material-ui/icons/DeleteOutlined"
 import { WorkspaceBuild, WorkspaceTransition } from "api/typesGenerated"
 import { getDisplayWorkspaceBuildStatus } from "util/workspace"
 import { PaletteIndex } from "theme/palettes"
+import { Avatar, AvatarProps } from "components/Avatar/Avatar"
 
 interface StylesBadgeProps {
   type: PaletteIndex
@@ -25,27 +25,9 @@ const StyledBadge = withStyles((theme) => ({
   },
 }))(Badge)
 
-interface StyledAvatarProps {
-  size?: number
-}
-
-const StyledAvatar = withStyles((theme) => ({
-  root: {
-    background: theme.palette.divider,
-    color: theme.palette.text.primary,
-    border: `2px solid ${theme.palette.divider}`,
-    width: ({ size }: StyledAvatarProps) => size,
-    height: ({ size }: StyledAvatarProps) => size,
-
-    "& svg": {
-      width: ({ size }: StyledAvatarProps) => (size ? size / 2 : 18),
-      height: ({ size }: StyledAvatarProps) => (size ? size / 2 : 18),
-    },
-  },
-}))(Avatar)
-
-export interface BuildAvatarProps extends StyledAvatarProps {
+export interface BuildAvatarProps {
   build: WorkspaceBuild
+  size?: AvatarProps["size"]
 }
 
 const iconByTransition: Record<WorkspaceTransition, JSX.Element> = {
@@ -71,9 +53,9 @@ export const BuildAvatar: FC<BuildAvatarProps> = ({ build, size }) => {
       }}
       badgeContent={<div></div>}
     >
-      <StyledAvatar size={size}>
+      <Avatar size={size} colorScheme="darken">
         {iconByTransition[build.transition]}
-      </StyledAvatar>
+      </Avatar>
     </StyledBadge>
   )
 }

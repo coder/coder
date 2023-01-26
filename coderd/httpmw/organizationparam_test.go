@@ -42,6 +42,7 @@ func TestOrganizationParam(t *testing.T) {
 			Username:       username,
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
+			LoginType:      database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 		_, err = db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{

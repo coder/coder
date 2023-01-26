@@ -55,11 +55,6 @@ func (api *API) provisionerDaemonsEnabledMW(next http.Handler) http.Handler {
 // @Router /organizations/{organization}/provisionerdaemons [get]
 func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	org := httpmw.OrganizationParam(r)
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceProvisionerDaemon.InOrg(org.ID)) {
-		httpapi.Forbidden(rw)
-		return
-	}
 	daemons, err := api.Database.GetProvisionerDaemons(ctx)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil

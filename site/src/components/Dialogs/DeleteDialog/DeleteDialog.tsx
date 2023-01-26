@@ -45,6 +45,7 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
       <Stack spacing={1}>
         <TextField
           name="confirmation"
+          autoComplete="off"
           id="confirmation"
           placeholder={name}
           value={nameValue}

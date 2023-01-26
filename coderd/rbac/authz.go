@@ -17,9 +17,24 @@ import (
 	"github.com/coder/coder/coderd/tracing"
 )
 
+// ExpandableRoles is any type that can be expanded into a []Role. This is implemented
+// as an interface so we can have RoleNames for user defined roles, and implement
+// custom ExpandableRoles for system type users (eg autostart/autostop system role).
+// We want a clear divide between the two types of roles so users have no codepath
+// to interact or assign system roles.
+//
+// Note: We may also want to do the same thing with scopes to allow custom scope
+// support unavailable to the user. Eg: Scope to a single resource.
+type ExpandableRoles interface {
+	Expand() ([]Role, error)
+	// Names is for logging and tracing purposes, we want to know the human
+	// names of the expanded roles.
+	Names() []string
+}
+
 type Authorizer interface {
-	ByRoleName(ctx context.Context, subjectID string, roleNames []string, scope Scope, groups []string, action Action, object Object) error
-	PrepareByRoleName(ctx context.Context, subjectID string, roleNames []string, scope Scope, groups []string, action Action, objectType string) (PreparedAuthorized, error)
+	ByRoleName(ctx context.Context, subjectID string, roleNames ExpandableRoles, scope ScopeName, groups []string, action Action, object Object) error
+	PrepareByRoleName(ctx context.Context, subjectID string, roleNames ExpandableRoles, scope ScopeName, groups []string, action Action, objectType string) (PreparedAuthorized, error)
 }
 
 type PreparedAuthorized interface {
@@ -33,7 +48,7 @@ type PreparedAuthorized interface {
 //
 // Ideally the 'CompileToSQL' is used instead for large sets. This cost scales
 // linearly with the number of objects passed in.
-func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, subjRoles []string, scope Scope, groups []string, action Action, objects []O) ([]O, error) {
+func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, subjRoles ExpandableRoles, scope ScopeName, groups []string, action Action, objects []O) ([]O, error) {
 	if len(objects) == 0 {
 		// Nothing to filter
 		return objects, nil
@@ -45,7 +60,7 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, sub
 	// objects, then the span is not interesting. It would just add excessive
 	// 0 time spans that provide no insight.
 	ctx, span := tracing.StartSpan(ctx,
-		rbacTraceAttributes(subjRoles, len(groups), scope, action, objectType,
+		rbacTraceAttributes(subjRoles.Names(), len(groups), scope, action, objectType,
 			// For filtering, we are only measuring the total time for the entire
 			// set of objects. This and the 'PrepareByRoleName' span time
 			// is all that is required to measure the performance of this
@@ -173,17 +188,17 @@ type authSubject struct {
 	ID     string   `json:"id"`
 	Roles  []Role   `json:"roles"`
 	Groups []string `json:"groups"`
-	Scope  Role     `json:"scope"`
+	Scope  Scope    `json:"scope"`
 }
 
 // ByRoleName will expand all roleNames into roles before calling Authorize().
 // This is the function intended to be used outside this package.
 // The role is fetched from the builtin map located in memory.
-func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNames []string, scope Scope, groups []string, action Action, object Object) error {
+func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNames ExpandableRoles, scope ScopeName, groups []string, action Action, object Object) error {
 	start := time.Now()
 	ctx, span := tracing.StartSpan(ctx,
 		trace.WithTimestamp(start), // Reuse the time.Now for metric and trace
-		rbacTraceAttributes(roleNames, len(groups), scope, action, object.Type,
+		rbacTraceAttributes(roleNames.Names(), len(groups), scope, action, object.Type,
 			// For authorizing a single object, this data is useful to know how
 			// complex our objects are getting.
 			attribute.Int("object_num_groups", len(object.ACLGroupList)),
@@ -192,12 +207,12 @@ func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNa
 	)
 	defer span.End()
 
-	roles, err := RolesByNames(roleNames)
+	roles, err := roleNames.Expand()
 	if err != nil {
 		return err
 	}
 
-	scopeRole, err := ScopeRole(scope)
+	scopeRole, err := ExpandScope(scope)
 	if err != nil {
 		return err
 	}
@@ -216,7 +231,7 @@ func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNa
 
 // Authorize allows passing in custom Roles.
 // This is really helpful for unit testing, as we can create custom roles to exercise edge cases.
-func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles []Role, scope Role, groups []string, action Action, object Object) error {
+func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles []Role, scope Scope, groups []string, action Action, object Object) error {
 	input := map[string]interface{}{
 		"subject": authSubject{
 			ID:     subjectID,
@@ -239,20 +254,20 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles [
 	return nil
 }
 
-func (a RegoAuthorizer) PrepareByRoleName(ctx context.Context, subjectID string, roleNames []string, scope Scope, groups []string, action Action, objectType string) (PreparedAuthorized, error) {
+func (a RegoAuthorizer) PrepareByRoleName(ctx context.Context, subjectID string, roleNames ExpandableRoles, scope ScopeName, groups []string, action Action, objectType string) (PreparedAuthorized, error) {
 	start := time.Now()
 	ctx, span := tracing.StartSpan(ctx,
 		trace.WithTimestamp(start),
-		rbacTraceAttributes(roleNames, len(groups), scope, action, objectType),
+		rbacTraceAttributes(roleNames.Names(), len(groups), scope, action, objectType),
 	)
 	defer span.End()
 
-	roles, err := RolesByNames(roleNames)
+	roles, err := roleNames.Expand()
 	if err != nil {
 		return nil, err
 	}
 
-	scopeRole, err := ScopeRole(scope)
+	scopeRole, err := ExpandScope(scope)
 	if err != nil {
 		return nil, err
 	}
@@ -275,7 +290,7 @@ func (a RegoAuthorizer) PrepareByRoleName(ctx context.Context, subjectID string,
 
 // Prepare will partially execute the rego policy leaving the object fields unknown (except for the type).
 // This will vastly speed up performance if batch authorization on the same type of objects is needed.
-func (RegoAuthorizer) Prepare(ctx context.Context, subjectID string, roles []Role, scope Role, groups []string, action Action, objectType string) (*PartialAuthorizer, error) {
+func (RegoAuthorizer) Prepare(ctx context.Context, subjectID string, roles []Role, scope Scope, groups []string, action Action, objectType string) (*PartialAuthorizer, error) {
 	auth, err := newPartialAuthorizer(ctx, subjectID, roles, scope, groups, action, objectType)
 	if err != nil {
 		return nil, xerrors.Errorf("new partial authorizer: %w", err)

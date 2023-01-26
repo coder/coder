@@ -249,7 +249,6 @@ export const TemplatePermissionsPageView: FC<
                         }
                         title={group.name}
                         subtitle={getGroupSubtitle(group)}
-                        highlightTitle
                       />
                     </TableCell>
                     <TableCell>
@@ -296,16 +295,7 @@ export const TemplatePermissionsPageView: FC<
                       <AvatarData
                         title={user.username}
                         subtitle={user.email}
-                        highlightTitle
-                        avatar={
-                          user.avatar_url ? (
-                            <img
-                              className={styles.avatar}
-                              alt={`${user.username}'s Avatar`}
-                              src={user.avatar_url}
-                            />
-                          ) : null
-                        }
+                        src={user.avatar_url}
                       />
                     </TableCell>
                     <TableCell>
@@ -361,12 +351,6 @@ export const useStyles = makeStyles((theme) => {
       height: 36,
       fontSize: 14,
       width: 100,
-    },
-
-    avatar: {
-      width: theme.spacing(4.5),
-      height: theme.spacing(4.5),
-      borderRadius: "100%",
     },
 
     updateSelect: {

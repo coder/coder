@@ -16,23 +16,21 @@ export const hardCodedCSRFCookie = (): string => {
   return csrfToken
 }
 
-// defaultEntitlements has a default set of disabled functionality.
-export const defaultEntitlements = (): TypesGen.Entitlements => {
-  const features: TypesGen.Entitlements["features"] = {}
-  for (const feature in Types.FeatureNames) {
-    features[feature] = {
+// withDefaultFeatures sets all unspecified features to not_entitled and disabled.
+export const withDefaultFeatures = (
+  fs: Partial<TypesGen.Entitlements["features"]>,
+): TypesGen.Entitlements["features"] => {
+  for (const feature of TypesGen.FeatureNames) {
+    // Skip fields that are already filled.
+    if (fs[feature] !== undefined) {
+      continue
+    }
+    fs[feature] = {
       enabled: false,
       entitlement: "not_entitled",
     }
   }
-  return {
-    features: features,
-    has_license: false,
-    errors: [],
-    warnings: [],
-    experimental: false,
-    trial: false,
-  }
+  return fs as TypesGen.Entitlements["features"]
 }
 
 // Always attach CSRF token to all requests.
@@ -141,8 +139,7 @@ export const getTokens = async (): Promise<TypesGen.APIKey[]> => {
 }
 
 export const deleteAPIKey = async (keyId: string): Promise<void> => {
-  const response = await axios.delete("/api/v2/users/me/keys/" + keyId)
-  return response.data
+  await axios.delete("/api/v2/users/me/keys/" + keyId)
 }
 
 export const getUsers = async (
@@ -614,12 +611,17 @@ export const putWorkspaceExtension = async (
 }
 
 export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
+  const response = await axios.get("/api/v2/entitlements")
+  return response.data
+}
+
+export const getExperiments = async (): Promise<TypesGen.Experiment[]> => {
   try {
-    const response = await axios.get("/api/v2/entitlements")
+    const response = await axios.get("/api/v2/experiments")
     return response.data
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 404) {
-      return defaultEntitlements()
+      return []
     }
     throw error
   }
@@ -639,6 +641,12 @@ export const getTemplateDAUs = async (
   const response = await axios.get(`/api/v2/templates/${templateId}/daus`)
   return response.data
 }
+
+export const getDeploymentDAUs =
+  async (): Promise<TypesGen.DeploymentDAUsResponse> => {
+    const response = await axios.get(`/api/v2/insights/daus`)
+    return response.data
+  }
 
 export const getTemplateACL = async (
   templateId: string,
@@ -774,4 +782,11 @@ export const getTemplateVersionLogs = async (
     `/api/v2/templateversions/${versionId}/logs`,
   )
   return response.data
+}
+
+export const updateWorkspaceVersion = async (
+  workspace: TypesGen.Workspace,
+): Promise<TypesGen.WorkspaceBuild> => {
+  const template = await getTemplate(workspace.template_id)
+  return startWorkspace(workspace.id, template.active_version_id)
 }

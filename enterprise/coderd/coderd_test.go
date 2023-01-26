@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/enterprise/audit"
 	"github.com/coder/coder/enterprise/coderd"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/testutil"
 )
 
@@ -41,10 +42,12 @@ func TestEntitlements(t *testing.T) {
 		})
 		_ = coderdtest.CreateFirstUser(t, client)
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			UserLimit:                  100,
-			AuditLog:                   true,
-			TemplateRBAC:               true,
-			ExternalProvisionerDaemons: true,
+			Features: license.Features{
+				codersdk.FeatureUserLimit:                  100,
+				codersdk.FeatureAuditLog:                   1,
+				codersdk.FeatureTemplateRBAC:               1,
+				codersdk.FeatureExternalProvisionerDaemons: 1,
+			},
 		})
 		res, err := client.Entitlements(context.Background())
 		require.NoError(t, err)
@@ -68,8 +71,10 @@ func TestEntitlements(t *testing.T) {
 		})
 		_ = coderdtest.CreateFirstUser(t, client)
 		license := coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			UserLimit: 100,
-			AuditLog:  true,
+			Features: license.Features{
+				codersdk.FeatureUserLimit: 100,
+				codersdk.FeatureAuditLog:  1,
+			},
 		})
 		res, err := client.Entitlements(context.Background())
 		require.NoError(t, err)
@@ -99,7 +104,9 @@ func TestEntitlements(t *testing.T) {
 			UploadedAt: database.Now(),
 			Exp:        database.Now().AddDate(1, 0, 0),
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-				AuditLog: true,
+				Features: license.Features{
+					codersdk.FeatureAuditLog: 1,
+				},
 			}),
 		})
 		require.NoError(t, err)
@@ -125,7 +132,9 @@ func TestEntitlements(t *testing.T) {
 			UploadedAt: database.Now(),
 			Exp:        database.Now().AddDate(1, 0, 0),
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-				AuditLog: true,
+				Features: license.Features{
+					codersdk.FeatureAuditLog: 1,
+				},
 			}),
 		})
 		require.NoError(t, err)
@@ -165,7 +174,9 @@ func TestAuditLogging(t *testing.T) {
 		})
 		coderdtest.CreateFirstUser(t, client)
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			AuditLog: true,
+			Features: license.Features{
+				codersdk.FeatureAuditLog: 1,
+			},
 		})
 		auditor := *api.AGPL.Auditor.Load()
 		ea := audit.NewAuditor(audit.DefaultFilter)

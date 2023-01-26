@@ -18,7 +18,7 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 	# Dump the updated schema (use make to utilize caching).
 	make -C ../.. --no-print-directory coderd/database/dump.sql
 	# The logic below depends on the exact version being correct :(
-	go run github.com/kyleconroy/sqlc/cmd/sqlc@v1.13.0 generate
+	go run github.com/kyleconroy/sqlc/cmd/sqlc@v1.16.0 generate
 
 	first=true
 	for fi in queries/*.sql.go; do

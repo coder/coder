@@ -1,7 +1,5 @@
 # Audit
 
-> This page is incomplete, stay tuned.
-
 ## Get audit logs
 
 ### Code samples
@@ -108,6 +106,7 @@ curl -X POST http://coder-server:8080/api/v2/audit/testgenerate \
 ```json
 {
   "action": "create",
+  "build_reason": "autostart",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "resource_type": "organization",
   "time": "2019-08-24T14:15:22Z"

@@ -214,6 +214,7 @@ jobs:
             ./build/*.rpm
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CODER_GPG_RELEASE_KEY_BASE64: ${{ secrets.CODER_GPG_RELEASE_KEY_BASE64 }}
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v1
@@ -252,6 +253,7 @@ jobs:
           retention-days: 7
 
   publish-winget:
+    name: Publish to winget-pkgs
     runs-on: windows-latest
     needs: release
     steps:
@@ -307,18 +309,22 @@ jobs:
             --submit `
             --version "${version}" `
             --urls "${installer_url}|X64" `
-            --token "${{ secrets.CDRCI_GITHUB_TOKEN }}"
+            --token "$env:WINGET_GH_TOKEN"
 
         env:
           # For gh CLI:
           GH_TOKEN: ${{ github.token }}
+          # For wingetcreate. We need a real token since we're pushing a commit
+          # to GitHub and then making a PR in a different repo.
+          WINGET_GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
 
       - name: Comment on PR
+        if: ${{ !inputs.dry_run }}
         run: |
           # Find the PR that wingetcreate just made.
           $version = "${{ needs.release.outputs.version }}".Trim('v')
           $pr_list = gh pr list --repo microsoft/winget-pkgs --search "author:cdrci Coder.Coder version ${version}" --limit 1 --json number | `
-            ConvertFrom-Json`
+            ConvertFrom-Json
           $pr_number = $pr_list[0].number
 
           gh pr comment --repo microsoft/winget-pkgs "${pr_number}" --body "🤖 cc: @deansheather @matifali"

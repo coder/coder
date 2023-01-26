@@ -1,7 +1,5 @@
 # Organizations
 
-> This page is incomplete, stay tuned.
-
 ## Add new license
 
 ### Code samples

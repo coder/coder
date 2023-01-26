@@ -21,6 +21,7 @@ export const CliAuthPageView: FC<CliAuthPageViewProps> = ({ sessionToken }) => {
   return (
     <SignInLayout>
       <Welcome message="Session token" />
+
       <p className={styles.text}>
         Copy the session token below and{" "}
         <strong className={styles.lineBreak}>paste it in your terminal</strong>.

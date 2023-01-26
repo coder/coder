@@ -83,6 +83,7 @@ func workspaceAgent() *cobra.Command {
 				slog.F("version", version),
 			)
 			client := codersdk.New(coderURL)
+			client.Logger = logger
 			// Set a reasonable timeout so requests can't hang forever!
 			client.HTTPClient.Timeout = 10 * time.Second
 
@@ -180,4 +181,27 @@ func workspaceAgent() *cobra.Command {
 	cliflag.BoolVarP(cmd.Flags(), &noReap, "no-reap", "", "", false, "Do not start a process reaper.")
 	cliflag.StringVarP(cmd.Flags(), &pprofAddress, "pprof-address", "", "CODER_AGENT_PPROF_ADDRESS", "127.0.0.1:6060", "The address to serve pprof.")
 	return cmd
+}
+
+func serveHandler(ctx context.Context, logger slog.Logger, handler http.Handler, addr, name string) (closeFunc func()) {
+	logger.Debug(ctx, "http server listening", slog.F("addr", addr), slog.F("name", name))
+
+	// ReadHeaderTimeout is purposefully not enabled. It caused some issues with
+	// websockets over the dev tunnel.
+	// See: https://github.com/coder/coder/pull/3730
+	//nolint:gosec
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: handler,
+	}
+	go func() {
+		err := srv.ListenAndServe()
+		if err != nil && !xerrors.Is(err, http.ErrServerClosed) {
+			logger.Error(ctx, "http server listen", slog.F("name", name), slog.Error(err))
+		}
+	}()
+
+	return func() {
+		_ = srv.Close()
+	}
 }

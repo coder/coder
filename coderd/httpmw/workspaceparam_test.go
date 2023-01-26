@@ -44,6 +44,7 @@ func TestWorkspaceParam(t *testing.T) {
 			Username:       username,
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
+			LoginType:      database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 
@@ -356,6 +357,7 @@ func setupWorkspaceWithAgents(t testing.TB, cfg setupConfig) (database.Store, *h
 		Username:       username,
 		CreatedAt:      database.Now(),
 		UpdatedAt:      database.Now(),
+		LoginType:      database.LoginTypePassword,
 	})
 	require.NoError(t, err)
 
@@ -382,20 +384,25 @@ func setupWorkspaceWithAgents(t testing.TB, cfg setupConfig) (database.Store, *h
 		ID:          uuid.New(),
 		WorkspaceID: workspace.ID,
 		JobID:       uuid.New(),
+		Transition:  database.WorkspaceTransitionStart,
+		Reason:      database.BuildReasonInitiator,
 	})
 	require.NoError(t, err)
 
 	job, err := db.InsertProvisionerJob(context.Background(), database.InsertProvisionerJobParams{
-		ID:   build.JobID,
-		Type: database.ProvisionerJobTypeWorkspaceBuild,
+		ID:            build.JobID,
+		Type:          database.ProvisionerJobTypeWorkspaceBuild,
+		Provisioner:   database.ProvisionerTypeEcho,
+		StorageMethod: database.ProvisionerStorageMethodFile,
 	})
 	require.NoError(t, err)
 
 	for resourceName, agentNames := range cfg.Agents {
 		resource, err := db.InsertWorkspaceResource(context.Background(), database.InsertWorkspaceResourceParams{
-			ID:    uuid.New(),
-			JobID: job.ID,
-			Name:  resourceName,
+			ID:         uuid.New(),
+			JobID:      job.ID,
+			Name:       resourceName,
+			Transition: database.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
 

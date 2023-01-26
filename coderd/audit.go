@@ -67,6 +67,7 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 		Email:        filter.Email,
 		DateFrom:     filter.DateFrom,
 		DateTo:       filter.DateTo,
+		BuildReason:  filter.BuildReason,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -180,8 +181,9 @@ func (api *API) convertAuditLogs(ctx context.Context, dblogs []database.GetAudit
 }
 
 type AdditionalFields struct {
-	WorkspaceName string
-	BuildNumber   string
+	WorkspaceName string               `json:"workspace_name"`
+	BuildNumber   string               `json:"build_number"`
+	BuildReason   database.BuildReason `json:"build_reason"`
 }
 
 func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
@@ -198,7 +200,7 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 			Username:  dblog.UserUsername.String,
 			Email:     dblog.UserEmail.String,
 			CreatedAt: dblog.UserCreatedAt.Time,
-			Status:    codersdk.UserStatus(dblog.UserStatus),
+			Status:    codersdk.UserStatus(dblog.UserStatus.UserStatus),
 			Roles:     []codersdk.Role{},
 			AvatarURL: dblog.UserAvatarUrl.String,
 		}
@@ -219,6 +221,7 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 		resourceInfo := map[string]string{
 			"workspaceName": "unknown",
 			"buildNumber":   "unknown",
+			"buildReason":   "unknown",
 		}
 		dblog.AdditionalFields, err = json.Marshal(resourceInfo)
 		api.Logger.Error(ctx, "marshal additional fields", slog.Error(err))
@@ -262,8 +265,8 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow, additionalFields A
 	)
 
 	// Strings for starting/stopping workspace builds follow the below format:
-	// "{user} started build #{build_number} for workspace {target}"
-	// where target is a workspace instead of a workspace build
+	// "{user | 'Coder automatically'} started build #{build_number} for workspace {target}"
+	// where target is a workspace (name) instead of a workspace build
 	// passed in on the FE via AuditLog.AdditionalFields rather than derived in request.go:35
 	if alog.ResourceType == database.ResourceTypeWorkspaceBuild && alog.Action != database.AuditActionDelete {
 		if len(additionalFields.BuildNumber) == 0 {
@@ -441,6 +444,7 @@ func auditSearchQuery(query string) (database.GetAuditLogsOffsetParams, []coders
 		Email:        parser.String(searchParams, "", "email"),
 		DateFrom:     parsedDateFrom,
 		DateTo:       parsedDateTo,
+		BuildReason:  buildReasonFromString(parser.String(searchParams, "", "build_reason")),
 	}
 
 	return filter, parser.Errors
@@ -464,6 +468,8 @@ func resourceTypeFromString(resourceTypeString string) string {
 		return resourceTypeString
 	case codersdk.ResourceTypeAPIKey:
 		return resourceTypeString
+	case codersdk.ResourceTypeGroup:
+		return resourceTypeString
 	}
 	return ""
 }
@@ -476,6 +482,23 @@ func actionFromString(actionString string) string {
 		return actionString
 	case codersdk.AuditActionDelete:
 		return actionString
+	case codersdk.AuditActionStart:
+		return actionString
+	case codersdk.AuditActionStop:
+		return actionString
+	default:
+	}
+	return ""
+}
+
+func buildReasonFromString(buildReasonString string) string {
+	switch codersdk.BuildReason(buildReasonString) {
+	case codersdk.BuildReasonInitiator:
+		return buildReasonString
+	case codersdk.BuildReasonAutostart:
+		return buildReasonString
+	case codersdk.BuildReasonAutostop:
+		return buildReasonString
 	default:
 	}
 	return ""

@@ -427,6 +427,7 @@ func (r *Runner) do(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob)
 		r.logger.Debug(context.Background(), "acquired job is template dry-run",
 			slog.F("workspace_name", jobType.TemplateDryRun.Metadata.WorkspaceName),
 			slog.F("parameters", jobType.TemplateDryRun.ParameterValues),
+			slog.F("rich_parameter_values", jobType.TemplateDryRun.RichParameterValues),
 		)
 		return r.runTemplateDryRun(ctx)
 	case *proto.AcquiredJob_WorkspaceBuild_:
@@ -646,9 +647,15 @@ func (r *Runner) runTemplateImportParse(ctx context.Context) ([]*sdkproto.Parame
 }
 
 // Performs a dry-run provision when importing a template.
-// This is used to detect resources that would be provisioned
-// for a workspace in various states.
+// This is used to detect resources that would be provisioned for a workspace in various states.
+// It doesn't define values for rich parameters as they're unknown during template import.
 func (r *Runner) runTemplateImportProvision(ctx context.Context, values []*sdkproto.ParameterValue, metadata *sdkproto.Provision_Metadata) ([]*sdkproto.Resource, []*sdkproto.RichParameter, error) {
+	return r.runTemplateImportProvisionWithRichParameters(ctx, values, nil, metadata)
+}
+
+// Performs a dry-run provision with provided rich parameters.
+// This is used to detect resources that would be provisioned for a workspace in various states.
+func (r *Runner) runTemplateImportProvisionWithRichParameters(ctx context.Context, values []*sdkproto.ParameterValue, richParameterValues []*sdkproto.RichParameterValue, metadata *sdkproto.Provision_Metadata) ([]*sdkproto.Resource, []*sdkproto.RichParameter, error) {
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
@@ -685,7 +692,8 @@ func (r *Runner) runTemplateImportProvision(ctx context.Context, values []*sdkpr
 					Directory: r.workDirectory,
 					Metadata:  metadata,
 				},
-				ParameterValues: values,
+				ParameterValues:     values,
+				RichParameterValues: richParameterValues,
 			},
 		},
 	})
@@ -767,8 +775,9 @@ func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *p
 	}
 
 	// Run the template import provision task since it's already a dry run.
-	resources, _, err := r.runTemplateImportProvision(ctx,
+	resources, _, err := r.runTemplateImportProvisionWithRichParameters(ctx,
 		r.job.GetTemplateDryRun().GetParameterValues(),
+		r.job.GetTemplateDryRun().GetRichParameterValues(),
 		metadata,
 	)
 	if err != nil {
@@ -941,8 +950,9 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 	completedPlan, failed := r.buildWorkspace(ctx, "Planning infrastructure", &sdkproto.Provision_Request{
 		Type: &sdkproto.Provision_Request_Plan{
 			Plan: &sdkproto.Provision_Plan{
-				Config:          config,
-				ParameterValues: r.job.GetWorkspaceBuild().ParameterValues,
+				Config:              config,
+				ParameterValues:     r.job.GetWorkspaceBuild().ParameterValues,
+				RichParameterValues: r.job.GetWorkspaceBuild().RichParameterValues,
 			},
 		},
 	})

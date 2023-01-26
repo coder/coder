@@ -13,10 +13,10 @@ import (
 
 type benchmarkCase struct {
 	Name   string
-	Roles  []string
+	Roles  rbac.RoleNames
 	Groups []string
 	UserID uuid.UUID
-	Scope  rbac.Scope
+	Scope  rbac.ScopeName
 }
 
 // benchmarkUserCases builds a set of users with different roles and groups.
@@ -200,6 +200,7 @@ func benchmarkSetup(orgs []uuid.UUID, users []uuid.UUID, size int, opts ...func(
 	objectList := make([]rbac.Object, size)
 	for i := range objectList {
 		objectList[i] = rbac.ResourceWorkspace.
+			WithID(uuid.New()).
 			InOrg(orgs[i%len(orgs)]).
 			WithOwner(users[i%len(users)].String()).
 			WithACLUserList(aclList).

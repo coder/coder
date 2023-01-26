@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"sync"
 	"time"
 
@@ -174,7 +176,7 @@ func (c *haCoordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *js
 
 // ServeAgent accepts a WebSocket connection to an agent that listens to
 // incoming connections and publishes node updates.
-func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
+func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID, _ string) error {
 	// Tell clients on other instances to send a callmemaybe to us.
 	err := c.publishAgentHello(id)
 	if err != nil {
@@ -572,4 +574,10 @@ func (c *haCoordinator) formatAgentUpdate(id uuid.UUID, node *agpl.Node) ([]byte
 	}
 
 	return buf.Bytes(), nil
+}
+
+func (*haCoordinator) ServeHTTPDebug(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	fmt.Fprintf(w, "<h1>coordinator</h1>")
+	fmt.Fprintf(w, "<h2>ha debug coming soon</h2>")
 }

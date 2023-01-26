@@ -99,6 +99,14 @@ CREATE TYPE user_status AS ENUM (
     'suspended'
 );
 
+CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
+    'created',
+    'starting',
+    'start_timeout',
+    'start_error',
+    'ready'
+);
+
 CREATE TYPE workspace_app_health AS ENUM (
     'disabled',
     'initializing',
@@ -238,10 +246,10 @@ CREATE TABLE parameter_schemas (
     job_id uuid NOT NULL,
     name character varying(64) NOT NULL,
     description character varying(8192) DEFAULT ''::character varying NOT NULL,
-    default_source_scheme parameter_source_scheme,
+    default_source_scheme parameter_source_scheme NOT NULL,
     default_source_value text NOT NULL,
     allow_override_source boolean NOT NULL,
-    default_destination_scheme parameter_destination_scheme,
+    default_destination_scheme parameter_destination_scheme NOT NULL,
     allow_override_destination boolean NOT NULL,
     default_refresh text NOT NULL,
     redisplay_value boolean NOT NULL,
@@ -342,7 +350,8 @@ CREATE TABLE template_version_parameters (
     options jsonb DEFAULT '[]'::jsonb NOT NULL,
     validation_regex text NOT NULL,
     validation_min integer NOT NULL,
-    validation_max integer NOT NULL
+    validation_max integer NOT NULL,
+    validation_error text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON COLUMN template_version_parameters.name IS 'Parameter name';
@@ -364,6 +373,8 @@ COMMENT ON COLUMN template_version_parameters.validation_regex IS 'Validation: r
 COMMENT ON COLUMN template_version_parameters.validation_min IS 'Validation: minimum length of value';
 
 COMMENT ON COLUMN template_version_parameters.validation_max IS 'Validation: maximum length of value';
+
+COMMENT ON COLUMN template_version_parameters.validation_error IS 'Validation: error displayed when the regex does not match.';
 
 CREATE TABLE template_versions (
     id uuid NOT NULL,
@@ -448,7 +459,10 @@ CREATE TABLE workspace_agents (
     last_connected_replica_id uuid,
     connection_timeout_seconds integer DEFAULT 0 NOT NULL,
     troubleshooting_url text DEFAULT ''::text NOT NULL,
-    motd_file text DEFAULT ''::text NOT NULL
+    motd_file text DEFAULT ''::text NOT NULL,
+    lifecycle_state workspace_agent_lifecycle_state DEFAULT 'created'::workspace_agent_lifecycle_state NOT NULL,
+    delay_login_until_ready boolean DEFAULT false NOT NULL,
+    startup_script_timeout_seconds integer DEFAULT 0 NOT NULL
 );
 
 COMMENT ON COLUMN workspace_agents.version IS 'Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.';
@@ -458,6 +472,12 @@ COMMENT ON COLUMN workspace_agents.connection_timeout_seconds IS 'Connection tim
 COMMENT ON COLUMN workspace_agents.troubleshooting_url IS 'URL for troubleshooting the agent.';
 
 COMMENT ON COLUMN workspace_agents.motd_file IS 'Path to file inside workspace containing the message of the day (MOTD) to show to the user when logging in via SSH.';
+
+COMMENT ON COLUMN workspace_agents.lifecycle_state IS 'The current lifecycle state reported by the workspace agent.';
+
+COMMENT ON COLUMN workspace_agents.delay_login_until_ready IS 'If true, the agent will delay logins until it is ready (e.g. executing startup script has ended).';
+
+COMMENT ON COLUMN workspace_agents.startup_script_timeout_seconds IS 'The number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.';
 
 CREATE TABLE workspace_apps (
     id uuid NOT NULL,

@@ -150,6 +150,7 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 		Directory:            apiAgent.Directory,
 		VSCodePortProxyURI:   vscodeProxyURI,
 		MOTDFile:             workspaceAgent.MOTDFile,
+		StartupScriptTimeout: time.Duration(apiAgent.StartupScriptTimeoutSeconds) * time.Second,
 	})
 }
 
@@ -520,6 +521,25 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 		})
 		return
 	}
+
+	workspace, err := api.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Internal error fetching workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	owner, err := api.Database.GetUserByID(ctx, workspace.OwnerID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Internal error fetching user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	// Ensure the resource is still valid!
 	// We only accept agents for resources on the latest build.
 	ensureLatestBuild := func() error {
@@ -617,7 +637,9 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 	closeChan := make(chan struct{})
 	go func() {
 		defer close(closeChan)
-		err := (*api.TailnetCoordinator.Load()).ServeAgent(wsNetConn, workspaceAgent.ID)
+		err := (*api.TailnetCoordinator.Load()).ServeAgent(wsNetConn, workspaceAgent.ID,
+			fmt.Sprintf("%s-%s-%s", owner.Username, workspace.Name, workspaceAgent.Name),
+		)
 		if err != nil {
 			api.Logger.Warn(ctx, "tailnet coordinator agent error", slog.Error(err))
 			_ = conn.Close(websocket.StatusInternalError, err.Error())
@@ -739,21 +761,24 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		troubleshootingURL = dbAgent.TroubleshootingURL
 	}
 	workspaceAgent := codersdk.WorkspaceAgent{
-		ID:                       dbAgent.ID,
-		CreatedAt:                dbAgent.CreatedAt,
-		UpdatedAt:                dbAgent.UpdatedAt,
-		ResourceID:               dbAgent.ResourceID,
-		InstanceID:               dbAgent.AuthInstanceID.String,
-		Name:                     dbAgent.Name,
-		Architecture:             dbAgent.Architecture,
-		OperatingSystem:          dbAgent.OperatingSystem,
-		StartupScript:            dbAgent.StartupScript.String,
-		Version:                  dbAgent.Version,
-		EnvironmentVariables:     envs,
-		Directory:                dbAgent.Directory,
-		Apps:                     apps,
-		ConnectionTimeoutSeconds: dbAgent.ConnectionTimeoutSeconds,
-		TroubleshootingURL:       troubleshootingURL,
+		ID:                          dbAgent.ID,
+		CreatedAt:                   dbAgent.CreatedAt,
+		UpdatedAt:                   dbAgent.UpdatedAt,
+		ResourceID:                  dbAgent.ResourceID,
+		InstanceID:                  dbAgent.AuthInstanceID.String,
+		Name:                        dbAgent.Name,
+		Architecture:                dbAgent.Architecture,
+		OperatingSystem:             dbAgent.OperatingSystem,
+		StartupScript:               dbAgent.StartupScript.String,
+		Version:                     dbAgent.Version,
+		EnvironmentVariables:        envs,
+		Directory:                   dbAgent.Directory,
+		Apps:                        apps,
+		ConnectionTimeoutSeconds:    dbAgent.ConnectionTimeoutSeconds,
+		TroubleshootingURL:          troubleshootingURL,
+		LifecycleState:              codersdk.WorkspaceAgentLifecycle(dbAgent.LifecycleState),
+		DelayLoginUntilReady:        dbAgent.DelayLoginUntilReady,
+		StartupScriptTimeoutSeconds: dbAgent.StartupScriptTimeoutSeconds,
 	}
 	node := coordinator.Node(dbAgent.ID)
 	if node != nil {
@@ -898,6 +923,61 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AgentStatsResponse{
 		ReportInterval: api.AgentStatsRefreshInterval,
 	})
+}
+
+// @Summary Submit workspace agent lifecycle state
+// @ID submit-workspace-agent-lifecycle-state
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Agents
+// @Param request body codersdk.PostWorkspaceAgentLifecycleRequest true "Workspace agent lifecycle request"
+// @Success 204 "Success"
+// @Router /workspaceagents/me/report-lifecycle [post]
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceAgentReportLifecycle(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+	workspace, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to get workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	var req codersdk.PostWorkspaceAgentLifecycleRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	api.Logger.Debug(ctx, "workspace agent state report",
+		slog.F("agent", workspaceAgent.ID),
+		slog.F("workspace", workspace.ID),
+		slog.F("payload", req),
+	)
+
+	lifecycleState := database.WorkspaceAgentLifecycleState(req.State)
+	if !lifecycleState.Valid() {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid lifecycle state.",
+			Detail:  fmt.Sprintf("Invalid lifecycle state %q, must be be one of %q.", req.State, database.AllWorkspaceAgentLifecycleStateValues()),
+		})
+		return
+	}
+
+	err = api.Database.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+		ID:             workspaceAgent.ID,
+		LifecycleState: lifecycleState,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	api.publishWorkspaceUpdate(ctx, workspace.ID)
+
+	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
 }
 
 // @Summary Submit workspace agent application health

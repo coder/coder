@@ -99,21 +99,13 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 }
 
 type LicenseOptions struct {
-	AccountType                string
-	AccountID                  string
-	Trial                      bool
-	AllFeatures                bool
-	GraceAt                    time.Time
-	ExpiresAt                  time.Time
-	UserLimit                  int64
-	AuditLog                   bool
-	BrowserOnly                bool
-	SCIM                       bool
-	TemplateRBAC               bool
-	HighAvailability           bool
-	MultipleGitAuth            bool
-	ExternalProvisionerDaemons bool
-	ServiceBanners             bool
+	AccountType string
+	AccountID   string
+	Trial       bool
+	AllFeatures bool
+	GraceAt     time.Time
+	ExpiresAt   time.Time
+	Features    license.Features
 }
 
 // AddLicense generates a new license with the options provided and inserts it.
@@ -133,42 +125,6 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 	if options.GraceAt.IsZero() {
 		options.GraceAt = time.Now().Add(time.Hour)
 	}
-	var auditLog int64
-	if options.AuditLog {
-		auditLog = 1
-	}
-	var browserOnly int64
-	if options.BrowserOnly {
-		browserOnly = 1
-	}
-	var scim int64
-	if options.SCIM {
-		scim = 1
-	}
-	highAvailability := int64(0)
-	if options.HighAvailability {
-		highAvailability = 1
-	}
-
-	rbacEnabled := int64(0)
-	if options.TemplateRBAC {
-		rbacEnabled = 1
-	}
-
-	multipleGitAuth := int64(0)
-	if options.MultipleGitAuth {
-		multipleGitAuth = 1
-	}
-
-	externalProvisionerDaemons := int64(0)
-	if options.ExternalProvisionerDaemons {
-		externalProvisionerDaemons = 1
-	}
-
-	serviceBanners := int64(0)
-	if options.ServiceBanners {
-		serviceBanners = 1
-	}
 
 	c := &license.Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -183,17 +139,7 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		Trial:          options.Trial,
 		Version:        license.CurrentVersion,
 		AllFeatures:    options.AllFeatures,
-		Features: license.Features{
-			UserLimit:                  options.UserLimit,
-			AuditLog:                   auditLog,
-			BrowserOnly:                browserOnly,
-			SCIM:                       scim,
-			HighAvailability:           highAvailability,
-			TemplateRBAC:               rbacEnabled,
-			MultipleGitAuth:            multipleGitAuth,
-			ExternalProvisionerDaemons: externalProvisionerDaemons,
-			Appearance:                 serviceBanners,
-		},
+		Features:       options.Features,
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodEdDSA, c)
 	tok.Header[license.HeaderKeyID] = testKeyID

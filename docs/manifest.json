@@ -249,6 +249,12 @@
           "icon_path": "./images/icons/plug.svg"
         },
         {
+          "title": "Scaling Coder",
+          "description": "Reference architecture and load testing tools",
+          "path": "./admin/scale.md",
+          "icon_path": "./images/icons/scale.svg"
+        },
+        {
           "title": "Audit Logs",
           "description": "Learn how to use Audit Logs in your Coder deployment",
           "path": "./admin/audit-logs.md",
@@ -316,6 +322,11 @@
           "title": "Security",
           "description": "How to report vulnerabilities in Coder",
           "path": "./contributing/SECURITY.md"
+        },
+        {
+          "title": "Frontend",
+          "description": "Our guide for frontend development",
+          "path": "./contributing/frontend.md"
         }
       ]
     },
@@ -354,12 +365,20 @@
           "path": "./api/builds.md"
         },
         {
+          "title": "Debug",
+          "path": "./api/debug.md"
+        },
+        {
           "title": "Enterprise",
           "path": "./api/enterprise.md"
         },
         {
           "title": "Files",
           "path": "./api/files.md"
+        },
+        {
+          "title": "Insights",
+          "path": "./api/insights.md"
         },
         {
           "title": "Members",

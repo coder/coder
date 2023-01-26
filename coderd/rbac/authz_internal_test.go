@@ -22,7 +22,7 @@ type subject struct {
 	// but test edge cases of the implementation.
 	Roles  []Role   `json:"roles"`
 	Groups []string `json:"groups"`
-	Scope  Role     `json:"scope"`
+	Scope  Scope    `json:"scope"`
 }
 
 type fakeObject struct {
@@ -44,7 +44,7 @@ func TestFilterError(t *testing.T) {
 	t.Parallel()
 	auth := NewAuthorizer(prometheus.NewRegistry())
 
-	_, err := Filter(context.Background(), auth, uuid.NewString(), []string{}, ScopeAll, []string{}, ActionRead, []Object{ResourceUser, ResourceWorkspace})
+	_, err := Filter(context.Background(), auth, uuid.NewString(), RoleNames{}, ScopeAll, []string{}, ActionRead, []Object{ResourceUser, ResourceWorkspace})
 	require.ErrorContains(t, err, "object types must be uniform")
 }
 
@@ -75,9 +75,9 @@ func TestFilter(t *testing.T) {
 	testCases := []struct {
 		Name       string
 		SubjectID  string
-		Roles      []string
+		Roles      RoleNames
 		Action     Action
-		Scope      Scope
+		Scope      ScopeName
 		ObjectType string
 	}{
 		{
@@ -200,7 +200,7 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	user := subject{
 		UserID: "me",
-		Scope:  must(ScopeRole(ScopeAll)),
+		Scope:  must(ExpandScope(ScopeAll)),
 		Groups: []string{allUsersGroup},
 		Roles: []Role{
 			must(RoleByName(RoleMember())),
@@ -299,7 +299,7 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	user = subject{
 		UserID: "me",
-		Scope:  must(ScopeRole(ScopeAll)),
+		Scope:  must(ExpandScope(ScopeAll)),
 		Roles: []Role{{
 			Name: "deny-all",
 			// List out deny permissions explicitly
@@ -340,7 +340,7 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	user = subject{
 		UserID: "me",
-		Scope:  must(ScopeRole(ScopeAll)),
+		Scope:  must(ExpandScope(ScopeAll)),
 		Roles: []Role{
 			must(RoleByName(RoleOrgAdmin(defOrg))),
 			must(RoleByName(RoleMember())),
@@ -374,7 +374,7 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	user = subject{
 		UserID: "me",
-		Scope:  must(ScopeRole(ScopeAll)),
+		Scope:  must(ExpandScope(ScopeAll)),
 		Roles: []Role{
 			must(RoleByName(RoleOwner())),
 			must(RoleByName(RoleMember())),
@@ -408,7 +408,7 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	user = subject{
 		UserID: "me",
-		Scope:  must(ScopeRole(ScopeApplicationConnect)),
+		Scope:  must(ExpandScope(ScopeApplicationConnect)),
 		Roles: []Role{
 			must(RoleByName(RoleOrgMember(defOrg))),
 			must(RoleByName(RoleMember())),
@@ -507,7 +507,7 @@ func TestAuthorizeDomain(t *testing.T) {
 	// In practice this is a token scope on a regular subject
 	user = subject{
 		UserID: "me",
-		Scope:  must(ScopeRole(ScopeAll)),
+		Scope:  must(ExpandScope(ScopeAll)),
 		Roles: []Role{
 			{
 				Name: "ReadOnlyOrgAndUser",
@@ -600,7 +600,7 @@ func TestAuthorizeLevels(t *testing.T) {
 
 	user := subject{
 		UserID: "me",
-		Scope:  must(ScopeRole(ScopeAll)),
+		Scope:  must(ExpandScope(ScopeAll)),
 		Roles: []Role{
 			must(RoleByName(RoleOwner())),
 			{
@@ -661,7 +661,7 @@ func TestAuthorizeLevels(t *testing.T) {
 
 	user = subject{
 		UserID: "me",
-		Scope:  must(ScopeRole(ScopeAll)),
+		Scope:  must(ExpandScope(ScopeAll)),
 		Roles: []Role{
 			{
 				Name: "site-noise",
@@ -726,7 +726,7 @@ func TestAuthorizeScope(t *testing.T) {
 	user := subject{
 		UserID: "me",
 		Roles:  []Role{must(RoleByName(RoleOwner()))},
-		Scope:  must(ScopeRole(ScopeApplicationConnect)),
+		Scope:  must(ExpandScope(ScopeApplicationConnect)),
 	}
 
 	testAuthorize(t, "Admin_ScopeApplicationConnect", user,
@@ -760,7 +760,7 @@ func TestAuthorizeScope(t *testing.T) {
 			must(RoleByName(RoleMember())),
 			must(RoleByName(RoleOrgMember(defOrg))),
 		},
-		Scope: must(ScopeRole(ScopeApplicationConnect)),
+		Scope: must(ExpandScope(ScopeApplicationConnect)),
 	}
 
 	testAuthorize(t, "User_ScopeApplicationConnect", user,
@@ -786,6 +786,148 @@ func TestAuthorizeScope(t *testing.T) {
 			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner(user.UserID), actions: []Action{ActionCreate}, allow: true},
 			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner("not-me"), actions: []Action{ActionCreate}, allow: false},
 			{resource: ResourceWorkspaceApplicationConnect.InOrg(unusedID).WithOwner("not-me"), actions: []Action{ActionCreate}, allow: false},
+		},
+	)
+
+	workspaceID := uuid.New()
+	user = subject{
+		UserID: "me",
+		Roles: []Role{
+			must(RoleByName(RoleMember())),
+			must(RoleByName(RoleOrgMember(defOrg))),
+		},
+		Scope: Scope{
+			Role: Role{
+				Name:        "workspace_agent",
+				DisplayName: "Workspace Agent",
+				Site: permissions(map[string][]Action{
+					// Only read access for workspaces.
+					ResourceWorkspace.Type: {ActionRead},
+				}),
+				Org:  map[string][]Permission{},
+				User: []Permission{},
+			},
+			AllowIDList: []string{workspaceID.String()},
+		},
+	}
+
+	testAuthorize(t, "User_WorkspaceAgent", user,
+		// Test cases without ID
+		cases(func(c authTestCase) authTestCase {
+			c.actions = []Action{ActionCreate, ActionUpdate, ActionDelete}
+			c.allow = false
+			return c
+		}, []authTestCase{
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.InOrg(defOrg)},
+			{resource: ResourceWorkspace.WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.All()},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.InOrg(unusedID)},
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me")},
+			{resource: ResourceWorkspace.WithOwner("not-me")},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me")},
+			{resource: ResourceWorkspace.InOrg(unusedID)},
+			{resource: ResourceWorkspace.WithOwner("not-me")},
+		}),
+
+		// Test all cases with the workspace id
+		cases(func(c authTestCase) authTestCase {
+			c.actions = []Action{ActionCreate, ActionUpdate, ActionDelete}
+			c.allow = false
+			c.resource.WithID(workspaceID)
+			return c
+		}, []authTestCase{
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.InOrg(defOrg)},
+			{resource: ResourceWorkspace.WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.All()},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.InOrg(unusedID)},
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me")},
+			{resource: ResourceWorkspace.WithOwner("not-me")},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me")},
+			{resource: ResourceWorkspace.InOrg(unusedID)},
+			{resource: ResourceWorkspace.WithOwner("not-me")},
+		}),
+		// Test cases with random ids. These should always fail from the scope.
+		cases(func(c authTestCase) authTestCase {
+			c.actions = []Action{ActionRead, ActionCreate, ActionUpdate, ActionDelete}
+			c.allow = false
+			c.resource.WithID(uuid.New())
+			return c
+		}, []authTestCase{
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.InOrg(defOrg)},
+			{resource: ResourceWorkspace.WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.All()},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.InOrg(unusedID)},
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me")},
+			{resource: ResourceWorkspace.WithOwner("not-me")},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me")},
+			{resource: ResourceWorkspace.InOrg(unusedID)},
+			{resource: ResourceWorkspace.WithOwner("not-me")},
+		}),
+		// Allowed by scope:
+		[]authTestCase{
+			{resource: ResourceWorkspace.WithID(workspaceID).InOrg(defOrg).WithOwner(user.UserID), actions: []Action{ActionRead}, allow: true},
+			// The scope will return true, but the user perms return false for resources not owned by the user.
+			{resource: ResourceWorkspace.WithID(workspaceID).InOrg(defOrg).WithOwner("not-me"), actions: []Action{ActionRead}, allow: false},
+			{resource: ResourceWorkspace.WithID(workspaceID).InOrg(unusedID).WithOwner("not-me"), actions: []Action{ActionRead}, allow: false},
+		},
+	)
+
+	// This scope can only create workspaces
+	user = subject{
+		UserID: "me",
+		Roles: []Role{
+			must(RoleByName(RoleMember())),
+			must(RoleByName(RoleOrgMember(defOrg))),
+		},
+		Scope: Scope{
+			Role: Role{
+				Name:        "create_workspace",
+				DisplayName: "Create Workspace",
+				Site: permissions(map[string][]Action{
+					// Only read access for workspaces.
+					ResourceWorkspace.Type: {ActionCreate},
+				}),
+				Org:  map[string][]Permission{},
+				User: []Permission{},
+			},
+			// Empty string allow_list is allowed for actions like 'create'
+			AllowIDList: []string{""},
+		},
+	}
+
+	testAuthorize(t, "CreatWorkspaceScope", user,
+		// All these cases will fail because a resource ID is set.
+		cases(func(c authTestCase) authTestCase {
+			c.actions = []Action{ActionCreate, ActionRead, ActionUpdate, ActionDelete}
+			c.allow = false
+			c.resource.ID = uuid.NewString()
+			return c
+		}, []authTestCase{
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.InOrg(defOrg)},
+			{resource: ResourceWorkspace.WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.All()},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.UserID)},
+			{resource: ResourceWorkspace.InOrg(unusedID)},
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me")},
+			{resource: ResourceWorkspace.WithOwner("not-me")},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me")},
+			{resource: ResourceWorkspace.InOrg(unusedID)},
+			{resource: ResourceWorkspace.WithOwner("not-me")},
+		}),
+
+		// Test create allowed by scope:
+		[]authTestCase{
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.UserID), actions: []Action{ActionCreate}, allow: true},
+			// The scope will return true, but the user perms return false for resources not owned by the user.
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), actions: []Action{ActionCreate}, allow: false},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me"), actions: []Action{ActionCreate}, allow: false},
 		},
 	)
 }

@@ -19,6 +19,19 @@ const (
 	orgMember string = "organization-member"
 )
 
+// RoleNames is a list of user assignable role names. The role names must be
+// in the builtInRoles map. Any non-user assignable roles will generate an
+// error on Expand.
+type RoleNames []string
+
+func (names RoleNames) Expand() ([]Role, error) {
+	return rolesByNames(names)
+}
+
+func (names RoleNames) Names() []string {
+	return names
+}
+
 // The functions below ONLY need to exist for roles that are "defaulted" in some way.
 // Any other roles (like auditor), can be listed and let the user select/assigned.
 // Once we have a database implementation, the "default" roles can be defined on the
@@ -244,6 +257,10 @@ func CanAssignRole(roles []string, assignedRole string) bool {
 
 // RoleByName returns the permissions associated with a given role name.
 // This allows just the role names to be stored and expanded when required.
+//
+// This function is exported so that the Display name can be returned to the
+// api. We should maybe make an exported function that returns just the
+// human-readable content of the Role struct (name + display name).
 func RoleByName(name string) (Role, error) {
 	roleName, orgID, err := roleSplit(name)
 	if err != nil {
@@ -266,7 +283,7 @@ func RoleByName(name string) (Role, error) {
 	return role, nil
 }
 
-func RolesByNames(roleNames []string) ([]Role, error) {
+func rolesByNames(roleNames []string) ([]Role, error) {
 	roles := make([]Role, 0, len(roleNames))
 	for _, n := range roleNames {
 		r, err := RoleByName(n)

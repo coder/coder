@@ -1,7 +1,5 @@
 # General
 
-> This page is incomplete, stay tuned.
-
 ## API root handler
 
 ### Code samples
@@ -173,6 +171,30 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
     "usage": "string",
     "value": "string"
   },
+  "dangerous": {
+    "allow_path_app_sharing": {
+      "default": true,
+      "enterprise": true,
+      "flag": "string",
+      "hidden": true,
+      "name": "string",
+      "secret": true,
+      "shorthand": "string",
+      "usage": "string",
+      "value": true
+    },
+    "allow_path_app_site_owner_access": {
+      "default": true,
+      "enterprise": true,
+      "flag": "string",
+      "hidden": true,
+      "name": "string",
+      "secret": true,
+      "shorthand": "string",
+      "usage": "string",
+      "value": true
+    }
+  },
   "derp": {
     "config": {
       "path": {
@@ -267,6 +289,17 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
       }
     }
   },
+  "disable_path_apps": {
+    "default": true,
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": true
+  },
   "experimental": {
     "default": true,
     "enterprise": true,
@@ -277,6 +310,17 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
     "shorthand": "string",
     "usage": "string",
     "value": true
+  },
+  "experiments": {
+    "default": ["string"],
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": ["string"]
   },
   "gitauth": {
     "default": [
@@ -1007,6 +1051,43 @@ curl -X POST http://coder-server:8080/api/v2/csp/reports \
 | Status | Meaning                                                 | Description | Schema |
 | ------ | ------------------------------------------------------- | ----------- | ------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get experiments
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/experiments \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /experiments`
+
+### Example responses
+
+> 200 Response
+
+```json
+["authz_querier"]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                        |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.Experiment](schemas.md#codersdkexperiment) |
+
+<h3 id="get-experiments-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name           | Type  | Required | Restrictions | Description |
+| -------------- | ----- | -------- | ------------ | ----------- |
+| `[array item]` | array | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

@@ -1,7 +1,5 @@
 # Enterprise
 
-> This page is incomplete, stay tuned.
-
 ## Get appearance
 
 ### Code samples

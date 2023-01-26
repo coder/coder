@@ -77,12 +77,14 @@ resource "coder_agent" "dev" {
     fi
 
     DOTFILES_URI=${var.dotfiles_uri}
+    rm -f ~/.personalize.log
     if [ -n "$DOTFILES_URI" ]; then
-      coder dotfiles "$DOTFILES_URI" -y 2>&1 | tee  ~/.personalize.log
+      coder dotfiles "$DOTFILES_URI" -y 2>&1 | tee -a ~/.personalize.log
     fi
-
-    if [ -f ./personalize ]; then
-      ./personalize
+    if [ -x ~/personalize ]; then
+      ~/personalize | tee -a ~/.personalize.log
+    elif [ -f ~/personalize ]; then
+      echo "~/personalize is not executable, skipping..." | tee -a ~/.personalize.log
     fi
     EOF
 }

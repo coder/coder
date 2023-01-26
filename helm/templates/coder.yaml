@@ -24,7 +24,7 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "coder.selectorLabels" . | nindent 8 }}
+        {{- include "coder.labels" . | nindent 8 }}
     spec:
       serviceAccountName: coder
       restartPolicy: Always

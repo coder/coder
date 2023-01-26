@@ -1,11 +1,19 @@
+import { withDefaultFeatures } from "./../api/api"
 import { FieldError } from "api/errors"
 import { everyOneGroup } from "util/groups"
 import * as Types from "../api/types"
 import * as TypesGen from "../api/typesGenerated"
-import { range } from "lodash"
+import range from "lodash/range"
 import { Permissions } from "xServices/auth/authXService"
 
 export const MockTemplateDAUResponse: TypesGen.TemplateDAUsResponse = {
+  entries: [
+    { date: "2022-08-27T00:00:00Z", amount: 1 },
+    { date: "2022-08-29T00:00:00Z", amount: 2 },
+    { date: "2022-08-30T00:00:00Z", amount: 1 },
+  ],
+}
+export const MockDeploymentDAUResponse: TypesGen.DeploymentDAUsResponse = {
   entries: [
     { date: "2022-08-27T00:00:00Z", amount: 1 },
     { date: "2022-08-29T00:00:00Z", amount: 2 },
@@ -300,6 +308,9 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   },
   connection_timeout_seconds: 120,
   troubleshooting_url: "https://coder.com/troubleshoot",
+  lifecycle_state: "starting",
+  delay_login_until_ready: true,
+  startup_script_timeout_seconds: 120,
 }
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
@@ -309,6 +320,7 @@ export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
   status: "disconnected",
   version: "",
   latency: {},
+  lifecycle_state: "ready",
 }
 
 export const MockWorkspaceAgentOutdated: TypesGen.WorkspaceAgent = {
@@ -332,6 +344,7 @@ export const MockWorkspaceAgentOutdated: TypesGen.WorkspaceAgent = {
       latency_ms: 221.66,
     },
   },
+  lifecycle_state: "ready",
 }
 
 export const MockWorkspaceAgentConnecting: TypesGen.WorkspaceAgent = {
@@ -341,6 +354,7 @@ export const MockWorkspaceAgentConnecting: TypesGen.WorkspaceAgent = {
   status: "connecting",
   version: "",
   latency: {},
+  lifecycle_state: "created",
 }
 
 export const MockWorkspaceAgentTimeout: TypesGen.WorkspaceAgent = {
@@ -350,6 +364,28 @@ export const MockWorkspaceAgentTimeout: TypesGen.WorkspaceAgent = {
   status: "timeout",
   version: "",
   latency: {},
+  lifecycle_state: "created",
+}
+
+export const MockWorkspaceAgentStarting: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-starting",
+  name: "a-starting-workspace-agent",
+  lifecycle_state: "starting",
+}
+
+export const MockWorkspaceAgentStartTimeout: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-start-timeout",
+  name: "a-workspace-agent-timed-out-while-running-startup-script",
+  lifecycle_state: "start_timeout",
+}
+
+export const MockWorkspaceAgentStartError: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-start-error",
+  name: "a-workspace-agent-errored-while-running-startup-script",
+  lifecycle_state: "start_error",
 }
 
 export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
@@ -938,7 +974,7 @@ export const MockEntitlements: TypesGen.Entitlements = {
   errors: [],
   warnings: [],
   has_license: false,
-  features: {},
+  features: withDefaultFeatures({}),
   experimental: false,
   trial: false,
 }
@@ -949,7 +985,7 @@ export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
   has_license: true,
   experimental: false,
   trial: false,
-  features: {
+  features: withDefaultFeatures({
     user_limit: {
       enabled: true,
       entitlement: "grace_period",
@@ -964,7 +1000,7 @@ export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
       enabled: true,
       entitlement: "entitled",
     },
-  },
+  }),
 }
 
 export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
@@ -973,13 +1009,15 @@ export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
   has_license: true,
   experimental: false,
   trial: false,
-  features: {
+  features: withDefaultFeatures({
     audit_log: {
       enabled: true,
       entitlement: "entitled",
     },
-  },
+  }),
 }
+
+export const MockExperiments: TypesGen.Experiment[] = []
 
 export const MockAuditLog: TypesGen.AuditLog = {
   id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
@@ -1063,6 +1101,22 @@ export const MockAuditLogWithDeletedResource: TypesGen.AuditLog = {
   is_deleted: true,
 }
 
+export const MockAuditLogGitSSH: TypesGen.AuditLog = {
+  ...MockAuditLog,
+  diff: {
+    private_key: {
+      old: "",
+      new: "",
+      secret: true,
+    },
+    public_key: {
+      old: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINRUPjBSNtOAnL22+r07OSu9t3Lnm8/5OX8bRHECKS9g\n",
+      new: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEwoUPJPMekuSzMZyV0rA82TGGNzw/Uj/dhLbwiczTpV\n",
+      secret: false,
+    },
+  },
+}
+
 export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
   credits_consumed: 0,
   budget: 100,
@@ -1129,4 +1183,29 @@ export const MockAppearance: TypesGen.AppearanceConfig = {
   service_banner: {
     enabled: false,
   },
+}
+
+export const mockParameterSchema = (
+  partial: Partial<TypesGen.ParameterSchema>,
+): TypesGen.ParameterSchema => {
+  return {
+    id: "000000",
+    job_id: "000000",
+    allow_override_destination: false,
+    allow_override_source: true,
+    created_at: "",
+    default_destination_scheme: "none",
+    default_refresh: "",
+    default_source_scheme: "data",
+    default_source_value: "default-value",
+    name: "parameter name",
+    description: "Some description!",
+    redisplay_value: false,
+    validation_condition: "",
+    validation_contains: [],
+    validation_error: "",
+    validation_type_system: "",
+    validation_value_type: "",
+    ...partial,
+  }
 }

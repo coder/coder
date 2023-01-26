@@ -125,6 +125,7 @@ type CreateTestAuditLogRequest struct {
 	ResourceType ResourceType `json:"resource_type,omitempty" enums:"organization,template,template_version,user,workspace,workspace_build,git_ssh_key,api_key,group"`
 	ResourceID   uuid.UUID    `json:"resource_id,omitempty" format:"uuid"`
 	Time         time.Time    `json:"time,omitempty" format:"date-time"`
+	BuildReason  BuildReason  `json:"build_reason,omitempty" enums:"autostart,autostop,initiator"`
 }
 
 // AuditLogs retrieves audit logs from the given page.

@@ -1,7 +1,5 @@
 # Schemas
 
-> This page is incomplete, stay tuned.
-
 ## coderd.SCIMUser
 
 ```json
@@ -762,22 +760,30 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "source_value": "string"
     }
   ],
+  "rich_parameter_values": [
+    {
+      "name": "string",
+      "value": "string"
+    }
+  ],
   "workspace_name": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type                                                                        | Required | Restrictions | Description                                                                        |
-| ------------------ | --------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------- |
-| `parameter_values` | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest) | false    |              | Parameter values is a structure used to create a new parameter value for a scope.] |
-| `workspace_name`   | string                                                                      | false    |              |                                                                                    |
+| Name                    | Type                                                                          | Required | Restrictions | Description                                                                        |
+| ----------------------- | ----------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------- |
+| `parameter_values`      | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest)   | false    |              | Parameter values is a structure used to create a new parameter value for a scope.] |
+| `rich_parameter_values` | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              |                                                                                    |
+| `workspace_name`        | string                                                                        | false    |              |                                                                                    |
 
 ## codersdk.CreateTestAuditLogRequest
 
 ```json
 {
   "action": "create",
+  "build_reason": "autostart",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "resource_type": "organization",
   "time": "2019-08-24T14:15:22Z"
@@ -789,6 +795,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | Name            | Type                                           | Required | Restrictions | Description |
 | --------------- | ---------------------------------------------- | -------- | ------------ | ----------- |
 | `action`        | [codersdk.AuditAction](#codersdkauditaction)   | false    |              |             |
+| `build_reason`  | [codersdk.BuildReason](#codersdkbuildreason)   | false    |              |             |
 | `resource_id`   | string                                         | false    |              |             |
 | `resource_type` | [codersdk.ResourceType](#codersdkresourcetype) | false    |              |             |
 | `time`          | string                                         | false    |              |             |
@@ -802,6 +809,9 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `action`        | `delete`           |
 | `action`        | `start`            |
 | `action`        | `stop`             |
+| `build_reason`  | `autostart`        |
+| `build_reason`  | `autostop`         |
+| `build_reason`  | `initiator`        |
 | `resource_type` | `organization`     |
 | `resource_type` | `template`         |
 | `resource_type` | `template_version` |
@@ -870,6 +880,12 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "source_value": "string"
     }
   ],
+  "rich_parameter_values": [
+    {
+      "name": "string",
+      "value": "string"
+    }
+  ],
   "state": [0],
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "transition": "create"
@@ -878,14 +894,15 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ### Properties
 
-| Name                  | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                                              |
-| --------------------- | --------------------------------------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dry_run`             | boolean                                                                     | false    |              |                                                                                                                                                                                                          |
-| `orphan`              | boolean                                                                     | false    |              | Orphan may be set for the Destroy transition.                                                                                                                                                            |
-| `parameter_values`    | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest) | false    |              | Parameter values are optional. It will write params to the 'workspace' scope. This will overwrite any existing parameters with the same name. This will not delete old params not included in this list. |
-| `state`               | array of integer                                                            | false    |              |                                                                                                                                                                                                          |
-| `template_version_id` | string                                                                      | false    |              |                                                                                                                                                                                                          |
-| `transition`          | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)                | true     |              |                                                                                                                                                                                                          |
+| Name                    | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                                              |
+| ----------------------- | ----------------------------------------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dry_run`               | boolean                                                                       | false    |              |                                                                                                                                                                                                          |
+| `orphan`                | boolean                                                                       | false    |              | Orphan may be set for the Destroy transition.                                                                                                                                                            |
+| `parameter_values`      | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest)   | false    |              | Parameter values are optional. It will write params to the 'workspace' scope. This will overwrite any existing parameters with the same name. This will not delete old params not included in this list. |
+| `rich_parameter_values` | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              |                                                                                                                                                                                                          |
+| `state`                 | array of integer                                                              | false    |              |                                                                                                                                                                                                          |
+| `template_version_id`   | string                                                                        | false    |              |                                                                                                                                                                                                          |
+| `transition`            | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)                  | true     |              |                                                                                                                                                                                                          |
 
 #### Enumerated Values
 
@@ -1154,6 +1171,42 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `relay_url`      | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
 | `stun_addresses` | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string) | false    |              |             |
 
+## codersdk.DangerousConfig
+
+```json
+{
+  "allow_path_app_sharing": {
+    "default": true,
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": true
+  },
+  "allow_path_app_site_owner_access": {
+    "default": true,
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": true
+  }
+}
+```
+
+### Properties
+
+| Name                               | Type                                                                       | Required | Restrictions | Description |
+| ---------------------------------- | -------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `allow_path_app_sharing`           | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool) | false    |              |             |
+| `allow_path_app_site_owner_access` | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool) | false    |              |             |
+
 ## codersdk.DeploymentConfig
 
 ```json
@@ -1245,6 +1298,30 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "shorthand": "string",
     "usage": "string",
     "value": "string"
+  },
+  "dangerous": {
+    "allow_path_app_sharing": {
+      "default": true,
+      "enterprise": true,
+      "flag": "string",
+      "hidden": true,
+      "name": "string",
+      "secret": true,
+      "shorthand": "string",
+      "usage": "string",
+      "value": true
+    },
+    "allow_path_app_site_owner_access": {
+      "default": true,
+      "enterprise": true,
+      "flag": "string",
+      "hidden": true,
+      "name": "string",
+      "secret": true,
+      "shorthand": "string",
+      "usage": "string",
+      "value": true
+    }
   },
   "derp": {
     "config": {
@@ -1340,6 +1417,17 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       }
     }
   },
+  "disable_path_apps": {
+    "default": true,
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": true
+  },
   "experimental": {
     "default": true,
     "enterprise": true,
@@ -1350,6 +1438,17 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "shorthand": "string",
     "usage": "string",
     "value": true
+  },
+  "experiments": {
+    "default": ["string"],
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": ["string"]
   },
   "gitauth": {
     "default": [
@@ -2052,8 +2151,11 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `autobuild_poll_interval`            | [codersdk.DeploymentConfigField-time_Duration](#codersdkdeploymentconfigfield-time_duration)                               | false    |              |                                                 |
 | `browser_only`                       | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
 | `cache_directory`                    | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
+| `dangerous`                          | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                                                       | false    |              |                                                 |
 | `derp`                               | [codersdk.DERP](#codersdkderp)                                                                                             | false    |              |                                                 |
-| `experimental`                       | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
+| `disable_path_apps`                  | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
+| `experimental`                       | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              | Experimental Use Experiments instead.           |
+| `experiments`                        | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string)                                 | false    |              |                                                 |
 | `gitauth`                            | [codersdk.DeploymentConfigField-array_codersdk_GitAuthConfig](#codersdkdeploymentconfigfield-array_codersdk_gitauthconfig) | false    |              |                                                 |
 | `http_address`                       | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
 | `in_memory_database`                 | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
@@ -2283,6 +2385,25 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `usage`      | string  | false    |              |             |
 | `value`      | integer | false    |              |             |
 
+## codersdk.DeploymentDAUsResponse
+
+```json
+{
+  "entries": [
+    {
+      "amount": 0,
+      "date": "2019-08-24T14:15:22Z"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                            | Required | Restrictions | Description |
+| --------- | ----------------------------------------------- | -------- | ------------ | ----------- |
+| `entries` | array of [codersdk.DAUEntry](#codersdkdauentry) | false    |              |             |
+
 ## codersdk.Entitlement
 
 ```json
@@ -2327,15 +2448,29 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ### Properties
 
-| Name               | Type                                 | Required | Restrictions | Description |
-| ------------------ | ------------------------------------ | -------- | ------------ | ----------- |
-| `errors`           | array of string                      | false    |              |             |
-| `experimental`     | boolean                              | false    |              |             |
-| `features`         | object                               | false    |              |             |
-| » `[any property]` | [codersdk.Feature](#codersdkfeature) | false    |              |             |
-| `has_license`      | boolean                              | false    |              |             |
-| `trial`            | boolean                              | false    |              |             |
-| `warnings`         | array of string                      | false    |              |             |
+| Name               | Type                                 | Required | Restrictions | Description                           |
+| ------------------ | ------------------------------------ | -------- | ------------ | ------------------------------------- |
+| `errors`           | array of string                      | false    |              |                                       |
+| `experimental`     | boolean                              | false    |              | Experimental use Experiments instead. |
+| `features`         | object                               | false    |              |                                       |
+| » `[any property]` | [codersdk.Feature](#codersdkfeature) | false    |              |                                       |
+| `has_license`      | boolean                              | false    |              |                                       |
+| `trial`            | boolean                              | false    |              |                                       |
+| `warnings`         | array of string                      | false    |              |                                       |
+
+## codersdk.Experiment
+
+```json
+"authz_querier"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value           |
+| --------------- |
+| `authz_querier` |
 
 ## codersdk.Feature
 
@@ -3229,6 +3364,20 @@ Parameter represents a set value for the scope.
 | ------ |
 | `none` |
 | `data` |
+
+## codersdk.PostWorkspaceAgentLifecycleRequest
+
+```json
+{
+  "state": "created"
+}
+```
+
+### Properties
+
+| Name    | Type                                                                 | Required | Restrictions | Description |
+| ------- | -------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `state` | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |             |
 
 ## codersdk.PostWorkspaceAppHealthsRequest
 
@@ -4469,6 +4618,7 @@ Parameter represents a set value for the scope.
             "architecture": "string",
             "connection_timeout_seconds": 0,
             "created_at": "2019-08-24T14:15:22Z",
+            "delay_login_until_ready": true,
             "directory": "string",
             "disconnected_at": "2019-08-24T14:15:22Z",
             "environment_variables": {
@@ -4489,10 +4639,12 @@ Parameter represents a set value for the scope.
                 "preferred": true
               }
             },
+            "lifecycle_state": "created",
             "name": "string",
             "operating_system": "string",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "startup_script": "string",
+            "startup_script_timeout_seconds": 0,
             "status": "connecting",
             "troubleshooting_url": "string",
             "updated_at": "2019-08-24T14:15:22Z",
@@ -4588,6 +4740,7 @@ Parameter represents a set value for the scope.
   "architecture": "string",
   "connection_timeout_seconds": 0,
   "created_at": "2019-08-24T14:15:22Z",
+  "delay_login_until_ready": true,
   "directory": "string",
   "disconnected_at": "2019-08-24T14:15:22Z",
   "environment_variables": {
@@ -4608,10 +4761,12 @@ Parameter represents a set value for the scope.
       "preferred": true
     }
   },
+  "lifecycle_state": "created",
   "name": "string",
   "operating_system": "string",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "startup_script": "string",
+  "startup_script_timeout_seconds": 0,
   "status": "connecting",
   "troubleshooting_url": "string",
   "updated_at": "2019-08-24T14:15:22Z",
@@ -4621,39 +4776,33 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name                         | Type                                                           | Required | Restrictions | Description                                                         |
-| ---------------------------- | -------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------- |
-| `apps`                       | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)        | false    |              |                                                                     |
-| `architecture`               | string                                                         | false    |              |                                                                     |
-| `connection_timeout_seconds` | integer                                                        | false    |              |                                                                     |
-| `created_at`                 | string                                                         | false    |              |                                                                     |
-| `directory`                  | string                                                         | false    |              |                                                                     |
-| `disconnected_at`            | string                                                         | false    |              |                                                                     |
-| `environment_variables`      | object                                                         | false    |              |                                                                     |
-| » `[any property]`           | string                                                         | false    |              |                                                                     |
-| `first_connected_at`         | string                                                         | false    |              |                                                                     |
-| `id`                         | string                                                         | false    |              |                                                                     |
-| `instance_id`                | string                                                         | false    |              |                                                                     |
-| `last_connected_at`          | string                                                         | false    |              |                                                                     |
-| `latency`                    | object                                                         | false    |              | Latency is mapped by region name (e.g. "New York City", "Seattle"). |
-| » `[any property]`           | [codersdk.DERPRegion](#codersdkderpregion)                     | false    |              |                                                                     |
-| `name`                       | string                                                         | false    |              |                                                                     |
-| `operating_system`           | string                                                         | false    |              |                                                                     |
-| `resource_id`                | string                                                         | false    |              |                                                                     |
-| `startup_script`             | string                                                         | false    |              |                                                                     |
-| `status`                     | [codersdk.WorkspaceAgentStatus](#codersdkworkspaceagentstatus) | false    |              |                                                                     |
-| `troubleshooting_url`        | string                                                         | false    |              |                                                                     |
-| `updated_at`                 | string                                                         | false    |              |                                                                     |
-| `version`                    | string                                                         | false    |              |                                                                     |
-
-#### Enumerated Values
-
-| Property | Value          |
-| -------- | -------------- |
-| `status` | `connecting`   |
-| `status` | `connected`    |
-| `status` | `disconnected` |
-| `status` | `timeout`      |
+| Name                             | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                                                |
+| -------------------------------- | -------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps`                           | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)              | false    |              |                                                                                                                                                                                                            |
+| `architecture`                   | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `connection_timeout_seconds`     | integer                                                              | false    |              |                                                                                                                                                                                                            |
+| `created_at`                     | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `delay_login_until_ready`        | boolean                                                              | false    |              | Delay login until ready if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).                                                                                  |
+| `directory`                      | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `disconnected_at`                | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `environment_variables`          | object                                                               | false    |              |                                                                                                                                                                                                            |
+| » `[any property]`               | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `first_connected_at`             | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `id`                             | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `instance_id`                    | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `last_connected_at`              | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `latency`                        | object                                                               | false    |              | Latency is mapped by region name (e.g. "New York City", "Seattle").                                                                                                                                        |
+| » `[any property]`               | [codersdk.DERPRegion](#codersdkderpregion)                           | false    |              |                                                                                                                                                                                                            |
+| `lifecycle_state`                | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |                                                                                                                                                                                                            |
+| `name`                           | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `operating_system`               | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `resource_id`                    | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `startup_script`                 | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `startup_script_timeout_seconds` | integer                                                              | false    |              | Startup script timeout seconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout. |
+| `status`                         | [codersdk.WorkspaceAgentStatus](#codersdkworkspaceagentstatus)       | false    |              |                                                                                                                                                                                                            |
+| `troubleshooting_url`            | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `updated_at`                     | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `version`                        | string                                                               | false    |              |                                                                                                                                                                                                            |
 
 ## codersdk.WorkspaceAgentAuthenticateResponse
 
@@ -4751,6 +4900,24 @@ Parameter represents a set value for the scope.
 | `url`      | string | false    |              |             |
 | `username` | string | false    |              |             |
 
+## codersdk.WorkspaceAgentLifecycle
+
+```json
+"created"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value           |
+| --------------- |
+| `created`       |
+| `starting`      |
+| `start_timeout` |
+| `start_error`   |
+| `ready`         |
+
 ## codersdk.WorkspaceAgentMetadata
 
 ```json
@@ -4833,23 +5000,25 @@ Parameter represents a set value for the scope.
   "git_auth_configs": 0,
   "motd_file": "string",
   "startup_script": "string",
+  "startup_script_timeout": 0,
   "vscode_port_proxy_uri": "string"
 }
 ```
 
 ### Properties
 
-| Name                    | Type                                                    | Required | Restrictions | Description                                                                                                                                                |
-| ----------------------- | ------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps`                  | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp) | false    |              |                                                                                                                                                            |
-| `derpmap`               | [tailcfg.DERPMap](#tailcfgderpmap)                      | false    |              |                                                                                                                                                            |
-| `directory`             | string                                                  | false    |              |                                                                                                                                                            |
-| `environment_variables` | object                                                  | false    |              |                                                                                                                                                            |
-| » `[any property]`      | string                                                  | false    |              |                                                                                                                                                            |
-| `git_auth_configs`      | integer                                                 | false    |              | Git auth configs stores the number of Git configurations the Coder deployment has. If this number is >0, we set up special configuration in the workspace. |
-| `motd_file`             | string                                                  | false    |              |                                                                                                                                                            |
-| `startup_script`        | string                                                  | false    |              |                                                                                                                                                            |
-| `vscode_port_proxy_uri` | string                                                  | false    |              |                                                                                                                                                            |
+| Name                     | Type                                                    | Required | Restrictions | Description                                                                                                                                                |
+| ------------------------ | ------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps`                   | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp) | false    |              |                                                                                                                                                            |
+| `derpmap`                | [tailcfg.DERPMap](#tailcfgderpmap)                      | false    |              |                                                                                                                                                            |
+| `directory`              | string                                                  | false    |              |                                                                                                                                                            |
+| `environment_variables`  | object                                                  | false    |              |                                                                                                                                                            |
+| » `[any property]`       | string                                                  | false    |              |                                                                                                                                                            |
+| `git_auth_configs`       | integer                                                 | false    |              | Git auth configs stores the number of Git configurations the Coder deployment has. If this number is >0, we set up special configuration in the workspace. |
+| `motd_file`              | string                                                  | false    |              |                                                                                                                                                            |
+| `startup_script`         | string                                                  | false    |              |                                                                                                                                                            |
+| `startup_script_timeout` | integer                                                 | false    |              |                                                                                                                                                            |
+| `vscode_port_proxy_uri`  | string                                                  | false    |              |                                                                                                                                                            |
 
 ## codersdk.WorkspaceAgentStatus
 
@@ -5000,6 +5169,7 @@ Parameter represents a set value for the scope.
           "architecture": "string",
           "connection_timeout_seconds": 0,
           "created_at": "2019-08-24T14:15:22Z",
+          "delay_login_until_ready": true,
           "directory": "string",
           "disconnected_at": "2019-08-24T14:15:22Z",
           "environment_variables": {
@@ -5020,10 +5190,12 @@ Parameter represents a set value for the scope.
               "preferred": true
             }
           },
+          "lifecycle_state": "created",
           "name": "string",
           "operating_system": "string",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "startup_script": "string",
+          "startup_script_timeout_seconds": 0,
           "status": "connecting",
           "troubleshooting_url": "string",
           "updated_at": "2019-08-24T14:15:22Z",
@@ -5105,6 +5277,22 @@ Parameter represents a set value for the scope.
 | `transition` | `stop`      |
 | `transition` | `delete`    |
 
+## codersdk.WorkspaceBuildParameter
+
+```json
+{
+  "name": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+| ------- | ------ | -------- | ------------ | ----------- |
+| `name`  | string | false    |              |             |
+| `value` | string | false    |              |             |
+
 ## codersdk.WorkspaceQuota
 
 ```json
@@ -5149,6 +5337,7 @@ Parameter represents a set value for the scope.
       "architecture": "string",
       "connection_timeout_seconds": 0,
       "created_at": "2019-08-24T14:15:22Z",
+      "delay_login_until_ready": true,
       "directory": "string",
       "disconnected_at": "2019-08-24T14:15:22Z",
       "environment_variables": {
@@ -5169,10 +5358,12 @@ Parameter represents a set value for the scope.
           "preferred": true
         }
       },
+      "lifecycle_state": "created",
       "name": "string",
       "operating_system": "string",
       "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
       "startup_script": "string",
+      "startup_script_timeout_seconds": 0,
       "status": "connecting",
       "troubleshooting_url": "string",
       "updated_at": "2019-08-24T14:15:22Z",
@@ -5336,6 +5527,7 @@ Parameter represents a set value for the scope.
                 "architecture": "string",
                 "connection_timeout_seconds": 0,
                 "created_at": "2019-08-24T14:15:22Z",
+                "delay_login_until_ready": true,
                 "directory": "string",
                 "disconnected_at": "2019-08-24T14:15:22Z",
                 "environment_variables": {
@@ -5356,10 +5548,12 @@ Parameter represents a set value for the scope.
                     "preferred": true
                   }
                 },
+                "lifecycle_state": "created",
                 "name": "string",
                 "operating_system": "string",
                 "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
                 "startup_script": "string",
+                "startup_script_timeout_seconds": 0,
                 "status": "connecting",
                 "troubleshooting_url": "string",
                 "updated_at": "2019-08-24T14:15:22Z",

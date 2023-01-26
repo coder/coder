@@ -34,28 +34,53 @@ const (
 	WorkspaceAgentTimeout      WorkspaceAgentStatus = "timeout"
 )
 
+// WorkspaceAgentLifecycle represents the lifecycle state of a workspace agent.
+//
+// The agent lifecycle starts in the "created" state, and transitions to
+// "starting" when the agent reports it has begun preparing (e.g. started
+// executing the startup script).
+//
+// Note that states are not guaranteed to be reported, for instance the agent
+// may go from "created" to "ready" without reporting "starting", if it had
+// trouble connecting on startup.
+type WorkspaceAgentLifecycle string
+
+// WorkspaceAgentLifecycle enums.
+const (
+	WorkspaceAgentLifecycleCreated      WorkspaceAgentLifecycle = "created"
+	WorkspaceAgentLifecycleStarting     WorkspaceAgentLifecycle = "starting"
+	WorkspaceAgentLifecycleStartTimeout WorkspaceAgentLifecycle = "start_timeout"
+	WorkspaceAgentLifecycleStartError   WorkspaceAgentLifecycle = "start_error"
+	WorkspaceAgentLifecycleReady        WorkspaceAgentLifecycle = "ready"
+)
+
 type WorkspaceAgent struct {
-	ID                   uuid.UUID            `json:"id" format:"uuid"`
-	CreatedAt            time.Time            `json:"created_at" format:"date-time"`
-	UpdatedAt            time.Time            `json:"updated_at" format:"date-time"`
-	FirstConnectedAt     *time.Time           `json:"first_connected_at,omitempty" format:"date-time"`
-	LastConnectedAt      *time.Time           `json:"last_connected_at,omitempty" format:"date-time"`
-	DisconnectedAt       *time.Time           `json:"disconnected_at,omitempty" format:"date-time"`
-	Status               WorkspaceAgentStatus `json:"status" enums:"connecting,connected,disconnected,timeout"`
-	Name                 string               `json:"name"`
-	ResourceID           uuid.UUID            `json:"resource_id" format:"uuid"`
-	InstanceID           string               `json:"instance_id,omitempty"`
-	Architecture         string               `json:"architecture"`
-	EnvironmentVariables map[string]string    `json:"environment_variables"`
-	OperatingSystem      string               `json:"operating_system"`
-	StartupScript        string               `json:"startup_script,omitempty"`
-	Directory            string               `json:"directory,omitempty"`
-	Version              string               `json:"version"`
-	Apps                 []WorkspaceApp       `json:"apps"`
+	ID                   uuid.UUID               `json:"id" format:"uuid"`
+	CreatedAt            time.Time               `json:"created_at" format:"date-time"`
+	UpdatedAt            time.Time               `json:"updated_at" format:"date-time"`
+	FirstConnectedAt     *time.Time              `json:"first_connected_at,omitempty" format:"date-time"`
+	LastConnectedAt      *time.Time              `json:"last_connected_at,omitempty" format:"date-time"`
+	DisconnectedAt       *time.Time              `json:"disconnected_at,omitempty" format:"date-time"`
+	Status               WorkspaceAgentStatus    `json:"status"`
+	LifecycleState       WorkspaceAgentLifecycle `json:"lifecycle_state"`
+	Name                 string                  `json:"name"`
+	ResourceID           uuid.UUID               `json:"resource_id" format:"uuid"`
+	InstanceID           string                  `json:"instance_id,omitempty"`
+	Architecture         string                  `json:"architecture"`
+	EnvironmentVariables map[string]string       `json:"environment_variables"`
+	OperatingSystem      string                  `json:"operating_system"`
+	StartupScript        string                  `json:"startup_script,omitempty"`
+	Directory            string                  `json:"directory,omitempty"`
+	Version              string                  `json:"version"`
+	Apps                 []WorkspaceApp          `json:"apps"`
 	// DERPLatency is mapped by region name (e.g. "New York City", "Seattle").
 	DERPLatency              map[string]DERPRegion `json:"latency,omitempty"`
 	ConnectionTimeoutSeconds int32                 `json:"connection_timeout_seconds"`
 	TroubleshootingURL       string                `json:"troubleshooting_url"`
+	// DelayLoginUntilReady if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).
+	DelayLoginUntilReady bool `db:"delay_login_until_ready" json:"delay_login_until_ready"`
+	// StartupScriptTimeoutSeconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.
+	StartupScriptTimeoutSeconds int32 `db:"startup_script_timeout_seconds" json:"startup_script_timeout_seconds"`
 }
 
 type WorkspaceAgentResourceMetadata struct {
@@ -131,6 +156,7 @@ type WorkspaceAgentMetadata struct {
 	DERPMap              *tailcfg.DERPMap  `json:"derpmap"`
 	EnvironmentVariables map[string]string `json:"environment_variables"`
 	StartupScript        string            `json:"startup_script"`
+	StartupScriptTimeout time.Duration     `json:"startup_script_timeout"`
 	Directory            string            `json:"directory"`
 	MOTDFile             string            `json:"motd_file"`
 }
@@ -340,6 +366,42 @@ func (c *Client) ListenWorkspaceAgent(ctx context.Context) (net.Conn, error) {
 		return nil, readBodyAsError(res)
 	}
 
+	// Ping once every 30 seconds to ensure that the websocket is alive. If we
+	// don't get a response within 30s we kill the websocket and reconnect.
+	// See: https://github.com/coder/coder/pull/5824
+	go func() {
+		tick := 30 * time.Second
+		ticker := time.NewTicker(tick)
+		defer ticker.Stop()
+		defer func() {
+			c.Logger.Debug(ctx, "coordinate pinger exited")
+		}()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case start := <-ticker.C:
+				ctx, cancel := context.WithTimeout(ctx, tick)
+
+				err := conn.Ping(ctx)
+				if err != nil {
+					c.Logger.Error(ctx, "workspace agent coordinate ping", slog.Error(err))
+
+					err := conn.Close(websocket.StatusGoingAway, "Ping failed")
+					if err != nil {
+						c.Logger.Error(ctx, "close workspace agent coordinate websocket", slog.Error(err))
+					}
+
+					cancel()
+					return
+				}
+
+				c.Logger.Debug(ctx, "got coordinate pong", slog.F("took", time.Since(start)))
+				cancel()
+			}
+		}
+	}()
+
 	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
 }
 
@@ -489,15 +551,15 @@ func (c *Client) PostWorkspaceAgentAppHealth(ctx context.Context, req PostWorksp
 }
 
 func (c *Client) PostWorkspaceAgentVersion(ctx context.Context, version string) error {
-	// Phone home and tell the mothership what version we're on.
 	versionReq := PostWorkspaceAgentVersionRequest{Version: version}
 	res, err := c.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/version", versionReq)
 	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
 		return readBodyAsError(res)
 	}
-	// Discord the response
-	_, _ = io.Copy(io.Discard, res.Body)
-	_ = res.Body.Close()
 	return nil
 }
 
@@ -680,4 +742,22 @@ func (c *Client) WorkspaceAgentGitAuth(ctx context.Context, gitURL string, liste
 
 	var authResp WorkspaceAgentGitAuthResponse
 	return authResp, json.NewDecoder(res.Body).Decode(&authResp)
+}
+
+// @typescript-ignore PostWorkspaceAgentLifecycleRequest
+type PostWorkspaceAgentLifecycleRequest struct {
+	State WorkspaceAgentLifecycle `json:"state"`
+}
+
+func (c *Client) PostWorkspaceAgentLifecycle(ctx context.Context, req PostWorkspaceAgentLifecycleRequest) error {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/report-lifecycle", req)
+	if err != nil {
+		return xerrors.Errorf("agent state post request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return readBodyAsError(res)
+	}
+
+	return nil
 }

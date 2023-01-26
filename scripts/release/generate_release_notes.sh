@@ -112,7 +112,10 @@ for cat in "${!section_titles[@]}"; do
 done
 
 for commit in "${commits[@]}"; do
-	line="- $commit ${COMMIT_METADATA_TITLE[$commit]}\n"
+	line="- $commit ${COMMIT_METADATA_TITLE[$commit]}"
+	if [[ -v COMMIT_METADATA_AUTHORS[$commit] ]]; then
+		line+=" (${COMMIT_METADATA_AUTHORS[$commit]})"
+	fi
 
 	# Default to "other" category.
 	cat=other
@@ -122,7 +125,7 @@ for commit in "${commits[@]}"; do
 			break
 		fi
 	done
-	declare "$cat"_changelog+="$line"
+	declare "$cat"_changelog+="$line"$'\n'
 done
 
 changelog="$(

@@ -22,6 +22,7 @@ import { AuditHelpTooltip } from "components/Tooltips"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import { PaginationMachineRef } from "xServices/pagination/paginationXService"
+import { AuditPaywall } from "./AuditPaywall"
 
 export const Language = {
   title: "Audit",
@@ -34,9 +35,15 @@ const presetFilters = [
     name: "Created workspaces",
   },
   { query: "resource_type:template action:create", name: "Added templates" },
-  { query: "resource_type:user action:create", name: "Added users" },
-  { query: "resource_type:template action:delete", name: "Deleted templates" },
   { query: "resource_type:user action:delete", name: "Deleted users" },
+  {
+    query: "resource_type:workspace_build action:start",
+    name: "Started builds",
+  },
+  {
+    query: "resource_type:workspace_build action:start build_reason:initiator",
+    name: "Builds started by a user",
+  },
 ]
 
 export interface AuditPageViewProps {
@@ -46,6 +53,7 @@ export interface AuditPageViewProps {
   onFilter: (filter: string) => void
   paginationRef: PaginationMachineRef
   isNonInitialPage: boolean
+  isAuditLogVisible: boolean
 }
 
 export const AuditPageView: FC<AuditPageViewProps> = ({
@@ -55,6 +63,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
   onFilter,
   paginationRef,
   isNonInitialPage,
+  isAuditLogVisible,
 }) => {
   const { t } = useTranslation("auditLog")
   const isLoading = auditLogs === undefined || count === undefined
@@ -72,53 +81,63 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
         <PageHeaderSubtitle>{Language.subtitle}</PageHeaderSubtitle>
       </PageHeader>
 
-      <SearchBarWithFilter
-        docs="https://coder.com/docs/coder-oss/latest/admin/audit-logs#filtering-logs"
-        filter={filter}
-        onFilter={onFilter}
-        presetFilters={presetFilters}
-      />
+      <ChooseOne>
+        <Cond condition={isAuditLogVisible}>
+          <SearchBarWithFilter
+            docs="https://coder.com/docs/coder-oss/latest/admin/audit-logs#filtering-logs"
+            filter={filter}
+            onFilter={onFilter}
+            presetFilters={presetFilters}
+          />
 
-      <TableContainer>
-        <Table>
-          <TableBody>
-            <ChooseOne>
-              <Cond condition={isLoading}>
-                <TableLoader />
-              </Cond>
-              <Cond condition={isEmpty}>
+          <TableContainer>
+            <Table>
+              <TableBody>
                 <ChooseOne>
-                  <Cond condition={isNonInitialPage}>
-                    <TableRow>
-                      <TableCell colSpan={999}>
-                        <EmptyState message={t("table.emptyPage")} />
-                      </TableCell>
-                    </TableRow>
+                  <Cond condition={isLoading}>
+                    <TableLoader />
+                  </Cond>
+                  <Cond condition={isEmpty}>
+                    <ChooseOne>
+                      <Cond condition={isNonInitialPage}>
+                        <TableRow>
+                          <TableCell colSpan={999}>
+                            <EmptyState message={t("table.emptyPage")} />
+                          </TableCell>
+                        </TableRow>
+                      </Cond>
+                      <Cond>
+                        <TableRow>
+                          <TableCell colSpan={999}>
+                            <EmptyState message={t("table.noLogs")} />
+                          </TableCell>
+                        </TableRow>
+                      </Cond>
+                    </ChooseOne>
                   </Cond>
                   <Cond>
-                    <TableRow>
-                      <TableCell colSpan={999}>
-                        <EmptyState message={t("table.noLogs")} />
-                      </TableCell>
-                    </TableRow>
+                    {auditLogs && (
+                      <Timeline
+                        items={auditLogs}
+                        getDate={(log) => new Date(log.time)}
+                        row={(log) => (
+                          <AuditLogRow key={log.id} auditLog={log} />
+                        )}
+                      />
+                    )}
                   </Cond>
                 </ChooseOne>
-              </Cond>
-              <Cond>
-                {auditLogs && (
-                  <Timeline
-                    items={auditLogs}
-                    getDate={(log) => new Date(log.time)}
-                    row={(log) => <AuditLogRow key={log.id} auditLog={log} />}
-                  />
-                )}
-              </Cond>
-            </ChooseOne>
-          </TableBody>
-        </Table>
-      </TableContainer>
+              </TableBody>
+            </Table>
+          </TableContainer>
 
-      <PaginationWidget numRecords={count} paginationRef={paginationRef} />
+          <PaginationWidget numRecords={count} paginationRef={paginationRef} />
+        </Cond>
+
+        <Cond>
+          <AuditPaywall />
+        </Cond>
+      </ChooseOne>
     </Margins>
   )
 }

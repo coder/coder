@@ -7,7 +7,6 @@ import {
   TemplateExample,
 } from "api/typesGenerated"
 import { FormFooter } from "components/FormFooter/FormFooter"
-import { IconField } from "components/IconField/IconField"
 import { ParameterInput } from "components/ParameterInput/ParameterInput"
 import { Stack } from "components/Stack/Stack"
 import {
@@ -23,6 +22,7 @@ import { CreateTemplateData } from "xServices/createTemplate/createTemplateXServ
 import * as Yup from "yup"
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
 import { HelpTooltip, HelpTooltipText } from "components/Tooltips/HelpTooltip"
+import { LazyIconField } from "components/IconField/LazyIconField"
 
 const validationSchema = Yup.object({
   name: nameValidator("Name"),
@@ -154,7 +154,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
               variant="outlined"
             />
 
-            <IconField
+            <LazyIconField
               {...getFieldHelpers("icon")}
               disabled={isSubmitting}
               onChange={onChangeTrimmed(form)}

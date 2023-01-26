@@ -41,6 +41,7 @@ func TestTemplateVersionParam(t *testing.T) {
 			Username:       username,
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
+			LoginType:      database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 
@@ -77,6 +78,7 @@ func TestTemplateVersionParam(t *testing.T) {
 			ID:             uuid.New(),
 			OrganizationID: organization.ID,
 			Name:           "moo",
+			Provisioner:    database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 
