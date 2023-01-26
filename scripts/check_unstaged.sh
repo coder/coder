@@ -5,7 +5,7 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 cdroot
 
-FILES="$(git ls-files --other --modified --exclude-standard -- 'scripts/auditdocgen/main.go')"
+FILES="$(git ls-files --other --modified --exclude-standard -- './scripts/auditdocgen/main.go')"
 if [[ "$FILES" != "" ]]; then
 	mapfile -t files <<<"$FILES"
 
