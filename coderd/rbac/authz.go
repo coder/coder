@@ -20,15 +20,31 @@ import (
 // Subject is a struct that contains all the elements of a subject in an rbac
 // authorize.
 type Subject struct {
-	SubjectID string
-	Roles     ExpandableRoles
-	Groups    []string
-	Scope     ExpandableScope
+	ID     string
+	Roles  ExpandableRoles
+	Groups []string
+	Scope  ExpandableScope
+}
+
+// SafeScopeName prevent nil pointer dereference.
+func (s Subject) SafeScopeName() string {
+	if s.Scope == nil {
+		return "no-scope"
+	}
+	return s.Scope.Name()
+}
+
+// SafeRoleNames prevent nil pointer dereference.
+func (s Subject) SafeRoleNames() []string {
+	if s.Roles == nil {
+		return []string{}
+	}
+	return s.Roles.Names()
 }
 
 type Authorizer interface {
-	ByRoleName(ctx context.Context, subjectID string, roleNames ExpandableRoles, scope ScopeName, groups []string, action Action, object Object) error
-	PrepareByRoleName(ctx context.Context, subjectID string, roleNames ExpandableRoles, scope ScopeName, groups []string, action Action, objectType string) (PreparedAuthorized, error)
+	Authorize(ctx context.Context, subject Subject, action Action, object Object) error
+	Prepare(ctx context.Context, subject Subject, action Action, objectType string) (PreparedAuthorized, error)
 }
 
 type PreparedAuthorized interface {
@@ -42,7 +58,7 @@ type PreparedAuthorized interface {
 //
 // Ideally the 'CompileToSQL' is used instead for large sets. This cost scales
 // linearly with the number of objects passed in.
-func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, subjRoles ExpandableRoles, scope ScopeName, groups []string, action Action, objects []O) ([]O, error) {
+func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, action Action, objects []O) ([]O, error) {
 	if len(objects) == 0 {
 		// Nothing to filter
 		return objects, nil
@@ -54,9 +70,9 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, sub
 	// objects, then the span is not interesting. It would just add excessive
 	// 0 time spans that provide no insight.
 	ctx, span := tracing.StartSpan(ctx,
-		rbacTraceAttributes(subjRoles.Names(), len(groups), scope, action, objectType,
+		rbacTraceAttributes(subject, action, objectType,
 			// For filtering, we are only measuring the total time for the entire
-			// set of objects. This and the 'PrepareByRoleName' span time
+			// set of objects. This and the 'Prepare' span time
 			// is all that is required to measure the performance of this
 			// function on a per-object basis.
 			attribute.Int("num_objects", len(objects)),
@@ -65,8 +81,8 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, sub
 	defer span.End()
 
 	// Running benchmarks on this function, it is **always** faster to call
-	// auth.ByRoleName on <10 objects. This is because the overhead of
-	// 'PrepareByRoleName'. Once we cross 10 objects, then it starts to become
+	// auth.Authorize on <10 objects. This is because the overhead of
+	// 'Prepare'. Once we cross 10 objects, then it starts to become
 	// faster
 	if len(objects) < 10 {
 		for _, o := range objects {
@@ -74,7 +90,7 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, sub
 			if rbacObj.Type != objectType {
 				return nil, xerrors.Errorf("object types must be uniform across the set (%s), found %s", objectType, rbacObj)
 			}
-			err := auth.ByRoleName(ctx, subjID, subjRoles, scope, groups, action, o.RBACObject())
+			err := auth.Authorize(ctx, subject, action, o.RBACObject())
 			if err == nil {
 				filtered = append(filtered, o)
 			}
@@ -82,7 +98,7 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subjID string, sub
 		return filtered, nil
 	}
 
-	prepared, err := auth.PrepareByRoleName(ctx, subjID, subjRoles, scope, groups, action, objectType)
+	prepared, err := auth.Prepare(ctx, subject, action, objectType)
 	if err != nil {
 		return nil, xerrors.Errorf("prepare: %w", err)
 	}
@@ -185,14 +201,15 @@ type authSubject struct {
 	Scope  Scope    `json:"scope"`
 }
 
-// ByRoleName will expand all roleNames into roles before calling Authorize().
-// This is the function intended to be used outside this package.
-// The role is fetched from the builtin map located in memory.
-func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNames ExpandableRoles, scope ScopeName, groups []string, action Action, object Object) error {
+// Authorize is the intended function to be used outside this package.
+// It returns `nil` if the subject is authorized to perform the action on
+// the object.
+// If an error is returned, the authorization is denied.
+func (a RegoAuthorizer) Authorize(ctx context.Context, subject Subject, action Action, object Object) error {
 	start := time.Now()
 	ctx, span := tracing.StartSpan(ctx,
 		trace.WithTimestamp(start), // Reuse the time.Now for metric and trace
-		rbacTraceAttributes(roleNames.Names(), len(groups), scope, action, object.Type,
+		rbacTraceAttributes(subject, action, object.Type,
 			// For authorizing a single object, this data is useful to know how
 			// complex our objects are getting.
 			attribute.Int("object_num_groups", len(object.ACLGroupList)),
@@ -201,18 +218,9 @@ func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNa
 	)
 	defer span.End()
 
-	roles, err := roleNames.Expand()
-	if err != nil {
-		return err
-	}
+	err := a.authorize(ctx, subject, action, object)
+	span.SetAttributes(attribute.Bool("authorized", err == nil))
 
-	scopeRole, err := ExpandScope(scope)
-	if err != nil {
-		return err
-	}
-
-	err = a.Authorize(ctx, subjectID, roles, scopeRole, groups, action, object)
-	span.AddEvent("authorized", trace.WithAttributes(attribute.Bool("authorized", err == nil)))
 	dur := time.Since(start)
 	if err != nil {
 		a.authorizeHist.WithLabelValues("false").Observe(dur.Seconds())
@@ -223,15 +231,33 @@ func (a RegoAuthorizer) ByRoleName(ctx context.Context, subjectID string, roleNa
 	return nil
 }
 
-// Authorize allows passing in custom Roles.
-// This is really helpful for unit testing, as we can create custom roles to exercise edge cases.
-func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles []Role, scope Scope, groups []string, action Action, object Object) error {
+// authorize is the internal function that does the actual authorization.
+// It is a different function so the exported one can add tracing + metrics.
+// That code tends to clutter up the actual logic, so it's separated out.
+func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action Action, object Object) error {
+	if subject.Roles == nil {
+		return xerrors.Errorf("subject must have roles")
+	}
+	if subject.Scope == nil {
+		return xerrors.Errorf("subject must have a scope")
+	}
+
+	subjRoles, err := subject.Roles.Expand()
+	if err != nil {
+		return xerrors.Errorf("expand roles: %w", err)
+	}
+
+	subjScope, err := subject.Scope.Expand()
+	if err != nil {
+		return xerrors.Errorf("expand scope: %w", err)
+	}
+
 	input := map[string]interface{}{
 		"subject": authSubject{
-			ID:     subjectID,
-			Roles:  roles,
-			Groups: groups,
-			Scope:  scope,
+			ID:     subject.ID,
+			Roles:  subjRoles,
+			Groups: subject.Groups,
+			Scope:  subjScope,
 		},
 		"object": object,
 		"action": action,
@@ -248,27 +274,19 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subjectID string, roles [
 	return nil
 }
 
-func (a RegoAuthorizer) PrepareByRoleName(ctx context.Context, subjectID string, roleNames ExpandableRoles, scope ScopeName, groups []string, action Action, objectType string) (PreparedAuthorized, error) {
+// Prepare will partially execute the rego policy leaving the object fields unknown (except for the type).
+// This will vastly speed up performance if batch authorization on the same type of objects is needed.
+func (a RegoAuthorizer) Prepare(ctx context.Context, subject Subject, action Action, objectType string) (PreparedAuthorized, error) {
 	start := time.Now()
 	ctx, span := tracing.StartSpan(ctx,
 		trace.WithTimestamp(start),
-		rbacTraceAttributes(roleNames.Names(), len(groups), scope, action, objectType),
+		rbacTraceAttributes(subject, action, objectType),
 	)
 	defer span.End()
 
-	roles, err := roleNames.Expand()
+	prepared, err := newPartialAuthorizer(ctx, subject, action, objectType)
 	if err != nil {
-		return nil, err
-	}
-
-	scopeRole, err := ExpandScope(scope)
-	if err != nil {
-		return nil, err
-	}
-
-	prepared, err := a.Prepare(ctx, subjectID, roles, scopeRole, groups, action, objectType)
-	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("new partial authorizer: %w", err)
 	}
 
 	// Add attributes of the Prepare results. This will help understand the
@@ -280,15 +298,4 @@ func (a RegoAuthorizer) PrepareByRoleName(ctx context.Context, subjectID string,
 
 	a.prepareHist.Observe(time.Since(start).Seconds())
 	return prepared, nil
-}
-
-// Prepare will partially execute the rego policy leaving the object fields unknown (except for the type).
-// This will vastly speed up performance if batch authorization on the same type of objects is needed.
-func (RegoAuthorizer) Prepare(ctx context.Context, subjectID string, roles []Role, scope Scope, groups []string, action Action, objectType string) (*PartialAuthorizer, error) {
-	auth, err := newPartialAuthorizer(ctx, subjectID, roles, scope, groups, action, objectType)
-	if err != nil {
-		return nil, xerrors.Errorf("new partial authorizer: %w", err)
-	}
-
-	return auth, nil
 }
