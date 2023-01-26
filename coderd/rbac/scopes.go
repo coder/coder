@@ -6,7 +6,22 @@ import (
 	"golang.org/x/xerrors"
 )
 
+type ExpandableScope interface {
+	Expand() (Scope, error)
+	// Name is for logging and tracing purposes, we want to know the human
+	// name of the scope.
+	Name() string
+}
+
 type ScopeName string
+
+func (name ScopeName) Expand() (Scope, error) {
+	return ExpandScope(name)
+}
+
+func (name ScopeName) Name() string {
+	return string(name)
+}
 
 // Scope acts the exact same as a Role with the addition that is can also
 // apply an AllowIDList. Any resource being checked against a Scope will
@@ -16,6 +31,14 @@ type ScopeName string
 type Scope struct {
 	Role
 	AllowIDList []string `json:"allow_list"`
+}
+
+func (s Scope) Expand() (Scope, error) {
+	return s, nil
+}
+
+func (s Scope) Name() string {
+	return s.Role.Name
 }
 
 const (

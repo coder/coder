@@ -285,7 +285,10 @@ var (
 // CanAssignRole is a helper function that returns true if the user can assign
 // the specified role. This also can be used for removing a role.
 // This is a simple implementation for now.
-func CanAssignRole(roles []string, assignedRole string) bool {
+func CanAssignRole(expandable ExpandableRoles, assignedRole string) bool {
+	// For CanAssignRole, we only care about the names of the roles.
+	roles := expandable.Names()
+
 	assigned, assignedOrg, err := roleSplit(assignedRole)
 	if err != nil {
 		return false
