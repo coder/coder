@@ -508,18 +508,19 @@ func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck
 							assert.Equal(t, http.StatusForbidden, resp.StatusCode, "expect unauthorized")
 						}
 					}
-					if a.authorizer.Called != nil {
+					if a.authorizer.LastCall() != nil {
+						last := a.authorizer.LastCall()
 						if routeAssertions.AssertAction != "" {
-							assert.Equal(t, routeAssertions.AssertAction, a.authorizer.Called.Action, "resource action")
+							assert.Equal(t, routeAssertions.AssertAction, last.Action, "resource action")
 						}
 						if routeAssertions.AssertObject.Type != "" {
-							assert.Equal(t, routeAssertions.AssertObject.Type, a.authorizer.Called.Object.Type, "resource type")
+							assert.Equal(t, routeAssertions.AssertObject.Type, last.Object.Type, "resource type")
 						}
 						if routeAssertions.AssertObject.Owner != "" {
-							assert.Equal(t, routeAssertions.AssertObject.Owner, a.authorizer.Called.Object.Owner, "resource owner")
+							assert.Equal(t, routeAssertions.AssertObject.Owner, last.Object.Owner, "resource owner")
 						}
 						if routeAssertions.AssertObject.OrgID != "" {
-							assert.Equal(t, routeAssertions.AssertObject.OrgID, a.authorizer.Called.Object.OrgID, "resource org")
+							assert.Equal(t, routeAssertions.AssertObject.OrgID, last.Object.OrgID, "resource org")
 						}
 					}
 				} else {
@@ -533,17 +534,68 @@ func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck
 }
 
 type authCall struct {
-	Subject rbac.Subject
-	Action  rbac.Action
-	Object  rbac.Object
+	Actor  rbac.Subject
+	Action rbac.Action
+	Object rbac.Object
+
+	asserted bool
 }
 
 type RecordingAuthorizer struct {
-	Called       *authCall
+	Called       []authCall
 	AlwaysReturn error
 }
 
 var _ rbac.Authorizer = (*RecordingAuthorizer)(nil)
+
+type ActionObjectPair struct {
+	Action rbac.Action
+	Object rbac.Object
+}
+
+// Pair is on the RecordingAuthorizer to be easy to find and keep the pkg
+// interface smaller.
+func (r *RecordingAuthorizer) Pair(action rbac.Action, object rbac.Objecter) ActionObjectPair {
+	return ActionObjectPair{
+		Action: action,
+		Object: object.RBACObject(),
+	}
+}
+
+func (r *RecordingAuthorizer) AllAsserted() error {
+	missed := 0
+	for _, c := range r.Called {
+		if !c.asserted {
+			missed++
+		}
+	}
+
+	if missed > 0 {
+		return xerrors.Errorf("missed %d calls", missed)
+	}
+	return nil
+}
+
+// AssertActor asserts in order.
+func (r *RecordingAuthorizer) AssertActor(t *testing.T, actor rbac.Subject, did ...ActionObjectPair) {
+	ptr := 0
+	for i, call := range r.Called {
+		if ptr == len(did) {
+			// Finished all assertions
+			return
+		}
+		if call.Actor.ID == actor.ID {
+			//action, object := did[ptr], on[ptr]
+			action, object := did[ptr].Action, did[ptr].Object
+			assert.Equalf(t, action, call.Action, "assert action %d", ptr)
+			assert.Equalf(t, object, call.Object, "assert object %d", ptr)
+			r.Called[i].asserted = true
+			ptr++
+		}
+	}
+
+	assert.Equalf(t, len(did), ptr, "assert actor: didn't find all actions, %d missing actions", len(did)-ptr)
+}
 
 // AuthorizeSQL does not record the call. This matches the postgres behavior
 // of not calling Authorize()
@@ -552,11 +604,11 @@ func (r *RecordingAuthorizer) AuthorizeSQL(_ context.Context, _ rbac.Subject, _ 
 }
 
 func (r *RecordingAuthorizer) Authorize(_ context.Context, subject rbac.Subject, action rbac.Action, object rbac.Object) error {
-	r.Called = &authCall{
-		Subject: subject,
-		Action:  action,
-		Object:  object,
-	}
+	r.Called = append(r.Called, authCall{
+		Actor:  subject,
+		Action: action,
+		Object: object,
+	})
 	return r.AlwaysReturn
 }
 
@@ -600,4 +652,13 @@ func (f fakePreparedAuthorizer) RegoString() string {
 		return f.HardCodedRegoString
 	}
 	panic("not implemented")
+}
+
+// LastCall is implemented to support legacy tests.
+// Deprecated
+func (r *RecordingAuthorizer) LastCall() *authCall {
+	if len(r.Called) == 0 {
+		return nil
+	}
+	return &r.Called[len(r.Called)-1]
 }
