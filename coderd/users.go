@@ -38,7 +38,7 @@ import (
 // @Success 200 {object} codersdk.Response
 // @Router /users/first [get]
 func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
-	ctx := authzquery.WithAuthorizeSystemContext(r.Context(), rbac.RolesFirstUserSetup())
+	ctx := authzquery.WithAuthorizeSystemContext(r.Context(), rbac.RolesAdminSystem())
 	userCount, err := api.Database.GetUserCount(ctx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -72,7 +72,7 @@ func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
 // @Success 201 {object} codersdk.CreateFirstUserResponse
 // @Router /users/first [post]
 func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
-	ctx := authzquery.WithAuthorizeSystemContext(r.Context(), rbac.RolesFirstUserSetup())
+	ctx := authzquery.WithAuthorizeSystemContext(r.Context(), rbac.RolesAdminSystem())
 	var createUser codersdk.CreateFirstUserRequest
 	if !httpapi.Read(ctx, rw, r, &createUser) {
 		return
@@ -1003,7 +1003,8 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := api.Database.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
+	systemCtx := authzquery.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
+	user, err := api.Database.GetUserByEmailOrUsername(systemCtx, database.GetUserByEmailOrUsernameParams{
 		Email: loginWithPassword.Email,
 	})
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
@@ -1045,7 +1046,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cookie, err := api.createAPIKey(ctx, createAPIKeyParams{
+	cookie, err := api.createAPIKey(systemCtx, createAPIKeyParams{
 		UserID:     user.ID,
 		LoginType:  database.LoginTypePassword,
 		RemoteAddr: r.RemoteAddr,
