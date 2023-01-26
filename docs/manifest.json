@@ -414,7 +414,7 @@
       "title": "Command Line",
       "description": "Learn how to use Coder CLI",
       "path": "./cli/coder.md",
-      "icon_path": "./images/icons/api.svg",
+      "icon_path": "./images/icons/terminal.svg",
       "children": [
         {
           "title": "coder",
