@@ -133,9 +133,9 @@ func TestAgent_StartupTimeout(t *testing.T) {
 					}
 					return agent, nil
 				},
-				FetchInterval:            time.Millisecond,
-				WarnInterval:             time.Second,
-				SkipDelayLoginUntilReady: false,
+				FetchInterval: time.Millisecond,
+				WarnInterval:  time.Second,
+				NoWait:        false,
 			})
 			return err
 		},
@@ -194,9 +194,9 @@ func TestAgent_SkipDelayLoginUntilReady(t *testing.T) {
 					}
 					return agent, nil
 				},
-				FetchInterval:            time.Millisecond,
-				WarnInterval:             time.Second,
-				SkipDelayLoginUntilReady: true,
+				FetchInterval: time.Millisecond,
+				WarnInterval:  time.Second,
+				NoWait:        true,
 			})
 			return err
 		},
@@ -263,9 +263,9 @@ func TestAgent_DelayLoginUntilReadyDisabled(t *testing.T) {
 					}
 					return agent, nil
 				},
-				FetchInterval:            time.Millisecond,
-				WarnInterval:             time.Second,
-				SkipDelayLoginUntilReady: false,
+				FetchInterval: time.Millisecond,
+				WarnInterval:  time.Second,
+				NoWait:        false,
 			})
 			return err
 		},

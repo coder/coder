@@ -40,13 +40,13 @@ var (
 
 func ssh() *cobra.Command {
 	var (
-		stdio                    bool
-		shuffle                  bool
-		forwardAgent             bool
-		forwardGPG               bool
-		identityAgent            string
-		wsPollInterval           time.Duration
-		skipDelayLoginUntilReady bool
+		stdio          bool
+		shuffle        bool
+		forwardAgent   bool
+		forwardGPG     bool
+		identityAgent  string
+		wsPollInterval time.Duration
+		noWait         bool
 	)
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
@@ -91,7 +91,7 @@ func ssh() *cobra.Command {
 				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
 					return client.WorkspaceAgent(ctx, workspaceAgent.ID)
 				},
-				SkipDelayLoginUntilReady: skipDelayLoginUntilReady,
+				NoWait: noWait,
 			})
 			if err != nil {
 				return xerrors.Errorf("await agent: %w", err)
@@ -244,7 +244,7 @@ func ssh() *cobra.Command {
 	cliflag.BoolVarP(cmd.Flags(), &forwardGPG, "forward-gpg", "G", "CODER_SSH_FORWARD_GPG", false, "Specifies whether to forward the GPG agent. Unsupported on Windows workspaces, but supports all clients. Requires gnupg (gpg, gpgconf) on both the client and workspace. The GPG agent must already be running locally and will not be started for you. If a GPG agent is already running in the workspace, it will be attempted to be killed.")
 	cliflag.StringVarP(cmd.Flags(), &identityAgent, "identity-agent", "", "CODER_SSH_IDENTITY_AGENT", "", "Specifies which identity agent to use (overrides $SSH_AUTH_SOCK), forward agent must also be enabled")
 	cliflag.DurationVarP(cmd.Flags(), &wsPollInterval, "workspace-poll-interval", "", "CODER_WORKSPACE_POLL_INTERVAL", workspacePollInterval, "Specifies how often to poll for workspace automated shutdown.")
-	cliflag.BoolVarP(cmd.Flags(), &skipDelayLoginUntilReady, "skip-delay-login-until-ready", "", "CODER_SSH_SKIP_DELAY_LOGIN_UNTIL_READY", false, "Specifies whether to login to a workspace that has not finished starting up (only applicable when the delay login until ready option is enabled).")
+	cliflag.BoolVarP(cmd.Flags(), &noWait, "no-wait", "", "CODER_SSH_NO_WAIT", false, "Specifies whether to wait for a workspace to finish starting up before logging in (only applicable when the delay login until ready option is enabled).")
 	return cmd
 }
 

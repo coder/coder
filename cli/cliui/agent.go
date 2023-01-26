@@ -18,11 +18,11 @@ import (
 )
 
 type AgentOptions struct {
-	WorkspaceName            string
-	Fetch                    func(context.Context) (codersdk.WorkspaceAgent, error)
-	FetchInterval            time.Duration
-	WarnInterval             time.Duration
-	SkipDelayLoginUntilReady bool
+	WorkspaceName string
+	Fetch         func(context.Context) (codersdk.WorkspaceAgent, error)
+	FetchInterval time.Duration
+	WarnInterval  time.Duration
+	NoWait        bool // If true, don't wait for the agent to be ready.
 }
 
 // Agent displays a spinning indicator that waits for a workspace agent to connect.
@@ -41,7 +41,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 
 	// Fast path if the agent is ready (avoid showing connecting prompt).
 	if agent.Status == codersdk.WorkspaceAgentConnected &&
-		(!agent.DelayLoginUntilReady || opts.SkipDelayLoginUntilReady || agent.LifecycleState == codersdk.WorkspaceAgentLifecycleReady) {
+		(!agent.DelayLoginUntilReady || opts.NoWait || agent.LifecycleState == codersdk.WorkspaceAgentLifecycleReady) {
 		return nil
 	}
 
@@ -135,7 +135,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 			// NOTE(mafredri): Once we have access to the workspace agent's
 			// startup script logs, we can show them here.
 			// https://github.com/coder/coder/issues/2957
-			if agent.DelayLoginUntilReady && !opts.SkipDelayLoginUntilReady {
+			if agent.DelayLoginUntilReady && !opts.NoWait {
 				switch agent.LifecycleState {
 				case codersdk.WorkspaceAgentLifecycleCreated, codersdk.WorkspaceAgentLifecycleStarting:
 					select {

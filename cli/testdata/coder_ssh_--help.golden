@@ -20,10 +20,10 @@ Flags:
                                            $SSH_AUTH_SOCK), forward agent must also be
                                            enabled.
                                            Consumes $CODER_SSH_IDENTITY_AGENT
-      --skip-delay-login-until-ready       Specifies whether to login to a workspace that has
-                                           not finished starting up (only applicable when the
-                                           delay login until ready option is enabled).
-                                           Consumes $CODER_SSH_SKIP_DELAY_LOGIN_UNTIL_READY
+      --no-wait                            Specifies whether to wait for a workspace to finish
+                                           starting up before logging in (only applicable when
+                                           the delay login until ready option is enabled).
+                                           Consumes $CODER_SSH_NO_WAIT
       --stdio                              Specifies whether to emit SSH output over
                                            stdin/stdout.
                                            Consumes $CODER_SSH_STDIO
