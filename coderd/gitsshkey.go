@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/authzquery"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
@@ -127,7 +126,6 @@ func (api *API) gitSSHKey(rw http.ResponseWriter, r *http.Request) {
 func (api *API) agentGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	agent := httpmw.WorkspaceAgent(r)
-	agentCtx := authzquery.WithWorkspaceAgentTokenContext(ctx, agent.ResourceID, agent.ID, rbac.RoleNames([]string{}), []string{})
 	resource, err := api.Database.GetWorkspaceResourceByID(agentCtx, agent.ResourceID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

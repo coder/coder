@@ -72,6 +72,7 @@ func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
 // @Success 201 {object} codersdk.CreateFirstUserResponse
 // @Router /users/first [post]
 func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
+	// TODO: Should this admin system context be in a middleware?
 	ctx := authzquery.WithAuthorizeSystemContext(r.Context(), rbac.RolesAdminSystem())
 	var createUser codersdk.CreateFirstUserRequest
 	if !httpapi.Read(ctx, rw, r, &createUser) {
