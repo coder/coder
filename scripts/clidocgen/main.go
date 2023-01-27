@@ -28,6 +28,13 @@ type manifest struct {
 }
 
 func main() {
+	// Set default configs for the docs
+	err := os.Setenv("CODER_CONFIG_DIR", "~/.config/coderv2")
+	if err != nil {
+		log.Fatal("Unable to set default value for CODER_CONFIG_DIR: ", err)
+	}
+
+	// Get the cmd CLI
 	cmd := cli.Root(cli.AGPL())
 
 	// Get paths
@@ -39,7 +46,7 @@ func main() {
 	manifestFilepath := path.Join(basePath, "docs/manifest.json")
 
 	// Generate markdown
-	err := doc.GenMarkdownTree(cmd, markdownDocsDir)
+	err = doc.GenMarkdownTree(cmd, markdownDocsDir)
 	if err != nil {
 		log.Fatal("Error on generating CLI markdown docs: ", err)
 	}
