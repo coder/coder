@@ -6,7 +6,7 @@ import {
 } from "./RichParameterInput"
 
 export default {
-  title: "components/ParameterInput",
+  title: "components/RichParameterInput",
   component: RichParameterInput,
 }
 
@@ -63,7 +63,7 @@ BooleanType.args = {
 }
 
 export const OptionsType = Template.bind({})
-BooleanType.args = {
+OptionsType.args = {
   parameter: createTemplateVersionParameter({
     name: "options_parameter",
     type: "string",
@@ -78,7 +78,7 @@ BooleanType.args = {
       {
         name: "Second option",
         value: "second_option",
-        description: "This is option 3",
+        description: "This is option 2",
         icon: "/icon/database.svg",
       },
       {
