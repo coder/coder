@@ -6,16 +6,16 @@ trial](https://coder.com/trial).
 
 | Category        | Feature                                                                     | Open Source | Enterprise |
 | --------------- | --------------------------------------------------------------------------- | :---------: | :--------: |
-| User Management | [Groups](./admin/groups.md)                                                 |             |     X      |
-| User Management | [SCIM](./admin/auth.md#scim)                                                |             |     X      |
-| Governance      | [Audit Logging](./admin/audit-logs.md)                                      |             |     X      |
-| Governance      | [Browser Only Connections](./networking.md#browser-only-connections)        |             |     X      |
-| Governance      | [Template Access Control](./admin/rbac.md)                                  |             |     X      |
-| Cost Control    | [Quotas](./admin/quotas.md)                                                 |             |     X      |
-| Cost Control    | [Max Workspace Auto-Stop](./templates.md#configure-max-workspace-auto-stop) |             |     X      |
-| Deployment      | [High Availability](./admin/high-availability.md)                           |             |     X      |
-| Deployment      | [Service Banners](./admin/service-banners.md)                               |             |     X      |
-| Deployment      | Isolated Terraform Runners                                                  |             |     X      |
+| User Management | [Groups](./admin/groups.md)                                                 |     ❌      |     ✅     |
+| User Management | [SCIM](./admin/auth.md#scim)                                                |     ❌      |     ✅     |
+| Governance      | [Audit Logging](./admin/audit-logs.md)                                      |     ❌      |     ✅     |
+| Governance      | [Browser Only Connections](./networking.md#browser-only-connections)        |     ❌      |     ✅     |
+| Governance      | [Template Access Control](./admin/rbac.md)                                  |     ❌      |     ✅     |
+| Cost Control    | [Quotas](./admin/quotas.md)                                                 |     ❌      |     ✅     |
+| Cost Control    | [Max Workspace Auto-Stop](./templates.md#configure-max-workspace-auto-stop) |     ❌      |     ✅     |
+| Deployment      | [High Availability](./admin/high-availability.md)                           |     ❌      |     ✅     |
+| Deployment      | [Service Banners](./admin/service-banners.md)                               |     ❌      |     ✅     |
+| Deployment      | Isolated Terraform Runners                                                  |     ❌      |     ✅     |
 
 > Previous plans to restrict OIDC and Git Auth features in OSS have been removed
 > as of 2023-01-11

@@ -108,6 +108,7 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
   return (
     <div className={styles.stack}>
       <LinearProgress
+        data-chromatic="ignore"
         value={progressValue !== undefined ? progressValue : 0}
         variant={
           // There is an initial state where progressValue may be undefined
@@ -125,7 +126,9 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
       />
       <div className={styles.barHelpers}>
         <div className={styles.label}>{`Build ${job.status}`}</div>
-        <div className={styles.label}>{progressText}</div>
+        <div className={styles.label} data-chromatic="ignore">
+          {progressText}
+        </div>
       </div>
     </div>
   )

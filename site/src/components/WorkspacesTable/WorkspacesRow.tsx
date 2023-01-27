@@ -11,6 +11,7 @@ import { getDisplayWorkspaceTemplateName } from "util/workspace"
 import { LastUsed } from "../LastUsed/LastUsed"
 import { Workspace } from "api/typesGenerated"
 import { OutdatedHelpTooltip } from "components/Tooltips/OutdatedHelpTooltip"
+import { Avatar } from "components/Avatar/Avatar"
 
 export const WorkspacesRow: FC<{
   workspace: Workspace
@@ -35,15 +36,12 @@ export const WorkspacesRow: FC<{
     >
       <TableCell>
         <AvatarData
-          highlightTitle
           title={workspace.name}
           subtitle={workspace.owner_name}
           avatar={
-            hasTemplateIcon ? (
-              <div className={styles.templateIconWrapper}>
-                <img alt="" src={workspace.template_icon} />
-              </div>
-            ) : undefined
+            hasTemplateIcon && (
+              <Avatar src={workspace.template_icon} variant="square" fitImage />
+            )
           }
         />
       </TableCell>

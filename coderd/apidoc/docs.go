@@ -362,6 +362,28 @@ const docTemplate = `{
                 }
             }
         },
+        "/debug/coordinator": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Debug Info Wireguard Coordinator",
+                "operationId": "debug-info-wireguard-coordinator",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/entitlements": {
             "get": {
                 "security": [
@@ -408,7 +430,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "string"
+                                "$ref": "#/definitions/codersdk.Experiment"
                             }
                         }
                     }
@@ -621,6 +643,31 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Group"
+                        }
+                    }
+                }
+            }
+        },
+        "/insights/daus": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Insights"
+                ],
+                "summary": "Get deployment DAUs",
+                "operationId": "get-deployment-daus",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.DeploymentDAUsResponse"
                         }
                     }
                 }
@@ -5601,15 +5648,13 @@ const docTemplate = `{
                 },
                 "resource_type": {
                     "enum": [
-                        "organization",
                         "template",
                         "template_version",
                         "user",
                         "workspace",
                         "workspace_build",
                         "git_ssh_key",
-                        "api_key",
-                        "group"
+                        "auditable_group"
                     ],
                     "allOf": [
                         {
@@ -6127,6 +6172,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.DeploymentDAUsResponse": {
+            "type": "object",
+            "properties": {
+                "entries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.DAUEntry"
+                    }
+                }
+            }
+        },
         "codersdk.Entitlement": {
             "type": "string",
             "enum": [
@@ -6172,6 +6228,15 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "codersdk.Experiment": {
+            "type": "string",
+            "enum": [
+                "authz_querier"
+            ],
+            "x-enum-varnames": [
+                "ExperimentAuthzQuerier"
+            ]
         },
         "codersdk.Feature": {
             "type": "object",
@@ -7047,7 +7112,6 @@ const docTemplate = `{
         "codersdk.ResourceType": {
             "type": "string",
             "enum": [
-                "organization",
                 "template",
                 "template_version",
                 "user",
@@ -7058,7 +7122,6 @@ const docTemplate = `{
                 "group"
             ],
             "x-enum-varnames": [
-                "ResourceTypeOrganization",
                 "ResourceTypeTemplate",
                 "ResourceTypeTemplateVersion",
                 "ResourceTypeUser",

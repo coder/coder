@@ -49,8 +49,6 @@ type BuildAuditParams[T Auditable] struct {
 
 func ResourceTarget[T Auditable](tgt T) string {
 	switch typed := any(tgt).(type) {
-	case database.Organization:
-		return typed.Name
 	case database.Template:
 		return typed.Name
 	case database.TemplateVersion:
@@ -73,8 +71,6 @@ func ResourceTarget[T Auditable](tgt T) string {
 
 func ResourceID[T Auditable](tgt T) uuid.UUID {
 	switch typed := any(tgt).(type) {
-	case database.Organization:
-		return typed.ID
 	case database.Template:
 		return typed.ID
 	case database.TemplateVersion:
@@ -96,8 +92,6 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 
 func ResourceType[T Auditable](tgt T) database.ResourceType {
 	switch any(tgt).(type) {
-	case database.Organization:
-		return database.ResourceTypeOrganization
 	case database.Template:
 		return database.ResourceTypeTemplate
 	case database.TemplateVersion:

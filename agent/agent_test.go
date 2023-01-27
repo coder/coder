@@ -1193,7 +1193,7 @@ func (c *client) ListenWorkspaceAgent(_ context.Context) (net.Conn, error) {
 	}
 	c.t.Cleanup(c.lastWorkspaceAgent)
 	go func() {
-		_ = c.coordinator.ServeAgent(serverConn, c.agentID)
+		_ = c.coordinator.ServeAgent(serverConn, c.agentID, "")
 		close(closed)
 	}()
 	return clientConn, nil

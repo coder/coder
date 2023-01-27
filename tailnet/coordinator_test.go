@@ -48,7 +48,7 @@ func TestCoordinator(t *testing.T) {
 		id := uuid.New()
 		closeChan := make(chan struct{})
 		go func() {
-			err := coordinator.ServeAgent(server, id)
+			err := coordinator.ServeAgent(server, id, "")
 			assert.NoError(t, err)
 			close(closeChan)
 		}()
@@ -76,7 +76,7 @@ func TestCoordinator(t *testing.T) {
 		agentID := uuid.New()
 		closeAgentChan := make(chan struct{})
 		go func() {
-			err := coordinator.ServeAgent(agentServerWS, agentID)
+			err := coordinator.ServeAgent(agentServerWS, agentID, "")
 			assert.NoError(t, err)
 			close(closeAgentChan)
 		}()
@@ -127,7 +127,7 @@ func TestCoordinator(t *testing.T) {
 		})
 		closeAgentChan = make(chan struct{})
 		go func() {
-			err := coordinator.ServeAgent(agentServerWS, agentID)
+			err := coordinator.ServeAgent(agentServerWS, agentID, "")
 			assert.NoError(t, err)
 			close(closeAgentChan)
 		}()
@@ -160,7 +160,7 @@ func TestCoordinator(t *testing.T) {
 		agentID := uuid.New()
 		closeAgentChan1 := make(chan struct{})
 		go func() {
-			err := coordinator.ServeAgent(agentServerWS1, agentID)
+			err := coordinator.ServeAgent(agentServerWS1, agentID, "")
 			assert.NoError(t, err)
 			close(closeAgentChan1)
 		}()
@@ -205,7 +205,7 @@ func TestCoordinator(t *testing.T) {
 		})
 		closeAgentChan2 := make(chan struct{})
 		go func() {
-			err := coordinator.ServeAgent(agentServerWS2, agentID)
+			err := coordinator.ServeAgent(agentServerWS2, agentID, "")
 			assert.NoError(t, err)
 			close(closeAgentChan2)
 		}()

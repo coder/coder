@@ -402,11 +402,6 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 
 func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*codersdk.AgentConn, error) {
 	clientConn, serverConn := net.Pipe()
-	go func() {
-		<-r.Context().Done()
-		_ = clientConn.Close()
-		_ = serverConn.Close()
-	}()
 
 	derpMap := api.DERPMap.Clone()
 	for _, region := range derpMap.Regions {
@@ -453,7 +448,16 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 	}
 
 	sendNodes, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
-		return conn.UpdateNodes(node)
+		err := conn.RemoveAllPeers()
+		if err != nil {
+			return xerrors.Errorf("remove all peers: %w", err)
+		}
+
+		err = conn.UpdateNodes(node)
+		if err != nil {
+			return xerrors.Errorf("update nodes: %w", err)
+		}
+		return nil
 	})
 	conn.SetNodeCallback(sendNodes)
 	go func() {
@@ -465,6 +469,10 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 	}()
 	return &codersdk.AgentConn{
 		Conn: conn,
+		CloseFunc: func() {
+			_ = clientConn.Close()
+			_ = serverConn.Close()
+		},
 	}, nil
 }
 
@@ -521,6 +529,25 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 		})
 		return
 	}
+
+	workspace, err := api.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Internal error fetching workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	owner, err := api.Database.GetUserByID(ctx, workspace.OwnerID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Internal error fetching user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	// Ensure the resource is still valid!
 	// We only accept agents for resources on the latest build.
 	ensureLatestBuild := func() error {
@@ -618,7 +645,9 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 	closeChan := make(chan struct{})
 	go func() {
 		defer close(closeChan)
-		err := (*api.TailnetCoordinator.Load()).ServeAgent(wsNetConn, workspaceAgent.ID)
+		err := (*api.TailnetCoordinator.Load()).ServeAgent(wsNetConn, workspaceAgent.ID,
+			fmt.Sprintf("%s-%s-%s", owner.Username, workspace.Name, workspaceAgent.Name),
+		)
 		if err != nil {
 			api.Logger.Warn(ctx, "tailnet coordinator agent error", slog.Error(err))
 			_ = conn.Close(websocket.StatusInternalError, err.Error())

@@ -54,7 +54,7 @@ curl -X GET http://coder-server:8080/api/v2/audit?q=string \
       "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
       "resource_link": "string",
       "resource_target": "string",
-      "resource_type": "organization",
+      "resource_type": "template",
       "status_code": 0,
       "time": "2019-08-24T14:15:22Z",
       "user": {
@@ -108,7 +108,7 @@ curl -X POST http://coder-server:8080/api/v2/audit/testgenerate \
   "action": "create",
   "build_reason": "autostart",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-  "resource_type": "organization",
+  "resource_type": "template",
   "time": "2019-08-24T14:15:22Z"
 }
 ```

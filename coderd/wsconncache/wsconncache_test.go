@@ -207,7 +207,7 @@ func (c *client) ListenWorkspaceAgent(_ context.Context) (net.Conn, error) {
 		<-closed
 	})
 	go func() {
-		_ = c.coordinator.ServeAgent(serverConn, c.agentID)
+		_ = c.coordinator.ServeAgent(serverConn, c.agentID, "")
 		close(closed)
 	}()
 	return clientConn, nil

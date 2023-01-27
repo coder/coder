@@ -170,17 +170,7 @@ with a holistic perspective regarding the contribution.
 
 ### Frontend
 
-#### Follow component conventions
-
-Each component gets its own folder. Make sure you add a test and Storybook
-stories for the component as well. By keeping these tidy, the codebase will
-remain easy-to-navigate, healthy and maintainable for all contributors.
-
-#### Keep accessibility in mind
-
-We strive to keep our UI accessible. When using colors, avoid adding new
-elements with low color contrast. Always use labels on inputs, not just
-placeholders. These are important for screen-readers.
+Our frontend guide can be found [here](./contributing/frontend.md).
 
 ## Reviews
 

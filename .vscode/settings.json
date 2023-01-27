@@ -3,6 +3,7 @@
     "afero",
     "apps",
     "ASKPASS",
+    "autostop",
     "awsidentity",
     "bodyclose",
     "buildinfo",
@@ -117,6 +118,7 @@
     "tailnet",
     "tailnettest",
     "Tailscale",
+    "tbody",
     "TCGETS",
     "tcpip",
     "TCSETS",
@@ -128,6 +130,7 @@
     "tfjson",
     "tfplan",
     "tfstate",
+    "thead",
     "tios",
     "tmpdir",
     "tparallel",
@@ -198,5 +201,12 @@
   "go.testFlags": ["-short", "-coverpkg=./..."],
   // We often use a version of TypeScript that's ahead of the version shipped
   // with VS Code.
-  "typescript.tsdk": "./site/node_modules/typescript/lib"
+  "typescript.tsdk": "./site/node_modules/typescript/lib",
+  "grammarly.selectors": [
+    {
+      "language": "markdown",
+      "scheme": "file",
+      "pattern": "docs/contributing/frontend.md"
+    }
+  ]
 }

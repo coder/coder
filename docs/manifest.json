@@ -322,6 +322,11 @@
           "title": "Security",
           "description": "How to report vulnerabilities in Coder",
           "path": "./contributing/SECURITY.md"
+        },
+        {
+          "title": "Frontend",
+          "description": "Our guide for frontend development",
+          "path": "./contributing/frontend.md"
         }
       ]
     },
@@ -360,12 +365,20 @@
           "path": "./api/builds.md"
         },
         {
+          "title": "Debug",
+          "path": "./api/debug.md"
+        },
+        {
           "title": "Enterprise",
           "path": "./api/enterprise.md"
         },
         {
           "title": "Files",
           "path": "./api/files.md"
+        },
+        {
+          "title": "Insights",
+          "path": "./api/insights.md"
         },
         {
           "title": "Members",

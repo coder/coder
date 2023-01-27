@@ -467,7 +467,7 @@ func (api *API) authorizeWorkspaceApp(r *http.Request, accessMethod workspaceApp
 	// workspaces owned by different users.
 	if isPathApp &&
 		sharingLevel == database.AppSharingLevelOwner &&
-		workspace.OwnerID != roles.ID &&
+		workspace.OwnerID.String() != roles.Actor.ID &&
 		!api.DeploymentConfig.Dangerous.AllowPathAppSiteOwnerAccess.Value {
 
 		return false, nil
@@ -479,7 +479,7 @@ func (api *API) authorizeWorkspaceApp(r *http.Request, accessMethod workspaceApp
 	// Regardless of share level or whether it's enabled or not, the owner of
 	// the workspace can always access applications (as long as their API key's
 	// scope allows it).
-	err := api.Authorizer.ByRoleName(ctx, roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), []string{}, rbac.ActionCreate, workspace.ApplicationConnectRBAC())
+	err := api.Authorizer.Authorize(ctx, roles.Actor, rbac.ActionCreate, workspace.ApplicationConnectRBAC())
 	if err == nil {
 		return true, nil
 	}
@@ -494,8 +494,8 @@ func (api *API) authorizeWorkspaceApp(r *http.Request, accessMethod workspaceApp
 		// that they have ApplicationConnect permissions to their own
 		// workspaces. This ensures that the key's scope has permission to
 		// connect to workspace apps.
-		object := rbac.ResourceWorkspaceApplicationConnect.WithOwner(roles.ID.String())
-		err := api.Authorizer.ByRoleName(ctx, roles.ID.String(), roles.Roles, roles.Scope.ToRBAC(), []string{}, rbac.ActionCreate, object)
+		object := rbac.ResourceWorkspaceApplicationConnect.WithOwner(roles.Actor.ID)
+		err := api.Authorizer.Authorize(ctx, roles.Actor, rbac.ActionCreate, object)
 		if err == nil {
 			return true, nil
 		}

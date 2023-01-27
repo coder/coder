@@ -12,11 +12,8 @@ import (
 )
 
 type benchmarkCase struct {
-	Name   string
-	Roles  []string
-	Groups []string
-	UserID uuid.UUID
-	Scope  rbac.ScopeName
+	Name  string
+	Actor rbac.Subject
 }
 
 // benchmarkUserCases builds a set of users with different roles and groups.
@@ -36,54 +33,66 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 
 	benchCases := []benchmarkCase{
 		{
-			Name:   "NoRoles",
-			Roles:  []string{},
-			UserID: user,
-			Scope:  rbac.ScopeAll,
+			Name: "NoRoles",
+			Actor: rbac.Subject{
+				ID:    user.String(),
+				Roles: rbac.RoleNames{},
+				Scope: rbac.ScopeAll,
+			},
 		},
 		{
 			Name: "Admin",
-			// Give some extra roles that an admin might have
-			Roles:  []string{rbac.RoleOrgMember(orgs[0]), "auditor", rbac.RoleOwner(), rbac.RoleMember()},
-			UserID: user,
-			Scope:  rbac.ScopeAll,
-			Groups: noiseGroups,
+			Actor: rbac.Subject{
+				// Give some extra roles that an admin might have
+				Roles:  rbac.RoleNames{rbac.RoleOrgMember(orgs[0]), "auditor", rbac.RoleOwner(), rbac.RoleMember()},
+				ID:     user.String(),
+				Scope:  rbac.ScopeAll,
+				Groups: noiseGroups,
+			},
 		},
 		{
-			Name:   "OrgAdmin",
-			Roles:  []string{rbac.RoleOrgMember(orgs[0]), rbac.RoleOrgAdmin(orgs[0]), rbac.RoleMember()},
-			UserID: user,
-			Scope:  rbac.ScopeAll,
-			Groups: noiseGroups,
+			Name: "OrgAdmin",
+			Actor: rbac.Subject{
+				Roles:  rbac.RoleNames{rbac.RoleOrgMember(orgs[0]), rbac.RoleOrgAdmin(orgs[0]), rbac.RoleMember()},
+				ID:     user.String(),
+				Scope:  rbac.ScopeAll,
+				Groups: noiseGroups,
+			},
 		},
 		{
 			Name: "OrgMember",
-			// Member of 2 orgs
-			Roles:  []string{rbac.RoleOrgMember(orgs[0]), rbac.RoleOrgMember(orgs[1]), rbac.RoleMember()},
-			UserID: user,
-			Scope:  rbac.ScopeAll,
-			Groups: noiseGroups,
+			Actor: rbac.Subject{
+				// Member of 2 orgs
+				Roles:  rbac.RoleNames{rbac.RoleOrgMember(orgs[0]), rbac.RoleOrgMember(orgs[1]), rbac.RoleMember()},
+				ID:     user.String(),
+				Scope:  rbac.ScopeAll,
+				Groups: noiseGroups,
+			},
 		},
 		{
 			Name: "ManyRoles",
-			// Admin of many orgs
-			Roles: []string{
-				rbac.RoleOrgMember(orgs[0]), rbac.RoleOrgAdmin(orgs[0]),
-				rbac.RoleOrgMember(orgs[1]), rbac.RoleOrgAdmin(orgs[1]),
-				rbac.RoleOrgMember(orgs[2]), rbac.RoleOrgAdmin(orgs[2]),
-				rbac.RoleMember(),
+			Actor: rbac.Subject{
+				// Admin of many orgs
+				Roles: rbac.RoleNames{
+					rbac.RoleOrgMember(orgs[0]), rbac.RoleOrgAdmin(orgs[0]),
+					rbac.RoleOrgMember(orgs[1]), rbac.RoleOrgAdmin(orgs[1]),
+					rbac.RoleOrgMember(orgs[2]), rbac.RoleOrgAdmin(orgs[2]),
+					rbac.RoleMember(),
+				},
+				ID:     user.String(),
+				Scope:  rbac.ScopeAll,
+				Groups: noiseGroups,
 			},
-			UserID: user,
-			Scope:  rbac.ScopeAll,
-			Groups: noiseGroups,
 		},
 		{
 			Name: "AdminWithScope",
-			// Give some extra roles that an admin might have
-			Roles:  []string{rbac.RoleOrgMember(orgs[0]), "auditor", rbac.RoleOwner(), rbac.RoleMember()},
-			UserID: user,
-			Scope:  rbac.ScopeApplicationConnect,
-			Groups: noiseGroups,
+			Actor: rbac.Subject{
+				// Give some extra roles that an admin might have
+				Roles:  rbac.RoleNames{rbac.RoleOrgMember(orgs[0]), "auditor", rbac.RoleOwner(), rbac.RoleMember()},
+				ID:     user.String(),
+				Scope:  rbac.ScopeApplicationConnect,
+				Groups: noiseGroups,
+			},
 		},
 	}
 	return benchCases, users, orgs
@@ -108,7 +117,7 @@ func BenchmarkRBACAuthorize(b *testing.B) {
 			objects := benchmarkSetup(orgs, users, b.N)
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				allowed := authorizer.ByRoleName(context.Background(), c.UserID.String(), c.Roles, c.Scope, c.Groups, rbac.ActionRead, objects[b.N%len(objects)])
+				allowed := authorizer.Authorize(context.Background(), c.Actor, rbac.ActionRead, objects[b.N%len(objects)])
 				var _ = allowed
 			}
 		})
@@ -136,8 +145,8 @@ func BenchmarkRBACAuthorizeGroups(b *testing.B) {
 	for _, c := range benchCases {
 		b.Run(c.Name+"GroupACL", func(b *testing.B) {
 			userGroupAllow := uuid.NewString()
-			c.Groups = append(c.Groups, userGroupAllow)
-			c.Scope = rbac.ScopeAll
+			c.Actor.Groups = append(c.Actor.Groups, userGroupAllow)
+			c.Actor.Scope = rbac.ScopeAll
 			objects := benchmarkSetup(orgs, users, b.N, func(object rbac.Object) rbac.Object {
 				m := map[string][]rbac.Action{
 					// Add the user's group
@@ -149,7 +158,7 @@ func BenchmarkRBACAuthorizeGroups(b *testing.B) {
 					uuid.NewString(): {rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
 					uuid.NewString(): {rbac.ActionRead, rbac.ActionUpdate},
 				}
-				for _, g := range c.Groups {
+				for _, g := range c.Actor.Groups {
 					// Every group the user is in will be added, but it will not match the perms. This makes the
 					// authorizer look at many groups before finding the one that matches.
 					m[g] = []rbac.Action{rbac.ActionCreate, rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete}
@@ -160,7 +169,7 @@ func BenchmarkRBACAuthorizeGroups(b *testing.B) {
 			})
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				allowed := authorizer.ByRoleName(context.Background(), c.UserID.String(), c.Roles, c.Scope, c.Groups, neverMatchAction, objects[b.N%len(objects)])
+				allowed := authorizer.Authorize(context.Background(), c.Actor, neverMatchAction, objects[b.N%len(objects)])
 				var _ = allowed
 			}
 		})
@@ -184,7 +193,7 @@ func BenchmarkRBACFilter(b *testing.B) {
 		b.Run(c.Name, func(b *testing.B) {
 			objects := benchmarkSetup(orgs, users, b.N)
 			b.ResetTimer()
-			allowed, err := rbac.Filter(context.Background(), authorizer, c.UserID.String(), c.Roles, c.Scope, c.Groups, rbac.ActionRead, objects)
+			allowed, err := rbac.Filter(context.Background(), authorizer, c.Actor, rbac.ActionRead, objects)
 			require.NoError(b, err)
 			var _ = allowed
 		})

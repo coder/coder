@@ -135,22 +135,32 @@ const StartErrorLifecycle: React.FC<{
 const ConnectedStatus: React.FC<{
   agent: WorkspaceAgent
 }> = ({ agent }) => {
-  return (
-    <ChooseOne>
-      <Cond condition={agent.lifecycle_state === "ready"}>
-        <ReadyLifeCycle />
-      </Cond>
-      <Cond condition={agent.lifecycle_state === "start_timeout"}>
-        <StartTimeoutLifecycle agent={agent} />
-      </Cond>
-      <Cond condition={agent.lifecycle_state === "start_error"}>
-        <StartErrorLifecycle agent={agent} />
-      </Cond>
-      <Cond>
-        <StartingLifecycle />
-      </Cond>
-    </ChooseOne>
-  )
+  // NOTE(mafredri): Keep this behind feature flag for the time-being,
+  // if delay_login_until_ready is true, the user has updated to
+  // terraform-provider-coder v0.6.7 and opted in to the functionality.
+  //
+  // Remove check once documentation is in place and we do a breaking
+  // release indicating startup script behavior has changed.
+  // https://github.com/coder/coder/issues/5749
+  if (agent.delay_login_until_ready) {
+    return (
+      <ChooseOne>
+        <Cond condition={agent.lifecycle_state === "ready"}>
+          <ReadyLifeCycle />
+        </Cond>
+        <Cond condition={agent.lifecycle_state === "start_timeout"}>
+          <StartTimeoutLifecycle agent={agent} />
+        </Cond>
+        <Cond condition={agent.lifecycle_state === "start_error"}>
+          <StartErrorLifecycle agent={agent} />
+        </Cond>
+        <Cond>
+          <StartingLifecycle />
+        </Cond>
+      </ChooseOne>
+    )
+  }
+  return <ReadyLifeCycle />
 }
 
 const DisconnectedStatus: React.FC = () => {

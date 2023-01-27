@@ -77,16 +77,7 @@ export const UserOrGroupAutocomplete: React.FC<
           <AvatarData
             title={isOptionGroup ? option.name : option.username}
             subtitle={isOptionGroup ? getGroupSubtitle(option) : option.email}
-            highlightTitle
-            avatar={
-              !isOptionGroup && option.avatar_url ? (
-                <img
-                  className={styles.avatar}
-                  alt={`${option.username}'s Avatar`}
-                  src={option.avatar_url}
-                />
-              ) : null
-            }
+            src={option.avatar_url}
           />
         )
       }}
@@ -136,12 +127,6 @@ export const useStyles = makeStyles((theme) => {
         fontSize: 14,
         padding: `${theme.spacing(0, 0.5, 0, 0.5)} !important`,
       },
-    },
-
-    avatar: {
-      width: theme.spacing(4.5),
-      height: theme.spacing(4.5),
-      borderRadius: "100%",
     },
   }
 })
