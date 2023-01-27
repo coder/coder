@@ -4996,15 +4996,13 @@
         },
         "resource_type": {
           "enum": [
-            "organization",
             "template",
             "template_version",
             "user",
             "workspace",
             "workspace_build",
             "git_ssh_key",
-            "api_key",
-            "group"
+            "auditable_group"
           ],
           "allOf": [
             {
@@ -6369,7 +6367,6 @@
     "codersdk.ResourceType": {
       "type": "string",
       "enum": [
-        "organization",
         "template",
         "template_version",
         "user",
@@ -6380,7 +6377,6 @@
         "group"
       ],
       "x-enum-varnames": [
-        "ResourceTypeOrganization",
         "ResourceTypeTemplate",
         "ResourceTypeTemplateVersion",
         "ResourceTypeUser",
@@ -6989,10 +6985,6 @@
           "type": "string",
           "format": "date-time"
         },
-        "delay_login_until_ready": {
-          "description": "DelayLoginUntilReady if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).",
-          "type": "boolean"
-        },
         "directory": {
           "type": "string"
         },
@@ -7030,6 +7022,10 @@
         },
         "lifecycle_state": {
           "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
+        },
+        "login_before_ready": {
+          "description": "LoginBeforeReady if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).",
+          "type": "boolean"
         },
         "name": {
           "type": "string"

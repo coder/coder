@@ -9,8 +9,6 @@ import (
 // AuditableResources, then add it to this interface.
 type Auditable interface {
 	database.APIKey |
-		database.Organization |
-		database.OrganizationMember |
 		database.Template |
 		database.TemplateVersion |
 		database.User |

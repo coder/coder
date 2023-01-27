@@ -117,7 +117,7 @@ message Agent {
 	int32 connection_timeout_seconds = 11;
 	string troubleshooting_url = 12;
 	string motd_file = 13;
-	bool delay_login_until_ready = 14;
+	bool login_before_ready = 14;
 	int32 startup_script_timeout_seconds = 15;
 }
 

@@ -15,5 +15,5 @@ PROJECT_ROOT=$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)
 
 (
 	cd "$PROJECT_ROOT"
-	go run ./scripts/auditgen ./coderd/database "$@"
+	go run ./scripts/audittypegen ./coderd/database "$@"
 )

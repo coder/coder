@@ -4,7 +4,25 @@ import (
 	"reflect"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/codersdk"
 )
+
+// This mapping creates a relationship between an Auditable Resource
+// and the Audit Actions we track for that resource.
+// It is important to maintain this mapping when adding a new Auditable Resource to the
+// AuditableResources map (below) as our documentation - generated in scripts/auditdocgen/main.go -
+// depends upon it.
+var AuditActionMap = map[string][]codersdk.AuditAction{
+	"GitSSHKey":          {codersdk.AuditActionCreate},
+	"OrganizationMember": {},
+	"Organization":       {},
+	"Template":           {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"TemplateVersion":    {codersdk.AuditActionCreate, codersdk.AuditActionWrite},
+	"User":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"Workspace":          {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"WorkspaceBuild":     {codersdk.AuditActionStart, codersdk.AuditActionStop},
+	"AuditableGroup":     {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+}
 
 type Action string
 
@@ -32,20 +50,6 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"updated_at":  ActionIgnore, // Changes, but is implicit and not helpful in a diff.
 		"private_key": ActionSecret, // We don't want to expose private keys in diffs.
 		"public_key":  ActionTrack,  // Public keys are ok to expose in a diff.
-	},
-	&database.OrganizationMember{}: {
-		"user_id":         ActionTrack,
-		"organization_id": ActionTrack,
-		"created_at":      ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
-		"updated_at":      ActionIgnore, // Changes, but is implicit and not helpful in a diff.
-		"roles":           ActionTrack,
-	},
-	&database.Organization{}: {
-		"id":          ActionTrack,
-		"name":        ActionTrack,
-		"description": ActionTrack,
-		"created_at":  ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
-		"updated_at":  ActionIgnore, // Changes, but is implicit and not helpful in a diff.
 	},
 	&database.Template{}: {
 		"id":                               ActionTrack,

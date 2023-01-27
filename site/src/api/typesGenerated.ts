@@ -939,7 +939,7 @@ export interface WorkspaceAgent {
   readonly latency?: Record<string, DERPRegion>
   readonly connection_timeout_seconds: number
   readonly troubleshooting_url: string
-  readonly delay_login_until_ready: boolean
+  readonly login_before_ready: boolean
   readonly startup_script_timeout_seconds: number
 }
 
@@ -1201,7 +1201,6 @@ export type ResourceType =
   | "api_key"
   | "git_ssh_key"
   | "group"
-  | "organization"
   | "template"
   | "template_version"
   | "user"
@@ -1211,7 +1210,6 @@ export const ResourceTypes: ResourceType[] = [
   "api_key",
   "git_ssh_key",
   "group",
-  "organization",
   "template",
   "template_version",
   "user",

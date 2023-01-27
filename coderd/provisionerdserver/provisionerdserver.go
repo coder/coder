@@ -972,7 +972,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			ConnectionTimeoutSeconds:    prAgent.GetConnectionTimeoutSeconds(),
 			TroubleshootingURL:          prAgent.GetTroubleshootingUrl(),
 			MOTDFile:                    prAgent.GetMotdFile(),
-			DelayLoginUntilReady:        prAgent.GetDelayLoginUntilReady(),
+			LoginBeforeReady:            prAgent.GetLoginBeforeReady(),
 			StartupScriptTimeoutSeconds: prAgent.GetStartupScriptTimeoutSeconds(),
 		})
 		if err != nil {

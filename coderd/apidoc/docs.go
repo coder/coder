@@ -5648,15 +5648,13 @@ const docTemplate = `{
                 },
                 "resource_type": {
                     "enum": [
-                        "organization",
                         "template",
                         "template_version",
                         "user",
                         "workspace",
                         "workspace_build",
                         "git_ssh_key",
-                        "api_key",
-                        "group"
+                        "auditable_group"
                     ],
                     "allOf": [
                         {
@@ -7114,7 +7112,6 @@ const docTemplate = `{
         "codersdk.ResourceType": {
             "type": "string",
             "enum": [
-                "organization",
                 "template",
                 "template_version",
                 "user",
@@ -7125,7 +7122,6 @@ const docTemplate = `{
                 "group"
             ],
             "x-enum-varnames": [
-                "ResourceTypeOrganization",
                 "ResourceTypeTemplate",
                 "ResourceTypeTemplateVersion",
                 "ResourceTypeUser",
@@ -7774,10 +7770,6 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
-                "delay_login_until_ready": {
-                    "description": "DelayLoginUntilReady if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).",
-                    "type": "boolean"
-                },
                 "directory": {
                     "type": "string"
                 },
@@ -7815,6 +7807,10 @@ const docTemplate = `{
                 },
                 "lifecycle_state": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
+                },
+                "login_before_ready": {
+                    "description": "LoginBeforeReady if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).",
+                    "type": "boolean"
                 },
                 "name": {
                     "type": "string"

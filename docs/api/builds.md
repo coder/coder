@@ -76,7 +76,6 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
           "architecture": "string",
           "connection_timeout_seconds": 0,
           "created_at": "2019-08-24T14:15:22Z",
-          "delay_login_until_ready": true,
           "directory": "string",
           "disconnected_at": "2019-08-24T14:15:22Z",
           "environment_variables": {
@@ -98,6 +97,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
             }
           },
           "lifecycle_state": "created",
+          "login_before_ready": true,
           "name": "string",
           "operating_system": "string",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -221,7 +221,6 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
           "architecture": "string",
           "connection_timeout_seconds": 0,
           "created_at": "2019-08-24T14:15:22Z",
-          "delay_login_until_ready": true,
           "directory": "string",
           "disconnected_at": "2019-08-24T14:15:22Z",
           "environment_variables": {
@@ -243,6 +242,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
             }
           },
           "lifecycle_state": "created",
+          "login_before_ready": true,
           "name": "string",
           "operating_system": "string",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -509,7 +509,6 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
         "architecture": "string",
         "connection_timeout_seconds": 0,
         "created_at": "2019-08-24T14:15:22Z",
-        "delay_login_until_ready": true,
         "directory": "string",
         "disconnected_at": "2019-08-24T14:15:22Z",
         "environment_variables": {
@@ -531,6 +530,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
           }
         },
         "lifecycle_state": "created",
+        "login_before_ready": true,
         "name": "string",
         "operating_system": "string",
         "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -594,7 +594,6 @@ Status Code **200**
 | `»» architecture`                   | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» connection_timeout_seconds`     | integer                                                                          | false    |              |                                                                                                                                                                                                                                                |
 | `»» created_at`                     | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
-| `»» delay_login_until_ready`        | boolean                                                                          | false    |              | »delay login until ready if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).                                                                                                                     |
 | `»» directory`                      | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» disconnected_at`                | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» environment_variables`          | object                                                                           | false    |              |                                                                                                                                                                                                                                                |
@@ -608,6 +607,7 @@ Status Code **200**
 | `»»»» latency_ms`                   | number                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» preferred`                    | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                |
 | `»» lifecycle_state`                | [codersdk.WorkspaceAgentLifecycle](schemas.md#codersdkworkspaceagentlifecycle)   | false    |              |                                                                                                                                                                                                                                                |
+| `»» login_before_ready`             | boolean                                                                          | false    |              | »login before ready if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).                                                                                                                          |
 | `»» name`                           | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» operating_system`               | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» resource_id`                    | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
@@ -731,7 +731,6 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
           "architecture": "string",
           "connection_timeout_seconds": 0,
           "created_at": "2019-08-24T14:15:22Z",
-          "delay_login_until_ready": true,
           "directory": "string",
           "disconnected_at": "2019-08-24T14:15:22Z",
           "environment_variables": {
@@ -753,6 +752,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
             }
           },
           "lifecycle_state": "created",
+          "login_before_ready": true,
           "name": "string",
           "operating_system": "string",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -881,7 +881,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
             "architecture": "string",
             "connection_timeout_seconds": 0,
             "created_at": "2019-08-24T14:15:22Z",
-            "delay_login_until_ready": true,
             "directory": "string",
             "disconnected_at": "2019-08-24T14:15:22Z",
             "environment_variables": {
@@ -903,6 +902,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
               }
             },
             "lifecycle_state": "created",
+            "login_before_ready": true,
             "name": "string",
             "operating_system": "string",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -998,7 +998,6 @@ Status Code **200**
 | `»»» architecture`                   | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» connection_timeout_seconds`     | integer                                                                          | false    |              |                                                                                                                                                                                                                                                |
 | `»»» created_at`                     | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
-| `»»» delay_login_until_ready`        | boolean                                                                          | false    |              | »»delay login until ready if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).                                                                                                                    |
 | `»»» directory`                      | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» disconnected_at`                | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» environment_variables`          | object                                                                           | false    |              |                                                                                                                                                                                                                                                |
@@ -1012,6 +1011,7 @@ Status Code **200**
 | `»»»»» latency_ms`                   | number                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»»»» preferred`                    | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                |
 | `»»» lifecycle_state`                | [codersdk.WorkspaceAgentLifecycle](schemas.md#codersdkworkspaceagentlifecycle)   | false    |              |                                                                                                                                                                                                                                                |
+| `»»» login_before_ready`             | boolean                                                                          | false    |              | »»login before ready if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).                                                                                                                         |
 | `»»» name`                           | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» operating_system`               | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» resource_id`                    | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
@@ -1195,7 +1195,6 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
           "architecture": "string",
           "connection_timeout_seconds": 0,
           "created_at": "2019-08-24T14:15:22Z",
-          "delay_login_until_ready": true,
           "directory": "string",
           "disconnected_at": "2019-08-24T14:15:22Z",
           "environment_variables": {
@@ -1217,6 +1216,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
             }
           },
           "lifecycle_state": "created",
+          "login_before_ready": true,
           "name": "string",
           "operating_system": "string",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
