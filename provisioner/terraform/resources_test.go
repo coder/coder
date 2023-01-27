@@ -76,6 +76,7 @@ func TestConvertResources(t *testing.T) {
 					OperatingSystem:          "linux",
 					Architecture:             "amd64",
 					Auth:                     &proto.Agent_InstanceId{},
+					LoginBeforeReady:         true,
 					ConnectionTimeoutSeconds: 120,
 				}},
 			}},
