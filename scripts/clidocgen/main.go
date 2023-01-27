@@ -45,7 +45,7 @@ func main() {
 	}
 
 	// Create CLI routes
-	cliRoutes := []route{}
+	var cliRoutes []route
 	files, err := os.ReadDir(markdownDocsDir)
 	if err != nil {
 		log.Fatal("Error on loading docs/cli files: ", err)
@@ -63,13 +63,15 @@ func main() {
 
 		// Remove non printable strings from generated markdown
 		// https://github.com/spf13/cobra/issues/1878
+		const ansi = "[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))"
+		ansiRegex := regexp.MustCompile(ansi)
 		filepath := path.Join(markdownDocsDir, file.Name())
 		openFile, err := os.ReadFile(filepath)
 		if err != nil {
 			log.Fatal("Error on open file at ", filepath, ": ", err)
 		}
 		content := string(openFile)
-		content = stripANSI(content)
+		content = ansiRegex.ReplaceAllString(content, "")
 		err = os.WriteFile(filepath, []byte(content), 0644) // #nosec
 		if err != nil {
 			log.Fatal("Error on save file at ", filepath, ": ", err)
@@ -104,12 +106,4 @@ func main() {
 	if err != nil {
 		log.Fatal("Error on write update on manifest.json: ", err)
 	}
-}
-
-func stripANSI(str string) string {
-	const ansi = "[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))"
-
-	var re = regexp.MustCompile(ansi)
-
-	return re.ReplaceAllString(str, "")
 }
