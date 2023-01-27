@@ -126,7 +126,7 @@ func (api *API) gitSSHKey(rw http.ResponseWriter, r *http.Request) {
 func (api *API) agentGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	agent := httpmw.WorkspaceAgent(r)
-	resource, err := api.Database.GetWorkspaceResourceByID(agentCtx, agent.ResourceID)
+	resource, err := api.Database.GetWorkspaceResourceByID(ctx, agent.ResourceID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resource.",
@@ -135,7 +135,7 @@ func (api *API) agentGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	job, err := api.Database.GetWorkspaceBuildByJobID(agentCtx, resource.JobID)
+	job, err := api.Database.GetWorkspaceBuildByJobID(ctx, resource.JobID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace build.",
@@ -144,7 +144,7 @@ func (api *API) agentGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workspace, err := api.Database.GetWorkspaceByID(agentCtx, job.WorkspaceID)
+	workspace, err := api.Database.GetWorkspaceByID(ctx, job.WorkspaceID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace.",
@@ -153,7 +153,7 @@ func (api *API) agentGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	gitSSHKey, err := api.Database.GetGitSSHKey(agentCtx, workspace.OwnerID)
+	gitSSHKey, err := api.Database.GetGitSSHKey(ctx, workspace.OwnerID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching git SSH key.",
