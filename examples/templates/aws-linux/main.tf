@@ -109,7 +109,7 @@ locals {
   # User data is used to stop/start AWS instances. See:
   # https://github.com/hashicorp/terraform-provider-aws/issues/22
 
-  user_data_start = <<-EOT
+  user_data_start = <<EOT
 Content-Type: multipart/mixed; boundary="//"
 MIME-Version: 1.0
 
@@ -139,7 +139,7 @@ sudo -u ${local.linux_user} sh -c '${coder_agent.main.init_script}'
 --//--
 EOT
 
-  user_data_end = <<-EOT
+  user_data_end = <<EOT
 Content-Type: multipart/mixed; boundary="//"
 MIME-Version: 1.0
 

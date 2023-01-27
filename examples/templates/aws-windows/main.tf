@@ -82,7 +82,7 @@ locals {
   # User data is used to stop/start AWS instances. See:
   # https://github.com/hashicorp/terraform-provider-aws/issues/22
 
-  user_data_start = <<-EOT
+  user_data_start = <<EOT
 <powershell>
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 ${coder_agent.main.init_script}
@@ -90,7 +90,7 @@ ${coder_agent.main.init_script}
 <persist>true</persist>
 EOT
 
-  user_data_end = <<-EOT
+  user_data_end = <<EOT
 <powershell>
 shutdown /s
 </powershell>
