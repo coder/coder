@@ -654,6 +654,21 @@ export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
     validation_max: 3,
   }
 
+export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
+  {
+    name: "third_parameter",
+    type: "string",
+    description: "This is third parameter",
+    default_value: "aaa",
+    mutable: true,
+    icon: "/icons/folder.svg",
+    options: [],
+    validation_error: "No way!",
+    validation_regex: "^[a-z]{3}$",
+    validation_min: 0,
+    validation_max: 0,
+  }
+
 // requests the MockWorkspace
 export const MockWorkspaceRequest: TypesGen.CreateWorkspaceRequest = {
   name: "test",

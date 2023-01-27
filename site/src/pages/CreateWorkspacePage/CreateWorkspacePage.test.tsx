@@ -11,6 +11,7 @@ import {
   MockWorkspaceRequest,
   MockTemplateVersionParameter1,
   MockTemplateVersionParameter2,
+  MockTemplateVersionParameter3,
 } from "testHelpers/entities"
 import { renderWithAuth } from "testHelpers/renderHelpers"
 import CreateWorkspacePage from "./CreateWorkspacePage"
@@ -152,6 +153,36 @@ describe("CreateWorkspacePage", () => {
     })
 
     const validationError = screen.findByText("Value must be between")
+    expect(validationError).toBeDefined()
+  })
+
+  it("rich parameter: string validation fails", async () => {
+    jest
+      .spyOn(API, "getTemplateVersionRichParameters")
+      .mockResolvedValueOnce([
+        MockTemplateVersionParameter1,
+        MockTemplateVersionParameter3,
+      ])
+
+    await waitFor(() => renderCreateWorkspacePage())
+
+    const element = screen.findByText("Create workspace")
+    expect(element).toBeDefined()
+    const thirdParameter = screen.findByText(
+      MockTemplateVersionParameter3.description,
+    )
+    expect(thirdParameter).toBeDefined()
+
+    const thirdParameterField = await screen.findByLabelText(
+      MockTemplateVersionParameter3.name,
+    )
+    fireEvent.change(thirdParameterField, {
+      target: { value: "1234" },
+    })
+
+    const validationError = screen.findByText(
+      MockTemplateVersionParameter3.validation_error,
+    )
     expect(validationError).toBeDefined()
   })
 })
