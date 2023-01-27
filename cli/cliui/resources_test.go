@@ -26,6 +26,7 @@ func TestWorkspaceResources(t *testing.T) {
 				Agents: []codersdk.WorkspaceAgent{{
 					Name:            "dev",
 					Status:          codersdk.WorkspaceAgentConnected,
+					LifecycleState:  codersdk.WorkspaceAgentLifecycleCreated,
 					Architecture:    "amd64",
 					OperatingSystem: "linux",
 				}},
@@ -60,6 +61,7 @@ func TestWorkspaceResources(t *testing.T) {
 				Agents: []codersdk.WorkspaceAgent{{
 					CreatedAt:       database.Now().Add(-10 * time.Second),
 					Status:          codersdk.WorkspaceAgentConnecting,
+					LifecycleState:  codersdk.WorkspaceAgentLifecycleCreated,
 					Name:            "dev",
 					OperatingSystem: "linux",
 					Architecture:    "amd64",
@@ -70,12 +72,14 @@ func TestWorkspaceResources(t *testing.T) {
 				Name:       "dev",
 				Agents: []codersdk.WorkspaceAgent{{
 					Status:          codersdk.WorkspaceAgentConnected,
+					LifecycleState:  codersdk.WorkspaceAgentLifecycleReady,
 					Name:            "go",
 					Architecture:    "amd64",
 					OperatingSystem: "linux",
 				}, {
 					DisconnectedAt:  &disconnected,
 					Status:          codersdk.WorkspaceAgentDisconnected,
+					LifecycleState:  codersdk.WorkspaceAgentLifecycleReady,
 					Name:            "postgres",
 					Architecture:    "amd64",
 					OperatingSystem: "linux",
