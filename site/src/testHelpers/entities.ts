@@ -639,6 +639,21 @@ export const MockTemplateVersionParameter1: TypesGen.TemplateVersionParameter =
     validation_max: 0,
   }
 
+export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
+  {
+    name: "second_parameter",
+    type: "number",
+    description: "This is second parameter",
+    default_value: "2",
+    mutable: true,
+    icon: "/icons/folder.svg",
+    options: [],
+    validation_error: "",
+    validation_regex: "",
+    validation_min: 1,
+    validation_max: 3,
+  }
+
 // requests the MockWorkspace
 export const MockWorkspaceRequest: TypesGen.CreateWorkspaceRequest = {
   name: "test",

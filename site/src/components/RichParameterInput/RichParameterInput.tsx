@@ -11,42 +11,42 @@ const isBoolean = (parameter: TemplateVersionParameter) => {
   return parameter.type === "bool"
 }
 
-const ParameterLabel: React.FC<{ parameter: TemplateVersionParameter }> = ({
-  parameter,
-}) => {
+export interface ParameterLabelProps {
+  index: number
+  parameter: TemplateVersionParameter
+}
+
+const ParameterLabel: FC<ParameterLabelProps> = ({ index, parameter }) => {
   const styles = useStyles()
 
-  if (parameter.name && parameter.description) {
-    return (
-      <label htmlFor={parameter.name}>
-        <span className={styles.labelNameWithIcon}>
-          {parameter.icon && (
-            <span className={styles.iconWrapper}>
-              <img
-                className={styles.icon}
-                alt="Parameter icon"
-                src={parameter.icon}
-                style={{
-                  pointerEvents: "none",
-                }}
-              />
-            </span>
-          )}
-          <span className={styles.labelName}>{parameter.name}</span>
-        </span>
-        <span className={styles.labelDescription}>{parameter.description}</span>
-      </label>
-    )
-  }
-
   return (
-    <label htmlFor={parameter.name}>
-      <span className={styles.labelDescription}>{parameter.name}</span>
-    </label>
+    <span>
+      <span className={styles.labelNameWithIcon}>
+        {parameter.icon && (
+          <span className={styles.iconWrapper}>
+            <img
+              className={styles.icon}
+              alt="Parameter icon"
+              src={parameter.icon}
+              style={{
+                pointerEvents: "none",
+              }}
+            />
+          </span>
+        )}
+        <span className={styles.labelName}>
+          <label htmlFor={`rich_parameter_values[${index}].value`}>
+            {parameter.name}
+          </label>
+        </span>
+      </span>
+      <span className={styles.labelDescription}>{parameter.description}</span>
+    </span>
   )
 }
 
 export interface RichParameterInputProps {
+  index: number
   disabled?: boolean
   parameter: TemplateVersionParameter
   onChange: (value: string) => void
@@ -54,6 +54,7 @@ export interface RichParameterInputProps {
 }
 
 export const RichParameterInput: FC<RichParameterInputProps> = ({
+  index,
   disabled,
   onChange,
   parameter,
@@ -64,10 +65,11 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
 
   return (
     <Stack direction="column" spacing={0.75}>
-      <ParameterLabel parameter={parameter} />
+      <ParameterLabel index={index} parameter={parameter} />
       <div className={styles.input}>
         <RichParameterField
           {...props}
+          index={index}
           disabled={disabled}
           onChange={onChange}
           parameter={parameter}

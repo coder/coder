@@ -277,6 +277,7 @@ export const CreateWorkspacePageView: FC<
                       "rich_parameter_values[" + index + "].value",
                     )}
                     disabled={form.isSubmitting}
+                    index={index}
                     key={parameter.name}
                     onChange={(value) => {
                       form.setFieldValue("rich_parameter_values." + index, {

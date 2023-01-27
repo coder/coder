@@ -46,6 +46,7 @@ Basic.args = {
 
 export const NumberType = Template.bind({})
 NumberType.args = {
+  initialValue: "4",
   parameter: createTemplateVersionParameter({
     name: "number_parameter",
     type: "number",
@@ -55,6 +56,7 @@ NumberType.args = {
 
 export const BooleanType = Template.bind({})
 BooleanType.args = {
+  initialValue: "false",
   parameter: createTemplateVersionParameter({
     name: "bool_parameter",
     type: "bool",
@@ -64,6 +66,7 @@ BooleanType.args = {
 
 export const OptionsType = Template.bind({})
 OptionsType.args = {
+  initialValue: "first_option",
   parameter: createTemplateVersionParameter({
     name: "options_parameter",
     type: "string",

@@ -10,6 +10,7 @@ import {
   MockWorkspaceQuota,
   MockWorkspaceRequest,
   MockTemplateVersionParameter1,
+  MockTemplateVersionParameter2,
 } from "testHelpers/entities"
 import { renderWithAuth } from "testHelpers/renderHelpers"
 import CreateWorkspacePage from "./CreateWorkspacePage"
@@ -27,7 +28,7 @@ const renderCreateWorkspacePage = () => {
 }
 
 describe("CreateWorkspacePage", () => {
-  it("renders", async () => {
+  it("renders with rich parameter", async () => {
     jest
       .spyOn(API, "getTemplateVersionRichParameters")
       .mockResolvedValueOnce([MockTemplateVersionParameter1])
@@ -124,5 +125,33 @@ describe("CreateWorkspacePage", () => {
     )
 
     await screen.findByDisplayValue(paramValue)
+  })
+
+  it("renders with rich parameter", async () => {
+    jest
+      .spyOn(API, "getTemplateVersionRichParameters")
+      .mockResolvedValueOnce([
+        MockTemplateVersionParameter1,
+        MockTemplateVersionParameter2,
+      ])
+
+    await waitFor(() => renderCreateWorkspacePage())
+
+    const element = screen.findByText("Create workspace")
+    expect(element).toBeDefined()
+    const secondParameter = screen.findByText(
+      MockTemplateVersionParameter2.description,
+    )
+    expect(secondParameter).toBeDefined()
+
+    const secondParameterField = await screen.findByLabelText(
+      MockTemplateVersionParameter2.name,
+    )
+    fireEvent.change(secondParameterField, {
+      target: { value: "4" },
+    })
+
+    const validationError = screen.findByText("Value must be between")
+    expect(validationError).toBeDefined()
   })
 })
