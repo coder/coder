@@ -124,6 +124,12 @@ func updateAuditDoc(doc []byte, auditableResourcesMap AuditableResourcesMap) ([]
 		}
 		auditActionsString := strings.Join(auditActions, ", ")
 
+		// AuditableGroup is really a combination of Group and GroupMember resources
+		// but we use the label 'Group' in our docs to avoid confusion.
+		if resourceName == "AuditableGroup" {
+			resourceName = "Group"
+		}
+
 		buffer.WriteString("|" + resourceName + "<br><i>" + auditActionsString + "</i>|<table><thead><tr><th>Field</th><th>Tracked</th></tr></thead><tbody>")
 
 		// We must sort the field names to ensure sub-table ordering
