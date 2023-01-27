@@ -147,6 +147,9 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 	if params.Time.IsZero() {
 		params.Time = time.Now()
 	}
+	if params.AdditionalFields == nil {
+		params.AdditionalFields = json.RawMessage("{}")
+	}
 
 	_, err = api.Database.InsertAuditLog(ctx, database.InsertAuditLogParams{
 		ID:               uuid.New(),
@@ -160,7 +163,7 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 		Action:           database.AuditAction(params.Action),
 		Diff:             diff,
 		StatusCode:       http.StatusOK,
-		AdditionalFields: []byte("{}"),
+		AdditionalFields: params.AdditionalFields,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)

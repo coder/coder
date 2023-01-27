@@ -40,7 +40,7 @@ func TestAuditLogs(t *testing.T) {
 		require.Len(t, alogs.AuditLogs, 1)
 	})
 
-	t.Run("AuditLinks", func(t *testing.T) {
+	t.Run("WorkspaceBuildAuditLink", func(t *testing.T) {
 		t.Parallel()
 
 		var (
@@ -67,7 +67,7 @@ func TestAuditLogs(t *testing.T) {
 		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
 			Action:           codersdk.AuditActionStop,
 			ResourceType:     codersdk.ResourceTypeWorkspaceBuild,
-			ResourceID:       user.UserID,
+			ResourceID:       workspace.LatestBuild.ID,
 			AdditionalFields: wriBytes,
 		})
 		require.NoError(t, err)
@@ -78,12 +78,9 @@ func TestAuditLogs(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-
-		require.Equal(t, int64(1), auditLogs.Count)
-		require.Len(t, auditLogs.AuditLogs, 1)
-
-		// I want to call this
-		auditLogResourceLink()
+		buildNumberString := strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10)
+		require.Equal(t, auditLogs.AuditLogs[0].ResourceLink, fmt.Sprintf("/@%s/%s/builds/%s",
+			workspace.OwnerName, workspace.Name, buildNumberString))
 	})
 }
 

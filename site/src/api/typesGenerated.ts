@@ -208,6 +208,7 @@ export interface CreateTestAuditLogRequest {
   readonly action?: AuditAction
   readonly resource_type?: ResourceType
   readonly resource_id?: string
+  readonly additional_fields?: Record<string, string>
   readonly time?: string
   readonly build_reason?: BuildReason
 }
