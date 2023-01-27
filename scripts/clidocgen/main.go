@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"os/user"
 	"path"
 	"regexp"
 	"strings"
@@ -29,14 +30,26 @@ type manifest struct {
 }
 
 func main() {
-	// Set default configs for the docs
-	err := os.Setenv("CODER_CONFIG_DIR", "~/.config/coderv2")
-	if err != nil {
-		log.Fatal("Unable to set default value for CODER_CONFIG_DIR: ", err)
+	for _, env := range os.Environ() {
+		if strings.HasPrefix(env, "CODER_") {
+			split := strings.SplitN(env, "=", 2)
+			if err := os.Unsetenv(split[0]); err != nil {
+				log.Fatal("Unable to unset ", split[0], ": ", err)
+			}
+		}
 	}
-	err = os.Setenv("CODER_CACHE_DIRECTORY", "~/.cache/coder")
+	for k, v := range map[string]string{
+		"CODER_CONFIG_DIR":      "~/.config/coderv2",
+		"CODER_CACHE_DIRECTORY": "~/.cache/coder",
+	} {
+		if err := os.Setenv(k, v); err != nil {
+			log.Fatal("Unable to set default value for ", k, ": ", err)
+		}
+	}
+
+	u, err := user.Current()
 	if err != nil {
-		log.Fatal("Unable to set default value for CODER_CACHE_DIRECTORY: ", err)
+		log.Fatal("Error on getting the current user: ", err)
 	}
 
 	// Get the cmd CLI
@@ -97,7 +110,10 @@ func main() {
 		}
 		content = strings.ReplaceAll(content, dir, "<current-directory>")
 
-		err = os.WriteFile(filepath, []byte(content), 0644) // #nosec
+		// Remove all absolute home paths.
+		content = strings.ReplaceAll(content, u.HomeDir, "~")
+
+		err = os.WriteFile(filepath, []byte(content), 0o644) // #nosec
 		if err != nil {
 			log.Fatal("Error on save file at ", filepath, ": ", err)
 		}
@@ -127,7 +143,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Error on marshal manifest.json: ", err)
 	}
-	err = os.WriteFile(manifestFilepath, manifestFile, 0644) // #nosec
+	err = os.WriteFile(manifestFilepath, manifestFile, 0o644) // #nosec
 	if err != nil {
 		log.Fatal("Error on write update on manifest.json: ", err)
 	}
