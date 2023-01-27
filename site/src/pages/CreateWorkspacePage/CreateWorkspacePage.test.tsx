@@ -99,4 +99,30 @@ describe("CreateWorkspacePage", () => {
 
     await screen.findByDisplayValue(paramValue)
   })
+
+  it("uses default rich param values passed from the URL", async () => {
+    const param = "first_parameter"
+    const paramValue = "It works!"
+    jest.spyOn(API, "getTemplateVersionSchema").mockResolvedValueOnce([
+      mockParameterSchema({
+        name: param,
+        default_source_value: "",
+      }),
+    ])
+    jest
+      .spyOn(API, "getTemplateVersionRichParameters")
+      .mockResolvedValueOnce([MockTemplateVersionParameter1])
+
+    await waitFor(() =>
+      renderWithAuth(<CreateWorkspacePage />, {
+        route:
+          "/templates/" +
+          MockTemplate.name +
+          `/workspace?param.${param}=${paramValue}`,
+        path: "/templates/:template/workspace",
+      }),
+    )
+
+    await screen.findByDisplayValue(paramValue)
+  })
 })
