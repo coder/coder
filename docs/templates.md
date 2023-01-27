@@ -385,7 +385,7 @@ has failed on the resource.
 
 ```console
 $ coder ssh myworkspace
-⢄⡱ Waiting for [agent] to connect...
+⢄⡱ Waiting for connection from [agent]...
 ```
 
 While troubleshooting steps vary by resource, here are some general best
@@ -399,22 +399,23 @@ practices:
   - The Coder agent startup script logs are typically stored in
     `/tmp/coder-startup-script.log`
 
-### Agent startup issues
+### Agent does not become ready
 
-If the agent does not start, it means the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script) is still running or has exited with a non-zero status. This also means the [delay login until ready](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#delay_login_until_ready) option is enabled.
+If the agent does not become ready, it means the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script) is still running or has exited with a non-zero status. This also means the [login before ready](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#login_before_ready) option hasn't been set to true.
 
 ```console
 $ coder ssh myworkspace
-⢄⡱ Waiting for [agent] to finish starting up...
+⢄⡱ Waiting for [agent] to become ready...
 ```
 
-To troubleshoot startup issues, check the agent logs as suggested above. For startup issues you can connect to the workspace using SSH with the `--no-wait` flag. Please note that while this makes login possible, the workspace may be in an incomplete state.
+To troubleshoot readiness issues, check the agent logs as suggested above. You can connect to the workspace using `coder ssh` with the `--no-wait` flag. Please note that while this makes login possible, the workspace may be in an incomplete state.
 
 ```console
 $ coder ssh myworkspace --no-wait
 
- > The workspace agent is taking longer than expected to
-   start. See troubleshooting instructions at: [...]
+ > The workspace is taking longer than expected to get
+   ready, the agent startup script is still executing.
+   See troubleshooting instructions at: [...]
 
 user@myworkspace $
 ```
@@ -424,7 +425,7 @@ If the startup script is expected to take a long time, you can try raising the t
 ```tf
 resource "coder_agent" "main" {
   # ...
-  delay_login_until_ready = true
+  login_before_ready = false
   startup_script_timeout  = 1800 # 30 minutes in seconds.
 }
 ```
