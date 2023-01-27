@@ -176,7 +176,7 @@ func waitingMessage(agent codersdk.WorkspaceAgent, opts AgentOptions) (m *messag
 		Prompt: "Don't panic, your workspace is booting up!",
 	}
 	defer func() {
-		if opts.NoWait {
+		if agent.Status == codersdk.WorkspaceAgentConnected && opts.NoWait {
 			m.Spin = ""
 		}
 		if m.Spin != "" {
