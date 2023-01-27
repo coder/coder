@@ -10,8 +10,9 @@ import (
 
 	"github.com/coder/coder/testutil"
 
-	"github.com/coder/coder/coderd/database"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/coderd/database"
 
 	"github.com/google/uuid"
 

@@ -52,7 +52,7 @@ func (q *AuthzQuerier) InsertParameterValue(ctx context.Context, arg database.In
 		return database.ParameterValue{}, err
 	}
 
-	return q.InsertParameterValue(ctx, arg)
+	return q.database.InsertParameterValue(ctx, arg)
 }
 
 func (q *AuthzQuerier) ParameterValue(ctx context.Context, id uuid.UUID) (database.ParameterValue, error) {

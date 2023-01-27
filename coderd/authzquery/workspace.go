@@ -221,7 +221,7 @@ func (q *AuthzQuerier) GetWorkspaceOwnerCountsByTemplateIDs(ctx context.Context,
 		allowed = append(allowed, tpl.ID)
 	}
 
-	return q.GetWorkspaceOwnerCountsByTemplateIDs(ctx, allowed)
+	return q.database.GetWorkspaceOwnerCountsByTemplateIDs(ctx, allowed)
 }
 
 func (q *AuthzQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID) (database.WorkspaceResource, error) {

@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/rbac"
 )
 
 func (q *AuthzQuerier) GetProvisionerDaemons(ctx context.Context) ([]database.ProvisionerDaemon, error) {
@@ -33,6 +34,8 @@ func (q *AuthzQuerier) GetProvisionerLogsByIDBetween(ctx context.Context, arg da
 }
 
 func (q *AuthzQuerier) GetDeploymentDAUs(ctx context.Context) ([]database.GetDeploymentDAUsRow, error) {
-	//TODO implement me
-	panic("implement me")
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUser.All()); err != nil {
+		return nil, err
+	}
+	return q.database.GetDeploymentDAUs(ctx)
 }
