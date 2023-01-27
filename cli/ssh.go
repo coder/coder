@@ -46,6 +46,7 @@ func ssh() *cobra.Command {
 		forwardGPG     bool
 		identityAgent  string
 		wsPollInterval time.Duration
+		noWait         bool
 	)
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
@@ -90,8 +91,15 @@ func ssh() *cobra.Command {
 				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
 					return client.WorkspaceAgent(ctx, workspaceAgent.ID)
 				},
+				NoWait: noWait,
 			})
 			if err != nil {
+				if xerrors.Is(err, context.Canceled) {
+					return cliui.Canceled
+				}
+				if xerrors.Is(err, cliui.AgentStartError) {
+					return xerrors.New("Agent startup script exited with non-zero status, use --no-wait to login anyway.")
+				}
 				return xerrors.Errorf("await agent: %w", err)
 			}
 
@@ -242,6 +250,7 @@ func ssh() *cobra.Command {
 	cliflag.BoolVarP(cmd.Flags(), &forwardGPG, "forward-gpg", "G", "CODER_SSH_FORWARD_GPG", false, "Specifies whether to forward the GPG agent. Unsupported on Windows workspaces, but supports all clients. Requires gnupg (gpg, gpgconf) on both the client and workspace. The GPG agent must already be running locally and will not be started for you. If a GPG agent is already running in the workspace, it will be attempted to be killed.")
 	cliflag.StringVarP(cmd.Flags(), &identityAgent, "identity-agent", "", "CODER_SSH_IDENTITY_AGENT", "", "Specifies which identity agent to use (overrides $SSH_AUTH_SOCK), forward agent must also be enabled")
 	cliflag.DurationVarP(cmd.Flags(), &wsPollInterval, "workspace-poll-interval", "", "CODER_WORKSPACE_POLL_INTERVAL", workspacePollInterval, "Specifies how often to poll for workspace automated shutdown.")
+	cliflag.BoolVarP(cmd.Flags(), &noWait, "no-wait", "", "CODER_SSH_NO_WAIT", false, "Specifies whether to wait for a workspace to become ready before logging in (only applicable when the login before ready option has not been enabled). Note that the workspace agent may still be in the process of executing the startup script and the workspace may be in an incomplete state.")
 	return cmd
 }
 

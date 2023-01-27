@@ -28,6 +28,7 @@ import (
 
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/clitest"
+	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
@@ -136,7 +137,7 @@ func TestSSH(t *testing.T) {
 
 		cmdDone := tGo(t, func() {
 			err := cmd.ExecuteContext(ctx)
-			assert.ErrorIs(t, err, context.Canceled)
+			assert.ErrorIs(t, err, cliui.Canceled)
 		})
 		pty.ExpectMatch(wantURL)
 		cancel()

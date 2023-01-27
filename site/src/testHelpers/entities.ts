@@ -309,7 +309,7 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   connection_timeout_seconds: 120,
   troubleshooting_url: "https://coder.com/troubleshoot",
   lifecycle_state: "starting",
-  delay_login_until_ready: true,
+  login_before_ready: false,
   startup_script_timeout_seconds: 120,
 }
 
