@@ -16,6 +16,8 @@ coder ssh <workspace> [flags]
   -h, --help                               help for ssh
       --identity-agent string              Specifies which identity agent to use (overrides $SSH_AUTH_SOCK), forward agent must also be enabled.
                                            Consumes $CODER_SSH_IDENTITY_AGENT
+      --no-wait                            Specifies whether to wait for a workspace to become ready before logging in (only applicable when the delay login until ready option is enabled). Note that the workspace agent may still be in the process of executing the startup script and the workspace may be in an incomplete state.
+                                           Consumes $CODER_SSH_NO_WAIT
       --stdio                              Specifies whether to emit SSH output over stdin/stdout.
                                            Consumes $CODER_SSH_STDIO
       --workspace-poll-interval duration   Specifies how often to poll for workspace automated shutdown.
