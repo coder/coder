@@ -10,7 +10,7 @@ coder templates create [name] [flags]
 
 ```
       --default-ttl duration          Specify a default TTL for workspaces created from this template. (default 24h0m0s)
-  -d, --directory string              Specify the directory to create from, use '-' to read tar from stdin (default "/home/coder/coder")
+  -d, --directory string              Specify the directory to create from, use '-' to read tar from stdin (default "<current-directory>")
   -h, --help                          help for create
       --parameter-file string         Specify a file path with parameter values.
       --provisioner-tag stringArray   Specify a set of tags to target provisioner daemons.

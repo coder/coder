@@ -10,7 +10,7 @@ coder templates push [template] [flags]
 
 ```
       --always-prompt                 Always prompt all parameters. Does not pull parameter values from active template version
-  -d, --directory string              Specify the directory to create from, use '-' to read tar from stdin (default "/home/coder/coder")
+  -d, --directory string              Specify the directory to create from, use '-' to read tar from stdin (default "<current-directory>")
   -h, --help                          help for push
       --name string                   Specify a name for the new template version. It will be automatically generated if not provided.
       --parameter-file string         Specify a file path with parameter values.

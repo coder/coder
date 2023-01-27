@@ -34,6 +34,10 @@ func main() {
 	if err != nil {
 		log.Fatal("Unable to set default value for CODER_CONFIG_DIR: ", err)
 	}
+	err = os.Setenv("CODER_CACHE_DIRECTORY", "~/.cache/coder")
+	if err != nil {
+		log.Fatal("Unable to set default value for CODER_CACHE_DIRECTORY: ", err)
+	}
 
 	// Get the cmd CLI
 	cmd := cli.Root(cli.AGPL())
@@ -85,6 +89,13 @@ func main() {
 		// Remove the version and its right space, since during this script running
 		// there is no build info available
 		content = strings.ReplaceAll(content, buildinfo.Version()+" ", "")
+
+		// Remove references to the current working directory
+		dir, err := os.Getwd()
+		if err != nil {
+			log.Fatal("Error on getting the current directory:", err)
+		}
+		content = strings.ReplaceAll(content, dir, "<current-directory>")
 
 		err = os.WriteFile(filepath, []byte(content), 0644) // #nosec
 		if err != nil {
