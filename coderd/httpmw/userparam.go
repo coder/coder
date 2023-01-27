@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/coderd/authzquery"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -36,17 +37,16 @@ func UserParam(r *http.Request) database.User {
 
 // ExtractUserParam extracts a user from an ID/username in the {user} URL
 // parameter.
-// NOTE: Requires the UserAuthorization middleware.
 //
 //nolint:revive
 func ExtractUserParam(db database.Store, redirectToLoginOnMe bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			var (
-				auth = UserAuthorization(r)
-				ctx  = authzquery.WithAuthorizeContext(r.Context(), auth.Actor)
-				user database.User
-				err  error
+				ctx       = r.Context()
+				systemCtx = authzquery.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
+				user      database.User
+				err       error
 			)
 
 			// userQuery is either a uuid, a username, or 'me'
@@ -71,7 +71,7 @@ func ExtractUserParam(db database.Store, redirectToLoginOnMe bool) func(http.Han
 					})
 					return
 				}
-				user, err = db.GetUserByID(ctx, apiKey.UserID)
+				user, err = db.GetUserByID(systemCtx, apiKey.UserID)
 				if xerrors.Is(err, sql.ErrNoRows) {
 					httpapi.ResourceNotFound(rw)
 					return
@@ -85,7 +85,7 @@ func ExtractUserParam(db database.Store, redirectToLoginOnMe bool) func(http.Han
 				}
 			} else if userID, err := uuid.Parse(userQuery); err == nil {
 				// If the userQuery is a valid uuid
-				user, err = db.GetUserByID(ctx, userID)
+				user, err = db.GetUserByID(systemCtx, userID)
 				if err != nil {
 					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 						Message: userErrorMessage,
@@ -94,7 +94,7 @@ func ExtractUserParam(db database.Store, redirectToLoginOnMe bool) func(http.Han
 				}
 			} else {
 				// Try as a username last
-				user, err = db.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
+				user, err = db.GetUserByEmailOrUsername(systemCtx, database.GetUserByEmailOrUsernameParams{
 					Username: userQuery,
 				})
 				if err != nil {
