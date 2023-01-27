@@ -14,7 +14,6 @@ import (
 type ResourceType string
 
 const (
-	ResourceTypeOrganization    ResourceType = "organization"
 	ResourceTypeTemplate        ResourceType = "template"
 	ResourceTypeTemplateVersion ResourceType = "template_version"
 	ResourceTypeUser            ResourceType = "user"
@@ -27,8 +26,6 @@ const (
 
 func (r ResourceType) FriendlyString() string {
 	switch r {
-	case ResourceTypeOrganization:
-		return "organization"
 	case ResourceTypeTemplate:
 		return "template"
 	case ResourceTypeTemplateVersion:
@@ -122,7 +119,7 @@ type AuditLogResponse struct {
 
 type CreateTestAuditLogRequest struct {
 	Action       AuditAction  `json:"action,omitempty" enums:"create,write,delete,start,stop"`
-	ResourceType ResourceType `json:"resource_type,omitempty" enums:"organization,template,template_version,user,workspace,workspace_build,git_ssh_key,api_key,group"`
+	ResourceType ResourceType `json:"resource_type,omitempty" enums:"template,template_version,user,workspace,workspace_build,git_ssh_key,auditable_group"`
 	ResourceID   uuid.UUID    `json:"resource_id,omitempty" format:"uuid"`
 	Time         time.Time    `json:"time,omitempty" format:"date-time"`
 	BuildReason  BuildReason  `json:"build_reason,omitempty" enums:"autostart,autostop,initiator"`
