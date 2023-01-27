@@ -492,7 +492,7 @@ docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/me
 	cd site
 	yarn run format:write:only ../docs/admin/prometheus.md
 
-docs/cli/coder.md: scripts/clidocgen/main.go
+docs/cli/coder.md: scripts/clidocgen/main.go $(shell find ./cli/ -type f)
 	BASE_PATH="." go run scripts/clidocgen/main.go
 	cd site
 	yarn run format:write:only ../docs/cli/**.md
