@@ -15,9 +15,9 @@
             "arch": "amd64",
             "auth": "token",
             "connection_timeout": 120,
-            "delay_login_until_ready": false,
             "dir": null,
             "env": null,
+            "login_before_ready": true,
             "motd_file": null,
             "os": "linux",
             "shutdown_script": null,
@@ -38,9 +38,9 @@
             "arch": "amd64",
             "auth": "token",
             "connection_timeout": 1,
-            "delay_login_until_ready": false,
             "dir": null,
             "env": null,
+            "login_before_ready": true,
             "motd_file": "/etc/motd",
             "os": "darwin",
             "shutdown_script": null,
@@ -61,9 +61,9 @@
             "arch": "arm64",
             "auth": "token",
             "connection_timeout": 120,
-            "delay_login_until_ready": true,
             "dir": null,
             "env": null,
+            "login_before_ready": false,
             "motd_file": null,
             "os": "windows",
             "shutdown_script": null,
@@ -104,9 +104,9 @@
           "arch": "amd64",
           "auth": "token",
           "connection_timeout": 120,
-          "delay_login_until_ready": false,
           "dir": null,
           "env": null,
+          "login_before_ready": true,
           "motd_file": null,
           "os": "linux",
           "shutdown_script": null,
@@ -140,9 +140,9 @@
           "arch": "amd64",
           "auth": "token",
           "connection_timeout": 1,
-          "delay_login_until_ready": false,
           "dir": null,
           "env": null,
+          "login_before_ready": true,
           "motd_file": "/etc/motd",
           "os": "darwin",
           "shutdown_script": null,
@@ -176,9 +176,9 @@
           "arch": "arm64",
           "auth": "token",
           "connection_timeout": 120,
-          "delay_login_until_ready": true,
           "dir": null,
           "env": null,
+          "login_before_ready": false,
           "motd_file": null,
           "os": "windows",
           "shutdown_script": null,
@@ -224,7 +224,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.6.7"
+        "version_constraint": "0.6.10"
       },
       "null": {
         "name": "null",
@@ -262,8 +262,8 @@
             "connection_timeout": {
               "constant_value": 1
             },
-            "delay_login_until_ready": {
-              "constant_value": false
+            "login_before_ready": {
+              "constant_value": true
             },
             "motd_file": {
               "constant_value": "/etc/motd"
@@ -287,8 +287,8 @@
             "arch": {
               "constant_value": "arm64"
             },
-            "delay_login_until_ready": {
-              "constant_value": true
+            "login_before_ready": {
+              "constant_value": false
             },
             "os": {
               "constant_value": "windows"

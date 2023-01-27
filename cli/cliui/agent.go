@@ -45,7 +45,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 	// We don't take the fast path for opts.NoWait yet because we want to
 	// show the message.
 	if agent.Status == codersdk.WorkspaceAgentConnected &&
-		(!agent.DelayLoginUntilReady || agent.LifecycleState == codersdk.WorkspaceAgentLifecycleReady) {
+		(agent.LoginBeforeReady || agent.LifecycleState == codersdk.WorkspaceAgentLifecycleReady) {
 		return nil
 	}
 
@@ -93,7 +93,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 	// we do this just before starting the spinner to avoid needless
 	// spinning.
 	if agent.Status == codersdk.WorkspaceAgentConnected &&
-		agent.DelayLoginUntilReady && opts.NoWait {
+		!agent.LoginBeforeReady && opts.NoWait {
 		showMessage()
 		return nil
 	}
@@ -137,7 +137,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 			// NOTE(mafredri): Once we have access to the workspace agent's
 			// startup script logs, we can show them here.
 			// https://github.com/coder/coder/issues/2957
-			if agent.DelayLoginUntilReady && !opts.NoWait {
+			if !agent.LoginBeforeReady && !opts.NoWait {
 				switch agent.LifecycleState {
 				case codersdk.WorkspaceAgentLifecycleReady:
 					return nil
