@@ -52,7 +52,7 @@ export const CreateWorkspacePageView: FC<
   const [parameterValues, setParameterValues] = useState<
     Record<string, string>
   >(props.defaultParameterValues ?? {})
-  const defaultRichParameterValues = extractRichParametersValues(
+  const initialRichParameterValues = selectInitialRichParametersValues(
     props.templateParameters,
     props.defaultParameterValues,
   )
@@ -64,7 +64,7 @@ export const CreateWorkspacePageView: FC<
       initialValues: {
         name: "",
         template_id: props.selectedTemplate ? props.selectedTemplate.id : "",
-        rich_parameter_values: defaultRichParameterValues,
+        rich_parameter_values: initialRichParameterValues,
       },
       validationSchema: ValidationSchemaForRichParameters(
         props.templateParameters,
@@ -285,8 +285,8 @@ export const CreateWorkspacePageView: FC<
                       })
                     }}
                     parameter={parameter}
-                    defaultValue={initialRichParameterValue(
-                      defaultRichParameterValues,
+                    initialValue={workspaceBuildParameterValue(
+                      initialRichParameterValues,
                       parameter,
                     )}
                   />
@@ -378,7 +378,7 @@ const useFormFooterStyles = makeStyles((theme) => ({
   },
 }))
 
-const extractRichParametersValues = (
+const selectInitialRichParametersValues = (
   templateParameters?: TypesGen.TemplateVersionParameter[],
   defaultValuesFromQuery?: Record<string, string>,
 ): TypesGen.WorkspaceBuildParameter[] => {
@@ -416,7 +416,7 @@ const extractRichParametersValues = (
   return defaults
 }
 
-const initialRichParameterValue = (
+const workspaceBuildParameterValue = (
   workspaceBuildParameters: TypesGen.WorkspaceBuildParameter[],
   parameter: TypesGen.TemplateVersionParameter,
 ): string => {
