@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.6.9"
+      version = "0.6.10"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -28,9 +28,9 @@ resource "coder_agent" "main" {
   arch = data.coder_provisioner.me.arch
   os   = "linux"
 
-  delay_login_until_ready = true
-  startup_script_timeout  = 180
-  startup_script          = <<-EOT
+  login_before_ready     = false
+  startup_script_timeout = 180
+  startup_script         = <<-EOT
     set -e
 
     # install and start code-server

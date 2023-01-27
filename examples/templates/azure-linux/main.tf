@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.6.9"
+      version = "0.6.10"
     }
     azurerm = {
       source  = "hashicorp/azurerm"
@@ -84,7 +84,7 @@ resource "coder_agent" "main" {
   os   = "linux"
   auth = "azure-instance-identity"
 
-  delay_login_until_ready = true
+  login_before_ready = false
 }
 
 locals {

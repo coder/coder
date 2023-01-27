@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.6.9"
+      version = "0.6.10"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
@@ -52,9 +52,9 @@ resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"
 
-  delay_login_until_ready = true
-  startup_script_timeout  = 180
-  startup_script          = <<-EOT
+  login_before_ready     = false
+  startup_script_timeout = 180
+  startup_script         = <<-EOT
     set -e
 
     # home folder can be empty, so copying default bash settings

@@ -6,7 +6,7 @@ terraform {
     }
     coder = {
       source  = "coder/coder"
-      version = "0.6.9"
+      version = "0.6.10"
     }
   }
 }
@@ -97,9 +97,9 @@ resource "coder_agent" "coder" {
   os   = "linux"
   dir  = "/home/coder"
 
-  delay_login_until_ready = true
-  startup_script_timeout  = 180
-  startup_script          = <<-EOT
+  login_before_ready     = false
+  startup_script_timeout = 180
+  startup_script         = <<-EOT
     set -e
 
     # install and start code-server
