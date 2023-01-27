@@ -123,6 +123,12 @@ func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph strin
 		}
 		agentNames[tfResource.Name] = struct{}{}
 
+		// Handling for provider pre-v0.6.10.
+		loginBeforeReady := true
+		if _, ok := tfResource.AttributeValues["login_before_ready"]; ok {
+			loginBeforeReady = attrs.LoginBeforeReady
+		}
+
 		agent := &proto.Agent{
 			Name:                        tfResource.Name,
 			Id:                          attrs.ID,
@@ -134,7 +140,7 @@ func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph strin
 			ConnectionTimeoutSeconds:    attrs.ConnectionTimeoutSeconds,
 			TroubleshootingUrl:          attrs.TroubleshootingURL,
 			MotdFile:                    attrs.MOTDFile,
-			LoginBeforeReady:            attrs.LoginBeforeReady,
+			LoginBeforeReady:            loginBeforeReady,
 			StartupScriptTimeoutSeconds: attrs.StartupScriptTimeoutSeconds,
 		}
 		switch attrs.Auth {
