@@ -134,7 +134,7 @@ func TestAgent_StartupTimeout(t *testing.T) {
 					return agent, nil
 				},
 				FetchInterval: time.Millisecond,
-				WarnInterval:  time.Second,
+				WarnInterval:  time.Millisecond,
 				NoWait:        false,
 			})
 			return err
@@ -152,7 +152,7 @@ func TestAgent_StartupTimeout(t *testing.T) {
 	ptty.ExpectMatchContext(ctx, "Don't panic, your workspace is booting")
 	setStatus(codersdk.WorkspaceAgentConnected)
 	setState(codersdk.WorkspaceAgentLifecycleStarting)
-	ptty.ExpectMatchContext(ctx, "Don't panic, your workspace is starting")
+	ptty.ExpectMatchContext(ctx, "workspace is getting ready")
 	setState(codersdk.WorkspaceAgentLifecycleStartTimeout)
 	ptty.ExpectMatchContext(ctx, "is taking longer")
 	ptty.ExpectMatchContext(ctx, wantURL)
@@ -192,7 +192,7 @@ func TestAgent_StartErrorExit(t *testing.T) {
 					return agent, nil
 				},
 				FetchInterval: time.Millisecond,
-				WarnInterval:  time.Second,
+				WarnInterval:  60 * time.Second,
 				NoWait:        false,
 			})
 			return err
@@ -208,10 +208,11 @@ func TestAgent_StartErrorExit(t *testing.T) {
 	}()
 	setStatus(codersdk.WorkspaceAgentConnected)
 	setState(codersdk.WorkspaceAgentLifecycleStarting)
-	ptty.ExpectMatchContext(ctx, "Don't panic, your workspace is starting")
+	ptty.ExpectMatchContext(ctx, "to become ready...")
 	setState(codersdk.WorkspaceAgentLifecycleStartError)
 	ptty.ExpectMatchContext(ctx, "ran into a problem")
-	require.Error(t, <-done, "lifecycle start_error should exit with error")
+	err := <-done
+	require.ErrorIs(t, err, cliui.AgentStartError, "lifecycle start_error should exit with error")
 }
 
 func TestAgent_NoWait(t *testing.T) {

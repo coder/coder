@@ -94,6 +94,9 @@ func ssh() *cobra.Command {
 				NoWait: noWait,
 			})
 			if err != nil {
+				if xerrors.Is(err, context.Canceled) {
+					return cliui.Canceled
+				}
 				if xerrors.Is(err, cliui.AgentStartError) {
 					return xerrors.New("Agent startup script exited with non-zero status, use --no-wait to login anyway.")
 				}

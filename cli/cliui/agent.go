@@ -49,37 +49,20 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 		return nil
 	}
 
+	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
+	defer cancel()
+
 	spin := spinner.New(spinner.CharSets[78], 100*time.Millisecond, spinner.WithColor("fgHiGreen"))
 	spin.Writer = writer
 	spin.ForceOutput = true
-	spin.Suffix = waitingMessage(agent).Spin
-
-	ctx, cancelFunc := context.WithCancel(ctx)
-	defer cancelFunc()
-	stopSpin := make(chan os.Signal, 1)
-	signal.Notify(stopSpin, os.Interrupt)
-	defer signal.Stop(stopSpin)
-	go func() {
-		select {
-		case <-ctx.Done():
-			return
-		case <-stopSpin:
-		}
-		cancelFunc()
-		signal.Stop(stopSpin)
-		spin.Stop()
-		// nolint:revive
-		os.Exit(1)
-	}()
+	spin.Suffix = waitingMessage(agent, opts).Spin
 
 	waitMessage := &message{}
-	messageAfter := time.NewTimer(opts.WarnInterval)
-	defer messageAfter.Stop()
-	showMessage := func() {
+	showMessage := func(keepSpinning bool) {
 		resourceMutex.Lock()
 		defer resourceMutex.Unlock()
 
-		m := waitingMessage(agent)
+		m := waitingMessage(agent, opts)
 		if m.Prompt == waitMessage.Prompt {
 			return
 		}
@@ -100,7 +83,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 		case <-ctx.Done():
 		default:
 			// Safe to resume operation.
-			if spin.Suffix != "" {
+			if keepSpinning && spin.Suffix != "" {
 				spin.Start()
 			}
 		}
@@ -111,23 +94,26 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 	// spinning.
 	if agent.Status == codersdk.WorkspaceAgentConnected &&
 		agent.DelayLoginUntilReady && opts.NoWait {
-		showMessage()
+		showMessage(false)
 		return nil
 	}
 
 	// Start spinning after fast paths are handled.
-	spin.Start()
+	if spin.Suffix != "" {
+		spin.Start()
+	}
 	defer spin.Stop()
 
-	messageAfterDone := make(chan struct{})
+	warnAfter := time.NewTimer(opts.WarnInterval)
+	defer warnAfter.Stop()
+	warningShown := make(chan struct{})
 	go func() {
 		select {
 		case <-ctx.Done():
-			close(messageAfterDone)
-		case <-messageAfter.C:
-			messageAfter.Stop()
-			close(messageAfterDone)
-			showMessage()
+			close(warningShown)
+		case <-warnAfter.C:
+			close(warningShown)
+			showMessage(true)
 		}
 	}()
 
@@ -153,27 +139,27 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 			// https://github.com/coder/coder/issues/2957
 			if agent.DelayLoginUntilReady && !opts.NoWait {
 				switch agent.LifecycleState {
-				case codersdk.WorkspaceAgentLifecycleCreated, codersdk.WorkspaceAgentLifecycleStarting:
+				case codersdk.WorkspaceAgentLifecycleReady:
+					return nil
+				case codersdk.WorkspaceAgentLifecycleStartTimeout:
+					showMessage(false)
+				case codersdk.WorkspaceAgentLifecycleStartError:
+					showMessage(false)
+					return AgentStartError
+				default:
 					select {
-					case <-messageAfterDone:
-						showMessage()
+					case <-warningShown:
+						showMessage(true)
 					default:
 						// This state is normal, we don't want
 						// to show a message prematurely.
 					}
-				case codersdk.WorkspaceAgentLifecycleReady:
-					return nil
-				case codersdk.WorkspaceAgentLifecycleStartError:
-					showMessage()
-					return AgentStartError
-				default:
-					showMessage()
 				}
 				continue
 			}
 			return nil
 		case codersdk.WorkspaceAgentTimeout, codersdk.WorkspaceAgentDisconnected:
-			showMessage()
+			showMessage(true)
 		}
 	}
 }
@@ -184,12 +170,19 @@ type message struct {
 	Troubleshoot bool
 }
 
-func waitingMessage(agent codersdk.WorkspaceAgent) (m *message) {
+func waitingMessage(agent codersdk.WorkspaceAgent, opts AgentOptions) (m *message) {
 	m = &message{
+		Spin:   fmt.Sprintf("Waiting for connection from %s...", Styles.Field.Render(agent.Name)),
 		Prompt: "Don't panic, your workspace is booting up!",
-		Spin:   fmt.Sprintf(" Waiting for connection from %s...", Styles.Field.Render(agent.Name)),
 	}
 	defer func() {
+		if opts.NoWait {
+			m.Spin = ""
+		}
+		if m.Spin != "" {
+			m.Spin = " " + m.Spin
+		}
+
 		// We don't want to wrap the troubleshooting URL, so we'll handle word
 		// wrapping ourselves (vs using lipgloss).
 		w := wordwrap.NewWriter(Styles.Paragraph.GetWidth() - Styles.Paragraph.GetMarginLeft()*2)
@@ -223,15 +216,18 @@ func waitingMessage(agent codersdk.WorkspaceAgent) (m *message) {
 	case codersdk.WorkspaceAgentDisconnected:
 		m.Prompt = "The workspace agent lost connection!"
 	case codersdk.WorkspaceAgentConnected:
-		m.Prompt = "Don't panic, your workspace is starting up!"
-		m.Spin = fmt.Sprintf(" Waiting for %s to finish starting up...", Styles.Field.Render(agent.Name))
+		m.Spin = fmt.Sprintf("Waiting for %s to become ready...", Styles.Field.Render(agent.Name))
+		m.Prompt = "Don't panic, your workspace agent has connected and the workspace is getting ready!"
+		if opts.NoWait {
+			m.Prompt = "Your workspace is still getting ready, it may be in an incomplete state."
+		}
 
 		switch agent.LifecycleState {
 		case codersdk.WorkspaceAgentLifecycleStartTimeout:
-			m.Prompt = "The workspace agent is taking longer than expected to start."
+			m.Prompt = "The workspace is taking longer than expected to get ready, the agent startup script is still executing."
 		case codersdk.WorkspaceAgentLifecycleStartError:
 			m.Spin = ""
-			m.Prompt = "The workspace agent ran into a problem during startup."
+			m.Prompt = "The workspace ran into a problem while getting ready, the agent startup script exited with non-zero status."
 		default:
 			// Not a failure state, no troubleshooting necessary.
 			return m
