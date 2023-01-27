@@ -52,6 +52,10 @@ export const CreateWorkspacePageView: FC<
   const [parameterValues, setParameterValues] = useState<
     Record<string, string>
   >(props.defaultParameterValues ?? {})
+  const defaultRichParameterValues = extractRichParametersValues(
+    props.templateParameters,
+    props.defaultParameterValues,
+  )
 
   const { t } = useTranslation("createWorkspacePage")
 
@@ -60,7 +64,7 @@ export const CreateWorkspacePageView: FC<
       initialValues: {
         name: "",
         template_id: props.selectedTemplate ? props.selectedTemplate.id : "",
-        rich_parameter_values: defaultRichParameters(props.templateParameters),
+        rich_parameter_values: defaultRichParameterValues,
       },
       validationSchema: ValidationSchemaForRichParameters(
         props.templateParameters,
@@ -281,6 +285,10 @@ export const CreateWorkspacePageView: FC<
                       })
                     }}
                     parameter={parameter}
+                    defaultValue={initialRichParameterValue(
+                      defaultRichParameterValues,
+                      parameter,
+                    )}
                   />
                 ))}
               </Stack>
@@ -370,8 +378,9 @@ const useFormFooterStyles = makeStyles((theme) => ({
   },
 }))
 
-const defaultRichParameters = (
+const extractRichParametersValues = (
   templateParameters?: TypesGen.TemplateVersionParameter[],
+  defaultValuesFromQuery?: Record<string, string>,
 ): TypesGen.WorkspaceBuildParameter[] => {
   const defaults: TypesGen.WorkspaceBuildParameter[] = []
   if (!templateParameters) {
@@ -380,21 +389,41 @@ const defaultRichParameters = (
 
   templateParameters.forEach((parameter) => {
     if (parameter.options.length > 0) {
+      let parameterValue = parameter.options[0].value
+      if (defaultValuesFromQuery && defaultValuesFromQuery[parameter.name]) {
+        parameterValue = defaultValuesFromQuery[parameter.name]
+      }
+
       const buildParameter: TypesGen.WorkspaceBuildParameter = {
         name: parameter.name,
-        value: parameter.options[0].value,
+        value: parameterValue,
       }
       defaults.push(buildParameter)
       return
     }
 
+    let parameterValue = parameter.default_value
+    if (defaultValuesFromQuery && defaultValuesFromQuery[parameter.name]) {
+      parameterValue = defaultValuesFromQuery[parameter.name]
+    }
+
     const buildParameter: TypesGen.WorkspaceBuildParameter = {
       name: parameter.name,
-      value: parameter.default_value || "",
+      value: parameterValue || "",
     }
     defaults.push(buildParameter)
   })
   return defaults
+}
+
+const initialRichParameterValue = (
+  workspaceBuildParameters: TypesGen.WorkspaceBuildParameter[],
+  parameter: TypesGen.TemplateVersionParameter,
+): string => {
+  const buildParameter = workspaceBuildParameters.find((buildParameter) => {
+    return buildParameter.name === parameter.name
+  })
+  return (buildParameter && buildParameter.value) || ""
 }
 
 const ValidationSchemaForRichParameters = (

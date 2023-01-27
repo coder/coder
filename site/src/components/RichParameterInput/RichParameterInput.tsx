@@ -50,12 +50,14 @@ export interface RichParameterInputProps {
   disabled?: boolean
   parameter: TemplateVersionParameter
   onChange: (value: string) => void
+  defaultValue?: string
 }
 
 export const RichParameterInput: FC<RichParameterInputProps> = ({
   disabled,
   onChange,
   parameter,
+  defaultValue,
   ...props
 }) => {
   const styles = useStyles()
@@ -69,6 +71,7 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
           disabled={disabled}
           onChange={onChange}
           parameter={parameter}
+          defaultValue={defaultValue}
         />
       </div>
     </Stack>
@@ -79,15 +82,16 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
   disabled,
   onChange,
   parameter,
+  defaultValue,
   ...props
 }) => {
-  const [parameterValue, setParameterValue] = useState(parameter.default_value)
+  const [parameterValue, setParameterValue] = useState(defaultValue)
   const styles = useStyles()
 
   if (isBoolean(parameter)) {
     return (
       <RadioGroup
-        defaultValue={parameter.default_value}
+        defaultValue={parameterValue}
         onChange={(event) => {
           onChange(event.target.value)
         }}
@@ -111,7 +115,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
   if (parameter.options.length > 0) {
     return (
       <RadioGroup
-        defaultValue={parameter.options[0].value}
+        defaultValue={parameterValue}
         onChange={(event) => {
           onChange(event.target.value)
         }}
