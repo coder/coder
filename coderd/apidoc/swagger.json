@@ -4996,15 +4996,13 @@
         },
         "resource_type": {
           "enum": [
-            "organization",
             "template",
             "template_version",
             "user",
             "workspace",
             "workspace_build",
             "git_ssh_key",
-            "api_key",
-            "group"
+            "auditable_group"
           ],
           "allOf": [
             {
@@ -6369,7 +6367,6 @@
     "codersdk.ResourceType": {
       "type": "string",
       "enum": [
-        "organization",
         "template",
         "template_version",
         "user",
@@ -6380,7 +6377,6 @@
         "group"
       ],
       "x-enum-varnames": [
-        "ResourceTypeOrganization",
         "ResourceTypeTemplate",
         "ResourceTypeTemplateVersion",
         "ResourceTypeUser",

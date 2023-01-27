@@ -402,11 +402,6 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 
 func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*codersdk.AgentConn, error) {
 	clientConn, serverConn := net.Pipe()
-	go func() {
-		<-r.Context().Done()
-		_ = clientConn.Close()
-		_ = serverConn.Close()
-	}()
 
 	derpMap := api.DERPMap.Clone()
 	for _, region := range derpMap.Regions {
@@ -453,7 +448,16 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 	}
 
 	sendNodes, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
-		return conn.UpdateNodes(node)
+		err := conn.RemoveAllPeers()
+		if err != nil {
+			return xerrors.Errorf("remove all peers: %w", err)
+		}
+
+		err = conn.UpdateNodes(node)
+		if err != nil {
+			return xerrors.Errorf("update nodes: %w", err)
+		}
+		return nil
 	})
 	conn.SetNodeCallback(sendNodes)
 	go func() {
@@ -465,6 +469,10 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 	}()
 	return &codersdk.AgentConn{
 		Conn: conn,
+		CloseFunc: func() {
+			_ = clientConn.Close()
+			_ = serverConn.Close()
+		},
 	}, nil
 }
 

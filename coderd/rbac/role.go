@@ -1,5 +1,20 @@
 package rbac
 
+// ExpandableRoles is any type that can be expanded into a []Role. This is implemented
+// as an interface so we can have RoleNames for user defined roles, and implement
+// custom ExpandableRoles for system type users (eg autostart/autostop system role).
+// We want a clear divide between the two types of roles so users have no codepath
+// to interact or assign system roles.
+//
+// Note: We may also want to do the same thing with scopes to allow custom scope
+// support unavailable to the user. Eg: Scope to a single resource.
+type ExpandableRoles interface {
+	Expand() ([]Role, error)
+	// Names is for logging and tracing purposes, we want to know the human
+	// names of the expanded roles.
+	Names() []string
+}
+
 // Permission is the format passed into the rego.
 type Permission struct {
 	// Negate makes this a negative permission
@@ -26,4 +41,18 @@ type Role struct {
 	// roles.
 	Org  map[string][]Permission `json:"org"`
 	User []Permission            `json:"user"`
+}
+
+type Roles []Role
+
+func (roles Roles) Expand() ([]Role, error) {
+	return roles, nil
+}
+
+func (roles Roles) Names() []string {
+	names := make([]string, 0, len(roles))
+	for _, r := range roles {
+		return append(names, r.Name)
+	}
+	return names
 }

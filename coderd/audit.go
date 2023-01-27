@@ -452,8 +452,6 @@ func auditSearchQuery(query string) (database.GetAuditLogsOffsetParams, []coders
 
 func resourceTypeFromString(resourceTypeString string) string {
 	switch codersdk.ResourceType(resourceTypeString) {
-	case codersdk.ResourceTypeOrganization:
-		return resourceTypeString
 	case codersdk.ResourceTypeTemplate:
 		return resourceTypeString
 	case codersdk.ResourceTypeTemplateVersion:

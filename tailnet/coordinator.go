@@ -110,7 +110,7 @@ func ServeCoordinator(conn net.Conn, updateNodes func(node []*Node) error) (func
 // coordinator is incompatible with multiple Coder replicas as all node data is
 // in-memory.
 func NewCoordinator() Coordinator {
-	cache, err := lru.New[uuid.UUID, string](512)
+	nameCache, err := lru.New[uuid.UUID, string](512)
 	if err != nil {
 		panic("make lru cache: " + err.Error())
 	}
@@ -118,9 +118,9 @@ func NewCoordinator() Coordinator {
 	return &coordinator{
 		closed:                   false,
 		nodes:                    map[uuid.UUID]*Node{},
-		agentSockets:             map[uuid.UUID]*trackedConn{},
-		agentToConnectionSockets: map[uuid.UUID]map[uuid.UUID]*trackedConn{},
-		agentNameCache:           cache,
+		agentSockets:             map[uuid.UUID]*TrackedConn{},
+		agentToConnectionSockets: map[uuid.UUID]map[uuid.UUID]*TrackedConn{},
+		agentNameCache:           nameCache,
 	}
 }
 
@@ -138,31 +138,31 @@ type coordinator struct {
 	// nodes maps agent and connection IDs their respective node.
 	nodes map[uuid.UUID]*Node
 	// agentSockets maps agent IDs to their open websocket.
-	agentSockets map[uuid.UUID]*trackedConn
+	agentSockets map[uuid.UUID]*TrackedConn
 	// agentToConnectionSockets maps agent IDs to connection IDs of conns that
 	// are subscribed to updates for that agent.
-	agentToConnectionSockets map[uuid.UUID]map[uuid.UUID]*trackedConn
+	agentToConnectionSockets map[uuid.UUID]map[uuid.UUID]*TrackedConn
 
 	// agentNameCache holds a cache of agent names. If one of them disappears,
 	// it's helpful to have a name cached for debugging.
 	agentNameCache *lru.Cache[uuid.UUID, string]
 }
 
-type trackedConn struct {
+type TrackedConn struct {
 	net.Conn
 
-	// id is an ephemeral UUID used to uniquely identify the owner of the
+	// ID is an ephemeral UUID used to uniquely identify the owner of the
 	// connection.
-	id uuid.UUID
+	ID uuid.UUID
 
-	name       string
-	start      int64
-	lastWrite  int64
-	overwrites int64
+	Name       string
+	Start      int64
+	LastWrite  int64
+	Overwrites int64
 }
 
-func (t *trackedConn) Write(b []byte) (n int, err error) {
-	atomic.StoreInt64(&t.lastWrite, time.Now().Unix())
+func (t *TrackedConn) Write(b []byte) (n int, err error) {
+	atomic.StoreInt64(&t.LastWrite, time.Now().Unix())
 	return t.Conn.Write(b)
 }
 
@@ -212,17 +212,17 @@ func (c *coordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) 
 	c.mutex.Lock()
 	connectionSockets, ok := c.agentToConnectionSockets[agent]
 	if !ok {
-		connectionSockets = map[uuid.UUID]*trackedConn{}
+		connectionSockets = map[uuid.UUID]*TrackedConn{}
 		c.agentToConnectionSockets[agent] = connectionSockets
 	}
 
 	now := time.Now().Unix()
 	// Insert this connection into a map so the agent
 	// can publish node updates.
-	connectionSockets[id] = &trackedConn{
+	connectionSockets[id] = &TrackedConn{
 		Conn:      conn,
-		start:     now,
-		lastWrite: now,
+		Start:     now,
+		LastWrite: now,
 	}
 	c.mutex.Unlock()
 	defer func() {
@@ -337,17 +337,17 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) error
 	// dead.
 	oldAgentSocket, ok := c.agentSockets[id]
 	if ok {
-		overwrites = oldAgentSocket.overwrites + 1
+		overwrites = oldAgentSocket.Overwrites + 1
 		_ = oldAgentSocket.Close()
 	}
-	c.agentSockets[id] = &trackedConn{
-		id:   unique,
+	c.agentSockets[id] = &TrackedConn{
+		ID:   unique,
 		Conn: conn,
 
-		name:       name,
-		start:      now,
-		lastWrite:  now,
-		overwrites: overwrites,
+		Name:       name,
+		Start:      now,
+		LastWrite:  now,
+		Overwrites: overwrites,
 	}
 
 	c.mutex.Unlock()
@@ -357,7 +357,7 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) error
 
 		// Only delete the connection if it's ours. It could have been
 		// overwritten.
-		if idConn, ok := c.agentSockets[id]; ok && idConn.id == unique {
+		if idConn, ok := c.agentSockets[id]; ok && idConn.ID == unique {
 			delete(c.agentSockets, id)
 			delete(c.nodes, id)
 		}
@@ -450,123 +450,134 @@ func (c *coordinator) Close() error {
 	return nil
 }
 
-func (c *coordinator) ServeHTTPDebug(w http.ResponseWriter, _ *http.Request) {
+func (c *coordinator) ServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	now := time.Now()
 
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
 	fmt.Fprintln(w, "<h1>in-memory wireguard coordinator debug</h1>")
 
-	type idConn struct {
-		id   uuid.UUID
-		conn *trackedConn
-	}
+	CoordinatorHTTPDebug(c.agentSockets, c.agentToConnectionSockets, c.agentNameCache)(w, r)
+}
 
-	{
-		fmt.Fprintf(w, "<h2 id=agents><a href=#agents>#</a> agents: total %d</h2>\n", len(c.agentSockets))
-		fmt.Fprintln(w, "<ul>")
-		agentSockets := make([]idConn, 0, len(c.agentSockets))
+func CoordinatorHTTPDebug(
+	agentSocketsMap map[uuid.UUID]*TrackedConn,
+	agentToConnectionSocketsMap map[uuid.UUID]map[uuid.UUID]*TrackedConn,
+	agentNameCache *lru.Cache[uuid.UUID, string],
+) func(w http.ResponseWriter, _ *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		now := time.Now()
 
-		for id, conn := range c.agentSockets {
-			agentSockets = append(agentSockets, idConn{id, conn})
+		type idConn struct {
+			id   uuid.UUID
+			conn *TrackedConn
 		}
 
-		slices.SortFunc(agentSockets, func(a, b idConn) bool {
-			return a.conn.name < b.conn.name
-		})
+		{
+			fmt.Fprintf(w, "<h2 id=agents><a href=#agents>#</a> agents: total %d</h2>\n", len(agentSocketsMap))
+			fmt.Fprintln(w, "<ul>")
+			agentSockets := make([]idConn, 0, len(agentSocketsMap))
 
-		for _, agent := range agentSockets {
-			fmt.Fprintf(w, "<li style=\"margin-top:4px\"><b>%s</b> (<code>%s</code>): created %v ago, write %v ago, overwrites %d </li>\n",
-				agent.conn.name,
-				agent.id.String(),
-				now.Sub(time.Unix(agent.conn.start, 0)).Round(time.Second),
-				now.Sub(time.Unix(agent.conn.lastWrite, 0)).Round(time.Second),
-				agent.conn.overwrites,
-			)
+			for id, conn := range agentSocketsMap {
+				agentSockets = append(agentSockets, idConn{id, conn})
+			}
 
-			if conns := c.agentToConnectionSockets[agent.id]; len(conns) > 0 {
-				fmt.Fprintf(w, "<h3 style=\"margin:0px;font-size:16px;font-weight:400\">connections: total %d</h3>\n", len(conns))
+			slices.SortFunc(agentSockets, func(a, b idConn) bool {
+				return a.conn.Name < b.conn.Name
+			})
 
-				connSockets := make([]idConn, 0, len(conns))
-				for id, conn := range conns {
-					connSockets = append(connSockets, idConn{id, conn})
+			for _, agent := range agentSockets {
+				fmt.Fprintf(w, "<li style=\"margin-top:4px\"><b>%s</b> (<code>%s</code>): created %v ago, write %v ago, overwrites %d </li>\n",
+					agent.conn.Name,
+					agent.id.String(),
+					now.Sub(time.Unix(agent.conn.Start, 0)).Round(time.Second),
+					now.Sub(time.Unix(agent.conn.LastWrite, 0)).Round(time.Second),
+					agent.conn.Overwrites,
+				)
+
+				if conns := agentToConnectionSocketsMap[agent.id]; len(conns) > 0 {
+					fmt.Fprintf(w, "<h3 style=\"margin:0px;font-size:16px;font-weight:400\">connections: total %d</h3>\n", len(conns))
+
+					connSockets := make([]idConn, 0, len(conns))
+					for id, conn := range conns {
+						connSockets = append(connSockets, idConn{id, conn})
+					}
+					slices.SortFunc(connSockets, func(a, b idConn) bool {
+						return a.id.String() < b.id.String()
+					})
+
+					fmt.Fprintln(w, "<ul>")
+					for _, connSocket := range connSockets {
+						fmt.Fprintf(w, "<li><b>%s</b> (<code>%s</code>): created %v ago, write %v ago </li>\n",
+							connSocket.conn.Name,
+							connSocket.id.String(),
+							now.Sub(time.Unix(connSocket.conn.Start, 0)).Round(time.Second),
+							now.Sub(time.Unix(connSocket.conn.LastWrite, 0)).Round(time.Second),
+						)
+					}
+					fmt.Fprintln(w, "</ul>")
 				}
-				slices.SortFunc(connSockets, func(a, b idConn) bool {
-					return a.id.String() < b.id.String()
-				})
+			}
 
+			fmt.Fprintln(w, "</ul>")
+		}
+
+		{
+			type agentConns struct {
+				id    uuid.UUID
+				conns []idConn
+			}
+
+			missingAgents := []agentConns{}
+			for agentID, conns := range agentToConnectionSocketsMap {
+				if len(conns) == 0 {
+					continue
+				}
+
+				if _, ok := agentSocketsMap[agentID]; !ok {
+					connsSlice := make([]idConn, 0, len(conns))
+					for id, conn := range conns {
+						connsSlice = append(connsSlice, idConn{id, conn})
+					}
+					slices.SortFunc(connsSlice, func(a, b idConn) bool {
+						return a.id.String() < b.id.String()
+					})
+
+					missingAgents = append(missingAgents, agentConns{agentID, connsSlice})
+				}
+			}
+			slices.SortFunc(missingAgents, func(a, b agentConns) bool {
+				return a.id.String() < b.id.String()
+			})
+
+			fmt.Fprintf(w, "<h2 id=missing-agents><a href=#missing-agents>#</a> missing agents: total %d</h2>\n", len(missingAgents))
+			fmt.Fprintln(w, "<ul>")
+
+			for _, agentConns := range missingAgents {
+				agentName, ok := agentNameCache.Get(agentConns.id)
+				if !ok {
+					agentName = "unknown"
+				}
+
+				fmt.Fprintf(w, "<li style=\"margin-top:4px\"><b>%s</b> (<code>%s</code>): created ? ago, write ? ago, overwrites ? </li>\n",
+					agentName,
+					agentConns.id.String(),
+				)
+
+				fmt.Fprintf(w, "<h3 style=\"margin:0px;font-size:16px;font-weight:400\">connections: total %d</h3>\n", len(agentConns.conns))
 				fmt.Fprintln(w, "<ul>")
-				for _, connSocket := range connSockets {
+				for _, agentConn := range agentConns.conns {
 					fmt.Fprintf(w, "<li><b>%s</b> (<code>%s</code>): created %v ago, write %v ago </li>\n",
-						connSocket.conn.name,
-						connSocket.id.String(),
-						now.Sub(time.Unix(connSocket.conn.start, 0)).Round(time.Second),
-						now.Sub(time.Unix(connSocket.conn.lastWrite, 0)).Round(time.Second),
+						agentConn.conn.Name,
+						agentConn.id.String(),
+						now.Sub(time.Unix(agentConn.conn.Start, 0)).Round(time.Second),
+						now.Sub(time.Unix(agentConn.conn.LastWrite, 0)).Round(time.Second),
 					)
 				}
 				fmt.Fprintln(w, "</ul>")
 			}
-		}
-
-		fmt.Fprintln(w, "</ul>")
-	}
-
-	{
-		type agentConns struct {
-			id    uuid.UUID
-			conns []idConn
-		}
-
-		missingAgents := []agentConns{}
-		for agentID, conns := range c.agentToConnectionSockets {
-			if len(conns) == 0 {
-				continue
-			}
-
-			if _, ok := c.agentSockets[agentID]; !ok {
-				connsSlice := make([]idConn, 0, len(conns))
-				for id, conn := range conns {
-					connsSlice = append(connsSlice, idConn{id, conn})
-				}
-				slices.SortFunc(connsSlice, func(a, b idConn) bool {
-					return a.id.String() < b.id.String()
-				})
-
-				missingAgents = append(missingAgents, agentConns{agentID, connsSlice})
-			}
-		}
-		slices.SortFunc(missingAgents, func(a, b agentConns) bool {
-			return a.id.String() < b.id.String()
-		})
-
-		fmt.Fprintf(w, "<h2 id=missing-agents><a href=#missing-agents>#</a> missing agents: total %d</h2>\n", len(missingAgents))
-		fmt.Fprintln(w, "<ul>")
-
-		for _, agentConns := range missingAgents {
-			agentName, ok := c.agentNameCache.Get(agentConns.id)
-			if !ok {
-				agentName = "unknown"
-			}
-
-			fmt.Fprintf(w, "<li style=\"margin-top:4px\"><b>%s</b> (<code>%s</code>): created ? ago, write ? ago, overwrites ? </li>\n",
-				agentName,
-				agentConns.id.String(),
-			)
-
-			fmt.Fprintf(w, "<h3 style=\"margin:0px;font-size:16px;font-weight:400\">connections: total %d</h3>\n", len(agentConns.conns))
-			fmt.Fprintln(w, "<ul>")
-			for _, agentConn := range agentConns.conns {
-				fmt.Fprintf(w, "<li><b>%s</b> (<code>%s</code>): created %v ago, write %v ago </li>\n",
-					agentConn.conn.name,
-					agentConn.id.String(),
-					now.Sub(time.Unix(agentConn.conn.start, 0)).Round(time.Second),
-					now.Sub(time.Unix(agentConn.conn.lastWrite, 0)).Round(time.Second),
-				)
-			}
 			fmt.Fprintln(w, "</ul>")
 		}
-		fmt.Fprintln(w, "</ul>")
 	}
 }
