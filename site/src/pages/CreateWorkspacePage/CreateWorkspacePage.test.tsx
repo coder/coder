@@ -27,7 +27,7 @@ const renderCreateWorkspacePage = () => {
 }
 
 describe("CreateWorkspacePage", () => {
-  /*it("renders", async () => {
+  it("renders", async () => {
     jest
       .spyOn(API, "getTemplateVersionRichParameters")
       .mockResolvedValueOnce([MockTemplateVersionParameter1])
@@ -70,7 +70,7 @@ describe("CreateWorkspacePage", () => {
         },
       ),
     )
-  })*/
+  })
 
   it("uses default param values passed from the URL", async () => {
     const param = "dotfile_uri"
@@ -81,13 +81,18 @@ describe("CreateWorkspacePage", () => {
         default_source_value: "",
       }),
     ])
-    renderWithAuth(<CreateWorkspacePage />, {
+    jest
+      .spyOn(API, "getTemplateVersionRichParameters")
+      .mockResolvedValueOnce([MockTemplateVersionParameter1])
+
+    await waitFor(() => renderWithAuth(<CreateWorkspacePage />, {
       route:
         "/templates/" +
         MockTemplate.name +
         `/workspace?param.${param}=${paramValue}`,
       path: "/templates/:template/workspace",
-    })
+    }))
+
     await screen.findByDisplayValue(paramValue)
   })
 })
