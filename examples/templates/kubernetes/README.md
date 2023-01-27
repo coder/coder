@@ -96,9 +96,8 @@ block of your workspace template:
 
 ```terraform
 resource "coder_agent" "main" {
-  startup_script = <<EOT
-    #!/bin/bash
-
+  startup_script = <<-EOT
+    set -e
     # install AWS CLI
     curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
     unzip awscliv2.zip
