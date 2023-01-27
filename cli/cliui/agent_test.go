@@ -30,7 +30,8 @@ func TestAgent(t *testing.T) {
 				WorkspaceName: "example",
 				Fetch: func(_ context.Context) (codersdk.WorkspaceAgent, error) {
 					agent := codersdk.WorkspaceAgent{
-						Status: codersdk.WorkspaceAgentDisconnected,
+						Status:           codersdk.WorkspaceAgentDisconnected,
+						LoginBeforeReady: true,
 					}
 					if disconnected.Load() {
 						agent.Status = codersdk.WorkspaceAgentConnected
@@ -73,6 +74,7 @@ func TestAgent_TimeoutWithTroubleshootingURL(t *testing.T) {
 					agent := codersdk.WorkspaceAgent{
 						Status:             codersdk.WorkspaceAgentConnecting,
 						TroubleshootingURL: wantURL,
+						LoginBeforeReady:   true,
 					}
 					switch {
 					case !connected.Load() && timeout.Load():
