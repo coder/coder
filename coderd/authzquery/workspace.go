@@ -40,17 +40,13 @@ func (q *AuthzQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Contex
 	// This is not ideal as not all builds will be returned if the workspace cannot be read.
 	// This should probably be handled differently? Maybe join workspace builds with workspace
 	// ownership properties and filter on that.
-	workspaces, err := q.GetWorkspaces(ctx, database.GetWorkspacesParams{WorkspaceIds: ids})
-	if err != nil {
-		return nil, err
+	for _, id := range ids {
+		if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceWorkspace.WithID(id)); err != nil {
+			return nil, err
+		}
 	}
 
-	allowedIDs := make([]uuid.UUID, 0, len(workspaces))
-	for _, workspace := range workspaces {
-		allowedIDs = append(allowedIDs, workspace.ID)
-	}
-
-	return q.database.GetLatestWorkspaceBuildsByWorkspaceIDs(ctx, allowedIDs)
+	return q.database.GetLatestWorkspaceBuildsByWorkspaceIDs(ctx, ids)
 }
 
 func (q *AuthzQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
