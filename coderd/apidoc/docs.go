@@ -7770,10 +7770,6 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
-                "delay_login_until_ready": {
-                    "description": "DelayLoginUntilReady if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).",
-                    "type": "boolean"
-                },
                 "directory": {
                     "type": "string"
                 },
@@ -7811,6 +7807,10 @@ const docTemplate = `{
                 },
                 "lifecycle_state": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
+                },
+                "login_before_ready": {
+                    "description": "LoginBeforeReady if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).",
+                    "type": "boolean"
                 },
                 "name": {
                     "type": "string"

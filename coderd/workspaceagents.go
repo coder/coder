@@ -785,7 +785,7 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		ConnectionTimeoutSeconds:    dbAgent.ConnectionTimeoutSeconds,
 		TroubleshootingURL:          troubleshootingURL,
 		LifecycleState:              codersdk.WorkspaceAgentLifecycle(dbAgent.LifecycleState),
-		DelayLoginUntilReady:        dbAgent.DelayLoginUntilReady,
+		LoginBeforeReady:            dbAgent.LoginBeforeReady,
 		StartupScriptTimeoutSeconds: dbAgent.StartupScriptTimeoutSeconds,
 	}
 	node := coordinator.Node(dbAgent.ID)

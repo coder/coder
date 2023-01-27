@@ -484,7 +484,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
   "architecture": "string",
   "connection_timeout_seconds": 0,
   "created_at": "2019-08-24T14:15:22Z",
-  "delay_login_until_ready": true,
   "directory": "string",
   "disconnected_at": "2019-08-24T14:15:22Z",
   "environment_variables": {
@@ -506,6 +505,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
     }
   },
   "lifecycle_state": "created",
+  "login_before_ready": true,
   "name": "string",
   "operating_system": "string",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",

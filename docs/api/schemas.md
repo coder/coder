@@ -4615,7 +4615,6 @@ Parameter represents a set value for the scope.
             "architecture": "string",
             "connection_timeout_seconds": 0,
             "created_at": "2019-08-24T14:15:22Z",
-            "delay_login_until_ready": true,
             "directory": "string",
             "disconnected_at": "2019-08-24T14:15:22Z",
             "environment_variables": {
@@ -4637,6 +4636,7 @@ Parameter represents a set value for the scope.
               }
             },
             "lifecycle_state": "created",
+            "login_before_ready": true,
             "name": "string",
             "operating_system": "string",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -4737,7 +4737,6 @@ Parameter represents a set value for the scope.
   "architecture": "string",
   "connection_timeout_seconds": 0,
   "created_at": "2019-08-24T14:15:22Z",
-  "delay_login_until_ready": true,
   "directory": "string",
   "disconnected_at": "2019-08-24T14:15:22Z",
   "environment_variables": {
@@ -4759,6 +4758,7 @@ Parameter represents a set value for the scope.
     }
   },
   "lifecycle_state": "created",
+  "login_before_ready": true,
   "name": "string",
   "operating_system": "string",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -4779,7 +4779,6 @@ Parameter represents a set value for the scope.
 | `architecture`                   | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `connection_timeout_seconds`     | integer                                                              | false    |              |                                                                                                                                                                                                            |
 | `created_at`                     | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `delay_login_until_ready`        | boolean                                                              | false    |              | Delay login until ready if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).                                                                                  |
 | `directory`                      | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `disconnected_at`                | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `environment_variables`          | object                                                               | false    |              |                                                                                                                                                                                                            |
@@ -4791,6 +4790,7 @@ Parameter represents a set value for the scope.
 | `latency`                        | object                                                               | false    |              | Latency is mapped by region name (e.g. "New York City", "Seattle").                                                                                                                                        |
 | » `[any property]`               | [codersdk.DERPRegion](#codersdkderpregion)                           | false    |              |                                                                                                                                                                                                            |
 | `lifecycle_state`                | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |                                                                                                                                                                                                            |
+| `login_before_ready`             | boolean                                                              | false    |              | Login before ready if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).                                                                                       |
 | `name`                           | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `operating_system`               | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `resource_id`                    | string                                                               | false    |              |                                                                                                                                                                                                            |
@@ -5166,7 +5166,6 @@ Parameter represents a set value for the scope.
           "architecture": "string",
           "connection_timeout_seconds": 0,
           "created_at": "2019-08-24T14:15:22Z",
-          "delay_login_until_ready": true,
           "directory": "string",
           "disconnected_at": "2019-08-24T14:15:22Z",
           "environment_variables": {
@@ -5188,6 +5187,7 @@ Parameter represents a set value for the scope.
             }
           },
           "lifecycle_state": "created",
+          "login_before_ready": true,
           "name": "string",
           "operating_system": "string",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -5334,7 +5334,6 @@ Parameter represents a set value for the scope.
       "architecture": "string",
       "connection_timeout_seconds": 0,
       "created_at": "2019-08-24T14:15:22Z",
-      "delay_login_until_ready": true,
       "directory": "string",
       "disconnected_at": "2019-08-24T14:15:22Z",
       "environment_variables": {
@@ -5356,6 +5355,7 @@ Parameter represents a set value for the scope.
         }
       },
       "lifecycle_state": "created",
+      "login_before_ready": true,
       "name": "string",
       "operating_system": "string",
       "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -5524,7 +5524,6 @@ Parameter represents a set value for the scope.
                 "architecture": "string",
                 "connection_timeout_seconds": 0,
                 "created_at": "2019-08-24T14:15:22Z",
-                "delay_login_until_ready": true,
                 "directory": "string",
                 "disconnected_at": "2019-08-24T14:15:22Z",
                 "environment_variables": {
@@ -5546,6 +5545,7 @@ Parameter represents a set value for the scope.
                   }
                 },
                 "lifecycle_state": "created",
+                "login_before_ready": true,
                 "name": "string",
                 "operating_system": "string",
                 "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",

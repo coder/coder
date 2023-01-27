@@ -30,7 +30,8 @@ func TestAgent(t *testing.T) {
 				WorkspaceName: "example",
 				Fetch: func(_ context.Context) (codersdk.WorkspaceAgent, error) {
 					agent := codersdk.WorkspaceAgent{
-						Status: codersdk.WorkspaceAgentDisconnected,
+						Status:           codersdk.WorkspaceAgentDisconnected,
+						LoginBeforeReady: true,
 					}
 					if disconnected.Load() {
 						agent.Status = codersdk.WorkspaceAgentConnected
@@ -73,6 +74,7 @@ func TestAgent_TimeoutWithTroubleshootingURL(t *testing.T) {
 					agent := codersdk.WorkspaceAgent{
 						Status:             codersdk.WorkspaceAgentConnecting,
 						TroubleshootingURL: wantURL,
+						LoginBeforeReady:   true,
 					}
 					switch {
 					case !connected.Load() && timeout.Load():
@@ -119,10 +121,10 @@ func TestAgent_StartupTimeout(t *testing.T) {
 				WorkspaceName: "example",
 				Fetch: func(_ context.Context) (codersdk.WorkspaceAgent, error) {
 					agent := codersdk.WorkspaceAgent{
-						Status:               codersdk.WorkspaceAgentConnecting,
-						DelayLoginUntilReady: true,
-						LifecycleState:       codersdk.WorkspaceAgentLifecycleCreated,
-						TroubleshootingURL:   wantURL,
+						Status:             codersdk.WorkspaceAgentConnecting,
+						LoginBeforeReady:   false,
+						LifecycleState:     codersdk.WorkspaceAgentLifecycleCreated,
+						TroubleshootingURL: wantURL,
 					}
 
 					if s := status.Load(); s != "" {
@@ -177,10 +179,10 @@ func TestAgent_StartErrorExit(t *testing.T) {
 				WorkspaceName: "example",
 				Fetch: func(_ context.Context) (codersdk.WorkspaceAgent, error) {
 					agent := codersdk.WorkspaceAgent{
-						Status:               codersdk.WorkspaceAgentConnecting,
-						DelayLoginUntilReady: true,
-						LifecycleState:       codersdk.WorkspaceAgentLifecycleCreated,
-						TroubleshootingURL:   wantURL,
+						Status:             codersdk.WorkspaceAgentConnecting,
+						LoginBeforeReady:   false,
+						LifecycleState:     codersdk.WorkspaceAgentLifecycleCreated,
+						TroubleshootingURL: wantURL,
 					}
 
 					if s := status.Load(); s != "" {
@@ -232,10 +234,10 @@ func TestAgent_NoWait(t *testing.T) {
 				WorkspaceName: "example",
 				Fetch: func(_ context.Context) (codersdk.WorkspaceAgent, error) {
 					agent := codersdk.WorkspaceAgent{
-						Status:               codersdk.WorkspaceAgentConnecting,
-						DelayLoginUntilReady: true,
-						LifecycleState:       codersdk.WorkspaceAgentLifecycleCreated,
-						TroubleshootingURL:   wantURL,
+						Status:             codersdk.WorkspaceAgentConnecting,
+						LoginBeforeReady:   false,
+						LifecycleState:     codersdk.WorkspaceAgentLifecycleCreated,
+						TroubleshootingURL: wantURL,
 					}
 
 					if s := status.Load(); s != "" {
@@ -284,7 +286,7 @@ func TestAgent_NoWait(t *testing.T) {
 	require.NoError(t, <-done, "ready - should exit early")
 }
 
-func TestAgent_DelayLoginUntilReadyDisabled(t *testing.T) {
+func TestAgent_LoginBeforeReadyEnabled(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -301,10 +303,10 @@ func TestAgent_DelayLoginUntilReadyDisabled(t *testing.T) {
 				WorkspaceName: "example",
 				Fetch: func(_ context.Context) (codersdk.WorkspaceAgent, error) {
 					agent := codersdk.WorkspaceAgent{
-						Status:               codersdk.WorkspaceAgentConnecting,
-						DelayLoginUntilReady: false,
-						LifecycleState:       codersdk.WorkspaceAgentLifecycleCreated,
-						TroubleshootingURL:   wantURL,
+						Status:             codersdk.WorkspaceAgentConnecting,
+						LoginBeforeReady:   true,
+						LifecycleState:     codersdk.WorkspaceAgentLifecycleCreated,
+						TroubleshootingURL: wantURL,
 					}
 
 					if s := status.Load(); s != "" {

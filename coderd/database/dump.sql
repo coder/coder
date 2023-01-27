@@ -461,7 +461,7 @@ CREATE TABLE workspace_agents (
     troubleshooting_url text DEFAULT ''::text NOT NULL,
     motd_file text DEFAULT ''::text NOT NULL,
     lifecycle_state workspace_agent_lifecycle_state DEFAULT 'created'::workspace_agent_lifecycle_state NOT NULL,
-    delay_login_until_ready boolean DEFAULT false NOT NULL,
+    login_before_ready boolean DEFAULT true NOT NULL,
     startup_script_timeout_seconds integer DEFAULT 0 NOT NULL
 );
 
@@ -475,7 +475,7 @@ COMMENT ON COLUMN workspace_agents.motd_file IS 'Path to file inside workspace c
 
 COMMENT ON COLUMN workspace_agents.lifecycle_state IS 'The current lifecycle state reported by the workspace agent.';
 
-COMMENT ON COLUMN workspace_agents.delay_login_until_ready IS 'If true, the agent will delay logins until it is ready (e.g. executing startup script has ended).';
+COMMENT ON COLUMN workspace_agents.login_before_ready IS 'If true, the agent will not prevent login before it is ready (e.g. startup script is still executing).';
 
 COMMENT ON COLUMN workspace_agents.startup_script_timeout_seconds IS 'The number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.';
 
