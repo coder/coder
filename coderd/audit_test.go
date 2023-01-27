@@ -2,6 +2,9 @@ package coderd_test
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -35,6 +38,52 @@ func TestAuditLogs(t *testing.T) {
 
 		require.Equal(t, int64(1), alogs.Count)
 		require.Len(t, alogs.AuditLogs, 1)
+	})
+
+	t.Run("AuditLinks", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx      = context.Background()
+			client   = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user     = coderdtest.CreateFirstUser(t, client)
+			version  = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			template = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		)
+
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		buildResourceInfo := map[string]string{
+			"workspaceName": workspace.Name,
+			"buildNumber":   strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10),
+			"buildReason":   fmt.Sprintf("%v", workspace.LatestBuild.Reason),
+		}
+
+		wriBytes, err := json.Marshal(buildResourceInfo)
+		require.NoError(t, err)
+
+		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
+			Action:           codersdk.AuditActionStop,
+			ResourceType:     codersdk.ResourceTypeWorkspaceBuild,
+			ResourceID:       user.UserID,
+			AdditionalFields: wriBytes,
+		})
+		require.NoError(t, err)
+
+		auditLogs, err := client.AuditLogs(ctx, codersdk.AuditLogsRequest{
+			Pagination: codersdk.Pagination{
+				Limit: 1,
+			},
+		})
+		require.NoError(t, err)
+
+		require.Equal(t, int64(1), auditLogs.Count)
+		require.Len(t, auditLogs.AuditLogs, 1)
+
+		// I want to call this
+		auditLogResourceLink()
 	})
 }
 

@@ -181,9 +181,9 @@ func (api *API) convertAuditLogs(ctx context.Context, dblogs []database.GetAudit
 }
 
 type AdditionalFields struct {
-	WorkspaceName string               `json:"workspace_name"`
-	BuildNumber   string               `json:"build_number"`
-	BuildReason   database.BuildReason `json:"build_reason"`
+	WorkspaceName string
+	BuildNumber   string
+	BuildReason   database.BuildReason
 }
 
 func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
@@ -349,9 +349,11 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 	case database.ResourceTypeTemplate:
 		return fmt.Sprintf("/templates/%s",
 			alog.ResourceTarget)
+
 	case database.ResourceTypeUser:
 		return fmt.Sprintf("/users?filter=%s",
 			alog.ResourceTarget)
+
 	case database.ResourceTypeWorkspace:
 		workspace, getWorkspaceErr := api.Database.GetWorkspaceByID(ctx, alog.ResourceID)
 		if getWorkspaceErr != nil {
@@ -363,6 +365,7 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 		}
 		return fmt.Sprintf("/@%s/%s",
 			workspaceOwner.Username, alog.ResourceTarget)
+
 	case database.ResourceTypeWorkspaceBuild:
 		if len(additionalFields.WorkspaceName) == 0 || len(additionalFields.BuildNumber) == 0 {
 			return ""
@@ -381,6 +384,7 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 		}
 		return fmt.Sprintf("/@%s/%s/builds/%s",
 			workspaceOwner.Username, additionalFields.WorkspaceName, additionalFields.BuildNumber)
+
 	default:
 		return ""
 	}
