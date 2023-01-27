@@ -93,7 +93,7 @@ func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 			}
 
 			// A user that creates a workspace can use this agent auth token and
-			// impersonate the workspace. So to prevent privledge escalation, the
+			// impersonate the workspace. So to prevent privilege escalation, the
 			// subject inherits the roles of the user that owns the workspace.
 			// We then add a workspace-agent scope to limit the permissions
 			// to only what the workspace agent needs.
