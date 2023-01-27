@@ -2,6 +2,8 @@ package authzquery
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -137,12 +139,18 @@ func (q *AuthzQuerier) GetTemplateVersionParameters(ctx context.Context, templat
 		return nil, err
 	}
 
+	var object rbac.Objecter
 	template, err := q.database.GetTemplateByID(ctx, tv.TemplateID.UUID)
 	if err != nil {
-		return nil, err
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
+		object = rbac.ResourceTemplate.InOrg(tv.OrganizationID)
+	} else {
+		object = tv.RBACObject(template)
 	}
 
-	if err := q.authorizeContext(ctx, rbac.ActionRead, tv.RBACObject(template)); err != nil {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, object); err != nil {
 		return nil, err
 	}
 	return q.database.GetTemplateVersionParameters(ctx, templateVersionID)
