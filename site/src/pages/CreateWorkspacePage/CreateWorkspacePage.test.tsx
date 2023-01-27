@@ -36,7 +36,9 @@ describe("CreateWorkspacePage", () => {
 
     const element = screen.findByText("Create workspace")
     expect(element).toBeDefined()
-    const firstParameter = screen.findByText(MockTemplateVersionParameter1.description)
+    const firstParameter = screen.findByText(
+      MockTemplateVersionParameter1.description,
+    )
     expect(firstParameter).toBeDefined()
   })
 
@@ -85,13 +87,15 @@ describe("CreateWorkspacePage", () => {
       .spyOn(API, "getTemplateVersionRichParameters")
       .mockResolvedValueOnce([MockTemplateVersionParameter1])
 
-    await waitFor(() => renderWithAuth(<CreateWorkspacePage />, {
-      route:
-        "/templates/" +
-        MockTemplate.name +
-        `/workspace?param.${param}=${paramValue}`,
-      path: "/templates/:template/workspace",
-    }))
+    await waitFor(() =>
+      renderWithAuth(<CreateWorkspacePage />, {
+        route:
+          "/templates/" +
+          MockTemplate.name +
+          `/workspace?param.${param}=${paramValue}`,
+        path: "/templates/:template/workspace",
+      }),
+    )
 
     await screen.findByDisplayValue(paramValue)
   })
