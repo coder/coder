@@ -58,7 +58,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 	spin.Suffix = waitingMessage(agent, opts).Spin
 
 	waitMessage := &message{}
-	showMessage := func(keepSpinning bool) {
+	showMessage := func() {
 		resourceMutex.Lock()
 		defer resourceMutex.Unlock()
 
@@ -83,7 +83,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 		case <-ctx.Done():
 		default:
 			// Safe to resume operation.
-			if keepSpinning && spin.Suffix != "" {
+			if spin.Suffix != "" {
 				spin.Start()
 			}
 		}
@@ -94,7 +94,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 	// spinning.
 	if agent.Status == codersdk.WorkspaceAgentConnected &&
 		agent.DelayLoginUntilReady && opts.NoWait {
-		showMessage(false)
+		showMessage()
 		return nil
 	}
 
@@ -113,7 +113,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 			close(warningShown)
 		case <-warnAfter.C:
 			close(warningShown)
-			showMessage(true)
+			showMessage()
 		}
 	}()
 
@@ -142,14 +142,14 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 				case codersdk.WorkspaceAgentLifecycleReady:
 					return nil
 				case codersdk.WorkspaceAgentLifecycleStartTimeout:
-					showMessage(false)
+					showMessage()
 				case codersdk.WorkspaceAgentLifecycleStartError:
-					showMessage(false)
+					showMessage()
 					return AgentStartError
 				default:
 					select {
 					case <-warningShown:
-						showMessage(true)
+						showMessage()
 					default:
 						// This state is normal, we don't want
 						// to show a message prematurely.
@@ -159,7 +159,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 			}
 			return nil
 		case codersdk.WorkspaceAgentTimeout, codersdk.WorkspaceAgentDisconnected:
-			showMessage(true)
+			showMessage()
 		}
 	}
 }
