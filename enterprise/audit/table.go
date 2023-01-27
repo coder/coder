@@ -12,16 +12,16 @@ import (
 // It is important to maintain this mapping when adding a new Auditable Resource to the
 // AuditableResources map (below) as our documentation - generated in scripts/auditdocgen/main.go -
 // depends upon it.
-var AuditActionMap = map[string][]string{
-	"GitSSHKey":          {string(codersdk.AuditActionCreate)},
+var AuditActionMap = map[string][]codersdk.AuditAction{
+	"GitSSHKey":          {codersdk.AuditActionCreate},
 	"OrganizationMember": {},
 	"Organization":       {},
-	"Template":           {string(codersdk.AuditActionWrite), string(codersdk.AuditActionDelete)},
-	"TemplateVersion":    {string(codersdk.AuditActionCreate), string(codersdk.AuditActionWrite)},
-	"User":               {string(codersdk.AuditActionCreate), string(codersdk.AuditActionWrite), string(codersdk.AuditActionDelete)},
-	"Workspace":          {string(codersdk.AuditActionCreate), string(codersdk.AuditActionWrite), string(codersdk.AuditActionDelete)},
-	"WorkspaceBuild":     {string(codersdk.AuditActionStart), string(codersdk.AuditActionStop)},
-	"AuditableGroup":     {string(codersdk.AuditActionCreate), string(codersdk.AuditActionWrite), string(codersdk.AuditActionDelete)},
+	"Template":           {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"TemplateVersion":    {codersdk.AuditActionCreate, codersdk.AuditActionWrite},
+	"User":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"Workspace":          {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"WorkspaceBuild":     {codersdk.AuditActionStart, codersdk.AuditActionStop},
+	"AuditableGroup":     {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 }
 
 type Action string
