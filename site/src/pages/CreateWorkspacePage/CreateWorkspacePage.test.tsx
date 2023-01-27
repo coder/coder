@@ -127,7 +127,7 @@ describe("CreateWorkspacePage", () => {
     await screen.findByDisplayValue(paramValue)
   })
 
-  it("renders with rich parameter", async () => {
+  it("rich parameter: number validation fails", async () => {
     jest
       .spyOn(API, "getTemplateVersionRichParameters")
       .mockResolvedValueOnce([
