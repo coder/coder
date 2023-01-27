@@ -900,7 +900,7 @@ func TestWorkspaceBuildValidateRichParameters(t *testing.T) {
 			{numberParameterName, "10", true, numberRichParameters},
 			{numberParameterName, "11", false, numberRichParameters},
 
-			{stringParameterName, "", false, stringRichParameters},
+			{stringParameterName, "", true, stringRichParameters},
 			{stringParameterName, "foobar", true, stringRichParameters},
 
 			{stringParameterName, "abcd", true, regexRichParameters},
@@ -912,6 +912,7 @@ func TestWorkspaceBuildValidateRichParameters(t *testing.T) {
 		}
 
 		for _, tc := range tests {
+			tc := tc
 			t.Run(tc.parameterName+"-"+tc.value, func(t *testing.T) {
 				t.Parallel()
 
