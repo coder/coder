@@ -7,8 +7,6 @@ Discord"](https://img.shields.io/badge/join-us%20on%20Discord-gray.svg?longCache
 
 Offload your team's development from local workstations to cloud servers. Onboard developers in minutes. Build, test and compile at the speed of the cloud. Keep your source code and data behind your firewall.
 
-> "By leveraging Terraform, Coder lets developers run any IDE on any compute platform including on-prem, AWS, Azure, GCP, DigitalOcean, Kubernetes, Docker, and more, with workspaces running on Linux, Windows, or Mac." - **Kevin Fishner Chief of Staff at [HashiCorp](https://hashicorp.com/)**
-
 <p align="center">
   <img src="./docs/images/hero-image.png">
 </p>
