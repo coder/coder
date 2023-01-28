@@ -50,9 +50,12 @@ resource "coder_agent" "main" {
     os             = "linux"
     startup_script = <<EOF
     #!/bin/sh
-    # install and start code-server
-    # remove '-s -- --version 4.8.3' to install the latest version
-    curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3
+    # install code-server
+    # add '-s -- --version x.x.x' to install a specific code-server version
+    curl -fsSL https://code-server.dev/install.sh | sh
+
+    # start code-server on a specific port
+    # authn is off since the user already authn-ed into the coder deployment
     code-server --auth none --port 13337
     EOF
 }
@@ -63,10 +66,10 @@ For advanced use, we recommend installing code-server in your VM snapshot or con
 ```Dockerfile
 FROM codercom/enterprise-base:ubuntu
 
-# install a specific code-server version
-RUN curl -fsSL https://code-server.dev/install.sh | sh -s -- --version=4.8.3
+# install the latest version
+RUN curl -fsSL https://code-server.dev/install.sh | sh
 
-# pre-install versions
+# pre-install VS Code extensions
 RUN code-server --install-extension eamodio.gitlens
 
 # directly start code-server with the agent's startup_script (see above),
@@ -135,7 +138,8 @@ You can reference/use these pre-built templates with JetBrains projector:
 
 ## JupyterLab
 
-Configure your agent and `coder_app` like so to use Jupyter:
+Configure your agent and `coder_app` like so to use Jupyter. Notice the
+`subdomain=true` configuration:
 
 ```hcl
 data "coder_workspace" "me" {}
