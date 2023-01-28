@@ -10,7 +10,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -55,10 +57,10 @@ func TestAuditLogs(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		buildResourceInfo := map[string]string{
-			"workspaceName": workspace.Name,
-			"buildNumber":   strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10),
-			"buildReason":   fmt.Sprintf("%v", workspace.LatestBuild.Reason),
+		buildResourceInfo := audit.AdditionalFields{
+			WorkspaceName: workspace.Name,
+			BuildNumber:   strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10),
+			BuildReason:   database.BuildReason(string(workspace.LatestBuild.Reason)),
 		}
 
 		wriBytes, err := json.Marshal(buildResourceInfo)

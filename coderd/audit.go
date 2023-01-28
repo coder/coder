@@ -17,6 +17,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -183,12 +184,6 @@ func (api *API) convertAuditLogs(ctx context.Context, dblogs []database.GetAudit
 	return alogs
 }
 
-type AdditionalFields struct {
-	WorkspaceName string
-	BuildNumber   string
-	BuildReason   database.BuildReason
-}
-
 func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogsOffsetRow) codersdk.AuditLog {
 	ip, _ := netip.AddrFromSlice(dblog.Ip.IPNet.IP)
 
@@ -216,16 +211,18 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 
 	var (
 		additionalFieldsBytes = []byte(dblog.AdditionalFields)
-		additionalFields      AdditionalFields
+		additionalFields      audit.AdditionalFields
 		err                   = json.Unmarshal(additionalFieldsBytes, &additionalFields)
 	)
 	if err != nil {
 		api.Logger.Error(ctx, "unmarshal additional fields", slog.Error(err))
-		resourceInfo := map[string]string{
-			"workspaceName": "unknown",
-			"buildNumber":   "unknown",
-			"buildReason":   "unknown",
+		resourceInfo := audit.AdditionalFields{
+			WorkspaceName:  "unknown",
+			BuildNumber:    "unknown",
+			BuildReason:    "unknown",
+			WorkspaceOwner: "unknown",
 		}
+
 		dblog.AdditionalFields, err = json.Marshal(resourceInfo)
 		api.Logger.Error(ctx, "marshal additional fields", slog.Error(err))
 	}
@@ -262,7 +259,7 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 	}
 }
 
-func auditLogDescription(alog database.GetAuditLogsOffsetRow, additionalFields AdditionalFields) string {
+func auditLogDescription(alog database.GetAuditLogsOffsetRow, additionalFields audit.AdditionalFields) string {
 	str := fmt.Sprintf("{user} %s",
 		codersdk.AuditAction(alog.Action).FriendlyString(),
 	)
@@ -347,7 +344,7 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 	}
 }
 
-func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAuditLogsOffsetRow, additionalFields AdditionalFields) string {
+func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAuditLogsOffsetRow, additionalFields audit.AdditionalFields) string {
 	switch alog.ResourceType {
 	case database.ResourceTypeTemplate:
 		return fmt.Sprintf("/templates/%s",
