@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -30,6 +32,59 @@ import (
 )
 
 const jsonCT = "application/json"
+
+func TestIsConnectionErr(t *testing.T) {
+	t.Parallel()
+
+	type tc = struct {
+		name           string
+		err            error
+		expectedResult bool
+	}
+
+	cases := []tc{
+		{
+			// E.g. "no such host"
+			name: "DNSError",
+			err: &net.DNSError{
+				Err:         "no such host",
+				Name:        "foofoo",
+				Server:      "1.1.1.1:53",
+				IsTimeout:   false,
+				IsTemporary: false,
+				IsNotFound:  true,
+			},
+			expectedResult: true,
+		},
+		{
+			// E.g. "connection refused"
+			name: "OpErr",
+			err: &net.OpError{
+				Op:     "dial",
+				Net:    "tcp",
+				Source: nil,
+				Addr:   nil,
+				Err:    &os.SyscallError{},
+			},
+			expectedResult: true,
+		},
+		{
+			name:           "OpaqueError",
+			err:            xerrors.Errorf("I'm opaque!"),
+			expectedResult: false,
+		},
+	}
+
+	for _, c := range cases {
+		c := c
+
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, c.expectedResult, IsConnectionError(c.err))
+		})
+	}
+}
 
 func Test_Client(t *testing.T) {
 	t.Parallel()
