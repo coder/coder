@@ -96,6 +96,7 @@ jobs:
       - if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
         uses: gaurav-nelson/github-action-markdown-link-check@v1
         name: Check for dead links (main)
+        timeout-minutes: 1
         with:
           use-quiet-mode: yes
           use-verbose-mode: yes
@@ -104,6 +105,7 @@ jobs:
       - if: github.ref != 'refs/heads/main' || github.event.pull_request.head.repo.fork
         uses: gaurav-nelson/github-action-markdown-link-check@v1
         name: Check for dead links (pull request)
+        timeout-minutes: 1
         with:
           use-quiet-mode: yes
           use-verbose-mode: yes

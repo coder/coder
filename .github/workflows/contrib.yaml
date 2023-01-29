@@ -59,7 +59,6 @@ jobs:
           requireScope: false
 
   release-labels:
-    name: Release labels
     runs-on: ubuntu-latest
     # Depend on lint so that title is Conventional Commits-compatible.
     needs: [title]

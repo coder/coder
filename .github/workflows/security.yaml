@@ -27,34 +27,25 @@ concurrency:
 jobs:
   codeql:
     runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        language: ["go", "javascript"]
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v2
         with:
-          languages: ${{ matrix.language }}
+          languages: go, javascript
 
       - name: Setup Go
-        if: matrix.language == 'go'
         uses: actions/setup-go@v3
         with:
           go-version: "~1.19"
 
       - name: Go Cache Paths
-        if: matrix.language == 'go'
         id: go-cache-paths
         run: |
           echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
       - name: Go Mod Cache
-        if: matrix.language == 'go'
         uses: actions/cache@v3
         with:
           path: ${{ steps.go-cache-paths.outputs.GOMODCACHE }}
@@ -62,14 +53,11 @@ jobs:
 
       # Workaround to prevent CodeQL from building the dashboard.
       - name: Remove Makefile
-        if: matrix.language == 'go'
         run: |
           rm Makefile
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v2
-        with:
-          category: "/language:${{matrix.language}}"
 
   trivy:
     runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
