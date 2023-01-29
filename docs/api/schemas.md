@@ -2504,20 +2504,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | ----- | ------ | -------- | ------------ | ----------- |
 | `key` | string | false    |              |             |
 
-## codersdk.GetAppHostResponse
-
-```json
-{
-  "host": "string"
-}
-```
-
-### Properties
-
-| Name   | Type   | Required | Restrictions | Description                                                   |
-| ------ | ------ | -------- | ------------ | ------------------------------------------------------------- |
-| `host` | string | false    |              | Host is the externally accessible URL for the Coder instance. |
-
 ## codersdk.GetUsersResponse
 
 ```json
@@ -2693,58 +2679,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `id`          | integer | false    |              |                                                                                                                                                                                                        |
 | `uploaded_at` | string  | false    |              |                                                                                                                                                                                                        |
 | `uuid`        | string  | false    |              |                                                                                                                                                                                                        |
-
-## codersdk.ListeningPort
-
-```json
-{
-  "network": "tcp",
-  "port": 0,
-  "process_name": "string"
-}
-```
-
-### Properties
-
-| Name           | Type                                                           | Required | Restrictions | Description              |
-| -------------- | -------------------------------------------------------------- | -------- | ------------ | ------------------------ |
-| `network`      | [codersdk.ListeningPortNetwork](#codersdklisteningportnetwork) | false    |              | only "tcp" at the moment |
-| `port`         | integer                                                        | false    |              |                          |
-| `process_name` | string                                                         | false    |              | may be empty             |
-
-## codersdk.ListeningPortNetwork
-
-```json
-"tcp"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value |
-| ----- |
-| `tcp` |
-
-## codersdk.ListeningPortsResponse
-
-```json
-{
-  "ports": [
-    {
-      "network": "tcp",
-      "port": 0,
-      "process_name": "string"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name    | Type                                                      | Required | Restrictions | Description                                                                                                                                                                                                                                            |
-| ------- | --------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `ports` | array of [codersdk.ListeningPort](#codersdklisteningport) | false    |              | If there are no ports in the list, nothing should be displayed in the UI. There must not be a "no ports available" message or anything similar, as there will always be no ports displayed on platforms where our port detection logic is unsupported. |
 
 ## codersdk.LogLevel
 
@@ -4915,6 +4849,44 @@ Parameter represents a set value for the scope.
 | `start_error`   |
 | `ready`         |
 
+## codersdk.WorkspaceAgentListeningPort
+
+```json
+{
+  "network": "string",
+  "port": 0,
+  "process_name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description              |
+| -------------- | ------- | -------- | ------------ | ------------------------ |
+| `network`      | string  | false    |              | only "tcp" at the moment |
+| `port`         | integer | false    |              |                          |
+| `process_name` | string  | false    |              | may be empty             |
+
+## codersdk.WorkspaceAgentListeningPortsResponse
+
+```json
+{
+  "ports": [
+    {
+      "network": "string",
+      "port": 0,
+      "process_name": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                                                  | Required | Restrictions | Description                                                                                                                                                                                                                                            |
+| ------- | ------------------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ports` | array of [codersdk.WorkspaceAgentListeningPort](#codersdkworkspaceagentlisteningport) | false    |              | If there are no ports in the list, nothing should be displayed in the UI. There must not be a "no ports available" message or anything similar, as there will always be no ports displayed on platforms where our port detection logic is unsupported. |
+
 ## codersdk.WorkspaceAgentMetadata
 
 ```json
@@ -5096,6 +5068,20 @@ Parameter represents a set value for the scope.
 | `initializing` |
 | `healthy`      |
 | `unhealthy`    |
+
+## codersdk.WorkspaceAppHostResponse
+
+```json
+{
+  "host": "string"
+}
+```
+
+### Properties
+
+| Name   | Type   | Required | Restrictions | Description                                                   |
+| ------ | ------ | -------- | ------------ | ------------------------------------------------------------- |
+| `host` | string | false    |              | Host is the externally accessible URL for the Coder instance. |
 
 ## codersdk.WorkspaceAppSharingLevel
 

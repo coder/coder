@@ -299,7 +299,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Agents
 // @Param workspaceagent path string true "Workspace agent ID" format(uuid)
-// @Success 200 {object} codersdk.ListeningPortsResponse
+// @Success 200 {object} codersdk.WorkspaceAgentListeningPortsResponse
 // @Router /workspaceagents/{workspaceagent}/listening-ports [get]
 func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

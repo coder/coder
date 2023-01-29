@@ -153,7 +153,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.GetAppHostResponse"
+                            "$ref": "#/definitions/codersdk.WorkspaceAppHostResponse"
                         }
                     }
                 }
@@ -4262,7 +4262,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.ListeningPortsResponse"
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentListeningPortsResponse"
                         }
                     }
                 }
@@ -6263,15 +6263,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.GetAppHostResponse": {
-            "type": "object",
-            "properties": {
-                "host": {
-                    "description": "Host is the externally accessible URL for the Coder instance.",
-                    "type": "string"
-                }
-            }
-        },
         "codersdk.GetUsersResponse": {
             "type": "object",
             "properties": {
@@ -6415,47 +6406,6 @@ const docTemplate = `{
                 "uuid": {
                     "type": "string",
                     "format": "uuid"
-                }
-            }
-        },
-        "codersdk.ListeningPort": {
-            "type": "object",
-            "properties": {
-                "network": {
-                    "description": "only \"tcp\" at the moment",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ListeningPortNetwork"
-                        }
-                    ]
-                },
-                "port": {
-                    "type": "integer"
-                },
-                "process_name": {
-                    "description": "may be empty",
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.ListeningPortNetwork": {
-            "type": "string",
-            "enum": [
-                "tcp"
-            ],
-            "x-enum-varnames": [
-                "ListeningPortNetworkTCP"
-            ]
-        },
-        "codersdk.ListeningPortsResponse": {
-            "type": "object",
-            "properties": {
-                "ports": {
-                    "description": "If there are no ports in the list, nothing should be displayed in the UI.\nThere must not be a \"no ports available\" message or anything similar, as\nthere will always be no ports displayed on platforms where our port\ndetection logic is unsupported.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.ListeningPort"
-                    }
                 }
             }
         },
@@ -7891,6 +7841,34 @@ const docTemplate = `{
                 "WorkspaceAgentLifecycleReady"
             ]
         },
+        "codersdk.WorkspaceAgentListeningPort": {
+            "type": "object",
+            "properties": {
+                "network": {
+                    "description": "only \"tcp\" at the moment",
+                    "type": "string"
+                },
+                "port": {
+                    "type": "integer"
+                },
+                "process_name": {
+                    "description": "may be empty",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentListeningPortsResponse": {
+            "type": "object",
+            "properties": {
+                "ports": {
+                    "description": "If there are no ports in the list, nothing should be displayed in the UI.\nThere must not be a \"no ports available\" message or anything similar, as\nthere will always be no ports displayed on platforms where our port\ndetection logic is unsupported.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentListeningPort"
+                    }
+                }
+            }
+        },
         "codersdk.WorkspaceAgentMetadata": {
             "type": "object",
             "properties": {
@@ -8018,6 +7996,15 @@ const docTemplate = `{
                 "WorkspaceAppHealthHealthy",
                 "WorkspaceAppHealthUnhealthy"
             ]
+        },
+        "codersdk.WorkspaceAppHostResponse": {
+            "type": "object",
+            "properties": {
+                "host": {
+                    "description": "Host is the externally accessible URL for the Coder instance.",
+                    "type": "string"
+                }
+            }
         },
         "codersdk.WorkspaceAppSharingLevel": {
             "type": "string",

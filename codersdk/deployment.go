@@ -11,6 +11,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// Entitlement represents whether a feature is licensed.
 type Entitlement string
 
 const (
@@ -19,7 +20,8 @@ const (
 	EntitlementNotEntitled Entitlement = "not_entitled"
 )
 
-// To add a new feature, modify this set of enums as well as the FeatureNames
+// FeatureName represents the internal name of a feature.
+// To add a new feature, add it to this set of enums as well as the FeatureNames
 // array below.
 type FeatureName string
 

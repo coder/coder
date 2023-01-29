@@ -666,7 +666,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/lis
 {
   "ports": [
     {
-      "network": "tcp",
+      "network": "string",
       "port": 0,
       "process_name": "string"
     }
@@ -676,9 +676,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/lis
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                       |
-| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ListeningPortsResponse](schemas.md#codersdklisteningportsresponse) |
+| Status | Meaning                                                 | Description | Schema                                                                                                   |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentListeningPortsResponse](schemas.md#codersdkworkspaceagentlisteningportsresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

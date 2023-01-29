@@ -77,7 +77,7 @@ const (
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Applications
-// @Success 200 {object} codersdk.GetAppHostResponse
+// @Success 200 {object} codersdk.WorkspaceAppHostResponse
 // @Router /applications/host [get]
 func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
 	host := api.AppHostname
@@ -85,7 +85,7 @@ func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
 		host += fmt.Sprintf(":%s", api.AccessURL.Port())
 	}
 
-	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AppHostResponse{
+	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.WorkspaceAppHostResponse{
 		Host: host,
 	})
 }
