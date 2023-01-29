@@ -64,6 +64,30 @@ jobs:
         with:
           ignore: node_modules
 
+      # Check for dead links in our markdown!
+      # For the main branch:
+      - if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
+        uses: gaurav-nelson/github-action-markdown-link-check@v1
+        name: Check for dead links (main)
+        timeout-minutes: 1
+        with:
+          use-quiet-mode: yes
+          use-verbose-mode: yes
+          folder-path: docs
+          config-file: .github/workflows/mlc_config.json
+      # For pull requests:
+      - if: github.ref != 'refs/heads/main' || github.event.pull_request.head.repo.fork
+        uses: gaurav-nelson/github-action-markdown-link-check@v1
+        name: Check for dead links (pull request)
+        timeout-minutes: 1
+        with:
+          use-quiet-mode: yes
+          use-verbose-mode: yes
+          check-modified-files-only: yes
+          base-branch: main
+          folder-path: docs
+          config-file: .github/workflows/mlc_config.json
+
       # Lint our dashboard!
       - name: Cache node_modules
         id: cache-node
@@ -90,30 +114,6 @@ jobs:
         run: |
           cd helm
           make lint
-
-      # Check for dead links in our markdown!
-      # For the main branch:
-      - if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
-        uses: gaurav-nelson/github-action-markdown-link-check@v1
-        name: Check for dead links (main)
-        timeout-minutes: 1
-        with:
-          use-quiet-mode: yes
-          use-verbose-mode: yes
-          folder-path: docs
-          config-file: .github/workflows/mlc_config.json
-      # For pull requests:
-      - if: github.ref != 'refs/heads/main' || github.event.pull_request.head.repo.fork
-        uses: gaurav-nelson/github-action-markdown-link-check@v1
-        name: Check for dead links (pull request)
-        timeout-minutes: 1
-        with:
-          use-quiet-mode: yes
-          use-verbose-mode: yes
-          check-modified-files-only: yes
-          base-branch: main
-          folder-path: docs
-          config-file: .github/workflows/mlc_config.json
 
       # Ensure AGPL and Enterprise are separated!
       - name: Check for AGPL code importing Enterprise...
