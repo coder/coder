@@ -350,29 +350,29 @@ func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name
 	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
 }
 
-type GetAppHostResponse struct {
+type AppHostResponse struct {
 	// Host is the externally accessible URL for the Coder instance.
 	Host string `json:"host"`
 }
 
-// GetAppHost returns the site-wide application wildcard hostname without the
+// AppHost returns the site-wide application wildcard hostname without the
 // leading "*.", e.g. "apps.coder.com". Apps are accessible at:
 // "<app-name>--<agent-name>--<workspace-name>--<username>.<app-host>", e.g.
 // "my-app--agent--workspace--username.apps.coder.com".
 //
 // If the app host is not set, the response will contain an empty string.
-func (c *Client) GetAppHost(ctx context.Context) (GetAppHostResponse, error) {
+func (c *Client) AppHost(ctx context.Context) (AppHostResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/applications/host", nil)
 	if err != nil {
-		return GetAppHostResponse{}, err
+		return AppHostResponse{}, err
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return GetAppHostResponse{}, readBodyAsError(res)
+		return AppHostResponse{}, readBodyAsError(res)
 	}
 
-	var host GetAppHostResponse
+	var host AppHostResponse
 	return host, json.NewDecoder(res.Body).Decode(&host)
 }
 

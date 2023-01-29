@@ -96,12 +96,12 @@ func TestGetAppHost(t *testing.T) {
 			defer cancel()
 
 			// Should not leak to unauthenticated users.
-			host, err := client.GetAppHost(ctx)
+			host, err := client.AppHost(ctx)
 			require.Error(t, err)
 			require.Equal(t, "", host.Host)
 
 			_ = coderdtest.CreateFirstUser(t, client)
-			host, err = client.GetAppHost(ctx)
+			host, err = client.AppHost(ctx)
 			require.NoError(t, err)
 			require.Equal(t, c.expected, host.Host)
 		})
@@ -437,7 +437,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		// Get the current user and API key.
 		user, err := client.User(ctx, codersdk.Me)
 		require.NoError(t, err)
-		currentAPIKey, err := client.GetAPIKey(ctx, firstUser.UserID.String(), strings.Split(client.SessionToken(), "-")[0])
+		currentAPIKey, err := client.APIKey(ctx, firstUser.UserID.String(), strings.Split(client.SessionToken(), "-")[0])
 		require.NoError(t, err)
 
 		// Try to load the application without authentication.
@@ -499,7 +499,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		apiKey := cookies[0].Value
 
 		// Fetch the API key.
-		apiKeyInfo, err := client.GetAPIKey(ctx, firstUser.UserID.String(), strings.Split(apiKey, "-")[0])
+		apiKeyInfo, err := client.APIKey(ctx, firstUser.UserID.String(), strings.Split(apiKey, "-")[0])
 		require.NoError(t, err)
 		require.Equal(t, user.ID, apiKeyInfo.UserID)
 		require.Equal(t, codersdk.LoginTypePassword, apiKeyInfo.LoginType)
@@ -730,7 +730,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		require.NoError(t, err, "get workspaces")
 		require.Len(t, res.Workspaces, 1, "expected 1 workspace")
 
-		appHost, err := client.GetAppHost(ctx)
+		appHost, err := client.AppHost(ctx)
 		require.NoError(t, err, "get app host")
 
 		subdomain := httpapi.ApplicationURL{
@@ -1049,7 +1049,7 @@ func TestAppSubdomainLogout(t *testing.T) {
 			_, err := client.User(ctx, codersdk.Me)
 			require.NoError(t, err)
 
-			appHost, err := client.GetAppHost(ctx)
+			appHost, err := client.AppHost(ctx)
 			require.NoError(t, err, "get app host")
 
 			if c.cookie == "-" {

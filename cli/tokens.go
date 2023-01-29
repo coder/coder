@@ -103,7 +103,7 @@ func listTokens() *cobra.Command {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}
 
-			keys, err := client.GetTokens(cmd.Context(), codersdk.Me)
+			keys, err := client.Tokens(cmd.Context(), codersdk.Me)
 			if err != nil {
 				return xerrors.Errorf("create tokens: %w", err)
 			}

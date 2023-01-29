@@ -253,8 +253,8 @@ func (c *Client) UpdateOrganizationMemberRoles(ctx context.Context, organization
 	return member, json.NewDecoder(res.Body).Decode(&member)
 }
 
-// GetUserRoles returns all roles the user has
-func (c *Client) GetUserRoles(ctx context.Context, user string) (UserRoles, error) {
+// UserRoles returns all roles the user has
+func (c *Client) UserRoles(ctx context.Context, user string) (UserRoles, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/roles", user), nil)
 	if err != nil {
 		return UserRoles{}, err

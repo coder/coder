@@ -84,8 +84,8 @@ func (c *Client) CreateAPIKey(ctx context.Context, user string) (GenerateAPIKeyR
 	return apiKey, json.NewDecoder(res.Body).Decode(&apiKey)
 }
 
-// GetTokens list machine API keys.
-func (c *Client) GetTokens(ctx context.Context, userID string) ([]APIKey, error) {
+// Tokens list machine API keys.
+func (c *Client) Tokens(ctx context.Context, userID string) ([]APIKey, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys/tokens", userID), nil)
 	if err != nil {
 		return nil, err
@@ -98,8 +98,8 @@ func (c *Client) GetTokens(ctx context.Context, userID string) ([]APIKey, error)
 	return apiKey, json.NewDecoder(res.Body).Decode(&apiKey)
 }
 
-// GetAPIKey returns the api key by id.
-func (c *Client) GetAPIKey(ctx context.Context, userID string, id string) (*APIKey, error) {
+// APIKey returns the api key by id.
+func (c *Client) APIKey(ctx context.Context, userID string, id string) (*APIKey, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys/%s", userID, id), nil)
 	if err != nil {
 		return nil, err
