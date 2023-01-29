@@ -28,21 +28,72 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  typos:
-    runs-on: ubuntu-latest
+  lint:
+    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
-      - name: typos-action
+        uses: actions/checkout@v3
+
+      # Install Go!
+      - uses: actions/setup-go@v3
+        with:
+          go-version: "~1.19"
+
+      # Check for any typos!
+      - name: Check for typos
         uses: crate-ci/typos@v1.13.3
         with:
           config: .github/workflows/typos.toml
-      - name: Fix Helper
+      - name: Fix the typos
         if: ${{ failure() }}
         run: |
           echo "::notice:: you can automatically fix typos from your CLI:
           cargo install typos-cli
           typos -c .github/workflows/typos.toml -w"
+
+      # Check for Go linting errors!
+      - name: Lint Go
+        uses: golangci/golangci-lint-action@v3.3.1
+        with:
+          version: v1.48.0
+
+      - name: Lint shell scripts
+        uses: ludeeus/action-shellcheck@1.1.0
+        env:
+          SHELLCHECK_OPTS: --external-sources
+        with:
+          ignore: node_modules
+
+      # Lint our dashboard!
+      - name: Cache node_modules
+        id: cache-node
+        uses: actions/cache@v3
+        with:
+          path: |
+            **/node_modules
+            .eslintcache
+          key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            js-${{ runner.os }}-
+      - name: Install node_modules
+        run: ./scripts/yarn_install.sh
+      - name: Lint TypeScript
+        run: yarn lint
+        working-directory: site
+
+      # Make sure the Helm chart is linted!
+      - name: Install helm
+        uses: azure/setup-helm@v3
+        with:
+          version: v3.9.2
+      - name: Lint Helm chart
+        run: |
+          cd helm
+          make lint
+
+      # Ensure AGPL and Enterprise are separated!
+      - name: Check for AGPL code importing Enterprise...
+        run: ./scripts/check_enterprise_imports.sh
 
   changes:
     runs-on: ubuntu-latest
@@ -76,100 +127,7 @@ jobs:
         run: |
           echo "${{ toJSON(steps.filter )}}"
 
-  # Debug step
-  debug-inputs:
-    needs:
-      - changes
-    runs-on: ubuntu-latest
-    steps:
-      - id: log
-        run: |
-          echo "${{ toJSON(needs) }}"
-
-  style-lint-golangci:
-    name: style/lint/golangci
-    timeout-minutes: 5
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v3
-        with:
-          go-version: "~1.19"
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3.3.1
-        with:
-          version: v1.48.0
-
-  check-enterprise-imports:
-    name: check/enterprise-imports
-    timeout-minutes: 5
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Check imports of enterprise code
-        run: ./scripts/check_enterprise_imports.sh
-
-  style-lint-shellcheck:
-    name: style/lint/shellcheck
-    timeout-minutes: 5
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Run ShellCheck
-        uses: ludeeus/action-shellcheck@1.1.0
-        env:
-          SHELLCHECK_OPTS: --external-sources
-        with:
-          ignore: node_modules
-
-  style-lint-typescript:
-    name: "style/lint/typescript"
-    timeout-minutes: 5
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Cache Node
-        id: cache-node
-        uses: actions/cache@v3
-        with:
-          path: |
-            **/node_modules
-            .eslintcache
-          key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
-          restore-keys: |
-            js-${{ runner.os }}-
-
-      - name: Install node_modules
-        run: ./scripts/yarn_install.sh
-
-      - name: "yarn lint"
-        run: yarn lint
-        working-directory: site
-
-  style-lint-k8s:
-    name: "style/lint/k8s"
-    timeout-minutes: 5
-    needs: changes
-    if: needs.changes.outputs.k8s == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Install helm
-        uses: azure/setup-helm@v3
-        with:
-          version: v3.9.2
-
-      - name: cd helm && make lint
-        run: |
-          cd helm
-          make lint
-
   gen:
-    name: "style/gen"
     timeout-minutes: 8
     runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
     needs: changes
@@ -243,8 +201,7 @@ jobs:
       - name: Check for unstaged files
         run: ./scripts/check_unstaged.sh
 
-  style-fmt:
-    name: "style/fmt"
+  fmt:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
