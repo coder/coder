@@ -471,8 +471,6 @@ fi
 
 test ! -S "$agent_socket"
 `)
-	fmt.Printf("Agent bytes %s\n", agentSocketBytes)
-
 	agentSocket := strings.TrimSpace(string(agentSocketBytes))
 	if err != nil {
 		return xerrors.Errorf("check if agent socket is running (check if %q exists): %w", agentSocket, err)

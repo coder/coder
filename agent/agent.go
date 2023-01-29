@@ -455,7 +455,9 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 			if err != nil {
 				continue
 			}
-			_ = a.handleReconnectingPTY(ctx, logger, msg, conn)
+			go func() {
+				_ = a.handleReconnectingPTY(ctx, logger, msg, conn)
+			}()
 		}
 	}); err != nil {
 		return nil, err
