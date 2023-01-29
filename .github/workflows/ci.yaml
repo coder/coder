@@ -1,4 +1,4 @@
-name: coder
+name: ci
 
 on:
   push:
@@ -257,7 +257,6 @@ jobs:
         run: ./scripts/check_unstaged.sh
 
   test-go:
-    name: "test/go"
     runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' ||  matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'windows-latest-8-cores'|| matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -342,8 +341,7 @@ jobs:
           files: ./gotests.coverage
           flags: unittest-go-${{ matrix.os }}
 
-  test-go-postgres:
-    name: "test/go/postgres"
+  test-go-psql:
     runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
     # This timeout must be greater than the timeout set by `go test` in
     # `make test-postgres` to ensure we receive a trace of running
@@ -509,7 +507,6 @@ jobs:
           retention-days: 7
 
   test-js:
-    name: "test/js"
     runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
@@ -549,16 +546,11 @@ jobs:
           flags: unittest-js
 
   test-e2e:
-    name: "test/e2e/${{ matrix.os }}"
     needs:
       - changes
     if: needs.changes.outputs.docs-only == 'false'
-    runs-on: ${{ matrix.os }}
+    runs-on:  ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
     timeout-minutes: 20
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
     steps:
       - uses: actions/checkout@v3
 
