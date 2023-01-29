@@ -450,17 +450,20 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 			rawLen := make([]byte, 2)
 			_, err = conn.Read(rawLen)
 			if err != nil {
+				close(closed)
 				continue
 			}
 			length := binary.LittleEndian.Uint16(rawLen)
 			data := make([]byte, length)
 			_, err = conn.Read(data)
 			if err != nil {
+				close(closed)
 				continue
 			}
 			var msg codersdk.ReconnectingPTYInit
 			err = json.Unmarshal(data, &msg)
 			if err != nil {
+				close(closed)
 				continue
 			}
 			_ = a.trackConnGoroutine(func() {
