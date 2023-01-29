@@ -94,7 +94,7 @@ jobs:
       # Check for dead links in our markdown!
       # For the main branch:
       - if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
-        uses: gaurav-nelson/github-action-markdown-link-check@v1\
+        uses: gaurav-nelson/github-action-markdown-link-check@v1
         name: Check for dead links (main)
         with:
           use-quiet-mode: yes
