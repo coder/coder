@@ -454,3 +454,22 @@ func (c *Client) Experiments(ctx context.Context) (Experiments, error) {
 	var exp []Experiment
 	return exp, json.NewDecoder(res.Body).Decode(&exp)
 }
+
+type DeploymentDAUsResponse struct {
+	Entries []DAUEntry `json:"entries"`
+}
+
+func (c *Client) DeploymentDAUs(ctx context.Context) (*DeploymentDAUsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/insights/daus", nil)
+	if err != nil {
+		return nil, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+
+	var resp DeploymentDAUsResponse
+	return &resp, json.NewDecoder(res.Body).Decode(&resp)
+}
