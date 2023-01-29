@@ -32,6 +32,14 @@ type Organization struct {
 	UpdatedAt time.Time `json:"updated_at" validate:"required" format:"date-time"`
 }
 
+type OrganizationMember struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id" format:"uuid"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id" format:"uuid"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at" format:"date-time"`
+	UpdatedAt      time.Time `db:"updated_at" json:"updated_at" format:"date-time"`
+	Roles          []Role    `db:"roles" json:"roles"`
+}
+
 // CreateTemplateVersionRequest enables callers to create a new Template Version.
 type CreateTemplateVersionRequest struct {
 	Name string `json:"name,omitempty" validate:"omitempty,template_name"`
