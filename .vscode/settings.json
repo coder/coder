@@ -182,11 +182,11 @@
   },
   "eslint.workingDirectories": ["./site"],
   "files.exclude": {
-    "**/node_modules": true,
+    "**/node_modules": true
   },
   "search.exclude": {
     "scripts/metricsdocgen/metrics": true,
-    "docs/api/*.md": true,
+    "docs/api/*.md": true
   },
   // Ensure files always have a newline.
   "files.insertFinalNewline": true,
