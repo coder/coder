@@ -26,6 +26,11 @@ export interface AgentStatsReportResponse {
 }
 
 // From codersdk/deployment.go
+export interface AppHostResponse {
+  readonly host: string
+}
+
+// From codersdk/deployment.go
 export interface AppearanceConfig {
   readonly logo_url: string
   readonly service_banner: ServiceBannerConfig
@@ -330,7 +335,7 @@ export interface DeploymentConfigField<T extends Flaggable> {
   readonly value: T
 }
 
-// From codersdk/insights.go
+// From codersdk/deployment.go
 export interface DeploymentDAUsResponse {
   readonly entries: DAUEntry[]
 }
@@ -468,7 +473,7 @@ export interface Organization {
   readonly updated_at: string
 }
 
-// From codersdk/organizationmember.go
+// From codersdk/organizations.go
 export interface OrganizationMember {
   readonly user_id: string
   readonly organization_id: string
@@ -615,7 +620,7 @@ export interface Role {
   readonly display_name: string
 }
 
-// From codersdk/sse.go
+// From codersdk/serversentevents.go
 export interface ServerSentEvent {
   readonly type: ServerSentEventType
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
@@ -936,11 +941,6 @@ export interface WorkspaceApp {
   readonly health: WorkspaceAppHealth
 }
 
-// From codersdk/workspaces.go
-export interface WorkspaceAppHostResponse {
-  readonly host: string
-}
-
 // From codersdk/workspacebuilds.go
 export interface WorkspaceBuild {
   readonly id: string
@@ -986,7 +986,7 @@ export interface WorkspaceOptions {
   readonly include_deleted?: boolean
 }
 
-// From codersdk/quota.go
+// From codersdk/workspaces.go
 export interface WorkspaceQuota {
   readonly credits_consumed: number
   readonly budget: number
@@ -1167,7 +1167,7 @@ export const ResourceTypes: ResourceType[] = [
   "workspace_build",
 ]
 
-// From codersdk/sse.go
+// From codersdk/serversentevents.go
 export type ServerSentEventType = "data" | "error" | "ping"
 export const ServerSentEventTypes: ServerSentEventType[] = [
   "data",

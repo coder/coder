@@ -415,6 +415,20 @@
 | --------- | ------ | -------- | ------------ | ----------- |
 | `license` | string | true     |              |             |
 
+## codersdk.AppHostResponse
+
+```json
+{
+  "host": "string"
+}
+```
+
+### Properties
+
+| Name   | Type   | Required | Restrictions | Description                                                   |
+| ------ | ------ | -------- | ------------ | ------------------------------------------------------------- |
+| `host` | string | false    |              | Host is the externally accessible URL for the Coder instance. |
+
 ## codersdk.AppearanceConfig
 
 ```json
@@ -5082,20 +5096,6 @@ Parameter represents a set value for the scope.
 | `initializing` |
 | `healthy`      |
 | `unhealthy`    |
-
-## codersdk.WorkspaceAppHostResponse
-
-```json
-{
-  "host": "string"
-}
-```
-
-### Properties
-
-| Name   | Type   | Required | Restrictions | Description                                                   |
-| ------ | ------ | -------- | ------------ | ------------------------------------------------------------- |
-| `host` | string | false    |              | Host is the externally accessible URL for the Coder instance. |
 
 ## codersdk.WorkspaceAppSharingLevel
 

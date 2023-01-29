@@ -77,7 +77,7 @@ const (
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Applications
-// @Success 200 {object} codersdk.WorkspaceAppHostResponse
+// @Success 200 {object} codersdk.AppHostResponse
 // @Router /applications/host [get]
 func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
 	host := api.AppHostname

@@ -153,7 +153,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.WorkspaceAppHostResponse"
+                            "$ref": "#/definitions/codersdk.AppHostResponse"
                         }
                     }
                 }
@@ -5300,6 +5300,15 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AppHostResponse": {
+            "type": "object",
+            "properties": {
+                "host": {
+                    "description": "Host is the externally accessible URL for the Coder instance.",
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.AppearanceConfig": {
             "type": "object",
             "properties": {
@@ -7995,15 +8004,6 @@ const docTemplate = `{
                 "WorkspaceAppHealthHealthy",
                 "WorkspaceAppHealthUnhealthy"
             ]
-        },
-        "codersdk.WorkspaceAppHostResponse": {
-            "type": "object",
-            "properties": {
-                "host": {
-                    "description": "Host is the externally accessible URL for the Coder instance.",
-                    "type": "string"
-                }
-            }
         },
         "codersdk.WorkspaceAppSharingLevel": {
             "type": "string",
