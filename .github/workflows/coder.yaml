@@ -91,6 +91,26 @@ jobs:
           cd helm
           make lint
 
+      # Check for dead links in our markdown!
+      # For the main branch:
+      - if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
+        uses: gaurav-nelson/github-action-markdown-link-check@v1\
+        name: Check for dead links (main)
+        with:
+          use-quiet-mode: yes
+          use-verbose-mode: yes
+          config-file: .github/workflows/mlc_config.json
+      # For pull requests:
+      - if: github.ref != 'refs/heads/main' || github.event.pull_request.head.repo.fork
+        uses: gaurav-nelson/github-action-markdown-link-check@v1
+        name: Check for dead links (pull request)
+        with:
+          use-quiet-mode: yes
+          use-verbose-mode: yes
+          check-modified-files-only: yes
+          base-branch: main
+          config-file: .github/workflows/mlc_config.json
+
       # Ensure AGPL and Enterprise are separated!
       - name: Check for AGPL code importing Enterprise...
         run: ./scripts/check_enterprise_imports.sh
@@ -650,23 +670,3 @@ jobs:
           buildScriptName: "storybook:build"
           projectToken: 695c25b6cb65
           workingDir: "./site"
-  markdown-link-check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@master
-      # For the main branch:
-      - if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
-        uses: gaurav-nelson/github-action-markdown-link-check@v1
-        with:
-          use-quiet-mode: yes
-          use-verbose-mode: yes
-          config-file: .github/workflows/mlc_config.json
-      # For pull requests:
-      - if: github.ref != 'refs/heads/main' || github.event.pull_request.head.repo.fork
-        uses: gaurav-nelson/github-action-markdown-link-check@v1
-        with:
-          use-quiet-mode: yes
-          use-verbose-mode: yes
-          check-modified-files-only: yes
-          base-branch: main
-          config-file: .github/workflows/mlc_config.json
