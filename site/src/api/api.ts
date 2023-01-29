@@ -667,7 +667,7 @@ export const updateTemplateACL = async (
 }
 
 export const getApplicationsHost =
-  async (): Promise<TypesGen.GetAppHostResponse> => {
+  async (): Promise<TypesGen.AppHostResponse> => {
     const response = await axios.get(`/api/v2/applications/host`)
     return response.data
   }
@@ -718,7 +718,7 @@ export const getWorkspaceQuota = async (
 
 export const getAgentListeningPorts = async (
   agentID: string,
-): Promise<TypesGen.ListeningPortsResponse> => {
+): Promise<TypesGen.WorkspaceAgentListeningPortsResponse> => {
   const response = await axios.get(
     `/api/v2/workspaceagents/${agentID}/listening-ports`,
   )
