@@ -41,19 +41,19 @@ func CSRF(secureCookie bool) func(next http.Handler) http.Handler {
 			// CSRF only affects requests that automatically attach credentials via a cookie.
 			// If no cookie is present, then there is no risk of CSRF.
 			//nolint:govet
-			sessCookie, err := r.Cookie(codersdk.SessionTokenKey)
+			sessCookie, err := r.Cookie(codersdk.SessionTokenCookie)
 			if xerrors.Is(err, http.ErrNoCookie) {
 				return true
 			}
 
-			if token := r.Header.Get(codersdk.SessionCustomHeader); token == sessCookie.Value {
+			if token := r.Header.Get(codersdk.SessionTokenHeader); token == sessCookie.Value {
 				// If the cookie and header match, we can assume this is the same as just using the
 				// custom header auth. Custom header auth can bypass CSRF, as CSRF attacks
 				// cannot add custom headers.
 				return true
 			}
 
-			if token := r.URL.Query().Get(codersdk.SessionTokenKey); token == sessCookie.Value {
+			if token := r.URL.Query().Get(codersdk.SessionTokenCookie); token == sessCookie.Value {
 				// If the auth is set in a url param and matches the cookie, it
 				// is the same as just using the url param.
 				return true

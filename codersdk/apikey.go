@@ -53,7 +53,9 @@ type GenerateAPIKeyResponse struct {
 	Key string `json:"key"`
 }
 
-// CreateToken generates an API key that doesn't expire.
+// CreateToken generates an API key for the user ID provided with
+// custom expiration. These tokens can be used for long-lived access,
+// like for use with CI.
 func (c *Client) CreateToken(ctx context.Context, userID string, req CreateTokenRequest) (GenerateAPIKeyResponse, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/keys/tokens", userID), req)
 	if err != nil {

@@ -43,8 +43,7 @@ func Test_Client(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, method, r.Method)
 		assert.Equal(t, path, r.URL.Path)
-		assert.Equal(t, token, r.Header.Get(SessionCustomHeader))
-		assert.Equal(t, "true", r.Header.Get(BypassRatelimitHeader))
+		assert.Equal(t, token, r.Header.Get(SessionTokenHeader))
 		assert.NotEmpty(t, r.Header.Get("Traceparent"))
 		for k, v := range r.Header {
 			t.Logf("header %q: %q", k, strings.Join(v, ", "))
@@ -59,7 +58,6 @@ func Test_Client(t *testing.T) {
 	require.NoError(t, err)
 	client := New(u)
 	client.SetSessionToken(token)
-	client.BypassRatelimits = true
 
 	logBuf := bytes.NewBuffer(nil)
 	client.Logger = slog.Make(sloghuman.Sink(logBuf)).Leveled(slog.LevelDebug)
@@ -83,7 +81,7 @@ func Test_Client(t *testing.T) {
 		),
 	)
 	otel.SetLogger(logr.Discard())
-	client.PropagateTracing = true
+	client.Trace = true
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()

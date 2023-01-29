@@ -28,17 +28,23 @@ import (
 // shouldn't be likely to conflict with any user-application set cookies.
 // Be sure to strip additional cookies in httpapi.StripCoderCookies!
 const (
-	// SessionTokenKey represents the name of the cookie or query parameter the API key is stored in.
-	SessionTokenKey = "coder_session_token"
-	// SessionCustomHeader is the custom header to use for authentication.
-	SessionCustomHeader = "Coder-Session-Token"
-	OAuth2StateKey      = "oauth_state"
-	OAuth2RedirectKey   = "oauth_redirect"
+	// SessionTokenCookie represents the name of the cookie or query parameter the API key is stored in.
+	SessionTokenCookie = "coder_session_token"
+	// SessionTokenHeader is the custom header to use for authentication.
+	SessionTokenHeader = "Coder-Session-Token"
+	// OAuth2StateCookie is the name of the cookie that stores the oauth2 state.
+	OAuth2StateCookie = "oauth_state"
+	// OAuth2RedirectCookie is the name of the cookie that stores the oauth2 redirect.
+	OAuth2RedirectCookie = "oauth_redirect"
 
+	// BypassRatelimitHeader is the custom header to use to bypass ratelimits.
+	// Only owners can bypass rate limits. This is typically used for scale testing.
 	// nolint: gosec
 	BypassRatelimitHeader = "X-Coder-Bypass-Ratelimit"
 )
 
+// loggableMimeTypes is a list of MIME types that are safe to log
+// the output of. This is useful for debugging or testing.
 var loggableMimeTypes = map[string]struct{}{
 	"application/json": {},
 	"text/plain":       {},
@@ -63,63 +69,30 @@ type Client struct {
 	HTTPClient *http.Client
 	URL        *url.URL
 
-	// Logger can be provided to log requests. Request method, URL and response
-	// status code will be logged by default.
+	// Logger is optionally provided to log requests.
+	// Method, URL, and response code will be logged by default.
 	Logger slog.Logger
-	// LogBodies determines whether the request and response bodies are logged
-	// to the provided Logger. This is useful for debugging or testing.
+
+	// LogBodies can be enabled to print request and response bodies to the logger.
 	LogBodies bool
 
-	// BypassRatelimits is an optional flag that can be set by the site owner to
-	// disable ratelimit checks for the client.
-	BypassRatelimits bool
-
-	// PropagateTracing is an optional flag that can be set to propagate tracing
-	// spans to the Coder API. This is useful for seeing the entire request
-	// from end-to-end.
-	PropagateTracing bool
+	// Trace can be enabled to propagate tracing spans to the Coder API.
+	// This is useful for tracking a request end-to-end.
+	Trace bool
 }
 
+// SessionToken returns the currently set token for the client.
 func (c *Client) SessionToken() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.sessionToken
 }
 
+// SetSessionToken returns the currently set token for the client.
 func (c *Client) SetSessionToken(token string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.sessionToken = token
-}
-
-func (c *Client) Clone() *Client {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	hc := *c.HTTPClient
-	u := *c.URL
-	return &Client{
-		HTTPClient:       &hc,
-		sessionToken:     c.sessionToken,
-		URL:              &u,
-		Logger:           c.Logger,
-		LogBodies:        c.LogBodies,
-		BypassRatelimits: c.BypassRatelimits,
-		PropagateTracing: c.PropagateTracing,
-	}
-}
-
-type RequestOption func(*http.Request)
-
-func WithQueryParam(key, value string) RequestOption {
-	return func(r *http.Request) {
-		if value == "" {
-			return
-		}
-		q := r.URL.Query()
-		q.Add(key, value)
-		r.URL.RawQuery = q.Encode()
-	}
 }
 
 // Request performs a HTTP request with the body provided. The caller is
@@ -165,10 +138,7 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	if err != nil {
 		return nil, xerrors.Errorf("create request: %w", err)
 	}
-	req.Header.Set(SessionCustomHeader, c.SessionToken())
-	if c.BypassRatelimits {
-		req.Header.Set(BypassRatelimitHeader, "true")
-	}
+	req.Header.Set(SessionTokenHeader, c.SessionToken())
 
 	if r != nil {
 		req.Header.Set("Content-Type", "application/json")
@@ -181,7 +151,7 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	span.SetAttributes(semconv.HTTPClientAttributesFromHTTPRequest(req)...)
 
 	// Inject tracing headers if enabled.
-	if c.PropagateTracing {
+	if c.Trace {
 		tmp := otel.GetTextMapPropagator()
 		hc := propagation.HeaderCarrier(req.Header)
 		tmp.Inject(ctx, hc)
@@ -244,19 +214,19 @@ func readBodyAsError(res *http.Response) error {
 	defer res.Body.Close()
 	contentType := res.Header.Get("Content-Type")
 
-	var method, u string
+	var requestMethod, requestURL string
 	if res.Request != nil {
-		method = res.Request.Method
+		requestMethod = res.Request.Method
 		if res.Request.URL != nil {
-			u = res.Request.URL.String()
+			requestURL = res.Request.URL.String()
 		}
 	}
 
-	var helper string
+	var helpMessage string
 	if res.StatusCode == http.StatusUnauthorized {
 		// 401 means the user is not logged in
 		// 403 would mean that the user is not authorized
-		helper = "Try logging in using 'coder login <url>'."
+		helpMessage = "Try logging in using 'coder login <url>'."
 	}
 
 	resp, err := io.ReadAll(res.Body)
@@ -278,7 +248,7 @@ func readBodyAsError(res *http.Response) error {
 				Message: fmt.Sprintf("unexpected non-JSON response %q", contentType),
 				Detail:  string(resp),
 			},
-			Helper: helper,
+			Helper: helpMessage,
 		}
 	}
 
@@ -291,7 +261,7 @@ func readBodyAsError(res *http.Response) error {
 				Response: Response{
 					Message: "empty response body",
 				},
-				Helper: helper,
+				Helper: helpMessage,
 			}
 		}
 		return xerrors.Errorf("decode body: %w", err)
@@ -307,9 +277,9 @@ func readBodyAsError(res *http.Response) error {
 	return &Error{
 		Response:   m,
 		statusCode: res.StatusCode,
-		method:     method,
-		url:        u,
-		Helper:     helper,
+		method:     requestMethod,
+		url:        requestURL,
+		Helper:     helpMessage,
 	}
 }
 
@@ -369,4 +339,19 @@ func parseMimeType(contentType string) string {
 	}
 
 	return mimeType
+}
+
+// RequestOption is a function that can be used to modify an http.Request.
+type RequestOption func(*http.Request)
+
+// WithQueryParam adds a query parameter to the request.
+func WithQueryParam(key, value string) RequestOption {
+	return func(r *http.Request) {
+		if value == "" {
+			return
+		}
+		q := r.URL.Query()
+		q.Add(key, value)
+		r.URL.RawQuery = q.Encode()
+	}
 }

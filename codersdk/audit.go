@@ -59,7 +59,7 @@ const (
 	AuditActionStop   AuditAction = "stop"
 )
 
-func (a AuditAction) FriendlyString() string {
+func (a AuditAction) Friendly() string {
 	switch a {
 	case AuditActionCreate:
 		return "created"
@@ -154,6 +154,8 @@ func (c *Client) AuditLogs(ctx context.Context, req AuditLogsRequest) (AuditLogR
 	return logRes, nil
 }
 
+// CreateTestAuditLog creates a fake audit log. Only owners of the organization
+// can perform this action. It's used for testing purposes.
 func (c *Client) CreateTestAuditLog(ctx context.Context, req CreateTestAuditLogRequest) error {
 	res, err := c.Request(ctx, http.MethodPost, "/api/v2/audit/testgenerate", req)
 	if err != nil {

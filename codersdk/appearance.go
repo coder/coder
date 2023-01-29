@@ -17,6 +17,8 @@ type ServiceBannerConfig struct {
 	BackgroundColor string `json:"background_color,omitempty"`
 }
 
+// Appearance returns the configuration that modifies the visual
+// display of the dashboard.
 func (c *Client) Appearance(ctx context.Context) (AppearanceConfig, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/appearance", nil)
 	if err != nil {

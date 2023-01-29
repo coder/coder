@@ -134,7 +134,7 @@ func setupProxyTest(t *testing.T, opts *setupProxyTestOpts) (*codersdk.Client, c
 	server := http.Server{
 		ReadHeaderTimeout: time.Minute,
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			_, err := r.Cookie(codersdk.SessionTokenKey)
+			_, err := r.Cookie(codersdk.SessionTokenCookie)
 			assert.ErrorIs(t, err, http.ErrNoCookie)
 			w.Header().Set("X-Forwarded-For", r.Header.Get("X-Forwarded-For"))
 			w.WriteHeader(http.StatusOK)
@@ -515,7 +515,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 			canCreateApplicationConnect = "can-create-application_connect"
 			canReadUserMe               = "can-read-user-me"
 		)
-		authRes, err := appClient.CheckAuthorization(ctx, codersdk.AuthorizationRequest{
+		authRes, err := appClient.AuthCheck(ctx, codersdk.AuthorizationRequest{
 			Checks: map[string]codersdk.AuthorizationCheck{
 				canCreateApplicationConnect: {
 					Object: codersdk.AuthorizationObject{
@@ -546,7 +546,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		t.Log("navigating to: ", gotLocation.String())
 		req, err = http.NewRequestWithContext(ctx, "GET", gotLocation.String(), nil)
 		require.NoError(t, err)
-		req.Header.Set(codersdk.SessionCustomHeader, apiKey)
+		req.Header.Set(codersdk.SessionTokenHeader, apiKey)
 		resp, err = doWithRetries(t, client, req)
 		require.NoError(t, err)
 		resp.Body.Close()
@@ -1087,7 +1087,7 @@ func TestAppSubdomainLogout(t *testing.T) {
 			// The header is prioritized over the devurl cookie if both are
 			// set, so this ensures we can trigger the logout code path with
 			// bad cookies during tests.
-			req.Header.Set(codersdk.SessionCustomHeader, client.SessionToken())
+			req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 			if c.cookie != "" {
 				req.AddCookie(&http.Cookie{
 					Name:  httpmw.DevURLSessionTokenCookie,
@@ -1526,7 +1526,7 @@ func TestWorkspaceAppsNonCanonicalHeaders(t *testing.T) {
 		secWebSocketKey := "test-dean-was-here"
 		req.Header["Sec-WebSocket-Key"] = []string{secWebSocketKey}
 
-		req.Header.Set(codersdk.SessionCustomHeader, client.SessionToken())
+		req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 		resp, err := doWithRetries(t, client, req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
@@ -1578,7 +1578,7 @@ func TestWorkspaceAppsNonCanonicalHeaders(t *testing.T) {
 		secWebSocketKey := "test-dean-was-here"
 		req.Header["Sec-WebSocket-Key"] = []string{secWebSocketKey}
 
-		req.Header.Set(codersdk.SessionCustomHeader, client.SessionToken())
+		req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 		resp, err := doWithRetries(t, client, req)
 		require.NoError(t, err)
 		defer resp.Body.Close()

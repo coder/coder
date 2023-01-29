@@ -1206,11 +1206,11 @@ func gitAuthCallback(t *testing.T, id string, client *codersdk.Client) *http.Res
 	req, err := http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
 	require.NoError(t, err)
 	req.AddCookie(&http.Cookie{
-		Name:  codersdk.OAuth2StateKey,
+		Name:  codersdk.OAuth2StateCookie,
 		Value: state,
 	})
 	req.AddCookie(&http.Cookie{
-		Name:  codersdk.SessionTokenKey,
+		Name:  codersdk.SessionTokenCookie,
 		Value: client.SessionToken(),
 	})
 	res, err := client.HTTPClient.Do(req)
