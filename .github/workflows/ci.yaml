@@ -100,6 +100,7 @@ jobs:
         with:
           use-quiet-mode: yes
           use-verbose-mode: yes
+          folder-path: docs
           config-file: .github/workflows/mlc_config.json
       # For pull requests:
       - if: github.ref != 'refs/heads/main' || github.event.pull_request.head.repo.fork
@@ -111,6 +112,7 @@ jobs:
           use-verbose-mode: yes
           check-modified-files-only: yes
           base-branch: main
+          folder-path: docs
           config-file: .github/workflows/mlc_config.json
 
       # Ensure AGPL and Enterprise are separated!
