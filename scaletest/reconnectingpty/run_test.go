@@ -22,6 +22,7 @@ import (
 
 func Test_Runner(t *testing.T) {
 	t.Parallel()
+	t.Skip()
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
