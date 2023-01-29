@@ -104,7 +104,7 @@ func (c *Client) provisionerJobLogsBefore(ctx context.Context, path string, befo
 	}
 	if res.StatusCode != http.StatusOK {
 		defer res.Body.Close()
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 
 	var logs []ProvisionerJobLog
@@ -140,7 +140,7 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 		if res == nil {
 			return nil, nil, err
 		}
-		return nil, nil, readBodyAsError(res)
+		return nil, nil, ReadBodyAsError(res)
 	}
 	logs := make(chan ProvisionerJobLog)
 	decoder := json.NewDecoder(websocket.NetConn(ctx, conn, websocket.MessageText))
@@ -203,7 +203,7 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, organization uuid.U
 		if res == nil {
 			return nil, err
 		}
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 	// Align with the frame size of yamux.
 	conn.SetReadLimit(256 * 1024)

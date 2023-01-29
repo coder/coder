@@ -63,7 +63,7 @@ func (c *Client) CreateToken(ctx context.Context, userID string, req CreateToken
 	}
 	defer res.Body.Close()
 	if res.StatusCode > http.StatusCreated {
-		return GenerateAPIKeyResponse{}, readBodyAsError(res)
+		return GenerateAPIKeyResponse{}, ReadBodyAsError(res)
 	}
 
 	var apiKey GenerateAPIKeyResponse
@@ -79,7 +79,7 @@ func (c *Client) CreateAPIKey(ctx context.Context, user string) (GenerateAPIKeyR
 	}
 	defer res.Body.Close()
 	if res.StatusCode > http.StatusCreated {
-		return GenerateAPIKeyResponse{}, readBodyAsError(res)
+		return GenerateAPIKeyResponse{}, ReadBodyAsError(res)
 	}
 
 	var apiKey GenerateAPIKeyResponse
@@ -94,7 +94,7 @@ func (c *Client) Tokens(ctx context.Context, userID string) ([]APIKey, error) {
 	}
 	defer res.Body.Close()
 	if res.StatusCode > http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 	var apiKey = []APIKey{}
 	return apiKey, json.NewDecoder(res.Body).Decode(&apiKey)
@@ -108,7 +108,7 @@ func (c *Client) APIKey(ctx context.Context, userID string, id string) (*APIKey,
 	}
 	defer res.Body.Close()
 	if res.StatusCode > http.StatusCreated {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 	apiKey := &APIKey{}
 	return apiKey, json.NewDecoder(res.Body).Decode(apiKey)
@@ -122,7 +122,7 @@ func (c *Client) DeleteAPIKey(ctx context.Context, userID string, id string) err
 	}
 	defer res.Body.Close()
 	if res.StatusCode > http.StatusNoContent {
-		return readBodyAsError(res)
+		return ReadBodyAsError(res)
 	}
 	return nil
 }

@@ -98,7 +98,7 @@ func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return Entitlements{}, readBodyAsError(res)
+		return Entitlements{}, ReadBodyAsError(res)
 	}
 	var ent Entitlements
 	return ent, json.NewDecoder(res.Body).Decode(&ent)
@@ -329,7 +329,7 @@ func (c *Client) DeploymentConfig(ctx context.Context) (DeploymentConfig, error)
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return DeploymentConfig{}, readBodyAsError(res)
+		return DeploymentConfig{}, ReadBodyAsError(res)
 	}
 
 	var df DeploymentConfig
@@ -356,7 +356,7 @@ func (c *Client) Appearance(ctx context.Context) (AppearanceConfig, error) {
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return AppearanceConfig{}, readBodyAsError(res)
+		return AppearanceConfig{}, ReadBodyAsError(res)
 	}
 	var cfg AppearanceConfig
 	return cfg, json.NewDecoder(res.Body).Decode(&cfg)
@@ -369,7 +369,7 @@ func (c *Client) UpdateAppearance(ctx context.Context, appearance AppearanceConf
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return readBodyAsError(res)
+		return ReadBodyAsError(res)
 	}
 	return nil
 }
@@ -401,7 +401,7 @@ func (c *Client) BuildInfo(ctx context.Context) (BuildInfoResponse, error) {
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return BuildInfoResponse{}, readBodyAsError(res)
+		return BuildInfoResponse{}, ReadBodyAsError(res)
 	}
 
 	var buildInfo BuildInfoResponse
@@ -449,7 +449,7 @@ func (c *Client) Experiments(ctx context.Context) (Experiments, error) {
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 	var exp []Experiment
 	return exp, json.NewDecoder(res.Body).Decode(&exp)

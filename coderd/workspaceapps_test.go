@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/testutil"
@@ -252,10 +253,10 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 	user, err := client.User(ctx, codersdk.Me)
 	require.NoError(t, err)
 
-	agentClient := codersdk.New(client.URL)
+	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(authToken)
 	if appHost != "" {
-		metadata, err := agentClient.WorkspaceAgentMetadata(context.Background())
+		metadata, err := agentClient.Metadata(context.Background())
 		require.NoError(t, err)
 		proxyURL := fmt.Sprintf(
 			"http://{{port}}--%s--%s--%s%s",

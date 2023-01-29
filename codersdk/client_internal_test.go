@@ -293,7 +293,7 @@ func Test_readBodyAsError(t *testing.T) {
 
 			c.res.Request = c.req
 
-			err := readBodyAsError(c.res)
+			err := ReadBodyAsError(c.res)
 			c.assert(t, err)
 		})
 	}

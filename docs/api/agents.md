@@ -27,7 +27,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/aws-instance-identi
 
 | Name   | In   | Type                                                                             | Required | Description             |
 | ------ | ---- | -------------------------------------------------------------------------------- | -------- | ----------------------- |
-| `body` | body | [codersdk.AWSInstanceIdentityToken](schemas.md#codersdkawsinstanceidentitytoken) | true     | Instance identity token |
+| `body` | body | [agentsdk.AWSInstanceIdentityToken](schemas.md#agentsdkawsinstanceidentitytoken) | true     | Instance identity token |
 
 ### Example responses
 
@@ -41,9 +41,9 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/aws-instance-identi
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                                               |
-| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentAuthenticateResponse](schemas.md#codersdkworkspaceagentauthenticateresponse) |
+| Status | Meaning                                                 | Description | Schema                                                                   |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.AuthenticateResponse](schemas.md#agentsdkauthenticateresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -74,7 +74,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/azure-instance-iden
 
 | Name   | In   | Type                                                                                 | Required | Description             |
 | ------ | ---- | ------------------------------------------------------------------------------------ | -------- | ----------------------- |
-| `body` | body | [codersdk.AzureInstanceIdentityToken](schemas.md#codersdkazureinstanceidentitytoken) | true     | Instance identity token |
+| `body` | body | [agentsdk.AzureInstanceIdentityToken](schemas.md#agentsdkazureinstanceidentitytoken) | true     | Instance identity token |
 
 ### Example responses
 
@@ -88,9 +88,9 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/azure-instance-iden
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                                               |
-| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentAuthenticateResponse](schemas.md#codersdkworkspaceagentauthenticateresponse) |
+| Status | Meaning                                                 | Description | Schema                                                                   |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.AuthenticateResponse](schemas.md#agentsdkauthenticateresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -120,7 +120,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/google-instance-ide
 
 | Name   | In   | Type                                                                                   | Required | Description             |
 | ------ | ---- | -------------------------------------------------------------------------------------- | -------- | ----------------------- |
-| `body` | body | [codersdk.GoogleInstanceIdentityToken](schemas.md#codersdkgoogleinstanceidentitytoken) | true     | Instance identity token |
+| `body` | body | [agentsdk.GoogleInstanceIdentityToken](schemas.md#agentsdkgoogleinstanceidentitytoken) | true     | Instance identity token |
 
 ### Example responses
 
@@ -134,9 +134,9 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/google-instance-ide
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                                               |
-| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentAuthenticateResponse](schemas.md#codersdkworkspaceagentauthenticateresponse) |
+| Status | Meaning                                                 | Description | Schema                                                                   |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.AuthenticateResponse](schemas.md#agentsdkauthenticateresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -166,9 +166,9 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/app-health \
 
 ### Parameters
 
-| Name   | In   | Type                                                                                         | Required | Description                |
-| ------ | ---- | -------------------------------------------------------------------------------------------- | -------- | -------------------------- |
-| `body` | body | [codersdk.PostWorkspaceAppHealthsRequest](schemas.md#codersdkpostworkspaceapphealthsrequest) | true     | Application health request |
+| Name   | In   | Type                                                                       | Required | Description                |
+| ------ | ---- | -------------------------------------------------------------------------- | -------- | -------------------------- |
+| `body` | body | [agentsdk.PostAppHealthsRequest](schemas.md#agentsdkpostapphealthsrequest) | true     | Application health request |
 
 ### Responses
 
@@ -235,9 +235,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitauth?url=http%
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                                     |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------ |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentGitAuthResponse](schemas.md#codersdkworkspaceagentgitauthresponse) |
+| Status | Meaning                                                 | Description | Schema                                                         |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.GitAuthResponse](schemas.md#agentsdkgitauthresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -267,9 +267,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitsshkey \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                       |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------ |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AgentGitSSHKey](schemas.md#codersdkagentgitsshkey) |
+| Status | Meaning                                                 | Description | Schema                                             |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.GitSSHKey](schemas.md#agentsdkgitsshkey) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -377,9 +377,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/metadata \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                       |
-| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentMetadata](schemas.md#codersdkworkspaceagentmetadata) |
+| Status | Meaning                                                 | Description | Schema                                           |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.Metadata](schemas.md#agentsdkmetadata) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -415,9 +415,9 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/report-stats \
 
 ### Parameters
 
-| Name   | In   | Type                                                 | Required | Description   |
-| ------ | ---- | ---------------------------------------------------- | -------- | ------------- |
-| `body` | body | [codersdk.AgentStats](schemas.md#codersdkagentstats) | true     | Stats request |
+| Name   | In   | Type                                       | Required | Description   |
+| ------ | ---- | ------------------------------------------ | -------- | ------------- |
+| `body` | body | [agentsdk.Stats](schemas.md#agentsdkstats) | true     | Stats request |
 
 ### Example responses
 
@@ -431,9 +431,9 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/report-stats \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                               |
-| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AgentStatsResponse](schemas.md#codersdkagentstatsresponse) |
+| Status | Meaning                                                 | Description | Schema                                                     |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.StatsResponse](schemas.md#agentsdkstatsresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

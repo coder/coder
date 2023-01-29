@@ -110,7 +110,7 @@ func (c *Client) CreateParameter(ctx context.Context, scope ParameterScope, id u
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusCreated {
-		return Parameter{}, readBodyAsError(res)
+		return Parameter{}, ReadBodyAsError(res)
 	}
 
 	var param Parameter
@@ -125,7 +125,7 @@ func (c *Client) DeleteParameter(ctx context.Context, scope ParameterScope, id u
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return readBodyAsError(res)
+		return ReadBodyAsError(res)
 	}
 
 	_, _ = io.Copy(io.Discard, res.Body)
@@ -140,7 +140,7 @@ func (c *Client) Parameters(ctx context.Context, scope ParameterScope, id uuid.U
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 
 	var parameters []Parameter

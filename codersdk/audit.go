@@ -142,7 +142,7 @@ func (c *Client) AuditLogs(ctx context.Context, req AuditLogsRequest) (AuditLogR
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return AuditLogResponse{}, readBodyAsError(res)
+		return AuditLogResponse{}, ReadBodyAsError(res)
 	}
 
 	var logRes AuditLogResponse

@@ -96,7 +96,7 @@ func (c *Client) getWorkspace(ctx context.Context, id uuid.UUID, opts ...Request
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return Workspace{}, readBodyAsError(res)
+		return Workspace{}, ReadBodyAsError(res)
 	}
 	var workspace Workspace
 	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
@@ -119,7 +119,7 @@ func (c *Client) WorkspaceBuilds(ctx context.Context, req WorkspaceBuildsRequest
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 	var workspaceBuild []WorkspaceBuild
 	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
@@ -133,7 +133,7 @@ func (c *Client) CreateWorkspaceBuild(ctx context.Context, workspace uuid.UUID, 
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusCreated {
-		return WorkspaceBuild{}, readBodyAsError(res)
+		return WorkspaceBuild{}, ReadBodyAsError(res)
 	}
 	var workspaceBuild WorkspaceBuild
 	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
@@ -148,7 +148,7 @@ func (c *Client) WatchWorkspace(ctx context.Context, id uuid.UUID) (<-chan Works
 		return nil, err
 	}
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 	nextEvent := ServerSentEventReader(ctx, res.Body)
 
@@ -198,7 +198,7 @@ func (c *Client) UpdateWorkspace(ctx context.Context, id uuid.UUID, req UpdateWo
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusNoContent {
-		return readBodyAsError(res)
+		return ReadBodyAsError(res)
 	}
 	return nil
 }
@@ -218,7 +218,7 @@ func (c *Client) UpdateWorkspaceAutostart(ctx context.Context, id uuid.UUID, req
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusNoContent {
-		return readBodyAsError(res)
+		return ReadBodyAsError(res)
 	}
 	return nil
 }
@@ -238,7 +238,7 @@ func (c *Client) UpdateWorkspaceTTL(ctx context.Context, id uuid.UUID, req Updat
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusNoContent {
-		return readBodyAsError(res)
+		return ReadBodyAsError(res)
 	}
 	return nil
 }
@@ -258,7 +258,7 @@ func (c *Client) PutExtendWorkspace(ctx context.Context, id uuid.UUID, req PutEx
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNotModified {
-		return readBodyAsError(res)
+		return ReadBodyAsError(res)
 	}
 	return nil
 }
@@ -323,7 +323,7 @@ func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) (Worksp
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return WorkspacesResponse{}, readBodyAsError(res)
+		return WorkspacesResponse{}, ReadBodyAsError(res)
 	}
 
 	var wres WorkspacesResponse
@@ -343,7 +343,7 @@ func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return Workspace{}, readBodyAsError(res)
+		return Workspace{}, ReadBodyAsError(res)
 	}
 
 	var workspace Workspace
@@ -369,7 +369,7 @@ func (c *Client) AppHost(ctx context.Context) (WorkspaceAppHostResponse, error) 
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return WorkspaceAppHostResponse{}, readBodyAsError(res)
+		return WorkspaceAppHostResponse{}, ReadBodyAsError(res)
 	}
 
 	var host WorkspaceAppHostResponse

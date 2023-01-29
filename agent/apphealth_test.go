@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/testutil"
 )
 
@@ -180,7 +181,7 @@ func setupAppReporter(ctx context.Context, t *testing.T, apps []codersdk.Workspa
 		var newApps []codersdk.WorkspaceApp
 		return append(newApps, apps...), nil
 	}
-	postWorkspaceAgentAppHealth := func(_ context.Context, req codersdk.PostWorkspaceAppHealthsRequest) error {
+	postWorkspaceAgentAppHealth := func(_ context.Context, req agentsdk.PostAppHealthsRequest) error {
 		mu.Lock()
 		for id, health := range req.Healths {
 			for i, app := range apps {

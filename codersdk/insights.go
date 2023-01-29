@@ -20,7 +20,7 @@ func (c *Client) DeploymentDAUs(ctx context.Context) (*DeploymentDAUsResponse, e
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 
 	var resp DeploymentDAUsResponse

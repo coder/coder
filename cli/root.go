@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 )
 
 var (
@@ -334,7 +335,7 @@ func createUnauthenticatedClient(cmd *cobra.Command, serverURL *url.URL) (*coder
 
 // createAgentClient returns a new client from the command context.
 // It works just like CreateClient, but uses the agent token and URL instead.
-func createAgentClient(cmd *cobra.Command) (*codersdk.Client, error) {
+func createAgentClient(cmd *cobra.Command) (*agentsdk.Client, error) {
 	rawURL, err := cmd.Flags().GetString(varAgentURL)
 	if err != nil {
 		return nil, err
@@ -347,7 +348,7 @@ func createAgentClient(cmd *cobra.Command) (*codersdk.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	client := codersdk.New(serverURL)
+	client := agentsdk.New(serverURL)
 	client.SetSessionToken(token)
 	return client, nil
 }

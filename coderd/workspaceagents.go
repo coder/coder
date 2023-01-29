@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/tailnet"
 )
 
@@ -76,7 +77,7 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Agents
-// @Success 200 {object} codersdk.WorkspaceAgentMetadata
+// @Success 200 {object} agentsdk.Metadata
 // @Router /workspaceagents/me/metadata [get]
 func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -141,7 +142,7 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 		vscodeProxyURI += fmt.Sprintf(":%s", api.AccessURL.Port())
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceAgentMetadata{
+	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.Metadata{
 		Apps:                 convertApps(dbApps),
 		DERPMap:              api.DERPMap,
 		GitAuthConfigs:       len(api.GitAuthConfigs),
@@ -160,7 +161,7 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 // @Accept json
 // @Produce json
 // @Tags Agents
-// @Param request body codersdk.PostWorkspaceAgentVersionRequest true "Version request"
+// @Param request body agentsdk.PostVersionRequest true "Version request"
 // @Success 200
 // @Router /workspaceagents/me/version [post]
 // @x-apidocgen {"skip": true}
@@ -176,7 +177,7 @@ func (api *API) postWorkspaceAgentVersion(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	var req codersdk.PostWorkspaceAgentVersionRequest
+	var req agentsdk.PostVersionRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -861,8 +862,8 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 // @Accept json
 // @Produce json
 // @Tags Agents
-// @Param request body codersdk.AgentStats true "Stats request"
-// @Success 200 {object} codersdk.AgentStatsResponse
+// @Param request body agentsdk.Stats true "Stats request"
+// @Success 200 {object} agentsdk.StatsResponse
 // @Router /workspaceagents/me/report-stats [post]
 func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -877,13 +878,13 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	var req codersdk.AgentStats
+	var req agentsdk.Stats
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
 	if req.RxBytes == 0 && req.TxBytes == 0 {
-		httpapi.Write(ctx, rw, http.StatusOK, codersdk.AgentStatsResponse{
+		httpapi.Write(ctx, rw, http.StatusOK, agentsdk.StatsResponse{
 			ReportInterval: api.AgentStatsRefreshInterval,
 		})
 		return
@@ -928,7 +929,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AgentStatsResponse{
+	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.StatsResponse{
 		ReportInterval: api.AgentStatsRefreshInterval,
 	})
 }
@@ -938,7 +939,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 // @Security CoderSessionToken
 // @Accept json
 // @Tags Agents
-// @Param request body codersdk.PostWorkspaceAgentLifecycleRequest true "Workspace agent lifecycle request"
+// @Param request body agentsdk.PostLifecycleRequest true "Workspace agent lifecycle request"
 // @Success 204 "Success"
 // @Router /workspaceagents/me/report-lifecycle [post]
 // @x-apidocgen {"skip": true}
@@ -955,7 +956,7 @@ func (api *API) workspaceAgentReportLifecycle(rw http.ResponseWriter, r *http.Re
 		return
 	}
 
-	var req codersdk.PostWorkspaceAgentLifecycleRequest
+	var req agentsdk.PostLifecycleRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -994,13 +995,13 @@ func (api *API) workspaceAgentReportLifecycle(rw http.ResponseWriter, r *http.Re
 // @Accept json
 // @Produce json
 // @Tags Agents
-// @Param request body codersdk.PostWorkspaceAppHealthsRequest true "Application health request"
+// @Param request body agentsdk.PostAppHealthsRequest true "Application health request"
 // @Success 200
 // @Router /workspaceagents/me/app-health [post]
 func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-	var req codersdk.PostWorkspaceAppHealthsRequest
+	var req agentsdk.PostAppHealthsRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -1122,7 +1123,7 @@ func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) 
 // @Tags Agents
 // @Param url query string true "Git URL" format(uri)
 // @Param listen query bool false "Wait for a new token to be issued"
-// @Success 200 {object} codersdk.WorkspaceAgentGitAuthResponse
+// @Success 200 {object} agentsdk.GitAuthResponse
 // @Router /workspaceagents/me/gitauth [get]
 func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -1272,7 +1273,7 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 			return
 		}
 
-		httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceAgentGitAuthResponse{
+		httpapi.Write(ctx, rw, http.StatusOK, agentsdk.GitAuthResponse{
 			URL: redirectURL.String(),
 		})
 		return
@@ -1281,7 +1282,7 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 	// If the token is expired and refresh is disabled, we prompt
 	// the user to authenticate again.
 	if gitAuthConfig.NoRefresh && gitAuthLink.OAuthExpiry.Before(database.Now()) {
-		httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceAgentGitAuthResponse{
+		httpapi.Write(ctx, rw, http.StatusOK, agentsdk.GitAuthResponse{
 			URL: redirectURL.String(),
 		})
 		return
@@ -1293,7 +1294,7 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 		Expiry:       gitAuthLink.OAuthExpiry,
 	}).Token()
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceAgentGitAuthResponse{
+		httpapi.Write(ctx, rw, http.StatusOK, agentsdk.GitAuthResponse{
 			URL: redirectURL.String(),
 		})
 		return
@@ -1310,7 +1311,7 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 		}
 		if !valid {
 			// The token is no longer valid!
-			httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceAgentGitAuthResponse{
+			httpapi.Write(ctx, rw, http.StatusOK, agentsdk.GitAuthResponse{
 				URL: redirectURL.String(),
 			})
 			return
@@ -1363,23 +1364,23 @@ func validateGitToken(ctx context.Context, validateURL, token string) (bool, err
 }
 
 // Provider types have different username/password formats.
-func formatGitAuthAccessToken(typ codersdk.GitProvider, token string) codersdk.WorkspaceAgentGitAuthResponse {
-	var resp codersdk.WorkspaceAgentGitAuthResponse
+func formatGitAuthAccessToken(typ codersdk.GitProvider, token string) agentsdk.GitAuthResponse {
+	var resp agentsdk.GitAuthResponse
 	switch typ {
 	case codersdk.GitProviderGitLab:
 		// https://stackoverflow.com/questions/25409700/using-gitlab-token-to-clone-without-authentication
-		resp = codersdk.WorkspaceAgentGitAuthResponse{
+		resp = agentsdk.GitAuthResponse{
 			Username: "oauth2",
 			Password: token,
 		}
 	case codersdk.GitProviderBitBucket:
 		// https://support.atlassian.com/bitbucket-cloud/docs/use-oauth-on-bitbucket-cloud/#Cloning-a-repository-with-an-access-token
-		resp = codersdk.WorkspaceAgentGitAuthResponse{
+		resp = agentsdk.GitAuthResponse{
 			Username: "x-token-auth",
 			Password: token,
 		}
 	default:
-		resp = codersdk.WorkspaceAgentGitAuthResponse{
+		resp = agentsdk.GitAuthResponse{
 			Username: token,
 		}
 	}

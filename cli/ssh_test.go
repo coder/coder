@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/pty"
@@ -100,7 +101,7 @@ func TestSSH(t *testing.T) {
 		})
 		pty.ExpectMatch("Waiting")
 
-		agentClient := codersdk.New(client.URL)
+		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(agentToken)
 		agentCloser := agent.New(agent.Options{
 			Client: agentClient,
@@ -149,7 +150,7 @@ func TestSSH(t *testing.T) {
 		_, _ = tGoContext(t, func(ctx context.Context) {
 			// Run this async so the SSH command has to wait for
 			// the build and agent to connect!
-			agentClient := codersdk.New(client.URL)
+			agentClient := agentsdk.New(client.URL)
 			agentClient.SetSessionToken(agentToken)
 			agentCloser := agent.New(agent.Options{
 				Client: agentClient,
@@ -216,7 +217,7 @@ func TestSSH(t *testing.T) {
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 
-		agentClient := codersdk.New(client.URL)
+		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(agentToken)
 		agentCloser := agent.New(agent.Options{
 			Client: agentClient,
@@ -449,7 +450,7 @@ Expire-Date: 0
 
 	client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 
-	agentClient := codersdk.New(client.URL)
+	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(agentToken)
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,

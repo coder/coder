@@ -65,7 +65,7 @@ func (c *Client) AuthCheck(ctx context.Context, req AuthorizationRequest) (Autho
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return AuthorizationResponse{}, readBodyAsError(res)
+		return AuthorizationResponse{}, ReadBodyAsError(res)
 	}
 	var resp AuthorizationResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)

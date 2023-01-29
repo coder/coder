@@ -288,7 +288,7 @@ func (c *WorkspaceAgentConn) ListeningPorts(ctx context.Context) (WorkspaceAgent
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return WorkspaceAgentListeningPortsResponse{}, readBodyAsError(res)
+		return WorkspaceAgentListeningPortsResponse{}, ReadBodyAsError(res)
 	}
 
 	var resp WorkspaceAgentListeningPortsResponse

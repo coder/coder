@@ -57,7 +57,7 @@ func (c *Client) AddLicense(ctx context.Context, r AddLicenseRequest) (License, 
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusCreated {
-		return License{}, readBodyAsError(res)
+		return License{}, ReadBodyAsError(res)
 	}
 	var l License
 	d := json.NewDecoder(res.Body)
@@ -72,7 +72,7 @@ func (c *Client) Licenses(ctx context.Context) ([]License, error) {
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 	var licenses []License
 	d := json.NewDecoder(res.Body)
@@ -87,7 +87,7 @@ func (c *Client) DeleteLicense(ctx context.Context, id int32) error {
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return readBodyAsError(res)
+		return ReadBodyAsError(res)
 	}
 	return nil
 }

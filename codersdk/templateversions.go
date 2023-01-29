@@ -55,7 +55,7 @@ func (c *Client) TemplateVersion(ctx context.Context, id uuid.UUID) (TemplateVer
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return TemplateVersion{}, readBodyAsError(res)
+		return TemplateVersion{}, ReadBodyAsError(res)
 	}
 	var version TemplateVersion
 	return version, json.NewDecoder(res.Body).Decode(&version)
@@ -69,7 +69,7 @@ func (c *Client) CancelTemplateVersion(ctx context.Context, version uuid.UUID) e
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return readBodyAsError(res)
+		return ReadBodyAsError(res)
 	}
 	return nil
 }
@@ -82,7 +82,7 @@ func (c *Client) TemplateVersionRichParameters(ctx context.Context, version uuid
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 	var params []TemplateVersionParameter
 	return params, json.NewDecoder(res.Body).Decode(&params)
@@ -96,7 +96,7 @@ func (c *Client) TemplateVersionSchema(ctx context.Context, version uuid.UUID) (
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 	var params []ParameterSchema
 	return params, json.NewDecoder(res.Body).Decode(&params)
@@ -110,7 +110,7 @@ func (c *Client) TemplateVersionParameters(ctx context.Context, version uuid.UUI
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 	var params []ComputedParameter
 	return params, json.NewDecoder(res.Body).Decode(&params)
@@ -124,7 +124,7 @@ func (c *Client) TemplateVersionResources(ctx context.Context, version uuid.UUID
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 	var resources []WorkspaceResource
 	return resources, json.NewDecoder(res.Body).Decode(&resources)
@@ -157,7 +157,7 @@ func (c *Client) CreateTemplateVersionDryRun(ctx context.Context, version uuid.U
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusCreated {
-		return ProvisionerJob{}, readBodyAsError(res)
+		return ProvisionerJob{}, ReadBodyAsError(res)
 	}
 
 	var job ProvisionerJob
@@ -173,7 +173,7 @@ func (c *Client) TemplateVersionDryRun(ctx context.Context, version, job uuid.UU
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return ProvisionerJob{}, readBodyAsError(res)
+		return ProvisionerJob{}, ReadBodyAsError(res)
 	}
 
 	var j ProvisionerJob
@@ -189,7 +189,7 @@ func (c *Client) TemplateVersionDryRunResources(ctx context.Context, version, jo
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 
 	var resources []WorkspaceResource
@@ -216,7 +216,7 @@ func (c *Client) CancelTemplateVersionDryRun(ctx context.Context, version, job u
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return readBodyAsError(res)
+		return ReadBodyAsError(res)
 	}
 	return nil
 }
@@ -228,7 +228,7 @@ func (c *Client) PreviousTemplateVersion(ctx context.Context, organization uuid.
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return TemplateVersion{}, readBodyAsError(res)
+		return TemplateVersion{}, ReadBodyAsError(res)
 	}
 	var version TemplateVersion
 	return version, json.NewDecoder(res.Body).Decode(&version)

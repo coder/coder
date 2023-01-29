@@ -19,7 +19,7 @@ func (c *Client) WorkspaceQuota(ctx context.Context, userID string) (WorkspaceQu
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return WorkspaceQuota{}, readBodyAsError(res)
+		return WorkspaceQuota{}, ReadBodyAsError(res)
 	}
 	var quota WorkspaceQuota
 	return quota, json.NewDecoder(res.Body).Decode(&quota)
