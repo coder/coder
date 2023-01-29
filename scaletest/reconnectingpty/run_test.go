@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/scaletest/reconnectingpty"
@@ -34,7 +35,7 @@ func Test_Runner(t *testing.T) {
 
 		runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 			AgentID: agentID,
-			Init: codersdk.ReconnectingPTYInit{
+			Init: codersdk.WorkspaceAgentReconnectingPTYInit{
 				// Use ; here because it's powershell compatible (vs &&).
 				Command: "echo 'hello world'; sleep 1",
 			},
@@ -63,7 +64,7 @@ func Test_Runner(t *testing.T) {
 
 		runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 			AgentID: agentID,
-			Init: codersdk.ReconnectingPTYInit{
+			Init: codersdk.WorkspaceAgentReconnectingPTYInit{
 				Command: "echo 'hello world'",
 			},
 			LogOutput: false,
@@ -91,7 +92,7 @@ func Test_Runner(t *testing.T) {
 
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
-				Init: codersdk.ReconnectingPTYInit{
+				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
 					Command: "echo 'hello world'",
 				},
 				Timeout:   httpapi.Duration(2 * testutil.WaitSuperLong),
@@ -115,7 +116,7 @@ func Test_Runner(t *testing.T) {
 
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
-				Init: codersdk.ReconnectingPTYInit{
+				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
 					Command: "sleep 120",
 				},
 				Timeout:   httpapi.Duration(2 * time.Second),
@@ -144,7 +145,7 @@ func Test_Runner(t *testing.T) {
 
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
-				Init: codersdk.ReconnectingPTYInit{
+				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
 					Command: "sleep 120",
 				},
 				Timeout:       httpapi.Duration(2 * time.Second),
@@ -169,7 +170,7 @@ func Test_Runner(t *testing.T) {
 
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
-				Init: codersdk.ReconnectingPTYInit{
+				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
 					Command: "echo 'hello world'",
 				},
 				Timeout:       httpapi.Duration(2 * testutil.WaitSuperLong),
@@ -199,7 +200,7 @@ func Test_Runner(t *testing.T) {
 
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
-				Init: codersdk.ReconnectingPTYInit{
+				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
 					Command: "echo 'hello world'; sleep 1",
 				},
 				ExpectOutput: "hello world",
@@ -223,7 +224,7 @@ func Test_Runner(t *testing.T) {
 
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
-				Init: codersdk.ReconnectingPTYInit{
+				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
 					Command: "echo 'hello world'; sleep 1",
 				},
 				ExpectOutput: "bello borld",
@@ -281,7 +282,7 @@ func setupRunnerTest(t *testing.T) (client *codersdk.Client, agentID uuid.UUID) 
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-	agentClient := codersdk.New(client.URL)
+	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(authToken)
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,

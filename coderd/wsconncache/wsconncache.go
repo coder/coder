@@ -32,11 +32,11 @@ func New(dialer Dialer, inactiveTimeout time.Duration) *Cache {
 }
 
 // Dialer creates a new agent connection by ID.
-type Dialer func(r *http.Request, id uuid.UUID) (*codersdk.AgentConn, error)
+type Dialer func(r *http.Request, id uuid.UUID) (*codersdk.WorkspaceAgentConn, error)
 
 // Conn wraps an agent connection with a reusable HTTP transport.
 type Conn struct {
-	*codersdk.AgentConn
+	*codersdk.WorkspaceAgentConn
 
 	locks         atomic.Uint64
 	timeoutMutex  sync.Mutex
@@ -49,8 +49,8 @@ func (c *Conn) HTTPTransport() *http.Transport {
 	return c.transport
 }
 
-// CloseWithError ends the HTTP transport if exists, and closes the agent.
-func (c *Conn) CloseWithError(err error) error {
+// Close ends the HTTP transport if exists, and closes the agent.
+func (c *Conn) Close() error {
 	if c.transport != nil {
 		c.transport.CloseIdleConnections()
 	}
@@ -59,7 +59,7 @@ func (c *Conn) CloseWithError(err error) error {
 	if c.timeout != nil {
 		c.timeout.Stop()
 	}
-	return c.AgentConn.CloseWithError(err)
+	return c.WorkspaceAgentConn.Close()
 }
 
 type Cache struct {
@@ -108,24 +108,20 @@ func (c *Cache) Acquire(r *http.Request, id uuid.UUID) (*Conn, func(), error) {
 			transport := defaultTransport.Clone()
 			transport.DialContext = agentConn.DialContext
 			conn := &Conn{
-				AgentConn:     agentConn,
-				timeoutCancel: timeoutCancelFunc,
-				transport:     transport,
+				WorkspaceAgentConn: agentConn,
+				timeoutCancel:      timeoutCancelFunc,
+				transport:          transport,
 			}
 			go func() {
 				defer c.closeGroup.Done()
-				var err error
 				select {
 				case <-timeoutCtx.Done():
-					err = xerrors.New("cache timeout")
 				case <-c.closed:
-					err = xerrors.New("cache closed")
 				case <-conn.Closed():
 				}
-
 				c.connMap.Delete(id.String())
 				c.connGroup.Forget(id.String())
-				_ = conn.CloseWithError(err)
+				_ = conn.Close()
 			}()
 			return conn, nil
 		})

@@ -11,13 +11,13 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func (lp *listeningPortsHandler) getListeningPorts() ([]codersdk.ListeningPort, error) {
+func (lp *listeningPortsHandler) getListeningPorts() ([]codersdk.WorkspaceAgentListeningPort, error) {
 	lp.mut.Lock()
 	defer lp.mut.Unlock()
 
 	if time.Since(lp.mtime) < time.Second {
 		// copy
-		ports := make([]codersdk.ListeningPort, len(lp.ports))
+		ports := make([]codersdk.WorkspaceAgentListeningPort, len(lp.ports))
 		copy(ports, lp.ports)
 		return ports, nil
 	}
@@ -30,9 +30,9 @@ func (lp *listeningPortsHandler) getListeningPorts() ([]codersdk.ListeningPort, 
 	}
 
 	seen := make(map[uint16]struct{}, len(tabs))
-	ports := []codersdk.ListeningPort{}
+	ports := []codersdk.WorkspaceAgentListeningPort{}
 	for _, tab := range tabs {
-		if tab.LocalAddr == nil || tab.LocalAddr.Port < codersdk.MinimumListeningPort {
+		if tab.LocalAddr == nil || tab.LocalAddr.Port < codersdk.WorkspaceAgentMinimumListeningPort {
 			continue
 		}
 
@@ -47,9 +47,9 @@ func (lp *listeningPortsHandler) getListeningPorts() ([]codersdk.ListeningPort, 
 		if tab.Process != nil {
 			procName = tab.Process.Name
 		}
-		ports = append(ports, codersdk.ListeningPort{
+		ports = append(ports, codersdk.WorkspaceAgentListeningPort{
 			ProcessName: procName,
-			Network:     codersdk.ListeningPortNetworkTCP,
+			Network:     "tcp",
 			Port:        tab.LocalAddr.Port,
 		})
 	}
@@ -58,7 +58,7 @@ func (lp *listeningPortsHandler) getListeningPorts() ([]codersdk.ListeningPort, 
 	lp.mtime = time.Now()
 
 	// copy
-	ports = make([]codersdk.ListeningPort, len(lp.ports))
+	ports = make([]codersdk.WorkspaceAgentListeningPort, len(lp.ports))
 	copy(ports, lp.ports)
 	return ports, nil
 }

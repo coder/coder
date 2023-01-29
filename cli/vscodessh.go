@@ -184,7 +184,7 @@ type sshNetworkStats struct {
 	DownloadBytesSec int64              `json:"download_bytes_sec"`
 }
 
-func collectNetworkStats(ctx context.Context, agentConn *codersdk.AgentConn, lastCollected time.Time) (*sshNetworkStats, error) {
+func collectNetworkStats(ctx context.Context, agentConn *codersdk.WorkspaceAgentConn, lastCollected time.Time) (*sshNetworkStats, error) {
 	latency, p2p, err := agentConn.Ping(ctx)
 	if err != nil {
 		return nil, err
