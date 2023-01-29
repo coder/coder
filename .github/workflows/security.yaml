@@ -1,4 +1,4 @@
-name: "Security"
+name: "security"
 
 permissions:
   actions: read
@@ -26,12 +26,11 @@ concurrency:
 
 jobs:
   codeql:
-    name: CodeQL
     runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:
-        language: ["go", "javascript"]
+        language: ["go", "js"]
 
     steps:
       - name: Checkout repository
@@ -73,7 +72,6 @@ jobs:
           category: "/language:${{matrix.language}}"
 
   trivy:
-    name: Trivy
     runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v3
