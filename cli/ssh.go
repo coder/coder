@@ -433,9 +433,10 @@ func runRemoteSSH(sshClient *gossh.Client, stdin io.Reader, cmd string) ([]byte,
 
 	stderr := bytes.NewBuffer(nil)
 	sess.Stdin = stdin
-	sess.Stderr = stderr
-
-	out, err := sess.Output(cmd)
+	// On fish, this was outputting to stderr instead of stdout.
+	// The tests pass differently on different Linux machines,
+	// so it's best we capture the output of both.
+	out, err := sess.CombinedOutput(cmd)
 	if err != nil {
 		return out, xerrors.Errorf(
 			"`%s` failed: stderr: %s\n\nstdout: %s:\n\n%w",

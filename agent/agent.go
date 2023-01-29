@@ -437,14 +437,6 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 				logger.Debug(ctx, "accept pty failed", slog.Error(err))
 				return
 			}
-			closed := make(chan struct{})
-			_ = a.trackConnGoroutine(func() {
-				select {
-				case <-network.Closed():
-				case <-closed:
-				}
-				_ = conn.Close()
-			})
 			// This cannot use a JSON decoder, since that can
 			// buffer additional data that is required for the PTY.
 			rawLen := make([]byte, 2)
@@ -466,10 +458,9 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 				close(closed)
 				continue
 			}
-			_ = a.trackConnGoroutine(func() {
-				defer close(closed)
+			go func() {
 				_ = a.handleReconnectingPTY(ctx, logger, msg, conn)
-			})
+			}()
 		}
 	}); err != nil {
 		return nil, err
