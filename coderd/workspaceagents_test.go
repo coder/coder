@@ -517,10 +517,10 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 	}
 
 	willFilterPort := func(port int) bool {
-		if port < codersdk.MinimumListeningPort || port > 65535 {
+		if port < codersdk.WorkspaceAgentMinimumListeningPort || port > 65535 {
 			return true
 		}
-		if _, ok := codersdk.IgnoredListeningPorts[uint16(port)]; ok {
+		if _, ok := codersdk.WorkspaceAgentIgnoredListeningPorts[uint16(port)]; ok {
 			return true
 		}
 
@@ -560,7 +560,7 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 			port uint16
 		)
 		require.Eventually(t, func() bool {
-			for ignoredPort := range codersdk.IgnoredListeningPorts {
+			for ignoredPort := range codersdk.WorkspaceAgentIgnoredListeningPorts {
 				if ignoredPort < 1024 || ignoredPort == 5432 {
 					continue
 				}
@@ -615,7 +615,7 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 				}
 			)
 			for _, port := range res.Ports {
-				if port.Network == codersdk.ListeningPortNetworkTCP {
+				if port.Network == "tcp" {
 					if val, ok := expected[port.Port]; ok {
 						if val {
 							t.Fatalf("expected to find TCP port %d only once in response", port.Port)
@@ -637,7 +637,7 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, port := range res.Ports {
-				if port.Network == codersdk.ListeningPortNetworkTCP && port.Port == lPort {
+				if port.Network == "tcp" && port.Port == lPort {
 					t.Fatalf("expected to not find TCP port %d in response", lPort)
 				}
 			}
@@ -667,7 +667,7 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 
 			sawCoderdPort := false
 			for _, port := range res.Ports {
-				if port.Network == codersdk.ListeningPortNetworkTCP {
+				if port.Network == "tcp" {
 					if port.Port == appLPort {
 						t.Fatalf("expected to not find TCP port (app port) %d in response", appLPort)
 					}

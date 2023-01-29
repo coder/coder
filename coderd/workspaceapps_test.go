@@ -858,7 +858,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		port := uint16(codersdk.MinimumListeningPort - 1)
+		port := uint16(codersdk.WorkspaceAgentMinimumListeningPort - 1)
 		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, proxyURL(t, client, port, "/", proxyTestAppQuery), nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()

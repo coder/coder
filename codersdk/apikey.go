@@ -23,6 +23,7 @@ type APIKey struct {
 	LifetimeSeconds int64       `json:"lifetime_seconds" validate:"required"`
 }
 
+// LoginType is the type of login used to create the API key.
 type LoginType string
 
 const (
@@ -35,7 +36,10 @@ const (
 type APIKeyScope string
 
 const (
-	APIKeyScopeAll                APIKeyScope = "all"
+	// APIKeyScopeAll is a scope that allows the user to do everything.
+	APIKeyScopeAll APIKeyScope = "all"
+	// APIKeyScopeApplicationConnect is a scope that allows the user
+	// to connect to applications in a workspace.
 	APIKeyScopeApplicationConnect APIKeyScope = "application_connect"
 )
 

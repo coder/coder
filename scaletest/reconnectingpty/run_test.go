@@ -30,7 +30,7 @@ func Test_Runner(t *testing.T) {
 
 		runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 			AgentID: agentID,
-			Init: codersdk.ReconnectingPTYInit{
+			Init: codersdk.WorkspaceAgentReconnectingPTYInit{
 				// Use ; here because it's powershell compatible (vs &&).
 				Command: "echo 'hello world'; sleep 1",
 			},
@@ -59,7 +59,7 @@ func Test_Runner(t *testing.T) {
 
 		runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 			AgentID: agentID,
-			Init: codersdk.ReconnectingPTYInit{
+			Init: codersdk.WorkspaceAgentReconnectingPTYInit{
 				Command: "echo 'hello world'",
 			},
 			LogOutput: false,
@@ -87,7 +87,7 @@ func Test_Runner(t *testing.T) {
 
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
-				Init: codersdk.ReconnectingPTYInit{
+				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
 					Command: "echo 'hello world'",
 				},
 				Timeout:   httpapi.Duration(2 * testutil.WaitSuperLong),
@@ -111,7 +111,7 @@ func Test_Runner(t *testing.T) {
 
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
-				Init: codersdk.ReconnectingPTYInit{
+				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
 					Command: "sleep 120",
 				},
 				Timeout:   httpapi.Duration(2 * time.Second),
@@ -140,7 +140,7 @@ func Test_Runner(t *testing.T) {
 
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
-				Init: codersdk.ReconnectingPTYInit{
+				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
 					Command: "sleep 120",
 				},
 				Timeout:       httpapi.Duration(2 * time.Second),
@@ -165,7 +165,7 @@ func Test_Runner(t *testing.T) {
 
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
-				Init: codersdk.ReconnectingPTYInit{
+				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
 					Command: "echo 'hello world'",
 				},
 				Timeout:       httpapi.Duration(2 * testutil.WaitSuperLong),
@@ -195,7 +195,7 @@ func Test_Runner(t *testing.T) {
 
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
-				Init: codersdk.ReconnectingPTYInit{
+				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
 					Command: "echo 'hello world'; sleep 1",
 				},
 				ExpectOutput: "hello world",
@@ -219,7 +219,7 @@ func Test_Runner(t *testing.T) {
 
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
-				Init: codersdk.ReconnectingPTYInit{
+				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
 					Command: "echo 'hello world'; sleep 1",
 				},
 				ExpectOutput: "bello borld",

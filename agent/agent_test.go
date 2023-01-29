@@ -1077,7 +1077,7 @@ func (c closeFunc) Close() error {
 }
 
 func setupAgent(t *testing.T, metadata codersdk.WorkspaceAgentMetadata, ptyTimeout time.Duration) (
-	*codersdk.AgentConn,
+	*codersdk.WorkspaceAgentConn,
 	*client,
 	<-chan *codersdk.AgentStats,
 	afero.Fs,
@@ -1131,7 +1131,7 @@ func setupAgent(t *testing.T, metadata codersdk.WorkspaceAgentMetadata, ptyTimeo
 		return conn.UpdateNodes(node)
 	})
 	conn.SetNodeCallback(sendNode)
-	return &codersdk.AgentConn{
+	return &codersdk.WorkspaceAgentConn{
 		Conn: conn,
 	}, c, statsCh, fs
 }

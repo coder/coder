@@ -373,7 +373,7 @@ func (a *agent) trackConnGoroutine(fn func()) error {
 
 func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ *tailnet.Conn, err error) {
 	network, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:          []netip.Prefix{netip.PrefixFrom(codersdk.TailnetIP, 128)},
+		Addresses:          []netip.Prefix{netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128)},
 		DERPMap:            derpMap,
 		Logger:             a.logger.Named("tailnet"),
 		EnableTrafficStats: true,
@@ -387,7 +387,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 		}
 	}()
 
-	sshListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetSSHPort))
+	sshListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.WorkspaceAgentSSHPort))
 	if err != nil {
 		return nil, xerrors.Errorf("listen on the ssh port: %w", err)
 	}
@@ -419,7 +419,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 		return nil, err
 	}
 
-	reconnectingPTYListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetReconnectingPTYPort))
+	reconnectingPTYListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.WorkspaceAgentReconnectingPTYPort))
 	if err != nil {
 		return nil, xerrors.Errorf("listen for reconnecting pty: %w", err)
 	}
@@ -450,7 +450,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 			if err != nil {
 				continue
 			}
-			var msg codersdk.ReconnectingPTYInit
+			var msg codersdk.WorkspaceAgentReconnectingPTYInit
 			err = json.Unmarshal(data, &msg)
 			if err != nil {
 				continue
@@ -463,7 +463,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 		return nil, err
 	}
 
-	speedtestListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetSpeedtestPort))
+	speedtestListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.WorkspaceAgentSpeedtestPort))
 	if err != nil {
 		return nil, xerrors.Errorf("listen for speedtest: %w", err)
 	}
@@ -491,7 +491,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 		return nil, err
 	}
 
-	statisticsListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetStatisticsPort))
+	statisticsListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.WorkspaceAgentStatisticsPort))
 	if err != nil {
 		return nil, xerrors.Errorf("listen for statistics: %w", err)
 	}
@@ -918,7 +918,7 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 	return cmd.Wait()
 }
 
-func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, msg codersdk.ReconnectingPTYInit, conn net.Conn) (retErr error) {
+func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, msg codersdk.WorkspaceAgentReconnectingPTYInit, conn net.Conn) (retErr error) {
 	defer conn.Close()
 
 	connectionID := uuid.NewString()

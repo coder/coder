@@ -413,7 +413,7 @@ type DialWorkspaceAgentOptions struct {
 	EnableTrafficStats bool
 }
 
-func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *DialWorkspaceAgentOptions) (*AgentConn, error) {
+func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *DialWorkspaceAgentOptions) (*WorkspaceAgentConn, error) {
 	if options == nil {
 		options = &DialWorkspaceAgentOptions{}
 	}
@@ -513,7 +513,7 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 		return nil, err
 	}
 
-	return &AgentConn{
+	return &WorkspaceAgentConn{
 		Conn: conn,
 		CloseFunc: func() {
 			cancelFunc()
@@ -603,16 +603,16 @@ func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, agentID, rec
 
 // WorkspaceAgentListeningPorts returns a list of ports that are currently being
 // listened on inside the workspace agent's network namespace.
-func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.UUID) (ListeningPortsResponse, error) {
+func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.UUID) (WorkspaceAgentListeningPortsResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/listening-ports", agentID), nil)
 	if err != nil {
-		return ListeningPortsResponse{}, err
+		return WorkspaceAgentListeningPortsResponse{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return ListeningPortsResponse{}, readBodyAsError(res)
+		return WorkspaceAgentListeningPortsResponse{}, readBodyAsError(res)
 	}
-	var listeningPorts ListeningPortsResponse
+	var listeningPorts WorkspaceAgentListeningPortsResponse
 	return listeningPorts, json.NewDecoder(res.Body).Decode(&listeningPorts)
 }
 

@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -590,7 +591,7 @@ func checkVersions(cmd *cobra.Command, client *codersdk.Client) error {
 	clientVersion := buildinfo.Version()
 	info, err := client.BuildInfo(ctx)
 	// Avoid printing errors that are connection-related.
-	if codersdk.IsConnectionErr(err) {
+	if isConnectionError(err) {
 		return nil
 	}
 
@@ -734,4 +735,17 @@ func dumpHandler(ctx context.Context) {
 			os.Exit(1)
 		}
 	}
+}
+
+// IiConnectionErr is a convenience function for checking if the source of an
+// error is due to a 'connection refused', 'no such host', etc.
+func isConnectionError(err error) bool {
+	var (
+		// E.g. no such host
+		dnsErr *net.DNSError
+		// Eg. connection refused
+		opErr *net.OpError
+	)
+
+	return xerrors.As(err, &dnsErr) || xerrors.As(err, &opErr)
 }

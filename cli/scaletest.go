@@ -668,7 +668,7 @@ It is recommended that all rate limits are disabled on the server before running
 				if runCommand != "" {
 					config.ReconnectingPTY = &reconnectingpty.Config{
 						// AgentID is set by the test automatically.
-						Init: codersdk.ReconnectingPTYInit{
+						Init: codersdk.WorkspaceAgentReconnectingPTYInit{
 							ID:      uuid.Nil,
 							Height:  24,
 							Width:   80,

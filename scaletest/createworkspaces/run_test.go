@@ -133,7 +133,7 @@ func Test_Runner(t *testing.T) {
 				},
 			},
 			ReconnectingPTY: &reconnectingpty.Config{
-				Init: codersdk.ReconnectingPTYInit{
+				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
 					Height:  24,
 					Width:   80,
 					Command: "echo hello",

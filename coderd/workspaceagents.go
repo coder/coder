@@ -382,15 +382,15 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 
 	// Filter out ports that are globally blocked, in-use by applications, or
 	// common non-HTTP ports such as databases, FTP, SSH, etc.
-	filteredPorts := make([]codersdk.ListeningPort, 0, len(portsResponse.Ports))
+	filteredPorts := make([]codersdk.WorkspaceAgentListeningPort, 0, len(portsResponse.Ports))
 	for _, port := range portsResponse.Ports {
-		if port.Port < codersdk.MinimumListeningPort {
+		if port.Port < codersdk.WorkspaceAgentMinimumListeningPort {
 			continue
 		}
 		if _, ok := appPorts[port.Port]; ok {
 			continue
 		}
-		if _, ok := codersdk.IgnoredListeningPorts[port.Port]; ok {
+		if _, ok := codersdk.WorkspaceAgentIgnoredListeningPorts[port.Port]; ok {
 			continue
 		}
 		filteredPorts = append(filteredPorts, port)
@@ -400,7 +400,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 	httpapi.Write(ctx, rw, http.StatusOK, portsResponse)
 }
 
-func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*codersdk.AgentConn, error) {
+func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
 	clientConn, serverConn := net.Pipe()
 
 	derpMap := api.DERPMap.Clone()
@@ -467,7 +467,7 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 			_ = conn.Close()
 		}
 	}()
-	return &codersdk.AgentConn{
+	return &codersdk.WorkspaceAgentConn{
 		Conn: conn,
 		CloseFunc: func() {
 			_ = clientConn.Close()
