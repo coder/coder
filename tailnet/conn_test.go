@@ -2,6 +2,7 @@ package tailnet_test
 
 import (
 	"context"
+	"fmt"
 	"net/netip"
 	"testing"
 
@@ -83,5 +84,60 @@ func TestTailnet(t *testing.T) {
 
 		w1.Close()
 		w2.Close()
+	})
+	t.Run("CloseListeners", func(t *testing.T) {
+		t.Parallel()
+		w1IP := tailnet.IP()
+		w1, err := tailnet.NewConn(&tailnet.Options{
+			Addresses: []netip.Prefix{netip.PrefixFrom(w1IP, 128)},
+			Logger:    logger.Named("w1"),
+			DERPMap:   derpMap,
+		})
+		require.NoError(t, err)
+
+		w2, err := tailnet.NewConn(&tailnet.Options{
+			Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+			Logger:    logger.Named("w2"),
+			DERPMap:   derpMap,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = w1.Close()
+			_ = w2.Close()
+		})
+		w1.SetNodeCallback(func(node *tailnet.Node) {
+			err := w2.UpdateNodes([]*tailnet.Node{node})
+			require.NoError(t, err)
+		})
+		w2.SetNodeCallback(func(node *tailnet.Node) {
+			err := w1.UpdateNodes([]*tailnet.Node{node})
+			require.NoError(t, err)
+		})
+		require.True(t, w2.AwaitReachable(context.Background(), w1IP))
+		// conn := make(chan struct{})
+		accepted := make(chan struct{})
+		closed := make(chan struct{})
+		go func() {
+			listener, err := w1.Listen("tcp", ":35565")
+			assert.NoError(t, err)
+			defer listener.Close()
+			nc, err := listener.Accept()
+			if !assert.NoError(t, err) {
+				return
+			}
+			close(accepted)
+			_, err = nc.Read(make([]byte, 16))
+			fmt.Printf("Err: %s\n", err)
+			close(closed)
+			// _ = nc.Close()
+			// conn <- struct{}{}
+		}()
+
+		_, err = w2.DialContextTCP(context.Background(), netip.AddrPortFrom(w1IP, 35565))
+		require.NoError(t, err)
+		<-accepted
+		w1.Close()
+		w2.Close()
+		<-closed
 	})
 }
