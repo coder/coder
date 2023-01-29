@@ -85,7 +85,7 @@ func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
 		host += fmt.Sprintf(":%s", api.AccessURL.Port())
 	}
 
-	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.WorkspaceAppHostResponse{
+	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AppHostResponse{
 		Host: host,
 	})
 }

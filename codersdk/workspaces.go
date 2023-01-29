@@ -350,30 +350,22 @@ func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name
 	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
 }
 
-type WorkspaceAppHostResponse struct {
-	// Host is the externally accessible URL for the Coder instance.
-	Host string `json:"host"`
+type WorkspaceQuota struct {
+	CreditsConsumed int `json:"credits_consumed"`
+	Budget          int `json:"budget"`
 }
 
-// AppHost returns the site-wide application wildcard hostname without the
-// leading "*.", e.g. "apps.coder.com". Apps are accessible at:
-// "<app-name>--<agent-name>--<workspace-name>--<username>.<app-host>", e.g.
-// "my-app--agent--workspace--username.apps.coder.com".
-//
-// If the app host is not set, the response will contain an empty string.
-func (c *Client) AppHost(ctx context.Context) (WorkspaceAppHostResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/applications/host", nil)
+func (c *Client) WorkspaceQuota(ctx context.Context, userID string) (WorkspaceQuota, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspace-quota/%s", userID), nil)
 	if err != nil {
-		return WorkspaceAppHostResponse{}, err
+		return WorkspaceQuota{}, err
 	}
 	defer res.Body.Close()
-
 	if res.StatusCode != http.StatusOK {
-		return WorkspaceAppHostResponse{}, ReadBodyAsError(res)
+		return WorkspaceQuota{}, ReadBodyAsError(res)
 	}
-
-	var host WorkspaceAppHostResponse
-	return host, json.NewDecoder(res.Body).Decode(&host)
+	var quota WorkspaceQuota
+	return quota, json.NewDecoder(res.Body).Decode(&quota)
 }
 
 // WorkspaceNotifyChannel is the PostgreSQL NOTIFY

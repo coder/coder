@@ -473,3 +473,29 @@ func (c *Client) DeploymentDAUs(ctx context.Context) (*DeploymentDAUsResponse, e
 	var resp DeploymentDAUsResponse
 	return &resp, json.NewDecoder(res.Body).Decode(&resp)
 }
+
+type AppHostResponse struct {
+	// Host is the externally accessible URL for the Coder instance.
+	Host string `json:"host"`
+}
+
+// AppHost returns the site-wide application wildcard hostname without the
+// leading "*.", e.g. "apps.coder.com". Apps are accessible at:
+// "<app-name>--<agent-name>--<workspace-name>--<username>.<app-host>", e.g.
+// "my-app--agent--workspace--username.apps.coder.com".
+//
+// If the app host is not set, the response will contain an empty string.
+func (c *Client) AppHost(ctx context.Context) (AppHostResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/applications/host", nil)
+	if err != nil {
+		return AppHostResponse{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return AppHostResponse{}, ReadBodyAsError(res)
+	}
+
+	var host AppHostResponse
+	return host, json.NewDecoder(res.Body).Decode(&host)
+}
