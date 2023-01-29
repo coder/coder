@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
+	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 )
 
@@ -239,4 +241,76 @@ func (c *Client) DeploymentConfig(ctx context.Context) (DeploymentConfig, error)
 
 	var df DeploymentConfig
 	return df, json.NewDecoder(res.Body).Decode(&df)
+}
+
+type AppearanceConfig struct {
+	LogoURL       string              `json:"logo_url"`
+	ServiceBanner ServiceBannerConfig `json:"service_banner"`
+}
+
+type ServiceBannerConfig struct {
+	Enabled         bool   `json:"enabled"`
+	Message         string `json:"message,omitempty"`
+	BackgroundColor string `json:"background_color,omitempty"`
+}
+
+// Appearance returns the configuration that modifies the visual
+// display of the dashboard.
+func (c *Client) Appearance(ctx context.Context) (AppearanceConfig, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/appearance", nil)
+	if err != nil {
+		return AppearanceConfig{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return AppearanceConfig{}, readBodyAsError(res)
+	}
+	var cfg AppearanceConfig
+	return cfg, json.NewDecoder(res.Body).Decode(&cfg)
+}
+
+func (c *Client) UpdateAppearance(ctx context.Context, appearance AppearanceConfig) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/v2/appearance", appearance)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return readBodyAsError(res)
+	}
+	return nil
+}
+
+// BuildInfoResponse contains build information for this instance of Coder.
+type BuildInfoResponse struct {
+	// ExternalURL references the current Coder version.
+	// For production builds, this will link directly to a release. For development builds, this will link to a commit.
+	ExternalURL string `json:"external_url"`
+	// Version returns the semantic version of the build.
+	Version string `json:"version"`
+}
+
+// CanonicalVersion trims build information from the version.
+// E.g. 'v0.7.4-devel+11573034' -> 'v0.7.4'.
+func (b BuildInfoResponse) CanonicalVersion() string {
+	// We do a little hack here to massage the string into a form
+	// that works well with semver.
+	trimmed := strings.ReplaceAll(b.Version, "-devel+", "+devel-")
+	return semver.Canonical(trimmed)
+}
+
+// BuildInfo returns build information for this instance of Coder.
+func (c *Client) BuildInfo(ctx context.Context) (BuildInfoResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/buildinfo", nil)
+	if err != nil {
+		return BuildInfoResponse{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return BuildInfoResponse{}, readBodyAsError(res)
+	}
+
+	var buildInfo BuildInfoResponse
+	return buildInfo, json.NewDecoder(res.Body).Decode(&buildInfo)
 }
