@@ -2,6 +2,7 @@ package databasefake
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
@@ -57,6 +58,14 @@ func populate[DBType any](ctx context.Context, g *Generator, name string, seed D
 	return out[name].(DBType)
 }
 
+func (g *Generator) WorkspaceResource(ctx context.Context, name string, seed database.WorkspaceResource) database.WorkspaceResource {
+	return populate(ctx, g, name, seed)
+}
+
+func (g *Generator) Job(ctx context.Context, name string, seed database.ProvisionerJob) database.ProvisionerJob {
+	return populate(ctx, g, name, seed)
+}
+
 func (g *Generator) Group(ctx context.Context, name string, seed database.Group) database.Group {
 	return populate(ctx, g, name, seed)
 }
@@ -94,8 +103,8 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 		case database.Template:
 			template, err := db.InsertTemplate(ctx, database.InsertTemplateParams{
 				ID:                           g.Lookup(name),
-				CreatedAt:                    time.Now(),
-				UpdatedAt:                    time.Now(),
+				CreatedAt:                    takeFirstTime(orig.CreatedAt, time.Now()),
+				UpdatedAt:                    takeFirstTime(orig.CreatedAt, time.Now()),
 				OrganizationID:               takeFirst(orig.OrganizationID, g.PrimaryOrg(ctx).ID),
 				Name:                         takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
 				Provisioner:                  takeFirst(orig.Provisioner, database.ProvisionerTypeEcho),
@@ -115,8 +124,8 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 		case database.Workspace:
 			workspace, err := db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
 				ID:                g.Lookup(name),
-				CreatedAt:         time.Now(),
-				UpdatedAt:         time.Now(),
+				CreatedAt:         takeFirstTime(orig.CreatedAt, time.Now()),
+				UpdatedAt:         takeFirstTime(orig.CreatedAt, time.Now()),
 				OrganizationID:    takeFirst(orig.OrganizationID, g.PrimaryOrg(ctx).ID),
 				TemplateID:        takeFirst(orig.TemplateID, uuid.New()),
 				Name:              takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
@@ -129,16 +138,16 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 		case database.WorkspaceBuild:
 			build, err := db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
 				ID:                g.Lookup(name),
-				CreatedAt:         time.Now(),
-				UpdatedAt:         time.Now(),
+				CreatedAt:         takeFirstTime(orig.CreatedAt, time.Now()),
+				UpdatedAt:         takeFirstTime(orig.CreatedAt, time.Now()),
 				WorkspaceID:       takeFirst(orig.WorkspaceID, uuid.New()),
 				TemplateVersionID: takeFirst(orig.TemplateVersionID, uuid.New()),
 				BuildNumber:       takeFirst(orig.BuildNumber, 0),
 				Transition:        takeFirst(orig.Transition, database.WorkspaceTransitionStart),
 				InitiatorID:       takeFirst(orig.InitiatorID, uuid.New()),
-				JobID:             takeFirst(orig.InitiatorID, uuid.New()),
-				ProvisionerState:  []byte{},
-				Deadline:          time.Now(),
+				JobID:             takeFirst(orig.JobID, uuid.New()),
+				ProvisionerState:  takeFirstBytes(orig.ProvisionerState, []byte{}),
+				Deadline:          takeFirstTime(orig.CreatedAt, time.Now().Add(time.Hour)),
 				Reason:            takeFirst(orig.Reason, database.BuildReasonInitiator),
 			})
 			require.NoError(t, err, "insert workspace build")
@@ -149,9 +158,9 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 				ID:             g.Lookup(name),
 				Email:          takeFirst(orig.Email, namesgenerator.GetRandomName(1)),
 				Username:       takeFirst(orig.Username, namesgenerator.GetRandomName(1)),
-				HashedPassword: []byte{},
-				CreatedAt:      time.Now(),
-				UpdatedAt:      time.Now(),
+				HashedPassword: takeFirstBytes(orig.HashedPassword, []byte{}),
+				CreatedAt:      takeFirstTime(orig.CreatedAt, time.Now()),
+				UpdatedAt:      takeFirstTime(orig.CreatedAt, time.Now()),
 				RBACRoles:      []string{},
 				LoginType:      takeFirst(orig.LoginType, database.LoginTypePassword),
 			})
@@ -164,8 +173,8 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 				ID:          g.Lookup(name),
 				Name:        takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
 				Description: takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
-				CreatedAt:   time.Now(),
-				UpdatedAt:   time.Now(),
+				CreatedAt:   takeFirstTime(orig.CreatedAt, time.Now()),
+				UpdatedAt:   takeFirstTime(orig.CreatedAt, time.Now()),
 			})
 			require.NoError(t, err, "insert organization")
 
@@ -182,12 +191,55 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 			require.NoError(t, err, "insert organization")
 
 			seed[name] = org
+
+		case database.ProvisionerJob:
+			job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+				ID:             g.Lookup(name),
+				CreatedAt:      takeFirstTime(orig.CreatedAt, time.Now()),
+				UpdatedAt:      takeFirstTime(orig.CreatedAt, time.Now()),
+				OrganizationID: takeFirst(orig.OrganizationID, g.PrimaryOrg(ctx).ID),
+				InitiatorID:    takeFirst(orig.InitiatorID, uuid.New()),
+				Provisioner:    takeFirst(orig.Provisioner, database.ProvisionerTypeEcho),
+				StorageMethod:  takeFirst(orig.StorageMethod, database.ProvisionerStorageMethodFile),
+				FileID:         takeFirst(orig.FileID, uuid.New()),
+				Type:           takeFirst(orig.Type, database.ProvisionerJobTypeWorkspaceBuild),
+				Input:          takeFirstBytes(orig.Input, []byte("{}")),
+				Tags:           orig.Tags,
+			})
+			require.NoError(t, err, "insert job")
+
+			seed[name] = job
+
+		case database.WorkspaceResource:
+			resource, err := db.InsertWorkspaceResource(ctx, database.InsertWorkspaceResourceParams{
+				ID:         g.Lookup(name),
+				CreatedAt:  takeFirstTime(orig.CreatedAt, time.Now()),
+				JobID:      takeFirst(orig.JobID, uuid.New()),
+				Transition: takeFirst(orig.Transition, database.WorkspaceTransitionStart),
+				// TODO: What type to put here?
+				Type: takeFirst(orig.Type, ""),
+				Name: takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
+				Hide: takeFirst(orig.Hide, false),
+				Icon: takeFirst(orig.Name, ""),
+				InstanceType: sql.NullString{
+					String: takeFirst(orig.InstanceType.String, ""),
+					Valid:  takeFirst(orig.InstanceType.Valid, false),
+				},
+				DailyCost: takeFirst(orig.DailyCost, 0),
+			})
+			require.NoError(t, err, "insert resource")
+
+			seed[name] = resource
 		}
 	}
 	return seed
 }
 
 func (tc *Generator) Lookup(name string) uuid.UUID {
+	if name == "" {
+		// No name means the caller doesn't care about the ID.
+		return uuid.New()
+	}
 	if tc.names == nil {
 		tc.names = make(map[string]uuid.UUID)
 	}
@@ -199,14 +251,34 @@ func (tc *Generator) Lookup(name string) uuid.UUID {
 	return id
 }
 
-// takeFirst will take the first non-empty value.
-func takeFirst[Value comparable](values ...Value) Value {
+func takeFirstTime(values ...time.Time) time.Time {
+	return takeFirstF(values, func(v time.Time) bool {
+		return !v.IsZero()
+	})
+}
+
+func takeFirstBytes(values ...[]byte) []byte {
+	return takeFirstF(values, func(v []byte) bool {
+		return len(v) != 0
+	})
+}
+
+// takeFirstF takes the first value that returns true
+func takeFirstF[Value any](values []Value, take func(v Value) bool) Value {
 	var empty Value
 	for _, v := range values {
-		if v != empty {
+		if take(v) {
 			return v
 		}
 	}
 	// If all empty, return empty
 	return empty
+}
+
+// takeFirst will take the first non-empty value.
+func takeFirst[Value comparable](values ...Value) Value {
+	var empty Value
+	return takeFirstF(values, func(v Value) bool {
+		return v != empty
+	})
 }

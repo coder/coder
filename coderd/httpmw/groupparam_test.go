@@ -25,6 +25,7 @@ func TestGroupParam(t *testing.T) {
 		ctx, _ := testutil.Context(t)
 		db := databasefake.New()
 		gen := databasefake.NewGenerator(t, db)
+
 		group := gen.Group(ctx, "group", database.Group{})
 
 		return db, group
