@@ -24,23 +24,8 @@ func TestGroupParam(t *testing.T) {
 
 		ctx, _ := testutil.Context(t)
 		db := databasefake.New()
-
-		orgID := uuid.New()
-		organization, err := db.InsertOrganization(ctx, database.InsertOrganizationParams{
-			ID:          orgID,
-			Name:        "banana",
-			Description: "wowie",
-			CreatedAt:   database.Now(),
-			UpdatedAt:   database.Now(),
-		})
-		require.NoError(t, err)
-
-		group, err := db.InsertGroup(ctx, database.InsertGroupParams{
-			ID:             uuid.New(),
-			Name:           "yeww",
-			OrganizationID: organization.ID,
-		})
-		require.NoError(t, err)
+		gen := databasefake.NewGenerator(t, db)
+		group := gen.Group(ctx, "group", database.Group{})
 
 		return db, group
 	}
