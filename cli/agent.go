@@ -77,7 +77,8 @@ func workspaceAgent() *cobra.Command {
 
 			// Handle interrupt signals to allow for graceful shutdown,
 			// note that calling stopNotify disables the signal handler
-			// and the next interrupt will terminate the program.
+			// and the next interrupt will terminate the program (you
+			// probably want cancel instead).
 			//
 			// Note that we don't want to handle these signals in the
 			// process that runs as PID 1, that's why we do this after
