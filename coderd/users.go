@@ -995,7 +995,19 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 // @Success 201 {object} codersdk.LoginWithPasswordResponse
 // @Router /users/login [post]
 func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	var (
+		ctx               = r.Context()
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionLogin,
+		})
+	)
+
+	defer commitAudit()
+
 	var loginWithPassword codersdk.LoginWithPasswordRequest
 	if !httpapi.Read(ctx, rw, r, &loginWithPassword) {
 		return
@@ -1043,7 +1055,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cookie, err := api.createAPIKey(ctx, createAPIKeyParams{
+	cookie, key, err := api.createAPIKey(ctx, createAPIKeyParams{
 		UserID:     user.ID,
 		LoginType:  database.LoginTypePassword,
 		RemoteAddr: r.RemoteAddr,
@@ -1055,6 +1067,8 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	aReq.New = *key
 
 	http.SetCookie(rw, cookie)
 

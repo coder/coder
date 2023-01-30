@@ -144,6 +144,8 @@ const (
 	AuditActionDelete AuditAction = "delete"
 	AuditActionStart  AuditAction = "start"
 	AuditActionStop   AuditAction = "stop"
+	AuditActionLogin  AuditAction = "login"
+	AuditActionLogout AuditAction = "logout"
 )
 
 func (e *AuditAction) Scan(src interface{}) error {
@@ -187,7 +189,9 @@ func (e AuditAction) Valid() bool {
 		AuditActionWrite,
 		AuditActionDelete,
 		AuditActionStart,
-		AuditActionStop:
+		AuditActionStop,
+		AuditActionLogin,
+		AuditActionLogout:
 		return true
 	}
 	return false
@@ -200,6 +204,8 @@ func AllAuditActionValues() []AuditAction {
 		AuditActionDelete,
 		AuditActionStart,
 		AuditActionStop,
+		AuditActionLogin,
+		AuditActionLogout,
 	}
 }
 

@@ -264,6 +264,12 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow, additionalFields A
 		codersdk.AuditAction(alog.Action).Friendly(),
 	)
 
+	// API Key resources do not have targets and follow the below format:
+	// "User {logged in | logged out}"
+	if alog.ResourceType == database.ResourceTypeApiKey {
+		return str
+	}
+
 	// Strings for starting/stopping workspace builds follow the below format:
 	// "{user | 'Coder automatically'} started build #{build_number} for workspace {target}"
 	// where target is a workspace (name) instead of a workspace build
@@ -483,6 +489,10 @@ func actionFromString(actionString string) string {
 	case codersdk.AuditActionStart:
 		return actionString
 	case codersdk.AuditActionStop:
+		return actionString
+	case codersdk.AuditActionLogin:
+		return actionString
+	case codersdk.AuditActionLogout:
 		return actionString
 	default:
 	}

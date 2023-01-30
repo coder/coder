@@ -602,7 +602,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		return nil, xerrors.Errorf("in tx: %w", err)
 	}
 
-	cookie, err := api.createAPIKey(ctx, createAPIKeyParams{
+	cookie, _, err := api.createAPIKey(ctx, createAPIKeyParams{
 		UserID:     user.ID,
 		LoginType:  params.LoginType,
 		RemoteAddr: r.RemoteAddr,

@@ -1030,10 +1030,19 @@ export type APIKeyScope = "all" | "application_connect"
 export const APIKeyScopes: APIKeyScope[] = ["all", "application_connect"]
 
 // From codersdk/audit.go
-export type AuditAction = "create" | "delete" | "start" | "stop" | "write"
+export type AuditAction =
+  | "create"
+  | "delete"
+  | "login"
+  | "logout"
+  | "start"
+  | "stop"
+  | "write"
 export const AuditActions: AuditAction[] = [
   "create",
   "delete",
+  "login",
+  "logout",
   "start",
   "stop",
   "write",

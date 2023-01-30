@@ -57,6 +57,8 @@ const (
 	AuditActionDelete AuditAction = "delete"
 	AuditActionStart  AuditAction = "start"
 	AuditActionStop   AuditAction = "stop"
+	AuditActionLogin  AuditAction = "login"
+	AuditActionLogout AuditAction = "logout"
 )
 
 func (a AuditAction) Friendly() string {
@@ -71,6 +73,10 @@ func (a AuditAction) Friendly() string {
 		return "started"
 	case AuditActionStop:
 		return "stopped"
+	case AuditActionLogin:
+		return "logged in"
+	case AuditActionLogout:
+		return "logged out"
 	default:
 		return "unknown"
 	}

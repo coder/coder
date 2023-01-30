@@ -745,7 +745,7 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 	if lifetime > int64((time.Hour * 24 * 7).Seconds()) {
 		lifetime = int64((time.Hour * 24 * 7).Seconds())
 	}
-	cookie, err := api.createAPIKey(ctx, createAPIKeyParams{
+	cookie, _, err := api.createAPIKey(ctx, createAPIKeyParams{
 		UserID:          apiKey.UserID,
 		LoginType:       database.LoginTypePassword,
 		ExpiresAt:       exp,

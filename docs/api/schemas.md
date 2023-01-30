@@ -484,6 +484,8 @@
 | `delete` |
 | `start`  |
 | `stop`   |
+| `login`  |
+| `logout` |
 
 ## codersdk.AuditDiff
 

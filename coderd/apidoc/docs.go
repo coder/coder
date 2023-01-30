@@ -5336,14 +5336,18 @@ const docTemplate = `{
                 "write",
                 "delete",
                 "start",
-                "stop"
+                "stop",
+                "login",
+                "logout"
             ],
             "x-enum-varnames": [
                 "AuditActionCreate",
                 "AuditActionWrite",
                 "AuditActionDelete",
                 "AuditActionStart",
-                "AuditActionStop"
+                "AuditActionStop",
+                "AuditActionLogin",
+                "AuditActionLogout"
             ]
         },
         "codersdk.AuditDiff": {

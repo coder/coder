@@ -64,6 +64,9 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.PublicKey
 	case database.AuditableGroup:
 		return typed.Group.Name
+	case database.APIKey:
+		// this isn't used
+		return ""
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -85,6 +88,9 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.UserID
 	case database.AuditableGroup:
 		return typed.Group.ID
+	case database.APIKey:
+		// this doesn't seem right
+		return typed.UserID
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -106,6 +112,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeGitSshKey
 	case database.AuditableGroup:
 		return database.ResourceTypeGroup
+	case database.APIKey:
+		return database.ResourceTypeApiKey
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}

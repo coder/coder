@@ -16,7 +16,9 @@ CREATE TYPE audit_action AS ENUM (
     'write',
     'delete',
     'start',
-    'stop'
+    'stop',
+    'login',
+    'logout'
 );
 
 CREATE TYPE build_reason AS ENUM (
