@@ -297,7 +297,8 @@ func assertPathParametersDefined(t *testing.T, comment SwaggerComment) {
 func assertSecurityDefined(t *testing.T, comment SwaggerComment) {
 	if comment.router == "/updatecheck" ||
 		comment.router == "/buildinfo" ||
-		comment.router == "/" {
+		comment.router == "/" ||
+		comment.router == "/users/login" {
 		return // endpoints do not require authorization
 	}
 	assert.Equal(t, "CoderSessionToken", comment.security, "@Security must be equal CoderSessionToken")
