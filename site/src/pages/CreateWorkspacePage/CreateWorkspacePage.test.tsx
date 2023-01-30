@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event"
 import * as API from "api/api"
 import i18next from "i18next"
 import {
+  mockParameterSchema,
   MockTemplate,
   MockUser,
   MockWorkspace,
@@ -61,5 +62,24 @@ describe("CreateWorkspacePage", () => {
         },
       ),
     )
+  })
+
+  it("uses default param values passed from the URL", async () => {
+    const param = "dotfile_uri"
+    const paramValue = "localhost:3000"
+    jest.spyOn(API, "getTemplateVersionSchema").mockResolvedValueOnce([
+      mockParameterSchema({
+        name: param,
+        default_source_value: "",
+      }),
+    ])
+    renderWithAuth(<CreateWorkspacePage />, {
+      route:
+        "/templates/" +
+        MockTemplate.name +
+        `/workspace?param.${param}=${paramValue}`,
+      path: "/templates/:template/workspace",
+    })
+    await screen.findByDisplayValue(paramValue)
   })
 })

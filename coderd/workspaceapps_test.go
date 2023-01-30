@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/testutil"
@@ -96,29 +97,45 @@ func TestGetAppHost(t *testing.T) {
 			defer cancel()
 
 			// Should not leak to unauthenticated users.
-			host, err := client.GetAppHost(ctx)
+			host, err := client.AppHost(ctx)
 			require.Error(t, err)
 			require.Equal(t, "", host.Host)
 
 			_ = coderdtest.CreateFirstUser(t, client)
-			host, err = client.GetAppHost(ctx)
+			host, err = client.AppHost(ctx)
 			require.NoError(t, err)
 			require.Equal(t, c.expected, host.Host)
 		})
 	}
 }
 
+type setupProxyTestOpts struct {
+	AppHost                              string
+	DisablePathApps                      bool
+	DangerousAllowPathAppSharing         bool
+	DangerousAllowPathAppSiteOwnerAccess bool
+
+	NoWorkspace bool
+}
+
 // setupProxyTest creates a workspace with an agent and some apps. It returns a
 // codersdk client, the first user, the workspace, and the port number the test
 // listener is running on.
-func setupProxyTest(t *testing.T, customAppHost ...string) (*codersdk.Client, codersdk.CreateFirstUserResponse, codersdk.Workspace, uint16) {
+func setupProxyTest(t *testing.T, opts *setupProxyTestOpts) (*codersdk.Client, codersdk.CreateFirstUserResponse, *codersdk.Workspace, uint16) {
+	if opts == nil {
+		opts = &setupProxyTestOpts{}
+	}
+	if opts.AppHost == "" {
+		opts.AppHost = proxyTestSubdomainRaw
+	}
+
 	// #nosec
 	ln, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 	server := http.Server{
 		ReadHeaderTimeout: time.Minute,
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			_, err := r.Cookie(codersdk.SessionTokenKey)
+			_, err := r.Cookie(codersdk.SessionTokenCookie)
 			assert.ErrorIs(t, err, http.ErrNoCookie)
 			w.Header().Set("X-Forwarded-For", r.Header.Get("X-Forwarded-For"))
 			w.WriteHeader(http.StatusOK)
@@ -133,13 +150,14 @@ func setupProxyTest(t *testing.T, customAppHost ...string) (*codersdk.Client, co
 	tcpAddr, ok := ln.Addr().(*net.TCPAddr)
 	require.True(t, ok)
 
-	appHost := proxyTestSubdomainRaw
-	if len(customAppHost) > 0 {
-		appHost = customAppHost[0]
-	}
+	deploymentConfig := coderdtest.DeploymentConfig(t)
+	deploymentConfig.DisablePathApps.Value = opts.DisablePathApps
+	deploymentConfig.Dangerous.AllowPathAppSharing.Value = opts.DangerousAllowPathAppSharing
+	deploymentConfig.Dangerous.AllowPathAppSiteOwnerAccess.Value = opts.DangerousAllowPathAppSiteOwnerAccess
 
 	client := coderdtest.New(t, &coderdtest.Options{
-		AppHostname:                 appHost,
+		DeploymentConfig:            deploymentConfig,
+		AppHostname:                 opts.AppHost,
 		IncludeProvisionerDaemon:    true,
 		AgentStatsRefreshInterval:   time.Millisecond * 100,
 		MetricsCacheRefreshInterval: time.Millisecond * 100,
@@ -156,23 +174,18 @@ func setupProxyTest(t *testing.T, customAppHost ...string) (*codersdk.Client, co
 
 	user := coderdtest.CreateFirstUser(t, client)
 
-	workspace := createWorkspaceWithApps(t, client, user.OrganizationID, appHost, uint16(tcpAddr.Port))
+	var workspace *codersdk.Workspace
+	if !opts.NoWorkspace {
+		ws := createWorkspaceWithApps(t, client, user.OrganizationID, opts.AppHost, uint16(tcpAddr.Port))
+		workspace = &ws
+	}
 
 	// Configure the HTTP client to not follow redirects and to route all
 	// requests regardless of hostname to the coderd test server.
 	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
-	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
-	require.True(t, ok)
-	transport := defaultTransport.Clone()
-	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-		return (&net.Dialer{}).DialContext(ctx, network, client.URL.Host)
-	}
-	client.HTTPClient.Transport = transport
-	t.Cleanup(func() {
-		transport.CloseIdleConnections()
-	})
+	forceURLTransport(t, client)
 
 	return client, user, workspace, uint16(tcpAddr.Port)
 }
@@ -234,16 +247,22 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 	workspace := coderdtest.CreateWorkspace(t, client, orgID, template.ID, workspaceMutators...)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-	agentClient := codersdk.New(client.URL)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
+
+	user, err := client.User(ctx, codersdk.Me)
+	require.NoError(t, err)
+
+	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(authToken)
 	if appHost != "" {
-		metadata, err := agentClient.WorkspaceAgentMetadata(context.Background())
+		metadata, err := agentClient.Metadata(context.Background())
 		require.NoError(t, err)
 		proxyURL := fmt.Sprintf(
 			"http://{{port}}--%s--%s--%s%s",
 			proxyTestAgentName,
 			workspace.Name,
-			"testuser",
+			user.Username,
 			strings.ReplaceAll(appHost, "*", ""),
 		)
 		if client.URL.Port() != "" {
@@ -265,7 +284,34 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 
 func TestWorkspaceAppsProxyPath(t *testing.T) {
 	t.Parallel()
-	client, firstUser, workspace, _ := setupProxyTest(t)
+	client, firstUser, workspace, _ := setupProxyTest(t, nil)
+
+	t.Run("Disabled", func(t *testing.T) {
+		t.Parallel()
+
+		deploymentConfig := coderdtest.DeploymentConfig(t)
+		deploymentConfig.DisablePathApps.Value = true
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			DeploymentConfig:            deploymentConfig,
+			IncludeProvisionerDaemon:    true,
+			AgentStatsRefreshInterval:   time.Millisecond * 100,
+			MetricsCacheRefreshInterval: time.Millisecond * 100,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		workspace := createWorkspaceWithApps(t, client, user.OrganizationID, "", 0)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, fmt.Sprintf("/@me/%s/apps/%s", workspace.Name, proxyTestAppNameOwner), nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Contains(t, string(body), "Path-based applications are disabled")
+	})
 
 	t.Run("LoginWithoutAuth", func(t *testing.T) {
 		t.Parallel()
@@ -384,7 +430,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 	t.Run("End-to-End", func(t *testing.T) {
 		t.Parallel()
 
-		client, firstUser, workspace, _ := setupProxyTest(t)
+		client, firstUser, workspace, _ := setupProxyTest(t, nil)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -392,7 +438,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		// Get the current user and API key.
 		user, err := client.User(ctx, codersdk.Me)
 		require.NoError(t, err)
-		currentAPIKey, err := client.GetAPIKey(ctx, firstUser.UserID.String(), strings.Split(client.SessionToken(), "-")[0])
+		currentAPIKey, err := client.APIKey(ctx, firstUser.UserID.String(), strings.Split(client.SessionToken(), "-")[0])
 		require.NoError(t, err)
 
 		// Try to load the application without authentication.
@@ -454,7 +500,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		apiKey := cookies[0].Value
 
 		// Fetch the API key.
-		apiKeyInfo, err := client.GetAPIKey(ctx, firstUser.UserID.String(), strings.Split(apiKey, "-")[0])
+		apiKeyInfo, err := client.APIKey(ctx, firstUser.UserID.String(), strings.Split(apiKey, "-")[0])
 		require.NoError(t, err)
 		require.Equal(t, user.ID, apiKeyInfo.UserID)
 		require.Equal(t, codersdk.LoginTypePassword, apiKeyInfo.LoginType)
@@ -470,7 +516,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 			canCreateApplicationConnect = "can-create-application_connect"
 			canReadUserMe               = "can-read-user-me"
 		)
-		authRes, err := appClient.CheckAuthorization(ctx, codersdk.AuthorizationRequest{
+		authRes, err := appClient.AuthCheck(ctx, codersdk.AuthorizationRequest{
 			Checks: map[string]codersdk.AuthorizationCheck{
 				canCreateApplicationConnect: {
 					Object: codersdk.AuthorizationObject{
@@ -501,7 +547,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		t.Log("navigating to: ", gotLocation.String())
 		req, err = http.NewRequestWithContext(ctx, "GET", gotLocation.String(), nil)
 		require.NoError(t, err)
-		req.Header.Set(codersdk.SessionCustomHeader, apiKey)
+		req.Header.Set(codersdk.SessionTokenHeader, apiKey)
 		resp, err = doWithRetries(t, client, req)
 		require.NoError(t, err)
 		resp.Body.Close()
@@ -511,7 +557,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 	t.Run("VerifyRedirectURI", func(t *testing.T) {
 		t.Parallel()
 
-		client, _, _, _ := setupProxyTest(t)
+		client, _, _, _ := setupProxyTest(t, nil)
 
 		cases := []struct {
 			name            string
@@ -655,7 +701,7 @@ func TestWorkspaceAppsProxySubdomainBlocked(t *testing.T) {
 
 func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 	t.Parallel()
-	client, firstUser, _, port := setupProxyTest(t)
+	client, firstUser, _, port := setupProxyTest(t, nil)
 
 	// proxyURL generates a URL for the proxy subdomain. The default path is a
 	// slash.
@@ -685,7 +731,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		require.NoError(t, err, "get workspaces")
 		require.Len(t, res.Workspaces, 1, "expected 1 workspace")
 
-		appHost, err := client.GetAppHost(ctx)
+		appHost, err := client.AppHost(ctx)
 		require.NoError(t, err, "get app host")
 
 		subdomain := httpapi.ApplicationURL{
@@ -813,7 +859,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		port := uint16(codersdk.MinimumListeningPort - 1)
+		port := uint16(codersdk.WorkspaceAgentMinimumListeningPort - 1)
 		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, proxyURL(t, client, port, "/", proxyTestAppQuery), nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
@@ -829,7 +875,9 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 	t.Run("SuffixWildcardOK", func(t *testing.T) {
 		t.Parallel()
 
-		client, _, _, _ := setupProxyTest(t, "*-suffix.test.coder.com")
+		client, _, _, _ := setupProxyTest(t, &setupProxyTestOpts{
+			AppHost: "*-suffix.test.coder.com",
+		})
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -849,7 +897,9 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 	t.Run("SuffixWildcardNotMatch", func(t *testing.T) {
 		t.Parallel()
 
-		client, _, _, _ := setupProxyTest(t, "*-suffix.test.coder.com")
+		client, _, _, _ := setupProxyTest(t, &setupProxyTestOpts{
+			AppHost: "*-suffix.test.coder.com",
+		})
 
 		t.Run("NoSuffix", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -991,7 +1041,7 @@ func TestAppSubdomainLogout(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			client, _, _, _ := setupProxyTest(t)
+			client, _, _, _ := setupProxyTest(t, nil)
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
@@ -1000,7 +1050,7 @@ func TestAppSubdomainLogout(t *testing.T) {
 			_, err := client.User(ctx, codersdk.Me)
 			require.NoError(t, err)
 
-			appHost, err := client.GetAppHost(ctx)
+			appHost, err := client.AppHost(ctx)
 			require.NoError(t, err, "get app host")
 
 			if c.cookie == "-" {
@@ -1038,7 +1088,7 @@ func TestAppSubdomainLogout(t *testing.T) {
 			// The header is prioritized over the devurl cookie if both are
 			// set, so this ensures we can trigger the logout code path with
 			// bad cookies during tests.
-			req.Header.Set(codersdk.SessionCustomHeader, client.SessionToken())
+			req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 			if c.cookie != "" {
 				req.AddCookie(&http.Cookie{
 					Name:  httpmw.DevURLSessionTokenCookie,
@@ -1085,17 +1135,53 @@ func TestAppSubdomainLogout(t *testing.T) {
 func TestAppSharing(t *testing.T) {
 	t.Parallel()
 
-	setup := func(t *testing.T) (workspace codersdk.Workspace, agnt codersdk.WorkspaceAgent, user codersdk.User, client *codersdk.Client, clientInOtherOrg *codersdk.Client, clientWithNoAuth *codersdk.Client) {
+	setup := func(t *testing.T, allowPathAppSharing, allowSiteOwnerAccess bool) (workspace codersdk.Workspace, agnt codersdk.WorkspaceAgent, user codersdk.User, ownerClient *codersdk.Client, client *codersdk.Client, clientInOtherOrg *codersdk.Client, clientWithNoAuth *codersdk.Client) {
 		//nolint:gosec
 		const password = "password"
 
-		client, _, workspace, _ = setupProxyTest(t)
+		var port uint16
+		ownerClient, _, _, port = setupProxyTest(t, &setupProxyTestOpts{
+			NoWorkspace:                          true,
+			DangerousAllowPathAppSharing:         allowPathAppSharing,
+			DangerousAllowPathAppSiteOwnerAccess: allowSiteOwnerAccess,
+		})
+		forceURLTransport(t, ownerClient)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		t.Cleanup(cancel)
 
-		user, err := client.User(ctx, codersdk.Me)
+		ownerUser, err := ownerClient.User(ctx, codersdk.Me)
 		require.NoError(t, err)
+
+		// Create a template-admin user in the same org. We don't use an owner
+		// since they have access to everything.
+		user, err = ownerClient.CreateUser(ctx, codersdk.CreateUserRequest{
+			Email:          "user@coder.com",
+			Username:       "user",
+			Password:       password,
+			OrganizationID: ownerUser.OrganizationIDs[0],
+		})
+		require.NoError(t, err)
+
+		_, err = ownerClient.UpdateUserRoles(ctx, user.ID.String(), codersdk.UpdateRoles{
+			Roles: []string{"template-admin", "member"},
+		})
+		require.NoError(t, err)
+
+		client = codersdk.New(ownerClient.URL)
+		loginRes, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    user.Email,
+			Password: password,
+		})
+		require.NoError(t, err)
+		client.SetSessionToken(loginRes.SessionToken)
+		client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+		forceURLTransport(t, client)
+
+		// Create workspace.
+		workspace = createWorkspaceWithApps(t, client, user.OrganizationIDs[0], proxyTestSubdomainRaw, port)
 
 		// Verify that the apps have the correct sharing levels set.
 		workspaceBuild, err := client.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
@@ -1114,11 +1200,11 @@ func TestAppSharing(t *testing.T) {
 		require.Equal(t, expected, found, "apps have incorrect sharing levels")
 
 		// Create a user in a different org.
-		otherOrg, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+		otherOrg, err := ownerClient.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
 			Name: "a-different-org",
 		})
 		require.NoError(t, err)
-		userInOtherOrg, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+		userInOtherOrg, err := ownerClient.CreateUser(ctx, codersdk.CreateUserRequest{
 			Email:          "no-template-access@coder.com",
 			Username:       "no-template-access",
 			Password:       password,
@@ -1127,7 +1213,7 @@ func TestAppSharing(t *testing.T) {
 		require.NoError(t, err)
 
 		clientInOtherOrg = codersdk.New(client.URL)
-		loginRes, err := clientInOtherOrg.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+		loginRes, err = clientInOtherOrg.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    userInOtherOrg.Email,
 			Password: password,
 		})
@@ -1136,17 +1222,19 @@ func TestAppSharing(t *testing.T) {
 		clientInOtherOrg.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		}
+		forceURLTransport(t, clientInOtherOrg)
 
 		// Create an unauthenticated codersdk client.
 		clientWithNoAuth = codersdk.New(client.URL)
 		clientWithNoAuth.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		}
+		forceURLTransport(t, clientWithNoAuth)
 
-		return workspace, agnt, user, client, clientInOtherOrg, clientWithNoAuth
+		return workspace, agnt, user, ownerClient, client, clientInOtherOrg, clientWithNoAuth
 	}
 
-	verifyAccess := func(t *testing.T, username, workspaceName, agentName, appName string, client *codersdk.Client, shouldHaveAccess, shouldRedirectToLogin bool) {
+	verifyAccess := func(t *testing.T, isPathApp bool, username, workspaceName, agentName, appName string, client *codersdk.Client, shouldHaveAccess, shouldRedirectToLogin bool) {
 		t.Helper()
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -1164,6 +1252,7 @@ func TestAppSharing(t *testing.T) {
 			scopedClient := codersdk.New(client.URL)
 			scopedClient.SetSessionToken(token.Key)
 			scopedClient.HTTPClient.CheckRedirect = client.HTTPClient.CheckRedirect
+			scopedClient.HTTPClient.Transport = client.HTTPClient.Transport
 
 			clients = append(clients, scopedClient)
 		}
@@ -1171,21 +1260,38 @@ func TestAppSharing(t *testing.T) {
 		for i, client := range clients {
 			msg := fmt.Sprintf("client %d", i)
 
-			appPath := fmt.Sprintf("/@%s/%s.%s/apps/%s/?%s", username, workspaceName, agentName, appName, proxyTestAppQuery)
-			res, err := requestWithRetries(ctx, t, client, http.MethodGet, appPath, nil)
+			u := fmt.Sprintf("/@%s/%s.%s/apps/%s/?%s", username, workspaceName, agentName, appName, proxyTestAppQuery)
+			if !isPathApp {
+				subdomain := httpapi.ApplicationURL{
+					AppSlug:       appName,
+					AgentName:     agentName,
+					WorkspaceName: workspaceName,
+					Username:      username,
+				}.String()
+
+				hostname := strings.Replace(proxyTestSubdomainRaw, "*", subdomain, 1)
+				u = fmt.Sprintf("http://%s/?%s", hostname, proxyTestAppQuery)
+			}
+
+			res, err := requestWithRetries(ctx, t, client, http.MethodGet, u, nil)
 			require.NoError(t, err, msg)
 
 			dump, err := httputil.DumpResponse(res, true)
-			res.Body.Close()
+			_ = res.Body.Close()
 			require.NoError(t, err, msg)
-			t.Logf("response dump: %s", dump)
+			// t.Logf("response dump: %s", dump)
 
 			if !shouldHaveAccess {
 				if shouldRedirectToLogin {
 					assert.Equal(t, http.StatusTemporaryRedirect, res.StatusCode, "should not have access, expected temporary redirect. "+msg)
 					location, err := res.Location()
 					require.NoError(t, err, msg)
-					assert.Equal(t, "/login", location.Path, "should not have access, expected redirect to /login. "+msg)
+
+					expectedPath := "/login"
+					if !isPathApp {
+						expectedPath = "/api/v2/applications/auth-redirect"
+					}
+					assert.Equal(t, expectedPath, location.Path, "should not have access, expected redirect to applicable login endpoint. "+msg)
 				} else {
 					// If the user doesn't have access we return 404 to avoid
 					// leaking information about the existence of the app.
@@ -1200,50 +1306,99 @@ func TestAppSharing(t *testing.T) {
 		}
 	}
 
-	t.Run("Level", func(t *testing.T) {
-		t.Parallel()
+	testLevels := func(t *testing.T, isPathApp, pathAppSharingEnabled, siteOwnerPathAppAccessEnabled bool) {
+		workspace, agnt, user, ownerClient, client, clientInOtherOrg, clientWithNoAuth := setup(t, pathAppSharingEnabled, siteOwnerPathAppAccessEnabled)
 
-		workspace, agent, user, client, clientInOtherOrg, clientWithNoAuth := setup(t)
+		allowedUnlessSharingDisabled := !isPathApp || pathAppSharingEnabled
+		siteOwnerCanAccess := !isPathApp || siteOwnerPathAppAccessEnabled
+		siteOwnerCanAccessShared := siteOwnerCanAccess || pathAppSharingEnabled
 
-		t.Run("Owner", func(t *testing.T) {
+		deploymentConfig, err := ownerClient.DeploymentConfig(context.Background())
+		require.NoError(t, err)
+
+		assert.Equal(t, pathAppSharingEnabled, deploymentConfig.Dangerous.AllowPathAppSharing.Value)
+		assert.Equal(t, siteOwnerPathAppAccessEnabled, deploymentConfig.Dangerous.AllowPathAppSiteOwnerAccess.Value)
+
+		t.Run("LevelOwner", func(t *testing.T) {
 			t.Parallel()
 
+			// Site owner should be able to access all workspaces if
+			// enabled.
+			verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameOwner, ownerClient, siteOwnerCanAccess, false)
+
 			// Owner should be able to access their own workspace.
-			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNameOwner, client, true, false)
+			verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameOwner, client, true, false)
 
 			// Authenticated users should not have access to a workspace that
 			// they do not own.
-			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNameOwner, clientInOtherOrg, false, false)
+			verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameOwner, clientInOtherOrg, false, false)
 
 			// Unauthenticated user should not have any access.
-			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNameOwner, clientWithNoAuth, false, true)
+			verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameOwner, clientWithNoAuth, false, true)
 		})
 
-		t.Run("Authenticated", func(t *testing.T) {
+		t.Run("LevelAuthenticated", func(t *testing.T) {
 			t.Parallel()
 
+			// Site owner should be able to access all workspaces if
+			// enabled.
+			verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameAuthenticated, ownerClient, siteOwnerCanAccessShared, false)
+
 			// Owner should be able to access their own workspace.
-			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNameAuthenticated, client, true, false)
+			verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameAuthenticated, client, true, false)
 
 			// Authenticated users should be able to access the workspace.
-			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNameAuthenticated, clientInOtherOrg, true, false)
+			verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameAuthenticated, clientInOtherOrg, allowedUnlessSharingDisabled, false)
 
 			// Unauthenticated user should not have any access.
-			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNameAuthenticated, clientWithNoAuth, false, true)
+			verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameAuthenticated, clientWithNoAuth, false, true)
 		})
 
-		t.Run("Public", func(t *testing.T) {
+		t.Run("LevelPublic", func(t *testing.T) {
 			t.Parallel()
 
+			// Site owner should be able to access all workspaces if
+			// enabled.
+			verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNamePublic, ownerClient, siteOwnerCanAccessShared, false)
+
 			// Owner should be able to access their own workspace.
-			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNamePublic, client, true, false)
+			verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNamePublic, client, true, false)
 
 			// Authenticated users should be able to access the workspace.
-			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNamePublic, clientInOtherOrg, true, false)
+			verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNamePublic, clientInOtherOrg, allowedUnlessSharingDisabled, false)
 
 			// Unauthenticated user should be able to access the workspace.
-			verifyAccess(t, user.Username, workspace.Name, agent.Name, proxyTestAppNamePublic, clientWithNoAuth, true, false)
+			verifyAccess(t, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNamePublic, clientWithNoAuth, allowedUnlessSharingDisabled, !allowedUnlessSharingDisabled)
 		})
+	}
+
+	t.Run("Path", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("Default", func(t *testing.T) {
+			t.Parallel()
+			testLevels(t, true, false, false)
+		})
+
+		t.Run("AppSharingEnabled", func(t *testing.T) {
+			t.Parallel()
+			testLevels(t, true, true, false)
+		})
+
+		t.Run("SiteOwnerAccessEnabled", func(t *testing.T) {
+			t.Parallel()
+			testLevels(t, true, false, true)
+		})
+
+		t.Run("BothEnabled", func(t *testing.T) {
+			t.Parallel()
+			testLevels(t, true, false, true)
+		})
+	})
+
+	t.Run("Subdomain", func(t *testing.T) {
+		t.Parallel()
+		testLevels(t, false, false, false)
 	})
 }
 
@@ -1372,7 +1527,7 @@ func TestWorkspaceAppsNonCanonicalHeaders(t *testing.T) {
 		secWebSocketKey := "test-dean-was-here"
 		req.Header["Sec-WebSocket-Key"] = []string{secWebSocketKey}
 
-		req.Header.Set(codersdk.SessionCustomHeader, client.SessionToken())
+		req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 		resp, err := doWithRetries(t, client, req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
@@ -1424,7 +1579,7 @@ func TestWorkspaceAppsNonCanonicalHeaders(t *testing.T) {
 		secWebSocketKey := "test-dean-was-here"
 		req.Header["Sec-WebSocket-Key"] = []string{secWebSocketKey}
 
-		req.Header.Set(codersdk.SessionCustomHeader, client.SessionToken())
+		req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 		resp, err := doWithRetries(t, client, req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
@@ -1436,5 +1591,20 @@ func TestWorkspaceAppsNonCanonicalHeaders(t *testing.T) {
 		t.Log(string(res))
 		require.Equal(t, http.StatusNoContent, resp.StatusCode)
 		require.Equal(t, secWebSocketKey, resp.Header.Get("Sec-WebSocket-Key"))
+	})
+}
+
+// forceURLTransport forces the client to route all requests to the client's
+// configured URL host regardless of hostname.
+func forceURLTransport(t *testing.T, client *codersdk.Client) {
+	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+	require.True(t, ok)
+	transport := defaultTransport.Clone()
+	transport.DialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, network, client.URL.Host)
+	}
+	client.HTTPClient.Transport = transport
+	t.Cleanup(func() {
+		transport.CloseIdleConnections()
 	})
 }

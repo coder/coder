@@ -19,14 +19,17 @@ func TestWorkspaceActivityBump(t *testing.T) {
 
 	ctx := context.Background()
 
+	const ttl = time.Minute
+
 	setupActivityTest := func(t *testing.T) (client *codersdk.Client, workspace codersdk.Workspace, assertBumped func(want bool)) {
-		var ttlMillis int64 = 60 * 1000
+		ttlMillis := int64(ttl / time.Millisecond)
 
 		client = coderdtest.New(t, &coderdtest.Options{
-			AppHostname:                 proxyTestSubdomainRaw,
-			IncludeProvisionerDaemon:    true,
-			AgentStatsRefreshInterval:   time.Millisecond * 100,
-			MetricsCacheRefreshInterval: time.Millisecond * 100,
+			AppHostname:              proxyTestSubdomainRaw,
+			IncludeProvisionerDaemon: true,
+			// Agent stats trigger the activity bump, so we want to report
+			// very frequently in tests.
+			AgentStatsRefreshInterval: time.Millisecond * 100,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 
@@ -67,11 +70,11 @@ func TestWorkspaceActivityBump(t *testing.T) {
 					require.NoError(t, err)
 					return workspace.LatestBuild.Deadline.Time != firstDeadline
 				},
-				testutil.WaitShort, testutil.IntervalFast,
+				testutil.WaitLong, testutil.IntervalFast,
 				"deadline %v never updated", firstDeadline,
 			)
 
-			require.WithinDuration(t, database.Now().Add(time.Hour), workspace.LatestBuild.Deadline.Time, 3*time.Second)
+			require.WithinDuration(t, database.Now().Add(ttl), workspace.LatestBuild.Deadline.Time, 3*time.Second)
 		}
 	}
 
@@ -87,6 +90,8 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		require.NoError(t, err)
 		defer conn.Close()
 
+		// Must send network traffic after a few seconds to surpass bump threshold.
+		time.Sleep(time.Second * 3)
 		sshConn, err := conn.SSHClient(ctx)
 		require.NoError(t, err)
 		_ = sshConn.Close()

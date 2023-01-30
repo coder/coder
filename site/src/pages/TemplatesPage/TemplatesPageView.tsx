@@ -1,15 +1,13 @@
 import Button from "@material-ui/core/Button"
 import Link from "@material-ui/core/Link"
-import { makeStyles, Theme } from "@material-ui/core/styles"
+import { makeStyles } from "@material-ui/core/styles"
 import Table from "@material-ui/core/Table"
 import TableBody from "@material-ui/core/TableBody"
 import TableCell from "@material-ui/core/TableCell"
 import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
-import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
 import AddIcon from "@material-ui/icons/AddOutlined"
-import useTheme from "@material-ui/styles/useTheme"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Maybe } from "components/Conditionals/Maybe"
@@ -28,7 +26,6 @@ import {
   PageHeaderTitle,
 } from "../../components/PageHeader/PageHeader"
 import { Stack } from "../../components/Stack/Stack"
-import { TableCellLink } from "../../components/TableCellLink/TableCellLink"
 import { TableLoader } from "../../components/TableLoader/TableLoader"
 import {
   HelpTooltip,
@@ -39,6 +36,12 @@ import {
 } from "../../components/Tooltips/HelpTooltip/HelpTooltip"
 import { EmptyTemplates } from "./EmptyTemplates"
 import { TemplatesContext } from "xServices/templates/templatesXService"
+import { useClickableTableRow } from "hooks/useClickableTableRow"
+import { Template } from "api/typesGenerated"
+import { combineClasses } from "util/combineClasses"
+import { colors } from "theme/colors"
+import ArrowForwardOutlined from "@material-ui/icons/ArrowForwardOutlined"
+import { Avatar } from "components/Avatar/Avatar"
 
 export const Language = {
   developerCount: (activeCount: number): string => {
@@ -54,7 +57,6 @@ export const Language = {
   templateTooltipText:
     "With templates you can create a common configuration for your workspaces using Terraform.",
   templateTooltipLink: "Manage templates",
-  createdByLabel: "Created by",
 }
 
 const TemplateHelpTooltip: React.FC = () => {
@@ -71,6 +73,68 @@ const TemplateHelpTooltip: React.FC = () => {
   )
 }
 
+const TemplateRow: FC<{ template: Template }> = ({ template }) => {
+  const templatePageLink = `/templates/${template.name}`
+  const hasIcon = template.icon && template.icon !== ""
+  const navigate = useNavigate()
+  const styles = useStyles()
+  const { className: clickableClassName, ...clickableRow } =
+    useClickableTableRow(() => {
+      navigate(templatePageLink)
+    })
+
+  return (
+    <TableRow
+      key={template.id}
+      data-testid={`template-${template.id}`}
+      {...clickableRow}
+      className={combineClasses([clickableClassName, styles.tableRow])}
+    >
+      <TableCell>
+        <AvatarData
+          title={
+            template.display_name.length > 0
+              ? template.display_name
+              : template.name
+          }
+          subtitle={template.description}
+          avatar={
+            hasIcon && <Avatar src={template.icon} variant="square" fitImage />
+          }
+        />
+      </TableCell>
+
+      <TableCell className={styles.secondary}>
+        {Language.developerCount(template.active_user_count)}
+      </TableCell>
+
+      <TableCell className={styles.secondary}>
+        {formatTemplateBuildTime(template.build_time_stats.start.P50)}
+      </TableCell>
+
+      <TableCell data-chromatic="ignore" className={styles.secondary}>
+        {createDayString(template.updated_at)}
+      </TableCell>
+
+      <TableCell className={styles.actionCell}>
+        <Button
+          variant="outlined"
+          size="small"
+          className={styles.actionButton}
+          startIcon={<ArrowForwardOutlined />}
+          title={`Create a workspace using the ${template.display_name} template`}
+          onClick={(e) => {
+            e.stopPropagation()
+            navigate(`/templates/${template.name}/workspace`)
+          }}
+        >
+          Use template
+        </Button>
+      </TableCell>
+    </TableRow>
+  )
+}
+
 export interface TemplatesPageViewProps {
   context: TemplatesContext
 }
@@ -78,9 +142,6 @@ export interface TemplatesPageViewProps {
 export const TemplatesPageView: FC<
   React.PropsWithChildren<TemplatesPageViewProps>
 > = ({ context }) => {
-  const styles = useStyles()
-  const navigate = useNavigate()
-  const theme: Theme = useTheme()
   const { templates, error, examples, permissions } = context
   const isLoading = !templates
   const isEmpty = Boolean(templates && templates.length === 0)
@@ -136,11 +197,10 @@ export const TemplatesPageView: FC<
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell width="34%">{Language.nameLabel}</TableCell>
-                  <TableCell width="16%">{Language.usedByLabel}</TableCell>
-                  <TableCell width="16%">{Language.buildTimeLabel}</TableCell>
-                  <TableCell width="16%">{Language.lastUpdatedLabel}</TableCell>
-                  <TableCell width="16%">{Language.createdByLabel}</TableCell>
+                  <TableCell width="35%">{Language.nameLabel}</TableCell>
+                  <TableCell width="15%">{Language.usedByLabel}</TableCell>
+                  <TableCell width="10%">{Language.buildTimeLabel}</TableCell>
+                  <TableCell width="15%">{Language.lastUpdatedLabel}</TableCell>
                   <TableCell width="1%"></TableCell>
                 </TableRow>
               </TableHead>
@@ -158,91 +218,9 @@ export const TemplatesPageView: FC<
                   </Cond>
 
                   <Cond>
-                    {templates?.map((template) => {
-                      const templatePageLink = `/templates/${template.name}`
-                      const hasIcon = template.icon && template.icon !== ""
-
-                      return (
-                        <TableRow
-                          key={template.id}
-                          hover
-                          data-testid={`template-${template.id}`}
-                          tabIndex={0}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter") {
-                              navigate(templatePageLink)
-                            }
-                          }}
-                          className={styles.clickableTableRow}
-                        >
-                          <TableCellLink to={templatePageLink}>
-                            <AvatarData
-                              title={
-                                template.display_name.length > 0
-                                  ? template.display_name
-                                  : template.name
-                              }
-                              subtitle={template.description}
-                              highlightTitle
-                              avatar={
-                                hasIcon && (
-                                  <div className={styles.templateIconWrapper}>
-                                    <img alt="" src={template.icon} />
-                                  </div>
-                                )
-                              }
-                            />
-                          </TableCellLink>
-
-                          <TableCellLink to={templatePageLink}>
-                            <span
-                              style={{ color: theme.palette.text.secondary }}
-                            >
-                              {Language.developerCount(
-                                template.active_user_count,
-                              )}
-                            </span>
-                          </TableCellLink>
-
-                          <TableCellLink to={templatePageLink}>
-                            <span
-                              style={{ color: theme.palette.text.secondary }}
-                            >
-                              {formatTemplateBuildTime(
-                                template.build_time_stats.start.P50,
-                              )}
-                            </span>
-                          </TableCellLink>
-
-                          <TableCellLink
-                            data-chromatic="ignore"
-                            to={templatePageLink}
-                          >
-                            <span
-                              style={{ color: theme.palette.text.secondary }}
-                            >
-                              {createDayString(template.updated_at)}
-                            </span>
-                          </TableCellLink>
-
-                          <TableCellLink to={templatePageLink}>
-                            <span
-                              style={{ color: theme.palette.text.secondary }}
-                            >
-                              {template.created_by_name}
-                            </span>
-                          </TableCellLink>
-
-                          <TableCellLink to={templatePageLink}>
-                            <div className={styles.arrowCell}>
-                              <KeyboardArrowRight
-                                className={styles.arrowRight}
-                              />
-                            </div>
-                          </TableCellLink>
-                        </TableRow>
-                      )
-                    })}
+                    {templates?.map((template) => (
+                      <TemplateRow key={template.id} template={template} />
+                    ))}
                   </Cond>
                 </ChooseOne>
               </TableBody>
@@ -255,27 +233,6 @@ export const TemplatesPageView: FC<
 }
 
 const useStyles = makeStyles((theme) => ({
-  clickableTableRow: {
-    "&:hover td": {
-      backgroundColor: theme.palette.action.hover,
-    },
-
-    "&:focus": {
-      outline: `1px solid ${theme.palette.secondary.dark}`,
-    },
-
-    "& .MuiTableCell-root:last-child": {
-      paddingRight: theme.spacing(2),
-    },
-  },
-  arrowRight: {
-    color: theme.palette.text.secondary,
-    width: 20,
-    height: 20,
-  },
-  arrowCell: {
-    display: "flex",
-  },
   templateIconWrapper: {
     // Same size then the avatar component
     width: 36,
@@ -285,5 +242,24 @@ const useStyles = makeStyles((theme) => ({
     "& img": {
       width: "100%",
     },
+  },
+  actionCell: {
+    whiteSpace: "nowrap",
+  },
+  secondary: {
+    color: theme.palette.text.secondary,
+  },
+  tableRow: {
+    "&:hover $actionButton": {
+      color: theme.palette.text.primary,
+      borderColor: colors.gray[11],
+      "&:hover": {
+        borderColor: theme.palette.text.primary,
+      },
+    },
+  },
+  actionButton: {
+    color: theme.palette.text.secondary,
+    transition: "none",
   },
 }))

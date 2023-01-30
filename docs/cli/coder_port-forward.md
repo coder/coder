@@ -1,0 +1,62 @@
+## coder port-forward
+
+Forward ports from machine to a workspace
+
+```
+coder port-forward <workspace> [flags]
+```
+
+### Examples
+
+```
+  - Port forward a single TCP port from 1234 in the workspace to port 5678 on
+    your local machine:
+
+      $ coder port-forward <workspace> --tcp 5678:1234
+
+  - Port forward a single UDP port from port 9000 to port 9000 on your local
+    machine:
+
+      $ coder port-forward <workspace> --udp 9000
+
+  - Port forward multiple TCP ports and a UDP port:
+
+      $ coder port-forward <workspace> --tcp 8080:8080 --tcp 9000:3000 --udp 5353:53
+
+  - Port forward multiple ports (TCP or UDP) in condensed syntax:
+
+      $ coder port-forward <workspace> --tcp 8080,9000:3000,9090-9092,10000-10002:10010-10012
+```
+
+### Options
+
+```
+  -h, --help              help for port-forward
+  -p, --tcp stringArray   Forward TCP port(s) from the workspace to the local machine.
+                          Consumes $CODER_PORT_FORWARD_TCP
+      --udp stringArray   Forward UDP port(s) from the workspace to the local machine. The UDP connection has TCP-like semantics to support stateful UDP protocols.
+                          Consumes $CODER_PORT_FORWARD_UDP
+```
+
+### Options inherited from parent commands
+
+```
+      --global-config coder   Path to the global coder config directory.
+                              Consumes $CODER_CONFIG_DIR (default "~/.config/coderv2")
+      --header stringArray    HTTP headers added to all requests. Provide as "Key=Value".
+                              Consumes $CODER_HEADER
+      --no-feature-warning    Suppress warnings about unlicensed features.
+                              Consumes $CODER_NO_FEATURE_WARNING
+      --no-version-warning    Suppress warning when client and server versions do not match.
+                              Consumes $CODER_NO_VERSION_WARNING
+      --token string          Specify an authentication token. For security reasons setting CODER_SESSION_TOKEN is preferred.
+                              Consumes $CODER_SESSION_TOKEN
+      --url string            URL to a deployment.
+                              Consumes $CODER_URL
+  -v, --verbose               Enable verbose output.
+                              Consumes $CODER_VERBOSE
+```
+
+### SEE ALSO
+
+- [coder](coder.md) -

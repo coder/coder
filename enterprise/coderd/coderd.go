@@ -13,6 +13,7 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/go-chi/chi/v5"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd"
@@ -42,8 +43,11 @@ func New(ctx context.Context, options *Options) (*API, error) {
 	if options.Options == nil {
 		options.Options = &coderd.Options{}
 	}
+	if options.PrometheusRegistry == nil {
+		options.PrometheusRegistry = prometheus.NewRegistry()
+	}
 	if options.Options.Authorizer == nil {
-		options.Options.Authorizer = rbac.NewAuthorizer()
+		options.Options.Authorizer = rbac.NewAuthorizer(options.PrometheusRegistry)
 	}
 	ctx, cancelFunc := context.WithCancel(ctx)
 	api := &API{
@@ -234,7 +238,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	api.entitlementsMu.Lock()
 	defer api.entitlementsMu.Unlock()
 
-	entitlements, err := license.Entitlements(ctx, api.Database, api.Logger, len(api.replicaManager.All()), len(api.GitAuthConfigs), api.Keys, map[string]bool{
+	entitlements, err := license.Entitlements(ctx, api.Database, api.Logger, len(api.replicaManager.All()), len(api.GitAuthConfigs), api.Keys, map[codersdk.FeatureName]bool{
 		codersdk.FeatureAuditLog:                   api.AuditLogging,
 		codersdk.FeatureBrowserOnly:                api.BrowserOnly,
 		codersdk.FeatureSCIM:                       len(api.SCIMAPIKey) != 0,
@@ -246,9 +250,9 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	entitlements.Experimental = api.DeploymentConfig.Experimental.Value
+	entitlements.Experimental = api.DeploymentConfig.Experimental.Value || len(api.AGPL.Experiments) != 0
 
-	featureChanged := func(featureName string) (changed bool, enabled bool) {
+	featureChanged := func(featureName codersdk.FeatureName) (changed bool, enabled bool) {
 		if api.entitlements.Features == nil {
 			return true, entitlements.Features[featureName].Enabled
 		}

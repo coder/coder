@@ -43,7 +43,7 @@ RUN mkdir --parents "$GOPATH" && \
 	# the language server protocol
 	go install golang.org/x/tools/gopls@latest && \
 	# gotestsum makes test output more readable
-	go install gotest.tools/gotestsum@v1.7.0 && \
+	go install gotest.tools/gotestsum@v1.9.0 && \
 	# goveralls collects code coverage metrics from tests
 	# and sends to Coveralls
 	go install github.com/mattn/goveralls@v0.0.11 && \
@@ -53,7 +53,7 @@ RUN mkdir --parents "$GOPATH" && \
 	# charts and values files
 	go install github.com/norwoodj/helm-docs/cmd/helm-docs@v1.5.0 && \
 	# sqlc for Go code generation
-	go install github.com/kyleconroy/sqlc/cmd/sqlc@v1.10.0 && \
+	go install github.com/kyleconroy/sqlc/cmd/sqlc@v1.16.0 && \
 	# gcr-cleaner-cli used by CI to prune unused images
 	go install github.com/sethvargo/gcr-cleaner/cmd/gcr-cleaner-cli@v0.5.1 && \
 	# ruleguard for checking custom rules, without needing to run all of

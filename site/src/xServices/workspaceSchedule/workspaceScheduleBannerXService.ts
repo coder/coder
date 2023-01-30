@@ -7,7 +7,7 @@ import { Workspace } from "api/typesGenerated"
 import dayjs from "dayjs"
 import minMax from "dayjs/plugin/minMax"
 import { getDeadline, getMaxDeadline, getMinDeadline } from "util/schedule"
-import { ActorRefFrom, assign, createMachine } from "xstate"
+import { assign, createMachine } from "xstate"
 import * as API from "../../api/api"
 import {
   displayError,
@@ -38,10 +38,6 @@ export type WorkspaceScheduleBannerEvent =
       type: "REFRESH_WORKSPACE"
       workspace: Workspace
     }
-
-export type WorkspaceScheduleBannerMachineRef = ActorRefFrom<
-  typeof workspaceScheduleBannerMachine
->
 
 export const workspaceScheduleBannerMachine = createMachine(
   {

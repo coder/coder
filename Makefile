@@ -92,6 +92,19 @@ CODER_FAT_NOVERSION_BINARIES      := $(addprefix build/coder_,$(OS_ARCHES))
 CODER_ALL_NOVERSION_IMAGES        := $(foreach arch, $(DOCKER_ARCHES), build/coder_linux_$(arch).tag) build/coder_linux.tag
 CODER_ALL_NOVERSION_IMAGES_PUSHED := $(addprefix push/, $(CODER_ALL_NOVERSION_IMAGES))
 
+# If callers are only building Docker images and not the packages and archives,
+# we can skip those prerequisites as they are not actually required and only
+# specified to avoid concurrent write failures.
+ifdef DOCKER_IMAGE_NO_PREREQUISITES
+CODER_ARCH_IMAGE_PREREQUISITES :=
+else
+CODER_ARCH_IMAGE_PREREQUISITES := \
+	build/coder_$(VERSION)_%.apk \
+	build/coder_$(VERSION)_%.deb \
+	build/coder_$(VERSION)_%.rpm \
+	build/coder_$(VERSION)_%.tar.gz
+endif
+
 
 clean:
 	rm -rf build site/out
@@ -296,13 +309,7 @@ $(CODER_ALL_NOVERSION_IMAGES_PUSHED): push/build/coder_%: push/build/coder_$(VER
 #
 # Images need to run after the archives and packages are built, otherwise they
 # cause errors like "file changed as we read it".
-$(CODER_ARCH_IMAGES): build/coder_$(VERSION)_%.tag: \
-	build/coder_$(VERSION)_% \
-	build/coder_$(VERSION)_%.apk \
-	build/coder_$(VERSION)_%.deb \
-	build/coder_$(VERSION)_%.rpm \
-	build/coder_$(VERSION)_%.tar.gz
-
+$(CODER_ARCH_IMAGES): build/coder_$(VERSION)_%.tag: build/coder_$(VERSION)_% $(CODER_ARCH_IMAGE_PREREQUISITES)
 	$(get-mode-os-arch-ext)
 
 	image_tag="$$(./scripts/image_tag.sh --arch "$$arch" --version "$(VERSION)")"
@@ -411,6 +418,8 @@ gen: \
 	provisionerd/proto/provisionerd.pb.go \
 	site/src/api/typesGenerated.ts \
 	docs/admin/prometheus.md \
+	docs/cli/coder.md \
+	docs/admin/audit-logs.md \
 	coderd/apidoc/swagger.json \
 	.prettierignore.include \
 	.prettierignore \
@@ -429,6 +438,8 @@ gen/mark-fresh:
 		provisionerd/proto/provisionerd.pb.go \
 		site/src/api/typesGenerated.ts \
 		docs/admin/prometheus.md \
+		docs/cli/coder.md \
+		docs/admin/audit-logs.md \
 		coderd/apidoc/swagger.json \
 		.prettierignore.include \
 		.prettierignore \
@@ -483,10 +494,19 @@ docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/me
 	cd site
 	yarn run format:write:only ../docs/admin/prometheus.md
 
-coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen -not \( -path './scripts/apidocgen/node_modules' -prune \) -type f) $(wildcard coderd/*.go) $(wildcard enterprise/coderd/*.go) $(wildcard codersdk/*.go) .swaggo
-	./scripts/apidocgen/generate.sh
+docs/cli/coder.md: scripts/clidocgen/main.go $(GO_SRC_FILES) docs/manifest.json
+	BASE_PATH="." go run scripts/clidocgen/main.go
 	cd site
-	yarn run format:write:only ../docs/api ../docs/manifest.json ../coderd/apidoc/swagger.json
+	yarn run format:write:only ../docs/cli/*.md ../docs/manifest.json
+
+docs/admin/audit-logs.md: scripts/auditdocgen/main.go enterprise/audit/table.go
+	go run scripts/auditdocgen/main.go
+	cd site
+	yarn run format:write:only ../docs/admin/audit-logs.md
+
+coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) -type f) $(wildcard coderd/*.go) $(wildcard enterprise/coderd/*.go) $(wildcard codersdk/*.go) .swaggo docs/manifest.json
+	./scripts/apidocgen/generate.sh
+	yarn run --cwd=site format:write:only ../docs/api ../docs/manifest.json ../coderd/apidoc/swagger.json
 
 update-golden-files: cli/testdata/.gen-golden
 .PHONY: update-golden-files
@@ -556,7 +576,7 @@ site/.eslintignore site/.prettierignore: .prettierignore Makefile
 	done < "$<"
 
 test: test-clean
-	gotestsum --debug -- -v -short ./...
+	gotestsum -- -v -short ./...
 .PHONY: test
 
 # When updating -timeout for this test, keep in sync with
@@ -566,7 +586,6 @@ test-postgres: test-clean test-postgres-docker
 	# more consistent execution.
 	DB=ci DB_FROM=$(shell go run scripts/migrate-ci/main.go) gotestsum \
 		--junitfile="gotests.xml" \
-		--jsonfile="gotestsum.json" \
 		--packages="./..." -- \
 		-covermode=atomic -coverprofile="gotests.coverage" -timeout=20m \
 		-parallel=4 \

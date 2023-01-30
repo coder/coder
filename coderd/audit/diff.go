@@ -9,15 +9,13 @@ import (
 // AuditableResources, then add it to this interface.
 type Auditable interface {
 	database.APIKey |
-		database.Organization |
-		database.OrganizationMember |
 		database.Template |
 		database.TemplateVersion |
 		database.User |
 		database.Workspace |
 		database.GitSSHKey |
-		database.Group |
-		database.WorkspaceBuild
+		database.WorkspaceBuild |
+		database.AuditableGroup
 }
 
 // Map is a map of changed fields in an audited resource. It maps field names to

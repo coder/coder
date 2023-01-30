@@ -390,6 +390,34 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		})
 		return
 	}
+
+	dbTemplateVersionParameters, err := api.Database.GetTemplateVersionParameters(ctx, templateVersion.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template version parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	templateVersionParameters, err := convertTemplateVersionParameters(dbTemplateVersionParameters)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error converting template version parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	err = codersdk.ValidateWorkspaceBuildParameters(templateVersionParameters, createWorkspace.RichParameterValues)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Error validating workspace build parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	templateVersionJob, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -501,6 +529,21 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace build: %w", err)
+		}
+
+		names := make([]string, 0, len(createWorkspace.RichParameterValues))
+		values := make([]string, 0, len(createWorkspace.RichParameterValues))
+		for _, param := range createWorkspace.RichParameterValues {
+			names = append(names, param.Name)
+			values = append(values, param.Value)
+		}
+		err = db.InsertWorkspaceBuildParameters(ctx, database.InsertWorkspaceBuildParametersParams{
+			WorkspaceBuildID: workspaceBuildID,
+			Name:             names,
+			Value:            values,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert workspace build parameters: %w", err)
 		}
 		return nil
 	}, nil)

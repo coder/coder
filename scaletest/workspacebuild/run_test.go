@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/scaletest/workspacebuild"
@@ -130,7 +131,7 @@ func Test_Runner(t *testing.T) {
 			for i, authToken := range []string{authToken1, authToken2, authToken3} {
 				i := i + 1
 
-				agentClient := codersdk.New(client.URL)
+				agentClient := agentsdk.New(client.URL)
 				agentClient.SetSessionToken(authToken)
 				agentCloser := agent.New(agent.Options{
 					Client: agentClient,

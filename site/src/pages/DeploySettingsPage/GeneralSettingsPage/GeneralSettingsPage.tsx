@@ -5,14 +5,19 @@ import { pageTitle } from "util/page"
 import { GeneralSettingsPageView } from "./GeneralSettingsPageView"
 
 const GeneralSettingsPage: FC = () => {
-  const { deploymentConfig: deploymentConfig } = useDeploySettings()
+  const { deploymentConfig, deploymentDAUs, getDeploymentDAUsError } =
+    useDeploySettings()
 
   return (
     <>
       <Helmet>
         <title>{pageTitle("General Settings")}</title>
       </Helmet>
-      <GeneralSettingsPageView deploymentConfig={deploymentConfig} />
+      <GeneralSettingsPageView
+        deploymentConfig={deploymentConfig}
+        deploymentDAUs={deploymentDAUs}
+        getDeploymentDAUsError={getDeploymentDAUsError}
+      />
     </>
   )
 }

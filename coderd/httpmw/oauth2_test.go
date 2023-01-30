@@ -73,7 +73,7 @@ func TestOAuth2(t *testing.T) {
 		t.Parallel()
 		req := httptest.NewRequest("GET", "/?code=something&state=test", nil)
 		req.AddCookie(&http.Cookie{
-			Name:  codersdk.OAuth2StateKey,
+			Name:  codersdk.OAuth2StateCookie,
 			Value: "mismatch",
 		})
 		res := httptest.NewRecorder()
@@ -84,7 +84,7 @@ func TestOAuth2(t *testing.T) {
 		t.Parallel()
 		req := httptest.NewRequest("GET", "/?code=test&state=something", nil)
 		req.AddCookie(&http.Cookie{
-			Name:  codersdk.OAuth2StateKey,
+			Name:  codersdk.OAuth2StateCookie,
 			Value: "something",
 		})
 		req.AddCookie(&http.Cookie{

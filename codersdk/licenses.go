@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 )
 
 type AddLicenseRequest struct {
@@ -25,6 +26,30 @@ type License struct {
 	Claims map[string]interface{} `json:"claims"`
 }
 
+// Features provides the feature claims in license.
+func (l *License) Features() (map[FeatureName]int64, error) {
+	strMap, ok := l.Claims["features"].(map[string]interface{})
+	if !ok {
+		return nil, xerrors.New("features key is unexpected type")
+	}
+	fMap := make(map[FeatureName]int64)
+	for k, v := range strMap {
+		jn, ok := v.(json.Number)
+		if !ok {
+			return nil, xerrors.Errorf("feature %q has unexpected type", k)
+		}
+
+		n, err := jn.Int64()
+		if err != nil {
+			return nil, err
+		}
+
+		fMap[FeatureName(k)] = n
+	}
+
+	return fMap, nil
+}
+
 func (c *Client) AddLicense(ctx context.Context, r AddLicenseRequest) (License, error) {
 	res, err := c.Request(ctx, http.MethodPost, "/api/v2/licenses", r)
 	if err != nil {
@@ -32,7 +57,7 @@ func (c *Client) AddLicense(ctx context.Context, r AddLicenseRequest) (License, 
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusCreated {
-		return License{}, readBodyAsError(res)
+		return License{}, ReadBodyAsError(res)
 	}
 	var l License
 	d := json.NewDecoder(res.Body)
@@ -47,7 +72,7 @@ func (c *Client) Licenses(ctx context.Context) ([]License, error) {
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 	var licenses []License
 	d := json.NewDecoder(res.Body)
@@ -62,7 +87,7 @@ func (c *Client) DeleteLicense(ctx context.Context, id int32) error {
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return readBodyAsError(res)
+		return ReadBodyAsError(res)
 	}
 	return nil
 }

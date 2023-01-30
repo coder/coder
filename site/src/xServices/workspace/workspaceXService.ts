@@ -155,7 +155,7 @@ export const workspaceMachine = createMachine(
           data: TypesGen.AuthorizationResponse
         }
         getApplicationsHost: {
-          data: TypesGen.GetAppHostResponse
+          data: TypesGen.AppHostResponse
         }
       },
     },

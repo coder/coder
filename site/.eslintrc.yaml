@@ -8,6 +8,7 @@ env:
 extends:
   - eslint:recommended
   - plugin:@typescript-eslint/recommended
+  - plugin:@typescript-eslint/recommended-requiring-type-checking
   - plugin:eslint-comments/recommended
   - plugin:import/recommended
   - plugin:import/typescript
@@ -35,29 +36,38 @@ root: true
 rules:
   "@typescript-eslint/brace-style":
     ["error", "1tbs", { "allowSingleLine": false }]
-  "@typescript-eslint/camelcase": "off"
-  "@typescript-eslint/explicit-function-return-type": "off"
-  "@typescript-eslint/explicit-module-boundary-types": "error"
   "@typescript-eslint/method-signature-style": ["error", "property"]
-  "@typescript-eslint/no-floating-promises": error
-  "@typescript-eslint/no-invalid-void-type": error
+  # TODO: Investigate whether to enable this rule & fix and/or disable all its complaints
+  "@typescript-eslint/no-misused-promises": "off"
+  # TODO: Investigate whether to enable this rule & fix and/or disable all its complaints
+  "@typescript-eslint/no-unsafe-argument": "off"
+  # TODO: Investigate whether to enable this rule & fix and/or disable all its complaints
+  "@typescript-eslint/no-unsafe-assignment": "off"
+  # TODO: Investigate whether to enable this rule & fix and/or disable all its complaints
+  "@typescript-eslint/no-unsafe-call": "off"
+  # TODO: Investigate whether to enable this rule & fix and/or disable all its complaints
+  "@typescript-eslint/no-unsafe-member-access": "off"
+  # TODO: Investigate whether to enable this rule & fix and/or disable all its complaints
+  "@typescript-eslint/no-unsafe-return": "off"
+  # TODO: Investigate whether to enable this rule & fix and/or disable all its complaints
+  "@typescript-eslint/require-await": "off"
+  # TODO: Investigate whether to enable this rule & fix and/or disable all its complaints
+  "@typescript-eslint/restrict-plus-operands": "off"
+  # TODO: Investigate whether to enable this rule & fix and/or disable all its complaints
+  "@typescript-eslint/restrict-template-expressions": "off"
+  # TODO: Investigate whether to enable this rule & fix and/or disable all its complaints
+  "@typescript-eslint/unbound-method": "off"
   # We're disabling the `no-namespace` rule to use a pattern of defining an interface,
   # and then defining functions that operate on that data via namespace. This is helpful for
   # dealing with immutable objects. This is a common pattern that shows up in some other
   # large TypeScript projects, like VSCode.
   # More details: https://github.com/coder/m/pull/9720#discussion_r697609528
   "@typescript-eslint/no-namespace": "off"
-  "@typescript-eslint/no-unnecessary-boolean-literal-compare": error
-  "@typescript-eslint/no-unnecessary-condition": warn
-  "@typescript-eslint/no-unnecessary-type-assertion": warn
   "@typescript-eslint/no-unused-vars":
     - error
     - argsIgnorePattern: "^_"
       varsIgnorePattern: "^_"
       ignoreRestSiblings: true
-  "@typescript-eslint/no-use-before-define": "off"
-  "@typescript-eslint/object-curly-spacing": ["error", "always"]
-  "@typescript-eslint/triple-slash-reference": "off"
   "brace-style": "off"
   "curly": ["error", "all"]
   "eslint-comments/require-description": "error"
@@ -97,6 +107,10 @@ rules:
           message:
             "Use path imports to avoid pulling in unused modules. See:
             https://material-ui.com/guides/minimizing-bundle-size/"
+        - name: "@material-ui/core/Avatar"
+          message:
+            "You should use the Avatar component provided on
+            components/Avatar/Avatar"
   no-unused-vars: "off"
   "object-curly-spacing": "off"
   react-hooks/exhaustive-deps: warn

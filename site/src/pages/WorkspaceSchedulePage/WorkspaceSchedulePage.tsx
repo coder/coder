@@ -2,6 +2,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import { useMachine } from "@xstate/react"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
+import { Loader } from "components/Loader/Loader"
 import { Margins } from "components/Margins/Margins"
 import dayjs from "dayjs"
 import { scheduleToAutoStart } from "pages/WorkspaceSchedulePage/schedule"
@@ -11,7 +12,6 @@ import { useTranslation } from "react-i18next"
 import { Navigate, useNavigate, useParams } from "react-router-dom"
 import { scheduleChanged } from "util/schedule"
 import * as TypesGen from "../../api/typesGenerated"
-import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 import { WorkspaceScheduleForm } from "../../components/WorkspaceScheduleForm/WorkspaceScheduleForm"
 import { firstOrItem } from "../../util/array"
 import { workspaceSchedule } from "../../xServices/workspaceSchedule/workspaceScheduleXService"
@@ -63,7 +63,7 @@ export const WorkspaceSchedulePage: FC = () => {
   }
 
   if (scheduleState.hasTag("loading") || !template) {
-    return <FullScreenLoader />
+    return <Loader />
   }
 
   if (scheduleState.matches("error")) {

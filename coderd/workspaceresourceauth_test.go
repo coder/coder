@@ -9,6 +9,7 @@ import (
 
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/testutil"
@@ -50,7 +51,10 @@ func TestPostWorkspaceAuthAzureInstanceIdentity(t *testing.T) {
 	defer cancel()
 
 	client.HTTPClient = metadataClient
-	_, err := client.AuthWorkspaceAzureInstanceIdentity(ctx)
+	agentClient := &agentsdk.Client{
+		SDK: client,
+	}
+	_, err := agentClient.AuthAzureInstanceIdentity(ctx)
 	require.NoError(t, err)
 }
 
@@ -92,7 +96,10 @@ func TestPostWorkspaceAuthAWSInstanceIdentity(t *testing.T) {
 		defer cancel()
 
 		client.HTTPClient = metadataClient
-		_, err := client.AuthWorkspaceAWSInstanceIdentity(ctx)
+		agentClient := &agentsdk.Client{
+			SDK: client,
+		}
+		_, err := agentClient.AuthAWSInstanceIdentity(ctx)
 		require.NoError(t, err)
 	})
 }
@@ -110,7 +117,10 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.AuthWorkspaceGoogleInstanceIdentity(ctx, "", metadata)
+		agentClient := &agentsdk.Client{
+			SDK: client,
+		}
+		_, err := agentClient.AuthGoogleInstanceIdentity(ctx, "", metadata)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
@@ -127,7 +137,10 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.AuthWorkspaceGoogleInstanceIdentity(ctx, "", metadata)
+		agentClient := &agentsdk.Client{
+			SDK: client,
+		}
+		_, err := agentClient.AuthGoogleInstanceIdentity(ctx, "", metadata)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
@@ -168,7 +181,10 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.AuthWorkspaceGoogleInstanceIdentity(ctx, "", metadata)
+		agentClient := &agentsdk.Client{
+			SDK: client,
+		}
+		_, err := agentClient.AuthGoogleInstanceIdentity(ctx, "", metadata)
 		require.NoError(t, err)
 	})
 }

@@ -46,11 +46,14 @@ func TestAuditLogsFilter(t *testing.T) {
 
 		var (
 			ctx      = context.Background()
-			client   = coderdtest.New(t, nil)
+			client   = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user     = coderdtest.CreateFirstUser(t, client)
 			version  = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			template = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		)
+
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 
 		// Create two logs with "Create"
 		err := client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
@@ -73,6 +76,24 @@ func TestAuditLogsFilter(t *testing.T) {
 			Action:       codersdk.AuditActionDelete,
 			ResourceType: codersdk.ResourceTypeUser,
 			ResourceID:   user.UserID,
+			Time:         time.Date(2022, 8, 15, 14, 30, 45, 100, time.UTC), // 2022-8-15 14:30:45
+		})
+		require.NoError(t, err)
+
+		// Create one log with "Start"
+		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
+			Action:       codersdk.AuditActionStart,
+			ResourceType: codersdk.ResourceTypeWorkspaceBuild,
+			ResourceID:   workspace.LatestBuild.ID,
+			Time:         time.Date(2022, 8, 15, 14, 30, 45, 100, time.UTC), // 2022-8-15 14:30:45
+		})
+		require.NoError(t, err)
+
+		// Create one log with "Stop"
+		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
+			Action:       codersdk.AuditActionStop,
+			ResourceType: codersdk.ResourceTypeWorkspaceBuild,
+			ResourceID:   workspace.LatestBuild.ID,
 			Time:         time.Date(2022, 8, 15, 14, 30, 45, 100, time.UTC), // 2022-8-15 14:30:45
 		})
 		require.NoError(t, err)
@@ -106,12 +127,12 @@ func TestAuditLogsFilter(t *testing.T) {
 			{
 				Name:           "FilterByEmail",
 				SearchQuery:    "email:" + coderdtest.FirstUserParams.Email,
-				ExpectedResult: 3,
+				ExpectedResult: 5,
 			},
 			{
 				Name:           "FilterByUsername",
 				SearchQuery:    "username:" + coderdtest.FirstUserParams.Username,
-				ExpectedResult: 3,
+				ExpectedResult: 5,
 			},
 			{
 				Name:           "FilterByResourceID",
@@ -121,17 +142,17 @@ func TestAuditLogsFilter(t *testing.T) {
 			{
 				Name:           "FilterInvalidSingleValue",
 				SearchQuery:    "invalid",
-				ExpectedResult: 3,
+				ExpectedResult: 5,
 			},
 			{
 				Name:           "FilterWithInvalidResourceType",
 				SearchQuery:    "resource_type:invalid",
-				ExpectedResult: 3,
+				ExpectedResult: 5,
 			},
 			{
 				Name:           "FilterWithInvalidAction",
 				SearchQuery:    "action:invalid",
-				ExpectedResult: 3,
+				ExpectedResult: 5,
 			},
 			{
 				Name:           "FilterOnCreateSingleDay",
@@ -146,6 +167,21 @@ func TestAuditLogsFilter(t *testing.T) {
 			{
 				Name:           "FilterOnCreateDateTo",
 				SearchQuery:    "action:create date_to:2022-08-15",
+				ExpectedResult: 1,
+			},
+			{
+				Name:           "FilterOnWorkspaceBuildStart",
+				SearchQuery:    "resource_type:workspace_build action:start",
+				ExpectedResult: 1,
+			},
+			{
+				Name:           "FilterOnWorkspaceBuildStop",
+				SearchQuery:    "resource_type:workspace_build action:stop",
+				ExpectedResult: 1,
+			},
+			{
+				Name:           "FilterOnWorkspaceBuildStartByInitiator",
+				SearchQuery:    "resource_type:workspace_build action:start build_reason:start",
 				ExpectedResult: 1,
 			},
 		}

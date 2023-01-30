@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/scaletest/agentconn"
@@ -186,7 +187,7 @@ func Test_Runner(t *testing.T) {
 		require.WithinRange(t,
 			time.Now(),
 			start.Add(testutil.WaitShort-time.Second),
-			start.Add(testutil.WaitShort+5*time.Second),
+			start.Add(testutil.WaitShort+10*time.Second),
 		)
 
 		require.Contains(t, logStr, "Opening connection to workspace agent")
@@ -253,7 +254,7 @@ func setupRunnerTest(t *testing.T) (client *codersdk.Client, agentID uuid.UUID) 
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-	agentClient := codersdk.New(client.URL)
+	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(authToken)
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,

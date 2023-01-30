@@ -3,6 +3,7 @@ import { AuditLog } from "api/typesGenerated"
 import { colors } from "theme/colors"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 import { combineClasses } from "util/combineClasses"
+import { FC } from "react"
 
 const getDiffValue = (value: unknown): string => {
   if (typeof value === "string") {
@@ -21,9 +22,7 @@ const getDiffValue = (value: unknown): string => {
   return value.toString()
 }
 
-export const AuditLogDiff: React.FC<{ diff: AuditLog["diff"] }> = ({
-  diff,
-}) => {
+export const AuditLogDiff: FC<{ diff: AuditLog["diff"] }> = ({ diff }) => {
   const styles = useStyles()
   const diffEntries = Object.entries(diff)
 
@@ -42,7 +41,7 @@ export const AuditLogDiff: React.FC<{ diff: AuditLog["diff"] }> = ({
                   styles.diffValueOld,
                 ])}
               >
-                {getDiffValue(valueDiff.old)}
+                {valueDiff.secret ? "••••••••" : getDiffValue(valueDiff.old)}
               </span>
             </div>
           </div>
@@ -61,7 +60,7 @@ export const AuditLogDiff: React.FC<{ diff: AuditLog["diff"] }> = ({
                   styles.diffValueNew,
                 ])}
               >
-                {getDiffValue(valueDiff.new)}
+                {valueDiff.secret ? "••••••••" : getDiffValue(valueDiff.new)}
               </span>
             </div>
           </div>

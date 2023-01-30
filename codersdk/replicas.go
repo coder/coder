@@ -36,7 +36,7 @@ func (c *Client) Replicas(ctx context.Context) ([]Replica, error) {
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 
 	var replicas []Replica

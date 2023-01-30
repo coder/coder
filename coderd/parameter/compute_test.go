@@ -51,6 +51,7 @@ func TestCompute(t *testing.T) {
 			AllowOverrideSource:      opts.AllowOverrideSource,
 			AllowOverrideDestination: opts.AllowOverrideDestination,
 			DefaultDestinationScheme: opts.DefaultDestinationScheme,
+			ValidationTypeSystem:     database.ParameterTypeSystemNone,
 		})
 		require.NoError(t, err)
 		return param
@@ -61,10 +62,12 @@ func TestCompute(t *testing.T) {
 		db := databasefake.New()
 		scope := generateScope()
 		_, err := db.InsertParameterSchema(context.Background(), database.InsertParameterSchemaParams{
-			ID:                  uuid.New(),
-			JobID:               scope.TemplateImportJobID,
-			Name:                "hey",
-			DefaultSourceScheme: database.ParameterSourceSchemeNone,
+			ID:                       uuid.New(),
+			JobID:                    scope.TemplateImportJobID,
+			Name:                     "hey",
+			DefaultSourceScheme:      database.ParameterSourceSchemeNone,
+			DefaultDestinationScheme: database.ParameterDestinationSchemeNone,
+			ValidationTypeSystem:     database.ParameterTypeSystemNone,
 		})
 		require.NoError(t, err)
 		computed, err := parameter.Compute(context.Background(), db, scope, nil)

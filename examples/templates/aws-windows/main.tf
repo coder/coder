@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.6.6"
+      version = "0.6.10"
     }
   }
 }
@@ -73,6 +73,8 @@ resource "coder_agent" "main" {
   arch = "amd64"
   auth = "aws-instance-identity"
   os   = "windows"
+
+  login_before_ready = false
 }
 
 locals {

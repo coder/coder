@@ -5,6 +5,8 @@ import (
 
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/rbac/regosql"
@@ -28,7 +30,15 @@ type PartialAuthorizer struct {
 
 var _ PreparedAuthorized = (*PartialAuthorizer)(nil)
 
-func (pa *PartialAuthorizer) CompileToSQL(cfg regosql.ConvertConfig) (string, error) {
+func (pa *PartialAuthorizer) CompileToSQL(ctx context.Context, cfg regosql.ConvertConfig) (string, error) {
+	_, span := tracing.StartSpan(ctx, trace.WithAttributes(
+		// Query count is a rough indicator of the complexity of the query
+		// that needs to be converted into SQL.
+		attribute.Int("query_count", len(pa.preparedQueries)),
+		attribute.Bool("always_true", pa.alwaysTrue),
+	))
+	defer span.End()
+
 	filter, err := Compile(cfg, pa)
 	if err != nil {
 		return "", xerrors.Errorf("compile: %w", err)
@@ -41,7 +51,8 @@ func (pa *PartialAuthorizer) Authorize(ctx context.Context, object Object) error
 		return nil
 	}
 
-	// No queries means always false
+	// If we have no queries, then no queries can return 'true'.
+	// So the result is always 'false'.
 	if len(pa.preparedQueries) == 0 {
 		return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), pa.input, nil)
 	}
@@ -110,16 +121,30 @@ EachQueryLoop:
 	return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), pa.input, nil)
 }
 
-func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, scope Role, groups []string, action Action, objectType string) (*PartialAuthorizer, error) {
-	ctx, span := tracing.StartSpan(ctx)
-	defer span.End()
+func newPartialAuthorizer(ctx context.Context, subject Subject, action Action, objectType string) (*PartialAuthorizer, error) {
+	if subject.Roles == nil {
+		return nil, xerrors.Errorf("subject must have roles")
+	}
+	if subject.Scope == nil {
+		return nil, xerrors.Errorf("subject must have a scope")
+	}
+
+	roles, err := subject.Roles.Expand()
+	if err != nil {
+		return nil, xerrors.Errorf("expand roles: %w", err)
+	}
+
+	scope, err := subject.Scope.Expand()
+	if err != nil {
+		return nil, xerrors.Errorf("expand scope: %w", err)
+	}
 
 	input := map[string]interface{}{
 		"subject": authSubject{
-			ID:     subjectID,
+			ID:     subject.ID,
 			Roles:  roles,
 			Scope:  scope,
-			Groups: groups,
+			Groups: subject.Groups,
 		},
 		"object": map[string]string{
 			"type": objectType,
@@ -133,6 +158,7 @@ func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, s
 		rego.Query("data.authz.allow = true"),
 		rego.Module("policy.rego", policy),
 		rego.Unknowns([]string{
+			"input.object.id",
 			"input.object.owner",
 			"input.object.org_owner",
 			"input.object.acl_user_list",

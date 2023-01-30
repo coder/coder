@@ -16,16 +16,9 @@ Example.args = {
   subtitle: "coder@coder.com",
 }
 
-export const WithHighlightTitle = Template.bind({})
-WithHighlightTitle.args = {
+export const WithImage = Template.bind({})
+WithImage.args = {
   title: "coder",
   subtitle: "coder@coder.com",
-  highlightTitle: true,
-}
-
-export const WithLink = Template.bind({})
-WithLink.args = {
-  title: "coder",
-  subtitle: "coder@coder.com",
-  link: "/users/coder",
+  src: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
 }

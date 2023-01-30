@@ -449,6 +449,62 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		state = priorHistory.ProvisionerState
 	}
 
+	dbTemplateVersionParameters, err := api.Database.GetTemplateVersionParameters(ctx, createBuild.TemplateVersionID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template version parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	templateVersionParameters, err := convertTemplateVersionParameters(dbTemplateVersionParameters)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error converting template version parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	err = codersdk.ValidateWorkspaceBuildParameters(templateVersionParameters, createBuild.RichParameterValues)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Error validating workspace build parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	lastBuildParameters, err := api.Database.GetWorkspaceBuildParameters(ctx, priorHistory.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching prior workspace build parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	apiLastBuildParameters := convertWorkspaceBuildParameters(lastBuildParameters)
+
+	var parameters []codersdk.WorkspaceBuildParameter
+	for _, templateVersionParameter := range templateVersionParameters {
+		// Check if parameter value is in request
+		if buildParameter, found := findWorkspaceBuildParameter(createBuild.RichParameterValues, templateVersionParameter.Name); found {
+			if !templateVersionParameter.Mutable {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: fmt.Sprintf("Parameter %q is mutable, so it can't be updated after creating workspace.", templateVersionParameter.Name),
+				})
+				return
+			}
+			parameters = append(parameters, *buildParameter)
+			continue
+		}
+
+		// Check if parameter is defined in previous build
+		if buildParameter, found := findWorkspaceBuildParameter(apiLastBuildParameters, templateVersionParameter.Name); found {
+			parameters = append(parameters, *buildParameter)
+		}
+	}
+
 	var workspaceBuild database.WorkspaceBuild
 	var provisionerJob database.ProvisionerJob
 	// This must happen in a transaction to ensure history can be inserted, and
@@ -530,6 +586,21 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace build: %w", err)
+		}
+
+		names := make([]string, 0, len(parameters))
+		values := make([]string, 0, len(parameters))
+		for _, param := range parameters {
+			names = append(names, param.Name)
+			values = append(values, param.Value)
+		}
+		err = db.InsertWorkspaceBuildParameters(ctx, database.InsertWorkspaceBuildParametersParams{
+			WorkspaceBuildID: workspaceBuildID,
+			Name:             names,
+			Value:            values,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert workspace build parameters: %w", err)
 		}
 
 		return nil
@@ -714,6 +785,42 @@ func (api *API) workspaceBuildResources(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 	api.provisionerJobResources(rw, r, job)
+}
+
+// @Summary Get build parameters for workspace build
+// @ID get-build-parameters-for-workspace-build
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Builds
+// @Param workspacebuild path string true "Workspace build ID"
+// @Success 200 {array} codersdk.WorkspaceBuildParameter
+// @Router /workspacebuilds/{workspacebuild}/parameters [get]
+func (api *API) workspaceBuildParameters(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspaceBuild := httpmw.WorkspaceBuildParam(r)
+	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "No workspace exists for this job.",
+		})
+		return
+	}
+
+	if !api.Authorize(r, rbac.ActionRead, workspace) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	parameters, err := api.Database.GetWorkspaceBuildParameters(ctx, workspaceBuild.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace build parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	apiParameters := convertWorkspaceBuildParameters(parameters)
+	httpapi.Write(ctx, rw, http.StatusOK, apiParameters)
 }
 
 // @Summary Get workspace build logs
@@ -1083,4 +1190,26 @@ func convertWorkspaceStatus(jobStatus codersdk.ProvisionerJobStatus, transition 
 
 	// return error status since we should never get here
 	return codersdk.WorkspaceStatusFailed
+}
+
+func convertWorkspaceBuildParameters(parameters []database.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
+	var apiParameters = make([]codersdk.WorkspaceBuildParameter, 0, len(parameters))
+
+	for _, p := range parameters {
+		apiParameter := codersdk.WorkspaceBuildParameter{
+			Name:  p.Name,
+			Value: p.Value,
+		}
+		apiParameters = append(apiParameters, apiParameter)
+	}
+	return apiParameters
+}
+
+func findWorkspaceBuildParameter(params []codersdk.WorkspaceBuildParameter, parameterName string) (*codersdk.WorkspaceBuildParameter, bool) {
+	for _, p := range params {
+		if p.Name == parameterName {
+			return &p, true
+		}
+	}
+	return nil, false
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/scaletest/agentconn"
@@ -103,7 +104,7 @@ func Test_Runner(t *testing.T) {
 
 			coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-			agentClient := codersdk.New(client.URL)
+			agentClient := agentsdk.New(client.URL)
 			agentClient.SetSessionToken(authToken)
 			agentCloser := agent.New(agent.Options{
 				Client: agentClient,
@@ -133,7 +134,7 @@ func Test_Runner(t *testing.T) {
 				},
 			},
 			ReconnectingPTY: &reconnectingpty.Config{
-				Init: codersdk.ReconnectingPTYInit{
+				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
 					Height:  24,
 					Width:   80,
 					Command: "echo hello",

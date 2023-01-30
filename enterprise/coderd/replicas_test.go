@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/testutil"
 )
 
@@ -58,7 +59,9 @@ func TestReplicas(t *testing.T) {
 		})
 		firstUser := coderdtest.CreateFirstUser(t, firstClient)
 		coderdenttest.AddLicense(t, firstClient, coderdenttest.LicenseOptions{
-			HighAvailability: true,
+			Features: license.Features{
+				codersdk.FeatureHighAvailability: 1,
+			},
 		})
 
 		secondClient := coderdenttest.New(t, &coderdenttest.Options{
@@ -100,7 +103,9 @@ func TestReplicas(t *testing.T) {
 		})
 		firstUser := coderdtest.CreateFirstUser(t, firstClient)
 		coderdenttest.AddLicense(t, firstClient, coderdenttest.LicenseOptions{
-			HighAvailability: true,
+			Features: license.Features{
+				codersdk.FeatureHighAvailability: 1,
+			},
 		})
 
 		secondClient := coderdenttest.New(t, &coderdenttest.Options{

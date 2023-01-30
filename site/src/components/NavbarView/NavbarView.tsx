@@ -13,6 +13,8 @@ import { navHeight } from "../../theme/constants"
 import { combineClasses } from "../../util/combineClasses"
 import { UserDropdown } from "../UserDropdown/UsersDropdown"
 
+export const USERS_LINK = `/users?filter=${encodeURIComponent("status:active")}`
+
 export interface NavbarViewProps {
   logo_url?: string
   user?: TypesGen.User
@@ -59,10 +61,7 @@ const NavItems: React.FC<
         </NavLink>
       </ListItem>
       <ListItem button className={styles.item}>
-        <NavLink
-          className={styles.link}
-          to={`/users?filter=${encodeURIComponent("status:active")}`}
-        >
+        <NavLink className={styles.link} to={USERS_LINK}>
           {Language.users}
         </NavLink>
       </ListItem>

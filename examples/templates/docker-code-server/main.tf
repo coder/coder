@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.6.6"
+      version = "0.6.10"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -21,9 +21,15 @@ data "coder_workspace" "me" {
 }
 
 resource "coder_agent" "main" {
-  arch           = data.coder_provisioner.me.arch
-  os             = "linux"
-  startup_script = "code-server --auth none"
+  arch = data.coder_provisioner.me.arch
+  os   = "linux"
+
+  login_before_ready     = false
+  startup_script_timeout = 180
+  startup_script         = <<-EOT
+    set -e
+    code-server --auth none >/tmp/code-server.log 2>&1 &
+  EOT
 
   # These environment variables allow you to make Git commits right away after creating a
   # workspace. Note that they take precedence over configuration defined in ~/.gitconfig!

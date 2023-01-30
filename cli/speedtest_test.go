@@ -10,7 +10,7 @@ import (
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/pty/ptytest"
 	"github.com/coder/coder/testutil"
 )
@@ -21,7 +21,7 @@ func TestSpeedtest(t *testing.T) {
 		t.Skip("This test takes a minimum of 5ms per a hardcoded value in Tailscale!")
 	}
 	client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
-	agentClient := codersdk.New(client.URL)
+	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(agentToken)
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,

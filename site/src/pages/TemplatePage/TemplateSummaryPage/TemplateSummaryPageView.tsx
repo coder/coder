@@ -12,7 +12,7 @@ import { TemplateStats } from "components/TemplateStats/TemplateStats"
 import { VersionsTable } from "components/VersionsTable/VersionsTable"
 import frontMatter from "front-matter"
 import { FC } from "react"
-import { DAUChart } from "./DAUChart"
+import { DAUChart } from "../../../components/DAUChart/DAUChart"
 
 export interface TemplateSummaryPageViewProps {
   template: Template
@@ -46,7 +46,7 @@ export const TemplateSummaryPageView: FC<
         template={template}
         activeVersion={activeTemplateVersion}
       />
-      {templateDAUs && <DAUChart templateDAUs={templateDAUs} />}
+      {templateDAUs && <DAUChart daus={templateDAUs} />}
       <TemplateResourcesTable
         resources={getStartedResources(templateResources)}
       />

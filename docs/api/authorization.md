@@ -1,7 +1,5 @@
 # Authorization
 
-> This page is incomplete, stay tuned.
-
 ## Check authorization
 
 ### Code samples

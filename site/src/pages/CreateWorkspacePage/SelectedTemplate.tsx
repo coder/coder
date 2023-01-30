@@ -1,9 +1,8 @@
-import Avatar from "@material-ui/core/Avatar"
 import { makeStyles } from "@material-ui/core/styles"
 import { Template, TemplateExample } from "api/typesGenerated"
+import { Avatar } from "components/Avatar/Avatar"
 import { Stack } from "components/Stack/Stack"
 import { FC } from "react"
-import { firstLetter } from "util/firstLetter"
 
 export interface SelectedTemplateProps {
   template: Template | TemplateExample
@@ -19,13 +18,8 @@ export const SelectedTemplate: FC<SelectedTemplateProps> = ({ template }) => {
       className={styles.template}
       alignItems="center"
     >
-      <div className={styles.templateIcon}>
-        {template.icon === "" ? (
-          <Avatar>{firstLetter(template.name)}</Avatar>
-        ) : (
-          <img src={template.icon} alt="" />
-        )}
-      </div>
+      <Avatar src={template.icon}>{template.name}</Avatar>
+
       <Stack direction="column" spacing={0.5}>
         <span className={styles.templateName}>
           {"display_name" in template && template.display_name.length > 0
@@ -57,14 +51,5 @@ const useStyles = makeStyles((theme) => ({
   templateDescription: {
     fontSize: 14,
     color: theme.palette.text.secondary,
-  },
-
-  templateIcon: {
-    width: theme.spacing(4),
-    lineHeight: 1,
-
-    "& img": {
-      width: "100%",
-    },
   },
 }))
