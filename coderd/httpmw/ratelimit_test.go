@@ -2,7 +2,6 @@ package httpmw_test
 
 import (
 	"context"
-	"crypto/sha256"
 	"fmt"
 	"math/rand"
 	"net"
@@ -12,7 +11,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
@@ -22,24 +20,6 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
 )
-
-func insertAPIKey(ctx context.Context, t *testing.T, db database.Store, userID uuid.UUID) string {
-	id, secret := randomAPIKeyParts()
-	hashed := sha256.Sum256([]byte(secret))
-
-	_, err := db.InsertAPIKey(ctx, database.InsertAPIKeyParams{
-		ID:           id,
-		HashedSecret: hashed[:],
-		LastUsed:     database.Now().AddDate(0, 0, -1),
-		ExpiresAt:    database.Now().AddDate(0, 0, 1),
-		UserID:       userID,
-		LoginType:    database.LoginTypePassword,
-		Scope:        database.APIKeyScopeAll,
-	})
-	require.NoError(t, err)
-
-	return fmt.Sprintf("%s-%s", id, secret)
-}
 
 func randRemoteAddr() string {
 	var b [4]byte

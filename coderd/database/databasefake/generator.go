@@ -8,14 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/cryptorand"
-
-	"github.com/tabbed/pqtype"
-
-	"github.com/coder/coder/coderd/database"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/stretchr/testify/require"
+	"github.com/tabbed/pqtype"
+
+	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/cryptorand"
 )
 
 const primaryOrgName = "primary-org"
@@ -312,19 +311,19 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 	return seed
 }
 
-func (tc *Generator) Lookup(name string) uuid.UUID {
+func (g *Generator) Lookup(name string) uuid.UUID {
 	if name == "" {
 		// No name means the caller doesn't care about the ID.
 		return uuid.New()
 	}
-	if tc.names == nil {
-		tc.names = make(map[string]uuid.UUID)
+	if g.names == nil {
+		g.names = make(map[string]uuid.UUID)
 	}
-	if id, ok := tc.names[name]; ok {
+	if id, ok := g.names[name]; ok {
 		return id
 	}
 	id := uuid.New()
-	tc.names[name] = id
+	g.names[name] = id
 	return id
 }
 
