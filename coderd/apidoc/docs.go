@@ -5738,6 +5738,12 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "additional_fields": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
                 "build_reason": {
                     "enum": [
                         "autostart",

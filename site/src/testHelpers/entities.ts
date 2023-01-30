@@ -1080,7 +1080,7 @@ export const MockAuditLog2: TypesGen.AuditLog = {
 export const MockWorkspaceCreateAuditLogForDifferentOwner = {
   ...MockAuditLog,
   additional_fields: {
-    workspaceOwner: "Member",
+    workspace_owner: "Member",
   },
 }
 
@@ -1092,7 +1092,7 @@ export const MockAuditLogWithWorkspaceBuild: TypesGen.AuditLog = {
   resource_type: "workspace_build",
   description: "{user} stopped build for workspace {target}",
   additional_fields: {
-    workspaceName: "test2",
+    workspace_name: "test2",
   },
 }
 
