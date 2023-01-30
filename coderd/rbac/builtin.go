@@ -17,12 +17,6 @@ const (
 
 	orgAdmin  string = "organization-admin"
 	orgMember string = "organization-member"
-
-	// The below roles are for system internal use only and are
-	// not assignable to users.
-	system         string = "system"
-	systemReadOnly string = "system-read-only"
-	autostart      string = "auto-start"
 )
 
 // RoleNames is a list of user assignable role names. The role names must be
@@ -40,10 +34,11 @@ func (names RoleNames) Names() []string {
 
 // RolesAutostartSystem is the limited set of permissions required for autostart
 // to function.
+// It is EXPLICITLY NOT included in builtinRoles so that it CANNOT be assigned to a user.
 func RolesAutostartSystem() Roles {
 	return Roles{
 		Role{
-			Name:        autostart,
+			Name:        "auto-start",
 			DisplayName: "Autostart",
 			Site: permissions(map[string][]Action{
 				ResourceWorkspace.Type: {ActionRead, ActionUpdate},
@@ -55,12 +50,12 @@ func RolesAutostartSystem() Roles {
 	}
 }
 
-// RolesAdminSystem is an all-powerful system role.
-// TODO: break this up into more granular roles.
+// RolesAdminSystem is an all-powerful system role. Use sparingly.
+// It is EXPLICITLY NOT included in builtinRoles so that it CANNOT be assigned to a user.
 func RolesAdminSystem() Roles {
 	return Roles{
 		Role{
-			Name:        system,
+			Name:        "system",
 			DisplayName: "System",
 			Site: permissions(map[string][]Action{
 				ResourceWildcard.Type: {WildcardSymbol},
@@ -242,7 +237,7 @@ var (
 	// The first key is the actor role, the second is the roles they can assign.
 	//	map[actor_role][assign_role]<can_assign>
 	assignRoles = map[string]map[string]bool{
-		system: {
+		"system": {
 			owner:     true,
 			member:    true,
 			orgAdmin:  true,
