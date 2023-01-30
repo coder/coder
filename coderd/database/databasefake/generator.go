@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"testing"
 	"time"
@@ -92,6 +93,10 @@ func (g *Generator) APIKey(ctx context.Context, seed database.APIKey) (key datab
 	return key, fmt.Sprintf("%s-%s", key.ID, secret)
 }
 
+func (g *Generator) File(ctx context.Context, seed database.File) database.File {
+	return populate(ctx, g, "", seed)
+}
+
 func (g *Generator) UserLink(ctx context.Context, seed database.UserLink) database.UserLink {
 	return populate(ctx, g, "", seed)
 }
@@ -164,7 +169,7 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 			seed[name+"_secret"] = secret
 		case database.Template:
 			template, err := db.InsertTemplate(ctx, database.InsertTemplateParams{
-				ID:                           g.Lookup(name),
+				ID:                           takeFirst(orig.ID, g.Lookup(name)),
 				CreatedAt:                    takeFirstTime(orig.CreatedAt, time.Now()),
 				UpdatedAt:                    takeFirstTime(orig.UpdatedAt, time.Now()),
 				OrganizationID:               takeFirst(orig.OrganizationID, g.PrimaryOrg(ctx).ID),
@@ -183,9 +188,29 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 			require.NoError(t, err, "insert template")
 
 			seed[name] = template
+
+		case database.TemplateVersion:
+			template, err := db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
+				ID: takeFirst(orig.ID, g.Lookup(name)),
+				TemplateID: uuid.NullUUID{
+					UUID:  takeFirst(orig.TemplateID.UUID, uuid.New()),
+					Valid: takeFirst(orig.TemplateID.Valid, true),
+				},
+				OrganizationID: takeFirst(orig.OrganizationID, g.PrimaryOrg(ctx).ID),
+				CreatedAt:      takeFirstTime(orig.CreatedAt, time.Now()),
+				UpdatedAt:      takeFirstTime(orig.UpdatedAt, time.Now()),
+				Name:           takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
+				Readme:         takeFirst(orig.Readme, namesgenerator.GetRandomName(1)),
+				JobID:          takeFirst(orig.JobID, uuid.New()),
+				CreatedBy:      takeFirst(orig.CreatedBy, uuid.New()),
+			})
+			require.NoError(t, err, "insert template")
+
+			seed[name] = template
 		case database.Workspace:
 			workspace, err := db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
-				ID:                g.Lookup(name),
+				ID:                takeFirst(orig.ID, g.Lookup(name)),
+				OwnerID:           takeFirst(orig.OwnerID, uuid.New()),
 				CreatedAt:         takeFirstTime(orig.CreatedAt, time.Now()),
 				UpdatedAt:         takeFirstTime(orig.UpdatedAt, time.Now()),
 				OrganizationID:    takeFirst(orig.OrganizationID, g.PrimaryOrg(ctx).ID),
@@ -199,7 +224,7 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 			seed[name] = workspace
 		case database.WorkspaceBuild:
 			build, err := db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
-				ID:                g.Lookup(name),
+				ID:                takeFirst(orig.ID, g.Lookup(name)),
 				CreatedAt:         takeFirstTime(orig.CreatedAt, time.Now()),
 				UpdatedAt:         takeFirstTime(orig.UpdatedAt, time.Now()),
 				WorkspaceID:       takeFirst(orig.WorkspaceID, uuid.New()),
@@ -217,7 +242,7 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 			seed[name] = build
 		case database.User:
 			user, err := db.InsertUser(ctx, database.InsertUserParams{
-				ID:             g.Lookup(name),
+				ID:             takeFirst(orig.ID, g.Lookup(name)),
 				Email:          takeFirst(orig.Email, namesgenerator.GetRandomName(1)),
 				Username:       takeFirst(orig.Username, namesgenerator.GetRandomName(1)),
 				HashedPassword: takeFirstBytes(orig.HashedPassword, []byte{}),
@@ -232,7 +257,7 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 
 		case database.Organization:
 			org, err := db.InsertOrganization(ctx, database.InsertOrganizationParams{
-				ID:          g.Lookup(name),
+				ID:          takeFirst(orig.ID, g.Lookup(name)),
 				Name:        takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
 				Description: takeFirst(orig.Description, namesgenerator.GetRandomName(1)),
 				CreatedAt:   takeFirstTime(orig.CreatedAt, time.Now()),
@@ -244,7 +269,7 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 
 		case database.Group:
 			org, err := db.InsertGroup(ctx, database.InsertGroupParams{
-				ID:             g.Lookup(name),
+				ID:             takeFirst(orig.ID, g.Lookup(name)),
 				Name:           takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
 				OrganizationID: takeFirst(orig.OrganizationID, g.PrimaryOrg(ctx).ID),
 				AvatarURL:      takeFirst(orig.AvatarURL, "https://logo.example.com"),
@@ -256,7 +281,7 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 
 		case database.ProvisionerJob:
 			job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-				ID:             g.Lookup(name),
+				ID:             takeFirst(orig.ID, g.Lookup(name)),
 				CreatedAt:      takeFirstTime(orig.CreatedAt, time.Now()),
 				UpdatedAt:      takeFirstTime(orig.UpdatedAt, time.Now()),
 				OrganizationID: takeFirst(orig.OrganizationID, g.PrimaryOrg(ctx).ID),
@@ -274,7 +299,7 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 
 		case database.WorkspaceResource:
 			resource, err := db.InsertWorkspaceResource(ctx, database.InsertWorkspaceResourceParams{
-				ID:         g.Lookup(name),
+				ID:         takeFirst(orig.ID, g.Lookup(name)),
 				CreatedAt:  takeFirstTime(orig.CreatedAt, time.Now()),
 				JobID:      takeFirst(orig.JobID, uuid.New()),
 				Transition: takeFirst(orig.Transition, database.WorkspaceTransitionStart),
@@ -293,6 +318,18 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 
 			seed[name] = resource
 
+		case database.File:
+			file, err := db.InsertFile(ctx, database.InsertFileParams{
+				ID:        takeFirst(orig.ID, g.Lookup(name)),
+				Hash:      takeFirst(orig.Hash, hex.EncodeToString(make([]byte, 32))),
+				CreatedAt: takeFirstTime(orig.CreatedAt, time.Now()),
+				CreatedBy: takeFirst(orig.CreatedBy, uuid.New()),
+				Mimetype:  takeFirst(orig.Mimetype, "application/x-tar"),
+				Data:      takeFirstBytes(orig.Data, []byte{}),
+			})
+			require.NoError(t, err, "insert file")
+
+			seed[name] = file
 		case database.UserLink:
 			link, err := db.InsertUserLink(ctx, database.InsertUserLinkParams{
 				UserID:            takeFirst(orig.UserID, uuid.New()),
@@ -306,6 +343,8 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 			require.NoError(t, err, "insert link")
 
 			seed[name] = link
+		default:
+			panic(fmt.Sprintf("unknown type %T", orig))
 		}
 	}
 	return seed

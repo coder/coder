@@ -87,36 +87,39 @@ func TestAcquireJob(t *testing.T) {
 		t.Parallel()
 		srv := setup(t, false)
 		ctx := context.Background()
-		user, err := srv.Database.InsertUser(context.Background(), database.InsertUserParams{
-			ID:        uuid.New(),
-			Username:  "testing",
-			LoginType: database.LoginTypePassword,
-		})
-		require.NoError(t, err)
-		template, err := srv.Database.InsertTemplate(ctx, database.InsertTemplateParams{
-			ID:          uuid.New(),
+
+		gen := databasefake.NewGenerator(t, srv.Database)
+		user := gen.User(ctx, database.User{})
+		template := gen.Template(ctx, database.Template{
 			Name:        "template",
 			Provisioner: database.ProvisionerTypeEcho,
 		})
-		require.NoError(t, err)
-		version, err := srv.Database.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
-			ID: uuid.New(),
+		file := gen.File(ctx, database.File{CreatedBy: user.ID})
+		versionFile := gen.File(ctx, database.File{CreatedBy: user.ID})
+		version := gen.TemplateVersion(ctx, database.TemplateVersion{
 			TemplateID: uuid.NullUUID{
 				UUID:  template.ID,
 				Valid: true,
 			},
 			JobID: uuid.New(),
 		})
-		require.NoError(t, err)
-		workspace, err := srv.Database.InsertWorkspace(ctx, database.InsertWorkspaceParams{
-			ID:         uuid.New(),
-			OwnerID:    user.ID,
-			TemplateID: template.ID,
-			Name:       "workspace",
+		// Import version job
+		_ = gen.Job(ctx, database.ProvisionerJob{
+			ID:            version.JobID,
+			InitiatorID:   user.ID,
+			FileID:        versionFile.ID,
+			Provisioner:   database.ProvisionerTypeEcho,
+			StorageMethod: database.ProvisionerStorageMethodFile,
+			Type:          database.ProvisionerJobTypeTemplateVersionImport,
+			Input: must(json.Marshal(provisionerdserver.TemplateVersionImportJob{
+				TemplateVersionID: version.ID,
+			})),
 		})
-		require.NoError(t, err)
-		build, err := srv.Database.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
-			ID:                uuid.New(),
+		workspace := gen.Workspace(ctx, database.Workspace{
+			TemplateID: template.ID,
+			OwnerID:    user.ID,
+		})
+		build := gen.WorkspaceBuild(ctx, database.WorkspaceBuild{
 			WorkspaceID:       workspace.ID,
 			BuildNumber:       1,
 			JobID:             uuid.New(),
@@ -124,33 +127,17 @@ func TestAcquireJob(t *testing.T) {
 			Transition:        database.WorkspaceTransitionStart,
 			Reason:            database.BuildReasonInitiator,
 		})
-		require.NoError(t, err)
-
-		data, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-			WorkspaceBuildID: build.ID,
+		_ = gen.Job(ctx, database.ProvisionerJob{
+			ID:            build.ID,
+			InitiatorID:   user.ID,
+			Provisioner:   database.ProvisionerTypeEcho,
+			StorageMethod: database.ProvisionerStorageMethodFile,
+			FileID:        file.ID,
+			Type:          database.ProvisionerJobTypeWorkspaceBuild,
+			Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+				WorkspaceBuildID: build.ID,
+			})),
 		})
-		require.NoError(t, err)
-
-		file, err := srv.Database.InsertFile(ctx, database.InsertFileParams{
-			ID:   uuid.New(),
-			Hash: "something",
-			Data: []byte{},
-		})
-		require.NoError(t, err)
-
-		_, err = srv.Database.InsertProvisionerJob(context.Background(), database.InsertProvisionerJobParams{
-			ID:             build.JobID,
-			CreatedAt:      database.Now(),
-			UpdatedAt:      database.Now(),
-			OrganizationID: uuid.New(),
-			InitiatorID:    user.ID,
-			Provisioner:    database.ProvisionerTypeEcho,
-			StorageMethod:  database.ProvisionerStorageMethodFile,
-			FileID:         file.ID,
-			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			Input:          data,
-		})
-		require.NoError(t, err)
 
 		published := make(chan struct{})
 		closeSubscribe, err := srv.Pubsub.Subscribe(codersdk.WorkspaceNotifyChannel(workspace.ID), func(_ context.Context, _ []byte) {
@@ -159,8 +146,17 @@ func TestAcquireJob(t *testing.T) {
 		require.NoError(t, err)
 		defer closeSubscribe()
 
-		job, err := srv.AcquireJob(ctx, nil)
-		require.NoError(t, err)
+		var job *proto.AcquiredJob
+
+		for {
+			// Grab jobs until we find the workspace build job. There is also
+			// an import version job that we need to ignore.
+			job, err = srv.AcquireJob(ctx, nil)
+			require.NoError(t, err)
+			if _, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_); ok {
+				break
+			}
+		}
 
 		<-published
 
@@ -191,44 +187,23 @@ func TestAcquireJob(t *testing.T) {
 		t.Parallel()
 		srv := setup(t, false)
 		ctx := context.Background()
-		user, err := srv.Database.InsertUser(ctx, database.InsertUserParams{
-			ID:        uuid.New(),
-			Username:  "testing",
-			LoginType: database.LoginTypePassword,
-		})
-		require.NoError(t, err)
-		version, err := srv.Database.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
-			ID: uuid.New(),
-		})
-		require.NoError(t, err)
 
-		data, err := json.Marshal(provisionerdserver.TemplateVersionDryRunJob{
-			TemplateVersionID: version.ID,
-			WorkspaceName:     "testing",
-			ParameterValues:   []database.ParameterValue{},
+		gen := databasefake.NewGenerator(t, srv.Database)
+		user := gen.User(ctx, database.User{})
+		version := gen.TemplateVersion(ctx, database.TemplateVersion{})
+		file := gen.File(ctx, database.File{CreatedBy: user.ID})
+		_ = gen.Job(ctx, database.ProvisionerJob{
+			InitiatorID:   user.ID,
+			Provisioner:   database.ProvisionerTypeEcho,
+			StorageMethod: database.ProvisionerStorageMethodFile,
+			FileID:        file.ID,
+			Type:          database.ProvisionerJobTypeTemplateVersionDryRun,
+			Input: must(json.Marshal(provisionerdserver.TemplateVersionDryRunJob{
+				TemplateVersionID: version.ID,
+				WorkspaceName:     "testing",
+				ParameterValues:   []database.ParameterValue{},
+			})),
 		})
-		require.NoError(t, err)
-
-		file, err := srv.Database.InsertFile(ctx, database.InsertFileParams{
-			ID:   uuid.New(),
-			Hash: "something",
-			Data: []byte{},
-		})
-		require.NoError(t, err)
-
-		_, err = srv.Database.InsertProvisionerJob(context.Background(), database.InsertProvisionerJobParams{
-			ID:             uuid.New(),
-			CreatedAt:      database.Now(),
-			UpdatedAt:      database.Now(),
-			OrganizationID: uuid.New(),
-			InitiatorID:    user.ID,
-			Provisioner:    database.ProvisionerTypeEcho,
-			StorageMethod:  database.ProvisionerStorageMethodFile,
-			FileID:         file.ID,
-			Type:           database.ProvisionerJobTypeTemplateVersionDryRun,
-			Input:          data,
-		})
-		require.NoError(t, err)
 
 		job, err := srv.AcquireJob(ctx, nil)
 		require.NoError(t, err)
@@ -252,33 +227,17 @@ func TestAcquireJob(t *testing.T) {
 		t.Parallel()
 		srv := setup(t, false)
 		ctx := context.Background()
-		user, err := srv.Database.InsertUser(ctx, database.InsertUserParams{
-			ID:        uuid.New(),
-			Username:  "testing",
-			LoginType: database.LoginTypePassword,
-		})
-		require.NoError(t, err)
 
-		file, err := srv.Database.InsertFile(ctx, database.InsertFileParams{
-			ID:   uuid.New(),
-			Hash: "something",
-			Data: []byte{},
+		gen := databasefake.NewGenerator(t, srv.Database)
+		user := gen.User(ctx, database.User{})
+		file := gen.File(ctx, database.File{CreatedBy: user.ID})
+		_ = gen.Job(ctx, database.ProvisionerJob{
+			FileID:        file.ID,
+			InitiatorID:   user.ID,
+			Provisioner:   database.ProvisionerTypeEcho,
+			StorageMethod: database.ProvisionerStorageMethodFile,
+			Type:          database.ProvisionerJobTypeTemplateVersionImport,
 		})
-		require.NoError(t, err)
-
-		_, err = srv.Database.InsertProvisionerJob(context.Background(), database.InsertProvisionerJobParams{
-			ID:             uuid.New(),
-			CreatedAt:      database.Now(),
-			UpdatedAt:      database.Now(),
-			OrganizationID: uuid.New(),
-			InitiatorID:    user.ID,
-			Provisioner:    database.ProvisionerTypeEcho,
-			StorageMethod:  database.ProvisionerStorageMethodFile,
-			FileID:         file.ID,
-			Type:           database.ProvisionerJobTypeTemplateVersionImport,
-			Input:          json.RawMessage{},
-		})
-		require.NoError(t, err)
 
 		job, err := srv.AcquireJob(ctx, nil)
 		require.NoError(t, err)
@@ -854,4 +813,11 @@ func setup(t *testing.T, ignoreLogErrors bool) *provisionerdserver.Server {
 		Telemetry:    telemetry.NewNoop(),
 		Auditor:      mockAuditor(),
 	}
+}
+
+func must[T any](value T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return value
 }
