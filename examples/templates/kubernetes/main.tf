@@ -136,10 +136,10 @@ resource "kubernetes_pod" "main" {
       fs_group    = "1000"
     }
     container {
-      name = "dev"
-      image = "codercom/enterprise-base:ubuntu"
+      name              = "dev"
+      image             = "codercom/enterprise-base:ubuntu"
       image_pull_policy = "Always"
-      command = ["sh", "-c", coder_agent.main.init_script]
+      command           = ["sh", "-c", coder_agent.main.init_script]
       security_context {
         run_as_user = "1000"
       }
