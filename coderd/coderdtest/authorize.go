@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -548,6 +549,7 @@ type authCall struct {
 }
 
 type RecordingAuthorizer struct {
+	sync.RWMutex
 	Called  []authCall
 	Wrapped rbac.Authorizer
 }
@@ -569,6 +571,8 @@ func (*RecordingAuthorizer) Pair(action rbac.Action, object rbac.Objecter) Actio
 }
 
 func (r *RecordingAuthorizer) AllAsserted() error {
+	r.RLock()
+	defer r.RUnlock()
 	missed := 0
 	for _, c := range r.Called {
 		if !c.asserted {
@@ -587,6 +591,8 @@ func (r *RecordingAuthorizer) AllAsserted() error {
 // It will not assert the same call twice, so if there is a duplicate assertion,
 // the pair will need to be passed in twice.
 func (r *RecordingAuthorizer) UnorderedAssertActor(t *testing.T, actor rbac.Subject, dids ...ActionObjectPair) {
+	r.RLock()
+	defer r.RUnlock()
 	for _, did := range dids {
 		found := false
 	InnerCalledLoop:
@@ -612,6 +618,8 @@ func (r *RecordingAuthorizer) UnorderedAssertActor(t *testing.T, actor rbac.Subj
 // AssertActor asserts in order. If the order of authz calls does not match,
 // this will fail.
 func (r *RecordingAuthorizer) AssertActor(t *testing.T, actor rbac.Subject, did ...ActionObjectPair) {
+	r.RLock()
+	defer r.RUnlock()
 	ptr := 0
 	for i, call := range r.Called {
 		if ptr == len(did) {
@@ -640,6 +648,8 @@ func (r *RecordingAuthorizer) _AuthorizeSQL(ctx context.Context, subject rbac.Su
 }
 
 func (r *RecordingAuthorizer) Authorize(ctx context.Context, subject rbac.Subject, action rbac.Action, object rbac.Object) error {
+	r.Lock()
+	defer r.Unlock()
 	r.Called = append(r.Called, authCall{
 		Actor:  subject,
 		Action: action,
@@ -668,32 +678,30 @@ func (r *RecordingAuthorizer) reset() {
 }
 
 type fakePreparedAuthorizer struct {
-	Original            *RecordingAuthorizer
-	Subject             rbac.Subject
-	Action              rbac.Action
-	HardCodedSQLString  string
-	HardCodedRegoString string
+	sync.RWMutex
+	Original           *RecordingAuthorizer
+	Subject            rbac.Subject
+	Action             rbac.Action
+	HardCodedSQLString string
+	ShouldCompileToSQL bool
 }
 
 func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Object) error {
-	return f.Original._AuthorizeSQL(ctx, f.Subject, f.Action, object)
+	f.RLock()
+	defer f.RUnlock()
+	if f.ShouldCompileToSQL {
+		return f.Original._AuthorizeSQL(ctx, f.Subject, f.Action, object)
+	}
+	return f.Original.Authorize(ctx, f.Subject, f.Action, object)
 }
 
 // CompileToSQL returns a compiled version of the authorizer that will work for
 // in memory databases. This fake version will not work against a SQL database.
-func (fakePreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
-	return "", xerrors.New("not implemented")
-}
-
-func (f *fakePreparedAuthorizer) Eval(object rbac.Object) bool {
-	return f.Original._AuthorizeSQL(context.Background(), f.Subject, f.Action, object) == nil
-}
-
-func (f fakePreparedAuthorizer) RegoString() string {
-	if f.HardCodedRegoString != "" {
-		return f.HardCodedRegoString
-	}
-	panic("not implemented")
+func (f *fakePreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
+	f.Lock()
+	f.ShouldCompileToSQL = true
+	f.Unlock()
+	return f.HardCodedSQLString, nil
 }
 
 // LastCall is implemented to support legacy tests.
