@@ -98,9 +98,7 @@ describe("LoginPage", () => {
     render(<LoginPage />)
 
     // Then
-    expect(
-      await screen.queryByText(Language.passwordSignIn),
-    ).not.toBeInTheDocument()
+    expect(screen.queryByText(Language.passwordSignIn)).not.toBeInTheDocument()
     await screen.findByText(Language.githubSignIn)
   })
 
@@ -142,9 +140,7 @@ describe("LoginPage", () => {
     render(<LoginPage />)
 
     // Then
-    expect(
-      await screen.queryByText(Language.passwordSignIn),
-    ).not.toBeInTheDocument()
+    expect(screen.queryByText(Language.passwordSignIn)).not.toBeInTheDocument()
     await screen.findByText(Language.githubSignIn)
 
     const showPasswordAuthLink = screen.getByText("Show password login")
