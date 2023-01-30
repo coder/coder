@@ -39,6 +39,14 @@ Coder container:
 docker-compose pull coder && docker-compose up coder -d
 ```
 
+## Via Kubernetes
+
+See [Upgrading Coder via Helm](../install/kubernetes.md#upgrading-coder-via-helm).
+
+## Via Windows
+
+Download the latest Windows installer or binary from [GitHub releases](https://github.com/coder/coder/releases).
+
 ## Up Next
 
 - [Learn how to enable Enterprise features](../enterprise.md).
