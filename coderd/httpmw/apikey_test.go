@@ -151,24 +151,21 @@ func TestAPIKey(t *testing.T) {
 	t.Run("InvalidSecret", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db         = databasefake.New()
-			id, secret = randomAPIKeyParts()
-			r          = httptest.NewRequest("GET", "/", nil)
-			rw         = httptest.NewRecorder()
-			user       = createUser(r.Context(), t, db)
-		)
-		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
+			db   = databasefake.New()
+			gen  = databasefake.NewGenerator(t, db)
+			r    = httptest.NewRequest("GET", "/", nil)
+			rw   = httptest.NewRecorder()
+			ctx  = context.Background()
+			user = gen.User(ctx, "", database.User{})
 
-		// Use a different secret so they don't match!
-		hashed := sha256.Sum256([]byte("differentsecret"))
-		_, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
-			ID:           id,
-			HashedSecret: hashed[:],
-			UserID:       user.ID,
-			LoginType:    database.LoginTypePassword,
-			Scope:        database.APIKeyScopeAll,
-		})
-		require.NoError(t, err)
+			// Use a different secret so they don't match!
+			hashed   = sha256.Sum256([]byte("differentsecret"))
+			_, token = gen.APIKey(ctx, "", database.APIKey{
+				UserID:       user.ID,
+				HashedSecret: hashed[:],
+			})
+		)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
 		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,

@@ -2,9 +2,15 @@ package databasefake
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"fmt"
 	"testing"
 	"time"
+
+	"github.com/coder/coder/cryptorand"
+
+	"github.com/tabbed/pqtype"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/google/uuid"
@@ -52,10 +58,42 @@ func (g *Generator) PrimaryOrg(ctx context.Context) database.Organization {
 }
 
 func populate[DBType any](ctx context.Context, g *Generator, name string, seed DBType) DBType {
+	if name == "" {
+		name = g.RandomName()
+	}
+
 	out := g.Populate(ctx, map[string]interface{}{
 		name: seed,
 	})
-	return out[name].(DBType)
+	v, ok := out[name].(DBType)
+	if !ok {
+		panic("developer error, type mismatch")
+	}
+	return v
+}
+
+func (g *Generator) RandomName() string {
+	for {
+		name := namesgenerator.GetRandomName(0)
+		if _, ok := g.names[name]; !ok {
+			return name
+		}
+	}
+}
+
+func (g *Generator) APIKey(ctx context.Context, name string, seed database.APIKey) (key database.APIKey, token string) {
+	if name == "" {
+		name = g.RandomName()
+	}
+
+	out := g.Populate(ctx, map[string]interface{}{
+		name: seed,
+	})
+	key, keyOk := out[name].(database.APIKey)
+	secret, secOk := out[name+"_secret"].(string)
+	require.True(g.testT, keyOk && secOk, "APIKey & secret must be populated with the right type")
+
+	return key, fmt.Sprintf("%s-%s", key.ID, secret)
 }
 
 func (g *Generator) WorkspaceResource(ctx context.Context, name string, seed database.WorkspaceResource) database.WorkspaceResource {
@@ -100,11 +138,34 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 
 	for name, v := range seed {
 		switch orig := v.(type) {
+		case database.APIKey:
+			id, _ := cryptorand.String(10)
+			secret, _ := cryptorand.String(22)
+			hashed := sha256.Sum256([]byte(secret))
+
+			key, err := db.InsertAPIKey(ctx, database.InsertAPIKeyParams{
+				ID:              takeFirst(orig.ID, id),
+				LifetimeSeconds: takeFirst(orig.LifetimeSeconds, 3600),
+				HashedSecret:    takeFirstBytes(orig.HashedSecret, hashed[:]),
+				IPAddress:       pqtype.Inet{},
+				UserID:          takeFirst(orig.UserID, uuid.New()),
+				LastUsed:        takeFirstTime(orig.LastUsed, time.Now()),
+				ExpiresAt:       takeFirstTime(orig.ExpiresAt, time.Now().Add(time.Hour)),
+				CreatedAt:       takeFirstTime(orig.CreatedAt, time.Now()),
+				UpdatedAt:       takeFirstTime(orig.UpdatedAt, time.Now()),
+				LoginType:       takeFirst(orig.LoginType, database.LoginTypePassword),
+				Scope:           takeFirst(orig.Scope, database.APIKeyScopeAll),
+			})
+			require.NoError(t, err, "insert api key")
+
+			seed[name] = key
+			// Need to also save the secret
+			seed[name+"_secret"] = secret
 		case database.Template:
 			template, err := db.InsertTemplate(ctx, database.InsertTemplateParams{
 				ID:                           g.Lookup(name),
 				CreatedAt:                    takeFirstTime(orig.CreatedAt, time.Now()),
-				UpdatedAt:                    takeFirstTime(orig.CreatedAt, time.Now()),
+				UpdatedAt:                    takeFirstTime(orig.UpdatedAt, time.Now()),
 				OrganizationID:               takeFirst(orig.OrganizationID, g.PrimaryOrg(ctx).ID),
 				Name:                         takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
 				Provisioner:                  takeFirst(orig.Provisioner, database.ProvisionerTypeEcho),
@@ -125,7 +186,7 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 			workspace, err := db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
 				ID:                g.Lookup(name),
 				CreatedAt:         takeFirstTime(orig.CreatedAt, time.Now()),
-				UpdatedAt:         takeFirstTime(orig.CreatedAt, time.Now()),
+				UpdatedAt:         takeFirstTime(orig.UpdatedAt, time.Now()),
 				OrganizationID:    takeFirst(orig.OrganizationID, g.PrimaryOrg(ctx).ID),
 				TemplateID:        takeFirst(orig.TemplateID, uuid.New()),
 				Name:              takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
@@ -139,7 +200,7 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 			build, err := db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
 				ID:                g.Lookup(name),
 				CreatedAt:         takeFirstTime(orig.CreatedAt, time.Now()),
-				UpdatedAt:         takeFirstTime(orig.CreatedAt, time.Now()),
+				UpdatedAt:         takeFirstTime(orig.UpdatedAt, time.Now()),
 				WorkspaceID:       takeFirst(orig.WorkspaceID, uuid.New()),
 				TemplateVersionID: takeFirst(orig.TemplateVersionID, uuid.New()),
 				BuildNumber:       takeFirst(orig.BuildNumber, 0),
@@ -147,7 +208,7 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 				InitiatorID:       takeFirst(orig.InitiatorID, uuid.New()),
 				JobID:             takeFirst(orig.JobID, uuid.New()),
 				ProvisionerState:  takeFirstBytes(orig.ProvisionerState, []byte{}),
-				Deadline:          takeFirstTime(orig.CreatedAt, time.Now().Add(time.Hour)),
+				Deadline:          takeFirstTime(orig.Deadline, time.Now().Add(time.Hour)),
 				Reason:            takeFirst(orig.Reason, database.BuildReasonInitiator),
 			})
 			require.NoError(t, err, "insert workspace build")
@@ -160,7 +221,7 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 				Username:       takeFirst(orig.Username, namesgenerator.GetRandomName(1)),
 				HashedPassword: takeFirstBytes(orig.HashedPassword, []byte{}),
 				CreatedAt:      takeFirstTime(orig.CreatedAt, time.Now()),
-				UpdatedAt:      takeFirstTime(orig.CreatedAt, time.Now()),
+				UpdatedAt:      takeFirstTime(orig.UpdatedAt, time.Now()),
 				RBACRoles:      []string{},
 				LoginType:      takeFirst(orig.LoginType, database.LoginTypePassword),
 			})
@@ -172,9 +233,9 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 			org, err := db.InsertOrganization(ctx, database.InsertOrganizationParams{
 				ID:          g.Lookup(name),
 				Name:        takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
-				Description: takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
+				Description: takeFirst(orig.Description, namesgenerator.GetRandomName(1)),
 				CreatedAt:   takeFirstTime(orig.CreatedAt, time.Now()),
-				UpdatedAt:   takeFirstTime(orig.CreatedAt, time.Now()),
+				UpdatedAt:   takeFirstTime(orig.UpdatedAt, time.Now()),
 			})
 			require.NoError(t, err, "insert organization")
 
@@ -185,7 +246,7 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 				ID:             g.Lookup(name),
 				Name:           takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
 				OrganizationID: takeFirst(orig.OrganizationID, g.PrimaryOrg(ctx).ID),
-				AvatarURL:      takeFirst(orig.Name, "https://logo.example.com"),
+				AvatarURL:      takeFirst(orig.AvatarURL, "https://logo.example.com"),
 				QuotaAllowance: takeFirst(orig.QuotaAllowance, 0),
 			})
 			require.NoError(t, err, "insert organization")
@@ -196,7 +257,7 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 			job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 				ID:             g.Lookup(name),
 				CreatedAt:      takeFirstTime(orig.CreatedAt, time.Now()),
-				UpdatedAt:      takeFirstTime(orig.CreatedAt, time.Now()),
+				UpdatedAt:      takeFirstTime(orig.UpdatedAt, time.Now()),
 				OrganizationID: takeFirst(orig.OrganizationID, g.PrimaryOrg(ctx).ID),
 				InitiatorID:    takeFirst(orig.InitiatorID, uuid.New()),
 				Provisioner:    takeFirst(orig.Provisioner, database.ProvisionerTypeEcho),
@@ -220,7 +281,7 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 				Type: takeFirst(orig.Type, ""),
 				Name: takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
 				Hide: takeFirst(orig.Hide, false),
-				Icon: takeFirst(orig.Name, ""),
+				Icon: takeFirst(orig.Icon, ""),
 				InstanceType: sql.NullString{
 					String: takeFirst(orig.InstanceType.String, ""),
 					Valid:  takeFirst(orig.InstanceType.Valid, false),
