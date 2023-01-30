@@ -11,6 +11,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/retry"
 )
 
@@ -18,7 +19,7 @@ import (
 type WorkspaceAgentApps func(context.Context) ([]codersdk.WorkspaceApp, error)
 
 // PostWorkspaceAgentAppHealth updates the workspace app health.
-type PostWorkspaceAgentAppHealth func(context.Context, codersdk.PostWorkspaceAppHealthsRequest) error
+type PostWorkspaceAgentAppHealth func(context.Context, agentsdk.PostAppHealthsRequest) error
 
 // WorkspaceAppHealthReporter is a function that checks and reports the health of the workspace apps until the passed context is canceled.
 type WorkspaceAppHealthReporter func(ctx context.Context)
@@ -132,7 +133,7 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, apps []codersdk.Workspace
 				mu.Lock()
 				lastHealth = copyHealth(health)
 				mu.Unlock()
-				err := postWorkspaceAgentAppHealth(ctx, codersdk.PostWorkspaceAppHealthsRequest{
+				err := postWorkspaceAgentAppHealth(ctx, agentsdk.PostAppHealthsRequest{
 					Healths: lastHealth,
 				})
 				if err != nil {

@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/pty/ptytest"
 )
 
@@ -22,7 +23,7 @@ func TestGitAskpass(t *testing.T) {
 	t.Setenv("GIT_PREFIX", "/")
 	t.Run("UsernameAndPassword", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			httpapi.Write(context.Background(), w, http.StatusOK, codersdk.WorkspaceAgentGitAuthResponse{
+			httpapi.Write(context.Background(), w, http.StatusOK, agentsdk.GitAuthResponse{
 				Username: "something",
 				Password: "bananas",
 			})
@@ -61,8 +62,8 @@ func TestGitAskpass(t *testing.T) {
 	})
 
 	t.Run("Poll", func(t *testing.T) {
-		resp := atomic.Pointer[codersdk.WorkspaceAgentGitAuthResponse]{}
-		resp.Store(&codersdk.WorkspaceAgentGitAuthResponse{
+		resp := atomic.Pointer[agentsdk.GitAuthResponse]{}
+		resp.Store(&agentsdk.GitAuthResponse{
 			URL: "https://something.org",
 		})
 		poll := make(chan struct{}, 10)
@@ -88,7 +89,7 @@ func TestGitAskpass(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 		<-poll
-		resp.Store(&codersdk.WorkspaceAgentGitAuthResponse{
+		resp.Store(&agentsdk.GitAuthResponse{
 			Username: "username",
 			Password: "password",
 		})

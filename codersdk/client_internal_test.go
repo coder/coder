@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -31,6 +33,59 @@ import (
 
 const jsonCT = "application/json"
 
+func TestIsConnectionErr(t *testing.T) {
+	t.Parallel()
+
+	type tc = struct {
+		name           string
+		err            error
+		expectedResult bool
+	}
+
+	cases := []tc{
+		{
+			// E.g. "no such host"
+			name: "DNSError",
+			err: &net.DNSError{
+				Err:         "no such host",
+				Name:        "foofoo",
+				Server:      "1.1.1.1:53",
+				IsTimeout:   false,
+				IsTemporary: false,
+				IsNotFound:  true,
+			},
+			expectedResult: true,
+		},
+		{
+			// E.g. "connection refused"
+			name: "OpErr",
+			err: &net.OpError{
+				Op:     "dial",
+				Net:    "tcp",
+				Source: nil,
+				Addr:   nil,
+				Err:    &os.SyscallError{},
+			},
+			expectedResult: true,
+		},
+		{
+			name:           "OpaqueError",
+			err:            xerrors.Errorf("I'm opaque!"),
+			expectedResult: false,
+		},
+	}
+
+	for _, c := range cases {
+		c := c
+
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, c.expectedResult, IsConnectionError(c.err))
+		})
+	}
+}
+
 func Test_Client(t *testing.T) {
 	t.Parallel()
 
@@ -43,8 +98,7 @@ func Test_Client(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, method, r.Method)
 		assert.Equal(t, path, r.URL.Path)
-		assert.Equal(t, token, r.Header.Get(SessionCustomHeader))
-		assert.Equal(t, "true", r.Header.Get(BypassRatelimitHeader))
+		assert.Equal(t, token, r.Header.Get(SessionTokenHeader))
 		assert.NotEmpty(t, r.Header.Get("Traceparent"))
 		for k, v := range r.Header {
 			t.Logf("header %q: %q", k, strings.Join(v, ", "))
@@ -59,7 +113,6 @@ func Test_Client(t *testing.T) {
 	require.NoError(t, err)
 	client := New(u)
 	client.SetSessionToken(token)
-	client.BypassRatelimits = true
 
 	logBuf := bytes.NewBuffer(nil)
 	client.Logger = slog.Make(sloghuman.Sink(logBuf)).Leveled(slog.LevelDebug)
@@ -83,7 +136,7 @@ func Test_Client(t *testing.T) {
 		),
 	)
 	otel.SetLogger(logr.Discard())
-	client.PropagateTracing = true
+	client.Trace = true
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
@@ -240,7 +293,7 @@ func Test_readBodyAsError(t *testing.T) {
 
 			c.res.Request = c.req
 
-			err := readBodyAsError(c.res)
+			err := ReadBodyAsError(c.res)
 			c.assert(t, err)
 		})
 	}

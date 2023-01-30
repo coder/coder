@@ -71,7 +71,7 @@ func ExtractOAuth2(config OAuth2Config, client *http.Client) func(http.Handler) 
 				}
 
 				http.SetCookie(rw, &http.Cookie{
-					Name:     codersdk.OAuth2StateKey,
+					Name:     codersdk.OAuth2StateCookie,
 					Value:    state,
 					Path:     "/",
 					HttpOnly: true,
@@ -80,7 +80,7 @@ func ExtractOAuth2(config OAuth2Config, client *http.Client) func(http.Handler) 
 				// Redirect must always be specified, otherwise
 				// an old redirect could apply!
 				http.SetCookie(rw, &http.Cookie{
-					Name:     codersdk.OAuth2RedirectKey,
+					Name:     codersdk.OAuth2RedirectCookie,
 					Value:    r.URL.Query().Get("redirect"),
 					Path:     "/",
 					HttpOnly: true,
@@ -98,10 +98,10 @@ func ExtractOAuth2(config OAuth2Config, client *http.Client) func(http.Handler) 
 				return
 			}
 
-			stateCookie, err := r.Cookie(codersdk.OAuth2StateKey)
+			stateCookie, err := r.Cookie(codersdk.OAuth2StateCookie)
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-					Message: fmt.Sprintf("Cookie %q must be provided.", codersdk.OAuth2StateKey),
+					Message: fmt.Sprintf("Cookie %q must be provided.", codersdk.OAuth2StateCookie),
 				})
 				return
 			}
@@ -113,7 +113,7 @@ func ExtractOAuth2(config OAuth2Config, client *http.Client) func(http.Handler) 
 			}
 
 			var redirect string
-			stateRedirect, err := r.Cookie(codersdk.OAuth2RedirectKey)
+			stateRedirect, err := r.Cookie(codersdk.OAuth2RedirectCookie)
 			if err == nil {
 				redirect = stateRedirect.Value
 			}

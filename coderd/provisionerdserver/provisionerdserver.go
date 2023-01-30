@@ -545,6 +545,14 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 			if err != nil {
 				server.Logger.Error(ctx, "audit log - get workspace", slog.Error(err))
 			} else {
+				previousBuildNumber := build.BuildNumber - 1
+				previousBuild, prevBuildErr := server.Database.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx, database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams{
+					WorkspaceID: workspace.ID,
+					BuildNumber: previousBuildNumber,
+				})
+				if prevBuildErr != nil {
+					previousBuild = database.WorkspaceBuild{}
+				}
 				// We pass the below information to the Auditor so that it
 				// can form a friendly string for the user to view in the UI.
 				buildResourceInfo := map[string]string{
@@ -564,6 +572,7 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 					UserID:           job.InitiatorID,
 					JobID:            job.ID,
 					Action:           auditAction,
+					Old:              previousBuild,
 					New:              build,
 					Status:           http.StatusInternalServerError,
 					AdditionalFields: wriBytes,
@@ -796,6 +805,15 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			auditor := server.Auditor.Load()
 			auditAction := auditActionFromTransition(workspaceBuild.Transition)
 
+			previousBuildNumber := workspaceBuild.BuildNumber - 1
+			previousBuild, prevBuildErr := server.Database.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx, database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams{
+				WorkspaceID: workspace.ID,
+				BuildNumber: previousBuildNumber,
+			})
+			if prevBuildErr != nil {
+				previousBuild = database.WorkspaceBuild{}
+			}
+
 			// We pass the below information to the Auditor so that it
 			// can form a friendly string for the user to view in the UI.
 			buildResourceInfo := map[string]string{
@@ -815,6 +833,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				UserID:           job.InitiatorID,
 				JobID:            job.ID,
 				Action:           auditAction,
+				Old:              previousBuild,
 				New:              workspaceBuild,
 				Status:           http.StatusOK,
 				AdditionalFields: wriBytes,
@@ -953,7 +972,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			ConnectionTimeoutSeconds:    prAgent.GetConnectionTimeoutSeconds(),
 			TroubleshootingURL:          prAgent.GetTroubleshootingUrl(),
 			MOTDFile:                    prAgent.GetMotdFile(),
-			DelayLoginUntilReady:        prAgent.GetDelayLoginUntilReady(),
+			LoginBeforeReady:            prAgent.GetLoginBeforeReady(),
 			StartupScriptTimeoutSeconds: prAgent.GetStartupScriptTimeoutSeconds(),
 		})
 		if err != nil {

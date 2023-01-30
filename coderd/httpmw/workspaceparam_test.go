@@ -32,7 +32,7 @@ func TestWorkspaceParam(t *testing.T) {
 			hashed     = sha256.Sum256([]byte(secret))
 		)
 		r := httptest.NewRequest("GET", "/", nil)
-		r.Header.Set(codersdk.SessionCustomHeader, fmt.Sprintf("%s-%s", id, secret))
+		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
 
 		userID := uuid.New()
 		username, err := cryptorand.String(8)
@@ -345,7 +345,7 @@ func setupWorkspaceWithAgents(t testing.TB, cfg setupConfig) (database.Store, *h
 		hashed     = sha256.Sum256([]byte(secret))
 	)
 	r := httptest.NewRequest("GET", "/", nil)
-	r.Header.Set(codersdk.SessionCustomHeader, fmt.Sprintf("%s-%s", id, secret))
+	r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
 
 	userID := uuid.New()
 	username, err := cryptorand.String(8)

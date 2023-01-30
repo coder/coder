@@ -1,71 +1,50 @@
-import Avatar from "@material-ui/core/Avatar"
-import Link from "@material-ui/core/Link"
-import { makeStyles } from "@material-ui/core/styles"
+import { Avatar } from "components/Avatar/Avatar"
 import { FC, PropsWithChildren } from "react"
-import { Link as RouterLink } from "react-router-dom"
-import { firstLetter } from "../../util/firstLetter"
-import {
-  TableCellData,
-  TableCellDataPrimary,
-  TableCellDataSecondary,
-} from "../TableCellData/TableCellData"
+import { Stack } from "components/Stack/Stack"
+import { makeStyles } from "@material-ui/core/styles"
 
 export interface AvatarDataProps {
   title: string
   subtitle?: string
-  highlightTitle?: boolean
-  link?: string
+  src?: string
   avatar?: React.ReactNode
 }
 
 export const AvatarData: FC<PropsWithChildren<AvatarDataProps>> = ({
   title,
   subtitle,
-  link,
-  highlightTitle,
+  src,
   avatar,
 }) => {
   const styles = useStyles()
 
   if (!avatar) {
-    avatar = <Avatar>{firstLetter(title)}</Avatar>
+    avatar = <Avatar src={src}>{title}</Avatar>
   }
 
   return (
-    <div className={styles.root}>
-      <div className={styles.avatarWrapper}>{avatar}</div>
+    <Stack spacing={1.5} direction="row" alignItems="center">
+      {avatar}
 
-      {link ? (
-        <Link to={link} underline="none" component={RouterLink}>
-          <TableCellData>
-            <TableCellDataPrimary highlight={highlightTitle}>
-              {title}
-            </TableCellDataPrimary>
-            {subtitle && (
-              <TableCellDataSecondary>{subtitle}</TableCellDataSecondary>
-            )}
-          </TableCellData>
-        </Link>
-      ) : (
-        <TableCellData>
-          <TableCellDataPrimary highlight={highlightTitle}>
-            {title}
-          </TableCellDataPrimary>
-          {subtitle && (
-            <TableCellDataSecondary>{subtitle}</TableCellDataSecondary>
-          )}
-        </TableCellData>
-      )}
-    </div>
+      <Stack spacing={0}>
+        <span className={styles.title}>{title}</span>
+        {subtitle && <span className={styles.subtitle}>{subtitle}</span>}
+      </Stack>
+    </Stack>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
-  root: {
-    display: "flex",
-    alignItems: "center",
+  title: {
+    color: theme.palette.text.primary,
+    fontWeight: 600,
   },
-  avatarWrapper: {
-    marginRight: theme.spacing(1.5),
+
+  subtitle: {
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+    lineHeight: "140%",
+    marginTop: 2,
+    maxWidth: 540,
   },
 }))

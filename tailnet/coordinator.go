@@ -4,13 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"net/netip"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
+	lru "github.com/hashicorp/golang-lru/v2"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
@@ -22,6 +27,9 @@ import (
 // └──────────────────┘   └────────────────────┘   └───────────────────┘   └──────────────────┘
 // Coordinators have different guarantees for HA support.
 type Coordinator interface {
+	// ServeHTTPDebug serves a debug webpage that shows the internal state of
+	// the coordinator.
+	ServeHTTPDebug(w http.ResponseWriter, r *http.Request)
 	// Node returns an in-memory node by ID.
 	Node(id uuid.UUID) *Node
 	// ServeClient accepts a WebSocket connection that wants to connect to an agent
@@ -29,7 +37,8 @@ type Coordinator interface {
 	ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) error
 	// ServeAgent accepts a WebSocket connection to an agent that listens to
 	// incoming connections and publishes node updates.
-	ServeAgent(conn net.Conn, id uuid.UUID) error
+	// Name is just used for debug information. It can be left blank.
+	ServeAgent(conn net.Conn, id uuid.UUID, name string) error
 	// Close closes the coordinator.
 	Close() error
 }
@@ -101,11 +110,17 @@ func ServeCoordinator(conn net.Conn, updateNodes func(node []*Node) error) (func
 // coordinator is incompatible with multiple Coder replicas as all node data is
 // in-memory.
 func NewCoordinator() Coordinator {
+	nameCache, err := lru.New[uuid.UUID, string](512)
+	if err != nil {
+		panic("make lru cache: " + err.Error())
+	}
+
 	return &coordinator{
 		closed:                   false,
 		nodes:                    map[uuid.UUID]*Node{},
-		agentSockets:             map[uuid.UUID]idConn{},
-		agentToConnectionSockets: map[uuid.UUID]map[uuid.UUID]net.Conn{},
+		agentSockets:             map[uuid.UUID]*TrackedConn{},
+		agentToConnectionSockets: map[uuid.UUID]map[uuid.UUID]*TrackedConn{},
+		agentNameCache:           nameCache,
 	}
 }
 
@@ -117,23 +132,38 @@ func NewCoordinator() Coordinator {
 // This coordinator is incompatible with multiple Coder
 // replicas as all node data is in-memory.
 type coordinator struct {
-	mutex  sync.Mutex
+	mutex  sync.RWMutex
 	closed bool
 
 	// nodes maps agent and connection IDs their respective node.
 	nodes map[uuid.UUID]*Node
 	// agentSockets maps agent IDs to their open websocket.
-	agentSockets map[uuid.UUID]idConn
+	agentSockets map[uuid.UUID]*TrackedConn
 	// agentToConnectionSockets maps agent IDs to connection IDs of conns that
 	// are subscribed to updates for that agent.
-	agentToConnectionSockets map[uuid.UUID]map[uuid.UUID]net.Conn
+	agentToConnectionSockets map[uuid.UUID]map[uuid.UUID]*TrackedConn
+
+	// agentNameCache holds a cache of agent names. If one of them disappears,
+	// it's helpful to have a name cached for debugging.
+	agentNameCache *lru.Cache[uuid.UUID, string]
 }
 
-type idConn struct {
-	// id is an ephemeral UUID used to uniquely identify the owner of the
+type TrackedConn struct {
+	net.Conn
+
+	// ID is an ephemeral UUID used to uniquely identify the owner of the
 	// connection.
-	id   uuid.UUID
-	conn net.Conn
+	ID uuid.UUID
+
+	Name       string
+	Start      int64
+	LastWrite  int64
+	Overwrites int64
+}
+
+func (t *TrackedConn) Write(b []byte) (n int, err error) {
+	atomic.StoreInt64(&t.LastWrite, time.Now().Unix())
+	return t.Conn.Write(b)
 }
 
 // Node returns an in-memory node by ID.
@@ -182,12 +212,18 @@ func (c *coordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) 
 	c.mutex.Lock()
 	connectionSockets, ok := c.agentToConnectionSockets[agent]
 	if !ok {
-		connectionSockets = map[uuid.UUID]net.Conn{}
+		connectionSockets = map[uuid.UUID]*TrackedConn{}
 		c.agentToConnectionSockets[agent] = connectionSockets
 	}
+
+	now := time.Now().Unix()
 	// Insert this connection into a map so the agent
 	// can publish node updates.
-	connectionSockets[id] = conn
+	connectionSockets[id] = &TrackedConn{
+		Conn:      conn,
+		Start:     now,
+		LastWrite: now,
+	}
 	c.mutex.Unlock()
 	defer func() {
 		c.mutex.Lock()
@@ -243,7 +279,7 @@ func (c *coordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *json
 		return xerrors.Errorf("marshal nodes: %w", err)
 	}
 
-	_, err = agentSocket.conn.Write(data)
+	_, err = agentSocket.Write(data)
 	if err != nil {
 		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) || errors.Is(err, context.Canceled) {
 			return nil
@@ -256,12 +292,14 @@ func (c *coordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *json
 
 // ServeAgent accepts a WebSocket connection to an agent that
 // listens to incoming connections and publishes node updates.
-func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
+func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) error {
 	c.mutex.Lock()
 	if c.closed {
 		c.mutex.Unlock()
 		return xerrors.New("coordinator is closed")
 	}
+
+	c.agentNameCache.Add(id, name)
 
 	sockets, ok := c.agentToConnectionSockets[id]
 	if ok {
@@ -289,6 +327,8 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
 
 	// This uniquely identifies a connection that belongs to this goroutine.
 	unique := uuid.New()
+	now := time.Now().Unix()
+	overwrites := int64(0)
 
 	// If an old agent socket is connected, we close it to avoid any leaks. This
 	// shouldn't ever occur because we expect one agent to be running, but it's
@@ -297,11 +337,17 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
 	// dead.
 	oldAgentSocket, ok := c.agentSockets[id]
 	if ok {
-		_ = oldAgentSocket.conn.Close()
+		overwrites = oldAgentSocket.Overwrites + 1
+		_ = oldAgentSocket.Close()
 	}
-	c.agentSockets[id] = idConn{
-		id:   unique,
-		conn: conn,
+	c.agentSockets[id] = &TrackedConn{
+		ID:   unique,
+		Conn: conn,
+
+		Name:       name,
+		Start:      now,
+		LastWrite:  now,
+		Overwrites: overwrites,
 	}
 
 	c.mutex.Unlock()
@@ -311,7 +357,7 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID) error {
 
 		// Only delete the connection if it's ours. It could have been
 		// overwritten.
-		if idConn := c.agentSockets[id]; idConn.id == unique {
+		if idConn, ok := c.agentSockets[id]; ok && idConn.ID == unique {
 			delete(c.agentSockets, id)
 			delete(c.nodes, id)
 		}
@@ -382,7 +428,7 @@ func (c *coordinator) Close() error {
 	for _, socket := range c.agentSockets {
 		socket := socket
 		go func() {
-			_ = socket.conn.Close()
+			_ = socket.Close()
 			wg.Done()
 		}()
 	}
@@ -402,4 +448,136 @@ func (c *coordinator) Close() error {
 
 	wg.Wait()
 	return nil
+}
+
+func (c *coordinator) ServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+
+	fmt.Fprintln(w, "<h1>in-memory wireguard coordinator debug</h1>")
+
+	CoordinatorHTTPDebug(c.agentSockets, c.agentToConnectionSockets, c.agentNameCache)(w, r)
+}
+
+func CoordinatorHTTPDebug(
+	agentSocketsMap map[uuid.UUID]*TrackedConn,
+	agentToConnectionSocketsMap map[uuid.UUID]map[uuid.UUID]*TrackedConn,
+	agentNameCache *lru.Cache[uuid.UUID, string],
+) func(w http.ResponseWriter, _ *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		now := time.Now()
+
+		type idConn struct {
+			id   uuid.UUID
+			conn *TrackedConn
+		}
+
+		{
+			fmt.Fprintf(w, "<h2 id=agents><a href=#agents>#</a> agents: total %d</h2>\n", len(agentSocketsMap))
+			fmt.Fprintln(w, "<ul>")
+			agentSockets := make([]idConn, 0, len(agentSocketsMap))
+
+			for id, conn := range agentSocketsMap {
+				agentSockets = append(agentSockets, idConn{id, conn})
+			}
+
+			slices.SortFunc(agentSockets, func(a, b idConn) bool {
+				return a.conn.Name < b.conn.Name
+			})
+
+			for _, agent := range agentSockets {
+				fmt.Fprintf(w, "<li style=\"margin-top:4px\"><b>%s</b> (<code>%s</code>): created %v ago, write %v ago, overwrites %d </li>\n",
+					agent.conn.Name,
+					agent.id.String(),
+					now.Sub(time.Unix(agent.conn.Start, 0)).Round(time.Second),
+					now.Sub(time.Unix(agent.conn.LastWrite, 0)).Round(time.Second),
+					agent.conn.Overwrites,
+				)
+
+				if conns := agentToConnectionSocketsMap[agent.id]; len(conns) > 0 {
+					fmt.Fprintf(w, "<h3 style=\"margin:0px;font-size:16px;font-weight:400\">connections: total %d</h3>\n", len(conns))
+
+					connSockets := make([]idConn, 0, len(conns))
+					for id, conn := range conns {
+						connSockets = append(connSockets, idConn{id, conn})
+					}
+					slices.SortFunc(connSockets, func(a, b idConn) bool {
+						return a.id.String() < b.id.String()
+					})
+
+					fmt.Fprintln(w, "<ul>")
+					for _, connSocket := range connSockets {
+						fmt.Fprintf(w, "<li><b>%s</b> (<code>%s</code>): created %v ago, write %v ago </li>\n",
+							connSocket.conn.Name,
+							connSocket.id.String(),
+							now.Sub(time.Unix(connSocket.conn.Start, 0)).Round(time.Second),
+							now.Sub(time.Unix(connSocket.conn.LastWrite, 0)).Round(time.Second),
+						)
+					}
+					fmt.Fprintln(w, "</ul>")
+				}
+			}
+
+			fmt.Fprintln(w, "</ul>")
+		}
+
+		{
+			type agentConns struct {
+				id    uuid.UUID
+				conns []idConn
+			}
+
+			missingAgents := []agentConns{}
+			for agentID, conns := range agentToConnectionSocketsMap {
+				if len(conns) == 0 {
+					continue
+				}
+
+				if _, ok := agentSocketsMap[agentID]; !ok {
+					connsSlice := make([]idConn, 0, len(conns))
+					for id, conn := range conns {
+						connsSlice = append(connsSlice, idConn{id, conn})
+					}
+					slices.SortFunc(connsSlice, func(a, b idConn) bool {
+						return a.id.String() < b.id.String()
+					})
+
+					missingAgents = append(missingAgents, agentConns{agentID, connsSlice})
+				}
+			}
+			slices.SortFunc(missingAgents, func(a, b agentConns) bool {
+				return a.id.String() < b.id.String()
+			})
+
+			fmt.Fprintf(w, "<h2 id=missing-agents><a href=#missing-agents>#</a> missing agents: total %d</h2>\n", len(missingAgents))
+			fmt.Fprintln(w, "<ul>")
+
+			for _, agentConns := range missingAgents {
+				agentName, ok := agentNameCache.Get(agentConns.id)
+				if !ok {
+					agentName = "unknown"
+				}
+
+				fmt.Fprintf(w, "<li style=\"margin-top:4px\"><b>%s</b> (<code>%s</code>): created ? ago, write ? ago, overwrites ? </li>\n",
+					agentName,
+					agentConns.id.String(),
+				)
+
+				fmt.Fprintf(w, "<h3 style=\"margin:0px;font-size:16px;font-weight:400\">connections: total %d</h3>\n", len(agentConns.conns))
+				fmt.Fprintln(w, "<ul>")
+				for _, agentConn := range agentConns.conns {
+					fmt.Fprintf(w, "<li><b>%s</b> (<code>%s</code>): created %v ago, write %v ago </li>\n",
+						agentConn.conn.Name,
+						agentConn.id.String(),
+						now.Sub(time.Unix(agentConn.conn.Start, 0)).Round(time.Second),
+						now.Sub(time.Unix(agentConn.conn.LastWrite, 0)).Round(time.Second),
+					)
+				}
+				fmt.Fprintln(w, "</ul>")
+			}
+			fmt.Fprintln(w, "</ul>")
+		}
+	}
 }

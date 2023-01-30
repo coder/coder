@@ -20,18 +20,6 @@ AND
 LIMIT
 	1;
 
--- name: GetUserGroups :many
-SELECT
-	groups.*
-FROM
-	groups
-JOIN
-	group_members
-ON
-	groups.id = group_members.group_id
-WHERE
-	group_members.user_id = $1;
-
 -- name: GetGroupMembers :many
 SELECT
 	users.*

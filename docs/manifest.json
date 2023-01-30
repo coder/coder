@@ -322,6 +322,11 @@
           "title": "Security",
           "description": "How to report vulnerabilities in Coder",
           "path": "./contributing/SECURITY.md"
+        },
+        {
+          "title": "Frontend",
+          "description": "Our guide for frontend development",
+          "path": "./contributing/frontend.md"
         }
       ]
     },
@@ -360,12 +365,20 @@
           "path": "./api/builds.md"
         },
         {
+          "title": "Debug",
+          "path": "./api/debug.md"
+        },
+        {
           "title": "Enterprise",
           "path": "./api/enterprise.md"
         },
         {
           "title": "Files",
           "path": "./api/files.md"
+        },
+        {
+          "title": "Insights",
+          "path": "./api/insights.md"
         },
         {
           "title": "Members",
@@ -394,6 +407,234 @@
         {
           "title": "Workspaces",
           "path": "./api/workspaces.md"
+        }
+      ]
+    },
+    {
+      "title": "Command Line",
+      "description": "Learn how to use Coder CLI",
+      "path": "./cli/coder.md",
+      "icon_path": "./images/icons/terminal.svg",
+      "children": [
+        {
+          "title": "coder",
+          "path": "./cli/coder.md"
+        },
+        {
+          "title": "config-ssh",
+          "path": "./cli/coder_config-ssh.md"
+        },
+        {
+          "title": "create",
+          "path": "./cli/coder_create.md"
+        },
+        {
+          "title": "delete",
+          "path": "./cli/coder_delete.md"
+        },
+        {
+          "title": "dotfiles",
+          "path": "./cli/coder_dotfiles.md"
+        },
+        {
+          "title": "list",
+          "path": "./cli/coder_list.md"
+        },
+        {
+          "title": "login",
+          "path": "./cli/coder_login.md"
+        },
+        {
+          "title": "logout",
+          "path": "./cli/coder_logout.md"
+        },
+        {
+          "title": "port-forward",
+          "path": "./cli/coder_port-forward.md"
+        },
+        {
+          "title": "publickey",
+          "path": "./cli/coder_publickey.md"
+        },
+        {
+          "title": "rename",
+          "path": "./cli/coder_rename.md"
+        },
+        {
+          "title": "reset-password",
+          "path": "./cli/coder_reset-password.md"
+        },
+        {
+          "title": "restart",
+          "path": "./cli/coder_restart.md"
+        },
+        {
+          "title": "scaletest",
+          "path": "./cli/coder_scaletest.md"
+        },
+        {
+          "title": "scaletest cleanup",
+          "path": "./cli/coder_scaletest_cleanup.md"
+        },
+        {
+          "title": "scaletest create-workspaces",
+          "path": "./cli/coder_scaletest_create-workspaces.md"
+        },
+        {
+          "title": "schedule",
+          "path": "./cli/coder_schedule.md"
+        },
+        {
+          "title": "schedule override-stop",
+          "path": "./cli/coder_schedule_override-stop.md"
+        },
+        {
+          "title": "schedule show",
+          "path": "./cli/coder_schedule_show.md"
+        },
+        {
+          "title": "schedule start",
+          "path": "./cli/coder_schedule_start.md"
+        },
+        {
+          "title": "schedule stop",
+          "path": "./cli/coder_schedule_stop.md"
+        },
+        {
+          "title": "server",
+          "path": "./cli/coder_server.md"
+        },
+        {
+          "title": "server postgres-builtin-serve",
+          "path": "./cli/coder_server_postgres-builtin-serve.md"
+        },
+        {
+          "title": "server postgres-builtin-url",
+          "path": "./cli/coder_server_postgres-builtin-url.md"
+        },
+        {
+          "title": "show",
+          "path": "./cli/coder_show.md"
+        },
+        {
+          "title": "speedtest",
+          "path": "./cli/coder_speedtest.md"
+        },
+        {
+          "title": "ssh",
+          "path": "./cli/coder_ssh.md"
+        },
+        {
+          "title": "start",
+          "path": "./cli/coder_start.md"
+        },
+        {
+          "title": "state",
+          "path": "./cli/coder_state.md"
+        },
+        {
+          "title": "state pull",
+          "path": "./cli/coder_state_pull.md"
+        },
+        {
+          "title": "state push",
+          "path": "./cli/coder_state_push.md"
+        },
+        {
+          "title": "stop",
+          "path": "./cli/coder_stop.md"
+        },
+        {
+          "title": "templates",
+          "path": "./cli/coder_templates.md"
+        },
+        {
+          "title": "templates create",
+          "path": "./cli/coder_templates_create.md"
+        },
+        {
+          "title": "templates delete",
+          "path": "./cli/coder_templates_delete.md"
+        },
+        {
+          "title": "templates edit",
+          "path": "./cli/coder_templates_edit.md"
+        },
+        {
+          "title": "templates init",
+          "path": "./cli/coder_templates_init.md"
+        },
+        {
+          "title": "templates list",
+          "path": "./cli/coder_templates_list.md"
+        },
+        {
+          "title": "templates plan",
+          "path": "./cli/coder_templates_plan.md"
+        },
+        {
+          "title": "templates pull",
+          "path": "./cli/coder_templates_pull.md"
+        },
+        {
+          "title": "templates push",
+          "path": "./cli/coder_templates_push.md"
+        },
+        {
+          "title": "templates versions",
+          "path": "./cli/coder_templates_versions.md"
+        },
+        {
+          "title": "templates versions list",
+          "path": "./cli/coder_templates_versions_list.md"
+        },
+        {
+          "title": "tokens",
+          "path": "./cli/coder_tokens.md"
+        },
+        {
+          "title": "tokens create",
+          "path": "./cli/coder_tokens_create.md"
+        },
+        {
+          "title": "tokens list",
+          "path": "./cli/coder_tokens_list.md"
+        },
+        {
+          "title": "tokens remove",
+          "path": "./cli/coder_tokens_remove.md"
+        },
+        {
+          "title": "update",
+          "path": "./cli/coder_update.md"
+        },
+        {
+          "title": "users",
+          "path": "./cli/coder_users.md"
+        },
+        {
+          "title": "users activate",
+          "path": "./cli/coder_users_activate.md"
+        },
+        {
+          "title": "users create",
+          "path": "./cli/coder_users_create.md"
+        },
+        {
+          "title": "users list",
+          "path": "./cli/coder_users_list.md"
+        },
+        {
+          "title": "users show",
+          "path": "./cli/coder_users_show.md"
+        },
+        {
+          "title": "users suspend",
+          "path": "./cli/coder_users_suspend.md"
+        },
+        {
+          "title": "version",
+          "path": "./cli/coder_version.md"
         }
       ]
     }

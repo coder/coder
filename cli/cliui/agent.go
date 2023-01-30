@@ -10,16 +10,21 @@ import (
 	"time"
 
 	"github.com/briandowns/spinner"
+	"github.com/muesli/reflow/indent"
+	"github.com/muesli/reflow/wordwrap"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/codersdk"
 )
+
+var AgentStartError = xerrors.New("agent startup exited with non-zero exit status")
 
 type AgentOptions struct {
 	WorkspaceName string
 	Fetch         func(context.Context) (codersdk.WorkspaceAgent, error)
 	FetchInterval time.Duration
 	WarnInterval  time.Duration
+	NoWait        bool // If true, don't wait for the agent to be ready.
 }
 
 // Agent displays a spinning indicator that waits for a workspace agent to connect.
@@ -36,48 +41,33 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 		return xerrors.Errorf("fetch: %w", err)
 	}
 
-	if agent.Status == codersdk.WorkspaceAgentConnected {
+	// Fast path if the agent is ready (avoid showing connecting prompt).
+	// We don't take the fast path for opts.NoWait yet because we want to
+	// show the message.
+	if agent.Status == codersdk.WorkspaceAgentConnected &&
+		(agent.LoginBeforeReady || agent.LifecycleState == codersdk.WorkspaceAgentLifecycleReady) {
 		return nil
 	}
+
+	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
+	defer cancel()
 
 	spin := spinner.New(spinner.CharSets[78], 100*time.Millisecond, spinner.WithColor("fgHiGreen"))
 	spin.Writer = writer
 	spin.ForceOutput = true
-	spin.Suffix = " Waiting for connection from " + Styles.Field.Render(agent.Name) + "..."
-	spin.Start()
-	defer spin.Stop()
+	spin.Suffix = waitingMessage(agent, opts).Spin
 
-	ctx, cancelFunc := context.WithCancel(ctx)
-	defer cancelFunc()
-	stopSpin := make(chan os.Signal, 1)
-	signal.Notify(stopSpin, os.Interrupt)
-	defer signal.Stop(stopSpin)
-	go func() {
-		select {
-		case <-ctx.Done():
-			return
-		case <-stopSpin:
-		}
-		cancelFunc()
-		signal.Stop(stopSpin)
-		spin.Stop()
-		// nolint:revive
-		os.Exit(1)
-	}()
-
-	var waitMessage string
-	messageAfter := time.NewTimer(opts.WarnInterval)
-	defer messageAfter.Stop()
+	waitMessage := &message{}
 	showMessage := func() {
 		resourceMutex.Lock()
 		defer resourceMutex.Unlock()
 
-		m := waitingMessage(agent)
-		if m == waitMessage {
+		m := waitingMessage(agent, opts)
+		if m.Prompt == waitMessage.Prompt {
 			return
 		}
 		moveUp := ""
-		if waitMessage != "" {
+		if waitMessage.Prompt != "" {
 			// If this is an update, move a line up
 			// to keep it tidy and aligned.
 			moveUp = "\033[1A"
@@ -86,20 +76,43 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 
 		// Stop the spinner while we write our message.
 		spin.Stop()
+		spin.Suffix = waitMessage.Spin
 		// Clear the line and (if necessary) move up a line to write our message.
-		_, _ = fmt.Fprintf(writer, "\033[2K%s%s\n\n", moveUp, Styles.Paragraph.Render(Styles.Prompt.String()+waitMessage))
+		_, _ = fmt.Fprintf(writer, "\033[2K%s\n%s\n", moveUp, waitMessage.Prompt)
 		select {
 		case <-ctx.Done():
 		default:
 			// Safe to resume operation.
-			spin.Start()
+			if spin.Suffix != "" {
+				spin.Start()
+			}
 		}
 	}
+
+	// Fast path for showing the error message even when using no wait,
+	// we do this just before starting the spinner to avoid needless
+	// spinning.
+	if agent.Status == codersdk.WorkspaceAgentConnected &&
+		!agent.LoginBeforeReady && opts.NoWait {
+		showMessage()
+		return nil
+	}
+
+	// Start spinning after fast paths are handled.
+	if spin.Suffix != "" {
+		spin.Start()
+	}
+	defer spin.Stop()
+
+	warnAfter := time.NewTimer(opts.WarnInterval)
+	defer warnAfter.Stop()
+	warningShown := make(chan struct{})
 	go func() {
 		select {
 		case <-ctx.Done():
-		case <-messageAfter.C:
-			messageAfter.Stop()
+			close(warningShown)
+		case <-warnAfter.C:
+			close(warningShown)
 			showMessage()
 		}
 	}()
@@ -121,6 +134,29 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 		resourceMutex.Unlock()
 		switch agent.Status {
 		case codersdk.WorkspaceAgentConnected:
+			// NOTE(mafredri): Once we have access to the workspace agent's
+			// startup script logs, we can show them here.
+			// https://github.com/coder/coder/issues/2957
+			if !agent.LoginBeforeReady && !opts.NoWait {
+				switch agent.LifecycleState {
+				case codersdk.WorkspaceAgentLifecycleReady:
+					return nil
+				case codersdk.WorkspaceAgentLifecycleStartTimeout:
+					showMessage()
+				case codersdk.WorkspaceAgentLifecycleStartError:
+					showMessage()
+					return AgentStartError
+				default:
+					select {
+					case <-warningShown:
+						showMessage()
+					default:
+						// This state is normal, we don't want
+						// to show a message prematurely.
+					}
+				}
+				continue
+			}
 			return nil
 		case codersdk.WorkspaceAgentTimeout, codersdk.WorkspaceAgentDisconnected:
 			showMessage()
@@ -128,19 +164,78 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 	}
 }
 
-func waitingMessage(agent codersdk.WorkspaceAgent) string {
-	var m string
+type message struct {
+	Spin         string
+	Prompt       string
+	Troubleshoot bool
+}
+
+func waitingMessage(agent codersdk.WorkspaceAgent, opts AgentOptions) (m *message) {
+	m = &message{
+		Spin:   fmt.Sprintf("Waiting for connection from %s...", Styles.Field.Render(agent.Name)),
+		Prompt: "Don't panic, your workspace is booting up!",
+	}
+	defer func() {
+		if agent.Status == codersdk.WorkspaceAgentConnected && opts.NoWait {
+			m.Spin = ""
+		}
+		if m.Spin != "" {
+			m.Spin = " " + m.Spin
+		}
+
+		// We don't want to wrap the troubleshooting URL, so we'll handle word
+		// wrapping ourselves (vs using lipgloss).
+		w := wordwrap.NewWriter(Styles.Paragraph.GetWidth() - Styles.Paragraph.GetMarginLeft()*2)
+		w.Breakpoints = []rune{' ', '\n'}
+
+		_, _ = fmt.Fprint(w, m.Prompt)
+		if m.Troubleshoot {
+			if agent.TroubleshootingURL != "" {
+				_, _ = fmt.Fprintf(w, " See troubleshooting instructions at:\n%s", agent.TroubleshootingURL)
+			} else {
+				_, _ = fmt.Fprint(w, " Wait for it to (re)connect or restart your workspace.")
+			}
+		}
+		_, _ = fmt.Fprint(w, "\n")
+
+		// We want to prefix the prompt with a caret, but we want text on the
+		// following lines to align with the text on the first line (i.e. added
+		// spacing).
+		ind := " " + Styles.Prompt.String()
+		iw := indent.NewWriter(1, func(w io.Writer) {
+			_, _ = w.Write([]byte(ind))
+			ind = "   " // Set indentation to space after initial prompt.
+		})
+		_, _ = fmt.Fprint(iw, w.String())
+		m.Prompt = iw.String()
+	}()
+
 	switch agent.Status {
 	case codersdk.WorkspaceAgentTimeout:
-		m = "The workspace agent is having trouble connecting."
+		m.Prompt = "The workspace agent is having trouble connecting."
 	case codersdk.WorkspaceAgentDisconnected:
-		m = "The workspace agent lost connection!"
+		m.Prompt = "The workspace agent lost connection!"
+	case codersdk.WorkspaceAgentConnected:
+		m.Spin = fmt.Sprintf("Waiting for %s to become ready...", Styles.Field.Render(agent.Name))
+		m.Prompt = "Don't panic, your workspace agent has connected and the workspace is getting ready!"
+		if opts.NoWait {
+			m.Prompt = "Your workspace is still getting ready, it may be in an incomplete state."
+		}
+
+		switch agent.LifecycleState {
+		case codersdk.WorkspaceAgentLifecycleStartTimeout:
+			m.Prompt = "The workspace is taking longer than expected to get ready, the agent startup script is still executing."
+		case codersdk.WorkspaceAgentLifecycleStartError:
+			m.Spin = ""
+			m.Prompt = "The workspace ran into a problem while getting ready, the agent startup script exited with non-zero status."
+		default:
+			// Not a failure state, no troubleshooting necessary.
+			return m
+		}
 	default:
 		// Not a failure state, no troubleshooting necessary.
-		return "Don't panic, your workspace is booting up!"
+		return m
 	}
-	if agent.TroubleshootingURL != "" {
-		return fmt.Sprintf("%s See troubleshooting instructions at: %s", m, agent.TroubleshootingURL)
-	}
-	return fmt.Sprintf("%s Wait for it to (re)connect or restart your workspace.", m)
+	m.Troubleshoot = true
+	return m
 }

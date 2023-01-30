@@ -1,5 +1,5 @@
 import { getAgentListeningPorts } from "api/api"
-import { ListeningPortsResponse } from "api/typesGenerated"
+import { WorkspaceAgentListeningPortsResponse } from "api/typesGenerated"
 import { createMachine, assign } from "xstate"
 
 export const portForwardMachine = createMachine(
@@ -9,11 +9,11 @@ export const portForwardMachine = createMachine(
     schema: {
       context: {} as {
         agentId: string
-        listeningPorts?: ListeningPortsResponse
+        listeningPorts?: WorkspaceAgentListeningPortsResponse
       },
       services: {} as {
         getListeningPorts: {
-          data: ListeningPortsResponse
+          data: WorkspaceAgentListeningPortsResponse
         }
       },
     },

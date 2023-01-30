@@ -23,6 +23,7 @@ type APIKey struct {
 	LifetimeSeconds int64       `json:"lifetime_seconds" validate:"required"`
 }
 
+// LoginType is the type of login used to create the API key.
 type LoginType string
 
 const (
@@ -35,7 +36,10 @@ const (
 type APIKeyScope string
 
 const (
-	APIKeyScopeAll                APIKeyScope = "all"
+	// APIKeyScopeAll is a scope that allows the user to do everything.
+	APIKeyScopeAll APIKeyScope = "all"
+	// APIKeyScopeApplicationConnect is a scope that allows the user
+	// to connect to applications in a workspace.
 	APIKeyScopeApplicationConnect APIKeyScope = "application_connect"
 )
 
@@ -49,7 +53,9 @@ type GenerateAPIKeyResponse struct {
 	Key string `json:"key"`
 }
 
-// CreateToken generates an API key that doesn't expire.
+// CreateToken generates an API key for the user ID provided with
+// custom expiration. These tokens can be used for long-lived access,
+// like for use with CI.
 func (c *Client) CreateToken(ctx context.Context, userID string, req CreateTokenRequest) (GenerateAPIKeyResponse, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/keys/tokens", userID), req)
 	if err != nil {
@@ -57,7 +63,7 @@ func (c *Client) CreateToken(ctx context.Context, userID string, req CreateToken
 	}
 	defer res.Body.Close()
 	if res.StatusCode > http.StatusCreated {
-		return GenerateAPIKeyResponse{}, readBodyAsError(res)
+		return GenerateAPIKeyResponse{}, ReadBodyAsError(res)
 	}
 
 	var apiKey GenerateAPIKeyResponse
@@ -73,36 +79,36 @@ func (c *Client) CreateAPIKey(ctx context.Context, user string) (GenerateAPIKeyR
 	}
 	defer res.Body.Close()
 	if res.StatusCode > http.StatusCreated {
-		return GenerateAPIKeyResponse{}, readBodyAsError(res)
+		return GenerateAPIKeyResponse{}, ReadBodyAsError(res)
 	}
 
 	var apiKey GenerateAPIKeyResponse
 	return apiKey, json.NewDecoder(res.Body).Decode(&apiKey)
 }
 
-// GetTokens list machine API keys.
-func (c *Client) GetTokens(ctx context.Context, userID string) ([]APIKey, error) {
+// Tokens list machine API keys.
+func (c *Client) Tokens(ctx context.Context, userID string) ([]APIKey, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys/tokens", userID), nil)
 	if err != nil {
 		return nil, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode > http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 	var apiKey = []APIKey{}
 	return apiKey, json.NewDecoder(res.Body).Decode(&apiKey)
 }
 
-// GetAPIKey returns the api key by id.
-func (c *Client) GetAPIKey(ctx context.Context, userID string, id string) (*APIKey, error) {
+// APIKey returns the api key by id.
+func (c *Client) APIKey(ctx context.Context, userID string, id string) (*APIKey, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys/%s", userID, id), nil)
 	if err != nil {
 		return nil, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode > http.StatusCreated {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 	apiKey := &APIKey{}
 	return apiKey, json.NewDecoder(res.Body).Decode(apiKey)
@@ -116,7 +122,7 @@ func (c *Client) DeleteAPIKey(ctx context.Context, userID string, id string) err
 	}
 	defer res.Body.Close()
 	if res.StatusCode > http.StatusNoContent {
-		return readBodyAsError(res)
+		return ReadBodyAsError(res)
 	}
 	return nil
 }

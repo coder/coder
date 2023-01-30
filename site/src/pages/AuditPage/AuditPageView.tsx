@@ -40,6 +40,10 @@ const presetFilters = [
     query: "resource_type:workspace_build action:start",
     name: "Started builds",
   },
+  {
+    query: "resource_type:workspace_build action:start build_reason:initiator",
+    name: "Builds started by a user",
+  },
 ]
 
 export interface AuditPageViewProps {

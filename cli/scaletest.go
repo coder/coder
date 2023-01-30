@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -328,7 +329,14 @@ func scaletestCleanup() *cobra.Command {
 				return err
 			}
 
-			client.BypassRatelimits = true
+			client.HTTPClient = &http.Client{
+				Transport: &headerTransport{
+					transport: http.DefaultTransport,
+					headers: map[string]string{
+						codersdk.BypassRatelimitHeader: "true",
+					},
+				},
+			}
 
 			cmd.PrintErrln("Fetching scaletest workspaces...")
 			var (
@@ -506,7 +514,14 @@ It is recommended that all rate limits are disabled on the server before running
 				return err
 			}
 
-			client.BypassRatelimits = true
+			client.HTTPClient = &http.Client{
+				Transport: &headerTransport{
+					transport: http.DefaultTransport,
+					headers: map[string]string{
+						codersdk.BypassRatelimitHeader: "true",
+					},
+				},
+			}
 
 			if count <= 0 {
 				return xerrors.Errorf("--count is required and must be greater than 0")
@@ -668,7 +683,7 @@ It is recommended that all rate limits are disabled on the server before running
 				if runCommand != "" {
 					config.ReconnectingPTY = &reconnectingpty.Config{
 						// AgentID is set by the test automatically.
-						Init: codersdk.ReconnectingPTYInit{
+						Init: codersdk.WorkspaceAgentReconnectingPTYInit{
 							ID:      uuid.Nil,
 							Height:  24,
 							Width:   80,

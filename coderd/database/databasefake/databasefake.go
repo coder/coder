@@ -283,33 +283,6 @@ func (q *fakeQuerier) InsertAgentStat(_ context.Context, p database.InsertAgentS
 	return stat, nil
 }
 
-func (q *fakeQuerier) GetLatestAgentStat(_ context.Context, agentID uuid.UUID) (database.AgentStat, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	found := false
-	latest := database.AgentStat{}
-	for _, agentStat := range q.agentStats {
-		if agentStat.AgentID != agentID {
-			continue
-		}
-		if !found {
-			latest = agentStat
-			found = true
-			continue
-		}
-		if agentStat.CreatedAt.After(latest.CreatedAt) {
-			latest = agentStat
-			found = true
-			continue
-		}
-	}
-	if !found {
-		return database.AgentStat{}, sql.ErrNoRows
-	}
-	return latest, nil
-}
-
 func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, templateID uuid.UUID) ([]database.GetTemplateDAUsRow, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -341,6 +314,42 @@ func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, templateID uuid.UUID) (
 		ids := seens[key]
 		for id := range ids {
 			rs = append(rs, database.GetTemplateDAUsRow{
+				Date:   key,
+				UserID: id,
+			})
+		}
+	}
+
+	return rs, nil
+}
+
+func (q *fakeQuerier) GetDeploymentDAUs(_ context.Context) ([]database.GetDeploymentDAUsRow, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	seens := make(map[time.Time]map[uuid.UUID]struct{})
+
+	for _, as := range q.agentStats {
+		date := as.CreatedAt.Truncate(time.Hour * 24)
+
+		dateEntry := seens[date]
+		if dateEntry == nil {
+			dateEntry = make(map[uuid.UUID]struct{})
+		}
+		dateEntry[as.UserID] = struct{}{}
+		seens[date] = dateEntry
+	}
+
+	seenKeys := maps.Keys(seens)
+	sort.Slice(seenKeys, func(i, j int) bool {
+		return seenKeys[i].Before(seenKeys[j])
+	})
+
+	var rs []database.GetDeploymentDAUsRow
+	for _, key := range seenKeys {
+		ids := seens[key]
+		for id := range ids {
+			rs = append(rs, database.GetDeploymentDAUsRow{
 				Date:   key,
 				UserID: id,
 			})
@@ -547,6 +556,11 @@ func (q *fakeQuerier) GetUserByID(_ context.Context, id uuid.UUID) (database.Use
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	return q.getUserByIDNoLock(id)
+}
+
+// getUserByIDNoLock is used by other functions in the database fake.
+func (q *fakeQuerier) getUserByIDNoLock(id uuid.UUID) (database.User, error) {
 	for _, user := range q.users {
 		if user.ID == id {
 			return user, nil
@@ -882,7 +896,7 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 		}
 
 		if arg.OwnerUsername != "" {
-			owner, err := q.GetUserByID(ctx, workspace.OwnerID)
+			owner, err := q.getUserByIDNoLock(workspace.OwnerID)
 			if err == nil && !strings.EqualFold(arg.OwnerUsername, owner.Username) {
 				continue
 			}
@@ -1303,22 +1317,6 @@ func (q *fakeQuerier) GetWorkspaceBuildByID(_ context.Context, id uuid.UUID) (da
 		}
 	}
 	return database.WorkspaceBuild{}, sql.ErrNoRows
-}
-
-func (q *fakeQuerier) GetWorkspaceCountByUserID(_ context.Context, id uuid.UUID) (int64, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-	var count int64
-	for _, workspace := range q.workspaces {
-		if workspace.OwnerID == id {
-			if workspace.Deleted {
-				continue
-			}
-
-			count++
-		}
-	}
-	return count, nil
 }
 
 func (q *fakeQuerier) GetWorkspaceBuildByJobID(_ context.Context, jobID uuid.UUID) (database.WorkspaceBuild, error) {
@@ -2040,7 +2038,7 @@ func (q *fakeQuerier) GetTemplateUserRoles(_ context.Context, id uuid.UUID) ([]d
 
 	users := make([]database.TemplateUser, 0, len(template.UserACL))
 	for k, v := range template.UserACL {
-		user, err := q.GetUserByID(context.Background(), uuid.MustParse(k))
+		user, err := q.getUserByIDNoLock(uuid.MustParse(k))
 		if err != nil && xerrors.Is(err, sql.ErrNoRows) {
 			return nil, xerrors.Errorf("get user by ID: %w", err)
 		}
@@ -2287,19 +2285,6 @@ func (q *fakeQuerier) GetWorkspaceAppByAgentIDAndSlug(_ context.Context, arg dat
 		return app, nil
 	}
 	return database.WorkspaceApp{}, sql.ErrNoRows
-}
-
-func (q *fakeQuerier) GetProvisionerDaemonByID(_ context.Context, id uuid.UUID) (database.ProvisionerDaemon, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for _, provisionerDaemon := range q.provisionerDaemons {
-		if provisionerDaemon.ID != id {
-			continue
-		}
-		return provisionerDaemon, nil
-	}
-	return database.ProvisionerDaemon{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) GetProvisionerJobByID(_ context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
@@ -3238,26 +3223,6 @@ func (q *fakeQuerier) UpdateTemplateVersionDescriptionByJobID(_ context.Context,
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateProvisionerDaemonByID(_ context.Context, arg database.UpdateProvisionerDaemonByIDParams) error {
-	if err := validateDatabaseType(arg); err != nil {
-		return err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for index, daemon := range q.provisionerDaemons {
-		if arg.ID != daemon.ID {
-			continue
-		}
-		daemon.UpdatedAt = arg.UpdatedAt
-		daemon.Provisioners = arg.Provisioners
-		q.provisionerDaemons[index] = daemon
-		return nil
-	}
-	return sql.ErrNoRows
-}
-
 func (q *fakeQuerier) UpdateWorkspaceAgentConnectionByID(_ context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
@@ -3633,7 +3598,7 @@ func (q *fakeQuerier) DeleteGitSSHKey(_ context.Context, userID uuid.UUID) error
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
+func (q *fakeQuerier) GetAuditLogsOffset(_ context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return nil, err
 	}
@@ -3659,13 +3624,13 @@ func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAu
 			continue
 		}
 		if arg.Username != "" {
-			user, err := q.GetUserByID(context.Background(), alog.UserID)
+			user, err := q.getUserByIDNoLock(alog.UserID)
 			if err == nil && !strings.EqualFold(arg.Username, user.Username) {
 				continue
 			}
 		}
 		if arg.Email != "" {
-			user, err := q.GetUserByID(context.Background(), alog.UserID)
+			user, err := q.getUserByIDNoLock(alog.UserID)
 			if err == nil && !strings.EqualFold(arg.Email, user.Email) {
 				continue
 			}
@@ -3680,8 +3645,14 @@ func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAu
 				continue
 			}
 		}
+		if arg.BuildReason != "" {
+			workspaceBuild, err := q.GetWorkspaceBuildByID(context.Background(), alog.ResourceID)
+			if err == nil && !strings.EqualFold(arg.BuildReason, string(workspaceBuild.Reason)) {
+				continue
+			}
+		}
 
-		user, err := q.GetUserByID(ctx, alog.UserID)
+		user, err := q.getUserByIDNoLock(alog.UserID)
 		userValid := err == nil
 
 		logs = append(logs, database.GetAuditLogsOffsetRow{
@@ -4038,10 +4009,6 @@ func (q *fakeQuerier) InsertGroup(_ context.Context, arg database.InsertGroupPar
 	q.groups = append(q.groups, group)
 
 	return group, nil
-}
-
-func (*fakeQuerier) GetUserGroups(_ context.Context, _ uuid.UUID) ([]database.Group, error) {
-	panic("not implemented")
 }
 
 func (q *fakeQuerier) GetGroupMembers(_ context.Context, groupID uuid.UUID) ([]database.User, error) {

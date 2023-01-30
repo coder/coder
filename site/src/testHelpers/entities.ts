@@ -13,6 +13,13 @@ export const MockTemplateDAUResponse: TypesGen.TemplateDAUsResponse = {
     { date: "2022-08-30T00:00:00Z", amount: 1 },
   ],
 }
+export const MockDeploymentDAUResponse: TypesGen.DeploymentDAUsResponse = {
+  entries: [
+    { date: "2022-08-27T00:00:00Z", amount: 1 },
+    { date: "2022-08-29T00:00:00Z", amount: 2 },
+    { date: "2022-08-30T00:00:00Z", amount: 1 },
+  ],
+}
 export const MockSessionToken: TypesGen.LoginWithPasswordResponse = {
   session_token: "my-session-token",
 }
@@ -302,7 +309,7 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   connection_timeout_seconds: 120,
   troubleshooting_url: "https://coder.com/troubleshoot",
   lifecycle_state: "starting",
-  delay_login_until_ready: true,
+  login_before_ready: false,
   startup_script_timeout_seconds: 120,
 }
 
