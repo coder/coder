@@ -10,14 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/coderd/database/databasefake"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/rbac/regosql"
 	"github.com/coder/coder/codersdk"
@@ -78,8 +77,13 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"POST:/api/v2/workspaceagents/me/report-lifecycle":      {NoAuthorize: true},
 
 		// These endpoints have more assertions. This is good, add more endpoints to assert if you can!
-		"GET:/api/v2/organizations/{organization}": {AssertObject: rbac.ResourceOrganization.WithID(a.Admin.OrganizationID).InOrg(a.Admin.OrganizationID)},
-		"GET:/api/v2/users/{user}/organizations":   {StatusCode: http.StatusOK, AssertObject: rbac.ResourceOrganization},
+		"GET:/api/v2/organizations/{organization}": {
+			AssertObject: rbac.ResourceOrganization.WithID(a.Admin.OrganizationID).InOrg(a.Admin.OrganizationID),
+		},
+		"GET:/api/v2/users/{user}/organizations": {
+			StatusCode:   http.StatusOK,
+			AssertObject: rbac.ResourceOrganization,
+		},
 		"GET:/api/v2/users/{user}/workspace/{workspacename}": {
 			AssertObject: rbac.ResourceWorkspace,
 			AssertAction: rbac.ActionRead,
@@ -258,6 +262,10 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"POST:/api/v2/organizations/{organization}/templateversions":                               {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 		"GET:/api/v2/organizations/{organization}/templateversions/{templateversionname}":          {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 		"GET:/api/v2/organizations/{organization}/templateversions/{templateversionname}/previous": {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+		"GET:/api/v2/debug/coordinator": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceDebugInfo,
+		},
 
 		// Endpoints that use the SQLQuery filter.
 		"GET:/api/v2/workspaces/": {
@@ -271,11 +279,6 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			NoAuthorize:  !isMemoryDB,
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceTemplate,
-		},
-
-		"GET:/api/v2/debug/coordinator": {
-			AssertAction: rbac.ActionRead,
-			AssertObject: rbac.ResourceDebugInfo,
 		},
 	}
 
@@ -437,7 +440,10 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 
 func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck, skipRoutes map[string]string) {
 	// Always fail auth from this point forward
-	a.authorizer.AlwaysReturn = rbac.ForbiddenWithInternal(xerrors.New("fake implementation"), nil, nil)
+	a.authorizer.Wrapped = &FakeAuthorizer{
+		Original:     a.authorizer,
+		AlwaysReturn: rbac.ForbiddenWithInternal(xerrors.New("fake implementation"), nil, nil),
+	}
 
 	routeMissing := make(map[string]bool)
 	for k, v := range assertRoute {
@@ -542,8 +548,8 @@ type authCall struct {
 }
 
 type RecordingAuthorizer struct {
-	Called       []authCall
-	AlwaysReturn error
+	Called  []authCall
+	Wrapped rbac.Authorizer
 }
 
 var _ rbac.Authorizer = (*RecordingAuthorizer)(nil)
@@ -555,7 +561,7 @@ type ActionObjectPair struct {
 
 // Pair is on the RecordingAuthorizer to be easy to find and keep the pkg
 // interface smaller.
-func (r *RecordingAuthorizer) Pair(action rbac.Action, object rbac.Objecter) ActionObjectPair {
+func (*RecordingAuthorizer) Pair(action rbac.Action, object rbac.Objecter) ActionObjectPair {
 	return ActionObjectPair{
 		Action: action,
 		Object: object.RBACObject(),
@@ -613,7 +619,6 @@ func (r *RecordingAuthorizer) AssertActor(t *testing.T, actor rbac.Subject, did 
 			return
 		}
 		if call.Actor.ID == actor.ID {
-			//action, object := did[ptr], on[ptr]
 			action, object := did[ptr].Action, did[ptr].Object
 			assert.Equalf(t, action, call.Action, "assert action %d", ptr)
 			assert.Equalf(t, object, call.Object, "assert object %d", ptr)
@@ -625,22 +630,31 @@ func (r *RecordingAuthorizer) AssertActor(t *testing.T, actor rbac.Subject, did 
 	assert.Equalf(t, len(did), ptr, "assert actor: didn't find all actions, %d missing actions", len(did)-ptr)
 }
 
-// AuthorizeSQL does not record the call. This matches the postgres behavior
+// _AuthorizeSQL does not record the call. This matches the postgres behavior
 // of not calling Authorize()
-func (r *RecordingAuthorizer) AuthorizeSQL(_ context.Context, _ rbac.Subject, _ rbac.Action, _ rbac.Object) error {
-	return r.AlwaysReturn
+func (r *RecordingAuthorizer) _AuthorizeSQL(ctx context.Context, subject rbac.Subject, action rbac.Action, object rbac.Object) error {
+	if r.Wrapped == nil {
+		panic("Developer error: RecordingAuthorizer.Wrapped is nil")
+	}
+	return r.Wrapped.Authorize(ctx, subject, action, object)
 }
 
-func (r *RecordingAuthorizer) Authorize(_ context.Context, subject rbac.Subject, action rbac.Action, object rbac.Object) error {
+func (r *RecordingAuthorizer) Authorize(ctx context.Context, subject rbac.Subject, action rbac.Action, object rbac.Object) error {
 	r.Called = append(r.Called, authCall{
 		Actor:  subject,
 		Action: action,
 		Object: object,
 	})
-	return r.AlwaysReturn
+	if r.Wrapped == nil {
+		panic("Developer error: RecordingAuthorizer.Wrapped is nil")
+	}
+	return r.Wrapped.Authorize(ctx, subject, action, object)
 }
 
 func (r *RecordingAuthorizer) Prepare(_ context.Context, subject rbac.Subject, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
+	if r.Wrapped == nil {
+		panic("Developer error: RecordingAuthorizer.Wrapped is nil")
+	}
 	return &fakePreparedAuthorizer{
 		Original:           r,
 		Subject:            subject,
@@ -662,7 +676,7 @@ type fakePreparedAuthorizer struct {
 }
 
 func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Object) error {
-	return f.Original.AuthorizeSQL(ctx, f.Subject, f.Action, object)
+	return f.Original._AuthorizeSQL(ctx, f.Subject, f.Action, object)
 }
 
 // CompileToSQL returns a compiled version of the authorizer that will work for
@@ -672,7 +686,7 @@ func (fakePreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.ConvertC
 }
 
 func (f *fakePreparedAuthorizer) Eval(object rbac.Object) bool {
-	return f.Original.AuthorizeSQL(context.Background(), f.Subject, f.Action, object) == nil
+	return f.Original._AuthorizeSQL(context.Background(), f.Subject, f.Action, object) == nil
 }
 
 func (f fakePreparedAuthorizer) RegoString() string {
@@ -689,4 +703,25 @@ func (r *RecordingAuthorizer) LastCall() *authCall {
 		return nil
 	}
 	return &r.Called[len(r.Called)-1]
+}
+
+type FakeAuthorizer struct {
+	Original *RecordingAuthorizer
+	// AlwaysReturn is the error that will be returned by Authorize.
+	AlwaysReturn error
+}
+
+var _ rbac.Authorizer = (*FakeAuthorizer)(nil)
+
+func (d *FakeAuthorizer) Authorize(_ context.Context, _ rbac.Subject, _ rbac.Action, _ rbac.Object) error {
+	return d.AlwaysReturn
+}
+
+func (d *FakeAuthorizer) Prepare(_ context.Context, subject rbac.Subject, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
+	return &fakePreparedAuthorizer{
+		Original:           d.Original,
+		Subject:            subject,
+		Action:             action,
+		HardCodedSQLString: "true",
+	}, nil
 }

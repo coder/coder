@@ -35,6 +35,7 @@ import (
 	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
@@ -182,7 +183,9 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 	// TODO: remove this once we're ready to enable authz querier by default.
 	if strings.Contains(os.Getenv("CODER_EXPERIMENTS_TEST"), "authz_querier") {
 		if options.Authorizer == nil {
-			options.Authorizer = &RecordingAuthorizer{} // TODO: hook this up and assert
+			options.Authorizer = &RecordingAuthorizer{
+				Wrapped: rbac.NewAuthorizer(prometheus.NewRegistry()),
+			}
 		}
 		options.Database = authzquery.NewAuthzQuerier(options.Database, options.Authorizer)
 	}
