@@ -2517,11 +2517,6 @@
     },
     "/users/login": {
       "post": {
-        "security": [
-          {
-            "CoderSessionToken": []
-          }
-        ],
         "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Authorization"],
