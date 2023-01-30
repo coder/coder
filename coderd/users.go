@@ -988,7 +988,6 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 //
 // @Summary Log in user
 // @ID log-in-user
-// @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Authorization

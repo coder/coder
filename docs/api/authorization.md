@@ -74,8 +74,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/users/login \
   -H 'Content-Type: application/json' \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
+  -H 'Accept: application/json'
 ```
 
 `POST /users/login`
@@ -110,5 +109,3 @@ curl -X POST http://coder-server:8080/api/v2/users/login \
 | Status | Meaning                                                      | Description | Schema                                                                             |
 | ------ | ------------------------------------------------------------ | ----------- | ---------------------------------------------------------------------------------- |
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.LoginWithPasswordResponse](schemas.md#codersdkloginwithpasswordresponse) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
