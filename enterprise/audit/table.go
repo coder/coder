@@ -21,7 +21,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"User":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"Workspace":          {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"WorkspaceBuild":     {codersdk.AuditActionStart, codersdk.AuditActionStop},
-	"AuditableGroup":     {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"Group":              {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 }
 
 type Action string
