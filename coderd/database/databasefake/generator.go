@@ -44,7 +44,7 @@ func NewGenerator(t *testing.T, db database.Store) *Generator {
 // specified.
 func (g *Generator) PrimaryOrg(ctx context.Context) database.Organization {
 	if g.primaryOrg == nil {
-		org := g.Organization(ctx, "primary-org", database.Organization{
+		org := g.Organization(ctx, database.Organization{
 			ID:          g.Lookup(primaryOrgName),
 			Name:        primaryOrgName,
 			Description: "This is the default primary organization for all tests",
@@ -81,11 +81,8 @@ func (g *Generator) RandomName() string {
 	}
 }
 
-func (g *Generator) APIKey(ctx context.Context, name string, seed database.APIKey) (key database.APIKey, token string) {
-	if name == "" {
-		name = g.RandomName()
-	}
-
+func (g *Generator) APIKey(ctx context.Context, seed database.APIKey) (key database.APIKey, token string) {
+	name := g.RandomName()
 	out := g.Populate(ctx, map[string]interface{}{
 		name: seed,
 	})
@@ -96,40 +93,44 @@ func (g *Generator) APIKey(ctx context.Context, name string, seed database.APIKe
 	return key, fmt.Sprintf("%s-%s", key.ID, secret)
 }
 
-func (g *Generator) WorkspaceResource(ctx context.Context, name string, seed database.WorkspaceResource) database.WorkspaceResource {
-	return populate(ctx, g, name, seed)
+func (g *Generator) UserLink(ctx context.Context, seed database.UserLink) database.UserLink {
+	return populate(ctx, g, "", seed)
 }
 
-func (g *Generator) Job(ctx context.Context, name string, seed database.ProvisionerJob) database.ProvisionerJob {
-	return populate(ctx, g, name, seed)
+func (g *Generator) WorkspaceResource(ctx context.Context, seed database.WorkspaceResource) database.WorkspaceResource {
+	return populate(ctx, g, "", seed)
 }
 
-func (g *Generator) Group(ctx context.Context, name string, seed database.Group) database.Group {
-	return populate(ctx, g, name, seed)
+func (g *Generator) Job(ctx context.Context, seed database.ProvisionerJob) database.ProvisionerJob {
+	return populate(ctx, g, "", seed)
 }
 
-func (g *Generator) Organization(ctx context.Context, name string, seed database.Organization) database.Organization {
-	return populate(ctx, g, name, seed)
+func (g *Generator) Group(ctx context.Context, seed database.Group) database.Group {
+	return populate(ctx, g, "", seed)
 }
 
-func (g *Generator) Workspace(ctx context.Context, name string, seed database.Workspace) database.Workspace {
-	return populate(ctx, g, name, seed)
+func (g *Generator) Organization(ctx context.Context, seed database.Organization) database.Organization {
+	return populate(ctx, g, "", seed)
 }
 
-func (g *Generator) Template(ctx context.Context, name string, seed database.Template) database.Template {
-	return populate(ctx, g, name, seed)
+func (g *Generator) Workspace(ctx context.Context, seed database.Workspace) database.Workspace {
+	return populate(ctx, g, "", seed)
 }
 
-func (g *Generator) TemplateVersion(ctx context.Context, name string, seed database.TemplateVersion) database.TemplateVersion {
-	return populate(ctx, g, name, seed)
+func (g *Generator) Template(ctx context.Context, seed database.Template) database.Template {
+	return populate(ctx, g, "", seed)
 }
 
-func (g *Generator) WorkspaceBuild(ctx context.Context, name string, seed database.WorkspaceBuild) database.WorkspaceBuild {
-	return populate(ctx, g, name, seed)
+func (g *Generator) TemplateVersion(ctx context.Context, seed database.TemplateVersion) database.TemplateVersion {
+	return populate(ctx, g, "", seed)
 }
 
-func (g *Generator) User(ctx context.Context, name string, seed database.User) database.User {
-	return populate(ctx, g, name, seed)
+func (g *Generator) WorkspaceBuild(ctx context.Context, seed database.WorkspaceBuild) database.WorkspaceBuild {
+	return populate(ctx, g, "", seed)
+}
+
+func (g *Generator) User(ctx context.Context, seed database.User) database.User {
+	return populate(ctx, g, "", seed)
 }
 
 func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) map[string]interface{} {
@@ -144,8 +145,9 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 			hashed := sha256.Sum256([]byte(secret))
 
 			key, err := db.InsertAPIKey(ctx, database.InsertAPIKeyParams{
-				ID:              takeFirst(orig.ID, id),
-				LifetimeSeconds: takeFirst(orig.LifetimeSeconds, 3600),
+				ID: takeFirst(orig.ID, id),
+				// 0 defaults to 86400 at the db layer
+				LifetimeSeconds: takeFirst(orig.LifetimeSeconds, 0),
 				HashedSecret:    takeFirstBytes(orig.HashedSecret, hashed[:]),
 				IPAddress:       pqtype.Inet{},
 				UserID:          takeFirst(orig.UserID, uuid.New()),
@@ -291,6 +293,20 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 			require.NoError(t, err, "insert resource")
 
 			seed[name] = resource
+
+		case database.UserLink:
+			link, err := db.InsertUserLink(ctx, database.InsertUserLinkParams{
+				UserID:            takeFirst(orig.UserID, uuid.New()),
+				LoginType:         takeFirst(orig.LoginType, database.LoginTypeGithub),
+				LinkedID:          takeFirst(orig.LinkedID),
+				OAuthAccessToken:  takeFirst(orig.OAuthAccessToken, uuid.NewString()),
+				OAuthRefreshToken: takeFirst(orig.OAuthAccessToken, uuid.NewString()),
+				OAuthExpiry:       takeFirstTime(orig.OAuthExpiry, time.Now().Add(time.Hour*24)),
+			})
+
+			require.NoError(t, err, "insert link")
+
+			seed[name] = link
 		}
 	}
 	return seed

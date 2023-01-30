@@ -22,19 +22,19 @@ func TestWorkspaceResourceParam(t *testing.T) {
 		r := httptest.NewRequest("GET", "/", nil)
 		ctx := context.Background()
 		gen := databasefake.NewGenerator(t, db)
-		job := gen.Job(ctx, "", database.ProvisionerJob{
+		job := gen.Job(ctx, database.ProvisionerJob{
 			Type:          jobType,
 			Provisioner:   database.ProvisionerTypeEcho,
 			StorageMethod: database.ProvisionerStorageMethodFile,
 		})
 
-		build := gen.WorkspaceBuild(ctx, "", database.WorkspaceBuild{
+		build := gen.WorkspaceBuild(ctx, database.WorkspaceBuild{
 			JobID:      job.ID,
 			Transition: database.WorkspaceTransitionStart,
 			Reason:     database.BuildReasonInitiator,
 		})
 
-		resource := gen.WorkspaceResource(ctx, "", database.WorkspaceResource{
+		resource := gen.WorkspaceResource(ctx, database.WorkspaceResource{
 			JobID:      job.ID,
 			Transition: database.WorkspaceTransitionStart,
 		})

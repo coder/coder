@@ -95,8 +95,8 @@ func TestRateLimit(t *testing.T) {
 
 		db := databasefake.New()
 		gen := databasefake.NewGenerator(t, db)
-		u := gen.User(ctx, "", database.User{})
-		_, key := gen.APIKey(ctx, "", database.APIKey{UserID: u.ID})
+		u := gen.User(ctx, database.User{})
+		_, key := gen.APIKey(ctx, database.APIKey{UserID: u.ID})
 
 		rtr := chi.NewRouter()
 		rtr.Use(httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
@@ -142,10 +142,10 @@ func TestRateLimit(t *testing.T) {
 		db := databasefake.New()
 
 		gen := databasefake.NewGenerator(t, db)
-		u := gen.User(ctx, "", database.User{
+		u := gen.User(ctx, database.User{
 			RBACRoles: []string{rbac.RoleOwner()},
 		})
-		_, key := gen.APIKey(ctx, "", database.APIKey{UserID: u.ID})
+		_, key := gen.APIKey(ctx, database.APIKey{UserID: u.ID})
 
 		rtr := chi.NewRouter()
 		rtr.Use(httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
