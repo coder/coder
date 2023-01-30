@@ -41,6 +41,7 @@ import (
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/pty"
 	"github.com/coder/coder/tailnet"
 	"github.com/coder/retry"
@@ -59,6 +60,7 @@ const (
 
 type Options struct {
 	Filesystem             afero.Fs
+	LogDir                 string
 	TempDir                string
 	ExchangeToken          func(ctx context.Context) (string, error)
 	Client                 Client
@@ -68,12 +70,12 @@ type Options struct {
 }
 
 type Client interface {
-	WorkspaceAgentMetadata(ctx context.Context) (codersdk.WorkspaceAgentMetadata, error)
-	ListenWorkspaceAgent(ctx context.Context) (net.Conn, error)
-	AgentReportStats(ctx context.Context, log slog.Logger, stats func() *codersdk.AgentStats) (io.Closer, error)
-	PostWorkspaceAgentLifecycle(ctx context.Context, state codersdk.PostWorkspaceAgentLifecycleRequest) error
-	PostWorkspaceAgentAppHealth(ctx context.Context, req codersdk.PostWorkspaceAppHealthsRequest) error
-	PostWorkspaceAgentVersion(ctx context.Context, version string) error
+	Metadata(ctx context.Context) (agentsdk.Metadata, error)
+	Listen(ctx context.Context) (net.Conn, error)
+	ReportStats(ctx context.Context, log slog.Logger, stats func() *agentsdk.Stats) (io.Closer, error)
+	PostLifecycle(ctx context.Context, state agentsdk.PostLifecycleRequest) error
+	PostAppHealth(ctx context.Context, req agentsdk.PostAppHealthsRequest) error
+	PostVersion(ctx context.Context, version string) error
 }
 
 func New(options Options) io.Closer {
@@ -85,6 +87,12 @@ func New(options Options) io.Closer {
 	}
 	if options.TempDir == "" {
 		options.TempDir = os.TempDir()
+	}
+	if options.LogDir == "" {
+		if options.TempDir != os.TempDir() {
+			options.Logger.Debug(context.Background(), "log dir not set, using temp dir", slog.F("temp_dir", options.TempDir))
+		}
+		options.LogDir = options.TempDir
 	}
 	if options.ExchangeToken == nil {
 		options.ExchangeToken = func(ctx context.Context) (string, error) {
@@ -101,6 +109,7 @@ func New(options Options) io.Closer {
 		client:                 options.Client,
 		exchangeToken:          options.ExchangeToken,
 		filesystem:             options.Filesystem,
+		logDir:                 options.LogDir,
 		tempDir:                options.TempDir,
 		lifecycleUpdate:        make(chan struct{}, 1),
 	}
@@ -113,6 +122,7 @@ type agent struct {
 	client        Client
 	exchangeToken func(ctx context.Context) (string, error)
 	filesystem    afero.Fs
+	logDir        string
 	tempDir       string
 
 	reconnectingPTYs       sync.Map
@@ -187,7 +197,7 @@ func (a *agent) reportLifecycleLoop(ctx context.Context) {
 
 			a.logger.Debug(ctx, "post lifecycle state", slog.F("state", state))
 
-			err := a.client.PostWorkspaceAgentLifecycle(ctx, codersdk.PostWorkspaceAgentLifecycleRequest{
+			err := a.client.PostLifecycle(ctx, agentsdk.PostLifecycleRequest{
 				State: state,
 			})
 			if err == nil {
@@ -226,12 +236,12 @@ func (a *agent) run(ctx context.Context) error {
 	}
 	a.sessionToken.Store(&sessionToken)
 
-	err = a.client.PostWorkspaceAgentVersion(ctx, buildinfo.Version())
+	err = a.client.PostVersion(ctx, buildinfo.Version())
 	if err != nil {
 		return xerrors.Errorf("update workspace agent version: %w", err)
 	}
 
-	metadata, err := a.client.WorkspaceAgentMetadata(ctx)
+	metadata, err := a.client.Metadata(ctx)
 	if err != nil {
 		return xerrors.Errorf("fetch metadata: %w", err)
 	}
@@ -300,7 +310,7 @@ func (a *agent) run(ctx context.Context) error {
 	appReporterCtx, appReporterCtxCancel := context.WithCancel(ctx)
 	defer appReporterCtxCancel()
 	go NewWorkspaceAppHealthReporter(
-		a.logger, metadata.Apps, a.client.PostWorkspaceAgentAppHealth)(appReporterCtx)
+		a.logger, metadata.Apps, a.client.PostAppHealth)(appReporterCtx)
 
 	a.logger.Debug(ctx, "running tailnet with derpmap", slog.F("derpmap", metadata.DERPMap))
 
@@ -326,7 +336,7 @@ func (a *agent) run(ctx context.Context) error {
 		}
 
 		// Report statistics from the created network.
-		cl, err := a.client.AgentReportStats(ctx, a.logger, func() *codersdk.AgentStats {
+		cl, err := a.client.ReportStats(ctx, a.logger, func() *agentsdk.Stats {
 			stats := network.ExtractTrafficStats()
 			return convertAgentStats(stats)
 		})
@@ -373,7 +383,7 @@ func (a *agent) trackConnGoroutine(fn func()) error {
 
 func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ *tailnet.Conn, err error) {
 	network, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:          []netip.Prefix{netip.PrefixFrom(codersdk.TailnetIP, 128)},
+		Addresses:          []netip.Prefix{netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128)},
 		DERPMap:            derpMap,
 		Logger:             a.logger.Named("tailnet"),
 		EnableTrafficStats: true,
@@ -387,7 +397,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 		}
 	}()
 
-	sshListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetSSHPort))
+	sshListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.WorkspaceAgentSSHPort))
 	if err != nil {
 		return nil, xerrors.Errorf("listen on the ssh port: %w", err)
 	}
@@ -397,29 +407,33 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 		}
 	}()
 	if err = a.trackConnGoroutine(func() {
+		var wg sync.WaitGroup
 		for {
 			conn, err := sshListener.Accept()
 			if err != nil {
-				return
+				break
 			}
+			wg.Add(1)
 			closed := make(chan struct{})
-			_ = a.trackConnGoroutine(func() {
+			go func() {
 				select {
-				case <-network.Closed():
 				case <-closed:
+				case <-a.closed:
+					_ = conn.Close()
 				}
-				_ = conn.Close()
-			})
-			_ = a.trackConnGoroutine(func() {
+				wg.Done()
+			}()
+			go func() {
 				defer close(closed)
 				a.sshServer.HandleConn(conn)
-			})
+			}()
 		}
+		wg.Wait()
 	}); err != nil {
 		return nil, err
 	}
 
-	reconnectingPTYListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetReconnectingPTYPort))
+	reconnectingPTYListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.WorkspaceAgentReconnectingPTYPort))
 	if err != nil {
 		return nil, xerrors.Errorf("listen for reconnecting pty: %w", err)
 	}
@@ -430,40 +444,52 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 	}()
 	if err = a.trackConnGoroutine(func() {
 		logger := a.logger.Named("reconnecting-pty")
-
+		var wg sync.WaitGroup
 		for {
 			conn, err := reconnectingPTYListener.Accept()
 			if err != nil {
 				logger.Debug(ctx, "accept pty failed", slog.Error(err))
-				return
+				break
 			}
-			// This cannot use a JSON decoder, since that can
-			// buffer additional data that is required for the PTY.
-			rawLen := make([]byte, 2)
-			_, err = conn.Read(rawLen)
-			if err != nil {
-				continue
-			}
-			length := binary.LittleEndian.Uint16(rawLen)
-			data := make([]byte, length)
-			_, err = conn.Read(data)
-			if err != nil {
-				continue
-			}
-			var msg codersdk.ReconnectingPTYInit
-			err = json.Unmarshal(data, &msg)
-			if err != nil {
-				continue
-			}
+			wg.Add(1)
+			closed := make(chan struct{})
 			go func() {
+				select {
+				case <-closed:
+				case <-a.closed:
+					_ = conn.Close()
+				}
+				wg.Done()
+			}()
+			go func() {
+				defer close(closed)
+				// This cannot use a JSON decoder, since that can
+				// buffer additional data that is required for the PTY.
+				rawLen := make([]byte, 2)
+				_, err = conn.Read(rawLen)
+				if err != nil {
+					return
+				}
+				length := binary.LittleEndian.Uint16(rawLen)
+				data := make([]byte, length)
+				_, err = conn.Read(data)
+				if err != nil {
+					return
+				}
+				var msg codersdk.WorkspaceAgentReconnectingPTYInit
+				err = json.Unmarshal(data, &msg)
+				if err != nil {
+					return
+				}
 				_ = a.handleReconnectingPTY(ctx, logger, msg, conn)
 			}()
 		}
+		wg.Wait()
 	}); err != nil {
 		return nil, err
 	}
 
-	speedtestListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetSpeedtestPort))
+	speedtestListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.WorkspaceAgentSpeedtestPort))
 	if err != nil {
 		return nil, xerrors.Errorf("listen for speedtest: %w", err)
 	}
@@ -473,25 +499,34 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 		}
 	}()
 	if err = a.trackConnGoroutine(func() {
+		var wg sync.WaitGroup
 		for {
 			conn, err := speedtestListener.Accept()
 			if err != nil {
 				a.logger.Debug(ctx, "speedtest listener failed", slog.Error(err))
-				return
+				break
 			}
-			if err = a.trackConnGoroutine(func() {
+			wg.Add(1)
+			closed := make(chan struct{})
+			go func() {
+				select {
+				case <-closed:
+				case <-a.closed:
+					_ = conn.Close()
+				}
+				wg.Done()
+			}()
+			go func() {
+				defer close(closed)
 				_ = speedtest.ServeConn(conn)
-			}); err != nil {
-				a.logger.Debug(ctx, "speedtest listener failed", slog.Error(err))
-				_ = conn.Close()
-				return
-			}
+			}()
 		}
+		wg.Wait()
 	}); err != nil {
 		return nil, err
 	}
 
-	statisticsListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetStatisticsPort))
+	statisticsListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.WorkspaceAgentStatisticsPort))
 	if err != nil {
 		return nil, xerrors.Errorf("listen for statistics: %w", err)
 	}
@@ -510,7 +545,10 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 			ErrorLog:          slog.Stdlib(ctx, a.logger.Named("statistics_http_server"), slog.LevelInfo),
 		}
 		go func() {
-			<-ctx.Done()
+			select {
+			case <-ctx.Done():
+			case <-a.closed:
+			}
 			_ = server.Close()
 		}()
 
@@ -531,7 +569,7 @@ func (a *agent) runCoordinator(ctx context.Context, network *tailnet.Conn) error
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	coordinator, err := a.client.ListenWorkspaceAgent(ctx)
+	coordinator, err := a.client.Listen(ctx)
 	if err != nil {
 		return err
 	}
@@ -553,7 +591,7 @@ func (a *agent) runStartupScript(ctx context.Context, script string) error {
 	}
 
 	a.logger.Info(ctx, "running startup script", slog.F("script", script))
-	writer, err := a.filesystem.OpenFile(filepath.Join(a.tempDir, "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0o600)
+	writer, err := a.filesystem.OpenFile(filepath.Join(a.logDir, "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return xerrors.Errorf("open startup script log file: %w", err)
 	}
@@ -700,8 +738,8 @@ func (a *agent) init(ctx context.Context) {
 	go a.runLoop(ctx)
 }
 
-func convertAgentStats(counts map[netlogtype.Connection]netlogtype.Counts) *codersdk.AgentStats {
-	stats := &codersdk.AgentStats{
+func convertAgentStats(counts map[netlogtype.Connection]netlogtype.Counts) *agentsdk.Stats {
+	stats := &agentsdk.Stats{
 		ConnsByProto: map[string]int64{},
 		NumConns:     int64(len(counts)),
 	}
@@ -736,7 +774,7 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	if rawMetadata == nil {
 		return nil, xerrors.Errorf("no metadata was provided: %w", err)
 	}
-	metadata, valid := rawMetadata.(codersdk.WorkspaceAgentMetadata)
+	metadata, valid := rawMetadata.(agentsdk.Metadata)
 	if !valid {
 		return nil, xerrors.Errorf("metadata is the wrong type: %T", metadata)
 	}
@@ -845,7 +883,7 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 		session.DisablePTYEmulation()
 
 		if !isQuietLogin(session.RawCommand()) {
-			metadata, ok := a.metadata.Load().(codersdk.WorkspaceAgentMetadata)
+			metadata, ok := a.metadata.Load().(agentsdk.Metadata)
 			if ok {
 				err = showMOTD(session, metadata.MOTDFile)
 				if err != nil {
@@ -918,7 +956,7 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 	return cmd.Wait()
 }
 
-func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, msg codersdk.ReconnectingPTYInit, conn net.Conn) (retErr error) {
+func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, msg codersdk.WorkspaceAgentReconnectingPTYInit, conn net.Conn) (retErr error) {
 	defer conn.Close()
 
 	connectionID := uuid.NewString()

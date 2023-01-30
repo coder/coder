@@ -57,7 +57,7 @@ INSERT INTO
 		connection_timeout_seconds,
 		troubleshooting_url,
 		motd_file,
-		delay_login_until_ready,
+		login_before_ready,
 		startup_script_timeout_seconds
 	)
 VALUES

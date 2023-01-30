@@ -5,16 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/netip"
-	"net/url"
 	"strconv"
 	"time"
 
-	"cloud.google.com/go/compute/metadata"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
@@ -77,18 +74,10 @@ type WorkspaceAgent struct {
 	DERPLatency              map[string]DERPRegion `json:"latency,omitempty"`
 	ConnectionTimeoutSeconds int32                 `json:"connection_timeout_seconds"`
 	TroubleshootingURL       string                `json:"troubleshooting_url"`
-	// DelayLoginUntilReady if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).
-	DelayLoginUntilReady bool `db:"delay_login_until_ready" json:"delay_login_until_ready"`
+	// LoginBeforeReady if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).
+	LoginBeforeReady bool `db:"login_before_ready" json:"login_before_ready"`
 	// StartupScriptTimeoutSeconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.
 	StartupScriptTimeoutSeconds int32 `db:"startup_script_timeout_seconds" json:"startup_script_timeout_seconds"`
-}
-
-type WorkspaceAgentResourceMetadata struct {
-	MemoryTotal uint64  `json:"memory_total"`
-	DiskTotal   uint64  `json:"disk_total"`
-	CPUCores    uint64  `json:"cpu_cores"`
-	CPUModel    string  `json:"cpu_model"`
-	CPUMhz      float64 `json:"cpu_mhz"`
 }
 
 type DERPRegion struct {
@@ -96,313 +85,11 @@ type DERPRegion struct {
 	LatencyMilliseconds float64 `json:"latency_ms"`
 }
 
-type WorkspaceAgentInstanceMetadata struct {
-	JailOrchestrator   string `json:"jail_orchestrator"`
-	OperatingSystem    string `json:"operating_system"`
-	Platform           string `json:"platform"`
-	PlatformFamily     string `json:"platform_family"`
-	KernelVersion      string `json:"kernel_version"`
-	KernelArchitecture string `json:"kernel_architecture"`
-	Cloud              string `json:"cloud"`
-	Jail               string `json:"jail"`
-	VNC                bool   `json:"vnc"`
-}
-
-// @typescript-ignore GoogleInstanceIdentityToken
-type GoogleInstanceIdentityToken struct {
-	JSONWebToken string `json:"json_web_token" validate:"required"`
-}
-
-// @typescript-ignore AWSInstanceIdentityToken
-type AWSInstanceIdentityToken struct {
-	Signature string `json:"signature" validate:"required"`
-	Document  string `json:"document" validate:"required"`
-}
-
-// @typescript-ignore ReconnectingPTYRequest
-type AzureInstanceIdentityToken struct {
-	Signature string `json:"signature" validate:"required"`
-	Encoding  string `json:"encoding" validate:"required"`
-}
-
-// WorkspaceAgentAuthenticateResponse is returned when an instance ID
-// has been exchanged for a session token.
-// @typescript-ignore WorkspaceAgentAuthenticateResponse
-type WorkspaceAgentAuthenticateResponse struct {
-	SessionToken string `json:"session_token"`
-}
-
 // WorkspaceAgentConnectionInfo returns required information for establishing
 // a connection with a workspace.
 // @typescript-ignore WorkspaceAgentConnectionInfo
 type WorkspaceAgentConnectionInfo struct {
 	DERPMap *tailcfg.DERPMap `json:"derp_map"`
-}
-
-// @typescript-ignore PostWorkspaceAgentVersionRequest
-// @Description x-apidocgen:skip
-type PostWorkspaceAgentVersionRequest struct {
-	Version string `json:"version"`
-}
-
-// @typescript-ignore WorkspaceAgentMetadata
-type WorkspaceAgentMetadata struct {
-	// GitAuthConfigs stores the number of Git configurations
-	// the Coder deployment has. If this number is >0, we
-	// set up special configuration in the workspace.
-	GitAuthConfigs       int               `json:"git_auth_configs"`
-	VSCodePortProxyURI   string            `json:"vscode_port_proxy_uri"`
-	Apps                 []WorkspaceApp    `json:"apps"`
-	DERPMap              *tailcfg.DERPMap  `json:"derpmap"`
-	EnvironmentVariables map[string]string `json:"environment_variables"`
-	StartupScript        string            `json:"startup_script"`
-	StartupScriptTimeout time.Duration     `json:"startup_script_timeout"`
-	Directory            string            `json:"directory"`
-	MOTDFile             string            `json:"motd_file"`
-}
-
-// AuthWorkspaceGoogleInstanceIdentity uses the Google Compute Engine Metadata API to
-// fetch a signed JWT, and exchange it for a session token for a workspace agent.
-//
-// The requesting instance must be registered as a resource in the latest history for a workspace.
-func (c *Client) AuthWorkspaceGoogleInstanceIdentity(ctx context.Context, serviceAccount string, gcpClient *metadata.Client) (WorkspaceAgentAuthenticateResponse, error) {
-	if serviceAccount == "" {
-		// This is the default name specified by Google.
-		serviceAccount = "default"
-	}
-	if gcpClient == nil {
-		gcpClient = metadata.NewClient(c.HTTPClient)
-	}
-	// "format=full" is required, otherwise the responding payload will be missing "instance_id".
-	jwt, err := gcpClient.Get(fmt.Sprintf("instance/service-accounts/%s/identity?audience=coder&format=full", serviceAccount))
-	if err != nil {
-		return WorkspaceAgentAuthenticateResponse{}, xerrors.Errorf("get metadata identity: %w", err)
-	}
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/google-instance-identity", GoogleInstanceIdentityToken{
-		JSONWebToken: jwt,
-	})
-	if err != nil {
-		return WorkspaceAgentAuthenticateResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return WorkspaceAgentAuthenticateResponse{}, readBodyAsError(res)
-	}
-	var resp WorkspaceAgentAuthenticateResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
-}
-
-// AuthWorkspaceAWSInstanceIdentity uses the Amazon Metadata API to
-// fetch a signed payload, and exchange it for a session token for a workspace agent.
-//
-// The requesting instance must be registered as a resource in the latest history for a workspace.
-func (c *Client) AuthWorkspaceAWSInstanceIdentity(ctx context.Context) (WorkspaceAgentAuthenticateResponse, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, "http://169.254.169.254/latest/api/token", nil)
-	if err != nil {
-		return WorkspaceAgentAuthenticateResponse{}, nil
-	}
-	req.Header.Set("X-aws-ec2-metadata-token-ttl-seconds", "21600")
-	res, err := c.HTTPClient.Do(req)
-	if err != nil {
-		return WorkspaceAgentAuthenticateResponse{}, err
-	}
-	defer res.Body.Close()
-	token, err := io.ReadAll(res.Body)
-	if err != nil {
-		return WorkspaceAgentAuthenticateResponse{}, xerrors.Errorf("read token: %w", err)
-	}
-
-	req, err = http.NewRequestWithContext(ctx, http.MethodGet, "http://169.254.169.254/latest/dynamic/instance-identity/signature", nil)
-	if err != nil {
-		return WorkspaceAgentAuthenticateResponse{}, nil
-	}
-	req.Header.Set("X-aws-ec2-metadata-token", string(token))
-	res, err = c.HTTPClient.Do(req)
-	if err != nil {
-		return WorkspaceAgentAuthenticateResponse{}, err
-	}
-	defer res.Body.Close()
-	signature, err := io.ReadAll(res.Body)
-	if err != nil {
-		return WorkspaceAgentAuthenticateResponse{}, xerrors.Errorf("read token: %w", err)
-	}
-
-	req, err = http.NewRequestWithContext(ctx, http.MethodGet, "http://169.254.169.254/latest/dynamic/instance-identity/document", nil)
-	if err != nil {
-		return WorkspaceAgentAuthenticateResponse{}, nil
-	}
-	req.Header.Set("X-aws-ec2-metadata-token", string(token))
-	res, err = c.HTTPClient.Do(req)
-	if err != nil {
-		return WorkspaceAgentAuthenticateResponse{}, err
-	}
-	defer res.Body.Close()
-	document, err := io.ReadAll(res.Body)
-	if err != nil {
-		return WorkspaceAgentAuthenticateResponse{}, xerrors.Errorf("read token: %w", err)
-	}
-
-	res, err = c.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/aws-instance-identity", AWSInstanceIdentityToken{
-		Signature: string(signature),
-		Document:  string(document),
-	})
-	if err != nil {
-		return WorkspaceAgentAuthenticateResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return WorkspaceAgentAuthenticateResponse{}, readBodyAsError(res)
-	}
-	var resp WorkspaceAgentAuthenticateResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
-}
-
-// AuthWorkspaceAzureInstanceIdentity uses the Azure Instance Metadata Service to
-// fetch a signed payload, and exchange it for a session token for a workspace agent.
-func (c *Client) AuthWorkspaceAzureInstanceIdentity(ctx context.Context) (WorkspaceAgentAuthenticateResponse, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://169.254.169.254/metadata/attested/document?api-version=2020-09-01", nil)
-	if err != nil {
-		return WorkspaceAgentAuthenticateResponse{}, nil
-	}
-	req.Header.Set("Metadata", "true")
-	res, err := c.HTTPClient.Do(req)
-	if err != nil {
-		return WorkspaceAgentAuthenticateResponse{}, err
-	}
-	defer res.Body.Close()
-
-	var token AzureInstanceIdentityToken
-	err = json.NewDecoder(res.Body).Decode(&token)
-	if err != nil {
-		return WorkspaceAgentAuthenticateResponse{}, err
-	}
-
-	res, err = c.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/azure-instance-identity", token)
-	if err != nil {
-		return WorkspaceAgentAuthenticateResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return WorkspaceAgentAuthenticateResponse{}, readBodyAsError(res)
-	}
-	var resp WorkspaceAgentAuthenticateResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
-}
-
-// WorkspaceAgentMetadata fetches metadata for the currently authenticated workspace agent.
-func (c *Client) WorkspaceAgentMetadata(ctx context.Context) (WorkspaceAgentMetadata, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/metadata", nil)
-	if err != nil {
-		return WorkspaceAgentMetadata{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return WorkspaceAgentMetadata{}, readBodyAsError(res)
-	}
-	var agentMetadata WorkspaceAgentMetadata
-	err = json.NewDecoder(res.Body).Decode(&agentMetadata)
-	if err != nil {
-		return WorkspaceAgentMetadata{}, err
-	}
-	accessingPort := c.URL.Port()
-	if accessingPort == "" {
-		accessingPort = "80"
-		if c.URL.Scheme == "https" {
-			accessingPort = "443"
-		}
-	}
-	accessPort, err := strconv.Atoi(accessingPort)
-	if err != nil {
-		return WorkspaceAgentMetadata{}, xerrors.Errorf("convert accessing port %q: %w", accessingPort, err)
-	}
-	// Agents can provide an arbitrary access URL that may be different
-	// that the globally configured one. This breaks the built-in DERP,
-	// which would continue to reference the global access URL.
-	//
-	// This converts all built-in DERPs to use the access URL that the
-	// metadata request was performed with.
-	for _, region := range agentMetadata.DERPMap.Regions {
-		if !region.EmbeddedRelay {
-			continue
-		}
-
-		for _, node := range region.Nodes {
-			if node.STUNOnly {
-				continue
-			}
-			node.HostName = c.URL.Hostname()
-			node.DERPPort = accessPort
-			node.ForceHTTP = c.URL.Scheme == "http"
-		}
-	}
-	return agentMetadata, nil
-}
-
-func (c *Client) ListenWorkspaceAgent(ctx context.Context) (net.Conn, error) {
-	coordinateURL, err := c.URL.Parse("/api/v2/workspaceagents/me/coordinate")
-	if err != nil {
-		return nil, xerrors.Errorf("parse url: %w", err)
-	}
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, xerrors.Errorf("create cookie jar: %w", err)
-	}
-	jar.SetCookies(coordinateURL, []*http.Cookie{{
-		Name:  SessionTokenKey,
-		Value: c.SessionToken(),
-	}})
-	httpClient := &http.Client{
-		Jar:       jar,
-		Transport: c.HTTPClient.Transport,
-	}
-	// nolint:bodyclose
-	conn, res, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
-		HTTPClient: httpClient,
-	})
-	if err != nil {
-		if res == nil {
-			return nil, err
-		}
-		return nil, readBodyAsError(res)
-	}
-
-	// Ping once every 30 seconds to ensure that the websocket is alive. If we
-	// don't get a response within 30s we kill the websocket and reconnect.
-	// See: https://github.com/coder/coder/pull/5824
-	go func() {
-		tick := 30 * time.Second
-		ticker := time.NewTicker(tick)
-		defer ticker.Stop()
-		defer func() {
-			c.Logger.Debug(ctx, "coordinate pinger exited")
-		}()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case start := <-ticker.C:
-				ctx, cancel := context.WithTimeout(ctx, tick)
-
-				err := conn.Ping(ctx)
-				if err != nil {
-					c.Logger.Error(ctx, "workspace agent coordinate ping", slog.Error(err))
-
-					err := conn.Close(websocket.StatusGoingAway, "Ping failed")
-					if err != nil {
-						c.Logger.Error(ctx, "close workspace agent coordinate websocket", slog.Error(err))
-					}
-
-					cancel()
-					return
-				}
-
-				c.Logger.Debug(ctx, "got coordinate pong", slog.F("took", time.Since(start)))
-				cancel()
-			}
-		}
-	}()
-
-	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
 }
 
 // @typescript-ignore DialWorkspaceAgentOptions
@@ -413,7 +100,7 @@ type DialWorkspaceAgentOptions struct {
 	EnableTrafficStats bool
 }
 
-func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *DialWorkspaceAgentOptions) (*AgentConn, error) {
+func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *DialWorkspaceAgentOptions) (*WorkspaceAgentConn, error) {
 	if options == nil {
 		options = &DialWorkspaceAgentOptions{}
 	}
@@ -423,7 +110,7 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 	var connInfo WorkspaceAgentConnectionInfo
 	err = json.NewDecoder(res.Body).Decode(&connInfo)
@@ -452,7 +139,7 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 		return nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(coordinateURL, []*http.Cookie{{
-		Name:  SessionTokenKey,
+		Name:  SessionTokenCookie,
 		Value: c.SessionToken(),
 	}})
 	httpClient := &http.Client{
@@ -475,7 +162,7 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 			})
 			if isFirst {
 				if res != nil && res.StatusCode == http.StatusConflict {
-					first <- readBodyAsError(res)
+					first <- ReadBodyAsError(res)
 					return
 				}
 				isFirst = false
@@ -513,7 +200,7 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 		return nil, err
 	}
 
-	return &AgentConn{
+	return &WorkspaceAgentConn{
 		Conn: conn,
 		CloseFunc: func() {
 			cancelFunc()
@@ -530,37 +217,10 @@ func (c *Client) WorkspaceAgent(ctx context.Context, id uuid.UUID) (WorkspaceAge
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return WorkspaceAgent{}, readBodyAsError(res)
+		return WorkspaceAgent{}, ReadBodyAsError(res)
 	}
 	var workspaceAgent WorkspaceAgent
 	return workspaceAgent, json.NewDecoder(res.Body).Decode(&workspaceAgent)
-}
-
-// PostWorkspaceAgentAppHealth updates the workspace agent app health status.
-func (c *Client) PostWorkspaceAgentAppHealth(ctx context.Context, req PostWorkspaceAppHealthsRequest) error {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/app-health", req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return readBodyAsError(res)
-	}
-
-	return nil
-}
-
-func (c *Client) PostWorkspaceAgentVersion(ctx context.Context, version string) error {
-	versionReq := PostWorkspaceAgentVersionRequest{Version: version}
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/version", versionReq)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return readBodyAsError(res)
-	}
-	return nil
 }
 
 // WorkspaceAgentReconnectingPTY spawns a PTY that reconnects using the token provided.
@@ -583,7 +243,7 @@ func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, agentID, rec
 		return nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(serverURL, []*http.Cookie{{
-		Name:  SessionTokenKey,
+		Name:  SessionTokenCookie,
 		Value: c.SessionToken(),
 	}})
 	httpClient := &http.Client{
@@ -596,112 +256,24 @@ func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, agentID, rec
 		if res == nil {
 			return nil, err
 		}
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
 }
 
 // WorkspaceAgentListeningPorts returns a list of ports that are currently being
 // listened on inside the workspace agent's network namespace.
-func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.UUID) (ListeningPortsResponse, error) {
+func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.UUID) (WorkspaceAgentListeningPortsResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/listening-ports", agentID), nil)
 	if err != nil {
-		return ListeningPortsResponse{}, err
+		return WorkspaceAgentListeningPortsResponse{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return ListeningPortsResponse{}, readBodyAsError(res)
+		return WorkspaceAgentListeningPortsResponse{}, ReadBodyAsError(res)
 	}
-	var listeningPorts ListeningPortsResponse
+	var listeningPorts WorkspaceAgentListeningPortsResponse
 	return listeningPorts, json.NewDecoder(res.Body).Decode(&listeningPorts)
-}
-
-// Stats records the Agent's network connection statistics for use in
-// user-facing metrics and debugging.
-// @typescript-ignore AgentStats
-type AgentStats struct {
-	// ConnsByProto is a count of connections by protocol.
-	ConnsByProto map[string]int64 `json:"conns_by_proto"`
-	// NumConns is the number of connections received by an agent.
-	NumConns int64 `json:"num_comms"`
-	// RxPackets is the number of received packets.
-	RxPackets int64 `json:"rx_packets"`
-	// RxBytes is the number of received bytes.
-	RxBytes int64 `json:"rx_bytes"`
-	// TxPackets is the number of transmitted bytes.
-	TxPackets int64 `json:"tx_packets"`
-	// TxBytes is the number of transmitted bytes.
-	TxBytes int64 `json:"tx_bytes"`
-}
-
-// @typescript-ignore AgentStatsResponse
-type AgentStatsResponse struct {
-	// ReportInterval is the duration after which the agent should send stats
-	// again.
-	ReportInterval time.Duration `json:"report_interval"`
-}
-
-func (c *Client) PostAgentStats(ctx context.Context, stats *AgentStats) (AgentStatsResponse, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/report-stats", stats)
-	if err != nil {
-		return AgentStatsResponse{}, xerrors.Errorf("send request: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return AgentStatsResponse{}, readBodyAsError(res)
-	}
-
-	var interval AgentStatsResponse
-	err = json.NewDecoder(res.Body).Decode(&interval)
-	if err != nil {
-		return AgentStatsResponse{}, xerrors.Errorf("decode stats response: %w", err)
-	}
-
-	return interval, nil
-}
-
-// AgentReportStats begins a stat streaming connection with the Coder server.
-// It is resilient to network failures and intermittent coderd issues.
-func (c *Client) AgentReportStats(
-	ctx context.Context,
-	log slog.Logger,
-	getStats func() *AgentStats,
-) (io.Closer, error) {
-	ctx, cancel := context.WithCancel(ctx)
-
-	go func() {
-		// Immediately trigger a stats push to get the correct interval.
-		timer := time.NewTimer(time.Nanosecond)
-		defer timer.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-timer.C:
-			}
-
-			var nextInterval time.Duration
-			for r := retry.New(100*time.Millisecond, time.Minute); r.Wait(ctx); {
-				resp, err := c.PostAgentStats(ctx, getStats())
-				if err != nil {
-					if !xerrors.Is(err, context.Canceled) {
-						log.Error(ctx, "report stats", slog.Error(err))
-					}
-					continue
-				}
-
-				nextInterval = resp.ReportInterval
-				break
-			}
-			timer.Reset(nextInterval)
-		}
-	}()
-
-	return closeFunc(func() error {
-		cancel()
-		return nil
-	}), nil
 }
 
 // GitProvider is a constant that represents the
@@ -715,49 +287,3 @@ const (
 	GitProviderGitLab      = "gitlab"
 	GitProviderBitBucket   = "bitbucket"
 )
-
-type WorkspaceAgentGitAuthResponse struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-	URL      string `json:"url"`
-}
-
-// WorkspaceAgentGitAuth submits a URL to fetch a GIT_ASKPASS username
-// and password for.
-// nolint:revive
-func (c *Client) WorkspaceAgentGitAuth(ctx context.Context, gitURL string, listen bool) (WorkspaceAgentGitAuthResponse, error) {
-	reqURL := "/api/v2/workspaceagents/me/gitauth?url=" + url.QueryEscape(gitURL)
-	if listen {
-		reqURL += "&listen"
-	}
-	res, err := c.Request(ctx, http.MethodGet, reqURL, nil)
-	if err != nil {
-		return WorkspaceAgentGitAuthResponse{}, xerrors.Errorf("execute request: %w", err)
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return WorkspaceAgentGitAuthResponse{}, readBodyAsError(res)
-	}
-
-	var authResp WorkspaceAgentGitAuthResponse
-	return authResp, json.NewDecoder(res.Body).Decode(&authResp)
-}
-
-// @typescript-ignore PostWorkspaceAgentLifecycleRequest
-type PostWorkspaceAgentLifecycleRequest struct {
-	State WorkspaceAgentLifecycle `json:"state"`
-}
-
-func (c *Client) PostWorkspaceAgentLifecycle(ctx context.Context, req PostWorkspaceAgentLifecycleRequest) error {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/report-lifecycle", req)
-	if err != nil {
-		return xerrors.Errorf("agent state post request: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return readBodyAsError(res)
-	}
-
-	return nil
-}

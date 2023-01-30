@@ -1,5 +1,289 @@
 # Schemas
 
+## agentsdk.AWSInstanceIdentityToken
+
+```json
+{
+  "document": "string",
+  "signature": "string"
+}
+```
+
+### Properties
+
+| Name        | Type   | Required | Restrictions | Description |
+| ----------- | ------ | -------- | ------------ | ----------- |
+| `document`  | string | true     |              |             |
+| `signature` | string | true     |              |             |
+
+## agentsdk.AuthenticateResponse
+
+```json
+{
+  "session_token": "string"
+}
+```
+
+### Properties
+
+| Name            | Type   | Required | Restrictions | Description |
+| --------------- | ------ | -------- | ------------ | ----------- |
+| `session_token` | string | false    |              |             |
+
+## agentsdk.AzureInstanceIdentityToken
+
+```json
+{
+  "encoding": "string",
+  "signature": "string"
+}
+```
+
+### Properties
+
+| Name        | Type   | Required | Restrictions | Description |
+| ----------- | ------ | -------- | ------------ | ----------- |
+| `encoding`  | string | true     |              |             |
+| `signature` | string | true     |              |             |
+
+## agentsdk.GitAuthResponse
+
+```json
+{
+  "password": "string",
+  "url": "string",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description |
+| ---------- | ------ | -------- | ------------ | ----------- |
+| `password` | string | false    |              |             |
+| `url`      | string | false    |              |             |
+| `username` | string | false    |              |             |
+
+## agentsdk.GitSSHKey
+
+```json
+{
+  "private_key": "string",
+  "public_key": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+| ------------- | ------ | -------- | ------------ | ----------- |
+| `private_key` | string | false    |              |             |
+| `public_key`  | string | false    |              |             |
+
+## agentsdk.GoogleInstanceIdentityToken
+
+```json
+{
+  "json_web_token": "string"
+}
+```
+
+### Properties
+
+| Name             | Type   | Required | Restrictions | Description |
+| ---------------- | ------ | -------- | ------------ | ----------- |
+| `json_web_token` | string | true     |              |             |
+
+## agentsdk.Metadata
+
+```json
+{
+  "apps": [
+    {
+      "command": "string",
+      "display_name": "string",
+      "external": true,
+      "health": "disabled",
+      "healthcheck": {
+        "interval": 0,
+        "threshold": 0,
+        "url": "string"
+      },
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "sharing_level": "owner",
+      "slug": "string",
+      "subdomain": true,
+      "url": "string"
+    }
+  ],
+  "derpmap": {
+    "omitDefaultRegions": true,
+    "regions": {
+      "property1": {
+        "avoid": true,
+        "embeddedRelay": true,
+        "nodes": [
+          {
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          }
+        ],
+        "regionCode": "string",
+        "regionID": 0,
+        "regionName": "string"
+      },
+      "property2": {
+        "avoid": true,
+        "embeddedRelay": true,
+        "nodes": [
+          {
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          }
+        ],
+        "regionCode": "string",
+        "regionID": 0,
+        "regionName": "string"
+      }
+    }
+  },
+  "directory": "string",
+  "environment_variables": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "git_auth_configs": 0,
+  "motd_file": "string",
+  "startup_script": "string",
+  "startup_script_timeout": 0,
+  "vscode_port_proxy_uri": "string"
+}
+```
+
+### Properties
+
+| Name                     | Type                                                    | Required | Restrictions | Description                                                                                                                                                |
+| ------------------------ | ------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps`                   | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp) | false    |              |                                                                                                                                                            |
+| `derpmap`                | [tailcfg.DERPMap](#tailcfgderpmap)                      | false    |              |                                                                                                                                                            |
+| `directory`              | string                                                  | false    |              |                                                                                                                                                            |
+| `environment_variables`  | object                                                  | false    |              |                                                                                                                                                            |
+| » `[any property]`       | string                                                  | false    |              |                                                                                                                                                            |
+| `git_auth_configs`       | integer                                                 | false    |              | Git auth configs stores the number of Git configurations the Coder deployment has. If this number is >0, we set up special configuration in the workspace. |
+| `motd_file`              | string                                                  | false    |              |                                                                                                                                                            |
+| `startup_script`         | string                                                  | false    |              |                                                                                                                                                            |
+| `startup_script_timeout` | integer                                                 | false    |              |                                                                                                                                                            |
+| `vscode_port_proxy_uri`  | string                                                  | false    |              |                                                                                                                                                            |
+
+## agentsdk.PostAppHealthsRequest
+
+```json
+{
+  "healths": {
+    "property1": "disabled",
+    "property2": "disabled"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                                                       | Required | Restrictions | Description                                                           |
+| ------------------ | ---------------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------- |
+| `healths`          | object                                                     | false    |              | Healths is a map of the workspace app name and the health of the app. |
+| » `[any property]` | [codersdk.WorkspaceAppHealth](#codersdkworkspaceapphealth) | false    |              |                                                                       |
+
+## agentsdk.PostLifecycleRequest
+
+```json
+{
+  "state": "created"
+}
+```
+
+### Properties
+
+| Name    | Type                                                                 | Required | Restrictions | Description |
+| ------- | -------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `state` | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |             |
+
+## agentsdk.PostVersionRequest
+
+```json
+{
+  "version": "string"
+}
+```
+
+### Properties
+
+| Name      | Type   | Required | Restrictions | Description |
+| --------- | ------ | -------- | ------------ | ----------- |
+| `version` | string | false    |              |             |
+
+## agentsdk.Stats
+
+```json
+{
+  "conns_by_proto": {
+    "property1": 0,
+    "property2": 0
+  },
+  "num_comms": 0,
+  "rx_bytes": 0,
+  "rx_packets": 0,
+  "tx_bytes": 0,
+  "tx_packets": 0
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description                                                  |
+| ------------------ | ------- | -------- | ------------ | ------------------------------------------------------------ |
+| `conns_by_proto`   | object  | false    |              | Conns by proto is a count of connections by protocol.        |
+| » `[any property]` | integer | false    |              |                                                              |
+| `num_comms`        | integer | false    |              | Num comms is the number of connections received by an agent. |
+| `rx_bytes`         | integer | false    |              | Rx bytes is the number of received bytes.                    |
+| `rx_packets`       | integer | false    |              | Rx packets is the number of received packets.                |
+| `tx_bytes`         | integer | false    |              | Tx bytes is the number of transmitted bytes.                 |
+| `tx_packets`       | integer | false    |              | Tx packets is the number of transmitted bytes.               |
+
+## agentsdk.StatsResponse
+
+```json
+{
+  "report_interval": 0
+}
+```
+
+### Properties
+
+| Name              | Type    | Required | Restrictions | Description                                                                    |
+| ----------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------ |
+| `report_interval` | integer | false    |              | Report interval is the duration after which the agent should send stats again. |
+
 ## coderd.SCIMUser
 
 ```json
@@ -117,22 +401,6 @@
 | `all`                 |
 | `application_connect` |
 
-## codersdk.AWSInstanceIdentityToken
-
-```json
-{
-  "document": "string",
-  "signature": "string"
-}
-```
-
-### Properties
-
-| Name        | Type   | Required | Restrictions | Description |
-| ----------- | ------ | -------- | ------------ | ----------- |
-| `document`  | string | true     |              |             |
-| `signature` | string | true     |              |             |
-
 ## codersdk.AddLicenseRequest
 
 ```json
@@ -147,63 +415,19 @@
 | --------- | ------ | -------- | ------------ | ----------- |
 | `license` | string | true     |              |             |
 
-## codersdk.AgentGitSSHKey
+## codersdk.AppHostResponse
 
 ```json
 {
-  "private_key": "string",
-  "public_key": "string"
+  "host": "string"
 }
 ```
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-| ------------- | ------ | -------- | ------------ | ----------- |
-| `private_key` | string | false    |              |             |
-| `public_key`  | string | false    |              |             |
-
-## codersdk.AgentStats
-
-```json
-{
-  "conns_by_proto": {
-    "property1": 0,
-    "property2": 0
-  },
-  "num_comms": 0,
-  "rx_bytes": 0,
-  "rx_packets": 0,
-  "tx_bytes": 0,
-  "tx_packets": 0
-}
-```
-
-### Properties
-
-| Name               | Type    | Required | Restrictions | Description                                                  |
-| ------------------ | ------- | -------- | ------------ | ------------------------------------------------------------ |
-| `conns_by_proto`   | object  | false    |              | Conns by proto is a count of connections by protocol.        |
-| » `[any property]` | integer | false    |              |                                                              |
-| `num_comms`        | integer | false    |              | Num comms is the number of connections received by an agent. |
-| `rx_bytes`         | integer | false    |              | Rx bytes is the number of received bytes.                    |
-| `rx_packets`       | integer | false    |              | Rx packets is the number of received packets.                |
-| `tx_bytes`         | integer | false    |              | Tx bytes is the number of transmitted bytes.                 |
-| `tx_packets`       | integer | false    |              | Tx packets is the number of transmitted bytes.               |
-
-## codersdk.AgentStatsResponse
-
-```json
-{
-  "report_interval": 0
-}
-```
-
-### Properties
-
-| Name              | Type    | Required | Restrictions | Description                                                                    |
-| ----------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------ |
-| `report_interval` | integer | false    |              | Report interval is the duration after which the agent should send stats again. |
+| Name   | Type   | Required | Restrictions | Description                                                   |
+| ------ | ------ | -------- | ------------ | ------------------------------------------------------------- |
+| `host` | string | false    |              | Host is the externally accessible URL for the Coder instance. |
 
 ## codersdk.AppearanceConfig
 
@@ -559,22 +783,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name             | Type    | Required | Restrictions | Description |
 | ---------------- | ------- | -------- | ------------ | ----------- |
 | `[any property]` | boolean | false    |              |             |
-
-## codersdk.AzureInstanceIdentityToken
-
-```json
-{
-  "encoding": "string",
-  "signature": "string"
-}
-```
-
-### Properties
-
-| Name        | Type   | Required | Restrictions | Description |
-| ----------- | ------ | -------- | ------------ | ----------- |
-| `encoding`  | string | true     |              |             |
-| `signature` | string | true     |              |             |
 
 ## codersdk.BuildInfoResponse
 
@@ -2506,20 +2714,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | ----- | ------ | -------- | ------------ | ----------- |
 | `key` | string | false    |              |             |
 
-## codersdk.GetAppHostResponse
-
-```json
-{
-  "host": "string"
-}
-```
-
-### Properties
-
-| Name   | Type   | Required | Restrictions | Description                                                   |
-| ------ | ------ | -------- | ------------ | ------------------------------------------------------------- |
-| `host` | string | false    |              | Host is the externally accessible URL for the Coder instance. |
-
 ## codersdk.GetUsersResponse
 
 ```json
@@ -2603,20 +2797,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `updated_at` | string | false    |              |             |
 | `user_id`    | string | false    |              |             |
 
-## codersdk.GoogleInstanceIdentityToken
-
-```json
-{
-  "json_web_token": "string"
-}
-```
-
-### Properties
-
-| Name             | Type   | Required | Restrictions | Description |
-| ---------------- | ------ | -------- | ------------ | ----------- |
-| `json_web_token` | string | true     |              |             |
-
 ## codersdk.Group
 
 ```json
@@ -2695,58 +2875,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `id`          | integer | false    |              |                                                                                                                                                                                                        |
 | `uploaded_at` | string  | false    |              |                                                                                                                                                                                                        |
 | `uuid`        | string  | false    |              |                                                                                                                                                                                                        |
-
-## codersdk.ListeningPort
-
-```json
-{
-  "network": "tcp",
-  "port": 0,
-  "process_name": "string"
-}
-```
-
-### Properties
-
-| Name           | Type                                                           | Required | Restrictions | Description              |
-| -------------- | -------------------------------------------------------------- | -------- | ------------ | ------------------------ |
-| `network`      | [codersdk.ListeningPortNetwork](#codersdklisteningportnetwork) | false    |              | only "tcp" at the moment |
-| `port`         | integer                                                        | false    |              |                          |
-| `process_name` | string                                                         | false    |              | may be empty             |
-
-## codersdk.ListeningPortNetwork
-
-```json
-"tcp"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value |
-| ----- |
-| `tcp` |
-
-## codersdk.ListeningPortsResponse
-
-```json
-{
-  "ports": [
-    {
-      "network": "tcp",
-      "port": 0,
-      "process_name": "string"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name    | Type                                                      | Required | Restrictions | Description                                                                                                                                                                                                                                            |
-| ------- | --------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `ports` | array of [codersdk.ListeningPort](#codersdklisteningport) | false    |              | If there are no ports in the list, nothing should be displayed in the UI. There must not be a "no ports available" message or anything similar, as there will always be no ports displayed on platforms where our port detection logic is unsupported. |
 
 ## codersdk.LogLevel
 
@@ -3364,38 +3492,6 @@ Parameter represents a set value for the scope.
 | ------ |
 | `none` |
 | `data` |
-
-## codersdk.PostWorkspaceAgentLifecycleRequest
-
-```json
-{
-  "state": "created"
-}
-```
-
-### Properties
-
-| Name    | Type                                                                 | Required | Restrictions | Description |
-| ------- | -------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `state` | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |             |
-
-## codersdk.PostWorkspaceAppHealthsRequest
-
-```json
-{
-  "healths": {
-    "property1": "disabled",
-    "property2": "disabled"
-  }
-}
-```
-
-### Properties
-
-| Name               | Type                                                       | Required | Restrictions | Description                                                           |
-| ------------------ | ---------------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------- |
-| `healths`          | object                                                     | false    |              | Healths is a map of the workspace app name and the health of the app. |
-| » `[any property]` | [codersdk.WorkspaceAppHealth](#codersdkworkspaceapphealth) | false    |              |                                                                       |
 
 ## codersdk.PprofConfig
 
@@ -4617,7 +4713,6 @@ Parameter represents a set value for the scope.
             "architecture": "string",
             "connection_timeout_seconds": 0,
             "created_at": "2019-08-24T14:15:22Z",
-            "delay_login_until_ready": true,
             "directory": "string",
             "disconnected_at": "2019-08-24T14:15:22Z",
             "environment_variables": {
@@ -4639,6 +4734,7 @@ Parameter represents a set value for the scope.
               }
             },
             "lifecycle_state": "created",
+            "login_before_ready": true,
             "name": "string",
             "operating_system": "string",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -4739,7 +4835,6 @@ Parameter represents a set value for the scope.
   "architecture": "string",
   "connection_timeout_seconds": 0,
   "created_at": "2019-08-24T14:15:22Z",
-  "delay_login_until_ready": true,
   "directory": "string",
   "disconnected_at": "2019-08-24T14:15:22Z",
   "environment_variables": {
@@ -4761,6 +4856,7 @@ Parameter represents a set value for the scope.
     }
   },
   "lifecycle_state": "created",
+  "login_before_ready": true,
   "name": "string",
   "operating_system": "string",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -4781,7 +4877,6 @@ Parameter represents a set value for the scope.
 | `architecture`                   | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `connection_timeout_seconds`     | integer                                                              | false    |              |                                                                                                                                                                                                            |
 | `created_at`                     | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `delay_login_until_ready`        | boolean                                                              | false    |              | Delay login until ready if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).                                                                                  |
 | `directory`                      | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `disconnected_at`                | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `environment_variables`          | object                                                               | false    |              |                                                                                                                                                                                                            |
@@ -4793,6 +4888,7 @@ Parameter represents a set value for the scope.
 | `latency`                        | object                                                               | false    |              | Latency is mapped by region name (e.g. "New York City", "Seattle").                                                                                                                                        |
 | » `[any property]`               | [codersdk.DERPRegion](#codersdkderpregion)                           | false    |              |                                                                                                                                                                                                            |
 | `lifecycle_state`                | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |                                                                                                                                                                                                            |
+| `login_before_ready`             | boolean                                                              | false    |              | Login before ready if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).                                                                                       |
 | `name`                           | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `operating_system`               | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `resource_id`                    | string                                                               | false    |              |                                                                                                                                                                                                            |
@@ -4802,20 +4898,6 @@ Parameter represents a set value for the scope.
 | `troubleshooting_url`            | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `updated_at`                     | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `version`                        | string                                                               | false    |              |                                                                                                                                                                                                            |
-
-## codersdk.WorkspaceAgentAuthenticateResponse
-
-```json
-{
-  "session_token": "string"
-}
-```
-
-### Properties
-
-| Name            | Type   | Required | Restrictions | Description |
-| --------------- | ------ | -------- | ------------ | ----------- |
-| `session_token` | string | false    |              |             |
 
 ## codersdk.WorkspaceAgentConnectionInfo
 
@@ -4881,24 +4963,6 @@ Parameter represents a set value for the scope.
 | ---------- | ---------------------------------- | -------- | ------------ | ----------- |
 | `derp_map` | [tailcfg.DERPMap](#tailcfgderpmap) | false    |              |             |
 
-## codersdk.WorkspaceAgentGitAuthResponse
-
-```json
-{
-  "password": "string",
-  "url": "string",
-  "username": "string"
-}
-```
-
-### Properties
-
-| Name       | Type   | Required | Restrictions | Description |
-| ---------- | ------ | -------- | ------------ | ----------- |
-| `password` | string | false    |              |             |
-| `url`      | string | false    |              |             |
-| `username` | string | false    |              |             |
-
 ## codersdk.WorkspaceAgentLifecycle
 
 ```json
@@ -4917,107 +4981,43 @@ Parameter represents a set value for the scope.
 | `start_error`   |
 | `ready`         |
 
-## codersdk.WorkspaceAgentMetadata
+## codersdk.WorkspaceAgentListeningPort
 
 ```json
 {
-  "apps": [
-    {
-      "command": "string",
-      "display_name": "string",
-      "external": true,
-      "health": "disabled",
-      "healthcheck": {
-        "interval": 0,
-        "threshold": 0,
-        "url": "string"
-      },
-      "icon": "string",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "sharing_level": "owner",
-      "slug": "string",
-      "subdomain": true,
-      "url": "string"
-    }
-  ],
-  "derpmap": {
-    "omitDefaultRegions": true,
-    "regions": {
-      "property1": {
-        "avoid": true,
-        "embeddedRelay": true,
-        "nodes": [
-          {
-            "certName": "string",
-            "derpport": 0,
-            "forceHTTP": true,
-            "hostName": "string",
-            "insecureForTests": true,
-            "ipv4": "string",
-            "ipv6": "string",
-            "name": "string",
-            "regionID": 0,
-            "stunonly": true,
-            "stunport": 0,
-            "stuntestIP": "string"
-          }
-        ],
-        "regionCode": "string",
-        "regionID": 0,
-        "regionName": "string"
-      },
-      "property2": {
-        "avoid": true,
-        "embeddedRelay": true,
-        "nodes": [
-          {
-            "certName": "string",
-            "derpport": 0,
-            "forceHTTP": true,
-            "hostName": "string",
-            "insecureForTests": true,
-            "ipv4": "string",
-            "ipv6": "string",
-            "name": "string",
-            "regionID": 0,
-            "stunonly": true,
-            "stunport": 0,
-            "stuntestIP": "string"
-          }
-        ],
-        "regionCode": "string",
-        "regionID": 0,
-        "regionName": "string"
-      }
-    }
-  },
-  "directory": "string",
-  "environment_variables": {
-    "property1": "string",
-    "property2": "string"
-  },
-  "git_auth_configs": 0,
-  "motd_file": "string",
-  "startup_script": "string",
-  "startup_script_timeout": 0,
-  "vscode_port_proxy_uri": "string"
+  "network": "string",
+  "port": 0,
+  "process_name": "string"
 }
 ```
 
 ### Properties
 
-| Name                     | Type                                                    | Required | Restrictions | Description                                                                                                                                                |
-| ------------------------ | ------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps`                   | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp) | false    |              |                                                                                                                                                            |
-| `derpmap`                | [tailcfg.DERPMap](#tailcfgderpmap)                      | false    |              |                                                                                                                                                            |
-| `directory`              | string                                                  | false    |              |                                                                                                                                                            |
-| `environment_variables`  | object                                                  | false    |              |                                                                                                                                                            |
-| » `[any property]`       | string                                                  | false    |              |                                                                                                                                                            |
-| `git_auth_configs`       | integer                                                 | false    |              | Git auth configs stores the number of Git configurations the Coder deployment has. If this number is >0, we set up special configuration in the workspace. |
-| `motd_file`              | string                                                  | false    |              |                                                                                                                                                            |
-| `startup_script`         | string                                                  | false    |              |                                                                                                                                                            |
-| `startup_script_timeout` | integer                                                 | false    |              |                                                                                                                                                            |
-| `vscode_port_proxy_uri`  | string                                                  | false    |              |                                                                                                                                                            |
+| Name           | Type    | Required | Restrictions | Description              |
+| -------------- | ------- | -------- | ------------ | ------------------------ |
+| `network`      | string  | false    |              | only "tcp" at the moment |
+| `port`         | integer | false    |              |                          |
+| `process_name` | string  | false    |              | may be empty             |
+
+## codersdk.WorkspaceAgentListeningPortsResponse
+
+```json
+{
+  "ports": [
+    {
+      "network": "string",
+      "port": 0,
+      "process_name": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                                                  | Required | Restrictions | Description                                                                                                                                                                                                                                            |
+| ------- | ------------------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ports` | array of [codersdk.WorkspaceAgentListeningPort](#codersdkworkspaceagentlisteningport) | false    |              | If there are no ports in the list, nothing should be displayed in the UI. There must not be a "no ports available" message or anything similar, as there will always be no ports displayed on platforms where our port detection logic is unsupported. |
 
 ## codersdk.WorkspaceAgentStatus
 
@@ -5168,7 +5168,6 @@ Parameter represents a set value for the scope.
           "architecture": "string",
           "connection_timeout_seconds": 0,
           "created_at": "2019-08-24T14:15:22Z",
-          "delay_login_until_ready": true,
           "directory": "string",
           "disconnected_at": "2019-08-24T14:15:22Z",
           "environment_variables": {
@@ -5190,6 +5189,7 @@ Parameter represents a set value for the scope.
             }
           },
           "lifecycle_state": "created",
+          "login_before_ready": true,
           "name": "string",
           "operating_system": "string",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -5336,7 +5336,6 @@ Parameter represents a set value for the scope.
       "architecture": "string",
       "connection_timeout_seconds": 0,
       "created_at": "2019-08-24T14:15:22Z",
-      "delay_login_until_ready": true,
       "directory": "string",
       "disconnected_at": "2019-08-24T14:15:22Z",
       "environment_variables": {
@@ -5358,6 +5357,7 @@ Parameter represents a set value for the scope.
         }
       },
       "lifecycle_state": "created",
+      "login_before_ready": true,
       "name": "string",
       "operating_system": "string",
       "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -5526,7 +5526,6 @@ Parameter represents a set value for the scope.
                 "architecture": "string",
                 "connection_timeout_seconds": 0,
                 "created_at": "2019-08-24T14:15:22Z",
-                "delay_login_until_ready": true,
                 "directory": "string",
                 "disconnected_at": "2019-08-24T14:15:22Z",
                 "environment_variables": {
@@ -5548,6 +5547,7 @@ Parameter represents a set value for the scope.
                   }
                 },
                 "lifecycle_state": "created",
+                "login_before_ready": true,
                 "name": "string",
                 "operating_system": "string",
                 "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",

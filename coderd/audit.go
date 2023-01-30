@@ -261,7 +261,7 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 
 func auditLogDescription(alog database.GetAuditLogsOffsetRow, additionalFields audit.AdditionalFields) string {
 	str := fmt.Sprintf("{user} %s",
-		codersdk.AuditAction(alog.Action).FriendlyString(),
+		codersdk.AuditAction(alog.Action).Friendly(),
 	)
 
 	// Strings for starting/stopping workspace builds follow the below format:

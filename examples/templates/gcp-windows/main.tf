@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.6.6"
+      version = "0.6.10"
     }
     google = {
       source  = "hashicorp/google"
@@ -49,6 +49,8 @@ resource "coder_agent" "main" {
   auth = "google-instance-identity"
   arch = "amd64"
   os   = "windows"
+
+  login_before_ready = false
 }
 
 resource "google_compute_instance" "dev" {

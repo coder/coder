@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.6.0"
+      version = "0.6.10"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -58,11 +58,13 @@ provider "coder" {}
 data "coder_workspace" "me" {}
 
 resource "coder_agent" "dev" {
-  arch           = "amd64"
-  os             = "linux"
-  startup_script = <<EOF
-    #!/bin/sh
-    set -x
+  arch = "amd64"
+  os   = "linux"
+
+  login_before_ready     = false
+  startup_script_timeout = 60
+  startup_script         = <<-EOT
+    set -ex
     # install and start code-server
     curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3
     code-server --auth none --port 13337 &
@@ -73,11 +75,11 @@ resource "coder_agent" "dev" {
       coder dotfiles "$DOTFILES_URI" -y 2>&1 | tee -a ~/.personalize.log
     fi
     if [ -x ~/personalize ]; then
-      ~/personalize | tee -a ~/.personalize.log
+      ~/personalize 2>&1 | tee -a ~/.personalize.log
     elif [ -f ~/personalize ]; then
       echo "~/personalize is not executable, skipping..." | tee -a ~/.personalize.log
     fi
-    EOF
+  EOT
 }
 
 resource "coder_app" "code-server" {

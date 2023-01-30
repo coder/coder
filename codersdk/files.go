@@ -30,7 +30,7 @@ func (c *Client) Upload(ctx context.Context, contentType string, content []byte)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusCreated && res.StatusCode != http.StatusOK {
-		return UploadResponse{}, readBodyAsError(res)
+		return UploadResponse{}, ReadBodyAsError(res)
 	}
 	var resp UploadResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
@@ -44,7 +44,7 @@ func (c *Client) Download(ctx context.Context, id uuid.UUID) ([]byte, string, er
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, "", readBodyAsError(res)
+		return nil, "", ReadBodyAsError(res)
 	}
 	data, err := io.ReadAll(res.Body)
 	if err != nil {

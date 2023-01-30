@@ -27,7 +27,7 @@ func (*agent) statisticsHandler() http.Handler {
 
 type listeningPortsHandler struct {
 	mut   sync.Mutex
-	ports []codersdk.ListeningPort
+	ports []codersdk.WorkspaceAgentListeningPort
 	mtime time.Time
 }
 
@@ -43,7 +43,7 @@ func (lp *listeningPortsHandler) handler(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.ListeningPortsResponse{
+	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.WorkspaceAgentListeningPortsResponse{
 		Ports: ports,
 	})
 }

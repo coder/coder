@@ -77,7 +77,7 @@ const (
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Applications
-// @Success 200 {object} codersdk.GetAppHostResponse
+// @Success 200 {object} codersdk.AppHostResponse
 // @Router /applications/host [get]
 func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
 	host := api.AppHostname
@@ -85,7 +85,7 @@ func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
 		host += fmt.Sprintf(":%s", api.AccessURL.Port())
 	}
 
-	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.GetAppHostResponse{
+	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AppHostResponse{
 		Host: host,
 	})
 }
@@ -862,9 +862,9 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 			return
 		}
 
-		if portInt < codersdk.MinimumListeningPort {
+		if portInt < codersdk.WorkspaceAgentMinimumListeningPort {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("Application port %d is not permitted. Coder reserves ports less than %d for internal use.", portInt, codersdk.MinimumListeningPort),
+				Message: fmt.Sprintf("Application port %d is not permitted. Coder reserves ports less than %d for internal use.", portInt, codersdk.WorkspaceAgentMinimumListeningPort),
 			})
 			return
 		}

@@ -4,10 +4,105 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
+	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 )
+
+// Entitlement represents whether a feature is licensed.
+type Entitlement string
+
+const (
+	EntitlementEntitled    Entitlement = "entitled"
+	EntitlementGracePeriod Entitlement = "grace_period"
+	EntitlementNotEntitled Entitlement = "not_entitled"
+)
+
+// FeatureName represents the internal name of a feature.
+// To add a new feature, add it to this set of enums as well as the FeatureNames
+// array below.
+type FeatureName string
+
+const (
+	FeatureUserLimit                  FeatureName = "user_limit"
+	FeatureAuditLog                   FeatureName = "audit_log"
+	FeatureBrowserOnly                FeatureName = "browser_only"
+	FeatureSCIM                       FeatureName = "scim"
+	FeatureTemplateRBAC               FeatureName = "template_rbac"
+	FeatureHighAvailability           FeatureName = "high_availability"
+	FeatureMultipleGitAuth            FeatureName = "multiple_git_auth"
+	FeatureExternalProvisionerDaemons FeatureName = "external_provisioner_daemons"
+	FeatureAppearance                 FeatureName = "appearance"
+)
+
+// FeatureNames must be kept in-sync with the Feature enum above.
+var FeatureNames = []FeatureName{
+	FeatureUserLimit,
+	FeatureAuditLog,
+	FeatureBrowserOnly,
+	FeatureSCIM,
+	FeatureTemplateRBAC,
+	FeatureHighAvailability,
+	FeatureMultipleGitAuth,
+	FeatureExternalProvisionerDaemons,
+	FeatureAppearance,
+}
+
+// Humanize returns the feature name in a human-readable format.
+func (n FeatureName) Humanize() string {
+	switch n {
+	case FeatureTemplateRBAC:
+		return "Template RBAC"
+	case FeatureSCIM:
+		return "SCIM"
+	default:
+		return strings.Title(strings.ReplaceAll(string(n), "_", " "))
+	}
+}
+
+// AlwaysEnable returns if the feature is always enabled if entitled.
+// Warning: We don't know if we need this functionality.
+// This method may disappear at any time.
+func (n FeatureName) AlwaysEnable() bool {
+	return map[FeatureName]bool{
+		FeatureMultipleGitAuth:            true,
+		FeatureExternalProvisionerDaemons: true,
+		FeatureAppearance:                 true,
+	}[n]
+}
+
+type Feature struct {
+	Entitlement Entitlement `json:"entitlement"`
+	Enabled     bool        `json:"enabled"`
+	Limit       *int64      `json:"limit,omitempty"`
+	Actual      *int64      `json:"actual,omitempty"`
+}
+
+type Entitlements struct {
+	Features   map[FeatureName]Feature `json:"features"`
+	Warnings   []string                `json:"warnings"`
+	Errors     []string                `json:"errors"`
+	HasLicense bool                    `json:"has_license"`
+	Trial      bool                    `json:"trial"`
+
+	// DEPRECATED: use Experiments instead.
+	Experimental bool `json:"experimental"`
+}
+
+func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/entitlements", nil)
+	if err != nil {
+		return Entitlements{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return Entitlements{}, ReadBodyAsError(res)
+	}
+	var ent Entitlements
+	return ent, json.NewDecoder(res.Body).Decode(&ent)
+}
 
 // DeploymentConfig is the central configuration for the coder server.
 type DeploymentConfig struct {
@@ -234,9 +329,173 @@ func (c *Client) DeploymentConfig(ctx context.Context) (DeploymentConfig, error)
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return DeploymentConfig{}, readBodyAsError(res)
+		return DeploymentConfig{}, ReadBodyAsError(res)
 	}
 
 	var df DeploymentConfig
 	return df, json.NewDecoder(res.Body).Decode(&df)
+}
+
+type AppearanceConfig struct {
+	LogoURL       string              `json:"logo_url"`
+	ServiceBanner ServiceBannerConfig `json:"service_banner"`
+}
+
+type ServiceBannerConfig struct {
+	Enabled         bool   `json:"enabled"`
+	Message         string `json:"message,omitempty"`
+	BackgroundColor string `json:"background_color,omitempty"`
+}
+
+// Appearance returns the configuration that modifies the visual
+// display of the dashboard.
+func (c *Client) Appearance(ctx context.Context) (AppearanceConfig, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/appearance", nil)
+	if err != nil {
+		return AppearanceConfig{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return AppearanceConfig{}, ReadBodyAsError(res)
+	}
+	var cfg AppearanceConfig
+	return cfg, json.NewDecoder(res.Body).Decode(&cfg)
+}
+
+func (c *Client) UpdateAppearance(ctx context.Context, appearance AppearanceConfig) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/v2/appearance", appearance)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// BuildInfoResponse contains build information for this instance of Coder.
+type BuildInfoResponse struct {
+	// ExternalURL references the current Coder version.
+	// For production builds, this will link directly to a release. For development builds, this will link to a commit.
+	ExternalURL string `json:"external_url"`
+	// Version returns the semantic version of the build.
+	Version string `json:"version"`
+}
+
+// CanonicalVersion trims build information from the version.
+// E.g. 'v0.7.4-devel+11573034' -> 'v0.7.4'.
+func (b BuildInfoResponse) CanonicalVersion() string {
+	// We do a little hack here to massage the string into a form
+	// that works well with semver.
+	trimmed := strings.ReplaceAll(b.Version, "-devel+", "+devel-")
+	return semver.Canonical(trimmed)
+}
+
+// BuildInfo returns build information for this instance of Coder.
+func (c *Client) BuildInfo(ctx context.Context) (BuildInfoResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/buildinfo", nil)
+	if err != nil {
+		return BuildInfoResponse{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return BuildInfoResponse{}, ReadBodyAsError(res)
+	}
+
+	var buildInfo BuildInfoResponse
+	return buildInfo, json.NewDecoder(res.Body).Decode(&buildInfo)
+}
+
+type Experiment string
+
+const (
+	// ExperimentAuthzQuerier is an internal experiment that enables the ExperimentAuthzQuerier
+	// interface for all RBAC operations. NOT READY FOR PRODUCTION USE.
+	ExperimentAuthzQuerier Experiment = "authz_querier"
+
+	// Add new experiments here!
+	// ExperimentExample Experiment = "example"
+)
+
+var (
+	// ExperimentsAll should include all experiments that are safe for
+	// users to opt-in to via --experimental='*'.
+	// Experiments that are not ready for consumption by all users should
+	// not be included here and will be essentially hidden.
+	ExperimentsAll = Experiments{}
+)
+
+// Experiments is a list of experiments that are enabled for the deployment.
+// Multiple experiments may be enabled at the same time.
+// Experiments are not safe for production use, and are not guaranteed to
+// be backwards compatible. They may be removed or renamed at any time.
+type Experiments []Experiment
+
+func (e Experiments) Enabled(ex Experiment) bool {
+	for _, v := range e {
+		if v == ex {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *Client) Experiments(ctx context.Context) (Experiments, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/experiments", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var exp []Experiment
+	return exp, json.NewDecoder(res.Body).Decode(&exp)
+}
+
+type DeploymentDAUsResponse struct {
+	Entries []DAUEntry `json:"entries"`
+}
+
+func (c *Client) DeploymentDAUs(ctx context.Context) (*DeploymentDAUsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/insights/daus", nil)
+	if err != nil {
+		return nil, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+
+	var resp DeploymentDAUsResponse
+	return &resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+type AppHostResponse struct {
+	// Host is the externally accessible URL for the Coder instance.
+	Host string `json:"host"`
+}
+
+// AppHost returns the site-wide application wildcard hostname without the
+// leading "*.", e.g. "apps.coder.com". Apps are accessible at:
+// "<app-name>--<agent-name>--<workspace-name>--<username>.<app-host>", e.g.
+// "my-app--agent--workspace--username.apps.coder.com".
+//
+// If the app host is not set, the response will contain an empty string.
+func (c *Client) AppHost(ctx context.Context) (AppHostResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/applications/host", nil)
+	if err != nil {
+		return AppHostResponse{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return AppHostResponse{}, ReadBodyAsError(res)
+	}
+
+	var host AppHostResponse
+	return host, json.NewDecoder(res.Body).Decode(&host)
 }

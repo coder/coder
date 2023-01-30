@@ -1,4 +1,4 @@
-name: coder
+name: ci
 
 on:
   push:
@@ -28,21 +28,72 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  typos:
-    runs-on: ubuntu-latest
+  lint:
+    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
-      - name: typos-action
-        uses: crate-ci/typos@v1.13.3
+        uses: actions/checkout@v3
+
+      # Install Go!
+      - uses: actions/setup-go@v3
+        with:
+          go-version: "~1.19"
+
+      # Check for any typos!
+      - name: Check for typos
+        uses: crate-ci/typos@v1.13.9
         with:
           config: .github/workflows/typos.toml
-      - name: Fix Helper
+      - name: Fix the typos
         if: ${{ failure() }}
         run: |
           echo "::notice:: you can automatically fix typos from your CLI:
           cargo install typos-cli
           typos -c .github/workflows/typos.toml -w"
+
+      # Check for Go linting errors!
+      - name: Lint Go
+        uses: golangci/golangci-lint-action@v3.3.1
+        with:
+          version: v1.48.0
+
+      - name: Lint shell scripts
+        uses: ludeeus/action-shellcheck@1.1.0
+        env:
+          SHELLCHECK_OPTS: --external-sources
+        with:
+          ignore: node_modules
+
+      # Lint our dashboard!
+      - name: Cache node_modules
+        id: cache-node
+        uses: actions/cache@v3
+        with:
+          path: |
+            **/node_modules
+            .eslintcache
+          key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            js-${{ runner.os }}-
+      - name: Install node_modules
+        run: ./scripts/yarn_install.sh
+      - name: Lint TypeScript
+        run: yarn lint
+        working-directory: site
+
+      # Make sure the Helm chart is linted!
+      - name: Install helm
+        uses: azure/setup-helm@v3
+        with:
+          version: v3.9.2
+      - name: Lint Helm chart
+        run: |
+          cd helm
+          make lint
+
+      # Ensure AGPL and Enterprise are separated!
+      - name: Check for AGPL code importing Enterprise...
+        run: ./scripts/check_enterprise_imports.sh
 
   changes:
     runs-on: ubuntu-latest
@@ -76,100 +127,7 @@ jobs:
         run: |
           echo "${{ toJSON(steps.filter )}}"
 
-  # Debug step
-  debug-inputs:
-    needs:
-      - changes
-    runs-on: ubuntu-latest
-    steps:
-      - id: log
-        run: |
-          echo "${{ toJSON(needs) }}"
-
-  style-lint-golangci:
-    name: style/lint/golangci
-    timeout-minutes: 5
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v3
-        with:
-          go-version: "~1.19"
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3.3.1
-        with:
-          version: v1.48.0
-
-  check-enterprise-imports:
-    name: check/enterprise-imports
-    timeout-minutes: 5
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Check imports of enterprise code
-        run: ./scripts/check_enterprise_imports.sh
-
-  style-lint-shellcheck:
-    name: style/lint/shellcheck
-    timeout-minutes: 5
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Run ShellCheck
-        uses: ludeeus/action-shellcheck@1.1.0
-        env:
-          SHELLCHECK_OPTS: --external-sources
-        with:
-          ignore: node_modules
-
-  style-lint-typescript:
-    name: "style/lint/typescript"
-    timeout-minutes: 5
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Cache Node
-        id: cache-node
-        uses: actions/cache@v3
-        with:
-          path: |
-            **/node_modules
-            .eslintcache
-          key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
-          restore-keys: |
-            js-${{ runner.os }}-
-
-      - name: Install node_modules
-        run: ./scripts/yarn_install.sh
-
-      - name: "yarn lint"
-        run: yarn lint
-        working-directory: site
-
-  style-lint-k8s:
-    name: "style/lint/k8s"
-    timeout-minutes: 5
-    needs: changes
-    if: needs.changes.outputs.k8s == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Install helm
-        uses: azure/setup-helm@v3
-        with:
-          version: v3.9.2
-
-      - name: cd helm && make lint
-        run: |
-          cd helm
-          make lint
-
   gen:
-    name: "style/gen"
     timeout-minutes: 8
     runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
     needs: changes
@@ -243,8 +201,7 @@ jobs:
       - name: Check for unstaged files
         run: ./scripts/check_unstaged.sh
 
-  style-fmt:
-    name: "style/fmt"
+  fmt:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -280,7 +237,6 @@ jobs:
         run: ./scripts/check_unstaged.sh
 
   test-go:
-    name: "test/go"
     runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' ||  matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'windows-latest-8-cores'|| matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -365,8 +321,7 @@ jobs:
           files: ./gotests.coverage
           flags: unittest-go-${{ matrix.os }}
 
-  test-go-postgres:
-    name: "test/go/postgres"
+  test-go-psql:
     runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
     # This timeout must be greater than the timeout set by `go test` in
     # `make test-postgres` to ensure we receive a trace of running
@@ -532,7 +487,6 @@ jobs:
           retention-days: 7
 
   test-js:
-    name: "test/js"
     runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
@@ -572,16 +526,11 @@ jobs:
           flags: unittest-js
 
   test-e2e:
-    name: "test/e2e/${{ matrix.os }}"
     needs:
       - changes
     if: needs.changes.outputs.docs-only == 'false'
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
     timeout-minutes: 20
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
     steps:
       - uses: actions/checkout@v3
 
@@ -693,23 +642,3 @@ jobs:
           buildScriptName: "storybook:build"
           projectToken: 695c25b6cb65
           workingDir: "./site"
-  markdown-link-check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@master
-      # For the main branch:
-      - if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
-        uses: gaurav-nelson/github-action-markdown-link-check@v1
-        with:
-          use-quiet-mode: yes
-          use-verbose-mode: yes
-          config-file: .github/workflows/mlc_config.json
-      # For pull requests:
-      - if: github.ref != 'refs/heads/main' || github.event.pull_request.head.repo.fork
-        uses: gaurav-nelson/github-action-markdown-link-check@v1
-        with:
-          use-quiet-mode: yes
-          use-verbose-mode: yes
-          check-modified-files-only: yes
-          base-branch: main
-          config-file: .github/workflows/mlc_config.json

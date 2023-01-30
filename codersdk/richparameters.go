@@ -8,6 +8,9 @@ import (
 
 func ValidateWorkspaceBuildParameters(richParameters []TemplateVersionParameter, buildParameters []WorkspaceBuildParameter) error {
 	for _, buildParameter := range buildParameters {
+		if buildParameter.Name == "" {
+			return xerrors.Errorf(`workspace build parameter name is missing`)
+		}
 		richParameter, found := findTemplateVersionParameter(richParameters, buildParameter.Name)
 		if !found {
 			return xerrors.Errorf(`workspace build parameter is not defined in the template ("coder_parameter"): %s`, buildParameter.Name)

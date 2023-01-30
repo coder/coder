@@ -53,6 +53,13 @@ func TestCommandHelp(t *testing.T) {
 				"CODER_CACHE_DIRECTORY": "/tmp/coder-cli-test-cache",
 			},
 		},
+		{
+			name: "coder agent --help",
+			cmd:  []string{"agent", "--help"},
+			env: map[string]string{
+				"CODER_AGENT_LOG_DIR": "/tmp",
+			},
+		},
 	}
 
 	root := cli.Root(cli.AGPL())

@@ -268,37 +268,59 @@ func build(ctx context.Context, store database.Store, workspace database.Workspa
 		return xerrors.Errorf("Unsupported transition: %q", trans)
 	}
 
-	newProvisionerJob, err := store.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-		ID:             provisionerJobID,
-		CreatedAt:      now,
-		UpdatedAt:      now,
-		InitiatorID:    workspace.OwnerID,
-		OrganizationID: template.OrganizationID,
-		Provisioner:    template.Provisioner,
-		Type:           database.ProvisionerJobTypeWorkspaceBuild,
-		StorageMethod:  priorJob.StorageMethod,
-		FileID:         priorJob.FileID,
-		Tags:           priorJob.Tags,
-		Input:          input,
-	})
+	lastBuildParameters, err := store.GetWorkspaceBuildParameters(ctx, priorHistory.ID)
 	if err != nil {
-		return xerrors.Errorf("insert provisioner job: %w", err)
+		return xerrors.Errorf("fetch prior workspace build parameters: %w", err)
 	}
-	_, err = store.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
-		ID:                workspaceBuildID,
-		CreatedAt:         now,
-		UpdatedAt:         now,
-		WorkspaceID:       workspace.ID,
-		TemplateVersionID: priorHistory.TemplateVersionID,
-		BuildNumber:       priorBuildNumber + 1,
-		ProvisionerState:  priorHistory.ProvisionerState,
-		InitiatorID:       workspace.OwnerID,
-		Transition:        trans,
-		JobID:             newProvisionerJob.ID,
-		Reason:            buildReason,
-	})
-	if err != nil {
-		return xerrors.Errorf("insert workspace build: %w", err)
-	}
-	return nil
+
+	return store.InTx(func(db database.Store) error {
+		newProvisionerJob, err := store.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+			ID:             provisionerJobID,
+			CreatedAt:      now,
+			UpdatedAt:      now,
+			InitiatorID:    workspace.OwnerID,
+			OrganizationID: template.OrganizationID,
+			Provisioner:    template.Provisioner,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			StorageMethod:  priorJob.StorageMethod,
+			FileID:         priorJob.FileID,
+			Tags:           priorJob.Tags,
+			Input:          input,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert provisioner job: %w", err)
+		}
+		workspaceBuild, err := store.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
+			ID:                workspaceBuildID,
+			CreatedAt:         now,
+			UpdatedAt:         now,
+			WorkspaceID:       workspace.ID,
+			TemplateVersionID: priorHistory.TemplateVersionID,
+			BuildNumber:       priorBuildNumber + 1,
+			ProvisionerState:  priorHistory.ProvisionerState,
+			InitiatorID:       workspace.OwnerID,
+			Transition:        trans,
+			JobID:             newProvisionerJob.ID,
+			Reason:            buildReason,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert workspace build: %w", err)
+		}
+
+		names := make([]string, 0, len(lastBuildParameters))
+		values := make([]string, 0, len(lastBuildParameters))
+		for _, param := range lastBuildParameters {
+			names = append(names, param.Name)
+			values = append(values, param.Value)
+		}
+		err = db.InsertWorkspaceBuildParameters(ctx, database.InsertWorkspaceBuildParametersParams{
+			WorkspaceBuildID: workspaceBuild.ID,
+			Name:             names,
+			Value:            values,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert workspace build parameters: %w", err)
+		}
+		return nil
+	}, nil)
 }
