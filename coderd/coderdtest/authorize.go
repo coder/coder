@@ -602,14 +602,13 @@ func (r *RecordingAuthorizer) UnorderedAssertActor(t *testing.T, actor rbac.Subj
 				continue
 			}
 
-			if c.Action == did.Action &&
-				c.Object.Equal(did.Object) &&
-				c.Actor.Equal(actor) {
-
-				r.Called[i].asserted = true
-				found = true
-				break InnerCalledLoop
+			if c.Action != did.Action || c.Object.Equal(did.Object) || c.Actor.Equal(actor) {
+				continue
 			}
+
+			r.Called[i].asserted = true
+			found = true
+			break InnerCalledLoop
 		}
 		require.Truef(t, found, "did not find call for %s %s", did.Action, did.Object.Type)
 	}
