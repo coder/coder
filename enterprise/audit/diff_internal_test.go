@@ -278,44 +278,6 @@ func Test_diff(t *testing.T) {
 	runDiffTests(t, []diffTest{
 		{
 			name: "Create",
-			left: audit.Empty[database.OrganizationMember](),
-			right: database.OrganizationMember{
-				UserID:         uuid.UUID{1},
-				OrganizationID: uuid.UUID{2},
-				CreatedAt:      time.Now(),
-				UpdatedAt:      time.Now(),
-				Roles:          []string{"auditor"},
-			},
-			exp: audit.Map{
-				"user_id":         audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
-				"organization_id": audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
-				"roles":           audit.OldNew{Old: ([]string)(nil), New: []string{"auditor"}},
-			},
-		},
-	})
-
-	runDiffTests(t, []diffTest{
-		{
-			name: "Create",
-			left: audit.Empty[database.Organization](),
-			right: database.Organization{
-				ID:          uuid.UUID{1},
-				Name:        "rust developers",
-				Description: "an organization for rust developers",
-				CreatedAt:   time.Now(),
-				UpdatedAt:   time.Now(),
-			},
-			exp: audit.Map{
-				"id":          audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
-				"name":        audit.OldNew{Old: "", New: "rust developers"},
-				"description": audit.OldNew{Old: "", New: "an organization for rust developers"},
-			},
-		},
-	})
-
-	runDiffTests(t, []diffTest{
-		{
-			name: "Create",
 			left: audit.Empty[database.Template](),
 			right: database.Template{
 				ID:              uuid.UUID{1},

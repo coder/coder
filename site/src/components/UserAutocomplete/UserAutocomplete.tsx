@@ -4,12 +4,12 @@ import TextField from "@material-ui/core/TextField"
 import Autocomplete from "@material-ui/lab/Autocomplete"
 import { useMachine } from "@xstate/react"
 import { User } from "api/typesGenerated"
+import { Avatar } from "components/Avatar/Avatar"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import debounce from "just-debounce-it"
 import { ChangeEvent, FC, useEffect, useState } from "react"
 import { combineClasses } from "util/combineClasses"
 import { searchUserMachine } from "xServices/users/searchUserXService"
-import { AutocompleteAvatar } from "./AutocompleteAvatar"
 
 export type UserAutocompleteProps = {
   value: User | null
@@ -77,16 +77,7 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
         <AvatarData
           title={option.username}
           subtitle={option.email}
-          highlightTitle
-          avatar={
-            option.avatar_url ? (
-              <img
-                className={styles.avatar}
-                alt={`${option.username}'s Avatar`}
-                src={option.avatar_url}
-              />
-            ) : null
-          }
+          src={option.avatar_url}
         />
       )}
       options={searchResults}
@@ -103,8 +94,8 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
           InputProps={{
             ...params.InputProps,
             onChange: handleFilterChange,
-            startAdornment: (
-              <>{showAvatar && value && <AutocompleteAvatar user={value} />}</>
+            startAdornment: showAvatar && value && (
+              <Avatar src={value.avatar_url}>{value.username}</Avatar>
             ),
             endAdornment: (
               <>
@@ -145,12 +136,6 @@ export const useStyles = makeStyles<Theme, styleProps>((theme) => {
         padding: `${theme.spacing(0, 0.5, 0, 0.5)} !important`,
       },
     }),
-
-    avatar: {
-      width: theme.spacing(4.5),
-      height: theme.spacing(4.5),
-      borderRadius: "100%",
-    },
   }
 })
 

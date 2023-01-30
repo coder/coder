@@ -111,7 +111,7 @@ func TestRateLimit(t *testing.T) {
 
 		// Bypass must fail
 		req := httptest.NewRequest("GET", "/", nil)
-		req.Header.Set(codersdk.SessionCustomHeader, key)
+		req.Header.Set(codersdk.SessionTokenHeader, key)
 		req.Header.Set(codersdk.BypassRatelimitHeader, "true")
 		rec := httptest.NewRecorder()
 		// Assert we're not using IP address.
@@ -123,7 +123,7 @@ func TestRateLimit(t *testing.T) {
 
 		require.Eventually(t, func() bool {
 			req := httptest.NewRequest("GET", "/", nil)
-			req.Header.Set(codersdk.SessionCustomHeader, key)
+			req.Header.Set(codersdk.SessionTokenHeader, key)
 			rec := httptest.NewRecorder()
 			// Assert we're not using IP address.
 			req.RemoteAddr = randRemoteAddr()
@@ -160,7 +160,7 @@ func TestRateLimit(t *testing.T) {
 
 		require.Never(t, func() bool {
 			req := httptest.NewRequest("GET", "/", nil)
-			req.Header.Set(codersdk.SessionCustomHeader, key)
+			req.Header.Set(codersdk.SessionTokenHeader, key)
 			req.Header.Set(codersdk.BypassRatelimitHeader, "true")
 			rec := httptest.NewRecorder()
 			// Assert we're not using IP address.

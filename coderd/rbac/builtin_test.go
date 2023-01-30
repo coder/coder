@@ -15,10 +15,8 @@ import (
 
 type authSubject struct {
 	// Name is helpful for test assertions
-	Name   string
-	UserID string
-	Roles  []string
-	Groups []string
+	Name  string
+	Actor rbac.Subject
 }
 
 func TestRolePermissions(t *testing.T) {
@@ -39,17 +37,17 @@ func TestRolePermissions(t *testing.T) {
 	apiKeyID := uuid.New()
 
 	// Subjects to user
-	memberMe := authSubject{Name: "member_me", UserID: currentUser.String(), Roles: []string{rbac.RoleMember()}}
-	orgMemberMe := authSubject{Name: "org_member_me", UserID: currentUser.String(), Roles: []string{rbac.RoleMember(), rbac.RoleOrgMember(orgID)}}
+	memberMe := authSubject{Name: "member_me", Actor: rbac.Subject{ID: currentUser.String(), Roles: rbac.RoleNames{rbac.RoleMember()}}}
+	orgMemberMe := authSubject{Name: "org_member_me", Actor: rbac.Subject{ID: currentUser.String(), Roles: rbac.RoleNames{rbac.RoleMember(), rbac.RoleOrgMember(orgID)}}}
 
-	owner := authSubject{Name: "owner", UserID: adminID.String(), Roles: []string{rbac.RoleMember(), rbac.RoleOwner()}}
-	orgAdmin := authSubject{Name: "org_admin", UserID: adminID.String(), Roles: []string{rbac.RoleMember(), rbac.RoleOrgMember(orgID), rbac.RoleOrgAdmin(orgID)}}
+	owner := authSubject{Name: "owner", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleNames{rbac.RoleMember(), rbac.RoleOwner()}}}
+	orgAdmin := authSubject{Name: "org_admin", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleNames{rbac.RoleMember(), rbac.RoleOrgMember(orgID), rbac.RoleOrgAdmin(orgID)}}}
 
-	otherOrgMember := authSubject{Name: "org_member_other", UserID: uuid.NewString(), Roles: []string{rbac.RoleMember(), rbac.RoleOrgMember(otherOrg)}}
-	otherOrgAdmin := authSubject{Name: "org_admin_other", UserID: uuid.NewString(), Roles: []string{rbac.RoleMember(), rbac.RoleOrgMember(otherOrg), rbac.RoleOrgAdmin(otherOrg)}}
+	otherOrgMember := authSubject{Name: "org_member_other", Actor: rbac.Subject{ID: uuid.NewString(), Roles: rbac.RoleNames{rbac.RoleMember(), rbac.RoleOrgMember(otherOrg)}}}
+	otherOrgAdmin := authSubject{Name: "org_admin_other", Actor: rbac.Subject{ID: uuid.NewString(), Roles: rbac.RoleNames{rbac.RoleMember(), rbac.RoleOrgMember(otherOrg), rbac.RoleOrgAdmin(otherOrg)}}}
 
-	templateAdmin := authSubject{Name: "template-admin", UserID: templateAdminID.String(), Roles: []string{rbac.RoleMember(), rbac.RoleTemplateAdmin()}}
-	userAdmin := authSubject{Name: "user-admin", UserID: templateAdminID.String(), Roles: []string{rbac.RoleMember(), rbac.RoleUserAdmin()}}
+	templateAdmin := authSubject{Name: "template-admin", Actor: rbac.Subject{ID: templateAdminID.String(), Roles: rbac.RoleNames{rbac.RoleMember(), rbac.RoleTemplateAdmin()}}}
+	userAdmin := authSubject{Name: "user-admin", Actor: rbac.Subject{ID: templateAdminID.String(), Roles: rbac.RoleNames{rbac.RoleMember(), rbac.RoleUserAdmin()}}}
 
 	// requiredSubjects are required to be asserted in each test case. This is
 	// to make sure one is not forgotten.
@@ -300,7 +298,12 @@ func TestRolePermissions(t *testing.T) {
 						delete(remainingSubjs, subj.Name)
 						msg := fmt.Sprintf("%s as %q doing %q on %q", c.Name, subj.Name, action, c.Resource.Type)
 						// TODO: scopey
-						err := auth.ByRoleName(context.Background(), subj.UserID, subj.Roles, rbac.ScopeAll, subj.Groups, action, c.Resource)
+						actor := subj.Actor
+						// Actor is missing some fields
+						if actor.Scope == nil {
+							actor.Scope = rbac.ScopeAll
+						}
+						err := auth.Authorize(context.Background(), actor, action, c.Resource)
 						if result {
 							assert.NoError(t, err, fmt.Sprintf("Should pass: %s", msg))
 						} else {

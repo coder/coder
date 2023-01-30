@@ -15,7 +15,7 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/testutil"
 )
 
@@ -24,7 +24,7 @@ func TestWorkspaceAgentMetadata(t *testing.T) {
 	// This test ensures that the DERP map returned properly
 	// mutates built-in DERPs with the client access URL.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		httpapi.Write(context.Background(), w, http.StatusOK, codersdk.WorkspaceAgentMetadata{
+		httpapi.Write(context.Background(), w, http.StatusOK, agentsdk.Metadata{
 			DERPMap: &tailcfg.DERPMap{
 				Regions: map[int]*tailcfg.DERPRegion{
 					1: {
@@ -41,8 +41,8 @@ func TestWorkspaceAgentMetadata(t *testing.T) {
 	}))
 	parsed, err := url.Parse(srv.URL)
 	require.NoError(t, err)
-	client := codersdk.New(parsed)
-	metadata, err := client.WorkspaceAgentMetadata(context.Background())
+	client := agentsdk.New(parsed)
+	metadata, err := client.Metadata(context.Background())
 	require.NoError(t, err)
 	region := metadata.DERPMap.Regions[1]
 	require.True(t, region.EmbeddedRelay)
@@ -58,17 +58,17 @@ func TestAgentReportStats(t *testing.T) {
 	var numReports atomic.Int64
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		numReports.Add(1)
-		httpapi.Write(context.Background(), w, http.StatusOK, codersdk.AgentStatsResponse{
+		httpapi.Write(context.Background(), w, http.StatusOK, agentsdk.StatsResponse{
 			ReportInterval: 5 * time.Millisecond,
 		})
 	}))
 	parsed, err := url.Parse(srv.URL)
 	require.NoError(t, err)
-	client := codersdk.New(parsed)
+	client := agentsdk.New(parsed)
 
 	ctx := context.Background()
-	closeStream, err := client.AgentReportStats(ctx, slogtest.Make(t, nil), func() *codersdk.AgentStats {
-		return &codersdk.AgentStats{}
+	closeStream, err := client.ReportStats(ctx, slogtest.Make(t, nil), func() *agentsdk.Stats {
+		return &agentsdk.Stats{}
 	})
 	require.NoError(t, err)
 	defer closeStream.Close()

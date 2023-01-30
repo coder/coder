@@ -12,7 +12,7 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/gitsshkey"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/testutil"
@@ -133,13 +133,13 @@ func TestAgentGitSSHKey(t *testing.T) {
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-	agentClient := codersdk.New(client.URL)
+	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(authToken)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	agentKey, err := agentClient.AgentGitSSHKey(ctx)
+	agentKey, err := agentClient.GitSSHKey(ctx)
 	require.NoError(t, err)
 	require.NotEmpty(t, agentKey.PrivateKey)
 }

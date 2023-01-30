@@ -96,7 +96,7 @@ func (c *Client) getWorkspace(ctx context.Context, id uuid.UUID, opts ...Request
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return Workspace{}, readBodyAsError(res)
+		return Workspace{}, ReadBodyAsError(res)
 	}
 	var workspace Workspace
 	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
@@ -119,7 +119,7 @@ func (c *Client) WorkspaceBuilds(ctx context.Context, req WorkspaceBuildsRequest
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 	var workspaceBuild []WorkspaceBuild
 	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
@@ -133,7 +133,7 @@ func (c *Client) CreateWorkspaceBuild(ctx context.Context, workspace uuid.UUID, 
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusCreated {
-		return WorkspaceBuild{}, readBodyAsError(res)
+		return WorkspaceBuild{}, ReadBodyAsError(res)
 	}
 	var workspaceBuild WorkspaceBuild
 	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
@@ -148,7 +148,7 @@ func (c *Client) WatchWorkspace(ctx context.Context, id uuid.UUID) (<-chan Works
 		return nil, err
 	}
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 	nextEvent := ServerSentEventReader(ctx, res.Body)
 
@@ -198,7 +198,7 @@ func (c *Client) UpdateWorkspace(ctx context.Context, id uuid.UUID, req UpdateWo
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusNoContent {
-		return readBodyAsError(res)
+		return ReadBodyAsError(res)
 	}
 	return nil
 }
@@ -218,7 +218,7 @@ func (c *Client) UpdateWorkspaceAutostart(ctx context.Context, id uuid.UUID, req
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusNoContent {
-		return readBodyAsError(res)
+		return ReadBodyAsError(res)
 	}
 	return nil
 }
@@ -238,7 +238,7 @@ func (c *Client) UpdateWorkspaceTTL(ctx context.Context, id uuid.UUID, req Updat
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusNoContent {
-		return readBodyAsError(res)
+		return ReadBodyAsError(res)
 	}
 	return nil
 }
@@ -258,7 +258,7 @@ func (c *Client) PutExtendWorkspace(ctx context.Context, id uuid.UUID, req PutEx
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNotModified {
-		return readBodyAsError(res)
+		return ReadBodyAsError(res)
 	}
 	return nil
 }
@@ -323,7 +323,7 @@ func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) (Worksp
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return WorkspacesResponse{}, readBodyAsError(res)
+		return WorkspacesResponse{}, ReadBodyAsError(res)
 	}
 
 	var wres WorkspacesResponse
@@ -343,37 +343,29 @@ func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return Workspace{}, readBodyAsError(res)
+		return Workspace{}, ReadBodyAsError(res)
 	}
 
 	var workspace Workspace
 	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
 }
 
-type GetAppHostResponse struct {
-	// Host is the externally accessible URL for the Coder instance.
-	Host string `json:"host"`
+type WorkspaceQuota struct {
+	CreditsConsumed int `json:"credits_consumed"`
+	Budget          int `json:"budget"`
 }
 
-// GetAppHost returns the site-wide application wildcard hostname without the
-// leading "*.", e.g. "apps.coder.com". Apps are accessible at:
-// "<app-name>--<agent-name>--<workspace-name>--<username>.<app-host>", e.g.
-// "my-app--agent--workspace--username.apps.coder.com".
-//
-// If the app host is not set, the response will contain an empty string.
-func (c *Client) GetAppHost(ctx context.Context) (GetAppHostResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/applications/host", nil)
+func (c *Client) WorkspaceQuota(ctx context.Context, userID string) (WorkspaceQuota, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspace-quota/%s", userID), nil)
 	if err != nil {
-		return GetAppHostResponse{}, err
+		return WorkspaceQuota{}, err
 	}
 	defer res.Body.Close()
-
 	if res.StatusCode != http.StatusOK {
-		return GetAppHostResponse{}, readBodyAsError(res)
+		return WorkspaceQuota{}, ReadBodyAsError(res)
 	}
-
-	var host GetAppHostResponse
-	return host, json.NewDecoder(res.Body).Decode(&host)
+	var quota WorkspaceQuota
+	return quota, json.NewDecoder(res.Body).Decode(&quota)
 }
 
 // WorkspaceNotifyChannel is the PostgreSQL NOTIFY

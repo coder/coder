@@ -6,7 +6,6 @@ import { Language as usersXServiceLanguage } from "xServices/users/usersXService
 import * as API from "../../api/api"
 import { Role } from "../../api/typesGenerated"
 import { Language as ResetPasswordDialogLanguage } from "../../components/Dialogs/ResetPasswordDialog/ResetPasswordDialog"
-import { GlobalSnackbar } from "../../components/GlobalSnackbar/GlobalSnackbar"
 import {
   MockAuditorRole,
   MockOwnerRole,
@@ -21,12 +20,7 @@ import { Language as UsersPageLanguage, UsersPage } from "./UsersPage"
 const { t } = i18n
 
 const renderPage = () => {
-  return renderWithAuth(
-    <>
-      <UsersPage />
-      <GlobalSnackbar />
-    </>,
-  )
+  return renderWithAuth(<UsersPage />)
 }
 
 const suspendUser = async (setupActionSpies: () => void) => {
@@ -255,7 +249,7 @@ describe("UsersPage", () => {
         expect(API.getUsers).toBeCalledWith({ offset: 0, limit: 25, q: "" }),
       )
 
-      const pageButtons = await container.querySelectorAll(
+      const pageButtons = container.querySelectorAll(
         `button[name="Page button"]`,
       )
       // count handler says there are 2 pages of results

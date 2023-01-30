@@ -179,6 +179,11 @@ func TestAuditLogsFilter(t *testing.T) {
 				SearchQuery:    "resource_type:workspace_build action:stop",
 				ExpectedResult: 1,
 			},
+			{
+				Name:           "FilterOnWorkspaceBuildStartByInitiator",
+				SearchQuery:    "resource_type:workspace_build action:start build_reason:start",
+				ExpectedResult: 1,
+			},
 		}
 
 		for _, testCase := range testCases {

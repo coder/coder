@@ -150,6 +150,11 @@ var (
 	ResourceReplicas = Object{
 		Type: "replicas",
 	}
+
+	// ResourceDebugInfo controls access to the debug routes `/api/v2/debug/*`.
+	ResourceDebugInfo = Object{
+		Type: "debug_info",
+	}
 )
 
 // Object is used to create objects for authz checks when you have none in

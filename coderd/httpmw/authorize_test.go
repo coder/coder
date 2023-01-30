@@ -126,12 +126,12 @@ func TestExtractUserRoles(t *testing.T) {
 			)
 			rtr.Get("/", func(_ http.ResponseWriter, r *http.Request) {
 				roles := httpmw.UserAuthorization(r)
-				require.ElementsMatch(t, user.ID, roles.ID)
-				require.ElementsMatch(t, expRoles, roles.Roles)
+				require.Equal(t, user.ID.String(), roles.Actor.ID)
+				require.ElementsMatch(t, expRoles, roles.Actor.Roles.Names())
 			})
 
 			req := httptest.NewRequest("GET", "/", nil)
-			req.Header.Set(codersdk.SessionCustomHeader, token)
+			req.Header.Set(codersdk.SessionTokenHeader, token)
 
 			rtr.ServeHTTP(rw, req)
 			resp := rw.Result()

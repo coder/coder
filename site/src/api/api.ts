@@ -20,8 +20,7 @@ export const hardCodedCSRFCookie = (): string => {
 export const withDefaultFeatures = (
   fs: Partial<TypesGen.Entitlements["features"]>,
 ): TypesGen.Entitlements["features"] => {
-  for (const k in TypesGen.FeatureNames) {
-    const feature = k as TypesGen.FeatureName
+  for (const feature of TypesGen.FeatureNames) {
     // Skip fields that are already filled.
     if (fs[feature] !== undefined) {
       continue
@@ -140,8 +139,7 @@ export const getTokens = async (): Promise<TypesGen.APIKey[]> => {
 }
 
 export const deleteAPIKey = async (keyId: string): Promise<void> => {
-  const response = await axios.delete("/api/v2/users/me/keys/" + keyId)
-  return response.data
+  await axios.delete("/api/v2/users/me/keys/" + keyId)
 }
 
 export const getUsers = async (
@@ -644,6 +642,12 @@ export const getTemplateDAUs = async (
   return response.data
 }
 
+export const getDeploymentDAUs =
+  async (): Promise<TypesGen.DeploymentDAUsResponse> => {
+    const response = await axios.get(`/api/v2/insights/daus`)
+    return response.data
+  }
+
 export const getTemplateACL = async (
   templateId: string,
 ): Promise<TypesGen.TemplateACL> => {
@@ -663,7 +667,7 @@ export const updateTemplateACL = async (
 }
 
 export const getApplicationsHost =
-  async (): Promise<TypesGen.GetAppHostResponse> => {
+  async (): Promise<TypesGen.AppHostResponse> => {
     const response = await axios.get(`/api/v2/applications/host`)
     return response.data
   }
@@ -714,7 +718,7 @@ export const getWorkspaceQuota = async (
 
 export const getAgentListeningPorts = async (
   agentID: string,
-): Promise<TypesGen.ListeningPortsResponse> => {
+): Promise<TypesGen.WorkspaceAgentListeningPortsResponse> => {
   const response = await axios.get(
     `/api/v2/workspaceagents/${agentID}/listening-ports`,
   )
@@ -778,4 +782,11 @@ export const getTemplateVersionLogs = async (
     `/api/v2/templateversions/${versionId}/logs`,
   )
   return response.data
+}
+
+export const updateWorkspaceVersion = async (
+  workspace: TypesGen.Workspace,
+): Promise<TypesGen.WorkspaceBuild> => {
+  const template = await getTemplate(workspace.template_id)
+  return startWorkspace(workspace.id, template.active_version_id)
 }

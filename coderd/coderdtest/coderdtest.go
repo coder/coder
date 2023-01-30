@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -67,6 +68,7 @@ import (
 	"github.com/coder/coder/coderd/updatecheck"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionerd"
@@ -175,6 +177,14 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 	}
 	if options.Database == nil {
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
+	}
+	// TODO: remove this once we're ready to enable authz querier by default.
+	if strings.Contains(os.Getenv("CODER_EXPERIMENTS_TEST"), "authz_querier") {
+		panic("Coming soon!")
+		// if options.Authorizer != nil {
+		// 	options.Authorizer = &RecordingAuthorizer{}
+		// }
+		// options.Database = authzquery.NewAuthzQuerier(options.Database, options.Authorizer)
 	}
 	if options.DeploymentConfig == nil {
 		options.DeploymentConfig = DeploymentConfig(t)
@@ -942,7 +952,7 @@ func NewAzureInstanceIdentity(t *testing.T, instanceID string) (x509.VerifyOptio
 	signature := make([]byte, base64.StdEncoding.EncodedLen(len(signatureRaw)))
 	base64.StdEncoding.Encode(signature, signatureRaw)
 
-	payload, err := json.Marshal(codersdk.AzureInstanceIdentityToken{
+	payload, err := json.Marshal(agentsdk.AzureInstanceIdentityToken{
 		Signature: string(signature),
 		Encoding:  "pkcs7",
 	})

@@ -1002,6 +1002,73 @@ func AllUserStatusValues() []UserStatus {
 	}
 }
 
+type WorkspaceAgentLifecycleState string
+
+const (
+	WorkspaceAgentLifecycleStateCreated      WorkspaceAgentLifecycleState = "created"
+	WorkspaceAgentLifecycleStateStarting     WorkspaceAgentLifecycleState = "starting"
+	WorkspaceAgentLifecycleStateStartTimeout WorkspaceAgentLifecycleState = "start_timeout"
+	WorkspaceAgentLifecycleStateStartError   WorkspaceAgentLifecycleState = "start_error"
+	WorkspaceAgentLifecycleStateReady        WorkspaceAgentLifecycleState = "ready"
+)
+
+func (e *WorkspaceAgentLifecycleState) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAgentLifecycleState(s)
+	case string:
+		*e = WorkspaceAgentLifecycleState(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAgentLifecycleState: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceAgentLifecycleState struct {
+	WorkspaceAgentLifecycleState WorkspaceAgentLifecycleState
+	Valid                        bool // Valid is true if WorkspaceAgentLifecycleState is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceAgentLifecycleState) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceAgentLifecycleState, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceAgentLifecycleState.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceAgentLifecycleState) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return ns.WorkspaceAgentLifecycleState, nil
+}
+
+func (e WorkspaceAgentLifecycleState) Valid() bool {
+	switch e {
+	case WorkspaceAgentLifecycleStateCreated,
+		WorkspaceAgentLifecycleStateStarting,
+		WorkspaceAgentLifecycleStateStartTimeout,
+		WorkspaceAgentLifecycleStateStartError,
+		WorkspaceAgentLifecycleStateReady:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceAgentLifecycleStateValues() []WorkspaceAgentLifecycleState {
+	return []WorkspaceAgentLifecycleState{
+		WorkspaceAgentLifecycleStateCreated,
+		WorkspaceAgentLifecycleStateStarting,
+		WorkspaceAgentLifecycleStateStartTimeout,
+		WorkspaceAgentLifecycleStateStartError,
+		WorkspaceAgentLifecycleStateReady,
+	}
+}
+
 type WorkspaceAppHealth string
 
 const (
@@ -1381,6 +1448,8 @@ type TemplateVersionParameter struct {
 	ValidationMin int32 `db:"validation_min" json:"validation_min"`
 	// Validation: maximum length of value
 	ValidationMax int32 `db:"validation_max" json:"validation_max"`
+	// Validation: error displayed when the regex does not match.
+	ValidationError string `db:"validation_error" json:"validation_error"`
 }
 
 type User struct {
@@ -1448,6 +1517,12 @@ type WorkspaceAgent struct {
 	TroubleshootingURL string `db:"troubleshooting_url" json:"troubleshooting_url"`
 	// Path to file inside workspace containing the message of the day (MOTD) to show to the user when logging in via SSH.
 	MOTDFile string `db:"motd_file" json:"motd_file"`
+	// The current lifecycle state reported by the workspace agent.
+	LifecycleState WorkspaceAgentLifecycleState `db:"lifecycle_state" json:"lifecycle_state"`
+	// If true, the agent will not prevent login before it is ready (e.g. startup script is still executing).
+	LoginBeforeReady bool `db:"login_before_ready" json:"login_before_ready"`
+	// The number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.
+	StartupScriptTimeoutSeconds int32 `db:"startup_script_timeout_seconds" json:"startup_script_timeout_seconds"`
 }
 
 type WorkspaceApp struct {

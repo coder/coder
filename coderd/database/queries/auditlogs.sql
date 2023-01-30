@@ -2,18 +2,41 @@
 -- ID.
 -- name: GetAuditLogsOffset :many
 SELECT
-	audit_logs.*,
+    audit_logs.*,
     users.username AS user_username,
     users.email AS user_email,
     users.created_at AS user_created_at,
     users.status AS user_status,
     users.rbac_roles AS user_roles,
     users.avatar_url AS user_avatar_url,
-		COUNT(audit_logs.*) OVER() AS count
+    COUNT(audit_logs.*) OVER () AS count
 FROM
-	audit_logs
-LEFT JOIN
-    users ON audit_logs.user_id = users.id
+    audit_logs
+    LEFT JOIN users ON audit_logs.user_id = users.id
+    LEFT JOIN
+        -- First join on workspaces to get the initial workspace create
+        -- to workspace build 1 id. This is because the first create is
+        -- is a different audit log than subsequent starts.
+        workspaces ON
+		    audit_logs.resource_type = 'workspace' AND
+			audit_logs.resource_id = workspaces.id
+    LEFT JOIN
+	    workspace_builds ON
+            -- Get the reason from the build if the resource type
+            -- is a workspace_build
+            (
+			    audit_logs.resource_type = 'workspace_build'
+                AND audit_logs.resource_id = workspace_builds.id
+			)
+            OR
+            -- Get the reason from the build #1 if this is the first
+            -- workspace create.
+            (
+				audit_logs.resource_type = 'workspace' AND
+				audit_logs.action = 'create' AND
+				workspaces.id = workspace_builds.workspace_id AND
+				workspace_builds.build_number = 1
+			)
 WHERE
     -- Filter resource_type
 	CASE
@@ -63,6 +86,12 @@ WHERE
 			"time" <= @date_to
 		ELSE true
 	END
+    -- Filter by build_reason
+    AND CASE
+	    WHEN @build_reason::text != '' THEN
+            workspace_builds.reason::text = @build_reason
+        ELSE true
+    END
 ORDER BY
     "time" DESC
 LIMIT

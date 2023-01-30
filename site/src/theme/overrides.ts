@@ -30,6 +30,10 @@ export const getOverrides = ({
         width: 36,
         height: 36,
         fontSize: 18,
+
+        "& .MuiSvgIcon-root": {
+          width: "50%",
+        },
       },
       colorDefault: {
         backgroundColor: colors.gray[6],

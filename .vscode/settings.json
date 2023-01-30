@@ -1,8 +1,10 @@
 {
   "cSpell.words": [
     "afero",
+    "agentsdk",
     "apps",
     "ASKPASS",
+    "autostop",
     "awsidentity",
     "bodyclose",
     "buildinfo",
@@ -117,6 +119,7 @@
     "tailnet",
     "tailnettest",
     "Tailscale",
+    "tbody",
     "TCGETS",
     "tcpip",
     "TCSETS",
@@ -128,6 +131,7 @@
     "tfjson",
     "tfplan",
     "tfstate",
+    "thead",
     "tios",
     "tmpdir",
     "tparallel",
@@ -180,6 +184,10 @@
   "files.exclude": {
     "**/node_modules": true
   },
+  "search.exclude": {
+    "scripts/metricsdocgen/metrics": true,
+    "docs/api/*.md": true
+  },
   // Ensure files always have a newline.
   "files.insertFinalNewline": true,
   "go.lintTool": "golangci-lint",
@@ -198,5 +206,12 @@
   "go.testFlags": ["-short", "-coverpkg=./..."],
   // We often use a version of TypeScript that's ahead of the version shipped
   // with VS Code.
-  "typescript.tsdk": "./site/node_modules/typescript/lib"
+  "typescript.tsdk": "./site/node_modules/typescript/lib",
+  "grammarly.selectors": [
+    {
+      "language": "markdown",
+      "scheme": "file",
+      "pattern": "docs/contributing/frontend.md"
+    }
+  ]
 }

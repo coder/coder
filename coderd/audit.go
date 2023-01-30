@@ -67,6 +67,7 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 		Email:        filter.Email,
 		DateFrom:     filter.DateFrom,
 		DateTo:       filter.DateTo,
+		BuildReason:  filter.BuildReason,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -260,7 +261,7 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 
 func auditLogDescription(alog database.GetAuditLogsOffsetRow, additionalFields AdditionalFields) string {
 	str := fmt.Sprintf("{user} %s",
-		codersdk.AuditAction(alog.Action).FriendlyString(),
+		codersdk.AuditAction(alog.Action).Friendly(),
 	)
 
 	// Strings for starting/stopping workspace builds follow the below format:
@@ -443,6 +444,7 @@ func auditSearchQuery(query string) (database.GetAuditLogsOffsetParams, []coders
 		Email:        parser.String(searchParams, "", "email"),
 		DateFrom:     parsedDateFrom,
 		DateTo:       parsedDateTo,
+		BuildReason:  buildReasonFromString(parser.String(searchParams, "", "build_reason")),
 	}
 
 	return filter, parser.Errors
@@ -450,8 +452,6 @@ func auditSearchQuery(query string) (database.GetAuditLogsOffsetParams, []coders
 
 func resourceTypeFromString(resourceTypeString string) string {
 	switch codersdk.ResourceType(resourceTypeString) {
-	case codersdk.ResourceTypeOrganization:
-		return resourceTypeString
 	case codersdk.ResourceTypeTemplate:
 		return resourceTypeString
 	case codersdk.ResourceTypeTemplateVersion:
@@ -484,6 +484,19 @@ func actionFromString(actionString string) string {
 		return actionString
 	case codersdk.AuditActionStop:
 		return actionString
+	default:
+	}
+	return ""
+}
+
+func buildReasonFromString(buildReasonString string) string {
+	switch codersdk.BuildReason(buildReasonString) {
+	case codersdk.BuildReasonInitiator:
+		return buildReasonString
+	case codersdk.BuildReasonAutostart:
+		return buildReasonString
+	case codersdk.BuildReasonAutostop:
+		return buildReasonString
 	default:
 	}
 	return ""

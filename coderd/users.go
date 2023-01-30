@@ -855,7 +855,7 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 
 	// Just treat adding & removing as "assigning" for now.
 	for _, roleName := range append(added, removed...) {
-		if !rbac.CanAssignRole(actorRoles.Roles, roleName) {
+		if !rbac.CanAssignRole(actorRoles.Actor.Roles, roleName) {
 			httpapi.Forbidden(rw)
 			return
 		}
@@ -1079,7 +1079,7 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 	cookie := &http.Cookie{
 		// MaxAge < 0 means to delete the cookie now.
 		MaxAge: -1,
-		Name:   codersdk.SessionTokenKey,
+		Name:   codersdk.SessionTokenCookie,
 		Path:   "/",
 	}
 	http.SetCookie(rw, cookie)

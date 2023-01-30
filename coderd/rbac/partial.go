@@ -121,13 +121,30 @@ EachQueryLoop:
 	return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), pa.input, nil)
 }
 
-func newPartialAuthorizer(ctx context.Context, subjectID string, roles []Role, scope Scope, groups []string, action Action, objectType string) (*PartialAuthorizer, error) {
+func newPartialAuthorizer(ctx context.Context, subject Subject, action Action, objectType string) (*PartialAuthorizer, error) {
+	if subject.Roles == nil {
+		return nil, xerrors.Errorf("subject must have roles")
+	}
+	if subject.Scope == nil {
+		return nil, xerrors.Errorf("subject must have a scope")
+	}
+
+	roles, err := subject.Roles.Expand()
+	if err != nil {
+		return nil, xerrors.Errorf("expand roles: %w", err)
+	}
+
+	scope, err := subject.Scope.Expand()
+	if err != nil {
+		return nil, xerrors.Errorf("expand scope: %w", err)
+	}
+
 	input := map[string]interface{}{
 		"subject": authSubject{
-			ID:     subjectID,
+			ID:     subject.ID,
 			Roles:  roles,
 			Scope:  scope,
-			Groups: groups,
+			Groups: subject.Groups,
 		},
 		"object": map[string]string{
 			"type": objectType,

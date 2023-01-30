@@ -6,7 +6,7 @@ terraform {
     }
     coder = {
       source  = "coder/coder"
-      version = "0.6.6"
+      version = "0.6.10"
     }
   }
 }
@@ -92,15 +92,19 @@ resource "aws_ecs_service" "workspace" {
 data "coder_workspace" "me" {}
 
 resource "coder_agent" "coder" {
-  arch           = "amd64"
-  auth           = "token"
-  os             = "linux"
-  dir            = "/home/coder"
-  startup_script = <<EOT
-    #!/bin/bash
+  arch = "amd64"
+  auth = "token"
+  os   = "linux"
+  dir  = "/home/coder"
+
+  login_before_ready     = false
+  startup_script_timeout = 180
+  startup_script         = <<-EOT
+    set -e
+
     # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3 | tee code-server-install.log
-    code-server --auth none --port 13337 | tee code-server-install.log &
+    curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3
+    code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
   EOT
 }
 

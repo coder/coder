@@ -51,9 +51,7 @@ export const searchUserMachine = createMachine(
   {
     services: {
       searchUsers: async (_, { query }) =>
-        await (
-          await getUsers(queryToFilter(query))
-        ).users,
+        (await getUsers(queryToFilter(query))).users,
     },
     actions: {
       assignSearchResults: assign({

@@ -56,14 +56,16 @@ type AuthorizationObject struct {
 	ResourceID string `json:"resource_id,omitempty"`
 }
 
-func (c *Client) CheckAuthorization(ctx context.Context, req AuthorizationRequest) (AuthorizationResponse, error) {
+// AuthCheck allows the authenticated user to check if they have the given permissions
+// to a set of resources.
+func (c *Client) AuthCheck(ctx context.Context, req AuthorizationRequest) (AuthorizationResponse, error) {
 	res, err := c.Request(ctx, http.MethodPost, "/api/v2/authcheck", req)
 	if err != nil {
 		return nil, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return AuthorizationResponse{}, readBodyAsError(res)
+		return AuthorizationResponse{}, ReadBodyAsError(res)
 	}
 	var resp AuthorizationResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)

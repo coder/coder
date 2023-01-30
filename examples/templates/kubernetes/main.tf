@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.6.6"
+      version = "0.6.10"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
@@ -49,14 +49,17 @@ provider "kubernetes" {
 data "coder_workspace" "me" {}
 
 resource "coder_agent" "main" {
-  os             = "linux"
-  arch           = "amd64"
-  startup_script = <<EOT
-    #!/bin/bash
+  os   = "linux"
+  arch = "amd64"
+
+  login_before_ready     = false
+  startup_script_timeout = 180
+  startup_script         = <<-EOT
+    set -e
 
     # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh -s
-    code-server --auth none --port 13337 &
+    curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3
+    code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
   EOT
 }
 
@@ -133,10 +136,10 @@ resource "kubernetes_pod" "main" {
       fs_group    = "1000"
     }
     container {
-      name    = "dev"
-      image   = "codercom/enterprise-base:ubuntu"
+      name              = "dev"
+      image             = "codercom/enterprise-base:ubuntu"
       image_pull_policy = "Always"
-      command = ["sh", "-c", coder_agent.main.init_script]
+      command           = ["sh", "-c", coder_agent.main.init_script]
       security_context {
         run_as_user = "1000"
       }

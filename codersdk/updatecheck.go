@@ -26,7 +26,7 @@ func (c *Client) UpdateCheck(ctx context.Context) (UpdateCheckResponse, error) {
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return UpdateCheckResponse{}, readBodyAsError(res)
+		return UpdateCheckResponse{}, ReadBodyAsError(res)
 	}
 
 	var buildInfo UpdateCheckResponse

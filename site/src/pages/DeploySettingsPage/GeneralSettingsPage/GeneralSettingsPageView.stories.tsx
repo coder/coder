@@ -1,5 +1,9 @@
 import { ComponentMeta, Story } from "@storybook/react"
 import {
+  makeMockApiError,
+  MockDeploymentDAUResponse,
+} from "testHelpers/entities"
+import {
   GeneralSettingsPageView,
   GeneralSettingsPageViewProps,
 } from "./GeneralSettingsPageView"
@@ -24,6 +28,9 @@ export default {
         },
       },
     },
+    deploymentDAUs: {
+      defaultValue: MockDeploymentDAUResponse,
+    },
   },
 } as ComponentMeta<typeof GeneralSettingsPageView>
 
@@ -31,3 +38,14 @@ const Template: Story<GeneralSettingsPageViewProps> = (args) => (
   <GeneralSettingsPageView {...args} />
 )
 export const Page = Template.bind({})
+
+export const NoDAUs = Template.bind({})
+NoDAUs.args = {
+  deploymentDAUs: undefined,
+}
+
+export const DAUError = Template.bind({})
+DAUError.args = {
+  deploymentDAUs: undefined,
+  getDeploymentDAUsError: makeMockApiError({ message: "Error fetching DAUs." }),
+}

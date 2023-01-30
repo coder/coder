@@ -49,7 +49,7 @@ describe("WorkspacesPage", () => {
           name: "Previous page",
         })
         expect(prevPage).toBeDisabled()
-        const pageButtons = await container.querySelectorAll(
+        const pageButtons = container.querySelectorAll(
           `button[name="Page button"]`,
         )
         expect(pageButtons.length).toBe(2)

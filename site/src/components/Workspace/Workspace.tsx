@@ -23,6 +23,7 @@ import {
   WorkspaceBuildProgress,
 } from "components/WorkspaceBuildProgress/WorkspaceBuildProgress"
 import { AgentRow } from "components/Resources/AgentRow"
+import { Avatar } from "components/Avatar/Avatar"
 
 export enum WorkspaceErrors {
   GET_RESOURCES_ERROR = "getResourcesError",
@@ -151,10 +152,11 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
       >
         <Stack direction="row" spacing={3} alignItems="center">
           {hasTemplateIcon && (
-            <img
-              alt=""
+            <Avatar
+              size="xl"
               src={workspace.template_icon}
-              className={styles.templateIcon}
+              variant="square"
+              fitImage
             />
           )}
           <div>
@@ -265,11 +267,6 @@ export const useStyles = makeStyles((theme) => {
 
     main: {
       width: "100%",
-    },
-
-    templateIcon: {
-      width: theme.spacing(6),
-      height: theme.spacing(6),
     },
 
     timelineContents: {

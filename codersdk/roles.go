@@ -27,7 +27,7 @@ func (c *Client) ListSiteRoles(ctx context.Context) ([]AssignableRoles, error) {
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 	var roles []AssignableRoles
 	return roles, json.NewDecoder(res.Body).Decode(&roles)
@@ -41,7 +41,7 @@ func (c *Client) ListOrganizationRoles(ctx context.Context, org uuid.UUID) ([]As
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 	var roles []AssignableRoles
 	return roles, json.NewDecoder(res.Body).Decode(&roles)

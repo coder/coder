@@ -75,6 +75,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"POST:/api/v2/workspaceagents/me/version":               {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/me/app-health":            {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/me/report-stats":          {NoAuthorize: true},
+		"POST:/api/v2/workspaceagents/me/report-lifecycle":      {NoAuthorize: true},
 
 		// These endpoints have more assertions. This is good, add more endpoints to assert if you can!
 		"GET:/api/v2/organizations/{organization}": {AssertObject: rbac.ResourceOrganization.WithID(a.Admin.OrganizationID).InOrg(a.Admin.OrganizationID)},
@@ -271,14 +272,21 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceTemplate,
 		},
+
+		"GET:/api/v2/debug/coordinator": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: rbac.ResourceDebugInfo,
+		},
 	}
 
 	// Routes like proxy routes support all HTTP methods. A helper func to expand
 	// 1 url to all http methods.
 	assertAllHTTPMethods := func(url string, check RouteCheck) {
-		methods := []string{http.MethodGet, http.MethodHead, http.MethodPost,
+		methods := []string{
+			http.MethodGet, http.MethodHead, http.MethodPost,
 			http.MethodPut, http.MethodPatch, http.MethodDelete,
-			http.MethodConnect, http.MethodOptions, http.MethodTrace}
+			http.MethodConnect, http.MethodOptions, http.MethodTrace,
+		}
 
 		for _, method := range methods {
 			route := method + ":" + url
@@ -334,7 +342,7 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 	})
 	require.NoError(t, err, "create token")
 
-	apiKeys, err := client.GetTokens(ctx, admin.UserID.String())
+	apiKeys, err := client.Tokens(ctx, admin.UserID.String())
 	require.NoError(t, err, "get tokens")
 	apiKey := apiKeys[0]
 
@@ -525,12 +533,9 @@ func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck
 }
 
 type authCall struct {
-	SubjectID string
-	Roles     []string
-	Groups    []string
-	Scope     rbac.ScopeName
-	Action    rbac.Action
-	Object    rbac.Object
+	Subject rbac.Subject
+	Action  rbac.Action
+	Object  rbac.Object
 }
 
 type RecordingAuthorizer struct {
@@ -540,33 +545,27 @@ type RecordingAuthorizer struct {
 
 var _ rbac.Authorizer = (*RecordingAuthorizer)(nil)
 
-// ByRoleNameSQL does not record the call. This matches the postgres behavior
+// AuthorizeSQL does not record the call. This matches the postgres behavior
 // of not calling Authorize()
-func (r *RecordingAuthorizer) ByRoleNameSQL(_ context.Context, _ string, _ []string, _ rbac.ScopeName, _ []string, _ rbac.Action, _ rbac.Object) error {
+func (r *RecordingAuthorizer) AuthorizeSQL(_ context.Context, _ rbac.Subject, _ rbac.Action, _ rbac.Object) error {
 	return r.AlwaysReturn
 }
 
-func (r *RecordingAuthorizer) ByRoleName(_ context.Context, subjectID string, roleNames []string, scope rbac.ScopeName, groups []string, action rbac.Action, object rbac.Object) error {
+func (r *RecordingAuthorizer) Authorize(_ context.Context, subject rbac.Subject, action rbac.Action, object rbac.Object) error {
 	r.Called = &authCall{
-		SubjectID: subjectID,
-		Roles:     roleNames,
-		Groups:    groups,
-		Scope:     scope,
-		Action:    action,
-		Object:    object,
+		Subject: subject,
+		Action:  action,
+		Object:  object,
 	}
 	return r.AlwaysReturn
 }
 
-func (r *RecordingAuthorizer) PrepareByRoleName(_ context.Context, subjectID string, roles []string, scope rbac.ScopeName, groups []string, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
+func (r *RecordingAuthorizer) Prepare(_ context.Context, subject rbac.Subject, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
 	return &fakePreparedAuthorizer{
 		Original:           r,
-		SubjectID:          subjectID,
-		Roles:              roles,
-		Scope:              scope,
+		Subject:            subject,
 		Action:             action,
 		HardCodedSQLString: "true",
-		Groups:             groups,
 	}, nil
 }
 
@@ -576,17 +575,14 @@ func (r *RecordingAuthorizer) reset() {
 
 type fakePreparedAuthorizer struct {
 	Original            *RecordingAuthorizer
-	SubjectID           string
-	Roles               []string
-	Scope               rbac.ScopeName
+	Subject             rbac.Subject
 	Action              rbac.Action
-	Groups              []string
 	HardCodedSQLString  string
 	HardCodedRegoString string
 }
 
 func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Object) error {
-	return f.Original.ByRoleName(ctx, f.SubjectID, f.Roles, f.Scope, f.Groups, f.Action, object)
+	return f.Original.Authorize(ctx, f.Subject, f.Action, object)
 }
 
 // CompileToSQL returns a compiled version of the authorizer that will work for
@@ -596,7 +592,7 @@ func (fakePreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.ConvertC
 }
 
 func (f *fakePreparedAuthorizer) Eval(object rbac.Object) bool {
-	return f.Original.ByRoleNameSQL(context.Background(), f.SubjectID, f.Roles, f.Scope, f.Groups, f.Action, object) == nil
+	return f.Original.AuthorizeSQL(context.Background(), f.Subject, f.Action, object) == nil
 }
 
 func (f fakePreparedAuthorizer) RegoString() string {

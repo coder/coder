@@ -16,17 +16,19 @@ import (
 
 // A mapping of attributes on the "coder_agent" resource.
 type agentAttributes struct {
-	Auth                     string            `mapstructure:"auth"`
-	OperatingSystem          string            `mapstructure:"os"`
-	Architecture             string            `mapstructure:"arch"`
-	Directory                string            `mapstructure:"dir"`
-	ID                       string            `mapstructure:"id"`
-	Token                    string            `mapstructure:"token"`
-	Env                      map[string]string `mapstructure:"env"`
-	StartupScript            string            `mapstructure:"startup_script"`
-	ConnectionTimeoutSeconds int32             `mapstructure:"connection_timeout"`
-	TroubleshootingURL       string            `mapstructure:"troubleshooting_url"`
-	MOTDFile                 string            `mapstructure:"motd_file"`
+	Auth                        string            `mapstructure:"auth"`
+	OperatingSystem             string            `mapstructure:"os"`
+	Architecture                string            `mapstructure:"arch"`
+	Directory                   string            `mapstructure:"dir"`
+	ID                          string            `mapstructure:"id"`
+	Token                       string            `mapstructure:"token"`
+	Env                         map[string]string `mapstructure:"env"`
+	StartupScript               string            `mapstructure:"startup_script"`
+	ConnectionTimeoutSeconds    int32             `mapstructure:"connection_timeout"`
+	TroubleshootingURL          string            `mapstructure:"troubleshooting_url"`
+	MOTDFile                    string            `mapstructure:"motd_file"`
+	LoginBeforeReady            bool              `mapstructure:"login_before_ready"`
+	StartupScriptTimeoutSeconds int32             `mapstructure:"startup_script_timeout"`
 }
 
 // A mapping of attributes on the "coder_app" resource.
@@ -121,17 +123,25 @@ func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph strin
 		}
 		agentNames[tfResource.Name] = struct{}{}
 
+		// Handling for provider pre-v0.6.10.
+		loginBeforeReady := true
+		if _, ok := tfResource.AttributeValues["login_before_ready"]; ok {
+			loginBeforeReady = attrs.LoginBeforeReady
+		}
+
 		agent := &proto.Agent{
-			Name:                     tfResource.Name,
-			Id:                       attrs.ID,
-			Env:                      attrs.Env,
-			StartupScript:            attrs.StartupScript,
-			OperatingSystem:          attrs.OperatingSystem,
-			Architecture:             attrs.Architecture,
-			Directory:                attrs.Directory,
-			ConnectionTimeoutSeconds: attrs.ConnectionTimeoutSeconds,
-			TroubleshootingUrl:       attrs.TroubleshootingURL,
-			MotdFile:                 attrs.MOTDFile,
+			Name:                        tfResource.Name,
+			Id:                          attrs.ID,
+			Env:                         attrs.Env,
+			StartupScript:               attrs.StartupScript,
+			OperatingSystem:             attrs.OperatingSystem,
+			Architecture:                attrs.Architecture,
+			Directory:                   attrs.Directory,
+			ConnectionTimeoutSeconds:    attrs.ConnectionTimeoutSeconds,
+			TroubleshootingUrl:          attrs.TroubleshootingURL,
+			MotdFile:                    attrs.MOTDFile,
+			LoginBeforeReady:            loginBeforeReady,
+			StartupScriptTimeoutSeconds: attrs.StartupScriptTimeoutSeconds,
 		}
 		switch attrs.Auth {
 		case "token":
@@ -421,6 +431,7 @@ func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph strin
 		}
 		if len(param.Validation) == 1 {
 			protoParam.ValidationRegex = param.Validation[0].Regex
+			protoParam.ValidationError = param.Validation[0].Error
 			protoParam.ValidationMax = int32(param.Validation[0].Max)
 			protoParam.ValidationMin = int32(param.Validation[0].Min)
 		}
