@@ -42,7 +42,7 @@ func gitssh() *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("create agent client: %w", err)
 			}
-			key, err := client.AgentGitSSHKey(ctx)
+			key, err := client.GitSSHKey(ctx)
 			if err != nil {
 				return xerrors.Errorf("get agent git ssh token: %w", err)
 			}

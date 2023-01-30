@@ -131,7 +131,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	return nil
 }
 
-func waitForDisco(ctx context.Context, logs io.Writer, conn *codersdk.AgentConn) error {
+func waitForDisco(ctx context.Context, logs io.Writer, conn *codersdk.WorkspaceAgentConn) error {
 	const pingAttempts = 10
 	const pingDelay = 1 * time.Second
 
@@ -162,7 +162,7 @@ func waitForDisco(ctx context.Context, logs io.Writer, conn *codersdk.AgentConn)
 	return nil
 }
 
-func waitForDirectConnection(ctx context.Context, logs io.Writer, conn *codersdk.AgentConn) error {
+func waitForDirectConnection(ctx context.Context, logs io.Writer, conn *codersdk.WorkspaceAgentConn) error {
 	const directConnectionAttempts = 30
 	const directConnectionDelay = 1 * time.Second
 
@@ -204,7 +204,7 @@ func waitForDirectConnection(ctx context.Context, logs io.Writer, conn *codersdk
 	return nil
 }
 
-func verifyConnection(ctx context.Context, logs io.Writer, conn *codersdk.AgentConn) error {
+func verifyConnection(ctx context.Context, logs io.Writer, conn *codersdk.WorkspaceAgentConn) error {
 	const verifyConnectionAttempts = 30
 	const verifyConnectionDelay = 1 * time.Second
 
@@ -218,7 +218,7 @@ func verifyConnection(ctx context.Context, logs io.Writer, conn *codersdk.AgentC
 
 		u := &url.URL{
 			Scheme: "http",
-			Host:   net.JoinHostPort("localhost", strconv.Itoa(codersdk.TailnetStatisticsPort)),
+			Host:   net.JoinHostPort("localhost", strconv.Itoa(codersdk.WorkspaceAgentStatisticsPort)),
 			Path:   "/",
 		}
 		req, err := http.NewRequestWithContext(verifyCtx, http.MethodGet, u.String(), nil)
@@ -246,7 +246,7 @@ func verifyConnection(ctx context.Context, logs io.Writer, conn *codersdk.AgentC
 	return nil
 }
 
-func performInitialConnections(ctx context.Context, logs io.Writer, conn *codersdk.AgentConn, specs []Connection) error {
+func performInitialConnections(ctx context.Context, logs io.Writer, conn *codersdk.WorkspaceAgentConn, specs []Connection) error {
 	if len(specs) == 0 {
 		return nil
 	}
@@ -284,7 +284,7 @@ func performInitialConnections(ctx context.Context, logs io.Writer, conn *coders
 	return nil
 }
 
-func holdConnection(ctx context.Context, logs io.Writer, conn *codersdk.AgentConn, holdDur time.Duration, specs []Connection) error {
+func holdConnection(ctx context.Context, logs io.Writer, conn *codersdk.WorkspaceAgentConn, holdDur time.Duration, specs []Connection) error {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -361,7 +361,7 @@ func holdConnection(ctx context.Context, logs io.Writer, conn *codersdk.AgentCon
 	return nil
 }
 
-func agentHTTPClient(conn *codersdk.AgentConn) *http.Client {
+func agentHTTPClient(conn *codersdk.WorkspaceAgentConn) *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
 			DisableKeepAlives: true,
@@ -375,7 +375,7 @@ func agentHTTPClient(conn *codersdk.AgentConn) *http.Client {
 				if err != nil {
 					return nil, xerrors.Errorf("parse port %q: %w", port, err)
 				}
-				return conn.DialContextTCP(ctx, netip.AddrPortFrom(codersdk.TailnetIP, uint16(portUint)))
+				return conn.DialContextTCP(ctx, netip.AddrPortFrom(codersdk.WorkspaceAgentIP, uint16(portUint)))
 			},
 		},
 	}

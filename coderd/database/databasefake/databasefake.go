@@ -556,6 +556,11 @@ func (q *fakeQuerier) GetUserByID(_ context.Context, id uuid.UUID) (database.Use
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	return q.getUserByIDNoLock(id)
+}
+
+// getUserByIDNoLock is used by other functions in the database fake.
+func (q *fakeQuerier) getUserByIDNoLock(id uuid.UUID) (database.User, error) {
 	for _, user := range q.users {
 		if user.ID == id {
 			return user, nil
@@ -891,7 +896,7 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 		}
 
 		if arg.OwnerUsername != "" {
-			owner, err := q.GetUserByID(ctx, workspace.OwnerID)
+			owner, err := q.getUserByIDNoLock(workspace.OwnerID)
 			if err == nil && !strings.EqualFold(arg.OwnerUsername, owner.Username) {
 				continue
 			}
@@ -2050,7 +2055,7 @@ func (q *fakeQuerier) GetTemplateUserRoles(_ context.Context, id uuid.UUID) ([]d
 
 	users := make([]database.TemplateUser, 0, len(template.UserACL))
 	for k, v := range template.UserACL {
-		user, err := q.GetUserByID(context.Background(), uuid.MustParse(k))
+		user, err := q.getUserByIDNoLock(uuid.MustParse(k))
 		if err != nil && xerrors.Is(err, sql.ErrNoRows) {
 			return nil, xerrors.Errorf("get user by ID: %w", err)
 		}
@@ -3610,7 +3615,7 @@ func (q *fakeQuerier) DeleteGitSSHKey(_ context.Context, userID uuid.UUID) error
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
+func (q *fakeQuerier) GetAuditLogsOffset(_ context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return nil, err
 	}
@@ -3636,13 +3641,13 @@ func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAu
 			continue
 		}
 		if arg.Username != "" {
-			user, err := q.GetUserByID(context.Background(), alog.UserID)
+			user, err := q.getUserByIDNoLock(alog.UserID)
 			if err == nil && !strings.EqualFold(arg.Username, user.Username) {
 				continue
 			}
 		}
 		if arg.Email != "" {
-			user, err := q.GetUserByID(context.Background(), alog.UserID)
+			user, err := q.getUserByIDNoLock(alog.UserID)
 			if err == nil && !strings.EqualFold(arg.Email, user.Email) {
 				continue
 			}
@@ -3664,7 +3669,7 @@ func (q *fakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAu
 			}
 		}
 
-		user, err := q.GetUserByID(ctx, alog.UserID)
+		user, err := q.getUserByIDNoLock(alog.UserID)
 		userValid := err == nil
 
 		logs = append(logs, database.GetAuditLogsOffsetRow{

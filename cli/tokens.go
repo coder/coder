@@ -73,7 +73,7 @@ func createToken() *cobra.Command {
 			cmd.Println(cliui.Styles.Code.Render(strings.TrimSpace(res.Key)))
 			cmd.Println()
 			cmd.Println(cliui.Styles.Wrap.Render(
-				fmt.Sprintf("You can use this token by setting the --%s CLI flag, the %s environment variable, or the %q HTTP header.", varToken, envSessionToken, codersdk.SessionCustomHeader),
+				fmt.Sprintf("You can use this token by setting the --%s CLI flag, the %s environment variable, or the %q HTTP header.", varToken, envSessionToken, codersdk.SessionTokenHeader),
 			))
 
 			return nil
@@ -103,7 +103,7 @@ func listTokens() *cobra.Command {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}
 
-			keys, err := client.GetTokens(cmd.Context(), codersdk.Me)
+			keys, err := client.Tokens(cmd.Context(), codersdk.Me)
 			if err != nil {
 				return xerrors.Errorf("create tokens: %w", err)
 			}

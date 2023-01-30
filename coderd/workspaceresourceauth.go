@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 
 	"github.com/mitchellh/mapstructure"
 )
@@ -28,12 +29,12 @@ import (
 // @Accept json
 // @Produce json
 // @Tags Agents
-// @Param request body codersdk.AzureInstanceIdentityToken true "Instance identity token"
-// @Success 200 {object} codersdk.WorkspaceAgentAuthenticateResponse
+// @Param request body agentsdk.AzureInstanceIdentityToken true "Instance identity token"
+// @Success 200 {object} agentsdk.AuthenticateResponse
 // @Router /workspaceagents/azure-instance-identity [post]
 func (api *API) postWorkspaceAuthAzureInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var req codersdk.AzureInstanceIdentityToken
+	var req agentsdk.AzureInstanceIdentityToken
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -58,12 +59,12 @@ func (api *API) postWorkspaceAuthAzureInstanceIdentity(rw http.ResponseWriter, r
 // @Accept json
 // @Produce json
 // @Tags Agents
-// @Param request body codersdk.AWSInstanceIdentityToken true "Instance identity token"
-// @Success 200 {object} codersdk.WorkspaceAgentAuthenticateResponse
+// @Param request body agentsdk.AWSInstanceIdentityToken true "Instance identity token"
+// @Success 200 {object} agentsdk.AuthenticateResponse
 // @Router /workspaceagents/aws-instance-identity [post]
 func (api *API) postWorkspaceAuthAWSInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var req codersdk.AWSInstanceIdentityToken
+	var req agentsdk.AWSInstanceIdentityToken
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -88,12 +89,12 @@ func (api *API) postWorkspaceAuthAWSInstanceIdentity(rw http.ResponseWriter, r *
 // @Accept json
 // @Produce json
 // @Tags Agents
-// @Param request body codersdk.GoogleInstanceIdentityToken true "Instance identity token"
-// @Success 200 {object} codersdk.WorkspaceAgentAuthenticateResponse
+// @Param request body agentsdk.GoogleInstanceIdentityToken true "Instance identity token"
+// @Success 200 {object} agentsdk.AuthenticateResponse
 // @Router /workspaceagents/google-instance-identity [post]
 func (api *API) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var req codersdk.GoogleInstanceIdentityToken
+	var req agentsdk.GoogleInstanceIdentityToken
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -199,7 +200,7 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceAgentAuthenticateResponse{
+	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.AuthenticateResponse{
 		SessionToken: agent.AuthToken.String(),
 	})
 }

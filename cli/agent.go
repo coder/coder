@@ -22,7 +22,7 @@ import (
 	"github.com/coder/coder/agent/reaper"
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/cliflag"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 )
 
 func workspaceAgent() *cobra.Command {
@@ -82,10 +82,10 @@ func workspaceAgent() *cobra.Command {
 				slog.F("auth", auth),
 				slog.F("version", version),
 			)
-			client := codersdk.New(coderURL)
-			client.Logger = logger
+			client := agentsdk.New(coderURL)
+			client.SDK.Logger = logger
 			// Set a reasonable timeout so requests can't hang forever!
-			client.HTTPClient.Timeout = 10 * time.Second
+			client.SDK.HTTPClient.Timeout = 10 * time.Second
 
 			// Enable pprof handler
 			// This prevents the pprof import from being accidentally deleted.
@@ -96,7 +96,7 @@ func workspaceAgent() *cobra.Command {
 			// exchangeToken returns a session token.
 			// This is abstracted to allow for the same looping condition
 			// regardless of instance identity auth type.
-			var exchangeToken func(context.Context) (codersdk.WorkspaceAgentAuthenticateResponse, error)
+			var exchangeToken func(context.Context) (agentsdk.AuthenticateResponse, error)
 			switch auth {
 			case "token":
 				token, err := cmd.Flags().GetString(varAgentToken)
@@ -112,8 +112,8 @@ func workspaceAgent() *cobra.Command {
 				if gcpClientRaw != nil {
 					gcpClient, _ = gcpClientRaw.(*metadata.Client)
 				}
-				exchangeToken = func(ctx context.Context) (codersdk.WorkspaceAgentAuthenticateResponse, error) {
-					return client.AuthWorkspaceGoogleInstanceIdentity(ctx, "", gcpClient)
+				exchangeToken = func(ctx context.Context) (agentsdk.AuthenticateResponse, error) {
+					return client.AuthGoogleInstanceIdentity(ctx, "", gcpClient)
 				}
 			case "aws-instance-identity":
 				// This is *only* done for testing to mock client authentication.
@@ -123,11 +123,11 @@ func workspaceAgent() *cobra.Command {
 				if awsClientRaw != nil {
 					awsClient, _ = awsClientRaw.(*http.Client)
 					if awsClient != nil {
-						client.HTTPClient = awsClient
+						client.SDK.HTTPClient = awsClient
 					}
 				}
-				exchangeToken = func(ctx context.Context) (codersdk.WorkspaceAgentAuthenticateResponse, error) {
-					return client.AuthWorkspaceAWSInstanceIdentity(ctx)
+				exchangeToken = func(ctx context.Context) (agentsdk.AuthenticateResponse, error) {
+					return client.AuthAWSInstanceIdentity(ctx)
 				}
 			case "azure-instance-identity":
 				// This is *only* done for testing to mock client authentication.
@@ -137,11 +137,11 @@ func workspaceAgent() *cobra.Command {
 				if azureClientRaw != nil {
 					azureClient, _ = azureClientRaw.(*http.Client)
 					if azureClient != nil {
-						client.HTTPClient = azureClient
+						client.SDK.HTTPClient = azureClient
 					}
 				}
-				exchangeToken = func(ctx context.Context) (codersdk.WorkspaceAgentAuthenticateResponse, error) {
-					return client.AuthWorkspaceAzureInstanceIdentity(ctx)
+				exchangeToken = func(ctx context.Context) (agentsdk.AuthenticateResponse, error) {
+					return client.AuthAzureInstanceIdentity(ctx)
 				}
 			}
 
@@ -159,7 +159,7 @@ func workspaceAgent() *cobra.Command {
 				Logger: logger,
 				ExchangeToken: func(ctx context.Context) (string, error) {
 					if exchangeToken == nil {
-						return client.SessionToken(), nil
+						return client.SDK.SessionToken(), nil
 					}
 					resp, err := exchangeToken(ctx)
 					if err != nil {

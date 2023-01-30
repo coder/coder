@@ -146,7 +146,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 			if token == "" {
 				optionalWrite(http.StatusUnauthorized, codersdk.Response{
 					Message: SignedOutErrorMessage,
-					Detail:  fmt.Sprintf("Cookie %q or query parameter must be provided.", codersdk.SessionTokenKey),
+					Detail:  fmt.Sprintf("Cookie %q or query parameter must be provided.", codersdk.SessionTokenCookie),
 				})
 				return
 			}
@@ -370,17 +370,17 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 // 4. The coder_session_token query parameter
 // 5. The custom auth header
 func apiTokenFromRequest(r *http.Request) string {
-	cookie, err := r.Cookie(codersdk.SessionTokenKey)
+	cookie, err := r.Cookie(codersdk.SessionTokenCookie)
 	if err == nil && cookie.Value != "" {
 		return cookie.Value
 	}
 
-	urlValue := r.URL.Query().Get(codersdk.SessionTokenKey)
+	urlValue := r.URL.Query().Get(codersdk.SessionTokenCookie)
 	if urlValue != "" {
 		return urlValue
 	}
 
-	headerValue := r.Header.Get(codersdk.SessionCustomHeader)
+	headerValue := r.Header.Get(codersdk.SessionTokenHeader)
 	if headerValue != "" {
 		return headerValue
 	}

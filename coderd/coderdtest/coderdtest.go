@@ -69,6 +69,7 @@ import (
 	"github.com/coder/coder/coderd/updatecheck"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionerd"
@@ -951,7 +952,7 @@ func NewAzureInstanceIdentity(t *testing.T, instanceID string) (x509.VerifyOptio
 	signature := make([]byte, base64.StdEncoding.EncodedLen(len(signatureRaw)))
 	base64.StdEncoding.Encode(signature, signatureRaw)
 
-	payload, err := json.Marshal(codersdk.AzureInstanceIdentityToken{
+	payload, err := json.Marshal(agentsdk.AzureInstanceIdentityToken{
 		Signature: string(signature),
 		Encoding:  "pkcs7",
 	})

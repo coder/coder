@@ -343,7 +343,7 @@ func (api *API) createAPIKey(ctx context.Context, params createAPIKeyParams) (*h
 	// This format is consumed by the APIKey middleware.
 	sessionToken := fmt.Sprintf("%s-%s", keyID, keySecret)
 	return &http.Cookie{
-		Name:     codersdk.SessionTokenKey,
+		Name:     codersdk.SessionTokenCookie,
 		Value:    sessionToken,
 		Path:     "/",
 		HttpOnly: true,

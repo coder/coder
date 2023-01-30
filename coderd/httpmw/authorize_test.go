@@ -131,7 +131,7 @@ func TestExtractUserRoles(t *testing.T) {
 			})
 
 			req := httptest.NewRequest("GET", "/", nil)
-			req.Header.Set(codersdk.SessionCustomHeader, token)
+			req.Header.Set(codersdk.SessionTokenHeader, token)
 
 			rtr.ServeHTTP(rw, req)
 			resp := rw.Result()

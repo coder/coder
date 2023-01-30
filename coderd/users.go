@@ -990,7 +990,6 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 //
 // @Summary Log in user
 // @ID log-in-user
-// @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Authorization
@@ -1082,7 +1081,7 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 	cookie := &http.Cookie{
 		// MaxAge < 0 means to delete the cookie now.
 		MaxAge: -1,
-		Name:   codersdk.SessionTokenKey,
+		Name:   codersdk.SessionTokenCookie,
 		Path:   "/",
 	}
 	http.SetCookie(rw, cookie)

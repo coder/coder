@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
@@ -900,7 +901,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		agentClient := codersdk.New(client.URL)
+		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(authToken)
 		agentCloser := agent.New(agent.Options{
 			Client: agentClient,
@@ -1551,7 +1552,7 @@ func TestWorkspaceWatcher(t *testing.T) {
 	wait("agent timeout after create")
 	wait("agent timeout after start")
 
-	agentClient := codersdk.New(client.URL)
+	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(authToken)
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,

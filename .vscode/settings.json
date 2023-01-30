@@ -1,6 +1,7 @@
 {
   "cSpell.words": [
     "afero",
+    "agentsdk",
     "apps",
     "ASKPASS",
     "autostop",
@@ -182,6 +183,10 @@
   "eslint.workingDirectories": ["./site"],
   "files.exclude": {
     "**/node_modules": true
+  },
+  "search.exclude": {
+    "scripts/metricsdocgen/metrics": true,
+    "docs/api/*.md": true
   },
   // Ensure files always have a newline.
   "files.insertFinalNewline": true,
