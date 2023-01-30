@@ -60,6 +60,7 @@ const (
 
 type Options struct {
 	Filesystem             afero.Fs
+	LogDir                 string
 	TempDir                string
 	ExchangeToken          func(ctx context.Context) (string, error)
 	Client                 Client
@@ -87,6 +88,9 @@ func New(options Options) io.Closer {
 	if options.TempDir == "" {
 		options.TempDir = os.TempDir()
 	}
+	if options.LogDir == "" {
+		options.LogDir = options.TempDir
+	}
 	if options.ExchangeToken == nil {
 		options.ExchangeToken = func(ctx context.Context) (string, error) {
 			return "", nil
@@ -102,6 +106,7 @@ func New(options Options) io.Closer {
 		client:                 options.Client,
 		exchangeToken:          options.ExchangeToken,
 		filesystem:             options.Filesystem,
+		logDir:                 options.LogDir,
 		tempDir:                options.TempDir,
 		lifecycleUpdate:        make(chan struct{}, 1),
 	}
@@ -114,6 +119,7 @@ type agent struct {
 	client        Client
 	exchangeToken func(ctx context.Context) (string, error)
 	filesystem    afero.Fs
+	logDir        string
 	tempDir       string
 
 	reconnectingPTYs       sync.Map
@@ -582,7 +588,7 @@ func (a *agent) runStartupScript(ctx context.Context, script string) error {
 	}
 
 	a.logger.Info(ctx, "running startup script", slog.F("script", script))
-	writer, err := a.filesystem.OpenFile(filepath.Join(a.tempDir, "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0o600)
+	writer, err := a.filesystem.OpenFile(filepath.Join(a.logDir, "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return xerrors.Errorf("open startup script log file: %w", err)
 	}
