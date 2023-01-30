@@ -141,6 +141,7 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 	db := g.db
 	t := g.testT
 
+	output := make(map[string]interface{})
 	for name, v := range seed {
 		switch orig := v.(type) {
 		case database.APIKey:
@@ -164,9 +165,9 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 			})
 			require.NoError(t, err, "insert api key")
 
-			seed[name] = key
+			output[name] = key
 			// Need to also save the secret
-			seed[name+"_secret"] = secret
+			output[name+"_secret"] = secret
 		case database.Template:
 			template, err := db.InsertTemplate(ctx, database.InsertTemplateParams{
 				ID:                           takeFirst(orig.ID, g.Lookup(name)),
@@ -187,7 +188,7 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 			})
 			require.NoError(t, err, "insert template")
 
-			seed[name] = template
+			output[name] = template
 
 		case database.TemplateVersion:
 			template, err := db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
@@ -206,7 +207,7 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 			})
 			require.NoError(t, err, "insert template")
 
-			seed[name] = template
+			output[name] = template
 		case database.Workspace:
 			workspace, err := db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
 				ID:                takeFirst(orig.ID, g.Lookup(name)),
@@ -221,7 +222,7 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 			})
 			require.NoError(t, err, "insert workspace")
 
-			seed[name] = workspace
+			output[name] = workspace
 		case database.WorkspaceBuild:
 			build, err := db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
 				ID:                takeFirst(orig.ID, g.Lookup(name)),
@@ -239,7 +240,7 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 			})
 			require.NoError(t, err, "insert workspace build")
 
-			seed[name] = build
+			output[name] = build
 		case database.User:
 			user, err := db.InsertUser(ctx, database.InsertUserParams{
 				ID:             takeFirst(orig.ID, g.Lookup(name)),
@@ -253,7 +254,7 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 			})
 			require.NoError(t, err, "insert user")
 
-			seed[name] = user
+			output[name] = user
 
 		case database.Organization:
 			org, err := db.InsertOrganization(ctx, database.InsertOrganizationParams{
@@ -265,7 +266,7 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 			})
 			require.NoError(t, err, "insert organization")
 
-			seed[name] = org
+			output[name] = org
 
 		case database.Group:
 			org, err := db.InsertGroup(ctx, database.InsertGroupParams{
@@ -277,7 +278,7 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 			})
 			require.NoError(t, err, "insert organization")
 
-			seed[name] = org
+			output[name] = org
 
 		case database.ProvisionerJob:
 			job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
@@ -295,7 +296,7 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 			})
 			require.NoError(t, err, "insert job")
 
-			seed[name] = job
+			output[name] = job
 
 		case database.WorkspaceResource:
 			resource, err := db.InsertWorkspaceResource(ctx, database.InsertWorkspaceResourceParams{
@@ -316,7 +317,7 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 			})
 			require.NoError(t, err, "insert resource")
 
-			seed[name] = resource
+			output[name] = resource
 
 		case database.File:
 			file, err := db.InsertFile(ctx, database.InsertFileParams{
@@ -329,7 +330,7 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 			})
 			require.NoError(t, err, "insert file")
 
-			seed[name] = file
+			output[name] = file
 		case database.UserLink:
 			link, err := db.InsertUserLink(ctx, database.InsertUserLinkParams{
 				UserID:            takeFirst(orig.UserID, uuid.New()),
@@ -342,12 +343,12 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 
 			require.NoError(t, err, "insert link")
 
-			seed[name] = link
+			output[name] = link
 		default:
 			panic(fmt.Sprintf("unknown type %T", orig))
 		}
 	}
-	return seed
+	return output
 }
 
 func (g *Generator) Lookup(name string) uuid.UUID {
