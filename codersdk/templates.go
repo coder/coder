@@ -100,7 +100,7 @@ func (c *Client) Template(ctx context.Context, template uuid.UUID) (Template, er
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return Template{}, readBodyAsError(res)
+		return Template{}, ReadBodyAsError(res)
 	}
 	var resp Template
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
@@ -113,7 +113,7 @@ func (c *Client) DeleteTemplate(ctx context.Context, template uuid.UUID) error {
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return readBodyAsError(res)
+		return ReadBodyAsError(res)
 	}
 	return nil
 }
@@ -128,7 +128,7 @@ func (c *Client) UpdateTemplateMeta(ctx context.Context, templateID uuid.UUID, r
 		return Template{}, xerrors.New("template metadata not modified")
 	}
 	if res.StatusCode != http.StatusOK {
-		return Template{}, readBodyAsError(res)
+		return Template{}, ReadBodyAsError(res)
 	}
 	var updated Template
 	return updated, json.NewDecoder(res.Body).Decode(&updated)
@@ -141,7 +141,7 @@ func (c *Client) UpdateTemplateACL(ctx context.Context, templateID uuid.UUID, re
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return readBodyAsError(res)
+		return ReadBodyAsError(res)
 	}
 	return nil
 }
@@ -153,7 +153,7 @@ func (c *Client) TemplateACL(ctx context.Context, templateID uuid.UUID) (Templat
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return TemplateACL{}, readBodyAsError(res)
+		return TemplateACL{}, ReadBodyAsError(res)
 	}
 	var acl TemplateACL
 	return acl, json.NewDecoder(res.Body).Decode(&acl)
@@ -168,7 +168,7 @@ func (c *Client) UpdateActiveTemplateVersion(ctx context.Context, template uuid.
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return readBodyAsError(res)
+		return ReadBodyAsError(res)
 	}
 	return nil
 }
@@ -188,7 +188,7 @@ func (c *Client) TemplateVersionsByTemplate(ctx context.Context, req TemplateVer
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 	var templateVersion []TemplateVersion
 	return templateVersion, json.NewDecoder(res.Body).Decode(&templateVersion)
@@ -203,7 +203,7 @@ func (c *Client) TemplateVersionByName(ctx context.Context, template uuid.UUID, 
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return TemplateVersion{}, readBodyAsError(res)
+		return TemplateVersion{}, ReadBodyAsError(res)
 	}
 	var templateVersion TemplateVersion
 	return templateVersion, json.NewDecoder(res.Body).Decode(&templateVersion)
@@ -227,7 +227,7 @@ func (c *Client) TemplateDAUs(ctx context.Context, templateID uuid.UUID) (*Templ
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 
 	var resp TemplateDAUsResponse
@@ -258,7 +258,7 @@ func (c *Client) TemplateExamples(ctx context.Context, organizationID uuid.UUID)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 	var templateExamples []TemplateExample
 	return templateExamples, json.NewDecoder(res.Body).Decode(&templateExamples)

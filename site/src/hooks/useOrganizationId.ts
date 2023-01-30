@@ -1,11 +1,9 @@
-import { useSelector } from "@xstate/react"
-import { useContext } from "react"
+import { useAuth } from "components/AuthProvider/AuthProvider"
 import { selectOrgId } from "../xServices/auth/authSelectors"
-import { XServiceContext } from "../xServices/StateContext"
 
 export const useOrganizationId = (): string => {
-  const xServices = useContext(XServiceContext)
-  const organizationId = useSelector(xServices.authXService, selectOrgId)
+  const [authState] = useAuth()
+  const organizationId = selectOrgId(authState)
 
   if (!organizationId) {
     throw new Error("No organization ID found")

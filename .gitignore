@@ -25,7 +25,7 @@ site/coverage/
 site/storybook-static/
 site/test-results/*
 site/e2e/test-results/*
-site/e2e/storageState.json
+site/e2e/states/*.json
 site/playwright-report/*
 
 # Make target for updating golden files.
@@ -35,6 +35,9 @@ cli/testdata/.gen-golden
 /build/
 /dist/
 site/out/
+
+# Bundle analysis
+site/stats/
 
 *.tfstate
 *.tfstate.backup

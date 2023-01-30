@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -52,6 +53,7 @@ import (
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/updatecheck"
+	"github.com/coder/coder/coderd/util/slice"
 	"github.com/coder/coder/coderd/wsconncache"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionerd/proto"
@@ -152,6 +154,14 @@ func New(options *Options) *API {
 	if options == nil {
 		options = &Options{}
 	}
+	experiments := initExperiments(options.Logger, options.DeploymentConfig.Experiments.Value, options.DeploymentConfig.Experimental.Value)
+	// TODO: remove this once we promote authz_querier out of experiments.
+	if experiments.Enabled(codersdk.ExperimentAuthzQuerier) {
+		panic("Coming soon!")
+		// if _, ok := (options.Database).(*authzquery.AuthzQuerier); !ok {
+		// 	options.Database = authzquery.NewAuthzQuerier(options.Database, options.Authorizer)
+		// }
+	}
 	if options.AppHostname != "" && options.AppHostnameRegex == nil || options.AppHostname == "" && options.AppHostnameRegex != nil {
 		panic("coderd: both AppHostname and AppHostnameRegex must be set or unset")
 	}
@@ -197,7 +207,7 @@ func New(options *Options) *API {
 	if siteCacheDir != "" {
 		siteCacheDir = filepath.Join(siteCacheDir, "site")
 	}
-	binFS, err := site.ExtractOrReadBinFS(siteCacheDir, site.FS())
+	binFS, binHashes, err := site.ExtractOrReadBinFS(siteCacheDir, site.FS())
 	if err != nil {
 		panic(xerrors.Errorf("read site bin failed: %w", err))
 	}
@@ -213,13 +223,14 @@ func New(options *Options) *API {
 		ID:          uuid.New(),
 		Options:     options,
 		RootHandler: r,
-		siteHandler: site.Handler(site.FS(), binFS),
+		siteHandler: site.Handler(site.FS(), binFS, binHashes),
 		HTTPAuth: &HTTPAuthorizer{
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
 		},
 		metricsCache: metricsCache,
 		Auditor:      atomic.Pointer[audit.Auditor]{},
+		Experiments:  experiments,
 	}
 	if options.UpdateCheckOptions != nil {
 		api.updateChecker = updatecheck.New(
@@ -348,6 +359,10 @@ func New(options *Options) *API {
 		r.Post("/csp/reports", api.logReportCSPViolations)
 
 		r.Get("/buildinfo", buildInfo)
+		r.Route("/experiments", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/", api.handleExperimentsGet)
+		})
 		r.Get("/updatecheck", api.updateCheck)
 		r.Route("/config", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
@@ -435,6 +450,7 @@ func New(options *Options) *API {
 			r.Patch("/cancel", api.patchCancelTemplateVersion)
 			r.Get("/schema", api.templateVersionSchema)
 			r.Get("/parameters", api.templateVersionParameters)
+			r.Get("/rich-parameters", api.templateVersionRichParameters)
 			r.Get("/resources", api.templateVersionResources)
 			r.Get("/logs", api.templateVersionLogs)
 			r.Route("/dry-run", func(r chi.Router) {
@@ -533,6 +549,7 @@ func New(options *Options) *API {
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Get("/coordinate", api.workspaceAgentCoordinate)
 				r.Post("/report-stats", api.workspaceAgentReportStats)
+				r.Post("/report-lifecycle", api.workspaceAgentReportLifecycle)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
@@ -581,6 +598,7 @@ func New(options *Options) *API {
 			r.Get("/", api.workspaceBuild)
 			r.Patch("/cancel", api.patchCancelWorkspaceBuild)
 			r.Get("/logs", api.workspaceBuildLogs)
+			r.Get("/parameters", api.workspaceBuildParameters)
 			r.Get("/resources", api.workspaceBuildResources)
 			r.Get("/state", api.workspaceBuildState)
 		})
@@ -602,6 +620,28 @@ func New(options *Options) *API {
 				// handler and the login page.
 				r.Get("/", api.workspaceApplicationAuth)
 			})
+		})
+		r.Route("/insights", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/daus", api.deploymentDAUs)
+		})
+		r.Route("/debug", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				// Ensure only owners can access debug endpoints.
+				func(next http.Handler) http.Handler {
+					return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+						if !api.Authorize(r, rbac.ActionRead, rbac.ResourceDebugInfo) {
+							httpapi.ResourceNotFound(rw)
+							return
+						}
+
+						next.ServeHTTP(rw, r)
+					})
+				},
+			)
+
+			r.Get("/coordinator", api.debugCoordinator)
 		})
 	})
 
@@ -644,6 +684,10 @@ type API struct {
 	metricsCache        *metricscache.Cache
 	workspaceAgentCache *wsconncache.Cache
 	updateChecker       *updatecheck.Checker
+
+	// Experiments contains the list of experiments currently enabled.
+	// This is used to gate features that are not yet ready for production.
+	Experiments codersdk.Experiments
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -749,4 +793,28 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 	}()
 
 	return proto.NewDRPCProvisionerDaemonClient(clientSession), nil
+}
+
+// nolint:revive
+func initExperiments(log slog.Logger, raw []string, legacyAll bool) codersdk.Experiments {
+	exps := make([]codersdk.Experiment, 0, len(raw))
+	for _, v := range raw {
+		switch v {
+		case "*":
+			exps = append(exps, codersdk.ExperimentsAll...)
+		default:
+			ex := codersdk.Experiment(strings.ToLower(v))
+			if !slice.Contains(codersdk.ExperimentsAll, ex) {
+				log.Warn(context.Background(), "🐉 HERE BE DRAGONS: opting into hidden experiment", slog.F("experiment", ex))
+			}
+			exps = append(exps, ex)
+		}
+	}
+
+	// --experiments takes precedence over --experimental. It's deprecated.
+	if legacyAll && len(raw) == 0 {
+		log.Warn(context.Background(), "--experimental is deprecated, use --experiments='*' instead")
+		exps = append(exps, codersdk.ExperimentsAll...)
+	}
+	return exps
 }

@@ -22,7 +22,7 @@ func TestWorkspaceAgent(t *testing.T) {
 	setup := func(db database.Store) (*http.Request, uuid.UUID) {
 		token := uuid.New()
 		r := httptest.NewRequest("GET", "/", nil)
-		r.Header.Set(codersdk.SessionCustomHeader, token.String())
+		r.Header.Set(codersdk.SessionTokenHeader, token.String())
 		return r, token
 	}
 

@@ -1,7 +1,5 @@
 # Files
 
-> This page is incomplete, stay tuned.
-
 ## Upload file
 
 ### Code samples

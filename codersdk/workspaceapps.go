@@ -56,9 +56,3 @@ type Healthcheck struct {
 	// Threshold specifies the number of consecutive failed health checks before returning "unhealthy".
 	Threshold int32 `json:"threshold"`
 }
-
-// @typescript-ignore PostWorkspaceAppHealthsRequest
-type PostWorkspaceAppHealthsRequest struct {
-	// Healths is a map of the workspace app name and the health of the app.
-	Healths map[uuid.UUID]WorkspaceAppHealth
-}

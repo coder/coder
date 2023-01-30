@@ -1,10 +1,9 @@
-import Avatar from "@material-ui/core/Avatar"
 import Button from "@material-ui/core/Button"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import SettingsOutlined from "@material-ui/icons/SettingsOutlined"
-import { useMachine, useSelector } from "@xstate/react"
+import { useMachine } from "@xstate/react"
 import {
   PageHeader,
   PageHeaderSubtitle,
@@ -19,9 +18,6 @@ import {
   useParams,
 } from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
-import { firstLetter } from "util/firstLetter"
-import { selectPermissions } from "xServices/auth/authSelectors"
-import { XServiceContext } from "xServices/StateContext"
 import {
   TemplateContext,
   templateMachine,
@@ -30,6 +26,8 @@ import { Margins } from "components/Margins/Margins"
 import { Stack } from "components/Stack/Stack"
 import { Permissions } from "xServices/auth/authXService"
 import { Loader } from "components/Loader/Loader"
+import { usePermissions } from "hooks/usePermissions"
+import { Avatar } from "components/Avatar/Avatar"
 
 const Language = {
   settingsButton: "Settings",
@@ -108,8 +106,7 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
     },
   })
   const { template, permissions: templatePermissions } = templateState.context
-  const xServices = useContext(XServiceContext)
-  const permissions = useSelector(xServices.authXService, selectPermissions)
+  const permissions = usePermissions()
   const hasIcon = template && template.icon && template.icon !== ""
 
   if (!template) {
@@ -141,17 +138,12 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
           }
         >
           <Stack direction="row" spacing={3} className={styles.pageTitle}>
-            <div>
-              {hasIcon ? (
-                <div className={styles.iconWrapper}>
-                  <img src={template.icon} alt="" />
-                </div>
-              ) : (
-                <Avatar className={styles.avatar}>
-                  {firstLetter(template.name)}
-                </Avatar>
-              )}
-            </div>
+            {hasIcon ? (
+              <Avatar size="xl" src={template.icon} variant="square" fitImage />
+            ) : (
+              <Avatar size="xl">{template.name}</Avatar>
+            )}
+
             <div>
               <PageHeaderTitle>
                 {template.display_name.length > 0
@@ -213,11 +205,6 @@ export const useStyles = makeStyles((theme) => {
   return {
     pageTitle: {
       alignItems: "center",
-    },
-    avatar: {
-      width: theme.spacing(6),
-      height: theme.spacing(6),
-      fontSize: theme.spacing(3),
     },
     iconWrapper: {
       width: theme.spacing(6),

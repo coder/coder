@@ -1,32 +1,23 @@
 import { PlaywrightTestConfig } from "@playwright/test"
-import * as path from "path"
-import { basePort } from "./constants"
+import path from "path"
+import { defaultPort } from "./constants"
+
+const port = process.env.CODER_E2E_PORT
+  ? Number(process.env.CODER_E2E_PORT)
+  : defaultPort
+
+const coderMain = path.join(__dirname, "../../enterprise/cmd/coder/main.go")
 
 const config: PlaywrightTestConfig = {
   testDir: "tests",
   globalSetup: require.resolve("./globalSetup"),
-
-  // Create junit report file for upload to DataDog
-  reporter: [["junit", { outputFile: "test-results/junit.xml" }]],
-
-  // NOTE: if Playwright complains about the port being taken
-  // do not change the basePort (it must match our api server).
-  // Instead, simply run the test suite without running our local server.
   use: {
-    baseURL: `http://localhost:${basePort}`,
+    baseURL: `http://localhost:${port}`,
     video: "retain-on-failure",
   },
-
-  // `webServer` tells Playwright to launch a test server - more details here:
-  // https://playwright.dev/docs/test-advanced#launching-a-development-web-server-during-the-tests
   webServer: {
-    // Run the coder daemon directly.
-    command: `go run -tags embed ${path.join(
-      __dirname,
-      "../../enterprise/cmd/coder/main.go",
-    )} server --in-memory --access-url http://127.0.0.1:${basePort}`,
-    port: basePort,
-    timeout: 120 * 10000,
+    command: `go run -tags embed ${coderMain} server --global-config $(mktemp -d -t e2e-XXXXXXXXXX)`,
+    port,
     reuseExistingServer: false,
   },
 }

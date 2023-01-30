@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/examples"
+	sdkproto "github.com/coder/coder/provisionersdk/proto"
 )
 
 // @Summary Get template version by ID
@@ -192,6 +193,56 @@ func (api *API) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, apiSchemas)
 }
 
+// @Summary Get rich parameters by template version
+// @ID get-rich-parameters-by-template-version
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Param templateversion path string true "Template version ID" format(uuid)
+// @Success 200 {array} parameter.ComputedValue
+// @Router /templateversions/{templateversion}/rich-parameters [get]
+func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	templateVersion := httpmw.TemplateVersionParam(r)
+	template := httpmw.TemplateParam(r)
+	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner job.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !job.CompletedAt.Valid {
+		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
+			Message: "Job hasn't completed!",
+		})
+		return
+	}
+	dbTemplateVersionParameters, err := api.Database.GetTemplateVersionParameters(ctx, templateVersion.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template version parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	templateVersionParameters, err := convertTemplateVersionParameters(dbTemplateVersionParameters)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error converting template version parameter.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, templateVersionParameters)
+}
+
 // @Summary Get parameters by template version
 // @ID get-parameters-by-template-version
 // @Security CoderSessionToken
@@ -308,12 +359,22 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 		}
 	}
 
+	richParameterValues := make([]database.WorkspaceBuildParameter, len(req.RichParameterValues))
+	for i, v := range req.RichParameterValues {
+		richParameterValues[i] = database.WorkspaceBuildParameter{
+			WorkspaceBuildID: uuid.Nil,
+			Name:             v.Name,
+			Value:            v.Value,
+		}
+	}
+
 	// Marshal template version dry-run job with the parameters from the
 	// request.
 	input, err := json.Marshal(provisionerdserver.TemplateVersionDryRunJob{
-		TemplateVersionID: templateVersion.ID,
-		WorkspaceName:     req.WorkspaceName,
-		ParameterValues:   parameterValues,
+		TemplateVersionID:   templateVersion.ID,
+		WorkspaceName:       req.WorkspaceName,
+		ParameterValues:     parameterValues,
+		RichParameterValues: richParameterValues,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1142,6 +1203,14 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			}
 		}
 
+		templateVersionID := uuid.New()
+		jobInput, err := json.Marshal(provisionerdserver.TemplateVersionImportJob{
+			TemplateVersionID: templateVersionID,
+		})
+		if err != nil {
+			return xerrors.Errorf("marshal job input: %w", err)
+		}
+
 		provisionerJob, err = tx.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 			ID:             jobID,
 			CreatedAt:      database.Now(),
@@ -1152,7 +1221,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			StorageMethod:  database.ProvisionerStorageMethodFile,
 			FileID:         file.ID,
 			Type:           database.ProvisionerJobTypeTemplateVersionImport,
-			Input:          []byte{'{', '}'},
+			Input:          jobInput,
 			Tags:           tags,
 		})
 		if err != nil {
@@ -1172,7 +1241,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		}
 
 		templateVersion, err = tx.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
-			ID:             uuid.New(),
+			ID:             templateVersionID,
 			TemplateID:     templateID,
 			OrganizationID: organization.ID,
 			CreatedAt:      database.Now(),
@@ -1305,6 +1374,48 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 		Readme:         version.Readme,
 		CreatedBy:      createdBy,
 	}
+}
+
+func convertTemplateVersionParameters(dbParams []database.TemplateVersionParameter) ([]codersdk.TemplateVersionParameter, error) {
+	params := make([]codersdk.TemplateVersionParameter, 0)
+	for _, dbParameter := range dbParams {
+		param, err := convertTemplateVersionParameter(dbParameter)
+		if err != nil {
+			return nil, err
+		}
+		params = append(params, param)
+	}
+	return params, nil
+}
+
+func convertTemplateVersionParameter(param database.TemplateVersionParameter) (codersdk.TemplateVersionParameter, error) {
+	var protoOptions []*sdkproto.RichParameterOption
+	err := json.Unmarshal(param.Options, &protoOptions)
+	if err != nil {
+		return codersdk.TemplateVersionParameter{}, err
+	}
+	options := make([]codersdk.TemplateVersionParameterOption, 0)
+	for _, option := range protoOptions {
+		options = append(options, codersdk.TemplateVersionParameterOption{
+			Name:        option.Name,
+			Description: option.Description,
+			Value:       option.Value,
+			Icon:        option.Icon,
+		})
+	}
+	return codersdk.TemplateVersionParameter{
+		Name:            param.Name,
+		Description:     param.Description,
+		Type:            param.Type,
+		Mutable:         param.Mutable,
+		DefaultValue:    param.DefaultValue,
+		Icon:            param.Icon,
+		Options:         options,
+		ValidationRegex: param.ValidationRegex,
+		ValidationMin:   param.ValidationMin,
+		ValidationMax:   param.ValidationMax,
+		ValidationError: param.ValidationError,
+	}, nil
 }
 
 func watchTemplateChannel(id uuid.UUID) string {

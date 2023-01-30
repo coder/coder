@@ -48,7 +48,7 @@ func TestCoordinator(t *testing.T) {
 		id := uuid.New()
 		closeChan := make(chan struct{})
 		go func() {
-			err := coordinator.ServeAgent(server, id)
+			err := coordinator.ServeAgent(server, id, "")
 			assert.NoError(t, err)
 			close(closeChan)
 		}()
@@ -76,7 +76,7 @@ func TestCoordinator(t *testing.T) {
 		agentID := uuid.New()
 		closeAgentChan := make(chan struct{})
 		go func() {
-			err := coordinator.ServeAgent(agentServerWS, agentID)
+			err := coordinator.ServeAgent(agentServerWS, agentID, "")
 			assert.NoError(t, err)
 			close(closeAgentChan)
 		}()
@@ -127,7 +127,7 @@ func TestCoordinator(t *testing.T) {
 		})
 		closeAgentChan = make(chan struct{})
 		go func() {
-			err := coordinator.ServeAgent(agentServerWS, agentID)
+			err := coordinator.ServeAgent(agentServerWS, agentID, "")
 			assert.NoError(t, err)
 			close(closeAgentChan)
 		}()
@@ -144,5 +144,99 @@ func TestCoordinator(t *testing.T) {
 		require.NoError(t, err)
 		<-clientErrChan
 		<-closeClientChan
+	})
+
+	t.Run("AgentDoubleConnect", func(t *testing.T) {
+		t.Parallel()
+		coordinator := tailnet.NewCoordinator()
+
+		agentWS1, agentServerWS1 := net.Pipe()
+		defer agentWS1.Close()
+		agentNodeChan1 := make(chan []*tailnet.Node)
+		sendAgentNode1, agentErrChan1 := tailnet.ServeCoordinator(agentWS1, func(nodes []*tailnet.Node) error {
+			agentNodeChan1 <- nodes
+			return nil
+		})
+		agentID := uuid.New()
+		closeAgentChan1 := make(chan struct{})
+		go func() {
+			err := coordinator.ServeAgent(agentServerWS1, agentID, "")
+			assert.NoError(t, err)
+			close(closeAgentChan1)
+		}()
+		sendAgentNode1(&tailnet.Node{})
+		require.Eventually(t, func() bool {
+			return coordinator.Node(agentID) != nil
+		}, testutil.WaitShort, testutil.IntervalFast)
+
+		clientWS, clientServerWS := net.Pipe()
+		defer clientWS.Close()
+		defer clientServerWS.Close()
+		clientNodeChan := make(chan []*tailnet.Node)
+		sendClientNode, clientErrChan := tailnet.ServeCoordinator(clientWS, func(nodes []*tailnet.Node) error {
+			clientNodeChan <- nodes
+			return nil
+		})
+		clientID := uuid.New()
+		closeClientChan := make(chan struct{})
+		go func() {
+			err := coordinator.ServeClient(clientServerWS, clientID, agentID)
+			assert.NoError(t, err)
+			close(closeClientChan)
+		}()
+		agentNodes := <-clientNodeChan
+		require.Len(t, agentNodes, 1)
+		sendClientNode(&tailnet.Node{})
+		clientNodes := <-agentNodeChan1
+		require.Len(t, clientNodes, 1)
+
+		// Ensure an update to the agent node reaches the client!
+		sendAgentNode1(&tailnet.Node{})
+		agentNodes = <-clientNodeChan
+		require.Len(t, agentNodes, 1)
+
+		// Create a new agent connection without disconnecting the old one.
+		agentWS2, agentServerWS2 := net.Pipe()
+		defer agentWS2.Close()
+		agentNodeChan2 := make(chan []*tailnet.Node)
+		_, agentErrChan2 := tailnet.ServeCoordinator(agentWS2, func(nodes []*tailnet.Node) error {
+			agentNodeChan2 <- nodes
+			return nil
+		})
+		closeAgentChan2 := make(chan struct{})
+		go func() {
+			err := coordinator.ServeAgent(agentServerWS2, agentID, "")
+			assert.NoError(t, err)
+			close(closeAgentChan2)
+		}()
+
+		// Ensure the existing listening client sends it's node immediately!
+		clientNodes = <-agentNodeChan2
+		require.Len(t, clientNodes, 1)
+
+		counts, ok := coordinator.(interface {
+			NodeCount() int
+			AgentCount() int
+		})
+		if !ok {
+			t.Fatal("coordinator should have NodeCount() and AgentCount()")
+		}
+
+		assert.Equal(t, 2, counts.NodeCount())
+		assert.Equal(t, 1, counts.AgentCount())
+
+		err := agentWS2.Close()
+		require.NoError(t, err)
+		<-agentErrChan2
+		<-closeAgentChan2
+
+		err = clientWS.Close()
+		require.NoError(t, err)
+		<-clientErrChan
+		<-closeClientChan
+
+		// This original agent websocket should've been closed forcefully.
+		<-agentErrChan1
+		<-closeAgentChan1
 	})
 }

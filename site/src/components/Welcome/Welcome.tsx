@@ -34,15 +34,20 @@ const useStyles = makeStyles((theme) => ({
     justifyContent: "center",
   },
   logo: {
-    width: 80,
-    height: 56,
     color: theme.palette.text.primary,
+    fontSize: theme.spacing(8),
   },
   title: {
-    fontSize: 24,
-    letterSpacing: -0.3,
-    marginBottom: theme.spacing(3),
-    marginTop: theme.spacing(6),
     textAlign: "center",
+    fontSize: theme.spacing(4),
+    fontWeight: 400,
+    margin: 0,
+    marginBottom: theme.spacing(2),
+    marginTop: theme.spacing(2),
+    lineHeight: 1,
+
+    "& strong": {
+      fontWeight: 600,
+    },
   },
 }))

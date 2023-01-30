@@ -10,6 +10,7 @@ import (
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 )
 
 // @Summary Regenerate user SSH key
@@ -34,7 +35,7 @@ func (api *API) regenerateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 
-	if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceUserData.WithOwner(user.ID.String())) {
+	if !api.Authorize(r, rbac.ActionUpdate, user.UserDataRBACObject()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -93,7 +94,7 @@ func (api *API) gitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
 
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceUserData.WithOwner(user.ID.String())) {
+	if !api.Authorize(r, rbac.ActionRead, user.UserDataRBACObject()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -121,7 +122,7 @@ func (api *API) gitSSHKey(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Agents
-// @Success 200 {object} codersdk.AgentGitSSHKey
+// @Success 200 {object} agentsdk.GitSSHKey
 // @Router /workspaceagents/me/gitsshkey [get]
 func (api *API) agentGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -162,7 +163,7 @@ func (api *API) agentGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AgentGitSSHKey{
+	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.GitSSHKey{
 		PublicKey:  gitSSHKey.PublicKey,
 		PrivateKey: gitSSHKey.PrivateKey,
 	})

@@ -1,25 +1,22 @@
-import Avatar from "@material-ui/core/Avatar"
+import { Avatar } from "components/Avatar/Avatar"
 import { FC } from "react"
-import { firstLetter } from "../../util/firstLetter"
 
 export interface UserAvatarProps {
   username: string
-  className?: string
   avatarURL?: string
+  // It is needed to work with the AvatarGroup so it can pass the
+  // MuiAvatarGroup-avatar className
+  className?: string
 }
 
 export const UserAvatar: FC<UserAvatarProps> = ({
   username,
-  className,
   avatarURL,
+  className,
 }) => {
   return (
-    <Avatar className={className} title={username}>
-      {avatarURL ? (
-        <img alt={`${username}'s Avatar`} src={avatarURL} width="100%" />
-      ) : (
-        firstLetter(username)
-      )}
+    <Avatar title={username} src={avatarURL} className={className}>
+      {username}
     </Avatar>
   )
 }

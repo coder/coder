@@ -1,7 +1,5 @@
 # Users
 
-> This page is incomplete, stay tuned.
-
 ## Get users
 
 ### Code samples

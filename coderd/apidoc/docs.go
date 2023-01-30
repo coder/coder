@@ -153,7 +153,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.GetAppHostResponse"
+                            "$ref": "#/definitions/codersdk.AppHostResponse"
                         }
                     }
                 }
@@ -362,6 +362,28 @@ const docTemplate = `{
                 }
             }
         },
+        "/debug/coordinator": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Debug Info Wireguard Coordinator",
+                "operationId": "debug-info-wireguard-coordinator",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/entitlements": {
             "get": {
                 "security": [
@@ -382,6 +404,34 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Entitlements"
+                        }
+                    }
+                }
+            }
+        },
+        "/experiments": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Get experiments",
+                "operationId": "get-experiments",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Experiment"
+                            }
                         }
                     }
                 }
@@ -593,6 +643,31 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Group"
+                        }
+                    }
+                }
+            }
+        },
+        "/insights/daus": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Insights"
+                ],
+                "summary": "Get deployment DAUs",
+                "operationId": "get-deployment-daus",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.DeploymentDAUsResponse"
                         }
                     }
                 }
@@ -2516,6 +2591,44 @@ const docTemplate = `{
                 }
             }
         },
+        "/templateversions/{templateversion}/rich-parameters": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get rich parameters by template version",
+                "operationId": "get-rich-parameters-by-template-version",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversion",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/parameter.ComputedValue"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/templateversions/{templateversion}/schema": {
             "get": {
                 "security": [
@@ -3668,7 +3781,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.AWSInstanceIdentityToken"
+                            "$ref": "#/definitions/agentsdk.AWSInstanceIdentityToken"
                         }
                     }
                 ],
@@ -3676,7 +3789,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.WorkspaceAgentAuthenticateResponse"
+                            "$ref": "#/definitions/agentsdk.AuthenticateResponse"
                         }
                     }
                 }
@@ -3707,7 +3820,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.AzureInstanceIdentityToken"
+                            "$ref": "#/definitions/agentsdk.AzureInstanceIdentityToken"
                         }
                     }
                 ],
@@ -3715,7 +3828,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.WorkspaceAgentAuthenticateResponse"
+                            "$ref": "#/definitions/agentsdk.AuthenticateResponse"
                         }
                     }
                 }
@@ -3746,7 +3859,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.GoogleInstanceIdentityToken"
+                            "$ref": "#/definitions/agentsdk.GoogleInstanceIdentityToken"
                         }
                     }
                 ],
@@ -3754,7 +3867,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.WorkspaceAgentAuthenticateResponse"
+                            "$ref": "#/definitions/agentsdk.AuthenticateResponse"
                         }
                     }
                 }
@@ -3785,7 +3898,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.PostWorkspaceAppHealthsRequest"
+                            "$ref": "#/definitions/agentsdk.PostAppHealthsRequest"
                         }
                     }
                 ],
@@ -3851,7 +3964,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.WorkspaceAgentGitAuthResponse"
+                            "$ref": "#/definitions/agentsdk.GitAuthResponse"
                         }
                     }
                 }
@@ -3876,7 +3989,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.AgentGitSSHKey"
+                            "$ref": "#/definitions/agentsdk.GitSSHKey"
                         }
                     }
                 }
@@ -3901,9 +4014,45 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.WorkspaceAgentMetadata"
+                            "$ref": "#/definitions/agentsdk.Metadata"
                         }
                     }
+                }
+            }
+        },
+        "/workspaceagents/me/report-lifecycle": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Submit workspace agent lifecycle state",
+                "operationId": "submit-workspace-agent-lifecycle-state",
+                "parameters": [
+                    {
+                        "description": "Workspace agent lifecycle request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agentsdk.PostLifecycleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Success"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
                 }
             }
         },
@@ -3932,7 +4081,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.AgentStats"
+                            "$ref": "#/definitions/agentsdk.Stats"
                         }
                     }
                 ],
@@ -3940,7 +4089,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.AgentStatsResponse"
+                            "$ref": "#/definitions/agentsdk.StatsResponse"
                         }
                     }
                 }
@@ -3971,7 +4120,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.PostWorkspaceAgentVersionRequest"
+                            "$ref": "#/definitions/agentsdk.PostVersionRequest"
                         }
                     }
                 ],
@@ -4113,7 +4262,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.ListeningPortsResponse"
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentListeningPortsResponse"
                         }
                     }
                 }
@@ -4265,6 +4414,43 @@ const docTemplate = `{
                             "type": "array",
                             "items": {
                                 "$ref": "#/definitions/codersdk.ProvisionerJobLog"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/workspacebuilds/{workspacebuild}/parameters": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Builds"
+                ],
+                "summary": "Get build parameters for workspace build",
+                "operationId": "get-build-parameters-for-workspace-build",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workspace build ID",
+                        "name": "workspacebuild",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.WorkspaceBuildParameter"
                             }
                         }
                     }
@@ -4771,6 +4957,188 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "agentsdk.AWSInstanceIdentityToken": {
+            "type": "object",
+            "required": [
+                "document",
+                "signature"
+            ],
+            "properties": {
+                "document": {
+                    "type": "string"
+                },
+                "signature": {
+                    "type": "string"
+                }
+            }
+        },
+        "agentsdk.AuthenticateResponse": {
+            "type": "object",
+            "properties": {
+                "session_token": {
+                    "type": "string"
+                }
+            }
+        },
+        "agentsdk.AzureInstanceIdentityToken": {
+            "type": "object",
+            "required": [
+                "encoding",
+                "signature"
+            ],
+            "properties": {
+                "encoding": {
+                    "type": "string"
+                },
+                "signature": {
+                    "type": "string"
+                }
+            }
+        },
+        "agentsdk.GitAuthResponse": {
+            "type": "object",
+            "properties": {
+                "password": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "agentsdk.GitSSHKey": {
+            "type": "object",
+            "properties": {
+                "private_key": {
+                    "type": "string"
+                },
+                "public_key": {
+                    "type": "string"
+                }
+            }
+        },
+        "agentsdk.GoogleInstanceIdentityToken": {
+            "type": "object",
+            "required": [
+                "json_web_token"
+            ],
+            "properties": {
+                "json_web_token": {
+                    "type": "string"
+                }
+            }
+        },
+        "agentsdk.Metadata": {
+            "type": "object",
+            "properties": {
+                "apps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceApp"
+                    }
+                },
+                "derpmap": {
+                    "$ref": "#/definitions/tailcfg.DERPMap"
+                },
+                "directory": {
+                    "type": "string"
+                },
+                "environment_variables": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "git_auth_configs": {
+                    "description": "GitAuthConfigs stores the number of Git configurations\nthe Coder deployment has. If this number is \u003e0, we\nset up special configuration in the workspace.",
+                    "type": "integer"
+                },
+                "motd_file": {
+                    "type": "string"
+                },
+                "startup_script": {
+                    "type": "string"
+                },
+                "startup_script_timeout": {
+                    "type": "integer"
+                },
+                "vscode_port_proxy_uri": {
+                    "type": "string"
+                }
+            }
+        },
+        "agentsdk.PostAppHealthsRequest": {
+            "type": "object",
+            "properties": {
+                "healths": {
+                    "description": "Healths is a map of the workspace app name and the health of the app.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.WorkspaceAppHealth"
+                    }
+                }
+            }
+        },
+        "agentsdk.PostLifecycleRequest": {
+            "type": "object",
+            "properties": {
+                "state": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
+                }
+            }
+        },
+        "agentsdk.PostVersionRequest": {
+            "type": "object",
+            "properties": {
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "agentsdk.Stats": {
+            "type": "object",
+            "properties": {
+                "conns_by_proto": {
+                    "description": "ConnsByProto is a count of connections by protocol.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "num_comms": {
+                    "description": "NumConns is the number of connections received by an agent.",
+                    "type": "integer"
+                },
+                "rx_bytes": {
+                    "description": "RxBytes is the number of received bytes.",
+                    "type": "integer"
+                },
+                "rx_packets": {
+                    "description": "RxPackets is the number of received packets.",
+                    "type": "integer"
+                },
+                "tx_bytes": {
+                    "description": "TxBytes is the number of transmitted bytes.",
+                    "type": "integer"
+                },
+                "tx_packets": {
+                    "description": "TxPackets is the number of transmitted bytes.",
+                    "type": "integer"
+                }
+            }
+        },
+        "agentsdk.StatsResponse": {
+            "type": "object",
+            "properties": {
+                "report_interval": {
+                    "description": "ReportInterval is the duration after which the agent should send stats\nagain.",
+                    "type": "integer"
+                }
+            }
+        },
         "coderd.SCIMUser": {
             "type": "object",
             "properties": {
@@ -4921,21 +5289,6 @@ const docTemplate = `{
                 "APIKeyScopeApplicationConnect"
             ]
         },
-        "codersdk.AWSInstanceIdentityToken": {
-            "type": "object",
-            "required": [
-                "document",
-                "signature"
-            ],
-            "properties": {
-                "document": {
-                    "type": "string"
-                },
-                "signature": {
-                    "type": "string"
-                }
-            }
-        },
         "codersdk.AddLicenseRequest": {
             "type": "object",
             "required": [
@@ -4947,55 +5300,12 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.AgentGitSSHKey": {
+        "codersdk.AppHostResponse": {
             "type": "object",
             "properties": {
-                "private_key": {
+                "host": {
+                    "description": "Host is the externally accessible URL for the Coder instance.",
                     "type": "string"
-                },
-                "public_key": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.AgentStats": {
-            "type": "object",
-            "properties": {
-                "conns_by_proto": {
-                    "description": "ConnsByProto is a count of connections by protocol.",
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "integer"
-                    }
-                },
-                "num_comms": {
-                    "description": "NumConns is the number of connections received by an agent.",
-                    "type": "integer"
-                },
-                "rx_bytes": {
-                    "description": "RxBytes is the number of received bytes.",
-                    "type": "integer"
-                },
-                "rx_packets": {
-                    "description": "RxPackets is the number of received packets.",
-                    "type": "integer"
-                },
-                "tx_bytes": {
-                    "description": "TxBytes is the number of transmitted bytes.",
-                    "type": "integer"
-                },
-                "tx_packets": {
-                    "description": "TxPackets is the number of transmitted bytes.",
-                    "type": "integer"
-                }
-            }
-        },
-        "codersdk.AgentStatsResponse": {
-            "type": "object",
-            "properties": {
-                "report_interval": {
-                    "description": "ReportInterval is the duration after which the agent should send stats\nagain.",
-                    "type": "integer"
                 }
             }
         },
@@ -5224,21 +5534,6 @@ const docTemplate = `{
                 "type": "boolean"
             }
         },
-        "codersdk.AzureInstanceIdentityToken": {
-            "type": "object",
-            "required": [
-                "encoding",
-                "signature"
-            ],
-            "properties": {
-                "encoding": {
-                    "type": "string"
-                },
-                "signature": {
-                    "type": "string"
-                }
-            }
-        },
         "codersdk.BuildInfoResponse": {
             "type": "object",
             "properties": {
@@ -5424,6 +5719,12 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.CreateParameterRequest"
                     }
                 },
+                "rich_parameter_values": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceBuildParameter"
+                    }
+                },
                 "workspace_name": {
                     "type": "string"
                 }
@@ -5446,21 +5747,31 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "build_reason": {
+                    "enum": [
+                        "autostart",
+                        "autostop",
+                        "initiator"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.BuildReason"
+                        }
+                    ]
+                },
                 "resource_id": {
                     "type": "string",
                     "format": "uuid"
                 },
                 "resource_type": {
                     "enum": [
-                        "organization",
                         "template",
                         "template_version",
                         "user",
                         "workspace",
                         "workspace_build",
                         "git_ssh_key",
-                        "api_key",
-                        "group"
+                        "auditable_group"
                     ],
                     "allOf": [
                         {
@@ -5536,6 +5847,12 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.CreateParameterRequest"
+                    }
+                },
+                "rich_parameter_values": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceBuildParameter"
                     }
                 },
                 "state": {
@@ -5631,6 +5948,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.DangerousConfig": {
+            "type": "object",
+            "properties": {
+                "allow_path_app_sharing": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
+                "allow_path_app_site_owner_access": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                }
+            }
+        },
         "codersdk.DeploymentConfig": {
             "type": "object",
             "properties": {
@@ -5663,11 +5991,25 @@ const docTemplate = `{
                 "cache_directory": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
                 },
+                "dangerous": {
+                    "$ref": "#/definitions/codersdk.DangerousConfig"
+                },
                 "derp": {
                     "$ref": "#/definitions/codersdk.DERP"
                 },
-                "experimental": {
+                "disable_path_apps": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
+                "experimental": {
+                    "description": "DEPRECATED: Use Experiments instead.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                        }
+                    ]
+                },
+                "experiments": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
                 },
                 "gitauth": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-array_codersdk_GitAuthConfig"
@@ -5947,6 +6289,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.DeploymentDAUsResponse": {
+            "type": "object",
+            "properties": {
+                "entries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.DAUEntry"
+                    }
+                }
+            }
+        },
         "codersdk.Entitlement": {
             "type": "string",
             "enum": [
@@ -5970,6 +6323,7 @@ const docTemplate = `{
                     }
                 },
                 "experimental": {
+                    "description": "DEPRECATED: use Experiments instead.",
                     "type": "boolean"
                 },
                 "features": {
@@ -5992,6 +6346,15 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.Experiment": {
+            "type": "string",
+            "enum": [
+                "authz_querier"
+            ],
+            "x-enum-varnames": [
+                "ExperimentAuthzQuerier"
+            ]
+        },
         "codersdk.Feature": {
             "type": "object",
             "properties": {
@@ -6013,15 +6376,6 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "key": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.GetAppHostResponse": {
-            "type": "object",
-            "properties": {
-                "host": {
-                    "description": "Host is the externally accessible URL for the Coder instance.",
                     "type": "string"
                 }
             }
@@ -6095,17 +6449,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.GoogleInstanceIdentityToken": {
-            "type": "object",
-            "required": [
-                "json_web_token"
-            ],
-            "properties": {
-                "json_web_token": {
-                    "type": "string"
-                }
-            }
-        },
         "codersdk.Group": {
             "type": "object",
             "properties": {
@@ -6169,47 +6512,6 @@ const docTemplate = `{
                 "uuid": {
                     "type": "string",
                     "format": "uuid"
-                }
-            }
-        },
-        "codersdk.ListeningPort": {
-            "type": "object",
-            "properties": {
-                "network": {
-                    "description": "only \"tcp\" at the moment",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ListeningPortNetwork"
-                        }
-                    ]
-                },
-                "port": {
-                    "type": "integer"
-                },
-                "process_name": {
-                    "description": "may be empty",
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.ListeningPortNetwork": {
-            "type": "string",
-            "enum": [
-                "tcp"
-            ],
-            "x-enum-varnames": [
-                "ListeningPortNetworkTCP"
-            ]
-        },
-        "codersdk.ListeningPortsResponse": {
-            "type": "object",
-            "properties": {
-                "ports": {
-                    "description": "If there are no ports in the list, nothing should be displayed in the UI.\nThere must not be a \"no ports available\" message or anything similar, as\nthere will always be no ports displayed on platforms where our port\ndetection logic is unsupported.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.ListeningPort"
-                    }
                 }
             }
         },
@@ -6610,27 +6912,6 @@ const docTemplate = `{
                 "ParameterSourceSchemeData"
             ]
         },
-        "codersdk.PostWorkspaceAgentVersionRequest": {
-            "description": "x-apidocgen:skip",
-            "type": "object",
-            "properties": {
-                "version": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.PostWorkspaceAppHealthsRequest": {
-            "type": "object",
-            "properties": {
-                "healths": {
-                    "description": "Healths is a map of the workspace app name and the health of the app.",
-                    "type": "object",
-                    "additionalProperties": {
-                        "$ref": "#/definitions/codersdk.WorkspaceAppHealth"
-                    }
-                }
-            }
-        },
         "codersdk.PprofConfig": {
             "type": "object",
             "properties": {
@@ -6878,7 +7159,6 @@ const docTemplate = `{
         "codersdk.ResourceType": {
             "type": "string",
             "enum": [
-                "organization",
                 "template",
                 "template_version",
                 "user",
@@ -6889,7 +7169,6 @@ const docTemplate = `{
                 "group"
             ],
             "x-enum-varnames": [
-                "ResourceTypeOrganization",
                 "ResourceTypeTemplate",
                 "ResourceTypeTemplateVersion",
                 "ResourceTypeUser",
@@ -7573,6 +7852,13 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.DERPRegion"
                     }
                 },
+                "lifecycle_state": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
+                },
+                "login_before_ready": {
+                    "description": "LoginBeforeReady if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).",
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -7586,18 +7872,12 @@ const docTemplate = `{
                 "startup_script": {
                     "type": "string"
                 },
+                "startup_script_timeout_seconds": {
+                    "description": "StartupScriptTimeoutSeconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.",
+                    "type": "integer"
+                },
                 "status": {
-                    "enum": [
-                        "connecting",
-                        "connected",
-                        "disconnected",
-                        "timeout"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.WorkspaceAgentStatus"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentStatus"
                 },
                 "troubleshooting_url": {
                     "type": "string"
@@ -7611,14 +7891,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.WorkspaceAgentAuthenticateResponse": {
-            "type": "object",
-            "properties": {
-                "session_token": {
-                    "type": "string"
-                }
-            }
-        },
         "codersdk.WorkspaceAgentConnectionInfo": {
             "type": "object",
             "properties": {
@@ -7627,53 +7899,48 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.WorkspaceAgentGitAuthResponse": {
+        "codersdk.WorkspaceAgentLifecycle": {
+            "type": "string",
+            "enum": [
+                "created",
+                "starting",
+                "start_timeout",
+                "start_error",
+                "ready"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAgentLifecycleCreated",
+                "WorkspaceAgentLifecycleStarting",
+                "WorkspaceAgentLifecycleStartTimeout",
+                "WorkspaceAgentLifecycleStartError",
+                "WorkspaceAgentLifecycleReady"
+            ]
+        },
+        "codersdk.WorkspaceAgentListeningPort": {
             "type": "object",
             "properties": {
-                "password": {
+                "network": {
+                    "description": "only \"tcp\" at the moment",
                     "type": "string"
                 },
-                "url": {
-                    "type": "string"
+                "port": {
+                    "type": "integer"
                 },
-                "username": {
+                "process_name": {
+                    "description": "may be empty",
                     "type": "string"
                 }
             }
         },
-        "codersdk.WorkspaceAgentMetadata": {
+        "codersdk.WorkspaceAgentListeningPortsResponse": {
             "type": "object",
             "properties": {
-                "apps": {
+                "ports": {
+                    "description": "If there are no ports in the list, nothing should be displayed in the UI.\nThere must not be a \"no ports available\" message or anything similar, as\nthere will always be no ports displayed on platforms where our port\ndetection logic is unsupported.",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.WorkspaceApp"
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentListeningPort"
                     }
-                },
-                "derpmap": {
-                    "$ref": "#/definitions/tailcfg.DERPMap"
-                },
-                "directory": {
-                    "type": "string"
-                },
-                "environment_variables": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "git_auth_configs": {
-                    "description": "GitAuthConfigs stores the number of Git configurations\nthe Coder deployment has. If this number is \u003e0, we\nset up special configuration in the workspace.",
-                    "type": "integer"
-                },
-                "motd_file": {
-                    "type": "string"
-                },
-                "startup_script": {
-                    "type": "string"
-                },
-                "vscode_port_proxy_uri": {
-                    "type": "string"
                 }
             }
         },
@@ -7882,6 +8149,17 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "workspace_owner_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceBuildParameter": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "value": {
                     "type": "string"
                 }
             }

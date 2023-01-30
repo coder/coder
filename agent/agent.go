@@ -41,6 +41,7 @@ import (
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/pty"
 	"github.com/coder/coder/tailnet"
 	"github.com/coder/retry"
@@ -68,11 +69,12 @@ type Options struct {
 }
 
 type Client interface {
-	WorkspaceAgentMetadata(ctx context.Context) (codersdk.WorkspaceAgentMetadata, error)
-	ListenWorkspaceAgent(ctx context.Context) (net.Conn, error)
-	AgentReportStats(ctx context.Context, log slog.Logger, stats func() *codersdk.AgentStats) (io.Closer, error)
-	PostWorkspaceAgentAppHealth(ctx context.Context, req codersdk.PostWorkspaceAppHealthsRequest) error
-	PostWorkspaceAgentVersion(ctx context.Context, version string) error
+	Metadata(ctx context.Context) (agentsdk.Metadata, error)
+	Listen(ctx context.Context) (net.Conn, error)
+	ReportStats(ctx context.Context, log slog.Logger, stats func() *agentsdk.Stats) (io.Closer, error)
+	PostLifecycle(ctx context.Context, state agentsdk.PostLifecycleRequest) error
+	PostAppHealth(ctx context.Context, req agentsdk.PostAppHealthsRequest) error
+	PostVersion(ctx context.Context, version string) error
 }
 
 func New(options Options) io.Closer {
@@ -101,6 +103,7 @@ func New(options Options) io.Closer {
 		exchangeToken:          options.ExchangeToken,
 		filesystem:             options.Filesystem,
 		tempDir:                options.TempDir,
+		lifecycleUpdate:        make(chan struct{}, 1),
 	}
 	a.init(ctx)
 	return a
@@ -127,6 +130,10 @@ type agent struct {
 	sessionToken atomic.Pointer[string]
 	sshServer    *ssh.Server
 
+	lifecycleUpdate chan struct{}
+	lifecycleMu     sync.Mutex // Protects following.
+	lifecycleState  codersdk.WorkspaceAgentLifecycle
+
 	network *tailnet.Conn
 }
 
@@ -135,6 +142,8 @@ type agent struct {
 // may be happening, but regardless after the intermittent
 // failure, you'll want the agent to reconnect.
 func (a *agent) runLoop(ctx context.Context) {
+	go a.reportLifecycleLoop(ctx)
+
 	for retrier := retry.New(100*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
 		a.logger.Info(ctx, "running loop")
 		err := a.run(ctx)
@@ -156,6 +165,58 @@ func (a *agent) runLoop(ctx context.Context) {
 	}
 }
 
+// reportLifecycleLoop reports the current lifecycle state once.
+// Only the latest state is reported, intermediate states may be
+// lost if the agent can't communicate with the API.
+func (a *agent) reportLifecycleLoop(ctx context.Context) {
+	var lastReported codersdk.WorkspaceAgentLifecycle
+	for {
+		select {
+		case <-a.lifecycleUpdate:
+		case <-ctx.Done():
+			return
+		}
+
+		for r := retry.New(time.Second, 15*time.Second); r.Wait(ctx); {
+			a.lifecycleMu.Lock()
+			state := a.lifecycleState
+			a.lifecycleMu.Unlock()
+
+			if state == lastReported {
+				break
+			}
+
+			a.logger.Debug(ctx, "post lifecycle state", slog.F("state", state))
+
+			err := a.client.PostLifecycle(ctx, agentsdk.PostLifecycleRequest{
+				State: state,
+			})
+			if err == nil {
+				lastReported = state
+				break
+			}
+			if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
+				return
+			}
+			// If we fail to report the state we probably shouldn't exit, log only.
+			a.logger.Error(ctx, "post state", slog.Error(err))
+		}
+	}
+}
+
+func (a *agent) setLifecycle(ctx context.Context, state codersdk.WorkspaceAgentLifecycle) {
+	a.lifecycleMu.Lock()
+	defer a.lifecycleMu.Unlock()
+
+	a.logger.Debug(ctx, "set lifecycle state", slog.F("state", state), slog.F("previous", a.lifecycleState))
+
+	a.lifecycleState = state
+	select {
+	case a.lifecycleUpdate <- struct{}{}:
+	default:
+	}
+}
+
 func (a *agent) run(ctx context.Context) error {
 	// This allows the agent to refresh it's token if necessary.
 	// For instance identity this is required, since the instance
@@ -166,12 +227,12 @@ func (a *agent) run(ctx context.Context) error {
 	}
 	a.sessionToken.Store(&sessionToken)
 
-	err = a.client.PostWorkspaceAgentVersion(ctx, buildinfo.Version())
+	err = a.client.PostVersion(ctx, buildinfo.Version())
 	if err != nil {
 		return xerrors.Errorf("update workspace agent version: %w", err)
 	}
 
-	metadata, err := a.client.WorkspaceAgentMetadata(ctx)
+	metadata, err := a.client.Metadata(ctx)
 	if err != nil {
 		return xerrors.Errorf("fetch metadata: %w", err)
 	}
@@ -180,29 +241,67 @@ func (a *agent) run(ctx context.Context) error {
 
 	// The startup script should only execute on the first run!
 	if oldMetadata == nil {
+		a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleStarting)
+
+		// Perform overrides early so that Git auth can work even if users
+		// connect to a workspace that is not yet ready. We don't run this
+		// concurrently with the startup script to avoid conflicts between
+		// them.
+		if metadata.GitAuthConfigs > 0 {
+			// If this fails, we should consider surfacing the error in the
+			// startup log and setting the lifecycle state to be "start_error"
+			// (after startup script completion), but for now we'll just log it.
+			err := gitauth.OverrideVSCodeConfigs(a.filesystem)
+			if err != nil {
+				a.logger.Warn(ctx, "failed to override vscode git auth configs", slog.Error(err))
+			}
+		}
+
+		scriptDone := make(chan error, 1)
+		scriptStart := time.Now()
 		go func() {
-			err := a.runStartupScript(ctx, metadata.StartupScript)
+			defer close(scriptDone)
+			scriptDone <- a.runStartupScript(ctx, metadata.StartupScript)
+		}()
+		go func() {
+			var timeout <-chan time.Time
+			// If timeout is zero, an older version of the coder
+			// provider was used. Otherwise a timeout is always > 0.
+			if metadata.StartupScriptTimeout > 0 {
+				t := time.NewTimer(metadata.StartupScriptTimeout)
+				defer t.Stop()
+				timeout = t.C
+			}
+
+			var err error
+			select {
+			case err = <-scriptDone:
+			case <-timeout:
+				a.logger.Warn(ctx, "startup script timed out")
+				a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleStartTimeout)
+				err = <-scriptDone // The script can still complete after a timeout.
+			}
 			if errors.Is(err, context.Canceled) {
 				return
 			}
+			execTime := time.Since(scriptStart)
+			lifecycleStatus := codersdk.WorkspaceAgentLifecycleReady
 			if err != nil {
-				a.logger.Warn(ctx, "agent script failed", slog.Error(err))
+				a.logger.Warn(ctx, "startup script failed", slog.F("execution_time", execTime), slog.Error(err))
+				lifecycleStatus = codersdk.WorkspaceAgentLifecycleStartError
+			} else {
+				a.logger.Info(ctx, "startup script completed", slog.F("execution_time", execTime))
 			}
-		}()
-	}
 
-	if metadata.GitAuthConfigs > 0 {
-		err = gitauth.OverrideVSCodeConfigs(a.filesystem)
-		if err != nil {
-			return xerrors.Errorf("override vscode configuration for git auth: %w", err)
-		}
+			a.setLifecycle(ctx, lifecycleStatus)
+		}()
 	}
 
 	// This automatically closes when the context ends!
 	appReporterCtx, appReporterCtxCancel := context.WithCancel(ctx)
 	defer appReporterCtxCancel()
 	go NewWorkspaceAppHealthReporter(
-		a.logger, metadata.Apps, a.client.PostWorkspaceAgentAppHealth)(appReporterCtx)
+		a.logger, metadata.Apps, a.client.PostAppHealth)(appReporterCtx)
 
 	a.logger.Debug(ctx, "running tailnet with derpmap", slog.F("derpmap", metadata.DERPMap))
 
@@ -228,7 +327,7 @@ func (a *agent) run(ctx context.Context) error {
 		}
 
 		// Report statistics from the created network.
-		cl, err := a.client.AgentReportStats(ctx, a.logger, func() *codersdk.AgentStats {
+		cl, err := a.client.ReportStats(ctx, a.logger, func() *agentsdk.Stats {
 			stats := network.ExtractTrafficStats()
 			return convertAgentStats(stats)
 		})
@@ -275,7 +374,7 @@ func (a *agent) trackConnGoroutine(fn func()) error {
 
 func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ *tailnet.Conn, err error) {
 	network, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:          []netip.Prefix{netip.PrefixFrom(codersdk.TailnetIP, 128)},
+		Addresses:          []netip.Prefix{netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128)},
 		DERPMap:            derpMap,
 		Logger:             a.logger.Named("tailnet"),
 		EnableTrafficStats: true,
@@ -289,7 +388,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 		}
 	}()
 
-	sshListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetSSHPort))
+	sshListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.WorkspaceAgentSSHPort))
 	if err != nil {
 		return nil, xerrors.Errorf("listen on the ssh port: %w", err)
 	}
@@ -299,29 +398,33 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 		}
 	}()
 	if err = a.trackConnGoroutine(func() {
+		var wg sync.WaitGroup
 		for {
 			conn, err := sshListener.Accept()
 			if err != nil {
-				return
+				break
 			}
+			wg.Add(1)
 			closed := make(chan struct{})
-			_ = a.trackConnGoroutine(func() {
+			go func() {
 				select {
-				case <-network.Closed():
 				case <-closed:
+				case <-a.closed:
+					_ = conn.Close()
 				}
-				_ = conn.Close()
-			})
-			_ = a.trackConnGoroutine(func() {
+				wg.Done()
+			}()
+			go func() {
 				defer close(closed)
 				a.sshServer.HandleConn(conn)
-			})
+			}()
 		}
+		wg.Wait()
 	}); err != nil {
 		return nil, err
 	}
 
-	reconnectingPTYListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetReconnectingPTYPort))
+	reconnectingPTYListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.WorkspaceAgentReconnectingPTYPort))
 	if err != nil {
 		return nil, xerrors.Errorf("listen for reconnecting pty: %w", err)
 	}
@@ -332,40 +435,52 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 	}()
 	if err = a.trackConnGoroutine(func() {
 		logger := a.logger.Named("reconnecting-pty")
-
+		var wg sync.WaitGroup
 		for {
 			conn, err := reconnectingPTYListener.Accept()
 			if err != nil {
 				logger.Debug(ctx, "accept pty failed", slog.Error(err))
-				return
+				break
 			}
-			// This cannot use a JSON decoder, since that can
-			// buffer additional data that is required for the PTY.
-			rawLen := make([]byte, 2)
-			_, err = conn.Read(rawLen)
-			if err != nil {
-				continue
-			}
-			length := binary.LittleEndian.Uint16(rawLen)
-			data := make([]byte, length)
-			_, err = conn.Read(data)
-			if err != nil {
-				continue
-			}
-			var msg codersdk.ReconnectingPTYInit
-			err = json.Unmarshal(data, &msg)
-			if err != nil {
-				continue
-			}
+			wg.Add(1)
+			closed := make(chan struct{})
 			go func() {
+				select {
+				case <-closed:
+				case <-a.closed:
+					_ = conn.Close()
+				}
+				wg.Done()
+			}()
+			go func() {
+				defer close(closed)
+				// This cannot use a JSON decoder, since that can
+				// buffer additional data that is required for the PTY.
+				rawLen := make([]byte, 2)
+				_, err = conn.Read(rawLen)
+				if err != nil {
+					return
+				}
+				length := binary.LittleEndian.Uint16(rawLen)
+				data := make([]byte, length)
+				_, err = conn.Read(data)
+				if err != nil {
+					return
+				}
+				var msg codersdk.WorkspaceAgentReconnectingPTYInit
+				err = json.Unmarshal(data, &msg)
+				if err != nil {
+					return
+				}
 				_ = a.handleReconnectingPTY(ctx, logger, msg, conn)
 			}()
 		}
+		wg.Wait()
 	}); err != nil {
 		return nil, err
 	}
 
-	speedtestListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetSpeedtestPort))
+	speedtestListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.WorkspaceAgentSpeedtestPort))
 	if err != nil {
 		return nil, xerrors.Errorf("listen for speedtest: %w", err)
 	}
@@ -375,25 +490,34 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 		}
 	}()
 	if err = a.trackConnGoroutine(func() {
+		var wg sync.WaitGroup
 		for {
 			conn, err := speedtestListener.Accept()
 			if err != nil {
 				a.logger.Debug(ctx, "speedtest listener failed", slog.Error(err))
-				return
+				break
 			}
-			if err = a.trackConnGoroutine(func() {
+			wg.Add(1)
+			closed := make(chan struct{})
+			go func() {
+				select {
+				case <-closed:
+				case <-a.closed:
+					_ = conn.Close()
+				}
+				wg.Done()
+			}()
+			go func() {
+				defer close(closed)
 				_ = speedtest.ServeConn(conn)
-			}); err != nil {
-				a.logger.Debug(ctx, "speedtest listener failed", slog.Error(err))
-				_ = conn.Close()
-				return
-			}
+			}()
 		}
+		wg.Wait()
 	}); err != nil {
 		return nil, err
 	}
 
-	statisticsListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.TailnetStatisticsPort))
+	statisticsListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.WorkspaceAgentStatisticsPort))
 	if err != nil {
 		return nil, xerrors.Errorf("listen for statistics: %w", err)
 	}
@@ -412,7 +536,10 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 			ErrorLog:          slog.Stdlib(ctx, a.logger.Named("statistics_http_server"), slog.LevelInfo),
 		}
 		go func() {
-			<-ctx.Done()
+			select {
+			case <-ctx.Done():
+			case <-a.closed:
+			}
 			_ = server.Close()
 		}()
 
@@ -430,7 +557,10 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 // runCoordinator runs a coordinator and returns whether a reconnect
 // should occur.
 func (a *agent) runCoordinator(ctx context.Context, network *tailnet.Conn) error {
-	coordinator, err := a.client.ListenWorkspaceAgent(ctx)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	coordinator, err := a.client.Listen(ctx)
 	if err != nil {
 		return err
 	}
@@ -599,8 +729,8 @@ func (a *agent) init(ctx context.Context) {
 	go a.runLoop(ctx)
 }
 
-func convertAgentStats(counts map[netlogtype.Connection]netlogtype.Counts) *codersdk.AgentStats {
-	stats := &codersdk.AgentStats{
+func convertAgentStats(counts map[netlogtype.Connection]netlogtype.Counts) *agentsdk.Stats {
+	stats := &agentsdk.Stats{
 		ConnsByProto: map[string]int64{},
 		NumConns:     int64(len(counts)),
 	}
@@ -635,7 +765,7 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	if rawMetadata == nil {
 		return nil, xerrors.Errorf("no metadata was provided: %w", err)
 	}
-	metadata, valid := rawMetadata.(codersdk.WorkspaceAgentMetadata)
+	metadata, valid := rawMetadata.(agentsdk.Metadata)
 	if !valid {
 		return nil, xerrors.Errorf("metadata is the wrong type: %T", metadata)
 	}
@@ -744,7 +874,7 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 		session.DisablePTYEmulation()
 
 		if !isQuietLogin(session.RawCommand()) {
-			metadata, ok := a.metadata.Load().(codersdk.WorkspaceAgentMetadata)
+			metadata, ok := a.metadata.Load().(agentsdk.Metadata)
 			if ok {
 				err = showMOTD(session, metadata.MOTDFile)
 				if err != nil {
@@ -817,7 +947,7 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 	return cmd.Wait()
 }
 
-func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, msg codersdk.ReconnectingPTYInit, conn net.Conn) (retErr error) {
+func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, msg codersdk.WorkspaceAgentReconnectingPTYInit, conn net.Conn) (retErr error) {
 	defer conn.Close()
 
 	connectionID := uuid.NewString()

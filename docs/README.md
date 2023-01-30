@@ -1,6 +1,6 @@
 # About Coder
 
-Coder is an open source platform for creating and managing developer workspaces
+Coder is an open-source platform for creating and managing developer workspaces
 on your preferred clouds and servers.
 
 <p align="center">

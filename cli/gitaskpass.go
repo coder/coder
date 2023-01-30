@@ -39,7 +39,7 @@ func gitAskpass() *cobra.Command {
 				return xerrors.Errorf("create agent client: %w", err)
 			}
 
-			token, err := client.WorkspaceAgentGitAuth(ctx, host, false)
+			token, err := client.GitAuth(ctx, host, false)
 			if err != nil {
 				var apiError *codersdk.Error
 				if errors.As(err, &apiError) && apiError.StatusCode() == http.StatusNotFound {
@@ -58,7 +58,7 @@ func gitAskpass() *cobra.Command {
 				}
 
 				for r := retry.New(250*time.Millisecond, 10*time.Second); r.Wait(ctx); {
-					token, err = client.WorkspaceAgentGitAuth(ctx, host, true)
+					token, err = client.GitAuth(ctx, host, true)
 					if err != nil {
 						continue
 					}

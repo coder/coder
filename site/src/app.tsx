@@ -1,29 +1,46 @@
 import CssBaseline from "@material-ui/core/CssBaseline"
 import ThemeProvider from "@material-ui/styles/ThemeProvider"
-import { FC } from "react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { AuthProvider } from "components/AuthProvider/AuthProvider"
+import { FC, PropsWithChildren } from "react"
 import { HelmetProvider } from "react-helmet-async"
-import { BrowserRouter as Router } from "react-router-dom"
 import { AppRouter } from "./AppRouter"
 import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary"
 import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar"
 import { dark } from "./theme"
 import "./theme/globalFonts"
-import { XServiceProvider } from "./xServices/StateContext"
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+      cacheTime: 0,
+    },
+  },
+})
+
+export const AppProviders: FC<PropsWithChildren> = ({ children }) => {
+  return (
+    <HelmetProvider>
+      <ThemeProvider theme={dark}>
+        <CssBaseline />
+        <ErrorBoundary>
+          <QueryClientProvider client={queryClient}>
+            <AuthProvider>
+              {children}
+              <GlobalSnackbar />
+            </AuthProvider>
+          </QueryClientProvider>
+        </ErrorBoundary>
+      </ThemeProvider>
+    </HelmetProvider>
+  )
+}
 
 export const App: FC = () => {
   return (
-    <Router>
-      <HelmetProvider>
-        <ThemeProvider theme={dark}>
-          <CssBaseline />
-          <ErrorBoundary>
-            <XServiceProvider>
-              <AppRouter />
-              <GlobalSnackbar />
-            </XServiceProvider>
-          </ErrorBoundary>
-        </ThemeProvider>
-      </HelmetProvider>
-    </Router>
+    <AppProviders>
+      <AppRouter />
+    </AppProviders>
   )
 }

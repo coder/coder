@@ -133,7 +133,7 @@ func (c *Client) HasFirstUser(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 	if res.StatusCode != http.StatusOK {
-		return false, readBodyAsError(res)
+		return false, ReadBodyAsError(res)
 	}
 	return true, nil
 }
@@ -147,7 +147,7 @@ func (c *Client) CreateFirstUser(ctx context.Context, req CreateFirstUserRequest
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusCreated {
-		return CreateFirstUserResponse{}, readBodyAsError(res)
+		return CreateFirstUserResponse{}, ReadBodyAsError(res)
 	}
 	var resp CreateFirstUserResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
@@ -161,7 +161,7 @@ func (c *Client) CreateUser(ctx context.Context, req CreateUserRequest) (User, e
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusCreated {
-		return User{}, readBodyAsError(res)
+		return User{}, ReadBodyAsError(res)
 	}
 	var user User
 	return user, json.NewDecoder(res.Body).Decode(&user)
@@ -175,7 +175,7 @@ func (c *Client) DeleteUser(ctx context.Context, id uuid.UUID) error {
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return readBodyAsError(res)
+		return ReadBodyAsError(res)
 	}
 	return nil
 }
@@ -188,7 +188,7 @@ func (c *Client) UpdateUserProfile(ctx context.Context, user string, req UpdateU
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return User{}, readBodyAsError(res)
+		return User{}, ReadBodyAsError(res)
 	}
 	var resp User
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
@@ -212,7 +212,7 @@ func (c *Client) UpdateUserStatus(ctx context.Context, user string, status UserS
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return User{}, readBodyAsError(res)
+		return User{}, ReadBodyAsError(res)
 	}
 
 	var resp User
@@ -228,7 +228,7 @@ func (c *Client) UpdateUserPassword(ctx context.Context, user string, req Update
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusNoContent {
-		return readBodyAsError(res)
+		return ReadBodyAsError(res)
 	}
 	return nil
 }
@@ -242,7 +242,7 @@ func (c *Client) UpdateUserRoles(ctx context.Context, user string, req UpdateRol
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return User{}, readBodyAsError(res)
+		return User{}, ReadBodyAsError(res)
 	}
 	var resp User
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
@@ -257,21 +257,21 @@ func (c *Client) UpdateOrganizationMemberRoles(ctx context.Context, organization
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return OrganizationMember{}, readBodyAsError(res)
+		return OrganizationMember{}, ReadBodyAsError(res)
 	}
 	var member OrganizationMember
 	return member, json.NewDecoder(res.Body).Decode(&member)
 }
 
-// GetUserRoles returns all roles the user has
-func (c *Client) GetUserRoles(ctx context.Context, user string) (UserRoles, error) {
+// UserRoles returns all roles the user has
+func (c *Client) UserRoles(ctx context.Context, user string) (UserRoles, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/roles", user), nil)
 	if err != nil {
 		return UserRoles{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return UserRoles{}, readBodyAsError(res)
+		return UserRoles{}, ReadBodyAsError(res)
 	}
 	var roles UserRoles
 	return roles, json.NewDecoder(res.Body).Decode(&roles)
@@ -286,7 +286,7 @@ func (c *Client) LoginWithPassword(ctx context.Context, req LoginWithPasswordReq
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusCreated {
-		return LoginWithPasswordResponse{}, readBodyAsError(res)
+		return LoginWithPasswordResponse{}, ReadBodyAsError(res)
 	}
 	var resp LoginWithPasswordResponse
 	err = json.NewDecoder(res.Body).Decode(&resp)
@@ -317,7 +317,7 @@ func (c *Client) User(ctx context.Context, userIdent string) (User, error) {
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return User{}, readBodyAsError(res)
+		return User{}, ReadBodyAsError(res)
 	}
 	var user User
 	return user, json.NewDecoder(res.Body).Decode(&user)
@@ -353,7 +353,7 @@ func (c *Client) Users(ctx context.Context, req UsersRequest) (GetUsersResponse,
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return GetUsersResponse{}, readBodyAsError(res)
+		return GetUsersResponse{}, ReadBodyAsError(res)
 	}
 
 	var usersRes GetUsersResponse
@@ -368,7 +368,7 @@ func (c *Client) OrganizationsByUser(ctx context.Context, user string) ([]Organi
 	}
 	defer res.Body.Close()
 	if res.StatusCode > http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 	var orgs []Organization
 	return orgs, json.NewDecoder(res.Body).Decode(&orgs)
@@ -381,7 +381,7 @@ func (c *Client) OrganizationByName(ctx context.Context, user string, name strin
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return Organization{}, readBodyAsError(res)
+		return Organization{}, ReadBodyAsError(res)
 	}
 	var org Organization
 	return org, json.NewDecoder(res.Body).Decode(&org)
@@ -396,7 +396,7 @@ func (c *Client) CreateOrganization(ctx context.Context, req CreateOrganizationR
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusCreated {
-		return Organization{}, readBodyAsError(res)
+		return Organization{}, ReadBodyAsError(res)
 	}
 
 	var org Organization
@@ -412,7 +412,7 @@ func (c *Client) AuthMethods(ctx context.Context) (AuthMethods, error) {
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return AuthMethods{}, readBodyAsError(res)
+		return AuthMethods{}, ReadBodyAsError(res)
 	}
 
 	var userAuth AuthMethods

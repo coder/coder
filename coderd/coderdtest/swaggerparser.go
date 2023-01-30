@@ -327,7 +327,7 @@ func assertAccept(t *testing.T, comment SwaggerComment) {
 	}
 }
 
-var allowedProduceTypes = []string{"json", "text/event-stream"}
+var allowedProduceTypes = []string{"json", "text/event-stream", "text/html"}
 
 func assertProduce(t *testing.T, comment SwaggerComment) {
 	var hasResponseModel bool
@@ -344,7 +344,8 @@ func assertProduce(t *testing.T, comment SwaggerComment) {
 	} else {
 		if (comment.router == "/workspaceagents/me/app-health" && comment.method == "post") ||
 			(comment.router == "/workspaceagents/me/version" && comment.method == "post") ||
-			(comment.router == "/licenses/{id}" && comment.method == "delete") {
+			(comment.router == "/licenses/{id}" && comment.method == "delete") ||
+			(comment.router == "/debug/coordinator" && comment.method == "get") {
 			return // Exception: HTTP 200 is returned without response entity
 		}
 

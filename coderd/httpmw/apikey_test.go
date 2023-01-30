@@ -82,7 +82,7 @@ func TestAPIKey(t *testing.T) {
 			r  = httptest.NewRequest("GET", "/", nil)
 			rw = httptest.NewRecorder()
 		)
-		r.Header.Set(codersdk.SessionCustomHeader, "test-wow-hello")
+		r.Header.Set(codersdk.SessionTokenHeader, "test-wow-hello")
 
 		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
@@ -100,7 +100,7 @@ func TestAPIKey(t *testing.T) {
 			r  = httptest.NewRequest("GET", "/", nil)
 			rw = httptest.NewRecorder()
 		)
-		r.Header.Set(codersdk.SessionCustomHeader, "test-wow")
+		r.Header.Set(codersdk.SessionTokenHeader, "test-wow")
 
 		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
@@ -118,7 +118,7 @@ func TestAPIKey(t *testing.T) {
 			r  = httptest.NewRequest("GET", "/", nil)
 			rw = httptest.NewRecorder()
 		)
-		r.Header.Set(codersdk.SessionCustomHeader, "testtestid-wow")
+		r.Header.Set(codersdk.SessionTokenHeader, "testtestid-wow")
 
 		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
@@ -137,7 +137,7 @@ func TestAPIKey(t *testing.T) {
 			r          = httptest.NewRequest("GET", "/", nil)
 			rw         = httptest.NewRecorder()
 		)
-		r.Header.Set(codersdk.SessionCustomHeader, fmt.Sprintf("%s-%s", id, secret))
+		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
 
 		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
@@ -157,7 +157,7 @@ func TestAPIKey(t *testing.T) {
 			rw         = httptest.NewRecorder()
 			user       = createUser(r.Context(), t, db)
 		)
-		r.Header.Set(codersdk.SessionCustomHeader, fmt.Sprintf("%s-%s", id, secret))
+		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
 
 		// Use a different secret so they don't match!
 		hashed := sha256.Sum256([]byte("differentsecret"))
@@ -165,6 +165,7 @@ func TestAPIKey(t *testing.T) {
 			ID:           id,
 			HashedSecret: hashed[:],
 			UserID:       user.ID,
+			LoginType:    database.LoginTypePassword,
 			Scope:        database.APIKeyScopeAll,
 		})
 		require.NoError(t, err)
@@ -187,7 +188,7 @@ func TestAPIKey(t *testing.T) {
 			rw         = httptest.NewRecorder()
 			user       = createUser(r.Context(), t, db)
 		)
-		r.Header.Set(codersdk.SessionCustomHeader, fmt.Sprintf("%s-%s", id, secret))
+		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
 
 		_, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
 			ID:           id,
@@ -216,7 +217,7 @@ func TestAPIKey(t *testing.T) {
 			rw         = httptest.NewRecorder()
 			user       = createUser(r.Context(), t, db)
 		)
-		r.Header.Set(codersdk.SessionCustomHeader, fmt.Sprintf("%s-%s", id, secret))
+		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
 
 		sentAPIKey, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
 			ID:           id,
@@ -258,7 +259,7 @@ func TestAPIKey(t *testing.T) {
 			user       = createUser(r.Context(), t, db)
 		)
 		r.AddCookie(&http.Cookie{
-			Name:  codersdk.SessionTokenKey,
+			Name:  codersdk.SessionTokenCookie,
 			Value: fmt.Sprintf("%s-%s", id, secret),
 		})
 
@@ -301,7 +302,7 @@ func TestAPIKey(t *testing.T) {
 			user       = createUser(r.Context(), t, db)
 		)
 		q := r.URL.Query()
-		q.Add(codersdk.SessionTokenKey, fmt.Sprintf("%s-%s", id, secret))
+		q.Add(codersdk.SessionTokenCookie, fmt.Sprintf("%s-%s", id, secret))
 		r.URL.RawQuery = q.Encode()
 
 		_, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
@@ -338,7 +339,7 @@ func TestAPIKey(t *testing.T) {
 			rw         = httptest.NewRecorder()
 			user       = createUser(r.Context(), t, db)
 		)
-		r.Header.Set(codersdk.SessionCustomHeader, fmt.Sprintf("%s-%s", id, secret))
+		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
 
 		sentAPIKey, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
 			ID:           id,
@@ -375,7 +376,7 @@ func TestAPIKey(t *testing.T) {
 			rw         = httptest.NewRecorder()
 			user       = createUser(r.Context(), t, db)
 		)
-		r.Header.Set(codersdk.SessionCustomHeader, fmt.Sprintf("%s-%s", id, secret))
+		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
 
 		sentAPIKey, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
 			ID:           id,
@@ -412,7 +413,7 @@ func TestAPIKey(t *testing.T) {
 			rw         = httptest.NewRecorder()
 			user       = createUser(r.Context(), t, db)
 		)
-		r.Header.Set(codersdk.SessionCustomHeader, fmt.Sprintf("%s-%s", id, secret))
+		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
 
 		sentAPIKey, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
 			ID:           id,
@@ -456,7 +457,7 @@ func TestAPIKey(t *testing.T) {
 			rw         = httptest.NewRecorder()
 			user       = createUser(r.Context(), t, db)
 		)
-		r.Header.Set(codersdk.SessionCustomHeader, fmt.Sprintf("%s-%s", id, secret))
+		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
 
 		sentAPIKey, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
 			ID:           id,
@@ -513,7 +514,7 @@ func TestAPIKey(t *testing.T) {
 			user       = createUser(r.Context(), t, db)
 		)
 		r.RemoteAddr = "1.1.1.1"
-		r.Header.Set(codersdk.SessionCustomHeader, fmt.Sprintf("%s-%s", id, secret))
+		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
 
 		_, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
 			ID:           id,
@@ -601,7 +602,7 @@ func TestAPIKey(t *testing.T) {
 			rw         = httptest.NewRecorder()
 			user       = createUser(r.Context(), t, db)
 		)
-		r.Header.Set(codersdk.SessionCustomHeader, fmt.Sprintf("%s-%s", id, secret))
+		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
 
 		sentAPIKey, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
 			ID:           id,
@@ -640,6 +641,7 @@ func createUser(ctx context.Context, t *testing.T, db database.Store, opts ...fu
 		CreatedAt:      time.Now(),
 		UpdatedAt:      time.Now(),
 		RBACRoles:      []string{},
+		LoginType:      database.LoginTypePassword,
 	}
 	for _, opt := range opts {
 		opt(&insert)

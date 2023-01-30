@@ -51,9 +51,11 @@ func TestAcquireJob(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, &proto.AcquiredJob{}, job)
 		_, err = srv.Database.InsertProvisionerJob(context.Background(), database.InsertProvisionerJobParams{
-			ID:          uuid.New(),
-			InitiatorID: uuid.New(),
-			Provisioner: database.ProvisionerTypeEcho,
+			ID:            uuid.New(),
+			InitiatorID:   uuid.New(),
+			Provisioner:   database.ProvisionerTypeEcho,
+			StorageMethod: database.ProvisionerStorageMethodFile,
+			Type:          database.ProvisionerJobTypeTemplateVersionDryRun,
 		})
 		require.NoError(t, err)
 		job, err = srv.AcquireJob(context.Background(), nil)
@@ -62,18 +64,20 @@ func TestAcquireJob(t *testing.T) {
 	})
 	t.Run("NoJobs", func(t *testing.T) {
 		t.Parallel()
-		srv := setup(t)
+		srv := setup(t, false)
 		job, err := srv.AcquireJob(context.Background(), nil)
 		require.NoError(t, err)
 		require.Equal(t, &proto.AcquiredJob{}, job)
 	})
 	t.Run("InitiatorNotFound", func(t *testing.T) {
 		t.Parallel()
-		srv := setup(t)
+		srv := setup(t, false)
 		_, err := srv.Database.InsertProvisionerJob(context.Background(), database.InsertProvisionerJobParams{
-			ID:          uuid.New(),
-			InitiatorID: uuid.New(),
-			Provisioner: database.ProvisionerTypeEcho,
+			ID:            uuid.New(),
+			InitiatorID:   uuid.New(),
+			Provisioner:   database.ProvisionerTypeEcho,
+			StorageMethod: database.ProvisionerStorageMethodFile,
+			Type:          database.ProvisionerJobTypeTemplateVersionDryRun,
 		})
 		require.NoError(t, err)
 		_, err = srv.AcquireJob(context.Background(), nil)
@@ -81,16 +85,18 @@ func TestAcquireJob(t *testing.T) {
 	})
 	t.Run("WorkspaceBuildJob", func(t *testing.T) {
 		t.Parallel()
-		srv := setup(t)
+		srv := setup(t, false)
 		ctx := context.Background()
 		user, err := srv.Database.InsertUser(context.Background(), database.InsertUserParams{
-			ID:       uuid.New(),
-			Username: "testing",
+			ID:        uuid.New(),
+			Username:  "testing",
+			LoginType: database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 		template, err := srv.Database.InsertTemplate(ctx, database.InsertTemplateParams{
-			ID:   uuid.New(),
-			Name: "template",
+			ID:          uuid.New(),
+			Name:        "template",
+			Provisioner: database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 		version, err := srv.Database.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
@@ -116,6 +122,7 @@ func TestAcquireJob(t *testing.T) {
 			JobID:             uuid.New(),
 			TemplateVersionID: version.ID,
 			Transition:        database.WorkspaceTransitionStart,
+			Reason:            database.BuildReasonInitiator,
 		})
 		require.NoError(t, err)
 
@@ -182,11 +189,12 @@ func TestAcquireJob(t *testing.T) {
 	})
 	t.Run("TemplateVersionDryRun", func(t *testing.T) {
 		t.Parallel()
-		srv := setup(t)
+		srv := setup(t, false)
 		ctx := context.Background()
 		user, err := srv.Database.InsertUser(ctx, database.InsertUserParams{
-			ID:       uuid.New(),
-			Username: "testing",
+			ID:        uuid.New(),
+			Username:  "testing",
+			LoginType: database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 		version, err := srv.Database.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
@@ -242,11 +250,12 @@ func TestAcquireJob(t *testing.T) {
 	})
 	t.Run("TemplateVersionImport", func(t *testing.T) {
 		t.Parallel()
-		srv := setup(t)
+		srv := setup(t, false)
 		ctx := context.Background()
 		user, err := srv.Database.InsertUser(ctx, database.InsertUserParams{
-			ID:       uuid.New(),
-			Username: "testing",
+			ID:        uuid.New(),
+			Username:  "testing",
+			LoginType: database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 
@@ -294,7 +303,7 @@ func TestUpdateJob(t *testing.T) {
 	ctx := context.Background()
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
-		srv := setup(t)
+		srv := setup(t, false)
 		_, err := srv.UpdateJob(ctx, &proto.UpdateJobRequest{
 			JobId: "hello",
 		})
@@ -307,9 +316,12 @@ func TestUpdateJob(t *testing.T) {
 	})
 	t.Run("NotRunning", func(t *testing.T) {
 		t.Parallel()
-		srv := setup(t)
+		srv := setup(t, false)
 		job, err := srv.Database.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-			ID: uuid.New(),
+			ID:            uuid.New(),
+			Provisioner:   database.ProvisionerTypeEcho,
+			StorageMethod: database.ProvisionerStorageMethodFile,
+			Type:          database.ProvisionerJobTypeTemplateVersionDryRun,
 		})
 		require.NoError(t, err)
 		_, err = srv.UpdateJob(ctx, &proto.UpdateJobRequest{
@@ -320,10 +332,12 @@ func TestUpdateJob(t *testing.T) {
 	// This test prevents runners from updating jobs they don't own!
 	t.Run("NotOwner", func(t *testing.T) {
 		t.Parallel()
-		srv := setup(t)
+		srv := setup(t, false)
 		job, err := srv.Database.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-			ID:          uuid.New(),
-			Provisioner: database.ProvisionerTypeEcho,
+			ID:            uuid.New(),
+			Provisioner:   database.ProvisionerTypeEcho,
+			StorageMethod: database.ProvisionerStorageMethodFile,
+			Type:          database.ProvisionerJobTypeTemplateVersionDryRun,
 		})
 		require.NoError(t, err)
 		_, err = srv.Database.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
@@ -342,8 +356,10 @@ func TestUpdateJob(t *testing.T) {
 
 	setupJob := func(t *testing.T, srv *provisionerdserver.Server) uuid.UUID {
 		job, err := srv.Database.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-			ID:          uuid.New(),
-			Provisioner: database.ProvisionerTypeEcho,
+			ID:            uuid.New(),
+			Provisioner:   database.ProvisionerTypeEcho,
+			Type:          database.ProvisionerJobTypeTemplateVersionImport,
+			StorageMethod: database.ProvisionerStorageMethodFile,
 		})
 		require.NoError(t, err)
 		_, err = srv.Database.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
@@ -359,7 +375,7 @@ func TestUpdateJob(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
-		srv := setup(t)
+		srv := setup(t, false)
 		job := setupJob(t, srv)
 		_, err := srv.UpdateJob(ctx, &proto.UpdateJobRequest{
 			JobId: job.String(),
@@ -369,7 +385,7 @@ func TestUpdateJob(t *testing.T) {
 
 	t.Run("Logs", func(t *testing.T) {
 		t.Parallel()
-		srv := setup(t)
+		srv := setup(t, false)
 		job := setupJob(t, srv)
 
 		published := make(chan struct{})
@@ -394,7 +410,7 @@ func TestUpdateJob(t *testing.T) {
 	})
 	t.Run("Readme", func(t *testing.T) {
 		t.Parallel()
-		srv := setup(t)
+		srv := setup(t, false)
 		job := setupJob(t, srv)
 		version, err := srv.Database.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
 			ID:    uuid.New(),
@@ -418,7 +434,7 @@ func TestFailJob(t *testing.T) {
 	ctx := context.Background()
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
-		srv := setup(t)
+		srv := setup(t, false)
 		_, err := srv.FailJob(ctx, &proto.FailedJob{
 			JobId: "hello",
 		})
@@ -432,10 +448,12 @@ func TestFailJob(t *testing.T) {
 	// This test prevents runners from updating jobs they don't own!
 	t.Run("NotOwner", func(t *testing.T) {
 		t.Parallel()
-		srv := setup(t)
+		srv := setup(t, false)
 		job, err := srv.Database.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-			ID:          uuid.New(),
-			Provisioner: database.ProvisionerTypeEcho,
+			ID:            uuid.New(),
+			Provisioner:   database.ProvisionerTypeEcho,
+			StorageMethod: database.ProvisionerStorageMethodFile,
+			Type:          database.ProvisionerJobTypeTemplateVersionImport,
 		})
 		require.NoError(t, err)
 		_, err = srv.Database.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
@@ -453,10 +471,12 @@ func TestFailJob(t *testing.T) {
 	})
 	t.Run("AlreadyCompleted", func(t *testing.T) {
 		t.Parallel()
-		srv := setup(t)
+		srv := setup(t, false)
 		job, err := srv.Database.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-			ID:          uuid.New(),
-			Provisioner: database.ProvisionerTypeEcho,
+			ID:            uuid.New(),
+			Provisioner:   database.ProvisionerTypeEcho,
+			Type:          database.ProvisionerJobTypeTemplateVersionImport,
+			StorageMethod: database.ProvisionerStorageMethodFile,
 		})
 		require.NoError(t, err)
 		_, err = srv.Database.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
@@ -482,9 +502,20 @@ func TestFailJob(t *testing.T) {
 	})
 	t.Run("WorkspaceBuild", func(t *testing.T) {
 		t.Parallel()
-		srv := setup(t)
-		build, err := srv.Database.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
+		// Ignore log errors because we get:
+		//
+		//	(*Server).FailJob       audit log - get build {"error": "sql: no rows in result set"}
+		ignoreLogErrors := true
+		srv := setup(t, ignoreLogErrors)
+		workspace, err := srv.Database.InsertWorkspace(ctx, database.InsertWorkspaceParams{
 			ID: uuid.New(),
+		})
+		require.NoError(t, err)
+		build, err := srv.Database.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
+			ID:          uuid.New(),
+			WorkspaceID: workspace.ID,
+			Transition:  database.WorkspaceTransitionStart,
+			Reason:      database.BuildReasonInitiator,
 		})
 		require.NoError(t, err)
 		input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
@@ -492,9 +523,11 @@ func TestFailJob(t *testing.T) {
 		})
 		require.NoError(t, err)
 		job, err := srv.Database.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-			ID:          uuid.New(),
-			Provisioner: database.ProvisionerTypeEcho,
-			Input:       input,
+			ID:            uuid.New(),
+			Input:         input,
+			Provisioner:   database.ProvisionerTypeEcho,
+			Type:          database.ProvisionerJobTypeWorkspaceBuild,
+			StorageMethod: database.ProvisionerStorageMethodFile,
 		})
 		require.NoError(t, err)
 		_, err = srv.Database.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
@@ -541,7 +574,7 @@ func TestCompleteJob(t *testing.T) {
 	ctx := context.Background()
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
-		srv := setup(t)
+		srv := setup(t, false)
 		_, err := srv.CompleteJob(ctx, &proto.CompletedJob{
 			JobId: "hello",
 		})
@@ -555,10 +588,12 @@ func TestCompleteJob(t *testing.T) {
 	// This test prevents runners from updating jobs they don't own!
 	t.Run("NotOwner", func(t *testing.T) {
 		t.Parallel()
-		srv := setup(t)
+		srv := setup(t, false)
 		job, err := srv.Database.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-			ID:          uuid.New(),
-			Provisioner: database.ProvisionerTypeEcho,
+			ID:            uuid.New(),
+			Provisioner:   database.ProvisionerTypeEcho,
+			StorageMethod: database.ProvisionerStorageMethodFile,
+			Type:          database.ProvisionerJobTypeWorkspaceBuild,
 		})
 		require.NoError(t, err)
 		_, err = srv.Database.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
@@ -576,10 +611,13 @@ func TestCompleteJob(t *testing.T) {
 	})
 	t.Run("TemplateImport", func(t *testing.T) {
 		t.Parallel()
-		srv := setup(t)
+		srv := setup(t, false)
 		job, err := srv.Database.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-			ID:          uuid.New(),
-			Provisioner: database.ProvisionerTypeEcho,
+			ID:            uuid.New(),
+			Provisioner:   database.ProvisionerTypeEcho,
+			Input:         []byte(`{"template_version_id": "` + uuid.NewString() + `"}`),
+			StorageMethod: database.ProvisionerStorageMethodFile,
+			Type:          database.ProvisionerJobTypeWorkspaceBuild,
 		})
 		require.NoError(t, err)
 		_, err = srv.Database.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
@@ -606,7 +644,7 @@ func TestCompleteJob(t *testing.T) {
 	})
 	t.Run("WorkspaceBuild", func(t *testing.T) {
 		t.Parallel()
-		srv := setup(t)
+		srv := setup(t, false)
 		workspace, err := srv.Database.InsertWorkspace(ctx, database.InsertWorkspaceParams{
 			ID: uuid.New(),
 		})
@@ -615,6 +653,7 @@ func TestCompleteJob(t *testing.T) {
 			ID:          uuid.New(),
 			WorkspaceID: workspace.ID,
 			Transition:  database.WorkspaceTransitionDelete,
+			Reason:      database.BuildReasonInitiator,
 		})
 		require.NoError(t, err)
 		input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
@@ -622,9 +661,11 @@ func TestCompleteJob(t *testing.T) {
 		})
 		require.NoError(t, err)
 		job, err := srv.Database.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-			ID:          uuid.New(),
-			Provisioner: database.ProvisionerTypeEcho,
-			Input:       input,
+			ID:            uuid.New(),
+			Provisioner:   database.ProvisionerTypeEcho,
+			Input:         input,
+			Type:          database.ProvisionerJobTypeWorkspaceBuild,
+			StorageMethod: database.ProvisionerStorageMethodFile,
 		})
 		require.NoError(t, err)
 		_, err = srv.Database.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
@@ -673,10 +714,12 @@ func TestCompleteJob(t *testing.T) {
 
 	t.Run("TemplateDryRun", func(t *testing.T) {
 		t.Parallel()
-		srv := setup(t)
+		srv := setup(t, false)
 		job, err := srv.Database.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-			ID:          uuid.New(),
-			Provisioner: database.ProvisionerTypeEcho,
+			ID:            uuid.New(),
+			Provisioner:   database.ProvisionerTypeEcho,
+			Type:          database.ProvisionerJobTypeTemplateVersionDryRun,
+			StorageMethod: database.ProvisionerStorageMethodFile,
 		})
 		require.NoError(t, err)
 		_, err = srv.Database.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
@@ -796,14 +839,14 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	})
 }
 
-func setup(t *testing.T) *provisionerdserver.Server {
+func setup(t *testing.T, ignoreLogErrors bool) *provisionerdserver.Server {
 	t.Helper()
 	db := databasefake.New()
 	pubsub := database.NewPubsubInMemory()
 
 	return &provisionerdserver.Server{
 		ID:           uuid.New(),
-		Logger:       slogtest.Make(t, nil),
+		Logger:       slogtest.Make(t, &slogtest.Options{IgnoreErrors: ignoreLogErrors}),
 		AccessURL:    &url.URL{},
 		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho},
 		Database:     db,

@@ -15,11 +15,12 @@ export const useStyles = makeStyles((theme) => ({
   },
   container: {
     marginTop: theme.spacing(-8),
-    minWidth: "320px",
-    maxWidth: "320px",
+    maxWidth: 385,
   },
-  copyright: {
-    marginTop: theme.spacing(2),
+  footer: {
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+    marginTop: theme.spacing(3),
   },
 }))
 
@@ -30,7 +31,7 @@ export const SignInLayout: FC<{ children: ReactNode }> = ({ children }) => {
     <div className={styles.root}>
       <div className={styles.layout}>
         <div className={styles.container}>{children}</div>
-        <div className={styles.copyright}>
+        <div className={styles.footer}>
           {`\u00a9 ${new Date().getFullYear()} Coder Technologies, Inc.`}
         </div>
       </div>

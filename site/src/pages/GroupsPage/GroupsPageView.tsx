@@ -144,7 +144,6 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
                               }
                               title={group.name}
                               subtitle={`${group.members.length} members`}
-                              highlightTitle
                             />
                           </TableCell>
 

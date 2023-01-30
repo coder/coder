@@ -24,6 +24,29 @@ type TemplateVersion struct {
 	CreatedBy      User           `json:"created_by"`
 }
 
+// TemplateVersionParameter represents a parameter for a template version.
+type TemplateVersionParameter struct {
+	Name            string                           `json:"name"`
+	Description     string                           `json:"description"`
+	Type            string                           `json:"type"`
+	Mutable         bool                             `json:"mutable"`
+	DefaultValue    string                           `json:"default_value"`
+	Icon            string                           `json:"icon"`
+	Options         []TemplateVersionParameterOption `json:"options"`
+	ValidationError string                           `json:"validation_error"`
+	ValidationRegex string                           `json:"validation_regex"`
+	ValidationMin   int32                            `json:"validation_min"`
+	ValidationMax   int32                            `json:"validation_max"`
+}
+
+// TemplateVersionParameterOption represents a selectable option for a template parameter.
+type TemplateVersionParameterOption struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Value       string `json:"value"`
+	Icon        string `json:"icon"`
+}
+
 // TemplateVersion returns a template version by ID.
 func (c *Client) TemplateVersion(ctx context.Context, id uuid.UUID) (TemplateVersion, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s", id), nil)
@@ -32,7 +55,7 @@ func (c *Client) TemplateVersion(ctx context.Context, id uuid.UUID) (TemplateVer
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return TemplateVersion{}, readBodyAsError(res)
+		return TemplateVersion{}, ReadBodyAsError(res)
 	}
 	var version TemplateVersion
 	return version, json.NewDecoder(res.Body).Decode(&version)
@@ -46,9 +69,23 @@ func (c *Client) CancelTemplateVersion(ctx context.Context, version uuid.UUID) e
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return readBodyAsError(res)
+		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// TemplateVersionParameters returns parameters a template version exposes.
+func (c *Client) TemplateVersionRichParameters(ctx context.Context, version uuid.UUID) ([]TemplateVersionParameter, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/rich-parameters", version), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var params []TemplateVersionParameter
+	return params, json.NewDecoder(res.Body).Decode(&params)
 }
 
 // TemplateVersionSchema returns schemas for a template version by ID.
@@ -59,7 +96,7 @@ func (c *Client) TemplateVersionSchema(ctx context.Context, version uuid.UUID) (
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 	var params []ParameterSchema
 	return params, json.NewDecoder(res.Body).Decode(&params)
@@ -73,7 +110,7 @@ func (c *Client) TemplateVersionParameters(ctx context.Context, version uuid.UUI
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 	var params []ComputedParameter
 	return params, json.NewDecoder(res.Body).Decode(&params)
@@ -87,7 +124,7 @@ func (c *Client) TemplateVersionResources(ctx context.Context, version uuid.UUID
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 	var resources []WorkspaceResource
 	return resources, json.NewDecoder(res.Body).Decode(&resources)
@@ -106,8 +143,9 @@ func (c *Client) TemplateVersionLogsAfter(ctx context.Context, version uuid.UUID
 // CreateTemplateVersionDryRunRequest defines the request parameters for
 // CreateTemplateVersionDryRun.
 type CreateTemplateVersionDryRunRequest struct {
-	WorkspaceName   string                   `json:"workspace_name"`
-	ParameterValues []CreateParameterRequest `json:"parameter_values"`
+	WorkspaceName       string                    `json:"workspace_name"`
+	ParameterValues     []CreateParameterRequest  `json:"parameter_values"`
+	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values"`
 }
 
 // CreateTemplateVersionDryRun begins a dry-run provisioner job against the
@@ -119,7 +157,7 @@ func (c *Client) CreateTemplateVersionDryRun(ctx context.Context, version uuid.U
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusCreated {
-		return ProvisionerJob{}, readBodyAsError(res)
+		return ProvisionerJob{}, ReadBodyAsError(res)
 	}
 
 	var job ProvisionerJob
@@ -135,7 +173,7 @@ func (c *Client) TemplateVersionDryRun(ctx context.Context, version, job uuid.UU
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return ProvisionerJob{}, readBodyAsError(res)
+		return ProvisionerJob{}, ReadBodyAsError(res)
 	}
 
 	var j ProvisionerJob
@@ -151,7 +189,7 @@ func (c *Client) TemplateVersionDryRunResources(ctx context.Context, version, jo
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 
 	var resources []WorkspaceResource
@@ -178,7 +216,7 @@ func (c *Client) CancelTemplateVersionDryRun(ctx context.Context, version, job u
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return readBodyAsError(res)
+		return ReadBodyAsError(res)
 	}
 	return nil
 }
@@ -190,7 +228,7 @@ func (c *Client) PreviousTemplateVersion(ctx context.Context, organization uuid.
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return TemplateVersion{}, readBodyAsError(res)
+		return TemplateVersion{}, ReadBodyAsError(res)
 	}
 	var version TemplateVersion
 	return version, json.NewDecoder(res.Body).Decode(&version)

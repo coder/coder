@@ -13,8 +13,8 @@ import * as Yup from "yup"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { makeStyles } from "@material-ui/core/styles"
 import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm"
-import { FullScreenLoader } from "components/Loader/FullScreenLoader"
 import { SelectedTemplate } from "./SelectedTemplate"
+import { Loader } from "components/Loader/Loader"
 
 export enum CreateWorkspaceErrors {
   GET_TEMPLATES_ERROR = "getTemplatesError",
@@ -39,6 +39,7 @@ export interface CreateWorkspacePageViewProps {
   onSubmit: (req: TypesGen.CreateWorkspaceRequest) => void
   // initialTouched is only used for testing the error state of the form.
   initialTouched?: FormikTouched<TypesGen.CreateWorkspaceRequest>
+  defaultParameterValues?: Record<string, string>
 }
 
 const { t } = i18n
@@ -55,7 +56,7 @@ export const CreateWorkspacePageView: FC<
   const formFooterStyles = useFormFooterStyles()
   const [parameterValues, setParameterValues] = useState<
     Record<string, string>
-  >({})
+  >(props.defaultParameterValues ?? {})
 
   const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
     useFormik<TypesGen.CreateWorkspaceRequest>({
@@ -100,7 +101,7 @@ export const CreateWorkspacePageView: FC<
   )
 
   if (isLoading) {
-    return <FullScreenLoader />
+    return <Loader />
   }
 
   if (props.hasTemplateErrors) {
@@ -234,6 +235,7 @@ export const CreateWorkspacePageView: FC<
                   <ParameterInput
                     disabled={form.isSubmitting}
                     key={schema.id}
+                    defaultValue={parameterValues[schema.name]}
                     onChange={(value) => {
                       setParameterValues({
                         ...parameterValues,

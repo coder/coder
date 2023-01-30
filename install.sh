@@ -128,7 +128,7 @@ echo_systemd_postinstall() {
 	cath <<EOF
 $1 package has been installed.
 
-Run Coder:
+To run a Coder server:
 
   # Start Coder now and on reboot
   $ sudo systemctl enable --now coder
@@ -137,7 +137,10 @@ Run Coder:
   # Or just run the server directly
   $ coder server
 
-Use Coder:
+  Default URL: http://127.0.0.1:3000
+  Configuring Coder: https://coder.com/docs/v2/latest/admin/configure
+
+To connect to a Coder deployment:
 
   $ coder login <deployment url>
 

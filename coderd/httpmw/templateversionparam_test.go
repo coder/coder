@@ -29,7 +29,7 @@ func TestTemplateVersionParam(t *testing.T) {
 			hashed     = sha256.Sum256([]byte(secret))
 		)
 		r := httptest.NewRequest("GET", "/", nil)
-		r.Header.Set(codersdk.SessionCustomHeader, fmt.Sprintf("%s-%s", id, secret))
+		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
 
 		userID := uuid.New()
 		username, err := cryptorand.String(8)
@@ -41,6 +41,7 @@ func TestTemplateVersionParam(t *testing.T) {
 			Username:       username,
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
+			LoginType:      database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 
@@ -77,6 +78,7 @@ func TestTemplateVersionParam(t *testing.T) {
 			ID:             uuid.New(),
 			OrganizationID: organization.ID,
 			Name:           "moo",
+			Provisioner:    database.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
 

@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
@@ -900,7 +901,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		agentClient := codersdk.New(client.URL)
+		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(authToken)
 		agentCloser := agent.New(agent.Options{
 			Client: agentClient,
@@ -1551,7 +1552,7 @@ func TestWorkspaceWatcher(t *testing.T) {
 	wait("agent timeout after create")
 	wait("agent timeout after start")
 
-	agentClient := codersdk.New(client.URL)
+	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(authToken)
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,
@@ -1780,4 +1781,67 @@ func TestWorkspaceResource(t *testing.T) {
 			Sensitive: true,
 		}}, metadata)
 	})
+}
+
+func TestWorkspaceWithRichParameters(t *testing.T) {
+	t.Parallel()
+
+	const (
+		firstParameterName        = "first_parameter"
+		firstParameterDescription = "This is first parameter"
+		firstParameterValue       = "1"
+
+		secondParameterName        = "second_parameter"
+		secondParameterDescription = "This is second parameter"
+		secondParameterValue       = "2"
+	)
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Provision_Response{
+			{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Parameters: []*proto.RichParameter{
+							{Name: firstParameterName, Description: firstParameterDescription},
+							{Name: secondParameterName, Description: secondParameterDescription},
+						},
+					},
+				},
+			}},
+		ProvisionApply: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{},
+			},
+		}},
+	})
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	templateRichParameters, err := client.TemplateVersionRichParameters(ctx, version.ID)
+	require.NoError(t, err)
+	require.Len(t, templateRichParameters, 2)
+	require.Equal(t, templateRichParameters[0].Name, firstParameterName)
+	require.Equal(t, templateRichParameters[1].Name, secondParameterName)
+
+	expectedBuildParameters := []codersdk.WorkspaceBuildParameter{
+		{Name: firstParameterName, Value: firstParameterValue},
+		{Name: secondParameterName, Value: secondParameterValue},
+	}
+
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		cwr.RichParameterValues = expectedBuildParameters
+	})
+
+	workspaceBuild := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	require.Equal(t, codersdk.WorkspaceStatusRunning, workspaceBuild.Status)
+
+	workspaceBuildParameters, err := client.WorkspaceBuildParameters(ctx, workspaceBuild.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
 }

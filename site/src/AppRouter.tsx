@@ -1,7 +1,4 @@
-import { useSelector } from "@xstate/react"
-import { FeatureNames } from "api/types"
 import { FullScreenLoader } from "components/Loader/FullScreenLoader"
-import { RequirePermission } from "components/RequirePermission/RequirePermission"
 import { TemplateLayout } from "components/TemplateLayout/TemplateLayout"
 import { UsersLayout } from "components/UsersLayout/UsersLayout"
 import IndexPage from "pages"
@@ -13,12 +10,9 @@ import { TemplateSettingsPage } from "pages/TemplateSettingsPage/TemplateSetting
 import TemplatesPage from "pages/TemplatesPage/TemplatesPage"
 import UsersPage from "pages/UsersPage/UsersPage"
 import WorkspacesPage from "pages/WorkspacesPage/WorkspacesPage"
-import { FC, lazy, Suspense, useContext } from "react"
-import { Route, Routes } from "react-router-dom"
-import { selectPermissions } from "xServices/auth/authSelectors"
-import { selectFeatureVisibility } from "xServices/entitlements/entitlementsSelectors"
-import { XServiceContext } from "xServices/StateContext"
-import { DashboardLayout } from "./components/DashboardLayout/DashboardLayout"
+import { FC, lazy, Suspense } from "react"
+import { Route, Routes, BrowserRouter as Router } from "react-router-dom"
+import { DashboardLayout } from "./components/Dashboard/DashboardLayout"
 import { RequireAuth } from "./components/RequireAuth/RequireAuth"
 import { SettingsLayout } from "./components/SettingsLayout/SettingsLayout"
 import { DeploySettingsLayout } from "components/DeploySettingsLayout/DeploySettingsLayout"
@@ -124,135 +118,119 @@ const CreateTemplatePage = lazy(
 )
 
 export const AppRouter: FC = () => {
-  const xServices = useContext(XServiceContext)
-  const permissions = useSelector(xServices.authXService, selectPermissions)
-  const featureVisibility = useSelector(
-    xServices.entitlementsXService,
-    selectFeatureVisibility,
-  )
-
   return (
     <Suspense fallback={<FullScreenLoader />}>
-      <Routes>
-        <Route path="login" element={<LoginPage />} />
-        <Route path="setup" element={<SetupPage />} />
+      <Router>
+        <Routes>
+          <Route path="login" element={<LoginPage />} />
+          <Route path="setup" element={<SetupPage />} />
 
-        {/* Dashboard routes */}
-        <Route element={<RequireAuth />}>
-          <Route element={<DashboardLayout />}>
-            <Route index element={<IndexPage />} />
+          {/* Dashboard routes */}
+          <Route element={<RequireAuth />}>
+            <Route element={<DashboardLayout />}>
+              <Route index element={<IndexPage />} />
 
-            <Route path="cli-auth" element={<CliAuthenticationPage />} />
-            <Route path="gitauth" element={<GitAuthPage />} />
+              <Route path="gitauth" element={<GitAuthPage />} />
 
-            <Route path="workspaces" element={<WorkspacesPage />} />
+              <Route path="workspaces" element={<WorkspacesPage />} />
 
-            <Route path="starter-templates">
-              <Route index element={<StarterTemplatesPage />} />
-              <Route path=":exampleId" element={<StarterTemplatePage />} />
-            </Route>
+              <Route path="starter-templates">
+                <Route index element={<StarterTemplatesPage />} />
+                <Route path=":exampleId" element={<StarterTemplatePage />} />
+              </Route>
 
-            <Route path="templates">
-              <Route index element={<TemplatesPage />} />
-              <Route path="new" element={<CreateTemplatePage />} />
-              <Route path=":template">
-                <Route element={<TemplateLayout />}>
-                  <Route index element={<TemplateSummaryPage />} />
+              <Route path="templates">
+                <Route index element={<TemplatesPage />} />
+                <Route path="new" element={<CreateTemplatePage />} />
+                <Route path=":template">
+                  <Route element={<TemplateLayout />}>
+                    <Route index element={<TemplateSummaryPage />} />
+                    <Route
+                      path="permissions"
+                      element={<TemplatePermissionsPage />}
+                    />
+                  </Route>
+
+                  <Route path="workspace" element={<CreateWorkspacePage />} />
+                  <Route path="settings" element={<TemplateSettingsPage />} />
+                  <Route path="versions">
+                    <Route path=":version" element={<TemplateVersionPage />} />
+                  </Route>
+                </Route>
+              </Route>
+
+              <Route path="users">
+                <Route element={<UsersLayout />}>
+                  <Route index element={<UsersPage />} />
+                </Route>
+
+                <Route path="create" element={<CreateUserPage />} />
+              </Route>
+
+              <Route path="/groups">
+                <Route element={<UsersLayout />}>
+                  <Route index element={<GroupsPage />} />
+                </Route>
+
+                <Route path="create" element={<CreateGroupPage />} />
+                <Route path=":groupId" element={<GroupPage />} />
+                <Route
+                  path=":groupId/settings"
+                  element={<SettingsGroupPage />}
+                />
+              </Route>
+
+              <Route path="/audit" element={<AuditPage />} />
+
+              <Route
+                path="/settings/deployment"
+                element={<DeploySettingsLayout />}
+              >
+                <Route path="general" element={<GeneralSettingsPage />} />
+                <Route path="security" element={<SecuritySettingsPage />} />
+                <Route path="appearance" element={<AppearanceSettingsPage />} />
+                <Route path="network" element={<NetworkSettingsPage />} />
+                <Route path="userauth" element={<UserAuthSettingsPage />} />
+                <Route path="gitauth" element={<GitAuthSettingsPage />} />
+              </Route>
+
+              <Route path="settings" element={<SettingsLayout />}>
+                <Route path="account" element={<AccountPage />} />
+                <Route path="security" element={<SecurityPage />} />
+                <Route path="ssh-keys" element={<SSHKeysPage />} />
+                <Route path="tokens" element={<TokensPage />} />
+              </Route>
+
+              <Route path="/@:username">
+                <Route path=":workspace">
+                  <Route index element={<WorkspacePage />} />
+                  <Route path="schedule" element={<WorkspaceSchedulePage />} />
                   <Route
-                    path="permissions"
-                    element={<TemplatePermissionsPage />}
+                    path="builds/:buildNumber"
+                    element={<WorkspaceBuildPage />}
+                  />
+                  <Route
+                    path="change-version"
+                    element={<WorkspaceChangeVersionPage />}
                   />
                 </Route>
-
-                <Route path="workspace" element={<CreateWorkspacePage />} />
-                <Route path="settings" element={<TemplateSettingsPage />} />
-                <Route path="versions">
-                  <Route path=":version" element={<TemplateVersionPage />} />
-                </Route>
               </Route>
             </Route>
 
-            <Route path="users">
-              <Route element={<UsersLayout />}>
-                <Route index element={<UsersPage />} />
-              </Route>
-
-              <Route path="create" element={<CreateUserPage />} />
-            </Route>
-
-            <Route path="/groups">
-              <Route element={<UsersLayout />}>
-                <Route index element={<GroupsPage />} />
-              </Route>
-
-              <Route path="create" element={<CreateGroupPage />} />
-              <Route path=":groupId" element={<GroupPage />} />
-              <Route path=":groupId/settings" element={<SettingsGroupPage />} />
-            </Route>
-
-            <Route path="/audit">
-              <Route
-                index
-                element={
-                  <RequirePermission
-                    isFeatureVisible={
-                      featureVisibility[FeatureNames.AuditLog] &&
-                      Boolean(permissions?.viewAuditLog)
-                    }
-                  >
-                    <AuditPage />
-                  </RequirePermission>
-                }
-              />
-            </Route>
-
+            {/* Terminal and CLI auth pages don't have the dashboard layout */}
             <Route
-              path="/settings/deployment"
-              element={<DeploySettingsLayout />}
-            >
-              <Route path="general" element={<GeneralSettingsPage />} />
-              <Route path="security" element={<SecuritySettingsPage />} />
-              <Route path="appearance" element={<AppearanceSettingsPage />} />
-              <Route path="network" element={<NetworkSettingsPage />} />
-              <Route path="userauth" element={<UserAuthSettingsPage />} />
-              <Route path="gitauth" element={<GitAuthSettingsPage />} />
-            </Route>
-
-            <Route path="settings" element={<SettingsLayout />}>
-              <Route path="account" element={<AccountPage />} />
-              <Route path="security" element={<SecurityPage />} />
-              <Route path="ssh-keys" element={<SSHKeysPage />} />
-              <Route path="tokens" element={<TokensPage />} />
-            </Route>
-
-            <Route path="/@:username">
-              <Route path=":workspace">
-                <Route index element={<WorkspacePage />} />
-                <Route path="schedule" element={<WorkspaceSchedulePage />} />
-                <Route
-                  path="builds/:buildNumber"
-                  element={<WorkspaceBuildPage />}
-                />
-                <Route
-                  path="change-version"
-                  element={<WorkspaceChangeVersionPage />}
-                />
-              </Route>
-            </Route>
+              path="/@:username/:workspace/terminal"
+              element={<TerminalPage />}
+            />
+            <Route path="cli-auth" element={<CliAuthenticationPage />} />
           </Route>
 
-          {/* Terminal page don't have the dashboard layout */}
-          <Route
-            path="/@:username/:workspace/terminal"
-            element={<TerminalPage />}
-          />
-        </Route>
-
-        {/* Using path="*"" means "match anything", so this route
+          {/* Using path="*"" means "match anything", so this route
         acts like a catch-all for URLs that we don't have explicit
         routes for. */}
-        <Route path="*" element={<NotFoundPage />} />
-      </Routes>
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+      </Router>
     </Suspense>
   )
 }

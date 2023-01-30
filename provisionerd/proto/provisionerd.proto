@@ -15,15 +15,17 @@ message AcquiredJob {
         string workspace_build_id = 1;
         string workspace_name = 2;
         repeated provisioner.ParameterValue parameter_values = 3;
-        provisioner.Provision.Metadata metadata = 4;
-        bytes state = 5;
+        repeated provisioner.RichParameterValue rich_parameter_values = 4;
+        provisioner.Provision.Metadata metadata = 5;
+        bytes state = 6;
     }
     message TemplateImport {
         provisioner.Provision.Metadata metadata = 1;
     }
     message TemplateDryRun {
         repeated provisioner.ParameterValue parameter_values = 1;
-        provisioner.Provision.Metadata metadata = 2;
+        repeated provisioner.RichParameterValue rich_parameter_values = 2;
+        provisioner.Provision.Metadata metadata = 3;
     }
 
     string job_id = 1;
@@ -63,6 +65,7 @@ message CompletedJob {
     message TemplateImport {
         repeated provisioner.Resource start_resources = 1;
         repeated provisioner.Resource stop_resources = 2;
+        repeated provisioner.RichParameter rich_parameters = 3;
     }
     message TemplateDryRun {
         repeated provisioner.Resource resources = 1;

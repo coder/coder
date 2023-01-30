@@ -28,7 +28,7 @@ coverage/
 storybook-static/
 test-results/*
 e2e/test-results/*
-e2e/storageState.json
+e2e/states/*.json
 playwright-report/*
 
 # Make target for updating golden files.
@@ -38,6 +38,9 @@ playwright-report/*
 ../build/
 ../dist/
 out/
+
+# Bundle analysis
+stats/
 
 *.tfstate
 *.tfstate.backup

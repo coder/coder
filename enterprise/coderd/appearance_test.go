@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/testutil"
 )
 
@@ -30,7 +31,9 @@ func TestServiceBanners(t *testing.T) {
 	require.False(t, sb.ServiceBanner.Enabled)
 
 	coderdenttest.AddLicense(t, adminClient, coderdenttest.LicenseOptions{
-		ServiceBanners: true,
+		Features: license.Features{
+			codersdk.FeatureAppearance: 1,
+		},
 	})
 
 	// Default state

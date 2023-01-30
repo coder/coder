@@ -32,6 +32,14 @@ type Organization struct {
 	UpdatedAt time.Time `json:"updated_at" validate:"required" format:"date-time"`
 }
 
+type OrganizationMember struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id" format:"uuid"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id" format:"uuid"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at" format:"date-time"`
+	UpdatedAt      time.Time `db:"updated_at" json:"updated_at" format:"date-time"`
+	Roles          []Role    `db:"roles" json:"roles"`
+}
+
 // CreateTemplateVersionRequest enables callers to create a new Template Version.
 type CreateTemplateVersionRequest struct {
 	Name string `json:"name,omitempty" validate:"omitempty,template_name"`
@@ -87,7 +95,8 @@ type CreateWorkspaceRequest struct {
 	TTLMillis         *int64    `json:"ttl_ms,omitempty"`
 	// ParameterValues allows for additional parameters to be provided
 	// during the initial provision.
-	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
+	ParameterValues     []CreateParameterRequest  `json:"parameter_values,omitempty"`
+	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
 }
 
 func (c *Client) Organization(ctx context.Context, id uuid.UUID) (Organization, error) {
@@ -98,7 +107,7 @@ func (c *Client) Organization(ctx context.Context, id uuid.UUID) (Organization, 
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return Organization{}, readBodyAsError(res)
+		return Organization{}, ReadBodyAsError(res)
 	}
 
 	var organization Organization
@@ -117,7 +126,7 @@ func (c *Client) ProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, e
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 
 	var daemons []ProvisionerDaemon
@@ -137,7 +146,7 @@ func (c *Client) CreateTemplateVersion(ctx context.Context, organizationID uuid.
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusCreated {
-		return TemplateVersion{}, readBodyAsError(res)
+		return TemplateVersion{}, ReadBodyAsError(res)
 	}
 
 	var templateVersion TemplateVersion
@@ -156,7 +165,7 @@ func (c *Client) TemplateVersionByOrganizationAndName(ctx context.Context, organ
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return TemplateVersion{}, readBodyAsError(res)
+		return TemplateVersion{}, ReadBodyAsError(res)
 	}
 
 	var templateVersion TemplateVersion
@@ -175,7 +184,7 @@ func (c *Client) CreateTemplate(ctx context.Context, organizationID uuid.UUID, r
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusCreated {
-		return Template{}, readBodyAsError(res)
+		return Template{}, ReadBodyAsError(res)
 	}
 
 	var template Template
@@ -194,7 +203,7 @@ func (c *Client) TemplatesByOrganization(ctx context.Context, organizationID uui
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return nil, readBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 
 	var templates []Template
@@ -213,7 +222,7 @@ func (c *Client) TemplateByName(ctx context.Context, organizationID uuid.UUID, n
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return Template{}, readBodyAsError(res)
+		return Template{}, ReadBodyAsError(res)
 	}
 
 	var template Template
@@ -229,7 +238,7 @@ func (c *Client) CreateWorkspace(ctx context.Context, organizationID uuid.UUID, 
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusCreated {
-		return Workspace{}, readBodyAsError(res)
+		return Workspace{}, ReadBodyAsError(res)
 	}
 
 	var workspace Workspace

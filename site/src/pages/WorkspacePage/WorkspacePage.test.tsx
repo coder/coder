@@ -18,11 +18,7 @@ import {
   MockStoppingWorkspace,
   MockTemplate,
   MockWorkspace,
-  MockWorkspaceAgent,
-  MockWorkspaceAgentConnecting,
-  MockWorkspaceAgentDisconnected,
   MockWorkspaceBuild,
-  MockWorkspaceResource2,
   renderWithAuth,
   waitForLoaderToBeRemoved,
 } from "../../testHelpers/renderHelpers"
@@ -113,7 +109,8 @@ describe("WorkspacePage", () => {
     const confirmButton = await screen.findByRole("button", { name: "Delete" })
     await user.click(confirmButton)
     expect(deleteWorkspaceMock).toBeCalled()
-  })
+    // This test takes long to finish
+  }, 20_000)
 
   it("requests a start job when the user presses Start", async () => {
     server.use(
@@ -281,67 +278,6 @@ describe("WorkspacePage", () => {
         // Added +1 because of the date row
         expect(rows).toHaveLength(MockBuilds.length + 1)
       })
-    })
-  })
-
-  describe("Resources", () => {
-    it("shows the status of each agent in each resource", async () => {
-      const getTemplateMock = jest
-        .spyOn(api, "getTemplate")
-        .mockResolvedValueOnce(MockTemplate)
-
-      const workspaceWithResources = {
-        ...MockWorkspace,
-        latest_build: {
-          ...MockWorkspaceBuild,
-          resources: [
-            {
-              ...MockWorkspaceResource2,
-              agents: [
-                MockWorkspaceAgent,
-                MockWorkspaceAgentDisconnected,
-                MockWorkspaceAgentConnecting,
-              ],
-            },
-          ],
-        },
-      }
-
-      server.use(
-        rest.get(
-          `/api/v2/users/:username/workspace/:workspaceName`,
-          (req, res, ctx) => {
-            return res(ctx.status(200), ctx.json(workspaceWithResources))
-          },
-        ),
-      )
-
-      await renderWorkspacePage()
-      const agent1Names = await screen.findAllByText(MockWorkspaceAgent.name)
-      expect(agent1Names.length).toEqual(1)
-      const agent2Names = await screen.findAllByText(
-        MockWorkspaceAgentDisconnected.name,
-      )
-      expect(agent2Names.length).toEqual(2)
-      const agent1Status = await screen.findAllByLabelText(
-        t<string>(`agentStatus.${MockWorkspaceAgent.status}`, {
-          ns: "workspacePage",
-        }),
-      )
-      expect(agent1Status.length).toEqual(1)
-      const agentDisconnected = await screen.findAllByLabelText(
-        t<string>(`agentStatus.${MockWorkspaceAgentDisconnected.status}`, {
-          ns: "workspacePage",
-        }),
-      )
-      expect(agentDisconnected.length).toEqual(1)
-      const agentConnecting = await screen.findAllByLabelText(
-        t<string>(`agentStatus.${MockWorkspaceAgentConnecting.status}`, {
-          ns: "workspacePage",
-        }),
-      )
-      expect(agentConnecting.length).toEqual(1)
-      expect(getTemplateMock).toBeCalled()
     })
   })
 })

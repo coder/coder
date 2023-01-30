@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/testutil"
 )
@@ -27,7 +28,9 @@ func TestTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBAC: true,
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
 		})
 
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -68,7 +71,9 @@ func TestTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBAC: true,
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
 		})
 
 		_, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -92,7 +97,9 @@ func TestTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBAC: true,
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
 		})
 
 		client1, _ := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -142,7 +149,9 @@ func TestTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBAC: true,
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
 		})
 
 		_, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -180,7 +189,9 @@ func TestTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBAC: true,
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
 		})
 
 		_, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -218,7 +229,9 @@ func TestTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBAC: true,
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
 		})
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -266,7 +279,9 @@ func TestTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBAC: true,
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
 		})
 
 		client1, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -322,7 +337,9 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBAC: true,
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
 		})
 
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -374,8 +391,10 @@ func TestUpdateTemplateACL(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBAC: true,
-			AuditLog:     true,
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+				codersdk.FeatureAuditLog:     1,
+			},
 		})
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -405,7 +424,9 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBAC: true,
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
 		})
 
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -466,7 +487,9 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBAC: true,
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
 		})
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -491,7 +514,9 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBAC: true,
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
 		})
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -516,7 +541,9 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBAC: true,
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
 		})
 
 		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -542,7 +569,9 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBAC: true,
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
 		})
 
 		client2, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -577,7 +606,9 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBAC: true,
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
 		})
 
 		client2, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -619,7 +650,9 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBAC: true,
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
 		})
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -641,7 +674,9 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBAC: true,
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
 		})
 
 		client1, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -706,7 +741,9 @@ func TestUpdateTemplateACL(t *testing.T) {
 		client := coderdenttest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			TemplateRBAC: true,
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
 		})
 
 		client1, _ := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
@@ -764,7 +801,9 @@ func TestTemplateAccess(t *testing.T) {
 	ownerClient := coderdenttest.New(t, nil)
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
 	_ = coderdenttest.AddLicense(t, ownerClient, coderdenttest.LicenseOptions{
-		TemplateRBAC: true,
+		Features: license.Features{
+			codersdk.FeatureTemplateRBAC: 1,
+		},
 	})
 
 	type coderUser struct {

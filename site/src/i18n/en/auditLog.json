@@ -13,7 +13,16 @@
       "os": "OS: ",
       "browser": "Browser: ",
       "notAvailable": "Not available",
-      "onBehalfOf": " on behalf of {{owner}}"
+      "onBehalfOf": " on behalf of {{owner}}",
+      "buildReason": "Coder automatically"
+    }
+  },
+  "paywall": {
+    "title": "Audit logs",
+    "description": "Audit Logs allows Auditors to monitor user operations in their deployment. To use this feature, you have to upgrade your account.",
+    "actions": {
+      "upgrade": "See how to upgrade",
+      "readDocs": "Read the docs"
     }
   }
 }

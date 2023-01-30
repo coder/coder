@@ -49,8 +49,6 @@ type BuildAuditParams[T Auditable] struct {
 
 func ResourceTarget[T Auditable](tgt T) string {
 	switch typed := any(tgt).(type) {
-	case database.Organization:
-		return typed.Name
 	case database.Template:
 		return typed.Name
 	case database.TemplateVersion:
@@ -64,8 +62,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return ""
 	case database.GitSSHKey:
 		return typed.PublicKey
-	case database.Group:
-		return typed.Name
+	case database.AuditableGroup:
+		return typed.Group.Name
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -73,8 +71,6 @@ func ResourceTarget[T Auditable](tgt T) string {
 
 func ResourceID[T Auditable](tgt T) uuid.UUID {
 	switch typed := any(tgt).(type) {
-	case database.Organization:
-		return typed.ID
 	case database.Template:
 		return typed.ID
 	case database.TemplateVersion:
@@ -87,8 +83,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.GitSSHKey:
 		return typed.UserID
-	case database.Group:
-		return typed.ID
+	case database.AuditableGroup:
+		return typed.Group.ID
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -96,8 +92,6 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 
 func ResourceType[T Auditable](tgt T) database.ResourceType {
 	switch any(tgt).(type) {
-	case database.Organization:
-		return database.ResourceTypeOrganization
 	case database.Template:
 		return database.ResourceTypeTemplate
 	case database.TemplateVersion:
@@ -110,7 +104,7 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeWorkspaceBuild
 	case database.GitSSHKey:
 		return database.ResourceTypeGitSshKey
-	case database.Group:
+	case database.AuditableGroup:
 		return database.ResourceTypeGroup
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
@@ -189,8 +183,14 @@ func BuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T]) {
 	// As the audit request has not been initiated directly by a user, we omit
 	// certain user details.
 	ip := parseIP("")
-	// We do not show diffs for build audit logs
-	var diffRaw = []byte("{}")
+
+	diff := Diff(p.Audit, p.Old, p.New)
+	var err error
+	diffRaw, err := json.Marshal(diff)
+	if err != nil {
+		p.Log.Warn(ctx, "marshal diff", slog.Error(err))
+		diffRaw = []byte("{}")
+	}
 
 	if p.AdditionalFields == nil {
 		p.AdditionalFields = json.RawMessage("{}")
@@ -211,8 +211,8 @@ func BuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T]) {
 		RequestID:        p.JobID,
 		AdditionalFields: p.AdditionalFields,
 	}
-	err := p.Audit.Export(ctx, auditLog)
-	if err != nil {
+	exportErr := p.Audit.Export(ctx, auditLog)
+	if exportErr != nil {
 		p.Log.Error(ctx, "export audit log",
 			slog.F("audit_log", auditLog),
 			slog.Error(err),

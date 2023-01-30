@@ -9,6 +9,9 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/spf13/cobra"
+	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/codersdk"
 )
 
 func init() {
@@ -40,6 +43,42 @@ type SelectOptions struct {
 	Default    string
 	Size       int
 	HideSearch bool
+}
+
+type RichSelectOptions struct {
+	Options    []codersdk.TemplateVersionParameterOption
+	Default    string
+	Size       int
+	HideSearch bool
+}
+
+// RichSelect displays a list of user options including name and description.
+func RichSelect(cmd *cobra.Command, richOptions RichSelectOptions) (*codersdk.TemplateVersionParameterOption, error) {
+	opts := make([]string, len(richOptions.Options))
+	for i, option := range richOptions.Options {
+		line := option.Name
+		if len(option.Description) > 0 {
+			line += ": " + option.Description
+		}
+		opts[i] = line
+	}
+
+	selected, err := Select(cmd, SelectOptions{
+		Options:    opts,
+		Default:    richOptions.Default,
+		Size:       richOptions.Size,
+		HideSearch: richOptions.HideSearch,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	for i, option := range opts {
+		if option == selected {
+			return &richOptions.Options[i], nil
+		}
+	}
+	return nil, xerrors.Errorf("unknown option selected: %s", selected)
 }
 
 // Select displays a list of user options.

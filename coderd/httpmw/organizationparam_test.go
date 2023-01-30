@@ -29,7 +29,7 @@ func TestOrganizationParam(t *testing.T) {
 			r          = httptest.NewRequest("GET", "/", nil)
 			hashed     = sha256.Sum256([]byte(secret))
 		)
-		r.Header.Set(codersdk.SessionCustomHeader, fmt.Sprintf("%s-%s", id, secret))
+		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
 
 		userID := uuid.New()
 		username, err := cryptorand.String(8)
@@ -42,6 +42,7 @@ func TestOrganizationParam(t *testing.T) {
 			Username:       username,
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
+			LoginType:      database.LoginTypePassword,
 		})
 		require.NoError(t, err)
 		_, err = db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{

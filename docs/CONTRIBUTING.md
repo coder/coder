@@ -170,17 +170,7 @@ with a holistic perspective regarding the contribution.
 
 ### Frontend
 
-#### Follow component conventions
-
-Each component gets its own folder. Make sure you add a test and Storybook
-stories for the component as well. By keeping these tidy, the codebase will
-remain easy-to-navigate, healthy and maintainable for all contributors.
-
-#### Keep accessibility in mind
-
-We strive to keep our UI accessible. When using colors, avoid adding new
-elements with low color contrast. Always use labels on inputs, not just
-placeholders. These are important for screen-readers.
+Our frontend guide can be found [here](./contributing/frontend.md).
 
 ## Reviews
 
@@ -199,3 +189,50 @@ one or more reviewers making new comments every time, then waiting for an
 updated change before reviewing again. All contributors, including those from
 maintainers, are subject to the same review cycle; this process is not meant to
 be applied selectively or to discourage anyone from contributing.
+
+## Releases
+
+Coder releases are initiated via [`./scripts/release.sh`](../scripts/release.sh) and automated via GitHub Actions. Specifically, the [`release.yaml`](../.github/workflows/release.yaml) workflow. They are created based on the current [`main`](https://github.com/coder/coder/tree/main) branch.
+
+The release notes for a release are automatically generated from commit titles and metadata from PRs that are merged into `main`.
+
+### Creating a release
+
+The creation of a release is initiated via [`./scripts/release.sh`](../scripts/release.sh). This script will show a preview of the release that will be created, and if you choose to continue, create and push the tag which will trigger the creation of the release via GitHub Actions.
+
+See `./scripts/release.sh --help` for more information.
+
+### Creating a release (via workflow dispatch)
+
+Typically the workflow dispatch is only used to test (dry-run) a release, meaning no actual release will take place. The workflow can be dispatched manually from [Actions: Release](https://github.com/coder/coder/actions/workflows/release.yaml). Simply press "Run workflow" and choose dry-run.
+
+If a release has failed after the tag has been created and pushed, it can be retried by again, pressing "Run workflow", changing "Use workflow from" from "Branch: main" to "Tag: vX.X.X" and not selecting dry-run.
+
+### Commit messages
+
+Commit messages should follow the [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/) specification.
+
+Allowed commit types (`feat`, `fix`, etc.) are listed in [conventional-commit-types](https://github.com/commitizen/conventional-commit-types/blob/c3a9be4c73e47f2e8197de775f41d981701407fb/index.json). Note that these types are also used to automatically sort and organize the release notes.
+
+A good commit message title uses the imperative, present tense and is ~50
+characters long (no more than 72).
+
+Examples:
+
+- Good: `feat(api): Add feature X`
+- Bad: `feat(api): Added feature X` (past tense)
+
+A good rule of thumb for writing good commit messages is to recite: [If applied, this commit will ...](https://reflectoring.io/meaningful-commit-messages/).
+
+**Note:** We lint PR titles to ensure they follow the Conventional Commits specification, however, it's still possible to merge PRs on GitHub with a badly formatted title. Take care when merging single-commit PRs as GitHub may prefer to use the original commit title instead of the PR title.
+
+### Breaking changes
+
+Breaking changes can be triggered in two ways:
+
+- Add `!` to the commit message title, e.g. `feat(api)!: Remove deprecated endpoint /test`
+- Add the [`release/breaking`](https://github.com/coder/coder/issues?q=sort%3Aupdated-desc+label%3Arelease%2Fbreaking) label to a PR that has, or will be, merged into `main`.
+
+### Security
+
+The [`security`](https://github.com/coder/coder/issues?q=sort%3Aupdated-desc+label%3Asecurity) label can be added to PRs that have, or will be, merged into `main`. Doing so will make sure the change stands out in the release notes.

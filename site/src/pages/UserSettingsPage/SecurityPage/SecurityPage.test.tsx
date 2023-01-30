@@ -1,6 +1,5 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react"
 import * as API from "../../../api/api"
-import { GlobalSnackbar } from "../../../components/GlobalSnackbar/GlobalSnackbar"
 import * as SecurityForm from "../../../components/SettingsSecurityForm/SettingsSecurityForm"
 import { renderWithAuth } from "../../../testHelpers/renderHelpers"
 import { SecurityPage } from "./SecurityPage"
@@ -9,12 +8,7 @@ import i18next from "i18next"
 const { t } = i18next
 
 const renderPage = () => {
-  return renderWithAuth(
-    <>
-      <SecurityPage />
-      <GlobalSnackbar />
-    </>,
-  )
+  return renderWithAuth(<SecurityPage />)
 }
 
 const newData = {

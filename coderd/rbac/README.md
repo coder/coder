@@ -48,6 +48,7 @@ This can be represented by the following truth table, where Y represents _positi
 - `level` is either `site`, `org`, or `user`.
 - `object` is any valid resource type.
 - `id` is any valid UUID v4.
+- `id` is included in the permission syntax, however only scopes may use `id` to specify a specific object.
 - `action` is `create`, `read`, `modify`, or `delete`.
 
 ## Example Permissions
@@ -71,6 +72,33 @@ Y indicates that the role provides positive permissions, N indicates the role pr
 | user            | \_   | \_   | Y    | Y      |
 |                 | \_   | \_   | N    | N      |
 | unauthenticated | \_   | \_   | \_   | N      |
+
+## Scopes
+
+Scopes can restrict a given set of permissions. The format of a scope matches a role with the addition of a list of resource ids. For a authorization call to be successful, the subject's roles and the subject's scopes must both allow the action. This means the resulting permissions is the intersection of the subject's roles and the subject's scopes.
+
+An example to give a readonly token is to grant a readonly scope across all resources `+site.*.*.read`. The intersection with the user's permissions will be the readonly set of their permissions.
+
+### Resource IDs
+
+There exists use cases that require specifying a specific resource. If resource IDs are allowed in the roles, then there is
+an unbounded set of resource IDs that be added to an "allow_list", as the number of roles a user can have is unbounded. This also adds a level of complexity to the role evaluation logic that has large costs at scale.
+
+The use case for specifying this type of permission in a role is limited, and does not justify the extra cost. To solve this for the remaining cases (eg. workspace agent tokens), we can apply an `allow_list` on a scope. For most cases, the `allow_list` will just be `["*"]` which means the scope is allowed to be applied to any resource. This adds negligible cost to the role evaluation logic and 0 cost to partial evaluations.
+
+Example of a scope for a workspace agent token, using an `allow_list` containing a single resource id.
+
+```javascript
+    "scope": {
+      "name": "workspace_agent",
+      "display_name": "Workspace_Agent",
+      // The ID of the given workspace the agent token correlates to.
+      "allow_list": ["10d03e62-7703-4df5-a358-4f76577d4e2f"],
+      "site": [/* ... perms ... */],
+      "org": {/* ... perms ... */},
+      "user": [/* ... perms ... */]
+    }
+```
 
 # Testing
 

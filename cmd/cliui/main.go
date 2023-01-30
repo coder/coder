@@ -163,7 +163,8 @@ func main() {
 		Use: "agent",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			agent := codersdk.WorkspaceAgent{
-				Status: codersdk.WorkspaceAgentDisconnected,
+				Status:         codersdk.WorkspaceAgentDisconnected,
+				LifecycleState: codersdk.WorkspaceAgentLifecycleReady,
 			}
 			go func() {
 				time.Sleep(3 * time.Second)
@@ -203,6 +204,7 @@ func main() {
 				Agents: []codersdk.WorkspaceAgent{{
 					CreatedAt:       database.Now().Add(-10 * time.Second),
 					Status:          codersdk.WorkspaceAgentConnecting,
+					LifecycleState:  codersdk.WorkspaceAgentLifecycleCreated,
 					Name:            "dev",
 					OperatingSystem: "linux",
 					Architecture:    "amd64",
@@ -213,12 +215,14 @@ func main() {
 				Name:       "dev",
 				Agents: []codersdk.WorkspaceAgent{{
 					Status:          codersdk.WorkspaceAgentConnected,
+					LifecycleState:  codersdk.WorkspaceAgentLifecycleReady,
 					Name:            "go",
 					Architecture:    "amd64",
 					OperatingSystem: "linux",
 				}, {
 					DisconnectedAt:  &disconnected,
 					Status:          codersdk.WorkspaceAgentDisconnected,
+					LifecycleState:  codersdk.WorkspaceAgentLifecycleReady,
 					Name:            "postgres",
 					Architecture:    "amd64",
 					OperatingSystem: "linux",

@@ -59,7 +59,6 @@ number(set) = c {
     c := 1
 }
 
-
 # site, org, and user rules are all similar. Each rule should return a number
 # from [-1, 1]. The number corresponds to "negative", "abstain", and "positive"
 # for the given level. See the 'allow' rules for how these numbers are used.
@@ -148,6 +147,20 @@ user_allow(roles) := num {
     num := number(allow)
 }
 
+# Scope allow_list is a list of resource IDs explicitly allowed by the scope.
+# If the list is '*', then all resources are allowed.
+scope_allow_list {
+	"*" in input.subject.scope.allow_list
+}
+
+scope_allow_list {
+	# If the wildcard is listed in the allow_list, we do not care about the
+	# object.id. This line is included to prevent partial compilations from
+	# ever needing to include the object.id.
+	not "*" in input.subject.scope.allow_list
+	input.object.id in input.subject.scope.allow_list
+}
+
 # The allow block is quite simple. Any set with `-1` cascades down in levels.
 # Authorization looks for any `allow` statement that is true. Multiple can be true!
 # Note that the absence of `allow` means "unauthorized".
@@ -179,15 +192,18 @@ role_allow {
 }
 
 scope_allow {
+	scope_allow_list
 	scope_site = 1
 }
 
 scope_allow {
+	scope_allow_list
 	not scope_site = -1
 	scope_org = 1
 }
 
 scope_allow {
+	scope_allow_list
 	not scope_site = -1
 	not scope_org = -1
 	# If we are not a member of an org, and the object has an org, then we are

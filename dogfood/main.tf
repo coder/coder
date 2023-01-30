@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.6.0"
+      version = "0.6.10"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -13,10 +13,19 @@ terraform {
 
 # User parameters
 
+variable "region" {
+  type        = string
+  description = "Which region to deploy to."
+  default     = "us-pittsburgh"
+  validation {
+    condition     = contains(["us-pittsburgh", "eu-helsinki", "ap-sydney"], var.region)
+    error_message = "Region must be one of us-pittsburg, eu-helsinki, or ap-sydney."
+  }
+}
+
 variable "dotfiles_uri" {
   type        = string
   description = <<-EOF
-  default     = ""
   Dotfiles repo URI (optional)
 
   see https://dotfiles.github.io
@@ -30,36 +39,47 @@ variable "datocms_api_token" {
   default     = ""
 }
 
-# Admin parameters
+locals {
+  // These are Tailscale IP addresses. Ask Dean or Kyle for help.
+  docker_host = {
+    ""              = "tcp://100.94.74.63:2375"
+    "us-pittsburgh" = "tcp://100.94.74.63:2375"
+    "eu-helsinki"   = "tcp://100.117.102.81:2375"
+    "ap-sydney"     = "tcp://100.127.2.1:2375"
+  }
+}
 
 provider "docker" {
-  host = "unix:///var/run/dogfood-docker.sock"
+  host = lookup(local.docker_host, var.region)
 }
 
-provider "coder" {
-}
+provider "coder" {}
 
-data "coder_workspace" "me" {
-}
+data "coder_workspace" "me" {}
 
 resource "coder_agent" "dev" {
-  arch           = "amd64"
-  os             = "linux"
-  startup_script = <<EOF
-    #!/bin/sh
-    set -x
+  arch = "amd64"
+  os   = "linux"
+
+  login_before_ready     = false
+  startup_script_timeout = 60
+  startup_script         = <<-EOT
+    set -ex
     # install and start code-server
     curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3
     code-server --auth none --port 13337 &
     sudo service docker start
     DOTFILES_URI=${var.dotfiles_uri}
+    rm -f ~/.personalize.log
     if [ -n "$DOTFILES_URI" ]; then
-      coder dotfiles "$DOTFILES_URI" -y 2>&1 | tee  ~/.personalize.log
+      coder dotfiles "$DOTFILES_URI" -y 2>&1 | tee -a ~/.personalize.log
     fi
-    if [ -f ./personalize ]; then
-      ./personalize
+    if [ -x ~/personalize ]; then
+      ~/personalize 2>&1 | tee -a ~/.personalize.log
+    elif [ -f ~/personalize ]; then
+      echo "~/personalize is not executable, skipping..." | tee -a ~/.personalize.log
     fi
-    EOF
+  EOT
 }
 
 resource "coder_app" "code-server" {
