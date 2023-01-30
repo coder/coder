@@ -138,7 +138,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"id":               ActionIgnore,
 		"hashed_secret":    ActionIgnore,
 		"user_id":          ActionIgnore,
-		"last_user":        ActionIgnore,
+		"last_used":        ActionIgnore,
 		"expires_at":       ActionIgnore,
 		"created_at":       ActionIgnore,
 		"updated_at":       ActionIgnore,

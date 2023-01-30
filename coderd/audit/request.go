@@ -162,7 +162,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 		auditLog := database.AuditLog{
 			ID:               uuid.New(),
 			Time:             database.Now(),
-			UserID:           httpmw.APIKey(p.Request).UserID,
+			UserID:           uuid.Nil,
 			Ip:               ip,
 			UserAgent:        sql.NullString{String: p.Request.UserAgent(), Valid: true},
 			ResourceType:     either(req.Old, req.New, ResourceType[T]),

@@ -1068,6 +1068,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// key := httpmw.APIKey(r)
 	aReq.New = *key
 
 	http.SetCookie(rw, cookie)
