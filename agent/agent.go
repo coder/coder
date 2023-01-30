@@ -89,6 +89,9 @@ func New(options Options) io.Closer {
 		options.TempDir = os.TempDir()
 	}
 	if options.LogDir == "" {
+		if options.TempDir != os.TempDir() {
+			options.Logger.Debug(context.Background(), "log dir not set, using temp dir", slog.F("temp_dir", options.TempDir))
+		}
 		options.LogDir = options.TempDir
 	}
 	if options.ExchangeToken == nil {
