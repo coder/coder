@@ -148,7 +148,7 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 	if params.Time.IsZero() {
 		params.Time = time.Now()
 	}
-	if params.AdditionalFields == nil {
+	if len(params.AdditionalFields) == 0 {
 		params.AdditionalFields = json.RawMessage("{}")
 	}
 
