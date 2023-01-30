@@ -553,12 +553,13 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 				if prevBuildErr != nil {
 					previousBuild = database.WorkspaceBuild{}
 				}
+
 				// We pass the below information to the Auditor so that it
 				// can form a friendly string for the user to view in the UI.
-				buildResourceInfo := map[string]string{
-					"workspaceName": workspace.Name,
-					"buildNumber":   strconv.FormatInt(int64(build.BuildNumber), 10),
-					"buildReason":   fmt.Sprintf("%v", build.Reason),
+				buildResourceInfo := audit.AdditionalFields{
+					WorkspaceName: workspace.Name,
+					BuildNumber:   strconv.FormatInt(int64(build.BuildNumber), 10),
+					BuildReason:   database.BuildReason(string(build.Reason)),
 				}
 
 				wriBytes, err := json.Marshal(buildResourceInfo)
@@ -816,10 +817,10 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 
 			// We pass the below information to the Auditor so that it
 			// can form a friendly string for the user to view in the UI.
-			buildResourceInfo := map[string]string{
-				"workspaceName": workspace.Name,
-				"buildNumber":   strconv.FormatInt(int64(workspaceBuild.BuildNumber), 10),
-				"buildReason":   fmt.Sprintf("%v", workspaceBuild.Reason),
+			buildResourceInfo := audit.AdditionalFields{
+				WorkspaceName: workspace.Name,
+				BuildNumber:   strconv.FormatInt(int64(workspaceBuild.BuildNumber), 10),
+				BuildReason:   database.BuildReason(string(workspaceBuild.Reason)),
 			}
 
 			wriBytes, err := json.Marshal(buildResourceInfo)

@@ -38,7 +38,7 @@ describe("AuditLogDescription", () => {
     const AuditLogWithRepeat = {
       ...MockAuditLogWithWorkspaceBuild,
       additional_fields: {
-        workspaceName: "workspace",
+        workspace_name: "workspace",
       },
     }
     render(<AuditLogDescription auditLog={AuditLogWithRepeat} />)
@@ -55,7 +55,7 @@ describe("AuditLogDescription", () => {
     )
     expect(
       getByTextContent(
-        `TestUser created workspace bruno-dev on behalf of ${MockWorkspaceCreateAuditLogForDifferentOwner.additional_fields.workspaceOwner}`,
+        `TestUser created workspace bruno-dev on behalf of ${MockWorkspaceCreateAuditLogForDifferentOwner.additional_fields.workspace_owner}`,
       ),
     ).toBeDefined()
   })
