@@ -29,6 +29,7 @@ import (
 func workspaceAgent() *cobra.Command {
 	var (
 		auth         string
+		logDir       string
 		pprofAddress string
 		noReap       bool
 	)
@@ -55,7 +56,7 @@ func workspaceAgent() *cobra.Command {
 			// of zombie processes.
 			if reaper.IsInitProcess() && !noReap && isLinux {
 				logWriter := &lumberjack.Logger{
-					Filename: filepath.Join(os.TempDir(), "coder-agent-init.log"),
+					Filename: filepath.Join(logDir, "coder-agent-init.log"),
 					MaxSize:  5, // MB
 				}
 				defer logWriter.Close()
@@ -91,7 +92,7 @@ func workspaceAgent() *cobra.Command {
 			go dumpHandler(ctx)
 
 			logWriter := &lumberjack.Logger{
-				Filename: filepath.Join(os.TempDir(), "coder-agent.log"),
+				Filename: filepath.Join(logDir, "coder-agent.log"),
 				MaxSize:  5, // MB
 			}
 			defer logWriter.Close()
@@ -178,6 +179,7 @@ func workspaceAgent() *cobra.Command {
 			closer := agent.New(agent.Options{
 				Client: client,
 				Logger: logger,
+				LogDir: logDir,
 				ExchangeToken: func(ctx context.Context) (string, error) {
 					if exchangeToken == nil {
 						return client.SDK.SessionToken(), nil
@@ -199,8 +201,9 @@ func workspaceAgent() *cobra.Command {
 	}
 
 	cliflag.StringVarP(cmd.Flags(), &auth, "auth", "", "CODER_AGENT_AUTH", "token", "Specify the authentication type to use for the agent")
-	cliflag.BoolVarP(cmd.Flags(), &noReap, "no-reap", "", "", false, "Do not start a process reaper.")
+	cliflag.StringVarP(cmd.Flags(), &logDir, "log-dir", "", "CODER_AGENT_LOG_DIR", os.TempDir(), "Specify the location for the agent log files")
 	cliflag.StringVarP(cmd.Flags(), &pprofAddress, "pprof-address", "", "CODER_AGENT_PPROF_ADDRESS", "127.0.0.1:6060", "The address to serve pprof.")
+	cliflag.BoolVarP(cmd.Flags(), &noReap, "no-reap", "", "", false, "Do not start a process reaper.")
 	return cmd
 }
 
