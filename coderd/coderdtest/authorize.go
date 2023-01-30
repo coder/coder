@@ -661,6 +661,8 @@ func (r *RecordingAuthorizer) Authorize(ctx context.Context, subject rbac.Subjec
 }
 
 func (r *RecordingAuthorizer) Prepare(_ context.Context, subject rbac.Subject, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
+	r.RLock()
+	defer r.RUnlock()
 	if r.Wrapped == nil {
 		panic("Developer error: RecordingAuthorizer.Wrapped is nil")
 	}
@@ -673,6 +675,8 @@ func (r *RecordingAuthorizer) Prepare(_ context.Context, subject rbac.Subject, a
 }
 
 func (r *RecordingAuthorizer) reset() {
+	r.Lock()
+	defer r.Unlock()
 	r.Called = nil
 }
 
@@ -706,6 +710,8 @@ func (f *fakePreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.Conve
 // LastCall is implemented to support legacy tests.
 // Deprecated
 func (r *RecordingAuthorizer) LastCall() *authCall {
+	r.RLock()
+	defer r.RUnlock()
 	if len(r.Called) == 0 {
 		return nil
 	}
