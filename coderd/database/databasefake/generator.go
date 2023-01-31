@@ -31,7 +31,9 @@ type Generator struct {
 
 func NewGenerator(t *testing.T, db database.Store) *Generator {
 	if _, ok := db.(FakeDatabase); !ok {
-		panic("Generator db must be a FakeDatabase")
+		// This does not work for postgres databases because of foreign key
+		// constraints
+		t.Fatalf("Generator db must be a FakeDatabase")
 	}
 	return &Generator{
 		names: make(map[string]uuid.UUID),
@@ -58,6 +60,7 @@ func (g *Generator) PrimaryOrg(ctx context.Context) database.Organization {
 }
 
 func populate[DBType any](ctx context.Context, g *Generator, name string, seed DBType) DBType {
+	g.testT.Helper()
 	if name == "" {
 		name = g.RandomName()
 	}
@@ -67,7 +70,7 @@ func populate[DBType any](ctx context.Context, g *Generator, name string, seed D
 	})
 	v, ok := out[name].(DBType)
 	if !ok {
-		panic("developer error, type mismatch")
+		g.testT.Fatalf("developer error, type mismatch in data generator")
 	}
 	return v
 }
