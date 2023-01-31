@@ -1,7 +1,6 @@
 import axios, { AxiosRequestHeaders } from "axios"
 import dayjs from "dayjs"
 import * as Types from "./types"
-import { WorkspaceBuildTransition } from "./types"
 import * as TypesGen from "./typesGenerated"
 
 export const hardCodedCSRFCookie = (): string => {

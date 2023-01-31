@@ -12,6 +12,8 @@ import {
   ValidationSchemaForRichParameters,
   workspaceBuildParameterValue,
 } from "pages/CreateWorkspacePage/CreateWorkspacePageView"
+import { FormFooter } from "components/FormFooter/FormFooter"
+import * as Yup from "yup"
 
 export enum UpdateWorkspaceErrors {
   GET_WORKSPACE_ERROR = "getWorkspaceError",
@@ -26,6 +28,9 @@ export interface WorkspaceBuildParametersPageViewProps {
   workspaceBuildParameters?: TypesGen.WorkspaceBuildParameter[]
 
   initialTouched?: FormikTouched<TypesGen.CreateWorkspaceRequest>
+  updatingWorkspace: boolean
+  onCancel: () => void
+  onSubmit: (req: TypesGen.CreateWorkspaceBuildRequest) => void
 
   hasErrors: boolean
   updateWorkspaceErrors: Partial<Record<UpdateWorkspaceErrors, Error | unknown>>
@@ -36,6 +41,7 @@ export const WorkspaceBuildParametersPageView: FC<
 > = (props) => {
   const { t } = useTranslation("workspaceBuildParametersPage")
   const styles = useStyles()
+  const formFooterStyles = useFormFooterStyles()
 
   const initialRichParameterValues = selectInitialRichParametersValues(
     props.templateParameters,
@@ -51,13 +57,17 @@ export const WorkspaceBuildParametersPageView: FC<
         transition: "start",
         rich_parameter_values: initialRichParameterValues,
       },
-      validationSchema: ValidationSchemaForRichParameters(
-        "workspaceBuildParametersPage",
-        props.templateParameters,
-      ),
+      validationSchema: Yup.object({
+        rich_parameter_values: ValidationSchemaForRichParameters(
+          "workspaceBuildParametersPage",
+          props.templateParameters,
+        ),
+      }),
       enableReinitialize: true,
       initialTouched: props.initialTouched,
-      onSubmit: () => {
+      onSubmit: (request) => {
+        console.info("onSubmit 2")
+        props.onSubmit(request)
         form.setSubmitting(false)
       },
     })
@@ -138,33 +148,41 @@ export const WorkspaceBuildParametersPageView: FC<
     >
       {props.templateParameters && props.workspaceBuildParameters && (
         <div className={styles.formSection}>
-          <Stack
-            direction="column"
-            spacing={4} // Spacing here is diff because the fields here don't have the MUI floating label spacing
-            className={styles.formSectionFields}
-          >
-            {props.templateParameters.map((parameter, index) => (
-              <RichParameterInput
-                {...getFieldHelpers(
-                  "rich_parameter_values[" + index + "].value",
-                )}
-                disabled={form.isSubmitting}
-                index={index}
-                key={parameter.name}
-                onChange={(value) => {
-                  form.setFieldValue("rich_parameter_values." + index, {
-                    name: parameter.name,
-                    value: value,
-                  })
-                }}
-                parameter={parameter}
-                initialValue={workspaceBuildParameterValue(
-                  initialRichParameterValues,
-                  parameter,
-                )}
+          <form onSubmit={form.handleSubmit}>
+            <Stack
+              direction="column"
+              spacing={4} // Spacing here is diff because the fields here don't have the MUI floating label spacing
+              className={styles.formSectionFields}
+            >
+              {props.templateParameters.map((parameter, index) => (
+                <RichParameterInput
+                  {...getFieldHelpers(
+                    "rich_parameter_values[" + index + "].value",
+                  )}
+                  disabled={form.isSubmitting}
+                  index={index}
+                  key={parameter.name}
+                  onChange={(value) => {
+                    form.setFieldValue("rich_parameter_values." + index, {
+                      name: parameter.name,
+                      value: value,
+                    })
+                  }}
+                  parameter={parameter}
+                  initialValue={workspaceBuildParameterValue(
+                    initialRichParameterValues,
+                    parameter,
+                  )}
+                />
+              ))}
+              <FormFooter
+                styles={formFooterStyles}
+                onCancel={props.onCancel}
+                isLoading={props.updatingWorkspace}
+                submitLabel={t("updateWorkspace")}
               />
-            ))}
-          </Stack>
+            </Stack>
+          </form>
         </div>
       )}
     </FullPageForm>

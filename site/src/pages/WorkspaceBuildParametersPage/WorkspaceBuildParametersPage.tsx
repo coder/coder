@@ -9,7 +9,6 @@ import {
   UpdateWorkspaceErrors,
   WorkspaceBuildParametersPageView,
 } from "./WorkspaceBuildParametersPageView"
-import { getWorkspaceBuildParameters } from "api/api"
 
 export const WorkspaceBuildParametersPage: FC = () => {
   const { t } = useTranslation("workspaceBuildParametersPage")
@@ -51,6 +50,7 @@ export const WorkspaceBuildParametersPage: FC = () => {
         workspace={selectedWorkspace}
         templateParameters={templateParameters}
         workspaceBuildParameters={workspaceBuildParameters}
+        updatingWorkspace={state.matches("updatingWorkspace")}
         hasErrors={state.matches("error")}
         updateWorkspaceErrors={{
           [UpdateWorkspaceErrors.GET_WORKSPACE_ERROR]: getWorkspaceError,
@@ -59,6 +59,17 @@ export const WorkspaceBuildParametersPage: FC = () => {
           [UpdateWorkspaceErrors.GET_WORKSPACE_BUILD_PARAMETERS_ERROR]:
             getWorkspaceBuildParametersError,
           [UpdateWorkspaceErrors.UPDATE_WORKSPACE_ERROR]: updateWorkspaceError,
+        }}
+        onCancel={() => {
+          // Go back
+          navigate(-1)
+        }}
+        onSubmit={(request) => {
+          console.log("onSubmit 1")
+          send({
+            type: "UPDATE_WORKSPACE",
+            request,
+          })
         }}
       />
     </>

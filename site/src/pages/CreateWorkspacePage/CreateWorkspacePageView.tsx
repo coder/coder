@@ -66,10 +66,13 @@ export const CreateWorkspacePageView: FC<
         template_id: props.selectedTemplate ? props.selectedTemplate.id : "",
         rich_parameter_values: initialRichParameterValues,
       },
-      validationSchema: ValidationSchemaForRichParameters(
-        "createWorkspacePage",
-        props.templateParameters,
-      ),
+      validationSchema: Yup.object({
+        name: nameValidator(t("nameLabel", { ns: "createWorkspacePage" })),
+        rich_parameter_values: ValidationSchemaForRichParameters(
+          "createWorkspacePage",
+          props.templateParameters,
+        ),
+      }),
       enableReinitialize: true,
       initialTouched: props.initialTouched,
       onSubmit: (request) => {
@@ -438,68 +441,63 @@ export const ValidationSchemaForRichParameters = (
     return Yup.object()
   }
 
-  return Yup.object({
-    name: nameValidator(t("nameLabel", { ns })),
-    rich_parameter_values: Yup.array()
-      .of(
-        Yup.object().shape({
-          name: Yup.string().required(),
-          value: Yup.string()
-            .required(t("validationRequiredParameter"))
-            .test("verify with template", (val, ctx) => {
-              const name = ctx.parent.name
-              const templateParameter = templateParameters.find(
-                (parameter) => parameter.name === name,
-              )
-              if (templateParameter) {
-                switch (templateParameter.type) {
-                  case "number":
-                    if (
-                      templateParameter.validation_min === 0 &&
-                      templateParameter.validation_max === 0
-                    ) {
+  return Yup.array()
+    .of(
+      Yup.object().shape({
+        name: Yup.string().required(),
+        value: Yup.string()
+          .required(t("validationRequiredParameter"))
+          .test("verify with template", (val, ctx) => {
+            const name = ctx.parent.name
+            const templateParameter = templateParameters.find(
+              (parameter) => parameter.name === name,
+            )
+            if (templateParameter) {
+              switch (templateParameter.type) {
+                case "number":
+                  if (
+                    templateParameter.validation_min === 0 &&
+                    templateParameter.validation_max === 0
+                  ) {
+                    return true
+                  }
+
+                  if (
+                    Number(val) < templateParameter.validation_min ||
+                    templateParameter.validation_max < Number(val)
+                  ) {
+                    return ctx.createError({
+                      path: ctx.path,
+                      message: t("validationNumberNotInRange", {
+                        min: templateParameter.validation_min,
+                        max: templateParameter.validation_max,
+                      }),
+                    })
+                  }
+                  break
+                case "string":
+                  {
+                    if (templateParameter.validation_regex.length === 0) {
                       return true
                     }
 
-                    if (
-                      Number(val) < templateParameter.validation_min ||
-                      templateParameter.validation_max < Number(val)
-                    ) {
+                    const regex = new RegExp(templateParameter.validation_regex)
+                    if (val && !regex.test(val)) {
                       return ctx.createError({
                         path: ctx.path,
-                        message: t("validationNumberNotInRange", {
-                          min: templateParameter.validation_min,
-                          max: templateParameter.validation_max,
+                        message: t("validationPatternNotMatched", {
+                          error: templateParameter.validation_error,
+                          pattern: templateParameter.validation_regex,
                         }),
                       })
                     }
-                    break
-                  case "string":
-                    {
-                      if (templateParameter.validation_regex.length === 0) {
-                        return true
-                      }
-
-                      const regex = new RegExp(
-                        templateParameter.validation_regex,
-                      )
-                      if (val && !regex.test(val)) {
-                        return ctx.createError({
-                          path: ctx.path,
-                          message: t("validationPatternNotMatched", {
-                            error: templateParameter.validation_error,
-                            pattern: templateParameter.validation_regex,
-                          }),
-                        })
-                      }
-                    }
-                    break
-                }
+                  }
+                  break
               }
-              return true
-            }),
-        }),
-      )
-      .required(),
-  })
+            }
+            return true
+          }),
+      }),
+    )
+    .required()
 }
