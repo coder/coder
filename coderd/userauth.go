@@ -51,10 +51,24 @@ type GithubOAuth2Config struct {
 // @Success 200 {object} codersdk.AuthMethods
 // @Router /users/authmethods [get]
 func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
+	var signInText string
+	var iconURL string
+
+	if api.OIDCConfig != nil {
+		signInText = api.OIDCConfig.SignInText
+	}
+	if api.OIDCConfig != nil {
+		iconURL = api.OIDCConfig.IconURL
+	}
+
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AuthMethods{
-		Password: true,
-		Github:   api.GithubOAuth2Config != nil,
-		OIDC:     api.OIDCConfig != nil,
+		Password: codersdk.AuthMethod{Enabled: true},
+		Github:   codersdk.AuthMethod{Enabled: api.GithubOAuth2Config != nil},
+		OIDC: codersdk.OIDCAuthMethod{
+			AuthMethod: codersdk.AuthMethod{Enabled: api.OIDCConfig != nil},
+			SignInText: signInText,
+			IconURL:    iconURL,
+		},
 	})
 }
 
@@ -215,6 +229,10 @@ type OIDCConfig struct {
 	// UsernameField selects the claim field to be used as the created user's
 	// username.
 	UsernameField string
+	// SignInText is the text to display on the OIDC login button
+	SignInText string
+	// IconURL points to the URL of an icon to display on the OIDC login button
+	IconURL string
 }
 
 // @Summary OpenID Connect Callback

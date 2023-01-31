@@ -254,6 +254,17 @@ func newConfig() *codersdk.DeploymentConfig {
 				Flag:    "oidc-username-field",
 				Default: "preferred_username",
 			},
+			SignInText: &codersdk.DeploymentConfigField[string]{
+				Name:    "OpenID Connect sign in text",
+				Usage:   "The text to show on the OpenID Connect sign in button",
+				Flag:    "oidc-sign-in-text",
+				Default: "OpenID Connect",
+			},
+			IconURL: &codersdk.DeploymentConfigField[string]{
+				Name:  "OpenID connect icon URL",
+				Usage: "URL pointing to the icon to use on the OepnID Connect login button",
+				Flag:  "oidc-icon-url",
+			},
 		},
 
 		Telemetry: &codersdk.TelemetryConfig{

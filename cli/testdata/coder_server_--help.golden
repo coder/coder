@@ -148,6 +148,9 @@ Flags:
       --oidc-email-domain strings                    Email domains that clients logging in
                                                      with OIDC must match.
                                                      Consumes $CODER_OIDC_EMAIL_DOMAIN
+      --oidc-icon-url string                         URL pointing to the icon to use on the
+                                                     OepnID Connect login button
+                                                     Consumes $CODER_OIDC_ICON_URL
       --oidc-ignore-email-verified                   Ignore the email_verified claim from the
                                                      upstream provider.
                                                      Consumes $CODER_OIDC_IGNORE_EMAIL_VERIFIED
@@ -157,6 +160,10 @@ Flags:
                                                      OIDC.
                                                      Consumes $CODER_OIDC_SCOPES (default
                                                      [openid,profile,email])
+      --oidc-sign-in-text string                     The text to show on the OpenID Connect
+                                                     sign in button
+                                                     Consumes $CODER_OIDC_SIGN_IN_TEXT
+                                                     (default "OpenID Connect")
       --oidc-username-field string                   OIDC claim field to use as the username.
                                                      Consumes $CODER_OIDC_USERNAME_FIELD
                                                      (default "preferred_username")

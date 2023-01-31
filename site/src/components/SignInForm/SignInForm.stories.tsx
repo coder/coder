@@ -29,8 +29,9 @@ Loading.args = {
   ...SignedOut.args,
   isLoading: true,
   authMethods: {
-    github: true,
-    password: true,
+    password: { enabled: true },
+    github: { enabled: true },
+    oidc: { enabled: false, signInText: "", iconUrl: "" },
   },
 }
 
@@ -99,9 +100,9 @@ export const WithGithub = Template.bind({})
 WithGithub.args = {
   ...SignedOut.args,
   authMethods: {
-    password: true,
-    github: true,
-    oidc: false,
+    password: { enabled: true },
+    github: { enabled: true },
+    oidc: { enabled: false, signInText: "", iconUrl: "" },
   },
 }
 
@@ -109,9 +110,9 @@ export const WithOIDC = Template.bind({})
 WithOIDC.args = {
   ...SignedOut.args,
   authMethods: {
-    password: true,
-    github: false,
-    oidc: true,
+    password: { enabled: true },
+    github: { enabled: false },
+    oidc: { enabled: true, signInText: "", iconUrl: "" },
   },
 }
 
@@ -119,8 +120,8 @@ export const WithGithubAndOIDC = Template.bind({})
 WithGithubAndOIDC.args = {
   ...SignedOut.args,
   authMethods: {
-    password: true,
-    github: true,
-    oidc: true,
+    password: { enabled: true },
+    github: { enabled: true },
+    oidc: { enabled: true, signInText: "", iconUrl: "" },
   },
 }

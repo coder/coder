@@ -72,12 +72,16 @@ coder server [flags]
                                                      Consumes $CODER_OIDC_CLIENT_SECRET
       --oidc-email-domain strings                    Email domains that clients logging in with OIDC must match.
                                                      Consumes $CODER_OIDC_EMAIL_DOMAIN
+      --oidc-icon-url string                         URL pointing to the icon to use on the OepnID Connect login button
+                                                     Consumes $CODER_OIDC_ICON_URL
       --oidc-ignore-email-verified                   Ignore the email_verified claim from the upstream provider.
                                                      Consumes $CODER_OIDC_IGNORE_EMAIL_VERIFIED
       --oidc-issuer-url string                       Issuer URL to use for Login with OIDC.
                                                      Consumes $CODER_OIDC_ISSUER_URL
       --oidc-scopes strings                          Scopes to grant when authenticating with OIDC.
                                                      Consumes $CODER_OIDC_SCOPES (default [openid,profile,email])
+      --oidc-sign-in-text string                     The text to show on the OpenID Connect sign in button
+                                                     Consumes $CODER_OIDC_SIGN_IN_TEXT (default "OpenID Connect")
       --oidc-username-field string                   OIDC claim field to use as the username.
                                                      Consumes $CODER_OIDC_USERNAME_FIELD (default "preferred_username")
       --postgres-url string                          URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with "coder server postgres-builtin-url".
