@@ -78,16 +78,11 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 	for _, group := range dbGroups {
 		var members []database.User
 
-		if group.Name == database.AllUsersGroup {
-			members, err = api.Database.GetAllOrganizationMembers(ctx, group.OrganizationID)
-		} else {
-			members, err = api.Database.GetGroupMembers(ctx, group.ID)
-		}
+		members, err = api.Database.GetGroupMembers(ctx, group.ID)
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return
 		}
-
 		groups = append(groups, codersdk.TemplateGroup{
 			Group: convertGroup(group.Group, members),
 			Role:  convertToTemplateRole(group.Actions),
