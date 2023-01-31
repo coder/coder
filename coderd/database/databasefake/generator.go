@@ -60,6 +60,28 @@ func Generate[Object Supported](t *testing.T, db database.Store, seed Object) Ob
 	return v
 }
 
+func Template(t *testing.T, db database.Store, seed database.Template) database.Template {
+	template, err := db.InsertTemplate(context.Background(), database.InsertTemplateParams{
+		ID:                           takeFirst(seed.ID, uuid.New()),
+		CreatedAt:                    takeFirst(seed.CreatedAt, time.Now()),
+		UpdatedAt:                    takeFirst(seed.UpdatedAt, time.Now()),
+		OrganizationID:               takeFirst(seed.OrganizationID, uuid.New()),
+		Name:                         takeFirst(seed.Name, namesgenerator.GetRandomName(1)),
+		Provisioner:                  takeFirst(seed.Provisioner, database.ProvisionerTypeEcho),
+		ActiveVersionID:              takeFirst(seed.ActiveVersionID, uuid.New()),
+		Description:                  takeFirst(seed.Description, namesgenerator.GetRandomName(1)),
+		DefaultTTL:                   takeFirst(seed.DefaultTTL, 3600),
+		CreatedBy:                    takeFirst(seed.CreatedBy, uuid.New()),
+		Icon:                         takeFirst(seed.Icon, namesgenerator.GetRandomName(1)),
+		UserACL:                      seed.UserACL,
+		GroupACL:                     seed.GroupACL,
+		DisplayName:                  takeFirst(seed.DisplayName, namesgenerator.GetRandomName(1)),
+		AllowUserCancelWorkspaceJobs: takeFirst(seed.AllowUserCancelWorkspaceJobs, true),
+	})
+	require.NoError(t, err, "insert template")
+	return template
+}
+
 func generate(t *testing.T, db database.Store, seed interface{}) interface{} {
 	t.Helper()
 
