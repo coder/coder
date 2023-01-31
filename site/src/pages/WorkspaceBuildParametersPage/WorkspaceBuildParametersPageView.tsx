@@ -15,8 +15,7 @@ import {
 import { FormFooter } from "components/FormFooter/FormFooter"
 import * as Yup from "yup"
 import { Maybe } from "components/Conditionals/Maybe"
-import { CancelButton } from "components/DropdownButton/ActionCtas"
-import { Button } from "@material-ui/core"
+import { GoBackButton } from "components/GoBackButton/GoBackButton"
 
 export enum UpdateWorkspaceErrors {
   GET_WORKSPACE_ERROR = "getWorkspaceError",
@@ -155,9 +154,7 @@ export const WorkspaceBuildParametersPageView: FC<
         <div className={styles.formSection}>
           <AlertBanner severity="info" text={t("noParametersDefined")} />
           <div className={styles.goBackSection}>
-            <Button onClick={props.onCancel} variant="outlined">
-              Go back
-            </Button>
+            <GoBackButton onClick={props.onCancel} />
           </div>
         </div>
       </Maybe>
