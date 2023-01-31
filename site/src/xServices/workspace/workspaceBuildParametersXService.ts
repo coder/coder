@@ -2,7 +2,6 @@ import {
   getTemplateVersionRichParameters,
   getWorkspaceByOwnerAndName,
   getWorkspaceBuildParameters,
-  updateWorkspaceBuild,
 } from "api/api"
 import {
   Template,

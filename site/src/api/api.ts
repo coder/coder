@@ -399,26 +399,29 @@ export const getWorkspaceByOwnerAndName = async (
   return response.data
 }
 
-const postWorkspaceBuild =
-  (transition: WorkspaceBuildTransition) =>
-  async (
-    workspaceId: string,
-    template_version_id?: string,
-  ): Promise<TypesGen.WorkspaceBuild> => {
-    const payload = {
-      transition,
-      template_version_id,
-    }
-    const response = await axios.post(
-      `/api/v2/workspaces/${workspaceId}/builds`,
-      payload,
-    )
-    return response.data
-  }
+export const postWorkspaceBuild = async (
+  workspaceId: string,
+  data: TypesGen.CreateWorkspaceBuildRequest,
+): Promise<TypesGen.WorkspaceBuild> => {
+  const response = await axios.post(
+    `/api/v2/workspaces/${workspaceId}/builds`,
+    data,
+  )
+  return response.data
+}
 
-export const startWorkspace = postWorkspaceBuild("start")
-export const stopWorkspace = postWorkspaceBuild("stop")
-export const deleteWorkspace = postWorkspaceBuild("delete")
+export const startWorkspace = (
+  workspaceId: string,
+  templateVersionID: string,
+) =>
+  postWorkspaceBuild(workspaceId, {
+    transition: "start",
+    template_version_id: templateVersionID,
+  })
+export const stopWorkspace = (workspaceId: string) =>
+  postWorkspaceBuild(workspaceId, { transition: "stop" })
+export const deleteWorkspace = (workspaceId: string) =>
+  postWorkspaceBuild(workspaceId, { transition: "delete" })
 
 export const cancelWorkspaceBuild = async (
   workspaceBuildId: TypesGen.WorkspaceBuild["id"],
@@ -805,17 +808,6 @@ export const getWorkspaceBuildParameters = async (
 ): Promise<TypesGen.WorkspaceBuildParameter[]> => {
   const response = await axios.get<TypesGen.WorkspaceBuildParameter[]>(
     `/api/v2/workspacebuilds/${workspaceBuildId}/parameters`,
-  )
-  return response.data
-}
-
-export const updateWorkspaceBuild = async (
-  workspaceId: string,
-  data: TypesGen.WorkspaceBuildsRequest,
-): Promise<TypesGen.WorkspaceBuild> => {
-  const response = await axios.post(
-    `/api/v2/workspaces/${workspaceId}/builds`,
-    data,
   )
   return response.data
 }
