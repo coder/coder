@@ -15,7 +15,7 @@ args:
   BASE_IMAGE: "redhat/ubi/ubi8"
   BASE_TAG: "8.7"
   # Needs to be kept in sync with the resource below.
-  TERRAFORM_CODER_PROVIDER_VERSION: "0.6.9"
+  TERRAFORM_CODER_PROVIDER_VERSION: "0.6.10"
 
 # Docker image labels
 labels:
@@ -48,7 +48,7 @@ resources:
     value: b8cf184dee15dfa89713fe56085313ab23db22e17284a9a27c0999c67ce3021e
 # Coder Terraform provider, bundled inside of Coder to support air-gapped
 # installs.
-- url: https://github.com/coder/terraform-provider-coder/releases/download/v0.6.9/terraform-provider-coder_0.6.9_linux_amd64.zip
+- url: https://github.com/coder/terraform-provider-coder/releases/download/v0.6.10/terraform-provider-coder_0.6.10_linux_amd64.zip
   filename: "terraform-provider-coder.zip"
   validation:
     type: sha256
