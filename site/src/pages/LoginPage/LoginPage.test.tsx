@@ -10,6 +10,7 @@ import {
 } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
 import { LoginPage } from "./LoginPage"
+import * as TypesGen from "api/typesGenerated"
 
 describe("LoginPage", () => {
   beforeEach(() => {
@@ -80,16 +81,16 @@ describe("LoginPage", () => {
   })
 
   it("shows github authentication when enabled", async () => {
+    const authMethods: TypesGen.AuthMethods = {
+      password: { enabled: true },
+      github: { enabled: true },
+      oidc: { enabled: true, signInText: "", iconUrl: "" },
+    }
+
     // Given
     server.use(
       rest.get("/api/v2/users/authmethods", async (req, res, ctx) => {
-        return res(
-          ctx.status(200),
-          ctx.json({
-            password: true,
-            github: true,
-          }),
-        )
+        return res(ctx.status(200), ctx.json(authMethods))
       }),
     )
 
@@ -97,7 +98,7 @@ describe("LoginPage", () => {
     render(<LoginPage />)
 
     // Then
-    await screen.findByText(Language.passwordSignIn)
+    expect(screen.queryByText(Language.passwordSignIn)).not.toBeInTheDocument()
     await screen.findByText(Language.githubSignIn)
   })
 
@@ -119,5 +120,33 @@ describe("LoginPage", () => {
 
     // Then
     await screen.findByText("Setup")
+  })
+
+  it("hides password authentication if OIDC/GitHub is enabled and displays on click", async () => {
+    const authMethods: TypesGen.AuthMethods = {
+      password: { enabled: true },
+      github: { enabled: true },
+      oidc: { enabled: true, signInText: "", iconUrl: "" },
+    }
+
+    // Given
+    server.use(
+      rest.get("/api/v2/users/authmethods", async (req, res, ctx) => {
+        return res(ctx.status(200), ctx.json(authMethods))
+      }),
+    )
+
+    // When
+    render(<LoginPage />)
+
+    // Then
+    expect(screen.queryByText(Language.passwordSignIn)).not.toBeInTheDocument()
+    await screen.findByText(Language.githubSignIn)
+
+    const showPasswordAuthLink = screen.getByText("Show password login")
+    await userEvent.click(showPasswordAuthLink)
+
+    await screen.findByText(Language.passwordSignIn)
+    await screen.findByText(Language.githubSignIn)
   })
 })
