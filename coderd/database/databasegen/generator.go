@@ -1,4 +1,4 @@
-package fakegen
+package databasegen
 
 import (
 	"context"
@@ -112,7 +112,7 @@ func User(t *testing.T, db database.Store, orig database.User) database.User {
 	return user
 }
 
-func Organization(t *testing.T, db database.Store, ctx context.Context, orig database.Organization) database.Organization {
+func Organization(t *testing.T, db database.Store, orig database.Organization) database.Organization {
 	org, err := db.InsertOrganization(context.Background(), database.InsertOrganizationParams{
 		ID:          takeFirst(orig.ID, uuid.New()),
 		Name:        takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
@@ -124,7 +124,7 @@ func Organization(t *testing.T, db database.Store, ctx context.Context, orig dat
 	return org
 }
 
-func Group(t *testing.T, db database.Store, ctx context.Context, orig database.Group) database.Group {
+func Group(t *testing.T, db database.Store, orig database.Group) database.Group {
 	group, err := db.InsertGroup(context.Background(), database.InsertGroupParams{
 		ID:             takeFirst(orig.ID, uuid.New()),
 		Name:           takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
@@ -136,7 +136,7 @@ func Group(t *testing.T, db database.Store, ctx context.Context, orig database.G
 	return group
 }
 
-func ProvisionerJob(t *testing.T, db database.Store, ctx context.Context, orig database.ProvisionerJob) database.ProvisionerJob {
+func ProvisionerJob(t *testing.T, db database.Store, orig database.ProvisionerJob) database.ProvisionerJob {
 	job, err := db.InsertProvisionerJob(context.Background(), database.InsertProvisionerJobParams{
 		ID:             takeFirst(orig.ID, uuid.New()),
 		CreatedAt:      takeFirst(orig.CreatedAt, time.Now()),
@@ -154,7 +154,7 @@ func ProvisionerJob(t *testing.T, db database.Store, ctx context.Context, orig d
 	return job
 }
 
-func WorkspaceResource(t *testing.T, db database.Store, ctx context.Context, orig database.WorkspaceResource) database.WorkspaceResource {
+func WorkspaceResource(t *testing.T, db database.Store, orig database.WorkspaceResource) database.WorkspaceResource {
 	resource, err := db.InsertWorkspaceResource(context.Background(), database.InsertWorkspaceResourceParams{
 		ID:         takeFirst(orig.ID, uuid.New()),
 		CreatedAt:  takeFirst(orig.CreatedAt, time.Now()),
@@ -174,7 +174,7 @@ func WorkspaceResource(t *testing.T, db database.Store, ctx context.Context, ori
 	return resource
 }
 
-func File(t *testing.T, db database.Store, ctx context.Context, orig database.File) database.File {
+func File(t *testing.T, db database.Store, orig database.File) database.File {
 	file, err := db.InsertFile(context.Background(), database.InsertFileParams{
 		ID:        takeFirst(orig.ID, uuid.New()),
 		Hash:      takeFirst(orig.Hash, hex.EncodeToString(make([]byte, 32))),
@@ -187,7 +187,7 @@ func File(t *testing.T, db database.Store, ctx context.Context, orig database.Fi
 	return file
 }
 
-func UserLink(t *testing.T, db database.Store, ctx context.Context, orig database.UserLink) database.UserLink {
+func UserLink(t *testing.T, db database.Store, orig database.UserLink) database.UserLink {
 	link, err := db.InsertUserLink(context.Background(), database.InsertUserLinkParams{
 		UserID:            takeFirst(orig.UserID, uuid.New()),
 		LoginType:         takeFirst(orig.LoginType, database.LoginTypeGithub),
