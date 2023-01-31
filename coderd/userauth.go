@@ -17,9 +17,11 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/authzquery"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -425,8 +427,9 @@ func (e httpError) Error() string {
 
 func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cookie, error) {
 	var (
-		ctx  = r.Context()
-		user database.User
+		ctx       = r.Context()
+		systemCtx = authzquery.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
+		user      database.User
 	)
 
 	err := api.Database.InTx(func(tx database.Store) error {
@@ -435,7 +438,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 			err  error
 		)
 
-		user, link, err = findLinkedUser(ctx, tx, params.LinkedID, params.Email)
+		user, link, err = findLinkedUser(systemCtx, tx, params.LinkedID, params.Email)
 		if err != nil {
 			return xerrors.Errorf("find linked user: %w", err)
 		}
@@ -461,7 +464,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		// with OIDC for the first time.
 		if user.ID == uuid.Nil {
 			var organizationID uuid.UUID
-			organizations, _ := tx.GetOrganizations(ctx)
+			organizations, _ := tx.GetOrganizations(systemCtx)
 			if len(organizations) > 0 {
 				// Add the user to the first organization. Once multi-organization
 				// support is added, we should enable a configuration map of user
@@ -469,7 +472,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 				organizationID = organizations[0].ID
 			}
 
-			_, err := tx.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
+			_, err := tx.GetUserByEmailOrUsername(systemCtx, database.GetUserByEmailOrUsernameParams{
 				Username: params.Username,
 			})
 			if err == nil {
@@ -482,7 +485,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 
 					params.Username = httpapi.UsernameFrom(alternate)
 
-					_, err := tx.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
+					_, err := tx.GetUserByEmailOrUsername(systemCtx, database.GetUserByEmailOrUsernameParams{
 						Username: params.Username,
 					})
 					if xerrors.Is(err, sql.ErrNoRows) {
@@ -501,7 +504,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 				}
 			}
 
-			user, _, err = api.CreateUser(ctx, tx, CreateUserRequest{
+			user, _, err = api.CreateUser(systemCtx, tx, CreateUserRequest{
 				CreateUserRequest: codersdk.CreateUserRequest{
 					Email:          params.Email,
 					Username:       params.Username,
@@ -515,7 +518,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		}
 
 		if link.UserID == uuid.Nil {
-			link, err = tx.InsertUserLink(ctx, database.InsertUserLinkParams{
+			link, err = tx.InsertUserLink(systemCtx, database.InsertUserLinkParams{
 				UserID:            user.ID,
 				LoginType:         params.LoginType,
 				LinkedID:          params.LinkedID,
@@ -534,7 +537,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		// The migration that added the user_links table could not populate
 		// the 'linked_id' field since it requires fields off the access token.
 		if link.LinkedID == "" {
-			link, err = tx.UpdateUserLinkedID(ctx, database.UpdateUserLinkedIDParams{
+			link, err = tx.UpdateUserLinkedID(systemCtx, database.UpdateUserLinkedIDParams{
 				UserID:    user.ID,
 				LoginType: params.LoginType,
 				LinkedID:  params.LinkedID,
@@ -545,7 +548,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		}
 
 		if link.UserID != uuid.Nil {
-			link, err = tx.UpdateUserLink(ctx, database.UpdateUserLinkParams{
+			link, err = tx.UpdateUserLink(systemCtx, database.UpdateUserLinkParams{
 				UserID:            user.ID,
 				LoginType:         params.LoginType,
 				OAuthAccessToken:  params.State.Token.AccessToken,
@@ -584,7 +587,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 			// In such cases in the current implementation this user can now no
 			// longer sign in until an administrator finds the offending built-in
 			// user and changes their username.
-			user, err = tx.UpdateUserProfile(ctx, database.UpdateUserProfileParams{
+			user, err = tx.UpdateUserProfile(systemCtx, database.UpdateUserProfileParams{
 				ID:        user.ID,
 				Email:     user.Email,
 				Username:  user.Username,
@@ -602,7 +605,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		return nil, xerrors.Errorf("in tx: %w", err)
 	}
 
-	cookie, err := api.createAPIKey(ctx, createAPIKeyParams{
+	cookie, err := api.createAPIKey(systemCtx, createAPIKeyParams{
 		UserID:     user.ID,
 		LoginType:  params.LoginType,
 		RemoteAddr: r.RemoteAddr,
