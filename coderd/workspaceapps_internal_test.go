@@ -10,42 +10,28 @@ import (
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/testutil"
 )
 
 func TestAPIKeyEncryption(t *testing.T) {
 	t.Parallel()
 
-	generateAPIKey := func(t *testing.T, db database.Store) (keyID, keySecret string, hashedSecret []byte, data encryptedAPIKeyPayload) {
-		keyID, keySecret, err := GenerateAPIKeyIDSecret()
-		require.NoError(t, err)
+	generateAPIKey := func(t *testing.T, db database.Store) (keyID, keyToken string, hashedSecret []byte, data encryptedAPIKeyPayload) {
+		key, token := dbgen.APIKey(t, db, database.APIKey{})
 
-		hashedSecretArray := sha256.Sum256([]byte(keySecret))
 		data = encryptedAPIKeyPayload{
-			APIKey:    keyID + "-" + keySecret,
+			APIKey:    token,
 			ExpiresAt: database.Now().Add(24 * time.Hour),
 		}
 
-		return keyID, keySecret, hashedSecretArray[:], data
-	}
-	insertAPIKey := func(t *testing.T, db database.Store, keyID string, hashedSecret []byte) {
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		_, err := db.InsertAPIKey(ctx, database.InsertAPIKeyParams{
-			ID:           keyID,
-			HashedSecret: hashedSecret,
-			LoginType:    database.LoginTypePassword,
-			Scope:        database.APIKeyScopeAll,
-		})
-		require.NoError(t, err)
+		return key.ID, token, key.HashedSecret[:], data
 	}
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
 		keyID, _, hashedSecret, data := generateAPIKey(t, db)
-		insertAPIKey(t, db, keyID, hashedSecret)
 
 		encrypted, err := encryptAPIKey(data)
 		require.NoError(t, err)
@@ -66,8 +52,7 @@ func TestAPIKeyEncryption(t *testing.T) {
 		t.Run("Expiry", func(t *testing.T) {
 			t.Parallel()
 			db := databasefake.New()
-			keyID, _, hashedSecret, data := generateAPIKey(t, db)
-			insertAPIKey(t, db, keyID, hashedSecret)
+			_, _, _, data := generateAPIKey(t, db)
 
 			data.ExpiresAt = database.Now().Add(-1 * time.Hour)
 			encrypted, err := encryptAPIKey(data)
@@ -84,9 +69,17 @@ func TestAPIKeyEncryption(t *testing.T) {
 		t.Run("KeyMatches", func(t *testing.T) {
 			t.Parallel()
 			db := databasefake.New()
-			keyID, _, _, data := generateAPIKey(t, db)
+
 			hashedSecret := sha256.Sum256([]byte("wrong"))
-			insertAPIKey(t, db, keyID, hashedSecret[:])
+			// Insert a token with a mismatched hashed secret.
+			_, token := dbgen.APIKey(t, db, database.APIKey{
+				HashedSecret: hashedSecret[:],
+			})
+
+			data := encryptedAPIKeyPayload{
+				APIKey:    token,
+				ExpiresAt: database.Now().Add(24 * time.Hour),
+			}
 
 			encrypted, err := encryptAPIKey(data)
 			require.NoError(t, err)
