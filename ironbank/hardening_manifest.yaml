@@ -23,7 +23,7 @@ labels:
   # Human-readable description of the software packaged in the image
   org.opencontainers.image.description: "Coder server binary, includes REST API, Terraform, and dashboard"
   # License(s) under which contained software is distributed
-  org.opencontainers.image.licenses: "APGL"
+  org.opencontainers.image.licenses: "AGPL"
   # URL to find more information on the image
   org.opencontainers.image.url: "https://coder.com/docs"
   # Name of the distributing entity, organization or individual
