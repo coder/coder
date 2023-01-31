@@ -10,7 +10,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/coderd/authzquery"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/rbac"
 )
 
 // activityBumpWorkspace automatically bumps the workspace's auto-off timer
@@ -19,6 +21,8 @@ func activityBumpWorkspace(log slog.Logger, db database.Store, workspaceID uuid.
 	// We set a short timeout so if the app is under load, these
 	// low priority operations fail first.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+	// We always want to use the **system** authz context for this.
+	ctx = authzquery.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
 	defer cancel()
 
 	err := db.InTx(func(s database.Store) error {
