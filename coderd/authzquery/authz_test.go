@@ -27,7 +27,9 @@ import (
 // as only the first db call will be made. But it is better than nothing.
 func TestAuthzQueryRecursive(t *testing.T) {
 	t.Parallel()
-	q := authzquery.NewAuthzQuerier(databasefake.New(), &coderdtest.RecordingAuthorizer{})
+	q := authzquery.NewAuthzQuerier(databasefake.New(), &coderdtest.RecordingAuthorizer{
+		Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
+	})
 	actor := rbac.Subject{
 		ID:     uuid.NewString(),
 		Roles:  rbac.RoleNames{rbac.RoleOwner()},
@@ -46,7 +48,10 @@ func TestAuthzQueryRecursive(t *testing.T) {
 		if method.Name == "InTx" || method.Name == "Ping" {
 			continue
 		}
-		t.Logf(method.Name, method.Type.NumIn(), len(ins))
+		// Log the name of the last method, so if there is a panic, it is
+		// easy to know which method failed.
+		t.Log(method.Name)
+		// Call the function. Any infinite recursion will stack overflow.
 		reflect.ValueOf(q).Method(i).Call(ins)
 	}
 }
