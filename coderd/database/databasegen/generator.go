@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"fmt"
 	"testing"
 	"time"
 
@@ -16,6 +17,9 @@ import (
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/stretchr/testify/require"
 )
+
+// All methods take in a 'seed' object. Any provided fields in the seed will be
+// maintained. Any fields omitted will have sensible defaults generated.
 
 func Template(t *testing.T, db database.Store, seed database.Template) database.Template {
 	template, err := db.InsertTemplate(context.Background(), database.InsertTemplateParams{
@@ -39,9 +43,9 @@ func Template(t *testing.T, db database.Store, seed database.Template) database.
 	return template
 }
 
-func APIKey(t *testing.T, db database.Store, seed database.APIKey) (key database.APIKey, secret string) {
+func APIKey(t *testing.T, db database.Store, seed database.APIKey) (key database.APIKey, token string) {
 	id, _ := cryptorand.String(10)
-	secret, _ = cryptorand.String(22)
+	secret, _ := cryptorand.String(22)
 	hashed := sha256.Sum256([]byte(secret))
 
 	key, err := db.InsertAPIKey(context.Background(), database.InsertAPIKeyParams{
@@ -59,7 +63,7 @@ func APIKey(t *testing.T, db database.Store, seed database.APIKey) (key database
 		Scope:           takeFirst(seed.Scope, database.APIKeyScopeAll),
 	})
 	require.NoError(t, err, "insert api key")
-	return key, secret
+	return key, fmt.Sprintf("%s-%s", key.ID, secret)
 }
 
 func Workspace(t *testing.T, db database.Store, orig database.Workspace) database.Workspace {
