@@ -166,8 +166,8 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 // @Router /workspaceagents/me/version [post]
 // @x-apidocgen {"skip": true}
 func (api *API) postWorkspaceAgentVersion(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
+	ctx := r.Context()
 	apiAgent, err := convertWorkspaceAgent(api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout, api.DeploymentConfig.AgentFallbackTroubleshootingURL.Value)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
