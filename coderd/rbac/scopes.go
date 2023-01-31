@@ -43,7 +43,7 @@ func (s Scope) Name() string {
 	return s.Role.Name
 }
 
-func WorkspaceAgentScope(workspaceID uuid.UUID) Scope {
+func WorkspaceAgentScope(workspaceID, ownerID uuid.UUID) Scope {
 	allScope, err := ScopeAll.Expand()
 	if err != nil {
 		panic("failed to expand scope all, this should never happen")
@@ -57,6 +57,7 @@ func WorkspaceAgentScope(workspaceID uuid.UUID) Scope {
 		// This prevents the agent from being able to access any other resource.
 		AllowIDList: []string{
 			workspaceID.String(),
+			ownerID.String(),
 		},
 	}
 }

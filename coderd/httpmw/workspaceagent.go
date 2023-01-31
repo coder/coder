@@ -65,7 +65,7 @@ func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 				return
 			}
 
-			subject, err := getAgentSubject(ctx, db, agent)
+			subject, err := getAgentSubject(systemCtx, db, agent)
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching workspace agent.",
@@ -107,6 +107,6 @@ func getAgentSubject(ctx context.Context, db database.Store, agent database.Work
 		ID:     user.ID.String(),
 		Roles:  rbac.RoleNames(roles.Roles),
 		Groups: roles.Groups,
-		Scope:  rbac.WorkspaceAgentScope(workspace.ID),
+		Scope:  rbac.WorkspaceAgentScope(workspace.ID, user.ID),
 	}, nil
 }
