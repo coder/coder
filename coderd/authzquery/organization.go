@@ -10,14 +10,6 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 )
 
-func (q *AuthzQuerier) GetAllOrganizationMembers(ctx context.Context, organizationID uuid.UUID) ([]database.User, error) {
-	// TODO: @emyrk this is returned by the template ACL api endpoint. These users are full database.Users, which is
-	// problematic since it bypasses the rbac.ResourceUser resource. We should probably return a organizationMember or
-	// restricted user type here instead. The returned user also is checking the User resource, whereas we might want to
-	// really check the OrganizationMember resource.
-	return authorizedFetchSet(q.authorizer, q.database.GetAllOrganizationMembers)(ctx, organizationID)
-}
-
 func (q *AuthzQuerier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {
 	return authorizedFetchSet(q.authorizer, q.database.GetGroupsByOrganizationID)(ctx, organizationID)
 }
