@@ -22,7 +22,6 @@ func TestWorkspaceResourceParam(t *testing.T) {
 
 	setup := func(t *testing.T, db database.Store, jobType database.ProvisionerJobType) (*http.Request, database.WorkspaceResource) {
 		r := httptest.NewRequest("GET", "/", nil)
-		ctx := context.Background()
 		job := databasegen.ProvisionerJob(t, db, database.ProvisionerJob{
 			Type:          jobType,
 			Provisioner:   database.ProvisionerTypeEcho,

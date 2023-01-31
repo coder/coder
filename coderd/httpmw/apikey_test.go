@@ -178,7 +178,6 @@ func TestAPIKey(t *testing.T) {
 		t.Parallel()
 		var (
 			db       = databasefake.New()
-			ctx      = context.Background()
 			user     = databasegen.User(t, db, database.User{})
 			_, token = databasegen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
@@ -405,7 +404,6 @@ func TestAPIKey(t *testing.T) {
 		t.Parallel()
 		var (
 			db                = databasefake.New()
-			ctx               = context.Background()
 			user              = databasegen.User(t, db, database.User{})
 			sentAPIKey, token = databasegen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
