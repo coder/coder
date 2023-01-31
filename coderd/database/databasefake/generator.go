@@ -74,7 +74,7 @@ func populate[DBType any](ctx context.Context, g *Generator, name string, seed D
 
 func (g *Generator) RandomName() string {
 	for {
-		name := namesgenerator.GetRandomName(0)
+		name := namesgenerator.GetRandomName(1)
 		if _, ok := g.names[name]; !ok {
 			return name
 		}
