@@ -6,6 +6,7 @@ import TextField from "@material-ui/core/TextField"
 import { Stack } from "components/Stack/Stack"
 import { FC, useState } from "react"
 import { TemplateVersionParameter } from "../../api/typesGenerated"
+import { colors } from "theme/colors"
 
 const isBoolean = (parameter: TemplateVersionParameter) => {
   return parameter.type === "bool"
@@ -41,6 +42,11 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ index, parameter }) => {
         </span>
       </span>
       <span className={styles.labelDescription}>{parameter.description}</span>
+      {!parameter.mutable && (
+        <div className={styles.labelImmutable}>
+          This parameter cannot be changed after creating workspace.
+        </div>
+      )}
     </span>
   )
 }
@@ -186,6 +192,11 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.primary,
     display: "block",
     fontWeight: 600,
+  },
+  labelImmutable: {
+    marginTop: theme.spacing(0.5),
+    marginBottom: theme.spacing(0.5),
+    color: colors.yellow[7],
   },
   input: {
     display: "flex",

@@ -68,7 +68,9 @@ export const WorkspaceBuildParametersPageView: FC<
       enableReinitialize: true,
       initialTouched: props.initialTouched,
       onSubmit: (request) => {
-        props.onSubmit(request)
+        props.onSubmit(
+          stripImmutableParameters(props.templateParameters, request),
+        )
         form.setSubmitting(false)
       },
     })
@@ -174,7 +176,7 @@ export const WorkspaceBuildParametersPageView: FC<
                     {...getFieldHelpers(
                       "rich_parameter_values[" + index + "].value",
                     )}
-                    disabled={form.isSubmitting}
+                    disabled={!parameter.mutable || form.isSubmitting}
                     index={index}
                     key={parameter.name}
                     onChange={(value) => {
@@ -254,6 +256,27 @@ const selectInitialRichParametersValues = (
     defaults.push(buildParameter)
   })
   return defaults
+}
+
+const stripImmutableParameters = (
+  templateParameters: TypesGen.TemplateVersionParameter[],
+  request: TypesGen.CreateWorkspaceBuildRequest,
+): TypesGen.CreateWorkspaceBuildRequest => {
+  if (!request.rich_parameter_values) {
+    return request
+  }
+
+  const mutableBuildParameters = request.rich_parameter_values.filter(
+    (buildParameter) =>
+      templateParameters.find(
+        (templateParameter) => templateParameter.name === buildParameter.name,
+      )?.mutable,
+  )
+
+  return {
+    ...request,
+    rich_parameter_values: mutableBuildParameters,
+  }
 }
 
 const useStyles = makeStyles(() => ({
