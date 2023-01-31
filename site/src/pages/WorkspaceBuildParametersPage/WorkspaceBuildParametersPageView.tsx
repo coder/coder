@@ -14,6 +14,7 @@ import {
 } from "pages/CreateWorkspacePage/CreateWorkspacePageView"
 import { FormFooter } from "components/FormFooter/FormFooter"
 import * as Yup from "yup"
+import { Maybe } from "components/Conditionals/Maybe"
 
 export enum UpdateWorkspaceErrors {
   GET_WORKSPACE_ERROR = "getWorkspaceError",
@@ -77,8 +78,8 @@ export const WorkspaceBuildParametersPageView: FC<
     props.updateWorkspaceErrors[UpdateWorkspaceErrors.UPDATE_WORKSPACE_ERROR],
   )
 
-  if (props.hasErrors) {
-    return (
+  {
+    props.hasErrors && (
       <Stack>
         {Boolean(
           props.updateWorkspaceErrors[
@@ -126,26 +127,25 @@ export const WorkspaceBuildParametersPageView: FC<
     )
   }
 
-  if (
-    props.updateWorkspaceErrors[UpdateWorkspaceErrors.UPDATE_WORKSPACE_ERROR]
-  ) {
-    return (
-      <AlertBanner
-        severity="error"
-        error={
+  return (
+    <FullPageForm title={t("title")} detail={t("detail")}>
+      <Maybe
+        condition={Boolean(
           props.updateWorkspaceErrors[
             UpdateWorkspaceErrors.UPDATE_WORKSPACE_ERROR
-          ]
-        }
-      />
-    )
-  }
+          ],
+        )}
+      >
+        <AlertBanner
+          severity="error"
+          error={
+            props.updateWorkspaceErrors[
+              UpdateWorkspaceErrors.UPDATE_WORKSPACE_ERROR
+            ]
+          }
+        />
+      </Maybe>
 
-  return (
-    <FullPageForm
-      title={t("title")}
-      detail="Those values are provided by your template‘s Terraform configuration."
-    >
       {props.templateParameters && props.workspaceBuildParameters && (
         <div className={styles.formSection}>
           <form onSubmit={form.handleSubmit}>
@@ -243,7 +243,7 @@ const selectInitialRichParametersValues = (
 
 const useStyles = makeStyles(() => ({
   formSection: {
-    marginTop: 28,
+    marginTop: 20,
   },
 
   formSectionFields: {
