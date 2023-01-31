@@ -286,6 +286,8 @@ func New(options *Options) *API {
 				RedirectToLogin: false,
 				Optional:        true,
 			}),
+			// TODO: We should remove this auth context after middleware.
+			httpmw.SystemAuthCtx,
 			httpmw.ExtractUserParam(api.Database, false),
 			httpmw.ExtractWorkspaceAndAgentParam(api.Database),
 		),
@@ -313,8 +315,7 @@ func New(options *Options) *API {
 				RedirectToLogin: false,
 				Optional:        true,
 			}),
-			// TODO: The ExtractUserParam middleware requires an actor in the context.
-			// As this is potentially a public endpoint, using system actor.
+			// TODO: We should remove this auth context after middleware.
 			httpmw.SystemAuthCtx,
 			// Redirect to the login page if the user tries to open an app with
 			// "me" as the username and they are not logged in.
