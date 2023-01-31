@@ -109,12 +109,12 @@ func (q *AuthzQuerier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Contex
 
 func (q *AuthzQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg database.GetWorkspaceAppByAgentIDAndSlugParams) (database.WorkspaceApp, error) {
 	// If we can fetch the workspace, we can fetch the apps. Use the authorized call.
-	_, err := q.GetWorkspaceByID(ctx, arg.AgentID)
+	_, err := q.GetWorkspaceByAgentID(ctx, arg.AgentID)
 	if err != nil {
 		return database.WorkspaceApp{}, err
 	}
 
-	return q.GetWorkspaceAppByAgentIDAndSlug(ctx, arg)
+	return q.database.GetWorkspaceAppByAgentIDAndSlug(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceApp, error) {
@@ -266,7 +266,7 @@ func (q *AuthzQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID u
 	if err != nil {
 		return nil, nil
 	}
-	return q.GetWorkspaceResourcesByJobID(ctx, jobID)
+	return q.database.GetWorkspaceResourcesByJobID(ctx, jobID)
 }
 
 // GetWorkspaceResourcesByJobIDs is an all or nothing call. If a single resource is not authorized, then
