@@ -140,6 +140,7 @@ func (g *Generator) User(ctx context.Context, seed database.User) database.User 
 // Populate uses `require` which calls `t.FailNow()` and must be called from the
 // go routine running the test or benchmark function.
 func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) map[string]interface{} {
+	g.testT.Helper()
 	db := g.db
 	t := g.testT
 
@@ -346,7 +347,8 @@ func (g *Generator) Populate(ctx context.Context, seed map[string]interface{}) m
 
 			output[name] = link
 		default:
-			panic(fmt.Sprintf("unknown type %T", orig))
+			// If you hit this, just add your type to the switch.
+			t.Fatalf("unknown type '%T' used in fake data generator", orig)
 		}
 	}
 	return output
