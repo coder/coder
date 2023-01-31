@@ -6,14 +6,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/coder/coder/coderd/database/databasegen"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/httpmw"
 )
 
@@ -22,19 +21,19 @@ func TestWorkspaceResourceParam(t *testing.T) {
 
 	setup := func(t *testing.T, db database.Store, jobType database.ProvisionerJobType) (*http.Request, database.WorkspaceResource) {
 		r := httptest.NewRequest("GET", "/", nil)
-		job := databasegen.ProvisionerJob(t, db, database.ProvisionerJob{
+		job := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
 			Type:          jobType,
 			Provisioner:   database.ProvisionerTypeEcho,
 			StorageMethod: database.ProvisionerStorageMethodFile,
 		})
 
-		build := databasegen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 			JobID:      job.ID,
 			Transition: database.WorkspaceTransitionStart,
 			Reason:     database.BuildReasonInitiator,
 		})
 
-		resource := databasegen.WorkspaceResource(t, db, database.WorkspaceResource{
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
 			JobID:      job.ID,
 			Transition: database.WorkspaceTransitionStart,
 		})

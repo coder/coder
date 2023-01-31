@@ -9,8 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/coderd/database/databasegen"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -18,6 +16,7 @@ import (
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
@@ -90,14 +89,14 @@ func TestAcquireJob(t *testing.T) {
 		srv := setup(t, false)
 		ctx := context.Background()
 
-		user := databasegen.User(t, srv.Database, database.User{})
-		template := databasegen.Template(t, srv.Database, database.Template{
+		user := dbgen.User(t, srv.Database, database.User{})
+		template := dbgen.Template(t, srv.Database, database.Template{
 			Name:        "template",
 			Provisioner: database.ProvisionerTypeEcho,
 		})
-		file := databasegen.File(t, srv.Database, database.File{CreatedBy: user.ID})
-		versionFile := databasegen.File(t, srv.Database, database.File{CreatedBy: user.ID})
-		version := databasegen.TemplateVersion(t, srv.Database, database.TemplateVersion{
+		file := dbgen.File(t, srv.Database, database.File{CreatedBy: user.ID})
+		versionFile := dbgen.File(t, srv.Database, database.File{CreatedBy: user.ID})
+		version := dbgen.TemplateVersion(t, srv.Database, database.TemplateVersion{
 			TemplateID: uuid.NullUUID{
 				UUID:  template.ID,
 				Valid: true,
@@ -105,7 +104,7 @@ func TestAcquireJob(t *testing.T) {
 			JobID: uuid.New(),
 		})
 		// Import version job
-		_ = databasegen.ProvisionerJob(t, srv.Database, database.ProvisionerJob{
+		_ = dbgen.ProvisionerJob(t, srv.Database, database.ProvisionerJob{
 			ID:            version.JobID,
 			InitiatorID:   user.ID,
 			FileID:        versionFile.ID,
@@ -116,11 +115,11 @@ func TestAcquireJob(t *testing.T) {
 				TemplateVersionID: version.ID,
 			})),
 		})
-		workspace := databasegen.Workspace(t, srv.Database, database.Workspace{
+		workspace := dbgen.Workspace(t, srv.Database, database.Workspace{
 			TemplateID: template.ID,
 			OwnerID:    user.ID,
 		})
-		build := databasegen.WorkspaceBuild(t, srv.Database, database.WorkspaceBuild{
+		build := dbgen.WorkspaceBuild(t, srv.Database, database.WorkspaceBuild{
 			WorkspaceID:       workspace.ID,
 			BuildNumber:       1,
 			JobID:             uuid.New(),
@@ -128,7 +127,7 @@ func TestAcquireJob(t *testing.T) {
 			Transition:        database.WorkspaceTransitionStart,
 			Reason:            database.BuildReasonInitiator,
 		})
-		_ = databasegen.ProvisionerJob(t, srv.Database, database.ProvisionerJob{
+		_ = dbgen.ProvisionerJob(t, srv.Database, database.ProvisionerJob{
 			ID:            build.ID,
 			InitiatorID:   user.ID,
 			Provisioner:   database.ProvisionerTypeEcho,
@@ -189,10 +188,10 @@ func TestAcquireJob(t *testing.T) {
 		srv := setup(t, false)
 		ctx := context.Background()
 
-		user := databasegen.User(t, srv.Database, database.User{})
-		version := databasegen.TemplateVersion(t, srv.Database, database.TemplateVersion{})
-		file := databasegen.File(t, srv.Database, database.File{CreatedBy: user.ID})
-		_ = databasegen.ProvisionerJob(t, srv.Database, database.ProvisionerJob{
+		user := dbgen.User(t, srv.Database, database.User{})
+		version := dbgen.TemplateVersion(t, srv.Database, database.TemplateVersion{})
+		file := dbgen.File(t, srv.Database, database.File{CreatedBy: user.ID})
+		_ = dbgen.ProvisionerJob(t, srv.Database, database.ProvisionerJob{
 			InitiatorID:   user.ID,
 			Provisioner:   database.ProvisionerTypeEcho,
 			StorageMethod: database.ProvisionerStorageMethodFile,
@@ -228,9 +227,9 @@ func TestAcquireJob(t *testing.T) {
 		srv := setup(t, false)
 		ctx := context.Background()
 
-		user := databasegen.User(t, srv.Database, database.User{})
-		file := databasegen.File(t, srv.Database, database.File{CreatedBy: user.ID})
-		_ = databasegen.ProvisionerJob(t, srv.Database, database.ProvisionerJob{
+		user := dbgen.User(t, srv.Database, database.User{})
+		file := dbgen.File(t, srv.Database, database.File{CreatedBy: user.ID})
+		_ = dbgen.ProvisionerJob(t, srv.Database, database.ProvisionerJob{
 			FileID:        file.ID,
 			InitiatorID:   user.ID,
 			Provisioner:   database.ProvisionerTypeEcho,

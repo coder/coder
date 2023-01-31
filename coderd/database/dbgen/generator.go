@@ -1,4 +1,4 @@
-package databasegen
+package dbgen
 
 import (
 	"context"

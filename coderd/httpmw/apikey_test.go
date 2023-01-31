@@ -11,14 +11,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/coderd/database/databasegen"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/codersdk"
@@ -155,11 +154,11 @@ func TestAPIKey(t *testing.T) {
 			db   = databasefake.New()
 			r    = httptest.NewRequest("GET", "/", nil)
 			rw   = httptest.NewRecorder()
-			user = databasegen.User(t, db, database.User{})
+			user = dbgen.User(t, db, database.User{})
 
 			// Use a different secret so they don't match!
 			hashed   = sha256.Sum256([]byte("differentsecret"))
-			_, token = databasegen.APIKey(t, db, database.APIKey{
+			_, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:       user.ID,
 				HashedSecret: hashed[:],
 			})
@@ -178,8 +177,8 @@ func TestAPIKey(t *testing.T) {
 		t.Parallel()
 		var (
 			db       = databasefake.New()
-			user     = databasegen.User(t, db, database.User{})
-			_, token = databasegen.APIKey(t, db, database.APIKey{
+			user     = dbgen.User(t, db, database.User{})
+			_, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
 				ExpiresAt: time.Now().Add(time.Hour * -1),
 			})
@@ -202,8 +201,8 @@ func TestAPIKey(t *testing.T) {
 		t.Parallel()
 		var (
 			db                = databasefake.New()
-			user              = databasegen.User(t, db, database.User{})
-			sentAPIKey, token = databasegen.APIKey(t, db, database.APIKey{
+			user              = dbgen.User(t, db, database.User{})
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
 				ExpiresAt: database.Now().AddDate(0, 0, 1),
 			})
@@ -237,8 +236,8 @@ func TestAPIKey(t *testing.T) {
 		t.Parallel()
 		var (
 			db       = databasefake.New()
-			user     = databasegen.User(t, db, database.User{})
-			_, token = databasegen.APIKey(t, db, database.APIKey{
+			user     = dbgen.User(t, db, database.User{})
+			_, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
 				ExpiresAt: database.Now().AddDate(0, 0, 1),
 				Scope:     database.APIKeyScopeApplicationConnect,
@@ -274,8 +273,8 @@ func TestAPIKey(t *testing.T) {
 		t.Parallel()
 		var (
 			db       = databasefake.New()
-			user     = databasegen.User(t, db, database.User{})
-			_, token = databasegen.APIKey(t, db, database.APIKey{
+			user     = dbgen.User(t, db, database.User{})
+			_, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
 				ExpiresAt: database.Now().AddDate(0, 0, 1),
 			})
@@ -306,8 +305,8 @@ func TestAPIKey(t *testing.T) {
 		t.Parallel()
 		var (
 			db                = databasefake.New()
-			user              = databasegen.User(t, db, database.User{})
-			sentAPIKey, token = databasegen.APIKey(t, db, database.APIKey{
+			user              = dbgen.User(t, db, database.User{})
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
 				LastUsed:  database.Now().AddDate(0, 0, -1),
 				ExpiresAt: database.Now().AddDate(0, 0, 1),
@@ -337,8 +336,8 @@ func TestAPIKey(t *testing.T) {
 		t.Parallel()
 		var (
 			db                = databasefake.New()
-			user              = databasegen.User(t, db, database.User{})
-			sentAPIKey, token = databasegen.APIKey(t, db, database.APIKey{
+			user              = dbgen.User(t, db, database.User{})
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
 				LastUsed:  database.Now(),
 				ExpiresAt: database.Now().Add(time.Minute),
@@ -368,14 +367,14 @@ func TestAPIKey(t *testing.T) {
 		t.Parallel()
 		var (
 			db                = databasefake.New()
-			user              = databasegen.User(t, db, database.User{})
-			sentAPIKey, token = databasegen.APIKey(t, db, database.APIKey{
+			user              = dbgen.User(t, db, database.User{})
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
 				LastUsed:  database.Now(),
 				ExpiresAt: database.Now().AddDate(0, 0, 1),
 				LoginType: database.LoginTypeGithub,
 			})
-			_ = databasegen.UserLink(t, db, database.UserLink{
+			_ = dbgen.UserLink(t, db, database.UserLink{
 				UserID:    user.ID,
 				LoginType: database.LoginTypeGithub,
 			})
@@ -404,14 +403,14 @@ func TestAPIKey(t *testing.T) {
 		t.Parallel()
 		var (
 			db                = databasefake.New()
-			user              = databasegen.User(t, db, database.User{})
-			sentAPIKey, token = databasegen.APIKey(t, db, database.APIKey{
+			user              = dbgen.User(t, db, database.User{})
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
 				LastUsed:  database.Now(),
 				ExpiresAt: database.Now().AddDate(0, 0, 1),
 				LoginType: database.LoginTypeGithub,
 			})
-			_ = databasegen.UserLink(t, db, database.UserLink{
+			_ = dbgen.UserLink(t, db, database.UserLink{
 				UserID:            user.ID,
 				LoginType:         database.LoginTypeGithub,
 				OAuthRefreshToken: "hello",
@@ -454,8 +453,8 @@ func TestAPIKey(t *testing.T) {
 		t.Parallel()
 		var (
 			db                = databasefake.New()
-			user              = databasegen.User(t, db, database.User{})
-			sentAPIKey, token = databasegen.APIKey(t, db, database.APIKey{
+			user              = dbgen.User(t, db, database.User{})
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
 				LastUsed:  database.Now().AddDate(0, 0, -1),
 				ExpiresAt: database.Now().AddDate(0, 0, 1),
@@ -537,8 +536,8 @@ func TestAPIKey(t *testing.T) {
 		t.Parallel()
 		var (
 			db                = databasefake.New()
-			user              = databasegen.User(t, db, database.User{})
-			sentAPIKey, token = databasegen.APIKey(t, db, database.APIKey{
+			user              = dbgen.User(t, db, database.User{})
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
 				LastUsed:  database.Now(),
 				ExpiresAt: database.Now().AddDate(0, 0, 1),

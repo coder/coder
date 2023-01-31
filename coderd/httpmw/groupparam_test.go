@@ -6,14 +6,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/coder/coder/coderd/database/databasegen"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/httpmw"
 )
 
@@ -25,7 +24,7 @@ func TestGroupParam(t *testing.T) {
 
 		var (
 			db    = databasefake.New()
-			group = databasegen.Group(t, db, database.Group{})
+			group = dbgen.Group(t, db, database.Group{})
 			r     = httptest.NewRequest("GET", "/", nil)
 			w     = httptest.NewRecorder()
 		)
@@ -54,7 +53,7 @@ func TestGroupParam(t *testing.T) {
 
 		var (
 			db    = databasefake.New()
-			group = databasegen.Group(t, db, database.Group{})
+			group = dbgen.Group(t, db, database.Group{})
 			r     = httptest.NewRequest("GET", "/", nil)
 			w     = httptest.NewRecorder()
 		)

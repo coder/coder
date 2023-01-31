@@ -6,12 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/coderd/database/databasegen"
-
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/testutil"
 )
 
@@ -19,7 +18,7 @@ func TestAPIKeyEncryption(t *testing.T) {
 	t.Parallel()
 
 	generateAPIKey := func(t *testing.T, db database.Store) (keyID, keyToken string, hashedSecret []byte, data encryptedAPIKeyPayload) {
-		key, token := databasegen.APIKey(t, db, database.APIKey{})
+		key, token := dbgen.APIKey(t, db, database.APIKey{})
 
 		data = encryptedAPIKeyPayload{
 			APIKey:    token,
@@ -73,7 +72,7 @@ func TestAPIKeyEncryption(t *testing.T) {
 
 			hashedSecret := sha256.Sum256([]byte("wrong"))
 			// Insert a token with a mismatched hashed secret.
-			_, token := databasegen.APIKey(t, db, database.APIKey{
+			_, token := dbgen.APIKey(t, db, database.APIKey{
 				HashedSecret: hashedSecret[:],
 			})
 

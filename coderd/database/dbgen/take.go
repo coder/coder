@@ -1,4 +1,4 @@
-package databasegen
+package dbgen
 
 // takeFirstBytes implements takeFirst for []byte.
 // []byte is not a comparable type.
