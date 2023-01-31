@@ -12,6 +12,13 @@ type Auditor interface {
 	diff(old, new any) Map
 }
 
+type AdditionalFields struct {
+	WorkspaceName  string               `json:"workspace_name"`
+	BuildNumber    string               `json:"build_number"`
+	BuildReason    database.BuildReason `json:"build_reason"`
+	WorkspaceOwner string               `json:"workspace_owner"`
+}
+
 func NewNop() Auditor {
 	return nop{}
 }

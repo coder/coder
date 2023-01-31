@@ -39,6 +39,7 @@ used for self-managed Git provider deployments.
 ```console
 CODER_GITAUTH_0_AUTH_URL="https://github.example.com/oauth/authorize"
 CODER_GITAUTH_0_TOKEN_URL="https://github.example.com/oauth/token"
+CODER_GITAUTH_0_VALIDATE_URL="https://your-domain.com/oauth/token/info"
 ```
 
 ### Custom scopes

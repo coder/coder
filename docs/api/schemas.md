@@ -991,6 +991,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 ```json
 {
   "action": "create",
+  "additional_fields": [0],
   "build_reason": "autostart",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "resource_type": "template",
@@ -1000,13 +1001,14 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ### Properties
 
-| Name            | Type                                           | Required | Restrictions | Description |
-| --------------- | ---------------------------------------------- | -------- | ------------ | ----------- |
-| `action`        | [codersdk.AuditAction](#codersdkauditaction)   | false    |              |             |
-| `build_reason`  | [codersdk.BuildReason](#codersdkbuildreason)   | false    |              |             |
-| `resource_id`   | string                                         | false    |              |             |
-| `resource_type` | [codersdk.ResourceType](#codersdkresourcetype) | false    |              |             |
-| `time`          | string                                         | false    |              |             |
+| Name                | Type                                           | Required | Restrictions | Description |
+| ------------------- | ---------------------------------------------- | -------- | ------------ | ----------- |
+| `action`            | [codersdk.AuditAction](#codersdkauditaction)   | false    |              |             |
+| `additional_fields` | array of integer                               | false    |              |             |
+| `build_reason`      | [codersdk.BuildReason](#codersdkbuildreason)   | false    |              |             |
+| `resource_id`       | string                                         | false    |              |             |
+| `resource_type`     | [codersdk.ResourceType](#codersdkresourcetype) | false    |              |             |
+| `time`              | string                                         | false    |              |             |
 
 #### Enumerated Values
 

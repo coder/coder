@@ -47,6 +47,8 @@ coder:
     workspacePerms: true
     # coder.serviceAccount.annotations -- The Coder service account annotations.
     annotations: {}
+    # coder.serviceAccount.name -- The service account name
+    name: coder
 
   # coder.env -- The environment variables to set for Coder. These can be used
   # to configure all aspects of `coder server`. Please see `coder server --help`

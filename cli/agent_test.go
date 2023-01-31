@@ -2,6 +2,8 @@ package cli_test
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -14,10 +16,70 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/testutil"
 )
 
 func TestWorkspaceAgent(t *testing.T) {
 	t.Parallel()
+
+	t.Run("LogDirectory", func(t *testing.T) {
+		t.Parallel()
+
+		authToken := uuid.NewString()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionApply: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.Resource{{
+							Name: "somename",
+							Type: "someinstance",
+							Agents: []*proto.Agent{{
+								Id:   uuid.NewString(),
+								Name: "someagent",
+								Auth: &proto.Agent_Token{
+									Token: authToken,
+								},
+							}},
+						}},
+					},
+				},
+			}},
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		logDir := t.TempDir()
+		cmd, _ := clitest.New(t,
+			"agent",
+			"--auth", "token",
+			"--agent-token", authToken,
+			"--agent-url", client.URL.String(),
+			"--log-dir", logDir,
+		)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		defer cancel()
+		errC := make(chan error, 1)
+		go func() {
+			errC <- cmd.ExecuteContext(ctx)
+		}()
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+		cancel()
+		err := <-errC
+		require.NoError(t, err)
+
+		info, err := os.Stat(filepath.Join(logDir, "coder-agent.log"))
+		require.NoError(t, err)
+		require.Greater(t, info.Size(), int64(0))
+	})
+
 	t.Run("Azure", func(t *testing.T) {
 		t.Parallel()
 		instanceID := "instanceidentifier"
