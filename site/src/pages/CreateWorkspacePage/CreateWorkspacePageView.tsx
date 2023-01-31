@@ -67,6 +67,7 @@ export const CreateWorkspacePageView: FC<
         rich_parameter_values: initialRichParameterValues,
       },
       validationSchema: ValidationSchemaForRichParameters(
+        "createWorkspacePage",
         props.templateParameters,
       ),
       enableReinitialize: true,
@@ -417,7 +418,7 @@ const selectInitialRichParametersValues = (
   return defaults
 }
 
-const workspaceBuildParameterValue = (
+export const workspaceBuildParameterValue = (
   workspaceBuildParameters: TypesGen.WorkspaceBuildParameter[],
   parameter: TypesGen.TemplateVersionParameter,
 ): string => {
@@ -427,17 +428,18 @@ const workspaceBuildParameterValue = (
   return (buildParameter && buildParameter.value) || ""
 }
 
-const ValidationSchemaForRichParameters = (
+export const ValidationSchemaForRichParameters = (
+  ns: string,
   templateParameters?: TypesGen.TemplateVersionParameter[],
 ): Yup.AnySchema => {
-  const { t } = useTranslation("createWorkspacePage")
+  const { t } = useTranslation(ns)
 
   if (!templateParameters) {
     return Yup.object()
   }
 
   return Yup.object({
-    name: nameValidator(t("nameLabel", { ns: "createWorkspacePage" })),
+    name: nameValidator(t("nameLabel", { ns })),
     rich_parameter_values: Yup.array()
       .of(
         Yup.object().shape({

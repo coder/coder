@@ -5,7 +5,11 @@ import { pageTitle } from "util/page"
 import { useMachine } from "@xstate/react"
 import { useNavigate, useParams } from "react-router-dom"
 import { workspaceBuildParametersMachine } from "xServices/workspace/workspaceBuildParametersXService"
-import { WorkspaceBuildParametersPageView } from "./WorkspaceBuildParametersPageView"
+import {
+  UpdateWorkspaceErrors,
+  WorkspaceBuildParametersPageView,
+} from "./WorkspaceBuildParametersPageView"
+import { getWorkspaceBuildParameters } from "api/api"
 
 export const WorkspaceBuildParametersPage: FC = () => {
   const { t } = useTranslation("workspaceBuildParametersPage")
@@ -29,9 +33,12 @@ export const WorkspaceBuildParametersPage: FC = () => {
     },
   })
   const {
-    selectedTemplate,
+    selectedWorkspace,
     templateParameters,
-    buildParameters,
+    workspaceBuildParameters,
+    getWorkspaceError,
+    getTemplateParametersError,
+    getWorkspaceBuildParametersError,
     updateWorkspaceError,
   } = state.context
 
@@ -40,7 +47,20 @@ export const WorkspaceBuildParametersPage: FC = () => {
       <Helmet>
         <title>{pageTitle(t("title"))}</title>
       </Helmet>
-      <WorkspaceBuildParametersPageView isLoading={false} />
+      <WorkspaceBuildParametersPageView
+        workspace={selectedWorkspace}
+        templateParameters={templateParameters}
+        workspaceBuildParameters={workspaceBuildParameters}
+        hasErrors={state.matches("error")}
+        updateWorkspaceErrors={{
+          [UpdateWorkspaceErrors.GET_WORKSPACE_ERROR]: getWorkspaceError,
+          [UpdateWorkspaceErrors.GET_TEMPLATE_PARAMETERS_ERROR]:
+            getTemplateParametersError,
+          [UpdateWorkspaceErrors.GET_WORKSPACE_BUILD_PARAMETERS_ERROR]:
+            getWorkspaceBuildParametersError,
+          [UpdateWorkspaceErrors.UPDATE_WORKSPACE_ERROR]: updateWorkspaceError,
+        }}
+      />
     </>
   )
 }

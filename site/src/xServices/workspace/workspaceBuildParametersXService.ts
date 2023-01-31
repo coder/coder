@@ -2,14 +2,15 @@ import {
   getTemplateVersionRichParameters,
   getWorkspaceByOwnerAndName,
   getWorkspaceBuildParameters,
+  postWorkspaceBuild,
 } from "api/api"
 import {
+  CreateWorkspaceBuildRequest,
   Template,
   TemplateVersionParameter,
   Workspace,
   WorkspaceBuild,
   WorkspaceBuildParameter,
-  WorkspaceBuildsRequest,
 } from "api/typesGenerated"
 import { assign, createMachine } from "xstate"
 
@@ -22,7 +23,7 @@ type WorkspaceBuildParametersContext = {
   templateParameters?: TemplateVersionParameter[]
   workspaceBuildParameters?: WorkspaceBuildParameter[]
 
-  updateWorkspaceBuildRequest?: WorkspaceBuildsRequest
+  createWorkspaceBuildRequest?: CreateWorkspaceBuildRequest
 
   getWorkspaceError?: Error | unknown
   getTemplateParametersError?: Error | unknown
@@ -32,7 +33,7 @@ type WorkspaceBuildParametersContext = {
 
 type UpdateWorkspaceEvent = {
   type: "UPDATE_WORKSPACE"
-  request: WorkspaceBuildsRequest
+  request: CreateWorkspaceBuildRequest
 }
 
 export const workspaceBuildParametersMachine = createMachine(
@@ -110,7 +111,7 @@ export const workspaceBuildParametersMachine = createMachine(
       fillingParams: {
         on: {
           UPDATE_WORKSPACE: {
-            actions: ["assignUpdateWorkspaceBuildRequest"],
+            actions: ["assignCreateWorkspaceBuildRequest"],
             target: "updatingWorkspace",
           },
         },
@@ -163,19 +164,19 @@ export const workspaceBuildParametersMachine = createMachine(
         return getWorkspaceBuildParameters(selectedWorkspace.latest_build.id)
       },
       updateWorkspace: (context) => {
-        const { selectedWorkspace, updateWorkspaceBuildRequest } = context
+        const { selectedWorkspace, createWorkspaceBuildRequest } = context
 
         if (!selectedWorkspace) {
           throw new Error("No workspace selected")
         }
 
-        if (!updateWorkspaceBuildRequest) {
+        if (!createWorkspaceBuildRequest) {
           throw new Error("No workspace build request")
         }
 
-        return updateWorkspaceBuild(
+        return postWorkspaceBuild(
           selectedWorkspace.id,
-          updateWorkspaceBuildRequest,
+          createWorkspaceBuildRequest,
         )
       },
     },
@@ -190,8 +191,8 @@ export const workspaceBuildParametersMachine = createMachine(
         workspaceBuildParameters: (_, event) => event.data,
       }),
 
-      assignUpdateWorkspaceBuildRequest: assign({
-        updateWorkspaceBuildRequest: (_, event) => event.request,
+      assignCreateWorkspaceBuildRequest: assign({
+        createWorkspaceBuildRequest: (_, event) => event.request,
       }),
       assignGetWorkspaceError: assign({
         getWorkspaceError: (_, event) => event.data,
