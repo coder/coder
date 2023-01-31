@@ -799,3 +799,23 @@ export const updateWorkspaceVersion = async (
   const template = await getTemplate(workspace.template_id)
   return startWorkspace(workspace.id, template.active_version_id)
 }
+
+export const getWorkspaceBuildParameters = async (
+  workspaceBuildId: TypesGen.WorkspaceBuild["id"],
+): Promise<TypesGen.WorkspaceBuildParameter[]> => {
+  const response = await axios.get<TypesGen.WorkspaceBuildParameter[]>(
+    `/api/v2/workspacebuilds/${workspaceBuildId}/parameters`,
+  )
+  return response.data
+}
+
+export const updateWorkspaceBuild = async (
+  workspaceId: string,
+  data: TypesGen.WorkspaceBuildsRequest,
+): Promise<TypesGen.WorkspaceBuild> => {
+  const response = await axios.post(
+    `/api/v2/workspaces/${workspaceId}/builds`,
+    data,
+  )
+  return response.data
+}

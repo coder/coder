@@ -6,13 +6,10 @@ export interface WorkspaceBuildParametersPageViewProps {
   isLoading: boolean
 }
 
-export const WorkspaceBuildParametersPageView: FC<WorkspaceBuildParametersPageViewProps> = ({
-  isLoading,
-}) => {
+export const WorkspaceBuildParametersPageView: FC<
+  WorkspaceBuildParametersPageViewProps
+> = ({ isLoading }) => {
   const { t } = useTranslation("workspaceBuildParametersPage")
 
-  return (
-    <FullPageForm title={t("title")}>
-    </FullPageForm>
-  )
+  return <FullPageForm title={t("title")}></FullPageForm>
 }

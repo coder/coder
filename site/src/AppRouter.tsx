@@ -214,7 +214,10 @@ export const AppRouter: FC = () => {
                     path="change-version"
                     element={<WorkspaceChangeVersionPage />}
                   />
-                  <Route path="build-parameters" element={<WorkspaceBuildParametersPage />} />
+                  <Route
+                    path="build-parameters"
+                    element={<WorkspaceBuildParametersPage />}
+                  />
                 </Route>
               </Route>
             </Route>
