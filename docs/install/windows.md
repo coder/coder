@@ -2,13 +2,17 @@
 
 Use the Windows installer to download the CLI and add Coder to `PATH`. Alternatively, you can install Coder on Windows via a [standalone binary](./binary.md).
 
-1. Download the Windows installer from [GitHub releases](https://github.com/coder/coder/releases)
+1. Download the Windows installer from [GitHub releases](https://github.com/coder/coder/releases) or from `winget`
 
-1. Run the application
+   ```powershell
+    winget install Coder.Coder
+   ```
+
+2. Run the application
 
    ![Windows installer](../images/install/windows-installer.png)
 
-1. Start a Coder server
+3. Start a Coder server
 
    ```console
    # Automatically sets up an external access URL on *.try.coder.app
@@ -22,7 +26,7 @@ Use the Windows installer to download the CLI and add Coder to `PATH`. Alternati
    > connect to Coder. This is not required if you are using the tunnel. Learn more
    > about Coder's [configuration options](../admin/configure.md).
 
-1. Visit the Coder URL in the logs to set up your first account, or use the CLI.
+4. Visit the Coder URL in the logs to set up your first account, or use the CLI.
 
 ## Next steps
 
