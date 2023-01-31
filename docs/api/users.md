@@ -139,9 +139,17 @@ curl -X GET http://coder-server:8080/api/v2/users/authmethods \
 
 ```json
 {
-  "github": true,
-  "oidc": true,
-  "password": true
+  "github": {
+    "enabled": true
+  },
+  "oidc": {
+    "enabled": true,
+    "iconUrl": "string",
+    "signInText": "string"
+  },
+  "password": {
+    "enabled": true
+  }
 }
 ```
 

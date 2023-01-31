@@ -131,6 +131,13 @@ CODER_OIDC_IGNORE_EMAIL_VERIFIED=true
 
 When a new user is created, the `preferred_username` claim becomes the username. If this claim is empty, the email address will be stripped of the domain, and become the username (e.g. `example@coder.com` becomes `example`).
 
+If you'd like to change the OpenID Connect button text and/or icon, you can configure them like so:
+
+```console
+CODER_OIDC_SIGN_IN_TEXT="Sign in with Gitea"
+CODER_OIDC_ICON_URL=https://gitea.io/images/gitea.png
+```
+
 ## SCIM (enterprise)
 
 Coder supports user provisioning and deprovisioning via SCIM 2.0 with header
