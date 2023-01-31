@@ -65,7 +65,6 @@ export const WorkspaceBuildParametersPage: FC = () => {
           navigate(-1)
         }}
         onSubmit={(request) => {
-          console.log("onSubmit 1")
           send({
             type: "UPDATE_WORKSPACE",
             request,

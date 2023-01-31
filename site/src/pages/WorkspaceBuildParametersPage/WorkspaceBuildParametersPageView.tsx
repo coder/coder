@@ -67,7 +67,6 @@ export const WorkspaceBuildParametersPageView: FC<
       enableReinitialize: true,
       initialTouched: props.initialTouched,
       onSubmit: (request) => {
-        console.info("onSubmit 2")
         props.onSubmit(request)
         form.setSubmitting(false)
       },
