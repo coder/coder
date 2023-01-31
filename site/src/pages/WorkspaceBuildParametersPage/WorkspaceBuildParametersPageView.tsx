@@ -136,7 +136,7 @@ export const WorkspaceBuildParametersPageView: FC<
       title={t("title")}
       detail="Those values are provided by your template‘s Terraform configuration."
     >
-      {props.templateParameters && (
+      {props.templateParameters && props.workspaceBuildParameters && (
         <div className={styles.formSection}>
           <Stack
             direction="column"
