@@ -4051,24 +4051,6 @@ func (q *fakeQuerier) GetGroupsByOrganizationID(_ context.Context, organizationI
 	return groups, nil
 }
 
-func (q *fakeQuerier) GetAllOrganizationMembers(_ context.Context, organizationID uuid.UUID) ([]database.User, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	var users []database.User
-	for _, member := range q.organizationMembers {
-		if member.OrganizationID == organizationID {
-			for _, user := range q.users {
-				if user.ID == member.UserID {
-					users = append(users, user)
-				}
-			}
-		}
-	}
-
-	return users, nil
-}
-
 func (q *fakeQuerier) DeleteGroupByID(_ context.Context, id uuid.UUID) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
