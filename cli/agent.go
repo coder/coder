@@ -7,6 +7,7 @@ import (
 	"net/http/pprof"
 	"net/url"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"time"
@@ -28,6 +29,7 @@ import (
 func workspaceAgent() *cobra.Command {
 	var (
 		auth         string
+		logDir       string
 		pprofAddress string
 		noReap       bool
 	)
@@ -35,11 +37,9 @@ func workspaceAgent() *cobra.Command {
 		Use: "agent",
 		// This command isn't useful to manually execute.
 		Hidden: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx, cancel := context.WithCancel(cmd.Context())
 			defer cancel()
-
-			go dumpHandler(ctx)
 
 			rawURL, err := cmd.Flags().GetString(varAgentURL)
 			if err != nil {
@@ -50,18 +50,18 @@ func workspaceAgent() *cobra.Command {
 				return xerrors.Errorf("parse %q: %w", rawURL, err)
 			}
 
-			logWriter := &lumberjack.Logger{
-				Filename: filepath.Join(os.TempDir(), "coder-agent.log"),
-				MaxSize:  5, // MB
-			}
-			defer logWriter.Close()
-			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()), sloghuman.Sink(logWriter)).Leveled(slog.LevelDebug)
-
 			isLinux := runtime.GOOS == "linux"
 
 			// Spawn a reaper so that we don't accumulate a ton
 			// of zombie processes.
 			if reaper.IsInitProcess() && !noReap && isLinux {
+				logWriter := &lumberjack.Logger{
+					Filename: filepath.Join(logDir, "coder-agent-init.log"),
+					MaxSize:  5, // MB
+				}
+				defer logWriter.Close()
+				logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()), sloghuman.Sink(logWriter)).Leveled(slog.LevelDebug)
+
 				logger.Info(ctx, "spawning reaper process")
 				// Do not start a reaper on the child process. It's important
 				// to do this else we fork bomb ourselves.
@@ -75,6 +75,28 @@ func workspaceAgent() *cobra.Command {
 				logger.Info(ctx, "reaper process exiting")
 				return nil
 			}
+
+			// Handle interrupt signals to allow for graceful shutdown,
+			// note that calling stopNotify disables the signal handler
+			// and the next interrupt will terminate the program (you
+			// probably want cancel instead).
+			//
+			// Note that we don't want to handle these signals in the
+			// process that runs as PID 1, that's why we do this after
+			// the reaper forked.
+			ctx, stopNotify := signal.NotifyContext(ctx, InterruptSignals...)
+			defer stopNotify()
+
+			// dumpHandler does signal handling, so we call it after the
+			// reaper.
+			go dumpHandler(ctx)
+
+			logWriter := &lumberjack.Logger{
+				Filename: filepath.Join(logDir, "coder-agent.log"),
+				MaxSize:  5, // MB
+			}
+			defer logWriter.Close()
+			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()), sloghuman.Sink(logWriter)).Leveled(slog.LevelDebug)
 
 			version := buildinfo.Version()
 			logger.Info(ctx, "starting agent",
@@ -157,6 +179,7 @@ func workspaceAgent() *cobra.Command {
 			closer := agent.New(agent.Options{
 				Client: client,
 				Logger: logger,
+				LogDir: logDir,
 				ExchangeToken: func(ctx context.Context) (string, error) {
 					if exchangeToken == nil {
 						return client.SDK.SessionToken(), nil
@@ -178,8 +201,9 @@ func workspaceAgent() *cobra.Command {
 	}
 
 	cliflag.StringVarP(cmd.Flags(), &auth, "auth", "", "CODER_AGENT_AUTH", "token", "Specify the authentication type to use for the agent")
-	cliflag.BoolVarP(cmd.Flags(), &noReap, "no-reap", "", "", false, "Do not start a process reaper.")
+	cliflag.StringVarP(cmd.Flags(), &logDir, "log-dir", "", "CODER_AGENT_LOG_DIR", os.TempDir(), "Specify the location for the agent log files")
 	cliflag.StringVarP(cmd.Flags(), &pprofAddress, "pprof-address", "", "CODER_AGENT_PPROF_ADDRESS", "127.0.0.1:6060", "The address to serve pprof.")
+	cliflag.BoolVarP(cmd.Flags(), &noReap, "no-reap", "", "", false, "Do not start a process reaper.")
 	return cmd
 }
 

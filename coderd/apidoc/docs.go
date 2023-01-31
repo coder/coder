@@ -2865,11 +2865,6 @@ const docTemplate = `{
         },
         "/users/login": {
             "post": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -5746,6 +5741,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.AuditAction"
                         }
                     ]
+                },
+                "additional_fields": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 },
                 "build_reason": {
                     "enum": [

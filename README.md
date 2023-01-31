@@ -1,11 +1,21 @@
 <div align="center">
-  <img src="./docs/images/logo.png" style="width: 128px">
+  <a href="https://coder.com#gh-light-mode-only">
+    <img src="./docs/images/logo-black.png" style="width: 128px">
+  </a>
+  <a href="https://coder.com#gh-dark-mode-only">
+    <img src="./docs/images/logo-white.png" style="width: 128px">
+  </a>
 
   <h1>
   Self-Hosted Remote Development Environments
   </h1>
 
-  <img src="./docs/images/banner.png" style="width: 650px">
+  <a href="https://coder.com#gh-light-mode-only">
+    <img src="./docs/images/banner-black.png" style="width: 650px">
+  </a>
+  <a href="https://coder.com#gh-dark-mode-only">
+    <img src="./docs/images/banner-white.png" style="width: 650px">
+  </a>
 
   <br>
   <br>

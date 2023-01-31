@@ -8,12 +8,16 @@ import (
 
 	"go.uber.org/goleak"
 
+	"github.com/google/uuid"
+
 	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/provisioner/echo"
+	"github.com/coder/coder/provisionersdk/proto"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -540,10 +544,99 @@ func TestExecutorAutostartMultipleOK(t *testing.T) {
 	assert.Len(t, stats2.Transitions, 0)
 }
 
+func TestExecutorAutostartWithParameters(t *testing.T) {
+	t.Parallel()
+
+	const (
+		stringParameterName  = "string_parameter"
+		stringParameterValue = "abc"
+
+		numberParameterName  = "number_parameter"
+		numberParameterValue = "7"
+	)
+
+	var (
+		sched   = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan executor.Stats)
+		client  = coderdtest.New(t, &coderdtest.Options{
+			AutobuildTicker:          tickCh,
+			IncludeProvisionerDaemon: true,
+			AutobuildStats:           statsCh,
+		})
+
+		richParameters = []*proto.RichParameter{
+			{Name: stringParameterName, Type: "string", Mutable: true},
+			{Name: numberParameterName, Type: "number", Mutable: true},
+		}
+
+		// Given: we have a user with a workspace that has autostart enabled
+		workspace = mustProvisionWorkspaceWithParameters(t, client, richParameters, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.AutostartSchedule = ptr.Ref(sched.String())
+			cwr.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+				{
+					Name:  stringParameterName,
+					Value: stringParameterValue,
+				},
+				{
+					Name:  numberParameterName,
+					Value: numberParameterValue,
+				},
+			}
+		})
+	)
+	// Given: workspace is stopped
+	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+	// When: the autobuild executor ticks after the scheduled time
+	go func() {
+		tickCh <- sched.Next(workspace.LatestBuild.CreatedAt)
+		close(tickCh)
+	}()
+
+	// Then: the workspace with parameters should eventually be started
+	stats := <-statsCh
+	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Transitions, 1)
+	assert.Contains(t, stats.Transitions, workspace.ID)
+	assert.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[workspace.ID])
+
+	workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+	mustWorkspaceParameters(t, client, workspace.LatestBuild.ID)
+}
+
 func mustProvisionWorkspace(t *testing.T, client *codersdk.Client, mut ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {
 	t.Helper()
 	user := coderdtest.CreateFirstUser(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, mut...)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
+	return coderdtest.MustWorkspace(t, client, ws.ID)
+}
+
+func mustProvisionWorkspaceWithParameters(t *testing.T, client *codersdk.Client, richParameters []*proto.RichParameter, mut ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {
+	t.Helper()
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Provision_Response{
+			{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Parameters: richParameters,
+					},
+				},
+			}},
+		ProvisionApply: []*proto.Provision_Response{
+			{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{},
+				},
+			},
+		},
+	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, mut...)
@@ -556,6 +649,13 @@ func mustSchedule(t *testing.T, s string) *schedule.Schedule {
 	sched, err := schedule.Weekly(s)
 	require.NoError(t, err)
 	return sched
+}
+
+func mustWorkspaceParameters(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID) {
+	ctx := context.Background()
+	buildParameters, err := client.WorkspaceBuildParameters(ctx, workspaceID)
+	require.NoError(t, err)
+	require.NotEmpty(t, buildParameters)
 }
 
 func TestMain(m *testing.M) {

@@ -106,6 +106,7 @@ curl -X POST http://coder-server:8080/api/v2/audit/testgenerate \
 ```json
 {
   "action": "create",
+  "additional_fields": [0],
   "build_reason": "autostart",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "resource_type": "template",

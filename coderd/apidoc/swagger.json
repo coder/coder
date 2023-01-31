@@ -2517,11 +2517,6 @@
     },
     "/users/login": {
       "post": {
-        "security": [
-          {
-            "CoderSessionToken": []
-          }
-        ],
         "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Authorization"],
@@ -5096,6 +5091,12 @@
               "$ref": "#/definitions/codersdk.AuditAction"
             }
           ]
+        },
+        "additional_fields": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
         },
         "build_reason": {
           "enum": ["autostart", "autostop", "initiator"],

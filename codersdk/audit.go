@@ -118,11 +118,12 @@ type AuditLogResponse struct {
 }
 
 type CreateTestAuditLogRequest struct {
-	Action       AuditAction  `json:"action,omitempty" enums:"create,write,delete,start,stop"`
-	ResourceType ResourceType `json:"resource_type,omitempty" enums:"template,template_version,user,workspace,workspace_build,git_ssh_key,auditable_group"`
-	ResourceID   uuid.UUID    `json:"resource_id,omitempty" format:"uuid"`
-	Time         time.Time    `json:"time,omitempty" format:"date-time"`
-	BuildReason  BuildReason  `json:"build_reason,omitempty" enums:"autostart,autostop,initiator"`
+	Action           AuditAction     `json:"action,omitempty" enums:"create,write,delete,start,stop"`
+	ResourceType     ResourceType    `json:"resource_type,omitempty" enums:"template,template_version,user,workspace,workspace_build,git_ssh_key,auditable_group"`
+	ResourceID       uuid.UUID       `json:"resource_id,omitempty" format:"uuid"`
+	AdditionalFields json.RawMessage `json:"additional_fields,omitempty"`
+	Time             time.Time       `json:"time,omitempty" format:"date-time"`
+	BuildReason      BuildReason     `json:"build_reason,omitempty" enums:"autostart,autostop,initiator"`
 }
 
 // AuditLogs retrieves audit logs from the given page.
