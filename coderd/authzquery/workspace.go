@@ -343,11 +343,8 @@ func (q *AuthzQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, a
 
 func (q *AuthzQuerier) InsertAgentStat(ctx context.Context, arg database.InsertAgentStatParams) (database.AgentStat, error) {
 	// TODO: This is a workspace agent operation. Should users be able to query this?
-	workspace, err := q.database.GetWorkspaceByAgentID(ctx, arg.ID)
-	if err != nil {
-		return database.AgentStat{}, err
-	}
-	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace)
+	resource := rbac.ResourceWorkspace.WithID(arg.WorkspaceID).WithOwner(arg.UserID.String())
+	err := q.authorizeContext(ctx, rbac.ActionUpdate, resource)
 	if err != nil {
 		return database.AgentStat{}, err
 	}
