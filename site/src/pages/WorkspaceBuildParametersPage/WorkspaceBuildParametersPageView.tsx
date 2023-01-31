@@ -69,7 +69,7 @@ export const WorkspaceBuildParametersPageView: FC<
       initialTouched: props.initialTouched,
       onSubmit: (request) => {
         props.onSubmit(
-          stripImmutableParameters(props.templateParameters, request),
+          stripImmutableParameters(request, props.templateParameters),
         )
         form.setSubmitting(false)
       },
@@ -259,10 +259,10 @@ const selectInitialRichParametersValues = (
 }
 
 const stripImmutableParameters = (
-  templateParameters: TypesGen.TemplateVersionParameter[],
   request: TypesGen.CreateWorkspaceBuildRequest,
+  templateParameters?: TypesGen.TemplateVersionParameter[],
 ): TypesGen.CreateWorkspaceBuildRequest => {
-  if (!request.rich_parameter_values) {
+  if (!templateParameters || !request.rich_parameter_values) {
     return request
   }
 
