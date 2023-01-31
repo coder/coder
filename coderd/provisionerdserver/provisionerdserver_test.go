@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/coderd/database/databasegen"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -88,15 +90,14 @@ func TestAcquireJob(t *testing.T) {
 		srv := setup(t, false)
 		ctx := context.Background()
 
-		gen := databasefake.NewGenerator(t, srv.Database)
-		user := gen.User(ctx, database.User{})
-		template := gen.Template(ctx, database.Template{
+		user := databasegen.User(t, srv.Database, database.User{})
+		template := databasegen.Template(t, srv.Database, database.Template{
 			Name:        "template",
 			Provisioner: database.ProvisionerTypeEcho,
 		})
-		file := gen.File(ctx, database.File{CreatedBy: user.ID})
-		versionFile := gen.File(ctx, database.File{CreatedBy: user.ID})
-		version := gen.TemplateVersion(ctx, database.TemplateVersion{
+		file := databasegen.File(t, srv.Database, database.File{CreatedBy: user.ID})
+		versionFile := databasegen.File(t, srv.Database, database.File{CreatedBy: user.ID})
+		version := databasegen.TemplateVersion(t, srv.Database, database.TemplateVersion{
 			TemplateID: uuid.NullUUID{
 				UUID:  template.ID,
 				Valid: true,
@@ -104,7 +105,7 @@ func TestAcquireJob(t *testing.T) {
 			JobID: uuid.New(),
 		})
 		// Import version job
-		_ = gen.Job(ctx, database.ProvisionerJob{
+		_ = databasegen.ProvisionerJob(t, srv.Database, database.ProvisionerJob{
 			ID:            version.JobID,
 			InitiatorID:   user.ID,
 			FileID:        versionFile.ID,
@@ -115,11 +116,11 @@ func TestAcquireJob(t *testing.T) {
 				TemplateVersionID: version.ID,
 			})),
 		})
-		workspace := gen.Workspace(ctx, database.Workspace{
+		workspace := databasegen.Workspace(t, srv.Database, database.Workspace{
 			TemplateID: template.ID,
 			OwnerID:    user.ID,
 		})
-		build := gen.WorkspaceBuild(ctx, database.WorkspaceBuild{
+		build := databasegen.WorkspaceBuild(t, srv.Database, database.WorkspaceBuild{
 			WorkspaceID:       workspace.ID,
 			BuildNumber:       1,
 			JobID:             uuid.New(),
@@ -127,7 +128,7 @@ func TestAcquireJob(t *testing.T) {
 			Transition:        database.WorkspaceTransitionStart,
 			Reason:            database.BuildReasonInitiator,
 		})
-		_ = gen.Job(ctx, database.ProvisionerJob{
+		_ = databasegen.ProvisionerJob(t, srv.Database, database.ProvisionerJob{
 			ID:            build.ID,
 			InitiatorID:   user.ID,
 			Provisioner:   database.ProvisionerTypeEcho,
@@ -188,11 +189,10 @@ func TestAcquireJob(t *testing.T) {
 		srv := setup(t, false)
 		ctx := context.Background()
 
-		gen := databasefake.NewGenerator(t, srv.Database)
-		user := gen.User(ctx, database.User{})
-		version := gen.TemplateVersion(ctx, database.TemplateVersion{})
-		file := gen.File(ctx, database.File{CreatedBy: user.ID})
-		_ = gen.Job(ctx, database.ProvisionerJob{
+		user := databasegen.User(t, srv.Database, database.User{})
+		version := databasegen.TemplateVersion(t, srv.Database, database.TemplateVersion{})
+		file := databasegen.File(t, srv.Database, database.File{CreatedBy: user.ID})
+		_ = databasegen.ProvisionerJob(t, srv.Database, database.ProvisionerJob{
 			InitiatorID:   user.ID,
 			Provisioner:   database.ProvisionerTypeEcho,
 			StorageMethod: database.ProvisionerStorageMethodFile,
@@ -228,10 +228,9 @@ func TestAcquireJob(t *testing.T) {
 		srv := setup(t, false)
 		ctx := context.Background()
 
-		gen := databasefake.NewGenerator(t, srv.Database)
-		user := gen.User(ctx, database.User{})
-		file := gen.File(ctx, database.File{CreatedBy: user.ID})
-		_ = gen.Job(ctx, database.ProvisionerJob{
+		user := databasegen.User(t, srv.Database, database.User{})
+		file := databasegen.File(t, srv.Database, database.File{CreatedBy: user.ID})
+		_ = databasegen.ProvisionerJob(t, srv.Database, database.ProvisionerJob{
 			FileID:        file.ID,
 			InitiatorID:   user.ID,
 			Provisioner:   database.ProvisionerTypeEcho,

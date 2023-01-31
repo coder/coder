@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/coder/coder/coderd/database/databasegen"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -13,31 +15,19 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/testutil"
 )
 
 func TestGroupParam(t *testing.T) {
 	t.Parallel()
 
-	setup := func(t *testing.T) (database.Store, database.Group) {
-		t.Helper()
-
-		ctx, _ := testutil.Context(t)
-		db := databasefake.New()
-		gen := databasefake.NewGenerator(t, db)
-
-		group := gen.Group(ctx, database.Group{})
-
-		return db, group
-	}
-
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
 		var (
-			db, group = setup(t)
-			r         = httptest.NewRequest("GET", "/", nil)
-			w         = httptest.NewRecorder()
+			db    = databasefake.New()
+			group = databasegen.Group(t, db, database.Group{})
+			r     = httptest.NewRequest("GET", "/", nil)
+			w     = httptest.NewRecorder()
 		)
 
 		router := chi.NewRouter()
@@ -63,9 +53,10 @@ func TestGroupParam(t *testing.T) {
 		t.Parallel()
 
 		var (
-			db, group = setup(t)
-			r         = httptest.NewRequest("GET", "/", nil)
-			w         = httptest.NewRecorder()
+			db    = databasefake.New()
+			group = databasegen.Group(t, db, database.Group{})
+			r     = httptest.NewRequest("GET", "/", nil)
+			w     = httptest.NewRecorder()
 		)
 
 		router := chi.NewRouter()

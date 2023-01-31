@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/coderd/database/databasegen"
+
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
@@ -35,8 +37,7 @@ func TestActiveUsers(t *testing.T) {
 		Name: "One",
 		Database: func(t *testing.T) database.Store {
 			db := databasefake.New()
-			gen := databasefake.NewGenerator(t, db)
-			gen.APIKey(context.Background(), database.APIKey{
+			databasegen.APIKey(t, db, database.APIKey{
 				LastUsed: database.Now(),
 			})
 			return db
@@ -46,15 +47,14 @@ func TestActiveUsers(t *testing.T) {
 		Name: "OneWithExpired",
 		Database: func(t *testing.T) database.Store {
 			db := databasefake.New()
-			gen := databasefake.NewGenerator(t, db)
 
-			gen.APIKey(context.Background(), database.APIKey{
+			databasegen.APIKey(t, db, database.APIKey{
 				LastUsed: database.Now(),
 			})
 
 			// Because this API key hasn't been used in the past hour, this shouldn't
 			// add to the user count.
-			gen.APIKey(context.Background(), database.APIKey{
+			databasegen.APIKey(t, db, database.APIKey{
 				LastUsed: database.Now().Add(-2 * time.Hour),
 			})
 			return db
@@ -64,11 +64,10 @@ func TestActiveUsers(t *testing.T) {
 		Name: "Multiple",
 		Database: func(t *testing.T) database.Store {
 			db := databasefake.New()
-			gen := databasefake.NewGenerator(t, db)
-			gen.APIKey(context.Background(), database.APIKey{
+			databasegen.APIKey(t, db, database.APIKey{
 				LastUsed: database.Now(),
 			})
-			gen.APIKey(context.Background(), database.APIKey{
+			databasegen.APIKey(t, db, database.APIKey{
 				LastUsed: database.Now(),
 			})
 			return db

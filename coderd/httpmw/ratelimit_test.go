@@ -1,7 +1,6 @@
 package httpmw_test
 
 import (
-	"context"
 	"fmt"
 	"math/rand"
 	"net"
@@ -9,6 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/coder/coder/coderd/database/databasegen"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
@@ -71,12 +72,9 @@ func TestRateLimit(t *testing.T) {
 	t.Run("RegularUser", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
-
 		db := databasefake.New()
-		gen := databasefake.NewGenerator(t, db)
-		u := gen.User(ctx, database.User{})
-		_, key := gen.APIKey(ctx, database.APIKey{UserID: u.ID})
+		u := databasegen.User(t, db, database.User{})
+		_, key := databasegen.APIKey(t, db, database.APIKey{UserID: u.ID})
 
 		rtr := chi.NewRouter()
 		rtr.Use(httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
@@ -117,15 +115,12 @@ func TestRateLimit(t *testing.T) {
 	t.Run("OwnerBypass", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
-
 		db := databasefake.New()
 
-		gen := databasefake.NewGenerator(t, db)
-		u := gen.User(ctx, database.User{
+		u := databasegen.User(t, db, database.User{
 			RBACRoles: []string{rbac.RoleOwner()},
 		})
-		_, key := gen.APIKey(ctx, database.APIKey{UserID: u.ID})
+		_, key := databasegen.APIKey(t, db, database.APIKey{UserID: u.ID})
 
 		rtr := chi.NewRouter()
 		rtr.Use(httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
