@@ -15,6 +15,8 @@ import {
 import { FormFooter } from "components/FormFooter/FormFooter"
 import * as Yup from "yup"
 import { Maybe } from "components/Conditionals/Maybe"
+import { CancelButton } from "components/DropdownButton/ActionCtas"
+import { Button } from "@material-ui/core"
 
 export enum UpdateWorkspaceErrors {
   GET_WORKSPACE_ERROR = "getWorkspaceError",
@@ -145,45 +147,62 @@ export const WorkspaceBuildParametersPageView: FC<
         />
       </Maybe>
 
-      {props.templateParameters && props.workspaceBuildParameters && (
+      <Maybe
+        condition={Boolean(
+          props.templateParameters && props.templateParameters.length === 0,
+        )}
+      >
         <div className={styles.formSection}>
-          <form onSubmit={form.handleSubmit}>
-            <Stack
-              direction="column"
-              spacing={4} // Spacing here is diff because the fields here don't have the MUI floating label spacing
-              className={styles.formSectionFields}
-            >
-              {props.templateParameters.map((parameter, index) => (
-                <RichParameterInput
-                  {...getFieldHelpers(
-                    "rich_parameter_values[" + index + "].value",
-                  )}
-                  disabled={form.isSubmitting}
-                  index={index}
-                  key={parameter.name}
-                  onChange={(value) => {
-                    form.setFieldValue("rich_parameter_values." + index, {
-                      name: parameter.name,
-                      value: value,
-                    })
-                  }}
-                  parameter={parameter}
-                  initialValue={workspaceBuildParameterValue(
-                    initialRichParameterValues,
-                    parameter,
-                  )}
-                />
-              ))}
-              <FormFooter
-                styles={formFooterStyles}
-                onCancel={props.onCancel}
-                isLoading={props.updatingWorkspace}
-                submitLabel={t("updateWorkspace")}
-              />
-            </Stack>
-          </form>
+          <AlertBanner severity="info" text={t("noParametersDefined")} />
+          <div className={styles.goBackSection}>
+            <Button onClick={props.onCancel} variant="outlined">
+              Go back
+            </Button>
+          </div>
         </div>
-      )}
+      </Maybe>
+
+      {props.templateParameters &&
+        props.templateParameters.length > 0 &&
+        props.workspaceBuildParameters && (
+          <div className={styles.formSection}>
+            <form onSubmit={form.handleSubmit}>
+              <Stack
+                direction="column"
+                spacing={4} // Spacing here is diff because the fields here don't have the MUI floating label spacing
+                className={styles.formSectionFields}
+              >
+                {props.templateParameters.map((parameter, index) => (
+                  <RichParameterInput
+                    {...getFieldHelpers(
+                      "rich_parameter_values[" + index + "].value",
+                    )}
+                    disabled={form.isSubmitting}
+                    index={index}
+                    key={parameter.name}
+                    onChange={(value) => {
+                      form.setFieldValue("rich_parameter_values." + index, {
+                        name: parameter.name,
+                        value: value,
+                      })
+                    }}
+                    parameter={parameter}
+                    initialValue={workspaceBuildParameterValue(
+                      initialRichParameterValues,
+                      parameter,
+                    )}
+                  />
+                ))}
+                <FormFooter
+                  styles={formFooterStyles}
+                  onCancel={props.onCancel}
+                  isLoading={props.updatingWorkspace}
+                  submitLabel={t("updateWorkspace")}
+                />
+              </Stack>
+            </form>
+          </div>
+        )}
     </FullPageForm>
   )
 }
@@ -241,6 +260,11 @@ const selectInitialRichParametersValues = (
 }
 
 const useStyles = makeStyles(() => ({
+  goBackSection: {
+    display: "flex",
+    width: "100%",
+    marginTop: 32,
+  },
   formSection: {
     marginTop: 20,
   },
