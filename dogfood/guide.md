@@ -61,7 +61,7 @@ The following explains how to do certain things related to dogfooding.
 
 ### My Docker containers keep failing and I have no idea what's going on!
 
-```shell
+```console
 ✔ Queued [236ms]
 ✔ Setting up [5ms]
 ⧗  Starting workspace
@@ -89,7 +89,7 @@ Check the output of `docker ps -a`
 
 Enable verbose container logging for Docker:
 
-```shell
+```console
 sudo cp /etc/docker/daemon.json /etc/docker/daemon.json.orig
 sudo cat > /etc/docker/daemon.json << EOF
 {

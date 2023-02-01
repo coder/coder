@@ -14,7 +14,7 @@ Use the Windows installer to download the CLI and add Coder to `PATH`. Alternati
 
 3. Start a Coder server
 
-   ```shell
+   ```console
    # Automatically sets up an external access URL on *.try.coder.app
    coder server
 
