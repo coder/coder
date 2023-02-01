@@ -1030,7 +1030,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	aReq.UserId = user.ID
+	aReq.UserID = user.ID
 
 	// If the user doesn't exist, it will be a default struct.
 	equal, err := userpassword.Compare(string(user.HashedPassword), loginWithPassword.Password)

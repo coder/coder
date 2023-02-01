@@ -31,7 +31,7 @@ type Request[T Auditable] struct {
 
 	Old    T
 	New    T
-	UserId uuid.UUID
+	UserID uuid.UUID
 }
 
 type BuildAuditParams[T Auditable] struct {
@@ -163,7 +163,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 		if ok {
 			userID = key.UserID
 		} else {
-			userID = req.UserId
+			userID = req.UserID
 		}
 
 		ip := parseIP(p.Request.RemoteAddr)
