@@ -20,6 +20,8 @@ const { t } = i18next
 
 const nameLabelText = t("nameLabel", { ns: "createWorkspacePage" })
 const createWorkspaceText = t("createWorkspace", { ns: "createWorkspacePage" })
+const validationNumberNotInRangeText = t("validationNumberNotInRange", { ns: "createWorkspacePage", min: "1", max: "3" })
+const validationPatternNotMatched = t("validationPatternNotMatched", { ns: "createWorkspacePage", error: MockTemplateVersionParameter3.validation_error, pattern: "^[a-z]{3}$" })
 
 const renderCreateWorkspacePage = () => {
   return renderWithAuth(<CreateWorkspacePage />, {
@@ -35,7 +37,7 @@ describe("CreateWorkspacePage", () => {
       .mockResolvedValueOnce([MockTemplateVersionParameter1])
     renderCreateWorkspacePage()
 
-    const element = await screen.findByText("Create workspace")
+    const element = await screen.findByText(createWorkspaceText)
     expect(element).toBeDefined()
   })
 
@@ -45,7 +47,7 @@ describe("CreateWorkspacePage", () => {
       .mockResolvedValueOnce([MockTemplateVersionParameter1])
     renderCreateWorkspacePage()
 
-    const element = await screen.findByText("Create workspace")
+    const element = await screen.findByText(createWorkspaceText)
     expect(element).toBeDefined()
     const firstParameter = await screen.findByText(
       MockTemplateVersionParameter1.description,
@@ -165,7 +167,7 @@ describe("CreateWorkspacePage", () => {
     fireEvent.submit(secondParameter)
 
     const validationError = await screen.findByText(
-      "Value must be between 1 and 3.",
+      validationNumberNotInRangeText,
     )
     expect(validationError).toBeDefined()
   })
@@ -180,7 +182,7 @@ describe("CreateWorkspacePage", () => {
 
     await waitFor(() => renderCreateWorkspacePage())
 
-    const element = await screen.findByText("Create workspace")
+    const element = await screen.findByText(createWorkspaceText)
     expect(element).toBeDefined()
     const thirdParameter = await screen.findByText(
       MockTemplateVersionParameter3.description,
@@ -196,10 +198,7 @@ describe("CreateWorkspacePage", () => {
     })
     fireEvent.submit(thirdParameterField)
 
-    const validationError = await screen.findByText(
-      MockTemplateVersionParameter3.validation_error +
-        " (value does not match the pattern ^[a-z]{3}$).",
-    )
+    const validationError = await screen.findByText(validationPatternNotMatched)
     expect(validationError).toBeInTheDocument()
   })
 })
