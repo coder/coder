@@ -28,7 +28,8 @@
     "starting": "Starting...",
     "stopping": "Stopping...",
     "deleting": "Deleting...",
-    "changeVersion": "Change version"
+    "changeVersion": "Change version",
+    "buildParameters": "Build parameters"
   },
   "disabledButton": {
     "canceling": "Canceling",

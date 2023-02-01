@@ -3,6 +3,9 @@ import {
   makeMockApiError,
   mockParameterSchema,
   MockTemplate,
+  MockTemplateVersionParameter1,
+  MockTemplateVersionParameter2,
+  MockTemplateVersionParameter3,
 } from "../../testHelpers/entities"
 import {
   CreateWorkspaceErrors,
@@ -107,4 +110,16 @@ CreateWorkspaceError.args = {
   initialTouched: {
     name: true,
   },
+}
+
+export const RichParameters = Template.bind({})
+RichParameters.args = {
+  templates: [MockTemplate],
+  selectedTemplate: MockTemplate,
+  templateParameters: [
+    MockTemplateVersionParameter1,
+    MockTemplateVersionParameter2,
+    MockTemplateVersionParameter3,
+  ],
+  createWorkspaceErrors: {},
 }
