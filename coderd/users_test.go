@@ -227,6 +227,7 @@ func TestPostLogin(t *testing.T) {
 			Password: "testpass",
 		}
 		_, err := client.CreateFirstUser(ctx, req)
+		require.NoError(t, err)
 		numLogs++ // add an audit log for create user
 		numLogs++ // add an audit log for login
 
