@@ -228,6 +228,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
                 hideSSHButton={hideSSHButton}
                 hideVSCodeDesktopButton={hideVSCodeDesktopButton}
                 serverVersion={serverVersion}
+                onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
               />
             )}
           />
