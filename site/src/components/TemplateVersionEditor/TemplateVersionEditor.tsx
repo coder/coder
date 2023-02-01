@@ -1,6 +1,10 @@
-import Tooltip from "@material-ui/core/Tooltip"
 import Button from "@material-ui/core/Button"
+import IconButton from "@material-ui/core/IconButton"
 import { makeStyles, Theme } from "@material-ui/core/styles"
+import Tab from "@material-ui/core/Tab"
+import Tabs from "@material-ui/core/Tabs"
+import Tooltip from "@material-ui/core/Tooltip"
+import CreateIcon from "@material-ui/icons/AddBox"
 import {
   ProvisionerJobLog,
   Template,
@@ -14,10 +18,9 @@ import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuild
 import { FC, useCallback, useEffect, useState } from "react"
 import { navHeight } from "theme/constants"
 import { TemplateVersionFiles } from "util/templateVersion"
+import { CreateFileDialog } from "./FileDialog"
 import { FileTree } from "./FileTree"
 import { MonacoEditor } from "./MonacoEditor"
-import Tab from "@material-ui/core/Tab"
-import Tabs from "@material-ui/core/Tabs"
 
 interface File {
   path: string
@@ -55,6 +58,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 }) => {
   const [selectedTab, setSelectedTab] = useState(0)
   const [files, setFiles] = useState(initialFiles)
+  const [createFileOpen, setCreateFileOpen] = useState(false)
   const [activeFile, setActiveFile] = useState<File | undefined>(() => {
     const fileKeys = Object.keys(initialFiles)
     for (let i = 0; i < fileKeys.length; i++) {
@@ -150,7 +154,41 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
       <div className={styles.sidebarAndEditor}>
         <div className={styles.sidebar}>
-          <div className={styles.sidebarTitle}>Template Editor</div>
+          <div className={styles.sidebarTitle}>
+            Template Editor
+            <Tooltip title="Create File" placement="top">
+              <IconButton
+                size="small"
+                color="secondary"
+                aria-label="Create File"
+                onClick={(event) => {
+                  setCreateFileOpen(true)
+                  event.currentTarget.blur()
+                }}
+              >
+                <CreateIcon />
+              </IconButton>
+            </Tooltip>
+            <CreateFileDialog
+              open={createFileOpen}
+              onClose={() => {
+                setCreateFileOpen(false)
+              }}
+              checkExists={(path) => Boolean(files[path])}
+              onConfirm={(path) => {
+                setFiles({
+                  ...files,
+                  [path]: "",
+                })
+                setActiveFile({
+                  path,
+                  content: "",
+                  children: {},
+                })
+                setCreateFileOpen(false)
+              }}
+            />
+          </div>
           <FileTree
             files={files}
             onSelect={(file) => setActiveFile(file)}
@@ -183,8 +221,15 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               }}
               className={styles.tabs}
             >
-              <Tab label="Build Logs" />
-              <Tab disabled={disableUpdate} label="Resources" />
+              <Tab
+                style={{ minWidth: 120 }}
+                label={<div>Build Log {templateVersion.job.status}</div>}
+              />
+              <Tab
+                style={{ minWidth: 120 }}
+                disabled={disableUpdate}
+                label="Resources"
+              />
             </Tabs>
 
             <div
@@ -291,6 +336,13 @@ const useStyles = makeStyles<
   },
   tabs: {
     borderBottom: `1px solid ${theme.palette.divider}`,
+
+    "& .MuiTab-root": {
+      padding: 0,
+      fontSize: 14,
+      textTransform: "none",
+      letterSpacing: "unset",
+    },
   },
   tabBar: {
     padding: "8px 16px",
