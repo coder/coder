@@ -2,6 +2,7 @@ package authzquery
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -51,7 +52,8 @@ func (q *AuthzQuerier) UpdateProvisionerJobWithCancelByID(ctx context.Context, a
 			return err
 		}
 	case database.ProvisionerJobTypeTemplateVersionDryRun, database.ProvisionerJobTypeTemplateVersionImport:
-		templateVersion, err := q.database.GetTemplateVersionByJobID(ctx, arg.ID)
+		// Authorized call to get template version.
+		templateVersion, err := authorizedTemplateVersionFromJob(ctx, q, job)
 		if err != nil {
 			return err
 		}
@@ -91,9 +93,9 @@ func (q *AuthzQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) 
 		if err != nil {
 			return database.ProvisionerJob{}, err
 		}
-	case database.ProvisionerJobTypeTemplateVersionImport, database.ProvisionerJobTypeTemplateVersionDryRun:
+	case database.ProvisionerJobTypeTemplateVersionDryRun, database.ProvisionerJobTypeTemplateVersionImport:
 		// Authorized call to get template version.
-		_, err := q.GetTemplateVersionByJobID(ctx, id)
+		_, err := authorizedTemplateVersionFromJob(ctx, q, job)
 		if err != nil {
 			return database.ProvisionerJob{}, err
 		}
@@ -102,4 +104,34 @@ func (q *AuthzQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) 
 	}
 
 	return job, nil
+}
+
+func authorizedTemplateVersionFromJob(ctx context.Context, q *AuthzQuerier, job database.ProvisionerJob) (database.TemplateVersion, error) {
+	switch job.Type {
+	case database.ProvisionerJobTypeTemplateVersionDryRun:
+		// TODO: This is really unfortunate that we need to inspect the json
+		// payload. We should fix this.
+		tmp := struct {
+			TemplateVersionID uuid.UUID `json:"template_version_id"`
+		}{}
+		err := json.Unmarshal(job.Input, &tmp)
+		if err != nil {
+			return database.TemplateVersion{}, xerrors.Errorf("dry-run unmarshal: %w", err)
+		}
+		// Authorized call to get template version.
+		tv, err := q.GetTemplateVersionByID(ctx, tmp.TemplateVersionID)
+		if err != nil {
+			return database.TemplateVersion{}, err
+		}
+		return tv, nil
+	case database.ProvisionerJobTypeTemplateVersionImport:
+		// Authorized call to get template version.
+		tv, err := q.GetTemplateVersionByJobID(ctx, job.ID)
+		if err != nil {
+			return database.TemplateVersion{}, err
+		}
+		return tv, nil
+	default:
+		return database.TemplateVersion{}, xerrors.Errorf("unknown job type: %q", job.Type)
+	}
 }

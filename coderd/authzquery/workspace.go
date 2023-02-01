@@ -258,13 +258,13 @@ func (q *AuthzQuerier) GetWorkspaceResourceMetadataByResourceIDs(ctx context.Con
 func (q *AuthzQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.WorkspaceResource, error) {
 	build, err := q.database.GetWorkspaceBuildByJobID(ctx, jobID)
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
 
 	// If the workspace can be read, then the resource can be read.
 	_, err = authorizedFetch(q.authorizer, q.database.GetWorkspaceByID)(ctx, build.WorkspaceID)
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
 	return q.database.GetWorkspaceResourcesByJobID(ctx, jobID)
 }
