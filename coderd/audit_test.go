@@ -2,12 +2,17 @@ package coderd_test
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -35,6 +40,49 @@ func TestAuditLogs(t *testing.T) {
 
 		require.Equal(t, int64(1), alogs.Count)
 		require.Len(t, alogs.AuditLogs, 1)
+	})
+
+	t.Run("WorkspaceBuildAuditLink", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx      = context.Background()
+			client   = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user     = coderdtest.CreateFirstUser(t, client)
+			version  = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			template = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		)
+
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		buildResourceInfo := audit.AdditionalFields{
+			WorkspaceName: workspace.Name,
+			BuildNumber:   strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10),
+			BuildReason:   database.BuildReason(string(workspace.LatestBuild.Reason)),
+		}
+
+		wriBytes, err := json.Marshal(buildResourceInfo)
+		require.NoError(t, err)
+
+		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
+			Action:           codersdk.AuditActionStop,
+			ResourceType:     codersdk.ResourceTypeWorkspaceBuild,
+			ResourceID:       workspace.LatestBuild.ID,
+			AdditionalFields: wriBytes,
+		})
+		require.NoError(t, err)
+
+		auditLogs, err := client.AuditLogs(ctx, codersdk.AuditLogsRequest{
+			Pagination: codersdk.Pagination{
+				Limit: 1,
+			},
+		})
+		require.NoError(t, err)
+		buildNumberString := strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10)
+		require.Equal(t, auditLogs.AuditLogs[0].ResourceLink, fmt.Sprintf("/@%s/%s/builds/%s",
+			workspace.OwnerName, workspace.Name, buildNumberString))
 	})
 }
 

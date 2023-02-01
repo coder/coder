@@ -28,7 +28,7 @@ variable "use_kubeconfig" {
 variable "namespace" {
   type        = string
   sensitive   = true
-  description = "The namespace to create workspaces in (must exist prior to creating workspaces)"
+  description = "The Kubernetes namespace to create workspaces in (must exist prior to creating workspaces)"
 }
 
 variable "home_disk_size" {
@@ -57,17 +57,9 @@ resource "coder_agent" "main" {
   startup_script         = <<-EOT
     set -e
 
-    # home folder can be empty, so copying default bash settings
-    if [ ! -f ~/.profile ]; then
-      cp /etc/skel/.profile $HOME
-    fi
-    if [ ! -f ~/.bashrc ]; then
-      cp /etc/skel/.bashrc $HOME
-    fi
-
     # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3
-    code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
+    curl -fsSL https://code-server.dev/install.sh | sh -s
+    code-server --auth none --port 13337 &
   EOT
 }
 
@@ -144,9 +136,10 @@ resource "kubernetes_pod" "main" {
       fs_group    = "1000"
     }
     container {
-      name    = "dev"
-      image   = "codercom/enterprise-base:ubuntu"
-      command = ["sh", "-c", coder_agent.main.init_script]
+      name              = "dev"
+      image             = "codercom/enterprise-base:ubuntu"
+      image_pull_policy = "Always"
+      command           = ["sh", "-c", coder_agent.main.init_script]
       security_context {
         run_as_user = "1000"
       }

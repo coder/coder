@@ -712,9 +712,9 @@ export const MockUserAgent: Types.UserAgent = {
 }
 
 export const MockAuthMethods: TypesGen.AuthMethods = {
-  password: true,
-  github: false,
-  oidc: false,
+  password: { enabled: true },
+  github: { enabled: false },
+  oidc: { enabled: false, signInText: "", iconUrl: "" },
 }
 
 export const MockGitSSHKey: TypesGen.GitSSHKey = {
@@ -1146,7 +1146,7 @@ export const MockAuditLog2: TypesGen.AuditLog = {
 export const MockWorkspaceCreateAuditLogForDifferentOwner = {
   ...MockAuditLog,
   additional_fields: {
-    workspaceOwner: "Member",
+    workspace_owner: "Member",
   },
 }
 
@@ -1158,7 +1158,7 @@ export const MockAuditLogWithWorkspaceBuild: TypesGen.AuditLog = {
   resource_type: "workspace_build",
   description: "{user} stopped build for workspace {target}",
   additional_fields: {
-    workspaceName: "test2",
+    workspace_name: "test2",
   },
 }
 

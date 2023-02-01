@@ -5444,17 +5444,25 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AuthMethod": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.AuthMethods": {
             "type": "object",
             "properties": {
                 "github": {
-                    "type": "boolean"
+                    "$ref": "#/definitions/codersdk.AuthMethod"
                 },
                 "oidc": {
-                    "type": "boolean"
+                    "$ref": "#/definitions/codersdk.OIDCAuthMethod"
                 },
                 "password": {
-                    "type": "boolean"
+                    "$ref": "#/definitions/codersdk.AuthMethod"
                 }
             }
         },
@@ -5733,6 +5741,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.AuditAction"
                         }
                     ]
+                },
+                "additional_fields": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 },
                 "build_reason": {
                     "enum": [
@@ -6620,6 +6634,20 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OIDCAuthMethod": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "iconUrl": {
+                    "type": "string"
+                },
+                "signInText": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.OIDCConfig": {
             "type": "object",
             "properties": {
@@ -6635,6 +6663,9 @@ const docTemplate = `{
                 "email_domain": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
                 },
+                "icon_url": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
                 "ignore_email_verified": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
                 },
@@ -6643,6 +6674,9 @@ const docTemplate = `{
                 },
                 "scopes": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
+                },
+                "sign_in_text": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
                 },
                 "username_field": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-string"

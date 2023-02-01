@@ -89,10 +89,15 @@ export interface AuditLogsRequest extends Pagination {
 }
 
 // From codersdk/users.go
+export interface AuthMethod {
+  readonly enabled: boolean
+}
+
+// From codersdk/users.go
 export interface AuthMethods {
-  readonly password: boolean
-  readonly github: boolean
-  readonly oidc: boolean
+  readonly password: AuthMethod
+  readonly github: AuthMethod
+  readonly oidc: OIDCAuthMethod
 }
 
 // From codersdk/authorization.go
@@ -201,6 +206,7 @@ export interface CreateTestAuditLogRequest {
   readonly action?: AuditAction
   readonly resource_type?: ResourceType
   readonly resource_id?: string
+  readonly additional_fields?: Record<string, string>
   readonly time?: string
   readonly build_reason?: BuildReason
 }
@@ -453,6 +459,12 @@ export interface OAuth2GithubConfig {
   readonly enterprise_base_url: DeploymentConfigField<string>
 }
 
+// From codersdk/users.go
+export interface OIDCAuthMethod extends AuthMethod {
+  readonly signInText: string
+  readonly iconUrl: string
+}
+
 // From codersdk/deployment.go
 export interface OIDCConfig {
   readonly allow_signups: DeploymentConfigField<boolean>
@@ -463,6 +475,8 @@ export interface OIDCConfig {
   readonly scopes: DeploymentConfigField<string[]>
   readonly ignore_email_verified: DeploymentConfigField<boolean>
   readonly username_field: DeploymentConfigField<string>
+  readonly sign_in_text: DeploymentConfigField<string>
+  readonly icon_url: DeploymentConfigField<string>
 }
 
 // From codersdk/organizations.go
