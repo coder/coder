@@ -58,7 +58,7 @@ jobs:
           version: v1.48.0
 
       - name: Lint shell scripts
-        uses: ludeeus/action-shellcheck@1.1.0
+        uses: ludeeus/action-shellcheck@2.0.0
         env:
           SHELLCHECK_OPTS: --external-sources
         with:
