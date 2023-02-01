@@ -5,6 +5,7 @@ IST = "IST"
 MacOS = "macOS"
 
 [default.extend-words]
+AKS = "AKS"
 # do as sudo replacement
 doas = "doas"
 darcula = "darcula"
