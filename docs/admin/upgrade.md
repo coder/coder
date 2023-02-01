@@ -17,7 +17,7 @@ of [install](../install).
 If you installed Coder using the `install.sh` script, re-run the below
 command on the host:
 
-```shell
+```console
 curl -L https://coder.com/install.sh | sh
 ```
 
@@ -25,7 +25,7 @@ The script will unpack the new `coder` binary version over the one currently ins
 Next, you can restart Coder with the following commands (if running it as a system
 service):
 
-```shell
+```console
 systemctl daemon-reload
 systemctl restart coder
 ```
@@ -35,7 +35,7 @@ systemctl restart coder
 If you installed using `docker-compose`, run the below command to upgrade the
 Coder container:
 
-```shell
+```console
 docker-compose pull coder && docker-compose up coder -d
 ```
 

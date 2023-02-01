@@ -13,7 +13,7 @@ to log in and manage templates.
 
 1. Create a namespace for Coder, such as `coder`:
 
-   ```shell
+   ```console
    $ kubectl create namespace coder
    ```
 
@@ -34,7 +34,7 @@ to log in and manage templates.
    [helpful guides](https://phoenixnap.com/kb/postgresql-kubernetes) on the
    internet that explain sensible configurations for this chart. Example:
 
-   ```shell
+   ```console
    # Install PostgreSQL
    helm repo add bitnami https://charts.bitnami.com/bitnami
    helm install coder-db bitnami/postgresql \
@@ -47,7 +47,7 @@ to log in and manage templates.
 
    The cluster-internal DB URL for the above database is:
 
-   ```shell
+   ```console
    postgres://coder:coder@coder-db-postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable
    ```
 
@@ -59,13 +59,13 @@ to log in and manage templates.
 
 1. Add the Coder Helm repo:
 
-   ```shell
+   ```console
    helm repo add coder-v2 https://helm.coder.com/v2
    ```
 
 1. Create a secret with the database URL:
 
-   ```shell
+   ```console
    # Uses Bitnami PostgreSQL example. If you have another database,
    # change to the proper URL.
    kubectl create secret generic coder-db-url -n coder \
@@ -114,7 +114,7 @@ to log in and manage templates.
 
 1. Run the following command to install the chart in your cluster.
 
-   ```shell
+   ```console
    helm install coder coder-v2/coder \
        --namespace coder \
        --values values.yaml
@@ -137,7 +137,7 @@ to log in and manage templates.
 To upgrade Coder in the future or change values,
 you can run the following command:
 
-```shell
+```console
 helm repo update
 helm upgrade coder coder-v2/coder \
   --namespace coder \

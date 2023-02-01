@@ -105,13 +105,13 @@ Follow our [docker-compose](./docker.md#run-coder-with-docker-compose) documenta
 
 First, make a create an empty plugins directory:
 
-```shell
+```console
 mkdir $HOME/plugins
 ```
 
 Next, add a volume mount to docker-compose.yaml:
 
-```shell
+```console
 vim docker-compose.yaml
 ```
 

@@ -24,7 +24,7 @@ Example callback URL: `https://coder.example.com/gitauth/primary-github/callback
 
 Set the following environment variables to [configure the Coder server](./configure.md):
 
-```shell
+```console
 CODER_GITAUTH_0_ID="primary-github"
 CODER_GITAUTH_0_TYPE=github|gitlab|azure-devops|bitbucket
 CODER_GITAUTH_0_CLIENT_ID=xxxxxx
@@ -36,7 +36,7 @@ CODER_GITAUTH_0_CLIENT_SECRET=xxxxxxx
 Custom authentication and token URLs should be
 used for self-managed Git provider deployments.
 
-```shell
+```console
 CODER_GITAUTH_0_AUTH_URL="https://github.example.com/oauth/authorize"
 CODER_GITAUTH_0_TOKEN_URL="https://github.example.com/oauth/token"
 CODER_GITAUTH_0_VALIDATE_URL="https://your-domain.com/oauth/token/info"
@@ -46,7 +46,7 @@ CODER_GITAUTH_0_VALIDATE_URL="https://your-domain.com/oauth/token/info"
 
 Optionally, you can request custom scopes:
 
-```shell
+```console
 CODER_GITAUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 ```
 
@@ -56,7 +56,7 @@ Multiple providers are an Enterprise feature. [Learn more](../enterprise.md).
 
 A custom regex can be used to match a specific repository or organization to limit auth scope. Here's a sample config:
 
-```shell
+```console
 # Provider 1) github.com
 CODER_GITAUTH_0_ID=primary-github
 CODER_GITAUTH_0_TYPE=github
@@ -76,6 +76,6 @@ CODER_GITAUTH_1_TOKEN_URL="https://github.example.com/oauth/token"
 
 To support regex matching for paths (e.g. github.com/orgname), youll need to add this to the [Coder agent startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script):
 
-```shell
+```console
 git config --global credential.useHttpPath true
 ```
