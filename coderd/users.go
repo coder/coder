@@ -1005,11 +1005,15 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 			Action:  database.AuditActionLogin,
 		})
 	)
+	aReq.Old = database.APIKey{}
 
 	defer commitAudit()
 
 	var loginWithPassword codersdk.LoginWithPasswordRequest
 	if !httpapi.Read(ctx, rw, r, &loginWithPassword) {
+		// We pass a disposable user ID just to force an audit diff
+		// and generate a log for a failed login
+		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 
@@ -1020,8 +1024,13 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error.",
 		})
+		// We pass a disposable user ID just to force an audit diff
+		// and generate a log for a failed login
+		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
+
+	aReq.UserId = user.ID
 
 	// If the user doesn't exist, it will be a default struct.
 	equal, err := userpassword.Compare(string(user.HashedPassword), loginWithPassword.Password)
@@ -1029,6 +1038,9 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error.",
 		})
+		// We pass a disposable user ID just to force an audit diff
+		// and generate a log for a failed login
+		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 	if !equal {
@@ -1037,6 +1049,9 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 			Message: "Incorrect email or password.",
 		})
+		// We pass a disposable user ID just to force an audit diff
+		// and generate a log for a failed login
+		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 
@@ -1044,6 +1059,9 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q", database.LoginTypePassword, user.LoginType),
 		})
+		// We pass a disposable user ID just to force an audit diff
+		// and generate a log for a failed login
+		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 
@@ -1052,6 +1070,9 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 			Message: "Your account is suspended. Contact an admin to reactivate your account.",
 		})
+		// We pass a disposable user ID just to force an audit diff
+		// and generate a log for a failed login
+		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 
@@ -1065,10 +1086,12 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 			Message: "Failed to create API key.",
 			Detail:  err.Error(),
 		})
+		// We pass a disposable user ID just to force an audit diff
+		// and generate a log for a failed login
+		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 
-	// key := httpmw.APIKey(r)
 	aReq.New = *key
 
 	http.SetCookie(rw, cookie)

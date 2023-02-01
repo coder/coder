@@ -29,8 +29,9 @@ type RequestParams struct {
 type Request[T Auditable] struct {
 	params *RequestParams
 
-	Old T
-	New T
+	Old    T
+	New    T
+	UserId uuid.UUID
 }
 
 type BuildAuditParams[T Auditable] struct {
@@ -89,7 +90,6 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 	case database.AuditableGroup:
 		return typed.Group.ID
 	case database.APIKey:
-		// this doesn't seem right
 		return typed.UserID
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
@@ -158,11 +158,19 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			p.AdditionalFields = json.RawMessage("{}")
 		}
 
+		var userID uuid.UUID
+		key, ok := httpmw.APIKeyOptional(p.Request)
+		if ok {
+			userID = key.UserID
+		} else {
+			userID = req.UserId
+		}
+
 		ip := parseIP(p.Request.RemoteAddr)
 		auditLog := database.AuditLog{
 			ID:               uuid.New(),
 			Time:             database.Now(),
-			UserID:           uuid.Nil,
+			UserID:           userID,
 			Ip:               ip,
 			UserAgent:        sql.NullString{String: p.Request.UserAgent(), Valid: true},
 			ResourceType:     either(req.Old, req.New, ResourceType[T]),
