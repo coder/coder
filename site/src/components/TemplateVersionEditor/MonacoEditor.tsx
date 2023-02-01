@@ -16,6 +16,8 @@ export const MonacoEditor: FC<{
     if (!editor) {
       return
     }
+    console.log("Editor", editor)
+    ;(window as any).editor = editor
     const resizeListener = () => {
       editor.layout({})
     }
@@ -33,18 +35,19 @@ export const MonacoEditor: FC<{
       options={{
         automaticLayout: true,
         fontFamily: MONOSPACE_FONT_FAMILY,
-        fontSize: 16,
+        fontSize: 14,
         wordWrap: "on",
       }}
       path={path}
       onChange={(newValue) => {
-        console.log("onChange", newValue?.substring(0, 30), path)
         if (onChange && newValue) {
           onChange(newValue)
         }
       }}
       onMount={(editor, monaco) => {
-        console.log("editor mounted", editor)
+        ;(editor as any)._standaloneKeybindingService.addDynamicKeybinding(`-editor.action.insertLineAfter`, undefined, () => {
+          //
+        })
 
         setEditor(editor)
 

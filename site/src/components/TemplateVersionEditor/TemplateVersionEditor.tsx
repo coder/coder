@@ -1,11 +1,16 @@
 import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
-import { ProvisionerJobLog, Template, TemplateVersion, WorkspaceResource } from "api/typesGenerated"
+import {
+  ProvisionerJobLog,
+  Template,
+  TemplateVersion,
+  WorkspaceResource,
+} from "api/typesGenerated"
 import { Avatar } from "components/Avatar/Avatar"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { TemplateResourcesTable } from "components/TemplateResourcesTable/TemplateResourcesTable"
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
-import { FC, useEffect, useMemo, useState } from "react"
+import { FC, useEffect, useState } from "react"
 import { navHeight } from "theme/constants"
 import { TemplateVersionFiles } from "util/templateVersion"
 import { FileTree } from "./FileTree"
@@ -25,7 +30,8 @@ export interface TemplateVersionEditorProps {
   buildLogs?: ProvisionerJobLog[]
   resources?: WorkspaceResource[]
 
-  onBuild: (files: TemplateVersionFiles) => void
+  onPreview: (files: TemplateVersionFiles) => void
+  onUpdate: () => void
 }
 
 const topbarHeight = 90
@@ -34,7 +40,8 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   template,
   templateVersion,
   initialFiles,
-  onBuild,
+  onPreview,
+  onUpdate,
   buildLogs,
   resources,
 }) => {
@@ -53,20 +60,26 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
     }
   })
   useEffect(() => {
-    const saveListener = (event: KeyboardEvent) => {
-      if (
-        (navigator.platform.match("Mac") ? event.metaKey : event.ctrlKey) &&
-        event.key === "s"
-      ) {
-        // Prevent opening the save dialog!
-        event.preventDefault()
+    const keyListener = (event: KeyboardEvent) => {
+      if (!(navigator.platform.match("Mac") ? event.metaKey : event.ctrlKey)) {
+        return
+      }
+      switch (event.key) {
+        case "s":
+          // Prevent opening the save dialog!
+          event.preventDefault()
+          break
+        case "Enter":
+          event.preventDefault()
+          onPreview(files)
+          break
       }
     }
-    document.addEventListener("keydown", saveListener)
+    document.addEventListener("keydown", keyListener)
     return () => {
-      document.removeEventListener("keydown", saveListener)
+      document.removeEventListener("keydown", keyListener)
     }
-  }, [])
+  }, [files, onPreview])
   const hasIcon = template.icon && template.icon !== ""
 
   return (
@@ -83,9 +96,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               )
             }
           />
-          <div>
-            Used By: {template.active_user_count} developers
-          </div>
+          <div>Used By: {template.active_user_count} developers</div>
         </div>
 
         <div>
@@ -94,20 +105,21 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
             variant="outlined"
             color="primary"
             onClick={() => {
-              onBuild(files)
+              onPreview(files)
             }}
           >
-            Preview
+            Preview (Ctrl + Enter)
           </Button>
 
           <Button
-            variant="outlined"
+            variant="contained"
             color="primary"
+            disabled={templateVersion.job.status !== "succeeded"}
             onClick={() => {
-              onBuild(files)
+              onUpdate()
             }}
           >
-            Publish
+            Update
           </Button>
         </div>
       </div>
@@ -123,33 +135,52 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
         </div>
 
         <div className={styles.editorPane}>
-        <div className={styles.editor}>
-          <MonacoEditor value={activeFile?.content} path={activeFile?.path} onChange={(value) => {
-            if (!activeFile) {
-              return
-            }
-            setFiles({
-              ...files,
-              [activeFile.path]: value,
-            })
-          }} />
-        </div>
+          <div className={styles.editor}>
+            <MonacoEditor
+              value={activeFile?.content}
+              path={activeFile?.path}
+              onChange={(value) => {
+                if (!activeFile) {
+                  return
+                }
+                setFiles({
+                  ...files,
+                  [activeFile.path]: value,
+                })
+              }}
+            />
+          </div>
 
-        <div className={styles.panel}>
-          <div className={styles.buildLogs}>
-          {buildLogs && <WorkspaceBuildLogs logs={buildLogs} />}
-          {templateVersion.job.error && (
-            <div className={styles.buildLogError}>
-          {templateVersion.job.error}
+          <div className={styles.panelWrapper}>
+            <div className={styles.panel}>
+              <div className={styles.tabBar}>Build Logs</div>
+
+              <div className={styles.buildLogs}>
+                {buildLogs && <WorkspaceBuildLogs logs={buildLogs} />}
+                {templateVersion.job.error && (
+                  <div className={styles.buildLogError}>
+                    {templateVersion.job.error}
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-          </div>
-          <div className={styles.resources}>
-          {resources && <TemplateResourcesTable resources={resources} />}
-          </div>
-        </div>
-        </div>
 
+            <div className={styles.panelDivider} />
+
+            <div className={styles.panel}>
+              <div className={`${styles.tabBar} top`}>Resources</div>
+              <div className={styles.resources}>
+                {resources && (
+                  <TemplateResourcesTable
+                    resources={resources.filter(
+                      (r) => r.workspace_transition === "start",
+                    )}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -169,6 +200,10 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     justifyContent: "space-between",
     height: topbarHeight,
+  },
+  panelDivider: {
+    height: 1,
+    background: theme.palette.divider,
   },
   sidebarAndEditor: {
     display: "flex",
@@ -193,22 +228,42 @@ const useStyles = makeStyles((theme) => ({
   editor: {
     flex: 1,
   },
-  panel: {
+  panelWrapper: {
     flex: 1,
     display: "flex",
     flexDirection: "column",
   },
-  buildLogs: {
+  panel: {
     height: "50%",
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    borderLeft: `1px solid ${theme.palette.divider}`,
+  },
+  tabBar: {
+    padding: "8px 16px",
+    position: "sticky",
+    top: 0,
+    background: theme.palette.background.default,
+    borderBottom: `1px solid ${theme.palette.divider}`,
+    color: theme.palette.text.hint,
+    textTransform: "uppercase",
+    fontSize: 12,
+
+    "&.top": {
+      borderTop: `1px solid ${theme.palette.divider}`,
+    },
+  },
+  buildLogs: {
     display: "flex",
     flexDirection: "column-reverse",
+    padding: 16,
     overflowY: "auto",
   },
   buildLogError: {
     whiteSpace: "pre-wrap",
   },
   resources: {
-    height: "50%",
-    overflowY: "auto",
+    padding: 16,
   },
 }))

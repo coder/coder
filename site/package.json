@@ -127,6 +127,7 @@
     "jest-esm-transformer": "^1.0.0",
     "jest-runner-eslint": "1.1.0",
     "jest-websocket-mock": "2.4.0",
+    "monaco-editor": "^0.34.1",
     "msw": "0.47.0",
     "prettier": "2.8.1",
     "resize-observer": "1.0.4",

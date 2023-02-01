@@ -39,7 +39,7 @@ export const TemplateVersionEditorPage: FC = () => {
           template={versionState.context.template}
           templateVersion={editorState.context.version || versionState.context.currentVersion}
           initialFiles={versionState.context.currentFiles}
-          onBuild={(files) => {
+          onPreview={(files) => {
             if (!versionState.context.template) {
               throw new Error("no template")
             }
@@ -48,6 +48,12 @@ export const TemplateVersionEditorPage: FC = () => {
               files: files,
               templateId: versionState.context.template.id,
             })
+          }}
+          onUpdate={() => {
+            sendEvent({
+              type: "UPDATE_ACTIVE",
+            })
+            console.log("We made a new version active")
           }}
           resources={editorState.context.resources}
           buildLogs={editorState.context.buildLogs}

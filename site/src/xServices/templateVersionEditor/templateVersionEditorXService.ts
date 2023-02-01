@@ -26,13 +26,15 @@ export interface TemplateVersionEditorMachineContext {
 
 export const templateVersionEditorMachine = createMachine(
   {
+    predictableActionArguments: true,
     id: "templateVersionEditor",
     schema: {
       context: {} as TemplateVersionEditorMachineContext,
       events: {} as
         | { type: "CREATE_BUILD"; files: TemplateVersionFiles, templateId: string }
         | { type: "CANCEL_BUILD" }
-        | { type: "ADD_BUILD_LOG"; log: ProvisionerJobLog },
+        | { type: "ADD_BUILD_LOG"; log: ProvisionerJobLog }
+        | { type: "UPDATE_ACTIVE" },
       services: {} as {
         createBuild: {
           data: TemplateVersion
@@ -49,6 +51,18 @@ export const templateVersionEditorMachine = createMachine(
           CREATE_BUILD: {
             actions: ["assignCreateBuild"],
             target: "uploadTar",
+          },
+          UPDATE_ACTIVE: {
+            target: "updatingActiveVersion",
+          },
+        },
+      },
+      updatingActiveVersion: {
+        invoke: {
+          id: "updateActiveVersion",
+          src: "updateActiveVersion",
+          onDone: {
+            target: "idle",
           },
         },
       },
@@ -87,6 +101,10 @@ export const templateVersionEditorMachine = createMachine(
           CANCEL_BUILD: {
             actions: ["cancelBuild"],
             target: "idle",
+          },
+          CREATE_BUILD: {
+            actions: ["cancelBuild", "assignCreateBuild"],
+            target: "uploadTar",
           },
         },
       },
@@ -199,6 +217,17 @@ export const templateVersionEditorMachine = createMachine(
           throw new Error("template version must be set")
         }
         return API.cancelTemplateVersionBuild(ctx.version.id)
+      },
+      updateActiveVersion: (ctx) => {
+        if (!ctx.templateId) {
+          throw new Error("template must be set")
+        }
+        if (!ctx.version) {
+          throw new Error("template version must be set")
+        }
+        return API.updateActiveTemplateVersion(ctx.templateId, {
+          id: ctx.version.id,
+        })
       },
     },
   },
