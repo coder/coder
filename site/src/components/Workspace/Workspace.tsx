@@ -126,7 +126,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   if (template !== undefined) {
     transitionStats = ActiveTransition(template, workspace)
   }
-
   return (
     <Margins>
       <PageHeader
@@ -143,7 +142,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             <WorkspaceActions
               workspaceStatus={workspace.latest_build.status}
               hasTemplateParameters={
-                templateParameters && templateParameters.length > 0
+                templateParameters ? templateParameters.length > 0 : false
               }
               isOutdated={workspace.outdated}
               handleStart={handleStart}
