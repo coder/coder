@@ -45,6 +45,7 @@ export const WorkspaceReadyPage = ({
   const {
     workspace,
     template,
+    templateParameters,
     refreshWorkspaceWarning,
     builds,
     getBuildsError,
@@ -126,6 +127,7 @@ export const WorkspaceReadyPage = ({
         buildInfo={buildInfo}
         applicationsHost={applicationsHost}
         template={template}
+        templateParameters={templateParameters}
         quota_budget={quotaState.context.quota?.budget}
       />
       <DeleteDialog

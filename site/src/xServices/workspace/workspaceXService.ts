@@ -43,6 +43,8 @@ const moreBuildsAvailable = (
 const Language = {
   getTemplateWarning:
     "Error updating workspace: latest template could not be fetched.",
+  getTemplateParametersWarning:
+    "Error updating workspace: template parameters could not be fetched.",
   buildError: "Workspace action failed.",
 }
 
@@ -53,11 +55,13 @@ export interface WorkspaceContext {
   eventSource?: EventSource
   workspace?: TypesGen.Workspace
   template?: TypesGen.Template
+  templateParameters?: TypesGen.TemplateVersionParameter[]
   build?: TypesGen.WorkspaceBuild
   getWorkspaceError?: Error | unknown
   // these are labeled as warnings because they don't make the page unusable
   refreshWorkspaceWarning?: Error | unknown
   getTemplateWarning: Error | unknown
+  getTemplateParametersWarning: Error | unknown
   // Builds
   builds?: TypesGen.WorkspaceBuild[]
   getBuildsError?: Error | unknown
@@ -130,6 +134,9 @@ export const workspaceMachine = createMachine(
         getTemplate: {
           data: TypesGen.Template
         }
+        getTemplateParameters: {
+          data: TypesGen.TemplateVersionParameter[]
+        }
         startWorkspaceWithLatestTemplate: {
           data: TypesGen.WorkspaceBuild
         }
@@ -191,14 +198,14 @@ export const workspaceMachine = createMachine(
         tags: "loading",
       },
       gettingTemplate: {
-        entry: "clearGettingTemplateWarning",
+        entry: "clearGetTemplateWarning",
         invoke: {
           src: "getTemplate",
           id: "getTemplate",
           onDone: [
             {
               actions: "assignTemplate",
-              target: "gettingPermissions",
+              target: "gettingTemplateParameters",
             },
           ],
           onError: [
@@ -206,6 +213,29 @@ export const workspaceMachine = createMachine(
               actions: [
                 "assignGetTemplateWarning",
                 "displayGetTemplateWarning",
+              ],
+              target: "error",
+            },
+          ],
+        },
+        tags: "loading",
+      },
+      gettingTemplateParameters: {
+        entry: "clearGetTemplateParametersWarning",
+        invoke: {
+          src: "getTemplateParameters",
+          id: "getTemplateParameters",
+          onDone: [
+            {
+              actions: "assignTemplateParameters",
+              target: "gettingPermissions",
+            },
+          ],
+          onError: [
+            {
+              actions: [
+                "assignGetTemplateParametersWarning",
+                "displayGetTemplateParametersWarning",
               ],
               target: "error",
             },
@@ -506,6 +536,9 @@ export const workspaceMachine = createMachine(
       assignTemplate: assign({
         template: (_, event) => event.data,
       }),
+      assignTemplateParameters: assign({
+        templateParameters: (_, event) => event.data,
+      }),
       assignPermissions: assign({
         // Setting event.data as Permissions to be more stricted. So we know
         // what permissions we asked for.
@@ -566,8 +599,17 @@ export const workspaceMachine = createMachine(
       displayGetTemplateWarning: () => {
         displayError(Language.getTemplateWarning)
       },
-      clearGettingTemplateWarning: assign({
+      clearGetTemplateWarning: assign({
         getTemplateWarning: (_) => undefined,
+      }),
+      assignGetTemplateParametersWarning: assign({
+        getTemplateParametersWarning: (_, event) => event.data,
+      }),
+      displayGetTemplateParametersWarning: () => {
+        displayError(Language.getTemplateParametersWarning)
+      },
+      clearGetTemplateParametersWarning: assign({
+        getTemplateParametersWarning: (_) => undefined,
       }),
       // Timeline
       assignBuilds: assign({
@@ -627,6 +669,15 @@ export const workspaceMachine = createMachine(
           return await API.getTemplate(context.workspace.template_id)
         } else {
           throw Error("Cannot get template without workspace")
+        }
+      },
+      getTemplateParameters: async (context) => {
+        if (context.workspace) {
+          return await API.getTemplateVersionRichParameters(
+            context.workspace.latest_build.template_version_id,
+          )
+        } else {
+          throw Error("Cannot get template parameters without workspace")
         }
       },
       startWorkspaceWithLatestTemplate: (context) => async (send) => {

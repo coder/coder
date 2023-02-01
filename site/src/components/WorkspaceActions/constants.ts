@@ -29,7 +29,24 @@ interface WorkspaceAbilities {
   canAcceptJobs: boolean
 }
 
-export const statusToAbilities: Record<WorkspaceStatus, WorkspaceAbilities> = {
+export const buttonAbilities = (
+  status: WorkspaceStatus,
+  hasTemplateParameters: boolean,
+): WorkspaceAbilities => {
+  if (hasTemplateParameters) {
+    return statusToAbilities[status]
+  }
+
+  const all = statusToAbilities[status]
+  return {
+    ...all,
+    actions: all.actions.filter(
+      (action) => action !== ButtonTypesEnum.buildParameters,
+    ),
+  }
+}
+
+const statusToAbilities: Record<WorkspaceStatus, WorkspaceAbilities> = {
   starting: {
     actions: [ButtonTypesEnum.starting],
     canCancel: true,

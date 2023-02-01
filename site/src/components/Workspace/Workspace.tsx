@@ -57,6 +57,7 @@ export interface WorkspaceProps {
   buildInfo?: TypesGen.BuildInfoResponse
   applicationsHost?: string
   template?: TypesGen.Template
+  templateParameters?: TypesGen.TemplateVersionParameter[]
   quota_budget?: number
 }
 
@@ -83,6 +84,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   buildInfo,
   applicationsHost,
   template,
+  templateParameters,
   quota_budget,
 }) => {
   const { t } = useTranslation("workspacePage")
@@ -140,6 +142,9 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             />
             <WorkspaceActions
               workspaceStatus={workspace.latest_build.status}
+              hasTemplateParameters={
+                templateParameters && templateParameters.length > 0
+              }
               isOutdated={workspace.outdated}
               handleStart={handleStart}
               handleStop={handleStop}
