@@ -978,18 +978,6 @@ func (q *sqlQuerier) UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyPar
 	return i, err
 }
 
-const deleteGroupByID = `-- name: DeleteGroupByID :exec
-DELETE FROM
-	groups
-WHERE
-	id = $1
-`
-
-func (q *sqlQuerier) DeleteGroupByID(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteGroupByID, id)
-	return err
-}
-
 const deleteGroupMember = `-- name: DeleteGroupMember :exec
 DELETE FROM
 	group_members
@@ -1002,21 +990,49 @@ func (q *sqlQuerier) DeleteGroupMember(ctx context.Context, userID uuid.UUID) er
 	return err
 }
 
-const getAllOrganizationMembers = `-- name: GetAllOrganizationMembers :many
+const deleteGroupMembersByOrgAndUser = `-- name: DeleteGroupMembersByOrgAndUser :exec
+DELETE FROM
+    group_members
+USING
+    group_members AS gm
+LEFT JOIN
+    groups
+ON
+    groups.id = gm.group_id
+WHERE
+    groups.organization_id = $1 AND
+    gm.user_id = $2
+`
+
+type DeleteGroupMembersByOrgAndUserParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) DeleteGroupMembersByOrgAndUser(ctx context.Context, arg DeleteGroupMembersByOrgAndUserParams) error {
+	_, err := q.db.ExecContext(ctx, deleteGroupMembersByOrgAndUser, arg.OrganizationID, arg.UserID)
+	return err
+}
+
+const getGroupMembers = `-- name: GetGroupMembers :many
 SELECT
 	users.id, users.email, users.username, users.hashed_password, users.created_at, users.updated_at, users.status, users.rbac_roles, users.login_type, users.avatar_url, users.deleted, users.last_seen_at
 FROM
 	users
 JOIN
-	organization_members
+	group_members
 ON
-	users.id = organization_members.user_id
+	users.id = group_members.user_id
 WHERE
-	organization_members.organization_id = $1
+	group_members.group_id = $1
+AND
+	users.status = 'active'
+AND
+	users.deleted = 'false'
 `
 
-func (q *sqlQuerier) GetAllOrganizationMembers(ctx context.Context, organizationID uuid.UUID) ([]User, error) {
-	rows, err := q.db.QueryContext(ctx, getAllOrganizationMembers, organizationID)
+func (q *sqlQuerier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, getGroupMembers, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -1049,6 +1065,66 @@ func (q *sqlQuerier) GetAllOrganizationMembers(ctx context.Context, organization
 		return nil, err
 	}
 	return items, nil
+}
+
+const insertGroupMember = `-- name: InsertGroupMember :exec
+INSERT INTO
+    group_members (user_id, group_id)
+VALUES
+    ($1, $2)
+`
+
+type InsertGroupMemberParams struct {
+	UserID  uuid.UUID `db:"user_id" json:"user_id"`
+	GroupID uuid.UUID `db:"group_id" json:"group_id"`
+}
+
+func (q *sqlQuerier) InsertGroupMember(ctx context.Context, arg InsertGroupMemberParams) error {
+	_, err := q.db.ExecContext(ctx, insertGroupMember, arg.UserID, arg.GroupID)
+	return err
+}
+
+const insertUserGroupsByName = `-- name: InsertUserGroupsByName :exec
+WITH groups AS (
+    SELECT
+        id
+    FROM
+        groups
+    WHERE
+        groups.organization_id = $2 AND
+        groups.name = ANY($3 :: text [])
+)
+INSERT INTO
+    group_members (user_id, group_id)
+SELECT
+    $1,
+    groups.id
+FROM
+    groups
+`
+
+type InsertUserGroupsByNameParams struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	GroupNames     []string  `db:"group_names" json:"group_names"`
+}
+
+// InsertUserGroupsByName adds a user to all provided groups, if they exist.
+func (q *sqlQuerier) InsertUserGroupsByName(ctx context.Context, arg InsertUserGroupsByNameParams) error {
+	_, err := q.db.ExecContext(ctx, insertUserGroupsByName, arg.UserID, arg.OrganizationID, pq.Array(arg.GroupNames))
+	return err
+}
+
+const deleteGroupByID = `-- name: DeleteGroupByID :exec
+DELETE FROM
+	groups
+WHERE
+	id = $1
+`
+
+func (q *sqlQuerier) DeleteGroupByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteGroupByID, id)
+	return err
 }
 
 const getGroupByID = `-- name: GetGroupByID :one
@@ -1106,59 +1182,6 @@ func (q *sqlQuerier) GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrg
 	return i, err
 }
 
-const getGroupMembers = `-- name: GetGroupMembers :many
-SELECT
-	users.id, users.email, users.username, users.hashed_password, users.created_at, users.updated_at, users.status, users.rbac_roles, users.login_type, users.avatar_url, users.deleted, users.last_seen_at
-FROM
-	users
-JOIN
-	group_members
-ON
-	users.id = group_members.user_id
-WHERE
-	group_members.group_id = $1
-AND
-	users.status = 'active'
-AND
-	users.deleted = 'false'
-`
-
-func (q *sqlQuerier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]User, error) {
-	rows, err := q.db.QueryContext(ctx, getGroupMembers, groupID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []User
-	for rows.Next() {
-		var i User
-		if err := rows.Scan(
-			&i.ID,
-			&i.Email,
-			&i.Username,
-			&i.HashedPassword,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Status,
-			&i.RBACRoles,
-			&i.LoginType,
-			&i.AvatarURL,
-			&i.Deleted,
-			&i.LastSeenAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getGroupsByOrganizationID = `-- name: GetGroupsByOrganizationID :many
 SELECT
 	id, name, organization_id, avatar_url, quota_allowance
@@ -1206,7 +1229,7 @@ INSERT INTO groups (
 	organization_id
 )
 VALUES
-	( $1, 'Everyone', $1) RETURNING id, name, organization_id, avatar_url, quota_allowance
+	($1, 'Everyone', $1) RETURNING id, name, organization_id, avatar_url, quota_allowance
 `
 
 // We use the organization_id as the id
@@ -1234,7 +1257,7 @@ INSERT INTO groups (
 	quota_allowance
 )
 VALUES
-	( $1, $2, $3, $4, $5) RETURNING id, name, organization_id, avatar_url, quota_allowance
+	($1, $2, $3, $4, $5) RETURNING id, name, organization_id, avatar_url, quota_allowance
 `
 
 type InsertGroupParams struct {
@@ -1262,24 +1285,6 @@ func (q *sqlQuerier) InsertGroup(ctx context.Context, arg InsertGroupParams) (Gr
 		&i.QuotaAllowance,
 	)
 	return i, err
-}
-
-const insertGroupMember = `-- name: InsertGroupMember :exec
-INSERT INTO group_members (
-	user_id,
-	group_id
-)
-VALUES ( $1, $2)
-`
-
-type InsertGroupMemberParams struct {
-	UserID  uuid.UUID `db:"user_id" json:"user_id"`
-	GroupID uuid.UUID `db:"group_id" json:"group_id"`
-}
-
-func (q *sqlQuerier) InsertGroupMember(ctx context.Context, arg InsertGroupMemberParams) error {
-	_, err := q.db.ExecContext(ctx, insertGroupMember, arg.UserID, arg.GroupID)
-	return err
 }
 
 const updateGroupByID = `-- name: UpdateGroupByID :one
@@ -1438,6 +1443,55 @@ func (q *sqlQuerier) InsertLicense(ctx context.Context, arg InsertLicenseParams)
 		&i.Uuid,
 	)
 	return i, err
+}
+
+const getAllOrganizationMembers = `-- name: GetAllOrganizationMembers :many
+SELECT
+	users.id, users.email, users.username, users.hashed_password, users.created_at, users.updated_at, users.status, users.rbac_roles, users.login_type, users.avatar_url, users.deleted, users.last_seen_at
+FROM
+	users
+JOIN
+	organization_members
+ON
+	users.id = organization_members.user_id
+WHERE
+	organization_members.organization_id = $1
+`
+
+func (q *sqlQuerier) GetAllOrganizationMembers(ctx context.Context, organizationID uuid.UUID) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, getAllOrganizationMembers, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Username,
+			&i.HashedPassword,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Status,
+			&i.RBACRoles,
+			&i.LoginType,
+			&i.AvatarURL,
+			&i.Deleted,
+			&i.LastSeenAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getOrganizationIDsByMemberIDs = `-- name: GetOrganizationIDsByMemberIDs :many

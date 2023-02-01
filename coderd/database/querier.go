@@ -24,6 +24,7 @@ type sqlcQuerier interface {
 	DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error
 	DeleteGroupByID(ctx context.Context, id uuid.UUID) error
 	DeleteGroupMember(ctx context.Context, userID uuid.UUID) error
+	DeleteGroupMembersByOrgAndUser(ctx context.Context, arg DeleteGroupMembersByOrgAndUserParams) error
 	DeleteLicense(ctx context.Context, id int32) (int32, error)
 	DeleteOldAgentStats(ctx context.Context) error
 	DeleteParameterValueByID(ctx context.Context, id uuid.UUID) error
@@ -160,6 +161,8 @@ type sqlcQuerier interface {
 	InsertTemplateVersion(ctx context.Context, arg InsertTemplateVersionParams) (TemplateVersion, error)
 	InsertTemplateVersionParameter(ctx context.Context, arg InsertTemplateVersionParameterParams) (TemplateVersionParameter, error)
 	InsertUser(ctx context.Context, arg InsertUserParams) (User, error)
+	// InsertUserGroupsByName adds a user to all provided groups, if they exist.
+	InsertUserGroupsByName(ctx context.Context, arg InsertUserGroupsByNameParams) error
 	InsertUserLink(ctx context.Context, arg InsertUserLinkParams) (UserLink, error)
 	InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) (Workspace, error)
 	InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspaceAgentParams) (WorkspaceAgent, error)

@@ -293,6 +293,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	if ok {
 		username, _ = usernameRaw.(string)
 	}
+
 	emailRaw, ok := claims["email"]
 	if !ok {
 		// Email is an optional claim in OIDC and
@@ -308,6 +309,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		}
 		emailRaw = username
 	}
+
 	email, ok := emailRaw.(string)
 	if !ok {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -315,6 +317,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
 	verifiedRaw, ok := claims["email_verified"]
 	if ok {
 		verified, ok := verifiedRaw.(bool)
@@ -328,6 +331,25 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			api.Logger.Warn(ctx, "allowing unverified oidc email %q")
 		}
 	}
+
+	var groups []string
+	groupsRaw, ok := claims["groups"]
+	if ok {
+		groupsInterface, ok := groupsRaw.([]interface{})
+		if ok {
+			for _, groupInterface := range groupsInterface {
+				group, ok := groupInterface.(string)
+				if !ok {
+					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+						Message: fmt.Sprintf("Invalid group type. Expected string, got: %t", emailRaw),
+					})
+					return
+				}
+				groups = append(groups, group)
+			}
+		}
+	}
+
 	// The username is a required property in Coder. We make a best-effort
 	// attempt at using what the claims provide, but if that fails we will
 	// generate a random username.
@@ -370,6 +392,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		Email:        email,
 		Username:     username,
 		AvatarURL:    picture,
+		Groups:       groups,
 	})
 	var httpErr httpError
 	if xerrors.As(err, &httpErr) {
@@ -407,6 +430,7 @@ type oauthLoginParams struct {
 	Email        string
 	Username     string
 	AvatarURL    string
+	Groups       []string
 }
 
 type httpError struct {
@@ -528,22 +552,6 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 			}
 		}
 
-		// LEGACY: Remove 10/2022.
-		// We started tracking linked IDs later so it's possible for a user to be a
-		// pre-existing OAuth user and not have a linked ID.
-		// The migration that added the user_links table could not populate
-		// the 'linked_id' field since it requires fields off the access token.
-		if link.LinkedID == "" {
-			link, err = tx.UpdateUserLinkedID(ctx, database.UpdateUserLinkedIDParams{
-				UserID:    user.ID,
-				LoginType: params.LoginType,
-				LinkedID:  params.LinkedID,
-			})
-			if err != nil {
-				return xerrors.Errorf("update user linked ID: %w", err)
-			}
-		}
-
 		if link.UserID != uuid.Nil {
 			link, err = tx.UpdateUserLink(ctx, database.UpdateUserLinkParams{
 				UserID:            user.ID,
@@ -554,6 +562,36 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 			})
 			if err != nil {
 				return xerrors.Errorf("update user link: %w", err)
+			}
+		}
+
+		// Ensure groups are correct.
+		if len(params.Groups) > 0 {
+			orgs, err := tx.GetOrganizationsByUserID(ctx, user.ID)
+			if err != nil {
+				return xerrors.Errorf("get user orgs: %w", err)
+			}
+			if len(orgs) != 1 {
+				return xerrors.Errorf("expected 1 org, got %d", len(orgs))
+			}
+
+			// Delete all groups the user belongs to.
+			err = tx.DeleteGroupMembersByOrgAndUser(ctx, database.DeleteGroupMembersByOrgAndUserParams{
+				UserID:         user.ID,
+				OrganizationID: orgs[0].ID,
+			})
+			if err != nil {
+				return xerrors.Errorf("delete user groups: %w", err)
+			}
+
+			// Re-add the user to all groups returned by the auth provider.
+			err = tx.InsertUserGroupsByName(ctx, database.InsertUserGroupsByNameParams{
+				UserID:         user.ID,
+				OrganizationID: orgs[0].ID,
+				GroupNames:     params.Groups,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert user groups: %w", err)
 			}
 		}
 
