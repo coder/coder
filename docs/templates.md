@@ -17,13 +17,13 @@ individuals can start their own Coder deployments.
 From your local machine, download the CLI for your operating system from the
 [releases](https://github.com/coder/coder/releases) or run:
 
-```console
+```shell
 curl -fsSL https://coder.com/install.sh | sh
 ```
 
 To see the sub-commands for managing templates, run:
 
-```console
+```shell
 coder templates --help
 ```
 
@@ -32,7 +32,7 @@ coder templates --help
 Before you can create templates, you must first login to your Coder deployment
 with the CLI.
 
-```console
+```shell
 coder login https://coder.example.com # aka the URL to your coder instance
 ```
 
@@ -42,7 +42,7 @@ returning an API Key.
 > Make a note of the API Key. You can re-use the API Key in future CLI logins or
 > sessions.
 
-```console
+```shell
 coder --token <your-api-key> login https://coder.example.com/ # aka the URL to your coder instance
 ```
 
@@ -282,7 +282,7 @@ owners](./admin/users.md) can edit a template.
 Using the CLI, login to Coder and run the following command to edit a single
 template:
 
-```console
+```shell
 coder templates edit <template-name> --description "This is my template"
 ```
 
@@ -291,7 +291,7 @@ Review editable template properties by running `coder templates edit -h`.
 Alternatively, you can pull down the template as a tape archive (`.tar`) to your
 current directory:
 
-```console
+```shell
 coder templates pull <template-name> file.tar
 ```
 
@@ -304,7 +304,7 @@ tar -xf file.tar
 Make the changes to your template then run this command from the root of the
 template folder:
 
-```console
+```shell
 coder templates push <template-name>
 ```
 
@@ -320,7 +320,7 @@ have any running workspaces associated to it.
 Using the CLI, login to Coder and run the following command to delete a
 template:
 
-```console
+```shell
 coder templates delete <template-name>
 ```
 
@@ -383,7 +383,7 @@ has failed or timed out.
 If the agent is not connected, it means the agent or [init script](https://github.com/coder/coder/tree/main/provisionersdk/scripts)
 has failed on the resource.
 
-```console
+```shell
 $ coder ssh myworkspace
 ⢄⡱ Waiting for connection from [agent]...
 ```
@@ -403,14 +403,14 @@ practices:
 
 If the agent does not become ready, it means the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script) is still running or has exited with a non-zero status. This also means the [login before ready](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#login_before_ready) option hasn't been set to true.
 
-```console
+```shell
 $ coder ssh myworkspace
 ⢄⡱ Waiting for [agent] to become ready...
 ```
 
 To troubleshoot readiness issues, check the agent logs as suggested above. You can connect to the workspace using `coder ssh` with the `--no-wait` flag. Please note that while this makes login possible, the workspace may be in an incomplete state.
 
-```console
+```shell
 $ coder ssh myworkspace --no-wait
 
  > The workspace is taking longer than expected to get

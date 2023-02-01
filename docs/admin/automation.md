@@ -11,7 +11,7 @@ Coder uses authentication tokens to grant machine users access to the REST API. 
 You can use tokens with the CLI by setting the `--token` CLI flag or the `CODER_SESSION_TOKEN`
 environment variable.
 
-```console
+```shell
 export CODER_URL=https://coder.example.com
 export CODER_SESSION_TOKEN=*****
 coder workspaces ls
@@ -21,7 +21,7 @@ coder workspaces ls
 
 You can review the [API reference](../api/index.md) to find the necessary routes and payload. Alternatively, you can enable the [Swagger](https://swagger.io/) endpoint to read the documentation and do requests against the API:
 
-```console
+```shell
 coder server --swagger-enable
 ```
 
