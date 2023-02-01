@@ -50,15 +50,3 @@ WHERE
 	user_id = @user_id
 	AND organization_id = @org_id
 RETURNING *;
-
--- name: GetAllOrganizationMembers :many
-SELECT
-	users.*
-FROM
-	users
-JOIN
-	organization_members
-ON
-	users.id = organization_members.user_id
-WHERE
-	organization_members.organization_id = $1;
