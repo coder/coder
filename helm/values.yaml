@@ -198,3 +198,13 @@ coder:
       # coder.ingress.tls.wildcardSecretName -- The name of the TLS secret to
       # use for the wildcard host.
       wildcardSecretName: ""
+
+# extraDeploy -- Array of extra objects to deploy with the release (evaluated as a template)
+extraDeploy:
+  []
+  # - apiVersion: v1
+  #   kind: ConfigMap
+  #   metadata:
+  #     name: my-configmap
+  #   data:
+  #     key: value
