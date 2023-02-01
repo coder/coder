@@ -1,10 +1,10 @@
-Coder publishes self-contained .zip and .tar.gz archives in [GitHub releases](https://github.com/coder/coder/releases). The archives bundle `coder` binary.
+Coder publishes self-contained .zip and .tar.gz archives in [GitHub releases](https://github.com/coder//latest). The archives bundle `coder` binary.
 
-1. Download the [release archive](https://github.com/coder/coder/releases) appropriate for your operating system
+1. Download the [release archive](https://github.com/coder/coder/releases/latest) appropriate for your operating system
 
 1. Unzip the folder you just downloaded, and move the `coder` executable to a location that's on your `PATH`
 
-   ```console
+   ```shell
    # ex. macOS and Linux
    mv coder /usr/local/bin
    ```
@@ -13,7 +13,7 @@ Coder publishes self-contained .zip and .tar.gz archives in [GitHub releases](ht
 
 1. Start a Coder server
 
-   ```console
+   ```shell
    # Automatically sets up an external access URL on *.try.coder.app
    coder server
 

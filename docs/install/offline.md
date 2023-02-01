@@ -105,13 +105,13 @@ Follow our [docker-compose](./docker.md#run-coder-with-docker-compose) documenta
 
 First, make a create an empty plugins directory:
 
-```console
+```shell
 mkdir $HOME/plugins
 ```
 
 Next, add a volume mount to docker-compose.yaml:
 
-```console
+```shell
 vim docker-compose.yaml
 ```
 
@@ -133,7 +133,7 @@ services:
 
 ## Run offline via Kubernetes
 
-We publish the Helm chart for download on [GitHub Releases](https://github.com/coder/coder/releases). Follow our [Kubernetes](./kubernetes.md) documentation and modify the Helm values to specify your custom Coder image.
+We publish the Helm chart for download on [GitHub Releases](https://github.com/coder/coder/releases/latest). Follow our [Kubernetes](./kubernetes.md) documentation and modify the Helm values to specify your custom Coder image.
 
 ```yaml
 # values.yaml

@@ -552,6 +552,8 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					EmailDomain:   cfg.OIDC.EmailDomain.Value,
 					AllowSignups:  cfg.OIDC.AllowSignups.Value,
 					UsernameField: cfg.OIDC.UsernameField.Value,
+					SignInText:    cfg.OIDC.SignInText.Value,
+					IconURL:       cfg.OIDC.IconURL.Value,
 				}
 			}
 

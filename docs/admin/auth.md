@@ -21,7 +21,7 @@ values in the next step.
 Navigate to your Coder host and run the following command to start up the Coder
 server:
 
-```console
+```shell
 coder server --oauth2-github-allow-signups=true --oauth2-github-allowed-orgs="your-org" --oauth2-github-client-id="8d1...e05" --oauth2-github-client-secret="57ebc9...02c24c"
 ```
 
@@ -31,7 +31,7 @@ Alternatively, if you are running Coder as a system service, you can achieve the
 same result as the command above by adding the following environment variables
 to the `/etc/coder.d/coder.env` file:
 
-```console
+```shell
 CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS=true
 CODER_OAUTH2_GITHUB_ALLOWED_ORGS="your-org"
 CODER_OAUTH2_GITHUB_CLIENT_ID="8d1...e05"
@@ -40,19 +40,58 @@ CODER_OAUTH2_GITHUB_CLIENT_SECRET="57ebc9...02c24c"
 
 **Note:** To allow everyone to signup using GitHub, set:
 
-```console
+```shell
 CODER_OAUTH2_GITHUB_ALLOW_EVERYONE=true
 ```
 
 Once complete, run `sudo service coder restart` to reboot Coder.
 
-## OpenID Connect with Google
+## GitLab
 
-> We describe how to set up the most popular OIDC provider, Google, but any (Okta, Azure Active Directory, GitLab, Auth0, etc.) may be used.
+### Step 1: Configure the OAuth application in your GitLab instance
+
+First, [register a GitLab OAuth application](https://docs.gitlab.com/ee/integration/oauth_provider.html). GitLab will ask you for the following parameter:
+
+- **Redirect URI**: Set to `https://coder.domain.com/api/v2/users/oidc/callback`
+
+### Step 2: Configure Coder with the OpenID Connect credentials
+
+Navigate to your Coder host and run the following command to start up the Coder
+server:
+
+```shell
+coder server --oidc-issuer-url="https://gitlab.com" --oidc-email-domain="your-domain-1,your-domain-2" --oidc-client-id="533...des" --oidc-client-secret="G0CSP...7qSM"
+```
+
+Alternatively, if you are running Coder as a system service, you can achieve the
+same result as the command above by adding the following environment variables
+to the `/etc/coder.d/coder.env` file:
+
+```shell
+CODER_OIDC_ISSUER_URL="https://gitlab.com"
+CODER_OIDC_EMAIL_DOMAIN="your-domain-1,your-domain-2"
+CODER_OIDC_CLIENT_ID="533...des"
+CODER_OIDC_CLIENT_SECRET="G0CSP...7qSM"
+```
+
+Once complete, run `sudo service coder restart` to reboot Coder.
+
+### Additional Notes
+
+GitLab maintains configuration settings for OIDC applications at the following URL:
+
+```shell
+https://gitlab.com/.well-known/openid-configuration
+```
+
+If you are using a self-hosted GitLab instance, replace `gitlab.com` in the above URL
+with your internal domain. The same will apply for the `OIDC_ISSUER_URL` variable.
+
+## OpenID Connect with Google
 
 ### Step 1: Configure the OAuth application on Google Cloud
 
-First, [register a Google OAuth app](https://support.google.com/cloud/answer/6158849?hl=en). Google will ask you for the following Coder parameters:
+First, [register a Google OAuth application](https://support.google.com/cloud/answer/6158849?hl=en). Google will ask you for the following Coder parameters:
 
 - **Authorized JavaScript origins**: Set to your Coder domain (e.g. `https://coder.domain.com`)
 - **Redirect URIs**: Set to `https://coder.domain.com/api/v2/users/oidc/callback`
@@ -62,7 +101,7 @@ First, [register a Google OAuth app](https://support.google.com/cloud/answer/615
 Navigate to your Coder host and run the following command to start up the Coder
 server:
 
-```console
+```shell
 coder server --oidc-issuer-url="https://accounts.google.com" --oidc-email-domain="your-domain-1,your-domain-2" --oidc-client-id="533...ent.com" --oidc-client-secret="G0CSP...7qSM"
 ```
 
@@ -70,7 +109,7 @@ Alternatively, if you are running Coder as a system service, you can achieve the
 same result as the command above by adding the following environment variables
 to the `/etc/coder.d/coder.env` file:
 
-```console
+```shell
 CODER_OIDC_ISSUER_URL="https://accounts.google.com"
 CODER_OIDC_EMAIL_DOMAIN="your-domain-1,your-domain-2"
 CODER_OIDC_CLIENT_ID="533...ent.com"
@@ -79,23 +118,25 @@ CODER_OIDC_CLIENT_SECRET="G0CSP...7qSM"
 
 Once complete, run `sudo service coder restart` to reboot Coder.
 
-> When a new user is created, the `preferred_username` claim becomes the username. If this claim is empty, the email address will be stripped of the domain, and become the username (e.g. `example@coder.com` becomes `example`).
-
-If your OpenID Connect provider requires client TLS certificates for authentication, you can configure them like so:
-
-```console
-CODER_TLS_CLIENT_CERT_FILE=/path/to/cert.pem
-CODER_TLS_CLIENT_KEY_FILE=/path/to/key.pem
-```
+## OIDC Claims
 
 Coder requires all OIDC email addresses to be verified by default. If the `email_verified` claim is present in the token response from the identity provider, Coder will validate that its value is `true`.
 If needed, you can disable this behavior with the following setting:
 
-```console
+```shell
 CODER_OIDC_IGNORE_EMAIL_VERIFIED=true
 ```
 
 > **Note:** This will cause Coder to implicitly treat all OIDC emails as "verified".
+
+When a new user is created, the `preferred_username` claim becomes the username. If this claim is empty, the email address will be stripped of the domain, and become the username (e.g. `example@coder.com` becomes `example`).
+
+If you'd like to change the OpenID Connect button text and/or icon, you can configure them like so:
+
+```shell
+CODER_OIDC_SIGN_IN_TEXT="Sign in with Gitea"
+CODER_OIDC_ICON_URL=https://gitea.io/images/gitea.png
+```
 
 ## SCIM (enterprise)
 
@@ -104,6 +145,15 @@ authentication. Upon deactivation, users are [suspended](./users.md#suspend-a-us
 and are not deleted. [Configure](./configure.md) your SCIM application with an
 auth key and supply it the Coder server.
 
-```console
+```shell
 CODER_SCIM_API_KEY="your-api-key"
+```
+
+## TLS
+
+If your OpenID Connect provider requires client TLS certificates for authentication, you can configure them like so:
+
+```shell
+CODER_TLS_CLIENT_CERT_FILE=/path/to/cert.pem
+CODER_TLS_CLIENT_KEY_FILE=/path/to/key.pem
 ```

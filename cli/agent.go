@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/pprof"
 	"net/url"
@@ -10,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
@@ -91,11 +93,14 @@ func workspaceAgent() *cobra.Command {
 			// reaper.
 			go dumpHandler(ctx)
 
-			logWriter := &lumberjack.Logger{
+			ljLogger := &lumberjack.Logger{
 				Filename: filepath.Join(logDir, "coder-agent.log"),
 				MaxSize:  5, // MB
 			}
+			defer ljLogger.Close()
+			logWriter := &closeWriter{w: ljLogger}
 			defer logWriter.Close()
+
 			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()), sloghuman.Sink(logWriter)).Leveled(slog.LevelDebug)
 
 			version := buildinfo.Version()
@@ -228,4 +233,31 @@ func serveHandler(ctx context.Context, logger slog.Logger, handler http.Handler,
 	return func() {
 		_ = srv.Close()
 	}
+}
+
+// closeWriter is a wrapper around an io.WriteCloser that prevents
+// writes after Close. This is necessary because lumberjack will
+// re-open the file on write.
+type closeWriter struct {
+	w      io.WriteCloser
+	mu     sync.Mutex // Protects following.
+	closed bool
+}
+
+func (c *closeWriter) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.closed = true
+	return c.w.Close()
+}
+
+func (c *closeWriter) Write(p []byte) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.closed {
+		return 0, io.ErrClosedPipe
+	}
+	return c.w.Write(p)
 }

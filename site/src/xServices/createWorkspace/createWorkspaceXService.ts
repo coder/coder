@@ -2,12 +2,14 @@ import {
   checkAuthorization,
   createWorkspace,
   getTemplates,
+  getTemplateVersionRichParameters,
   getTemplateVersionSchema,
 } from "api/api"
 import {
   CreateWorkspaceRequest,
   ParameterSchema,
   Template,
+  TemplateVersionParameter,
   User,
   Workspace,
 } from "api/typesGenerated"
@@ -19,11 +21,13 @@ type CreateWorkspaceContext = {
   templateName: string
   templates?: Template[]
   selectedTemplate?: Template
+  templateParameters?: TemplateVersionParameter[]
   templateSchema?: ParameterSchema[]
   createWorkspaceRequest?: CreateWorkspaceRequest
   createdWorkspace?: Workspace
   createWorkspaceError?: Error | unknown
   getTemplatesError?: Error | unknown
+  getTemplateParametersError?: Error | unknown
   getTemplateSchemaError?: Error | unknown
   permissions?: Record<string, boolean>
   checkPermissionsError?: Error | unknown
@@ -51,6 +55,9 @@ export const createWorkspaceMachine = createMachine(
       services: {} as {
         getTemplates: {
           data: Template[]
+        }
+        getTemplateParameters: {
+          data: TemplateVersionParameter[]
         }
         getTemplateSchema: {
           data: ParameterSchema[]
@@ -88,10 +95,24 @@ export const createWorkspaceMachine = createMachine(
           src: "getTemplateSchema",
           onDone: {
             actions: ["assignTemplateSchema"],
-            target: "checkingPermissions",
+            target: "gettingTemplateParameters",
           },
           onError: {
             actions: ["assignGetTemplateSchemaError"],
+            target: "error",
+          },
+        },
+      },
+      gettingTemplateParameters: {
+        entry: "clearGetTemplateParametersError",
+        invoke: {
+          src: "getTemplateParameters",
+          onDone: {
+            actions: ["assignTemplateParameters"],
+            target: "checkingPermissions",
+          },
+          onError: {
+            actions: ["assignGetTemplateParametersError"],
             target: "error",
           },
         },
@@ -145,6 +166,17 @@ export const createWorkspaceMachine = createMachine(
   {
     services: {
       getTemplates: (context) => getTemplates(context.organizationId),
+      getTemplateParameters: (context) => {
+        const { selectedTemplate } = context
+
+        if (!selectedTemplate) {
+          throw new Error("No selected template")
+        }
+
+        return getTemplateVersionRichParameters(
+          selectedTemplate.active_version_id,
+        )
+      },
       getTemplateSchema: (context) => {
         const { selectedTemplate } = context
 
@@ -206,11 +238,13 @@ export const createWorkspaceMachine = createMachine(
           return templates.length > 0 ? templates[0] : undefined
         },
       }),
+      assignTemplateParameters: assign({
+        templateParameters: (_, event) => event.data,
+      }),
       assignTemplateSchema: assign({
         // Only show parameters that are allowed to be overridden.
         // CLI code: https://github.com/coder/coder/blob/main/cli/create.go#L152-L155
-        templateSchema: (_, event) =>
-          event.data.filter((param) => param.allow_override_source),
+        templateSchema: (_, event) => event.data,
       }),
       assignPermissions: assign({
         permissions: (_, event) => event.data as Record<string, boolean>,
@@ -238,6 +272,12 @@ export const createWorkspaceMachine = createMachine(
       }),
       clearGetTemplatesError: assign({
         getTemplatesError: (_) => undefined,
+      }),
+      assignGetTemplateParametersError: assign({
+        getTemplateParametersError: (_, event) => event.data,
+      }),
+      clearGetTemplateParametersError: assign({
+        getTemplateParametersError: (_) => undefined,
       }),
       assignGetTemplateSchemaError: assign({
         getTemplateSchemaError: (_, event) => event.data,

@@ -562,6 +562,17 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
       "usage": "string",
       "value": ["string"]
     },
+    "icon_url": {
+      "default": "string",
+      "enterprise": true,
+      "flag": "string",
+      "hidden": true,
+      "name": "string",
+      "secret": true,
+      "shorthand": "string",
+      "usage": "string",
+      "value": "string"
+    },
     "ignore_email_verified": {
       "default": true,
       "enterprise": true,
@@ -594,6 +605,17 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
       "shorthand": "string",
       "usage": "string",
       "value": ["string"]
+    },
+    "sign_in_text": {
+      "default": "string",
+      "enterprise": true,
+      "flag": "string",
+      "hidden": true,
+      "name": "string",
+      "secret": true,
+      "shorthand": "string",
+      "usage": "string",
+      "value": "string"
     },
     "username_field": {
       "default": "string",

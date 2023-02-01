@@ -9,7 +9,7 @@ Docker is required. See the [official installation documentation](https://docs.d
 For proof-of-concept deployments, you can run a complete Coder instance with
 the following command:
 
-```console
+```shell
 export CODER_DATA=$HOME/.config/coderv2-docker
 export DOCKER_GROUP=$(getent group docker | cut -d: -f3)
 mkdir -p $CODER_DATA
@@ -34,7 +34,7 @@ For production deployments, we recommend using an external PostgreSQL database
 (version 13 or higher). Set `ACCESS_URL` to the external URL that users and
 workspaces will use to connect to Coder.
 
-```console
+```shell
 docker run --rm -it \
   -e CODER_ACCESS_URL="https://coder.example.com" \
   -e CODER_PG_CONNECTION_URL="postgresql://username:password@database/coder" \
@@ -54,7 +54,7 @@ an PostgreSQL container and volume.
 
 2. Clone the `coder` repository:
 
-   ```console
+   ```shell
    git clone https://github.com/coder/coder.git
    ```
 
@@ -64,7 +64,7 @@ an PostgreSQL container and volume.
 
    For proof-of-concept deployments, you can use [Coder's tunnel](../admin/configure.md#tunnel):
 
-   ```console
+   ```shell
    cd coder
 
    docker-compose up
@@ -72,7 +72,7 @@ an PostgreSQL container and volume.
 
    For production deployments, we recommend setting an [access URL](../admin/configure.md#access-url):
 
-   ```console
+   ```shell
    cd coder
 
    CODER_ACCESS_URL=https://coder.example.com docker-compose up

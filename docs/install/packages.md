@@ -1,4 +1,4 @@
-1. Download and install one of the following system packages from [GitHub releases](https://github.com/coder/coder/releases):
+1. Download and install one of the following system packages from [GitHub releases](https://github.com/coder/coder/releases/latest):
 
    - .deb (Debian, Ubuntu)
    - .rpm (Fedora, CentOS, RHEL, SUSE)
@@ -6,7 +6,7 @@
 
 1. Run Coder as a system service.
 
-   ```console
+   ```shell
    # Optional) Set up an access URL
    sudo vim /etc/coder.d/coder.env
 
@@ -23,7 +23,7 @@
 
 1. Visit the Coder URL in the logs to set up your first account, or use the CLI:
 
-   ```console
+   ```shell
    coder login <access-url>
    ```
 
@@ -31,7 +31,7 @@
 
 After updating Coder or applying configuration changes, restart the server:
 
-```console
+```shell
 sudo systemctl restart coder
 ```
 

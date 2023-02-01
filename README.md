@@ -1,11 +1,21 @@
 <div align="center">
-  <img src="./docs/images/logo.png" style="width: 128px">
+  <a href="https://coder.com#gh-light-mode-only">
+    <img src="./docs/images/logo-black.png" style="width: 128px">
+  </a>
+  <a href="https://coder.com#gh-dark-mode-only">
+    <img src="./docs/images/logo-white.png" style="width: 128px">
+  </a>
 
   <h1>
   Self-Hosted Remote Development Environments
   </h1>
 
-  <img src="./docs/images/banner.png" style="width: 650px">
+  <a href="https://coder.com#gh-light-mode-only">
+    <img src="./docs/images/banner-black.png" style="width: 650px">
+  </a>
+  <a href="https://coder.com#gh-dark-mode-only">
+    <img src="./docs/images/banner-white.png" style="width: 650px">
+  </a>
 
   <br>
   <br>
@@ -14,7 +24,7 @@
 
 [![discord](https://img.shields.io/discord/747933592273027093?label=discord)](https://discord.gg/coder)
 [![codecov](https://codecov.io/gh/coder/coder/branch/main/graph/badge.svg?token=TNLW3OAP6G)](https://codecov.io/gh/coder/coder)
-[![release](https://img.shields.io/github/v/release/coder/coder)](https://github.com/coder/coder/releases)
+[![release](https://img.shields.io/github/v/release/coder/coder)](https://github.com/coder/coder/releases/latest)
 [![godoc](https://pkg.go.dev/badge/github.com/coder/coder.svg)](https://pkg.go.dev/github.com/coder/coder)
 [![Go Report Card](https://goreportcard.com/badge/github.com/coder/coder)](https://goreportcard.com/report/github.com/coder/coder)
 [![license](https://img.shields.io/github/license/coder/coder)](./LICENSE)
@@ -64,7 +74,7 @@ You can run the install script with `--dry-run` to see the commands that will be
 
 Once installed, you can start a production deployment<sup>1</sup> with a single command:
 
-```console
+```shell
 # Automatically sets up an external access URL on *.try.coder.app
 coder server
 
