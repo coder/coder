@@ -1,6 +1,7 @@
-import { screen, waitFor } from "@testing-library/react"
+import { screen } from "@testing-library/react"
 import {
   MockTemplateVersionParameter1,
+  MockTemplateVersionParameter2,
   MockWorkspace,
   MockWorkspaceBuildParameter1,
   MockWorkspaceBuildParameter2,
@@ -23,12 +24,12 @@ describe("WorkspaceBuildParametersPage", () => {
       .spyOn(API, "getTemplateVersionRichParameters")
       .mockResolvedValueOnce([])
 
-    await waitFor(() => renderWorkspaceBuildParametersPage())
+    renderWorkspaceBuildParametersPage()
 
-    const element = screen.findByDisplayValue("Workspace build parameters")
+    const element = await screen.findByText("Workspace build parameters")
     expect(element).toBeDefined()
 
-    const goBackButton = screen.findByDisplayValue("Go back")
+    const goBackButton = await screen.findByText("Go back")
     expect(goBackButton).toBeDefined()
   })
 
@@ -36,7 +37,10 @@ describe("WorkspaceBuildParametersPage", () => {
     jest.spyOn(API, "getWorkspace").mockResolvedValueOnce(MockWorkspace)
     jest
       .spyOn(API, "getTemplateVersionRichParameters")
-      .mockResolvedValueOnce([MockTemplateVersionParameter1])
+      .mockResolvedValueOnce([
+        MockTemplateVersionParameter1,
+        MockTemplateVersionParameter2,
+      ])
     jest
       .spyOn(API, "getWorkspaceBuildParameters")
       .mockResolvedValueOnce([
@@ -44,19 +48,19 @@ describe("WorkspaceBuildParametersPage", () => {
         MockWorkspaceBuildParameter2,
       ])
 
-    await waitFor(() => renderWorkspaceBuildParametersPage())
+    renderWorkspaceBuildParametersPage()
 
-    const element = screen.findByText("Workspace build parameters")
+    const element = await screen.findByText("Workspace build parameters")
     expect(element).toBeDefined()
 
-    const firstParameter = screen.findByLabelText(
+    const firstParameter = await screen.findByLabelText(
       MockTemplateVersionParameter1.name,
     )
     expect(firstParameter).toBeDefined()
 
-    const firstParameterValue = screen.findByText(
-      MockWorkspaceBuildParameter1.value,
+    const secondParameter = await screen.findByLabelText(
+      MockTemplateVersionParameter2.name,
     )
-    expect(firstParameterValue).toBeDefined()
+    expect(secondParameter).toBeDefined()
   })
 })
