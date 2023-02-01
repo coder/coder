@@ -41,7 +41,7 @@ Alternatively, manually install the VSIX from the [latest release](https://githu
 
 To access Coder via SSH, run the following in the terminal:
 
-```console
+```shell
 coder config-ssh
 ```
 
@@ -51,7 +51,7 @@ coder config-ssh
 Confirm that you want to continue by typing **yes** and pressing enter. If
 successful, you'll see the following message:
 
-```console
+```shell
 You should now be able to ssh into your workspace.
 For example, try running:
 
