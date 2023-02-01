@@ -71,6 +71,5 @@ const useStyles = makeStyles((theme) => ({
   },
   siteContent: {
     flex: 1,
-    paddingBottom: theme.spacing(10),
   },
 }))

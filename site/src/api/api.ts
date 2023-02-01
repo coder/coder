@@ -420,6 +420,15 @@ export const cancelWorkspaceBuild = async (
   return response.data
 }
 
+export const cancelTemplateVersionBuild = async (
+  templateVersionId: TypesGen.TemplateVersion["id"]
+): Promise<Types.Message> => {
+  const response = await axios.patch(
+    `/api/v2/templateversions/${templateVersionId}/cancel`,
+  )
+  return response.data
+}
+
 export const createUser = async (
   user: TypesGen.CreateUserRequest,
 ): Promise<TypesGen.User> => {
