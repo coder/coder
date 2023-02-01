@@ -135,12 +135,12 @@ require (
 	github.com/valyala/fasthttp v1.43.0
 	go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1
 	go.nhat.io/otelsql v0.7.0
-	go.opentelemetry.io/otel v1.11.1
+	go.opentelemetry.io/otel v1.12.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.11.1
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.11.1
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.11.1
 	go.opentelemetry.io/otel/sdk v1.11.1
-	go.opentelemetry.io/otel/trace v1.11.1
+	go.opentelemetry.io/otel/trace v1.12.0
 	go.uber.org/atomic v1.10.0
 	go.uber.org/goleak v1.2.0
 	go4.org/netipx v0.0.0-20220725152314-7e7bdc8411bf
