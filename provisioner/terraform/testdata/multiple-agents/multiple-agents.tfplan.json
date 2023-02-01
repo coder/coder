@@ -43,7 +43,7 @@
             "login_before_ready": true,
             "motd_file": "/etc/motd",
             "os": "darwin",
-            "shutdown_script": null,
+            "shutdown_script": "echo bye bye",
             "startup_script": null,
             "startup_script_timeout": 30,
             "troubleshooting_url": null
@@ -145,7 +145,7 @@
           "login_before_ready": true,
           "motd_file": "/etc/motd",
           "os": "darwin",
-          "shutdown_script": null,
+          "shutdown_script": "echo bye bye",
           "startup_script": null,
           "startup_script_timeout": 30,
           "troubleshooting_url": null
@@ -270,6 +270,9 @@
             },
             "os": {
               "constant_value": "darwin"
+            },
+            "shutdown_script": {
+              "constant_value": "echo bye bye"
             },
             "startup_script_timeout": {
               "constant_value": 30

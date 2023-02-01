@@ -48,7 +48,7 @@
             "login_before_ready": true,
             "motd_file": "/etc/motd",
             "os": "darwin",
-            "shutdown_script": null,
+            "shutdown_script": "echo bye bye",
             "startup_script": null,
             "startup_script_timeout": 30,
             "token": "b1e0fba4-5bba-439f-b3ea-3f6a8ba4d301",
