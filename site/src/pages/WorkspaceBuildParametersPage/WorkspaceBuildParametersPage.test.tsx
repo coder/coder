@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react"
+import { fireEvent, screen } from "@testing-library/react"
 import {
   MockTemplateVersionParameter1,
   MockTemplateVersionParameter2,
@@ -62,5 +62,43 @@ describe("WorkspaceBuildParametersPage", () => {
       MockTemplateVersionParameter2.name,
     )
     expect(secondParameter).toBeDefined()
+  })
+
+  it("rich parameter: number validation fails", async () => {
+    jest
+      .spyOn(API, "getTemplateVersionRichParameters")
+      .mockResolvedValueOnce([
+        MockTemplateVersionParameter1,
+        MockTemplateVersionParameter2,
+      ])
+    jest
+      .spyOn(API, "getWorkspaceBuildParameters")
+      .mockResolvedValueOnce([
+        MockWorkspaceBuildParameter1,
+        MockWorkspaceBuildParameter2,
+      ])
+    renderWorkspaceBuildParametersPage()
+
+    const element = await screen.findByText("Workspace build parameters")
+    expect(element).toBeDefined()
+    const secondParameter = await screen.findByText(
+      MockTemplateVersionParameter2.description,
+    )
+    expect(secondParameter).toBeDefined()
+
+    const secondParameterField = await screen.findByLabelText(
+      MockTemplateVersionParameter2.name,
+    )
+    expect(secondParameterField).toBeDefined()
+
+    fireEvent.change(secondParameterField, {
+      target: { value: "4" },
+    })
+    fireEvent.submit(secondParameter)
+
+    const validationError = await screen.findByText(
+      "Value must be between 1 and 3.",
+    )
+    expect(validationError).toBeDefined()
   })
 })
