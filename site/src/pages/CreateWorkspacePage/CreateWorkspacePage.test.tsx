@@ -29,16 +29,25 @@ const renderCreateWorkspacePage = () => {
 }
 
 describe("CreateWorkspacePage", () => {
+  it("renders", async () => {
+    jest
+      .spyOn(API, "getTemplateVersionRichParameters")
+      .mockResolvedValueOnce([MockTemplateVersionParameter1])
+    renderCreateWorkspacePage()
+
+    const element = await screen.findByText("Create workspace")
+    expect(element).toBeDefined()
+  })
+
   it("renders with rich parameter", async () => {
     jest
       .spyOn(API, "getTemplateVersionRichParameters")
       .mockResolvedValueOnce([MockTemplateVersionParameter1])
+    renderCreateWorkspacePage()
 
-    await waitFor(() => renderCreateWorkspacePage())
-
-    const element = screen.findByText("Create workspace")
+    const element = await screen.findByText("Create workspace")
     expect(element).toBeDefined()
-    const firstParameter = screen.findByText(
+    const firstParameter = await screen.findByText(
       MockTemplateVersionParameter1.description,
     )
     expect(firstParameter).toBeDefined()
@@ -52,6 +61,9 @@ describe("CreateWorkspacePage", () => {
       .spyOn(API, "getWorkspaceQuota")
       .mockResolvedValueOnce(MockWorkspaceQuota)
     jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace)
+    jest
+      .spyOn(API, "getTemplateVersionRichParameters")
+      .mockResolvedValueOnce([MockTemplateVersionParameter1])
 
     renderCreateWorkspacePage()
 
@@ -89,17 +101,14 @@ describe("CreateWorkspacePage", () => {
       .spyOn(API, "getTemplateVersionRichParameters")
       .mockResolvedValueOnce([MockTemplateVersionParameter1])
 
-    await waitFor(() =>
-      renderWithAuth(<CreateWorkspacePage />, {
-        route:
-          "/templates/" +
-          MockTemplate.name +
-          `/workspace?param.${param}=${paramValue}`,
-        path: "/templates/:template/workspace",
-      }),
-    )
-
-    await screen.findByDisplayValue(paramValue)
+    renderWithAuth(<CreateWorkspacePage />, {
+      route:
+        "/templates/" +
+        MockTemplate.name +
+        `/workspace?param.${param}=${paramValue}`,
+      path: "/templates/:template/workspace",
+    }),
+      await screen.findByDisplayValue(paramValue)
   })
 
   it("uses default rich param values passed from the URL", async () => {
@@ -138,9 +147,9 @@ describe("CreateWorkspacePage", () => {
 
     await waitFor(() => renderCreateWorkspacePage())
 
-    const element = screen.findByText("Create workspace")
+    const element = await screen.findByText("Create workspace")
     expect(element).toBeDefined()
-    const secondParameter = screen.findByText(
+    const secondParameter = await screen.findByText(
       MockTemplateVersionParameter2.description,
     )
     expect(secondParameter).toBeDefined()
@@ -148,11 +157,16 @@ describe("CreateWorkspacePage", () => {
     const secondParameterField = await screen.findByLabelText(
       MockTemplateVersionParameter2.name,
     )
+    expect(secondParameterField).toBeDefined()
+
     fireEvent.change(secondParameterField, {
       target: { value: "4" },
     })
+    fireEvent.submit(secondParameter)
 
-    const validationError = screen.findByText("Value must be between")
+    const validationError = await screen.findByText(
+      "Value must be between 1 and 3.",
+    )
     expect(validationError).toBeDefined()
   })
 
@@ -166,9 +180,9 @@ describe("CreateWorkspacePage", () => {
 
     await waitFor(() => renderCreateWorkspacePage())
 
-    const element = screen.findByText("Create workspace")
+    const element = await screen.findByText("Create workspace")
     expect(element).toBeDefined()
-    const thirdParameter = screen.findByText(
+    const thirdParameter = await screen.findByText(
       MockTemplateVersionParameter3.description,
     )
     expect(thirdParameter).toBeDefined()
@@ -176,13 +190,16 @@ describe("CreateWorkspacePage", () => {
     const thirdParameterField = await screen.findByLabelText(
       MockTemplateVersionParameter3.name,
     )
+    expect(thirdParameterField).toBeDefined()
     fireEvent.change(thirdParameterField, {
       target: { value: "1234" },
     })
+    fireEvent.submit(thirdParameterField)
 
-    const validationError = screen.findByText(
-      MockTemplateVersionParameter3.validation_error,
+    const validationError = await screen.findByText(
+      MockTemplateVersionParameter3.validation_error +
+        " (value does not match the pattern ^[a-z]{3}$).",
     )
-    expect(validationError).toBeDefined()
+    expect(validationError).toBeInTheDocument()
   })
 })
