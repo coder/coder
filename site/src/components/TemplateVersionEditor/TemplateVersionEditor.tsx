@@ -5,7 +5,7 @@ import { Avatar } from "components/Avatar/Avatar"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { TemplateResourcesTable } from "components/TemplateResourcesTable/TemplateResourcesTable"
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
-import { FC, useEffect, useState } from "react"
+import { FC, useEffect, useMemo, useState } from "react"
 import { navHeight } from "theme/constants"
 import { TemplateVersionFiles } from "util/templateVersion"
 import { FileTree } from "./FileTree"
@@ -83,6 +83,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               )
             }
           />
+          <div>
+            Used By: {template.active_user_count} developers
+          </div>
         </div>
 
         <div>
@@ -121,10 +124,13 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
         <div className={styles.editorPane}>
         <div className={styles.editor}>
-          <MonacoEditor value={activeFile?.content} onChange={(value) => {
+          <MonacoEditor value={activeFile?.content} path={activeFile?.path} onChange={(value) => {
+            if (!activeFile) {
+              return
+            }
             setFiles({
               ...files,
-              [activeFile?.path || ""]: value,
+              [activeFile.path]: value,
             })
           }} />
         </div>

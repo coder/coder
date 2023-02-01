@@ -1,17 +1,18 @@
 import { useTheme } from "@material-ui/core/styles"
 import Editor from "@monaco-editor/react"
-import { FC, useEffect, useState } from "react"
+import { FC, useLayoutEffect, useState } from "react"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 import { hslToHex } from "util/colors"
 
 export const MonacoEditor: FC<{
   value?: string
+  path?: string
   language?: string
   onChange?: (value: string) => void
-}> = ({ onChange, value, language }) => {
+}> = ({ onChange, value, language, path }) => {
   const theme = useTheme()
   const [editor, setEditor] = useState<any>()
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!editor) {
       return
     }
@@ -26,7 +27,7 @@ export const MonacoEditor: FC<{
 
   return (
     <Editor
-      value={value || ""}
+      value={value}
       language={language || "hcl"}
       theme="vs-dark"
       options={{
@@ -35,12 +36,16 @@ export const MonacoEditor: FC<{
         fontSize: 16,
         wordWrap: "on",
       }}
+      path={path}
       onChange={(newValue) => {
+        console.log("onChange", newValue?.substring(0, 30), path)
         if (onChange && newValue) {
           onChange(newValue)
         }
       }}
       onMount={(editor, monaco) => {
+        console.log("editor mounted", editor)
+
         setEditor(editor)
 
         document.fonts.ready
