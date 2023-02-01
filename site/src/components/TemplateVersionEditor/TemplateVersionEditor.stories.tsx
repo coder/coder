@@ -1,5 +1,8 @@
 import { Story } from "@storybook/react"
-import { TemplateVersionEditor, TemplateVersionEditorProps } from "./TemplateVersionEditor"
+import {
+  TemplateVersionEditor,
+  TemplateVersionEditorProps,
+} from "./TemplateVersionEditor"
 
 export default {
   title: "components/TemplateEditor",

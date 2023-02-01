@@ -39,9 +39,13 @@ const getStageDurationInSeconds = (logs: ProvisionerJobLog[]) => {
 
 export interface WorkspaceBuildLogsProps {
   logs: ProvisionerJobLog[]
+  hideTimestamps?: boolean
 }
 
-export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({ logs }) => {
+export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
+  hideTimestamps,
+  logs,
+}) => {
   const groupedLogsByStage = groupLogsByStage(logs)
   const stages = Object.keys(groupedLogsByStage)
   const styles = useStyles()
@@ -69,7 +73,7 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({ logs }) => {
                 </div>
               )}
             </div>
-            {!isEmpty && <Logs lines={lines} />}
+            {!isEmpty && <Logs hideTimestamps={hideTimestamps} lines={lines} />}
           </Fragment>
         )
       })}

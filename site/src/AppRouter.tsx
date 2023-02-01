@@ -108,7 +108,10 @@ const TemplateVersionPage = lazy(
   () => import("./pages/TemplateVersionPage/TemplateVersionPage"),
 )
 const TemplateVersionEditorPage = lazy(
-  () => import("./pages/TemplateVersionPage/TemplateVersionEditorPage/TemplateVersionEditorPage"),
+  () =>
+    import(
+      "./pages/TemplateVersionPage/TemplateVersionEditorPage/TemplateVersionEditorPage"
+    ),
 )
 const StarterTemplatesPage = lazy(
   () => import("./pages/StarterTemplatesPage/StarterTemplatesPage"),
@@ -159,7 +162,10 @@ export const AppRouter: FC = () => {
                   <Route path="versions">
                     <Route path=":version">
                       <Route index element={<TemplateVersionPage />} />
-                      <Route path="edit" element={<TemplateVersionEditorPage />} />
+                      <Route
+                        path="edit"
+                        element={<TemplateVersionEditorPage />}
+                      />
                     </Route>
                   </Route>
                 </Route>

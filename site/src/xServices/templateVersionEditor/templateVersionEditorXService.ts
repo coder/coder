@@ -31,7 +31,11 @@ export const templateVersionEditorMachine = createMachine(
     schema: {
       context: {} as TemplateVersionEditorMachineContext,
       events: {} as
-        | { type: "CREATE_BUILD"; files: TemplateVersionFiles, templateId: string }
+        | {
+            type: "CREATE_BUILD"
+            files: TemplateVersionFiles
+            templateId: string
+          }
         | { type: "CANCEL_BUILD" }
         | { type: "ADD_BUILD_LOG"; log: ProvisionerJobLog }
         | { type: "UPDATE_ACTIVE" },

@@ -1,10 +1,8 @@
 import { useMachine } from "@xstate/react"
-import { TemplateEditor } from "components/TemplateVersionEditor/TemplateEditor"
 import { TemplateVersionEditor } from "components/TemplateVersionEditor/TemplateVersionEditor"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
-import { useTranslation } from "react-i18next"
 import { useParams } from "react-router-dom"
 import { pageTitle } from "util/page"
 import { templateVersionMachine } from "xServices/templateVersion/templateVersionXService"
@@ -24,14 +22,11 @@ export const TemplateVersionEditorPage: FC = () => {
   const [editorState, sendEvent] = useMachine(templateVersionEditorMachine, {
     context: { orgId },
   })
-  const { t } = useTranslation("templateVersionPage")
 
   return (
     <>
       <Helmet>
-        <title>
-          {pageTitle(`${t("title")} ${versionName} · ${templateName}`)}
-        </title>
+        <title>{pageTitle(`${templateName} · Template Editor`)}</title>
       </Helmet>
 
       {versionState.context.template &&

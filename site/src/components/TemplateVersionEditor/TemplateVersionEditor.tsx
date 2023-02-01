@@ -181,13 +181,20 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               onChange={(_, value) => {
                 setSelectedTab(value)
               }}
+              className={styles.tabs}
             >
               <Tab label="Build Logs" />
               <Tab disabled={disableUpdate} label="Resources" />
             </Tabs>
 
-            <div className={`${styles.panel} ${styles.buildLogs} ${selectedTab === 0 ? "" : "hidden"}`}>
-              {buildLogs && <WorkspaceBuildLogs logs={buildLogs} />}
+            <div
+              className={`${styles.panel} ${styles.buildLogs} ${
+                selectedTab === 0 ? "" : "hidden"
+              }`}
+            >
+              {buildLogs && (
+                <WorkspaceBuildLogs hideTimestamps logs={buildLogs} />
+              )}
               {templateVersion.job.error && (
                 <div className={styles.buildLogError}>
                   {templateVersion.job.error}
@@ -195,7 +202,11 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               )}
             </div>
 
-            <div className={`${styles.panel} ${styles.resources} ${selectedTab === 1 ? "" : "hidden"}`}>
+            <div
+              className={`${styles.panel} ${styles.resources} ${
+                selectedTab === 1 ? "" : "hidden"
+              }`}
+            >
               {resources && (
                 <TemplateResourcesTable
                   resources={resources.filter(
@@ -277,6 +288,9 @@ const useStyles = makeStyles<
     "&.hidden": {
       display: "none",
     },
+  },
+  tabs: {
+    borderBottom: `1px solid ${theme.palette.divider}`,
   },
   tabBar: {
     padding: "8px 16px",

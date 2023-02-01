@@ -40,8 +40,8 @@ export const templateVersionMachine = createMachine(
         loadTemplate: {
           data: {
             template: Template
-          },
-        },
+          }
+        }
         loadFiles: {
           data: {
             currentFiles: TemplateVersionFiles
@@ -66,7 +66,7 @@ export const templateVersionMachine = createMachine(
                     {
                       actions: "assignVersions",
                       target: "success",
-                    }
+                    },
                   ],
                 },
               },
@@ -85,7 +85,7 @@ export const templateVersionMachine = createMachine(
                     {
                       actions: "assignTemplate",
                       target: "success",
-                    }
+                    },
                   ],
                 },
               },

@@ -432,7 +432,7 @@ export const cancelWorkspaceBuild = async (
 }
 
 export const cancelTemplateVersionBuild = async (
-  templateVersionId: TypesGen.TemplateVersion["id"]
+  templateVersionId: TypesGen.TemplateVersion["id"],
 ): Promise<Types.Message> => {
   const response = await axios.patch(
     `/api/v2/templateversions/${templateVersionId}/cancel`,
