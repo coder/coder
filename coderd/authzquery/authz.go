@@ -219,6 +219,12 @@ func authorizedFetchSet[ArgumentType any, ObjectType rbac.Objecter,
 	}
 }
 
+// authorizedQueryWithRelated performs the same function as authorizedQuery, except that
+// RBAC checks are performed on the result of relatedFunc() instead of the result of fetch().
+// This is useful for cases where ObjectType does not implement RBACObjecter.
+// For example, a TemplateVersion object does not implement RBACObjecter, but it is
+// related to a Template object, which does. Thus, any operations on a TemplateVersion
+// are predicated on the RBAC permissions of the related Template object.
 func authorizedQueryWithRelated[ObjectType any, ArgumentType any, Related rbac.Objecter](
 	// Arguments
 	authorizer rbac.Authorizer,

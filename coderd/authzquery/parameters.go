@@ -2,6 +2,8 @@ package authzquery
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -20,6 +22,11 @@ func (q *AuthzQuerier) parameterRBACResource(ctx context.Context, scope database
 		var version database.TemplateVersion
 		version, err = q.database.GetTemplateVersionByJobID(ctx, scopeID)
 		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				// Template version does not exist yet, fall back to rbac.ResourceTemplate
+				resource = rbac.ResourceTemplate
+				err = nil
+			}
 			break
 		}
 		var template database.Template

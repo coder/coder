@@ -96,13 +96,11 @@ func (q *AuthzQuerier) GetTemplateVersionByOrganizationAndName(ctx context.Conte
 	// An actor can read the template version if they can read the related template in the organization.
 	fetchRelated := func(tv database.TemplateVersion, p database.GetTemplateVersionByOrganizationAndNameParams) (rbac.Objecter, error) {
 		if !tv.TemplateID.Valid {
-			// If no linked template exists, check if the actor can read a template in the organization.
+			// If no linked template exists, check if the actor can read
+			// any template in the organization.
 			return rbac.ResourceTemplate.InOrg(p.OrganizationID), nil
 		}
-		return q.database.GetTemplateByOrganizationAndName(ctx, database.GetTemplateByOrganizationAndNameParams{
-			OrganizationID: arg.OrganizationID,
-			Name:           tv.Name,
-		})
+		return q.database.GetTemplateByID(ctx, tv.TemplateID.UUID)
 	}
 
 	return authorizedQueryWithRelated(
