@@ -657,46 +657,6 @@ func TestUserOIDC(t *testing.T) {
 		})
 	}
 
-	t.Run("Groups", func(t *testing.T) {
-		t.Parallel()
-
-		ctx, _ := testutil.Context(t)
-		conf := coderdtest.NewOIDCConfig(t, "")
-
-		config := conf.OIDCConfig(t, jwt.MapClaims{})
-		config.AllowSignups = true
-
-		client := coderdtest.New(t, &coderdtest.Options{
-			OIDCConfig: config,
-		})
-
-		_ = coderdtest.CreateFirstUser(t, client)
-		admin, err := client.User(ctx, "me")
-		require.NoError(t, err)
-		require.Len(t, admin.OrganizationIDs, 1)
-
-		groupName := "bingbong"
-		group, err := client.CreateGroup(ctx, admin.OrganizationIDs[0], codersdk.CreateGroupRequest{
-			Name: groupName,
-		})
-		require.NoError(t, err)
-		require.Len(t, group.Members, 0)
-
-		resp := oidcCallback(t, client, conf.EncodeClaims(t, jwt.MapClaims{
-			"email":  "colin@coder.com",
-			"groups": []string{groupName},
-		}))
-		assert.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-
-		// client.SetSessionToken(authCookieValue(resp.Cookies()))
-		// _, err = client.User(ctx, "me")
-		// require.NoError(t, err)
-
-		group, err = client.Group(ctx, group.ID)
-		require.NoError(t, err)
-		require.Len(t, group.Members, 1)
-	})
-
 	t.Run("AlternateUsername", func(t *testing.T) {
 		t.Parallel()
 

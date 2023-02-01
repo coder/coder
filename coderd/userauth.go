@@ -381,6 +381,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		}
 		username = httpapi.UsernameFrom(username)
 	}
+
 	if len(api.OIDCConfig.EmailDomain) > 0 {
 		ok = false
 		for _, domain := range api.OIDCConfig.EmailDomain {
@@ -396,6 +397,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
 	var picture string
 	pictureRaw, ok := claims["picture"]
 	if ok {
