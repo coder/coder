@@ -7342,9 +7342,6 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
-                },
-                "workspace_owner_count": {
-                    "type": "integer"
                 }
             }
         },
