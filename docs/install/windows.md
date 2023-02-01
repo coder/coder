@@ -2,7 +2,7 @@
 
 Use the Windows installer to download the CLI and add Coder to `PATH`. Alternatively, you can install Coder on Windows via a [standalone binary](./binary.md).
 
-1. Download the Windows installer from [GitHub releases](https://github.com/coder/coder/releases) or from `winget`
+1. Download the Windows installer from [GitHub releases](https://github.com/coder/coder/releases/latest) or from `winget`
 
    ```powershell
     winget install Coder.Coder

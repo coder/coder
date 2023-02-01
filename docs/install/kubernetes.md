@@ -2,7 +2,7 @@
 
 Before proceeding, please ensure that you have a Kubernetes cluster running K8s 1.19+ and have Helm 3.5+ installed.
 
-You'll also want to install the [latest version of Coder](https://github.com/coder/coder/releases) locally in order
+You'll also want to install the [latest version of Coder](https://github.com/coder/coder/releases/latest) locally in order
 to log in and manage templates.
 
 ## Install Coder with Helm

@@ -1,6 +1,6 @@
-Coder publishes self-contained .zip and .tar.gz archives in [GitHub releases](https://github.com/coder/coder/releases). The archives bundle `coder` binary.
+Coder publishes self-contained .zip and .tar.gz archives in [GitHub releases](https://github.com/coder//latest). The archives bundle `coder` binary.
 
-1. Download the [release archive](https://github.com/coder/coder/releases) appropriate for your operating system
+1. Download the [release archive](https://github.com/coder/coder/releases/latest) appropriate for your operating system
 
 1. Unzip the folder you just downloaded, and move the `coder` executable to a location that's on your `PATH`
 
