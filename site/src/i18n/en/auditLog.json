@@ -14,7 +14,8 @@
       "browser": "Browser: ",
       "notAvailable": "Not available",
       "onBehalfOf": " on behalf of {{owner}}",
-      "buildReason": "Coder automatically"
+      "buildReason": "Coder automatically",
+      "unknownUser": "An unknown user"
     }
   },
   "paywall": {

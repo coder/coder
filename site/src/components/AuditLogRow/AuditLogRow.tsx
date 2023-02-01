@@ -93,7 +93,7 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
               className={styles.fullWidth}
             >
               <UserAvatar
-                username={auditLog.user?.username ?? ""}
+                username={auditLog.user?.username ?? "?"}
                 avatarURL={auditLog.user?.avatar_url}
               />
 
