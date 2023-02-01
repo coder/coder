@@ -353,6 +353,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	var groups []string
 	groupsRaw, ok := claims["groups"]
 	if ok {
+		// Convert the []interface{} we get to a []string.
 		groupsInterface, ok := groupsRaw.([]interface{})
 		if ok {
 			for _, groupInterface := range groupsInterface {
@@ -586,32 +587,10 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		}
 
 		// Ensure groups are correct.
-		if len(params.Groups) > 0 {
-			orgs, err := tx.GetOrganizationsByUserID(ctx, user.ID)
+		if len(params.Groups) > 0 && api.Options.SetUserGroups != nil {
+			err := api.Options.SetUserGroups(ctx, tx, user.ID, params.Groups)
 			if err != nil {
-				return xerrors.Errorf("get user orgs: %w", err)
-			}
-			if len(orgs) != 1 {
-				return xerrors.Errorf("expected 1 org, got %d", len(orgs))
-			}
-
-			// Delete all groups the user belongs to.
-			err = tx.DeleteGroupMembersByOrgAndUser(ctx, database.DeleteGroupMembersByOrgAndUserParams{
-				UserID:         user.ID,
-				OrganizationID: orgs[0].ID,
-			})
-			if err != nil {
-				return xerrors.Errorf("delete user groups: %w", err)
-			}
-
-			// Re-add the user to all groups returned by the auth provider.
-			err = tx.InsertUserGroupsByName(ctx, database.InsertUserGroupsByNameParams{
-				UserID:         user.ID,
-				OrganizationID: orgs[0].ID,
-				GroupNames:     params.Groups,
-			})
-			if err != nil {
-				return xerrors.Errorf("insert user groups: %w", err)
+				return xerrors.Errorf("set user groups: %w", err)
 			}
 		}
 

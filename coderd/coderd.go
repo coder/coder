@@ -115,6 +115,7 @@ type Options struct {
 	DERPServer         *derp.Server
 	DERPMap            *tailcfg.DERPMap
 	SwaggerEndpoint    bool
+	SetUserGroups      func(ctx context.Context, tx database.Store, userID uuid.UUID, groupNames []string) error
 
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
 	// Setting a rate limit <0 will disable the rate limiter across the entire
