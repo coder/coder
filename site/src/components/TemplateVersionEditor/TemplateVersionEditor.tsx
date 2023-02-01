@@ -34,7 +34,7 @@ export interface TemplateVersionEditorProps {
   onUpdate: () => void
 }
 
-const topbarHeight = 90
+const topbarHeight = navHeight
 
 export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   template,
@@ -85,7 +85,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   return (
     <div className={styles.root}>
       <div className={styles.topbar}>
-        <div>
+        <div className={styles.topbarSides}>
           Edit Template
           <AvatarData
             title={template.display_name || template.name}
@@ -99,7 +99,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
           <div>Used By: {template.active_user_count} developers</div>
         </div>
 
-        <div>
+        <div className={styles.topbarSides}>
           <Button variant="text">Cancel Changes</Button>
           <Button
             variant="outlined"
@@ -198,8 +198,14 @@ const useStyles = makeStyles((theme) => ({
     padding: theme.spacing(2),
     borderBottom: `1px solid ${theme.palette.divider}`,
     display: "flex",
+    alignItems: "center",
     justifyContent: "space-between",
     height: topbarHeight,
+  },
+  topbarSides: {
+    display: "flex",
+    alignItems: "center",
+    gap: 16,
   },
   panelDivider: {
     height: 1,
