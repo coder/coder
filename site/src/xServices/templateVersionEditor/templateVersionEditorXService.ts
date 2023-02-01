@@ -58,6 +58,7 @@ export const templateVersionEditorMachine = createMachine(
         },
       },
       updatingActiveVersion: {
+        tags: "loading",
         invoke: {
           id: "updateActiveVersion",
           src: "updateActiveVersion",
@@ -67,6 +68,7 @@ export const templateVersionEditorMachine = createMachine(
         },
       },
       uploadTar: {
+        tags: "loading",
         invoke: {
           id: "uploadTar",
           src: "uploadTar",
@@ -77,6 +79,7 @@ export const templateVersionEditorMachine = createMachine(
         },
       },
       creatingBuild: {
+        tags: "loading",
         invoke: {
           id: "createBuild",
           src: "createBuild",
@@ -87,6 +90,7 @@ export const templateVersionEditorMachine = createMachine(
         },
       },
       watchingBuildLogs: {
+        tags: "loading",
         invoke: {
           id: "watchBuildLogs",
           src: "watchBuildLogs",
@@ -109,6 +113,7 @@ export const templateVersionEditorMachine = createMachine(
         },
       },
       fetchingVersion: {
+        tags: "loading",
         invoke: {
           id: "fetchVersion",
           src: "fetchVersion",
@@ -119,6 +124,7 @@ export const templateVersionEditorMachine = createMachine(
         },
       },
       fetchResources: {
+        tags: "loading",
         invoke: {
           id: "getResources",
           src: "getResources",

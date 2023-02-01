@@ -22,7 +22,7 @@ export const TemplateVersionEditorPage: FC = () => {
     context: { templateName, versionName, orgId },
   })
   const [editorState, sendEvent] = useMachine(templateVersionEditorMachine, {
-    context: { orgId }
+    context: { orgId },
   })
   const { t } = useTranslation("templateVersionPage")
 
@@ -34,31 +34,39 @@ export const TemplateVersionEditorPage: FC = () => {
         </title>
       </Helmet>
 
-      {versionState.context.template && versionState.context.currentFiles && versionState.context.currentVersion && (
-        <TemplateVersionEditor
-          template={versionState.context.template}
-          templateVersion={editorState.context.version || versionState.context.currentVersion}
-          initialFiles={versionState.context.currentFiles}
-          onPreview={(files) => {
-            if (!versionState.context.template) {
-              throw new Error("no template")
+      {versionState.context.template &&
+        versionState.context.currentFiles &&
+        versionState.context.currentVersion && (
+          <TemplateVersionEditor
+            template={versionState.context.template}
+            templateVersion={
+              editorState.context.version || versionState.context.currentVersion
             }
-            sendEvent({
-              type: "CREATE_BUILD",
-              files: files,
-              templateId: versionState.context.template.id,
-            })
-          }}
-          onUpdate={() => {
-            sendEvent({
-              type: "UPDATE_ACTIVE",
-            })
-            console.log("We made a new version active")
-          }}
-          resources={editorState.context.resources}
-          buildLogs={editorState.context.buildLogs}
-        />
-      )}
+            initialFiles={versionState.context.currentFiles}
+            onPreview={(files) => {
+              if (!versionState.context.template) {
+                throw new Error("no template")
+              }
+              sendEvent({
+                type: "CREATE_BUILD",
+                files: files,
+                templateId: versionState.context.template.id,
+              })
+            }}
+            onUpdate={() => {
+              sendEvent({
+                type: "UPDATE_ACTIVE",
+              })
+            }}
+            disablePreview={editorState.hasTag("loading")}
+            disableUpdate={
+              editorState.hasTag("loading") ||
+              editorState.context.version?.job.status !== "succeeded"
+            }
+            resources={editorState.context.resources}
+            buildLogs={editorState.context.buildLogs}
+          />
+        )}
     </>
   )
 }

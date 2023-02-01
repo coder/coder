@@ -1,5 +1,6 @@
+import Tooltip from "@material-ui/core/Tooltip"
 import Button from "@material-ui/core/Button"
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles, Theme } from "@material-ui/core/styles"
 import {
   ProvisionerJobLog,
   Template,
@@ -10,11 +11,13 @@ import { Avatar } from "components/Avatar/Avatar"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { TemplateResourcesTable } from "components/TemplateResourcesTable/TemplateResourcesTable"
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
-import { FC, useEffect, useState } from "react"
+import { FC, useCallback, useEffect, useState } from "react"
 import { navHeight } from "theme/constants"
 import { TemplateVersionFiles } from "util/templateVersion"
 import { FileTree } from "./FileTree"
 import { MonacoEditor } from "./MonacoEditor"
+import Tab from "@material-ui/core/Tab"
+import Tabs from "@material-ui/core/Tabs"
 
 interface File {
   path: string
@@ -30,6 +33,11 @@ export interface TemplateVersionEditorProps {
   buildLogs?: ProvisionerJobLog[]
   resources?: WorkspaceResource[]
 
+  disablePreview: boolean
+  disableUpdate: boolean
+
+  loading: boolean
+
   onPreview: (files: TemplateVersionFiles) => void
   onUpdate: () => void
 }
@@ -37,6 +45,8 @@ export interface TemplateVersionEditorProps {
 const topbarHeight = navHeight
 
 export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
+  disablePreview,
+  disableUpdate,
   template,
   templateVersion,
   initialFiles,
@@ -45,7 +55,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   buildLogs,
   resources,
 }) => {
-  const styles = useStyles()
+  const [selectedTab, setSelectedTab] = useState(0)
   const [files, setFiles] = useState(initialFiles)
   const [activeFile, setActiveFile] = useState<File | undefined>(() => {
     const fileKeys = Object.keys(initialFiles)
@@ -59,6 +69,11 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
       }
     }
   })
+  const triggerPreview = useCallback(() => {
+    onPreview(files)
+    // Switch to the build log!
+    setSelectedTab(0)
+  }, [files, onPreview])
   useEffect(() => {
     const keyListener = (event: KeyboardEvent) => {
       if (!(navigator.platform.match("Mac") ? event.metaKey : event.ctrlKey)) {
@@ -71,7 +86,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
           break
         case "Enter":
           event.preventDefault()
-          onPreview(files)
+          triggerPreview()
           break
       }
     }
@@ -79,8 +94,12 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
     return () => {
       document.removeEventListener("keydown", keyListener)
     }
-  }, [files, onPreview])
+  }, [files, triggerPreview])
   const hasIcon = template.icon && template.icon !== ""
+  const templateVersionSucceeded = templateVersion.job.status === "succeeded"
+  const styles = useStyles({
+    templateVersionSucceeded,
+  })
 
   return (
     <div className={styles.root}>
@@ -100,27 +119,35 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
         </div>
 
         <div className={styles.topbarSides}>
-          <Button variant="text">Cancel Changes</Button>
           <Button
+            size="small"
             variant="outlined"
             color="primary"
+            disabled={disablePreview}
             onClick={() => {
-              onPreview(files)
+              triggerPreview()
             }}
           >
             Preview (Ctrl + Enter)
           </Button>
 
-          <Button
-            variant="contained"
-            color="primary"
-            disabled={templateVersion.job.status !== "succeeded"}
-            onClick={() => {
-              onUpdate()
-            }}
+          <Tooltip
+            title={
+              templateVersion.job.status !== "succeeded" ? "Something" : ""
+            }
           >
-            Update
-          </Button>
+            <Button
+              size="small"
+              variant="contained"
+              color="primary"
+              disabled={disableUpdate}
+              onClick={() => {
+                onUpdate()
+              }}
+            >
+              Update Template
+            </Button>
+          </Tooltip>
         </div>
       </div>
 
@@ -152,41 +179,53 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
           </div>
 
           <div className={styles.panelWrapper}>
-            <div className={styles.panel}>
-              <div className={styles.tabBar}>Build Logs</div>
+            <Tabs
+              value={selectedTab}
+              onChange={(_, value) => {
+                setSelectedTab(value)
+              }}
+            >
+              <Tab label="Build Logs" />
+              <Tab disabled={disableUpdate} label="Resources" />
+            </Tabs>
 
-              <div className={styles.buildLogs}>
-                {buildLogs && <WorkspaceBuildLogs logs={buildLogs} />}
-                {templateVersion.job.error && (
-                  <div className={styles.buildLogError}>
-                    {templateVersion.job.error}
-                  </div>
-                )}
-              </div>
+            <div className={`${styles.panel} ${styles.buildLogs} ${selectedTab === 0 ? "" : "hidden"}`}>
+              {buildLogs && <WorkspaceBuildLogs logs={buildLogs} />}
+              {templateVersion.job.error && (
+                <div className={styles.buildLogError}>
+                  {templateVersion.job.error}
+                </div>
+              )}
             </div>
 
-            <div className={styles.panelDivider} />
-
-            <div className={styles.panel}>
-              <div className={`${styles.tabBar} top`}>Resources</div>
-              <div className={styles.resources}>
-                {resources && (
-                  <TemplateResourcesTable
-                    resources={resources.filter(
-                      (r) => r.workspace_transition === "start",
-                    )}
-                  />
-                )}
-              </div>
+            <div className={`${styles.panel} ${styles.resources} ${selectedTab === 1 ? "" : "hidden"}`}>
+              {resources && (
+                <TemplateResourcesTable
+                  resources={resources.filter(
+                    (r) => r.workspace_transition === "start",
+                  )}
+                />
+              )}
             </div>
           </div>
+
+          {templateVersionSucceeded && (
+            <>
+              <div className={styles.panelDivider} />
+            </>
+          )}
         </div>
       </div>
     </div>
   )
 }
 
-const useStyles = makeStyles((theme) => ({
+const useStyles = makeStyles<
+  Theme,
+  {
+    templateVersionSucceeded: boolean
+  }
+>((theme) => ({
   root: {
     height: `calc(100vh - ${navHeight}px)`,
     background: theme.palette.background.default,
@@ -206,10 +245,6 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     alignItems: "center",
     gap: 16,
-  },
-  panelDivider: {
-    height: 1,
-    background: theme.palette.divider,
   },
   sidebarAndEditor: {
     display: "flex",
@@ -238,13 +273,13 @@ const useStyles = makeStyles((theme) => ({
     flex: 1,
     display: "flex",
     flexDirection: "column",
+    borderLeft: `1px solid ${theme.palette.divider}`,
+    overflowY: "auto",
   },
   panel: {
-    height: "50%",
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    borderLeft: `1px solid ${theme.palette.divider}`,
+    "&.hidden": {
+      display: "none",
+    },
   },
   tabBar: {
     padding: "8px 16px",
