@@ -20,8 +20,16 @@ const { t } = i18next
 
 const nameLabelText = t("nameLabel", { ns: "createWorkspacePage" })
 const createWorkspaceText = t("createWorkspace", { ns: "createWorkspacePage" })
-const validationNumberNotInRangeText = t("validationNumberNotInRange", { ns: "createWorkspacePage", min: "1", max: "3" })
-const validationPatternNotMatched = t("validationPatternNotMatched", { ns: "createWorkspacePage", error: MockTemplateVersionParameter3.validation_error, pattern: "^[a-z]{3}$" })
+const validationNumberNotInRangeText = t("validationNumberNotInRange", {
+  ns: "createWorkspacePage",
+  min: "1",
+  max: "3",
+})
+const validationPatternNotMatched = t("validationPatternNotMatched", {
+  ns: "createWorkspacePage",
+  error: MockTemplateVersionParameter3.validation_error,
+  pattern: "^[a-z]{3}$",
+})
 
 const renderCreateWorkspacePage = () => {
   return renderWithAuth(<CreateWorkspacePage />, {
