@@ -3,6 +3,7 @@ import Editor from "@monaco-editor/react"
 import { FC, useLayoutEffect, useState } from "react"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 import { hslToHex } from "util/colors"
+import type { editor } from "monaco-editor"
 
 export const MonacoEditor: FC<{
   value?: string
@@ -11,15 +12,16 @@ export const MonacoEditor: FC<{
   onChange?: (value: string) => void
 }> = ({ onChange, value, language, path }) => {
   const theme = useTheme()
-  const [editor, setEditor] = useState<any>()
+  const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>()
   useLayoutEffect(() => {
     if (!editor) {
       return
     }
-    console.log("Editor", editor)
-    ;(window as any).editor = editor
     const resizeListener = () => {
-      editor.layout({})
+      editor.layout({
+        height: 0,
+        width: 0,
+      })
     }
     window.addEventListener("resize", resizeListener)
     return () => {
@@ -45,6 +47,9 @@ export const MonacoEditor: FC<{
         }
       }}
       onMount={(editor, monaco) => {
+        // This jank allows for Ctrl + Enter to work outside the editor.
+        // We use this keybind to trigger a build.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Private type in Monaco!
         ;(editor as any)._standaloneKeybindingService.addDynamicKeybinding(`-editor.action.insertLineAfter`, undefined, () => {
           //
         })

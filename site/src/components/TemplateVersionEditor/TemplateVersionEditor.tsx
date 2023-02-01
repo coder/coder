@@ -36,8 +36,6 @@ export interface TemplateVersionEditorProps {
   disablePreview: boolean
   disableUpdate: boolean
 
-  loading: boolean
-
   onPreview: (files: TemplateVersionFiles) => void
   onUpdate: () => void
 }
@@ -105,7 +103,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
     <div className={styles.root}>
       <div className={styles.topbar}>
         <div className={styles.topbarSides}>
-          Edit Template
           <AvatarData
             title={template.display_name || template.name}
             subtitle={template.description}
@@ -153,7 +150,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
       <div className={styles.sidebarAndEditor}>
         <div className={styles.sidebar}>
-          <div className={styles.sidebarTitle}>File Explorer</div>
+          <div className={styles.sidebarTitle}>Template Editor</div>
           <FileTree
             files={files}
             onSelect={(file) => setActiveFile(file)}
