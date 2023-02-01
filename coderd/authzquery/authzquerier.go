@@ -52,7 +52,7 @@ func (q *AuthzQuerier) InTx(function func(querier database.Store) error, txOpts 
 
 // authorizeContext is a helper function to authorize an action on an object.
 func (q *AuthzQuerier) authorizeContext(ctx context.Context, action rbac.Action, object rbac.Objecter) error {
-	act, ok := actorFromContext(ctx)
+	act, ok := ActorFromContext(ctx)
 	if !ok {
 		return xerrors.Errorf("no authorization actor in context")
 	}

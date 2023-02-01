@@ -258,6 +258,23 @@ func (q *AuthzQuerier) GetWorkspaceResourceMetadataByResourceIDs(ctx context.Con
 func (q *AuthzQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.WorkspaceResource, error) {
 	build, err := q.database.GetWorkspaceBuildByJobID(ctx, jobID)
 	if err != nil {
+		job, err := q.database.GetProvisionerJobByID(ctx, jobID)
+		if err == nil && job.Type == database.ProvisionerJobTypeTemplateVersionDryRun {
+			// TODO: We should really remove this branch path. It is kinda jank.
+			// This is really annoying, but if a job is a dry run, there is no workspace
+			// for this job. So we need to make up an rbac object for the workspace.
+			tv, err := authorizedTemplateVersionFromJob(ctx, q, job)
+			if err != nil {
+				return nil, err
+			}
+
+			err = q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceWorkspace.InOrg(tv.OrganizationID).WithOwner(job.InitiatorID.String()))
+			if err != nil {
+				return nil, err
+			}
+
+			return q.database.GetWorkspaceResourcesByJobID(ctx, jobID)
+		}
 		return nil, err
 	}
 

@@ -53,10 +53,10 @@ func WithWorkspaceAgentTokenContext(ctx context.Context, workspaceID uuid.UUID, 
 	})
 }
 
-// actorFromContext returns the authorization subject from the context.
+// ActorFromContext returns the authorization subject from the context.
 // All authentication flows should set the authorization subject in the context.
 // If no actor is present, the function returns false.
-func actorFromContext(ctx context.Context) (rbac.Subject, bool) {
+func ActorFromContext(ctx context.Context) (rbac.Subject, bool) {
 	a, ok := ctx.Value(authContextKey{}).(rbac.Subject)
 	return a, ok
 }

@@ -38,7 +38,7 @@ func (q *AuthzQuerier) UpdateProvisionerJobWithCancelByID(ctx context.Context, a
 		// Would be nice to have a way in the rbac rego to do this.
 		if !template.AllowUserCancelWorkspaceJobs {
 			// Only owners can cancel workspace builds
-			actor, ok := actorFromContext(ctx)
+			actor, ok := ActorFromContext(ctx)
 			if !ok {
 				return xerrors.Errorf("no actor in context")
 			}

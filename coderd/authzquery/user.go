@@ -76,7 +76,7 @@ func (q *AuthzQuerier) GetUsersWithCount(ctx context.Context, arg database.GetUs
 		return []database.User{}, 0, nil
 	}
 
-	act, ok := actorFromContext(ctx)
+	act, ok := ActorFromContext(ctx)
 	if !ok {
 		return nil, -1, xerrors.Errorf("no authorization actor in context")
 	}

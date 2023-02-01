@@ -38,7 +38,7 @@ func authorizedInsertWithReturn[ObjectType any, ArgumentType any,
 
 	return func(ctx context.Context, arg ArgumentType) (empty ObjectType, err error) {
 		// Fetch the rbac subject
-		act, ok := actorFromContext(ctx)
+		act, ok := ActorFromContext(ctx)
 		if !ok {
 			return empty, xerrors.Errorf("no authorization actor in context")
 		}
@@ -123,7 +123,7 @@ func authorizedFetchAndQuery[ObjectType rbac.Objecter, ArgumentType any,
 
 	return func(ctx context.Context, arg ArgumentType) (empty ObjectType, err error) {
 		// Fetch the rbac subject
-		act, ok := actorFromContext(ctx)
+		act, ok := ActorFromContext(ctx)
 		if !ok {
 			return empty, xerrors.Errorf("no authorization actor in context")
 		}
@@ -172,7 +172,7 @@ func authorizedQuery[ArgumentType any, ObjectType rbac.Objecter,
 
 	return func(ctx context.Context, arg ArgumentType) (empty ObjectType, err error) {
 		// Fetch the rbac subject
-		act, ok := actorFromContext(ctx)
+		act, ok := ActorFromContext(ctx)
 		if !ok {
 			return empty, xerrors.Errorf("no authorization actor in context")
 		}
@@ -203,7 +203,7 @@ func authorizedFetchSet[ArgumentType any, ObjectType rbac.Objecter,
 
 	return func(ctx context.Context, arg ArgumentType) (empty []ObjectType, err error) {
 		// Fetch the rbac subject
-		act, ok := actorFromContext(ctx)
+		act, ok := ActorFromContext(ctx)
 		if !ok {
 			return empty, xerrors.Errorf("no authorization actor in context")
 		}
@@ -234,7 +234,7 @@ func authorizedQueryWithRelated[ObjectType any, ArgumentType any, Related rbac.O
 
 	return func(ctx context.Context, arg ArgumentType) (empty ObjectType, err error) {
 		// Fetch the rbac subject
-		act, ok := actorFromContext(ctx)
+		act, ok := ActorFromContext(ctx)
 		if !ok {
 			return empty, xerrors.Errorf("no authorization actor in context")
 		}
@@ -264,7 +264,7 @@ func authorizedQueryWithRelated[ObjectType any, ArgumentType any, Related rbac.O
 // prepareSQLFilter is a helper function that prepares a SQL filter using the
 // given authorization context.
 func prepareSQLFilter(ctx context.Context, authorizer rbac.Authorizer, action rbac.Action, resourceType string) (rbac.PreparedAuthorized, error) {
-	act, ok := actorFromContext(ctx)
+	act, ok := ActorFromContext(ctx)
 	if !ok {
 		return nil, xerrors.Errorf("no authorization actor in context")
 	}
