@@ -270,8 +270,8 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 
-		require.Len(t, auditor.AuditLogs, 4)
-		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[3].Action)
+		require.Len(t, auditor.AuditLogs, 5)
+		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[4].Action)
 	})
 
 	t.Run("CreateWithDeletedTemplate", func(t *testing.T) {
@@ -1283,8 +1283,8 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 			interval := next.Sub(testCase.at)
 			require.Equal(t, testCase.expectedInterval, interval, "unexpected interval")
 
-			require.Len(t, auditor.AuditLogs, 6)
-			assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[5].Action)
+			require.Len(t, auditor.AuditLogs, 7)
+			assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[6].Action)
 		})
 	}
 
@@ -1398,8 +1398,8 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 
 			require.Equal(t, testCase.ttlMillis, updated.TTLMillis, "expected autostop ttl to equal requested")
 
-			require.Len(t, auditor.AuditLogs, 6)
-			assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[5].Action)
+			require.Len(t, auditor.AuditLogs, 7)
+			assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[6].Action)
 		})
 	}
 
