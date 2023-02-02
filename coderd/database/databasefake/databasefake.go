@@ -611,6 +611,12 @@ func (q *fakeQuerier) GetAuthorizedUserCount(ctx context.Context, params databas
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	// Call this to match the same function calls as the SQL implementation.
+	_, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL())
+	if err != nil {
+		return nil, err
+	}
+
 	users := make([]database.User, 0, len(q.users))
 
 	for _, user := range q.users {
@@ -889,6 +895,7 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	// Call this to match the same function calls as the SQL implementation.
 	_, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL())
 	if err != nil {
 		return nil, err
@@ -1699,6 +1706,12 @@ func (q *fakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.G
 
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
+
+	// Call this to match the same function calls as the SQL implementation.
+	_, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL())
+	if err != nil {
+		return nil, err
+	}
 
 	var templates []database.Template
 	for _, template := range q.templates {
