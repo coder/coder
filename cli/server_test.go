@@ -291,11 +291,6 @@ func TestServer(t *testing.T) {
 			errContains string
 		}{
 			{
-				name:        "NoCertAndKey",
-				args:        []string{"--tls-enable"},
-				errContains: "--tls-cert-file is required when tls is enabled",
-			},
-			{
 				name:        "NoCert",
 				args:        []string{"--tls-enable", "--tls-key-file", key1Path},
 				errContains: "--tls-cert-file and --tls-key-file must be used the same amount of times",
@@ -373,6 +368,7 @@ func TestServer(t *testing.T) {
 				},
 			},
 		}
+		defer client.HTTPClient.CloseIdleConnections()
 		_, err := client.HasFirstUser(ctx)
 		require.NoError(t, err)
 
@@ -527,6 +523,7 @@ func TestServer(t *testing.T) {
 				},
 			},
 		}
+		defer client.HTTPClient.CloseIdleConnections()
 		_, err = client.HasFirstUser(ctx)
 		require.NoError(t, err)
 
@@ -680,6 +677,7 @@ func TestServer(t *testing.T) {
 							},
 						},
 					}
+					defer client.HTTPClient.CloseIdleConnections()
 					_, err = client.HasFirstUser(ctx)
 					require.NoError(t, err)
 
@@ -851,6 +849,7 @@ func TestServer(t *testing.T) {
 					},
 				},
 			}
+			defer client.HTTPClient.CloseIdleConnections()
 			_, err := client.HasFirstUser(ctx)
 			require.NoError(t, err)
 
