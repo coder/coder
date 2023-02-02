@@ -1,6 +1,10 @@
 package rbac
 
-import "github.com/open-policy-agent/opa/rego"
+import (
+	"errors"
+
+	"github.com/open-policy-agent/opa/rego"
+)
 
 const (
 	// errUnauthorized is the error message that should be returned to
@@ -16,6 +20,12 @@ type UnauthorizedError struct {
 	internal error
 	input    map[string]interface{}
 	output   rego.ResultSet
+}
+
+// IsUnauthorizedError is a convenience function to check if err is UnauthorizedError.
+// It is equivalent to errors.As(err, &UnauthorizedError{}).
+func IsUnauthorizedError(err error) bool {
+	return errors.As(err, &UnauthorizedError{})
 }
 
 // ForbiddenWithInternal creates a new error that will return a simple
@@ -49,4 +59,12 @@ func (e *UnauthorizedError) Input() map[string]interface{} {
 // Output contains the results of the Rego query for debugging.
 func (e *UnauthorizedError) Output() rego.ResultSet {
 	return e.output
+}
+
+// As implements the errors.As interface.
+func (*UnauthorizedError) As(target interface{}) bool {
+	if _, ok := target.(*UnauthorizedError); ok {
+		return true
+	}
+	return false
 }

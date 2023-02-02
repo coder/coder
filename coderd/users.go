@@ -966,7 +966,7 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 	ctx := r.Context()
 	organizationName := chi.URLParam(r, "organizationname")
 	organization, err := api.Database.GetOrganizationByName(ctx, organizationName)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) || rbac.IsUnauthorizedError(err) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
