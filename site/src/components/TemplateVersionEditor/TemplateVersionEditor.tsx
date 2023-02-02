@@ -225,11 +225,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 style={{ minWidth: 120 }}
                 label={<div>Build Log {templateVersion.job.status}</div>}
               />
-              <Tab
-                style={{ minWidth: 120 }}
-                disabled={disableUpdate}
-                label="Resources"
-              />
+              {!disableUpdate && (
+                <Tab style={{ minWidth: 120 }} label="Resources" />
+              )}
             </Tabs>
 
             <div
