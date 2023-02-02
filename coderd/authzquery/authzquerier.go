@@ -7,8 +7,6 @@ import (
 
 	"cdr.dev/slog"
 
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/rbac"
 )
@@ -58,12 +56,12 @@ func (q *AuthzQuerier) InTx(function func(querier database.Store) error, txOpts 
 func (q *AuthzQuerier) authorizeContext(ctx context.Context, action rbac.Action, object rbac.Objecter) error {
 	act, ok := ActorFromContext(ctx)
 	if !ok {
-		return xerrors.Errorf("no authorization actor in context")
+		return NoActorError
 	}
 
 	err := q.authorizer.Authorize(ctx, act, action, object.RBACObject())
 	if err != nil {
-		return xerrors.Errorf("unauthorized: %w", err)
+		return LogNotAuthorizedError(ctx, q.logger, err)
 	}
 	return nil
 }
