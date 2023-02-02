@@ -426,8 +426,6 @@ FROM
 	app_usage
 WHERE
 	template_id = $1 AND created_at >= $2 :: date AND created_at <= $3 :: date
-GROUP BY
-	created_at, app_id
 ORDER BY
 	created_at ASC
 `

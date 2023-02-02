@@ -1,6 +1,7 @@
 import { assign, createMachine } from "xstate"
 import {
   checkAuthorization,
+  getTemplateAppUsage,
   getTemplateByName,
   getTemplateDAUs,
   getTemplateVersion,
@@ -234,10 +235,11 @@ export const templateMachine =
 
           return getTemplateVersions(ctx.template.id)
         },
-        getTemplateDAUs: (ctx) => {
+        getTemplateDAUs: async (ctx) => {
           if (!ctx.template) {
             throw new Error("Template not loaded")
           }
+          await getTemplateAppUsage(ctx.template.id)
           return getTemplateDAUs(ctx.template.id)
         },
         getTemplatePermissions: (ctx) => {

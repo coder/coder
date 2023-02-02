@@ -810,3 +810,10 @@ export const getWorkspaceBuildParameters = async (
   )
   return response.data
 }
+
+export const getTemplateAppUsage = async (
+  templateId: string,
+): Promise<TypesGen.TemplateAppUsageResponse> => {
+  const response = await axios.get(`/api/v2/templates/${templateId}/app-usage`)
+  return response.data
+}

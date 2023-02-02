@@ -709,7 +709,9 @@ CREATE INDEX idx_agent_stats_user_id ON agent_stats USING btree (user_id);
 
 CREATE INDEX idx_api_keys_user ON api_keys USING btree (user_id);
 
-CREATE INDEX idx_app_usage_created_at ON agent_stats USING btree (created_at);
+CREATE INDEX idx_app_usage_app_id ON app_usage USING btree (app_id);
+
+CREATE INDEX idx_app_usage_created_at ON app_usage USING btree (created_at);
 
 CREATE INDEX idx_audit_log_organization_id ON audit_logs USING btree (organization_id);
 

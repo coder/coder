@@ -7,4 +7,7 @@ CREATE TABLE IF NOT EXISTS app_usage (
 );
 
 -- We use created_at for DAU analysis and pruning.
-CREATE INDEX idx_app_usage_created_at ON agent_stats USING btree (created_at);
+CREATE INDEX idx_app_usage_created_at ON app_usage USING btree (created_at);
+
+-- We perform app grouping to analyze DAUs.
+CREATE INDEX idx_app_usage_app_id ON app_usage USING btree (app_id);
