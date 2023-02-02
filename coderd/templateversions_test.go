@@ -992,7 +992,7 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 	}
 }
 
-func TestTemplateVersionByOrganizationAndName(t *testing.T) {
+func TestTemplateVersionByOrganizationTemplateAndName(t *testing.T) {
 	t.Parallel()
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()

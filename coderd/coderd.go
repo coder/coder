@@ -398,10 +398,14 @@ func New(options *Options) *API {
 				r.Route("/templates", func(r chi.Router) {
 					r.Post("/", api.postTemplateByOrganization)
 					r.Get("/", api.templatesByOrganization)
-					r.Get("/{templatename}", api.templateByOrganizationAndName)
 					r.Get("/examples", api.templateExamples)
-					r.Get("/versions/{templateversionname}", api.templateVersionByOrganizationTemplateAndName)
-					r.Get("/versions/{templateversionname}/previous", api.templateVersionByOrganizationTemplateAndName)
+					r.Route("/{templatename}", func(r chi.Router) {
+						r.Get("/", api.templateByOrganizationAndName)
+						r.Route("/versions/{templateversionname}", func(r chi.Router) {
+							r.Get("/", api.templateVersionByOrganizationTemplateAndName)
+							r.Get("/previous", api.templateVersionByOrganizationTemplateAndName)
+						})
+					})
 				})
 				r.Route("/members", func(r chi.Router) {
 					r.Get("/roles", api.assignableOrgRoles)
