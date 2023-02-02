@@ -394,11 +394,6 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				cmd.Printf("%s The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL by not specifying an access URL.\n", cliui.Styles.Warn.Render("Warning:"), cliui.Styles.Field.Render(accessURLParsed.String()), reason)
 			}
 
-			if cfg.TLS.RedirectHTTP.Value {
-				cmd.PrintErr(cliui.Styles.Warn.Render("WARN:") + " --tls-redirect-http-to-https is deprecated, please use --redirect-to-access-url instead")
-				cfg.RedirectToAccessURL.Value = cfg.TLS.RedirectHTTP.Value
-			}
-
 			// A newline is added before for visibility in terminal output.
 			cmd.Printf("\nView the Web UI: %s\n", accessURLParsed.String())
 
@@ -770,7 +765,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			// the request is not to a local IP.
 			var handler http.Handler = coderAPI.RootHandler
 			if cfg.RedirectToAccessURL.Value {
-				handler = redirectToAccessURL(handler, accessURLParsed)
+				handler = redirectToAccessURL(handler, accessURLParsed, tunnel != nil)
 			}
 
 			// ReadHeaderTimeout is purposefully not enabled. It caused some
@@ -1518,10 +1513,23 @@ func configureHTTPClient(ctx context.Context, clientCertFile, clientKeyFile stri
 	return ctx, &http.Client{}, nil
 }
 
-func redirectToAccessURL(handler http.Handler, accessURL *url.URL) http.Handler {
+// nolint:revive
+func redirectToAccessURL(handler http.Handler, accessURL *url.URL, tunnel bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Host != accessURL.Host {
+		redirect := func() {
 			http.Redirect(w, r, accessURL.String(), http.StatusTemporaryRedirect)
+		}
+
+		// Only do this if we aren't tunneling.
+		// If we are tunneling, we want to allow the request to go through
+		// because the tunnel doesn't proxy with TLS.
+		if !tunnel && accessURL.Scheme == "https" && r.TLS == nil {
+			redirect()
+			return
+		}
+
+		if r.Host != accessURL.Host {
+			redirect()
 			return
 		}
 
