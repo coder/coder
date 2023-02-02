@@ -240,7 +240,6 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
-
 	aReq.New = key
 
 	http.SetCookie(rw, cookie)
@@ -276,9 +275,18 @@ type OIDCConfig struct {
 // @Router /users/oidc/callback [get]
 func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx   = r.Context()
-		state = httpmw.OAuth2(r)
+		ctx               = r.Context()
+		state             = httpmw.OAuth2(r)
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionLogin,
+		})
 	)
+	aReq.Old = database.APIKey{}
+	defer commitAudit()
 
 	// See the example here: https://github.com/coreos/go-oidc
 	rawIDToken, ok := state.Token.Extra("id_token").(string)
@@ -286,6 +294,9 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "id_token not found in response payload. Ensure your OIDC callback is configured correctly!",
 		})
+		// We pass a disposable user ID just to force an audit diff
+		// and generate a log for a failed login
+		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 
@@ -295,6 +306,9 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			Message: "Failed to verify OIDC token.",
 			Detail:  err.Error(),
 		})
+		// We pass a disposable user ID just to force an audit diff
+		// and generate a log for a failed login
+		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 
@@ -308,6 +322,9 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			Message: "Failed to extract OIDC claims.",
 			Detail:  err.Error(),
 		})
+		// We pass a disposable user ID just to force an audit diff
+		// and generate a log for a failed login
+		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 
@@ -326,6 +343,9 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 				Message: "Failed to unmarshal user info claims.",
 				Detail:  err.Error(),
 			})
+			// We pass a disposable user ID just to force an audit diff
+			// and generate a log for a failed login
+			aReq.New = database.APIKey{UserID: uuid.New()}
 			return
 		}
 		for k, v := range userInfoClaims {
@@ -336,6 +356,9 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			Message: "Failed to obtain user information claims.",
 			Detail:  "The OIDC provider returned no claims as part of the `id_token`. The attempt to fetch claims via the UserInfo endpoint failed: " + err.Error(),
 		})
+		// We pass a disposable user ID just to force an audit diff
+		// and generate a log for a failed login
+		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 
@@ -355,6 +378,9 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "No email found in OIDC payload!",
 			})
+			// We pass a disposable user ID just to force an audit diff
+			// and generate a log for a failed login
+			aReq.New = database.APIKey{UserID: uuid.New()}
 			return
 		}
 		emailRaw = username
@@ -364,6 +390,9 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Email in OIDC payload isn't a string. Got: %t", emailRaw),
 		})
+		// We pass a disposable user ID just to force an audit diff
+		// and generate a log for a failed login
+		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 	verifiedRaw, ok := claims["email_verified"]
@@ -374,6 +403,9 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 				httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 					Message: fmt.Sprintf("Verify the %q email address on your OIDC provider to authenticate!", email),
 				})
+				// We pass a disposable user ID just to force an audit diff
+				// and generate a log for a failed login
+				aReq.New = database.APIKey{UserID: uuid.New()}
 				return
 			}
 			api.Logger.Warn(ctx, "allowing unverified oidc email %q")
@@ -404,6 +436,9 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 				Message: fmt.Sprintf("Your email %q is not in domains %q !", email, api.OIDCConfig.EmailDomain),
 			})
+			// We pass a disposable user ID just to force an audit diff
+			// and generate a log for a failed login
+			aReq.New = database.APIKey{UserID: uuid.New()}
 			return
 		}
 	}
@@ -413,7 +448,22 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		picture, _ = pictureRaw.(string)
 	}
 
-	cookie, _, err := api.oauthLogin(r, oauthLoginParams{
+	user, link, err := findLinkedUser(ctx, api.Database, oidcLinkedID(idToken), email)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to find linked user.",
+			Detail:  err.Error(),
+		})
+		// We pass a disposable user ID just to force an audit diff
+		// and generate a log for a failed login
+		aReq.New = database.APIKey{UserID: uuid.New()}
+		return
+	}
+	aReq.UserID = user.ID
+
+	cookie, key, err := api.oauthLogin(r, oauthLoginParams{
+		User:         user,
+		Link:         link,
 		State:        state,
 		LinkedID:     oidcLinkedID(idToken),
 		LoginType:    database.LoginTypeOIDC,
@@ -428,6 +478,9 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			Message: httpErr.msg,
 			Detail:  httpErr.detail,
 		})
+		// We pass a disposable user ID just to force an audit diff
+		// and generate a log for a failed login
+		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 	if err != nil {
@@ -435,8 +488,12 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			Message: "Failed to process OAuth login.",
 			Detail:  err.Error(),
 		})
+		// We pass a disposable user ID just to force an audit diff
+		// and generate a log for a failed login
+		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
+	aReq.New = key
 
 	http.SetCookie(rw, cookie)
 
@@ -490,11 +547,6 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 
 		user = params.User
 		link = params.Link
-		//
-		// 		user, link, err = findLinkedUser(ctx, tx, params.LinkedID, params.Email)
-		// 		if err != nil {
-		// 			return xerrors.Errorf("find linked user: %w", err)
-		// 		}
 
 		if user.ID == uuid.Nil && !params.AllowSignups {
 			return httpError{

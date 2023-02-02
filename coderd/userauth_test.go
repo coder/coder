@@ -718,6 +718,7 @@ func TestUserOIDC(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
+			auditor := audit.NewMock()
 			conf := coderdtest.NewOIDCConfig(t, "")
 
 			config := conf.OIDCConfig(t, tc.UserInfoClaims)
@@ -726,9 +727,13 @@ func TestUserOIDC(t *testing.T) {
 			config.IgnoreEmailVerified = tc.IgnoreEmailVerified
 
 			client := coderdtest.New(t, &coderdtest.Options{
+				Auditor:    auditor,
 				OIDCConfig: config,
 			})
+			numLogs := len(auditor.AuditLogs)
+
 			resp := oidcCallback(t, client, conf.EncodeClaims(t, tc.IDTokenClaims))
+			numLogs++ // add an audit log for login
 			assert.Equal(t, tc.StatusCode, resp.StatusCode)
 
 			ctx, _ := testutil.Context(t)
@@ -738,6 +743,9 @@ func TestUserOIDC(t *testing.T) {
 				user, err := client.User(ctx, "me")
 				require.NoError(t, err)
 				require.Equal(t, tc.Username, user.Username)
+
+				require.Len(t, auditor.AuditLogs, numLogs)
+				require.Equal(t, database.AuditActionLogin, auditor.AuditLogs[numLogs-1].Action)
 			}
 
 			if tc.AvatarURL != "" {
@@ -745,26 +753,33 @@ func TestUserOIDC(t *testing.T) {
 				user, err := client.User(ctx, "me")
 				require.NoError(t, err)
 				require.Equal(t, tc.AvatarURL, user.AvatarURL)
+
+				require.Len(t, auditor.AuditLogs, numLogs)
+				require.Equal(t, database.AuditActionLogin, auditor.AuditLogs[numLogs-1].Action)
 			}
 		})
 	}
 
 	t.Run("AlternateUsername", func(t *testing.T) {
 		t.Parallel()
-
+		auditor := audit.NewMock()
 		conf := coderdtest.NewOIDCConfig(t, "")
 
 		config := conf.OIDCConfig(t, nil)
 		config.AllowSignups = true
 
 		client := coderdtest.New(t, &coderdtest.Options{
+			Auditor:    auditor,
 			OIDCConfig: config,
 		})
+		numLogs := len(auditor.AuditLogs)
 
 		code := conf.EncodeClaims(t, jwt.MapClaims{
 			"email": "jon@coder.com",
 		})
 		resp := oidcCallback(t, client, code)
+		numLogs++ // add an audit log for login
+
 		assert.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 
 		ctx, _ := testutil.Context(t)
@@ -781,12 +796,17 @@ func TestUserOIDC(t *testing.T) {
 			"sub":   "diff",
 		})
 		resp = oidcCallback(t, client, code)
+		numLogs++ // add an audit log for login
+
 		assert.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 
 		client.SetSessionToken(authCookieValue(resp.Cookies()))
 		user, err = client.User(ctx, "me")
 		require.NoError(t, err)
 		require.True(t, strings.HasPrefix(user.Username, "jon-"), "username %q should have prefix %q", user.Username, "jon-")
+
+		require.Len(t, auditor.AuditLogs, numLogs)
+		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs[numLogs-1].Action)
 	})
 
 	t.Run("Disabled", func(t *testing.T) {
@@ -798,23 +818,33 @@ func TestUserOIDC(t *testing.T) {
 
 	t.Run("NoIDToken", func(t *testing.T) {
 		t.Parallel()
+		auditor := audit.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{
+			Auditor: auditor,
 			OIDCConfig: &coderd.OIDCConfig{
 				OAuth2Config: &oauth2Config{},
 			},
 		})
+		numLogs := len(auditor.AuditLogs)
+
 		resp := oidcCallback(t, client, "asdf")
+		numLogs++ // add an audit log for login
+
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		require.Len(t, auditor.AuditLogs, numLogs)
+		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs[numLogs-1].Action)
 	})
 
 	t.Run("BadVerify", func(t *testing.T) {
 		t.Parallel()
+		auditor := audit.NewMock()
 		verifier := oidc.NewVerifier("", &oidc.StaticKeySet{
 			PublicKeys: []crypto.PublicKey{},
 		}, &oidc.Config{})
 		provider := &oidc.Provider{}
 
 		client := coderdtest.New(t, &coderdtest.Options{
+			Auditor: auditor,
 			OIDCConfig: &coderd.OIDCConfig{
 				OAuth2Config: &oauth2Config{
 					token: (&oauth2.Token{
@@ -827,8 +857,14 @@ func TestUserOIDC(t *testing.T) {
 				Verifier: verifier,
 			},
 		})
+		numLogs := len(auditor.AuditLogs)
+
 		resp := oidcCallback(t, client, "asdf")
+		numLogs++ // add an audit log for login
+
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		require.Len(t, auditor.AuditLogs, numLogs)
+		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs[numLogs-1].Action)
 	})
 }
 
