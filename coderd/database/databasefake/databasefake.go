@@ -614,7 +614,7 @@ func (q *fakeQuerier) GetAuthorizedUserCount(ctx context.Context, params databas
 	// Call this to match the same function calls as the SQL implementation.
 	_, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL())
 	if err != nil {
-		return nil, err
+		return -1, err
 	}
 
 	users := make([]database.User, 0, len(q.users))
