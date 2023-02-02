@@ -44,7 +44,8 @@ func (q *AuthzQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Contex
 	// This should probably be handled differently? Maybe join workspace builds with workspace
 	// ownership properties and filter on that.
 	for _, id := range ids {
-		if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceWorkspace.WithID(id)); err != nil {
+		_, err := q.GetWorkspaceByID(ctx, id)
+		if err != nil {
 			return nil, err
 		}
 	}
