@@ -14,9 +14,12 @@ func (q *AuthzQuerier) DeleteGroupByID(ctx context.Context, id uuid.UUID) error 
 	return authorizedDelete(q.logger, q.authorizer, q.database.GetGroupByID, q.database.DeleteGroupByID)(ctx, id)
 }
 
-func (q *AuthzQuerier) DeleteGroupMember(ctx context.Context, userID uuid.UUID) error {
+func (q *AuthzQuerier) DeleteGroupMemberFromGroup(ctx context.Context, arg database.DeleteGroupMemberFromGroupParams) error {
 	// Deleting a group member counts as updating a group.
-	return authorizedUpdate(q.logger, q.authorizer, q.database.GetGroupByID, q.database.DeleteGroupMember)(ctx, userID)
+	fetch := func(ctx context.Context, arg database.DeleteGroupMemberFromGroupParams) (database.Group, error) {
+		return q.database.GetGroupByID(ctx, arg.GroupID)
+	}
+	return authorizedUpdate(q.logger, q.authorizer, fetch, q.database.DeleteGroupMemberFromGroup)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetGroupByID(ctx context.Context, id uuid.UUID) (database.Group, error) {
