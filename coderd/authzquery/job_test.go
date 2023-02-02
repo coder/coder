@@ -91,4 +91,23 @@ func (suite *MethodTestSuite) TestProvsionerJob() {
 				asserts(v.RBACObject(tpl), []rbac.Action{rbac.ActionRead, rbac.ActionUpdate}))
 		})
 	})
+	suite.Run("GetProvisionerJobsByIDs", func() {
+		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+			a := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{})
+			b := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{})
+			return methodCase(inputs([]uuid.UUID{a.ID, b.ID}), asserts())
+		})
+	})
+	suite.Run("GetProvisionerLogsByIDBetween", func() {
+		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+			w := dbgen.Workspace(t, db, database.Workspace{})
+			j := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+				Type: database.ProvisionerJobTypeWorkspaceBuild,
+			})
+			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: w.ID})
+			return methodCase(inputs(database.GetProvisionerLogsByIDBetweenParams{
+				JobID: j.ID,
+			}), asserts(w, rbac.ActionRead))
+		})
+	})
 }

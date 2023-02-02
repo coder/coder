@@ -100,7 +100,7 @@ func (s *MethodTestSuite) RunMethodTest(testCaseF func(t *testing.T, db database
 	az := authzquery.NewAuthzQuerier(db, rec, slog.Make())
 	actor := rbac.Subject{
 		ID:     uuid.NewString(),
-		Roles:  rbac.RoleNames{},
+		Roles:  rbac.RoleNames{rbac.RoleOwner()},
 		Groups: []string{},
 		Scope:  rbac.ScopeAll,
 	}
@@ -254,4 +254,21 @@ func asserts(inputs ...any) []AssertRBAC {
 		})
 	}
 	return out
+}
+
+func (suite *MethodTestSuite) TestExtraMethods() {
+	suite.Run("GetProvisionerDaemons", func() {
+		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+			d, err := db.InsertProvisionerDaemon(context.Background(), database.InsertProvisionerDaemonParams{
+				ID: uuid.New(),
+			})
+			require.NoError(t, err, "insert provisioner daemon")
+			return methodCase(inputs(), asserts(d, rbac.ActionRead))
+		})
+	})
+	suite.Run("GetDeploymentDAUs", func() {
+		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+			return methodCase(inputs(), asserts(rbac.ResourceUser.All(), rbac.ActionRead))
+		})
+	})
 }
