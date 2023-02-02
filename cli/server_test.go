@@ -541,6 +541,7 @@ func TestServer(t *testing.T) {
 			name         string
 			httpListener bool
 			tlsListener  bool
+			redirect     bool
 			accessURL    string
 			// Empty string means no redirect.
 			expectRedirect string
@@ -549,8 +550,16 @@ func TestServer(t *testing.T) {
 				name:           "OK",
 				httpListener:   true,
 				tlsListener:    true,
+				redirect:       true,
 				accessURL:      "https://example.com",
 				expectRedirect: "https://example.com",
+			},
+			{
+				name:           "NoRedirect",
+				httpListener:   true,
+				tlsListener:    true,
+				accessURL:      "https://example.com",
+				expectRedirect: "",
 			},
 			{
 				name:           "NoTLSListener",
@@ -599,6 +608,9 @@ func TestServer(t *testing.T) {
 				}
 				if c.accessURL != "" {
 					flags = append(flags, "--access-url", c.accessURL)
+				}
+				if c.redirect {
+					flags = append(flags, "--redirect-to-access-url")
 				}
 
 				root, _ := clitest.New(t, flags...)
@@ -652,17 +664,19 @@ func TestServer(t *testing.T) {
 
 				// Verify TLS
 				if c.tlsListener {
-					tlsURL, err := url.Parse(tlsAddr)
+					accessURLParsed, err := url.Parse(c.accessURL)
 					require.NoError(t, err)
-					client := codersdk.New(tlsURL)
+					client := codersdk.New(accessURLParsed)
 					client.HTTPClient = &http.Client{
 						CheckRedirect: func(req *http.Request, via []*http.Request) error {
 							return http.ErrUseLastResponse
 						},
 						Transport: &http.Transport{
-							TLSClientConfig: &tls.Config{
-								//nolint:gosec
-								InsecureSkipVerify: true,
+							DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+								return tls.Dial(network, strings.TrimPrefix(tlsAddr, "https://"), &tls.Config{
+									// nolint:gosec
+									InsecureSkipVerify: true,
+								})
 							},
 						},
 					}
