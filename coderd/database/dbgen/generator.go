@@ -210,6 +210,19 @@ func Group(t *testing.T, db database.Store, orig database.Group) database.Group 
 	return group
 }
 
+func GroupMember(t *testing.T, db database.Store, orig database.GroupMember) database.GroupMember {
+	member := database.GroupMember{
+		UserID:  takeFirst(orig.UserID, uuid.New()),
+		GroupID: takeFirst(orig.GroupID, uuid.New()),
+	}
+	err := db.InsertGroupMember(context.Background(), database.InsertGroupMemberParams{
+		UserID:  member.UserID,
+		GroupID: member.GroupID,
+	})
+	require.NoError(t, err, "insert group member")
+	return member
+}
+
 func ProvisionerJob(t *testing.T, db database.Store, orig database.ProvisionerJob) database.ProvisionerJob {
 	job, err := db.InsertProvisionerJob(context.Background(), database.InsertProvisionerJobParams{
 		ID:             takeFirst(orig.ID, uuid.New()),
