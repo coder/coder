@@ -1272,41 +1272,6 @@ func (q *fakeQuerier) GetWorkspaceAppsByAgentIDs(_ context.Context, ids []uuid.U
 	return apps, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceOwnerCountsByTemplateIDs(_ context.Context, templateIDs []uuid.UUID) ([]database.GetWorkspaceOwnerCountsByTemplateIDsRow, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	counts := map[uuid.UUID]map[uuid.UUID]struct{}{}
-	for _, templateID := range templateIDs {
-		counts[templateID] = map[uuid.UUID]struct{}{}
-		for _, workspace := range q.workspaces {
-			if workspace.TemplateID != templateID {
-				continue
-			}
-			if workspace.Deleted {
-				continue
-			}
-			countByOwnerID, ok := counts[templateID]
-			if !ok {
-				countByOwnerID = map[uuid.UUID]struct{}{}
-			}
-			countByOwnerID[workspace.OwnerID] = struct{}{}
-			counts[templateID] = countByOwnerID
-		}
-	}
-	res := make([]database.GetWorkspaceOwnerCountsByTemplateIDsRow, 0)
-	for key, value := range counts {
-		res = append(res, database.GetWorkspaceOwnerCountsByTemplateIDsRow{
-			TemplateID: key,
-			Count:      int64(len(value)),
-		})
-	}
-	if len(res) == 0 {
-		return nil, sql.ErrNoRows
-	}
-	return res, nil
-}
-
 func (q *fakeQuerier) GetWorkspaceBuildByID(_ context.Context, id uuid.UUID) (database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

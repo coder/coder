@@ -4240,8 +4240,7 @@ Parameter represents a set value for the scope.
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "workspace_owner_count": 0
+  "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -4265,7 +4264,6 @@ Parameter represents a set value for the scope.
 | `organization_id`                  | string                                                             | false    |              |                                              |
 | `provisioner`                      | string                                                             | false    |              |                                              |
 | `updated_at`                       | string                                                             | false    |              |                                              |
-| `workspace_owner_count`            | integer                                                            | false    |              |                                              |
 
 #### Enumerated Values
 

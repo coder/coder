@@ -6477,48 +6477,6 @@ func (q *sqlQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWo
 	return i, err
 }
 
-const getWorkspaceOwnerCountsByTemplateIDs = `-- name: GetWorkspaceOwnerCountsByTemplateIDs :many
-SELECT
-	template_id,
-	COUNT(DISTINCT owner_id)
-FROM
-	workspaces
-WHERE
-	template_id = ANY($1 :: uuid [ ])
-	-- Ignore deleted workspaces
-	AND deleted != true
-GROUP BY
-	template_id
-`
-
-type GetWorkspaceOwnerCountsByTemplateIDsRow struct {
-	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
-	Count      int64     `db:"count" json:"count"`
-}
-
-func (q *sqlQuerier) GetWorkspaceOwnerCountsByTemplateIDs(ctx context.Context, ids []uuid.UUID) ([]GetWorkspaceOwnerCountsByTemplateIDsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceOwnerCountsByTemplateIDs, pq.Array(ids))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetWorkspaceOwnerCountsByTemplateIDsRow
-	for rows.Next() {
-		var i GetWorkspaceOwnerCountsByTemplateIDsRow
-		if err := rows.Scan(&i.TemplateID, &i.Count); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getWorkspaces = `-- name: GetWorkspaces :many
 SELECT
 	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, COUNT(*) OVER () as count

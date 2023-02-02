@@ -685,7 +685,6 @@ export interface Template {
   readonly display_name: string
   readonly provisioner: ProvisionerType
   readonly active_version_id: string
-  readonly workspace_owner_count: number
   readonly active_user_count: number
   readonly build_time_stats: TemplateBuildTimeStats
   readonly description: string
