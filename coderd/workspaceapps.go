@@ -23,6 +23,7 @@ import (
 	jose "gopkg.in/square/go-jose.v2"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/coderd/authzquery"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -316,7 +317,8 @@ func (api *API) parseWorkspaceApplicationHostname(rw http.ResponseWriter, r *htt
 }
 
 func (api *API) handleWorkspaceAppLogout(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	// TODO: Limit permissions of this system user. Using scope or new role.
+	ctx := authzquery.WithAuthorizeSystemContext(r.Context(), rbac.RolesAdminSystem())
 
 	// Delete the API key and cookie first before attempting to parse/validate
 	// the redirect URI.

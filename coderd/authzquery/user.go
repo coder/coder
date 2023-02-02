@@ -137,10 +137,17 @@ func (q *AuthzQuerier) UpdateUserDeletedByID(ctx context.Context, arg database.U
 }
 
 func (q *AuthzQuerier) UpdateUserHashedPassword(ctx context.Context, arg database.UpdateUserHashedPasswordParams) error {
-	fetch := func(ctx context.Context, arg database.UpdateUserHashedPasswordParams) (database.User, error) {
-		return q.database.GetUserByID(ctx, arg.ID)
+	user, err := q.database.GetUserByID(ctx, arg.ID)
+	if err != nil {
+		return err
 	}
-	return authorizedUpdate(q.authorizer, fetch, q.database.UpdateUserHashedPassword)(ctx, arg)
+
+	err = q.authorizeContext(ctx, rbac.ActionUpdate, user.UserDataRBACObject())
+	if err != nil {
+		return err
+	}
+
+	return q.database.UpdateUserHashedPassword(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateUserLastSeenAt(ctx context.Context, arg database.UpdateUserLastSeenAtParams) (database.User, error) {
