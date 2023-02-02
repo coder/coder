@@ -573,15 +573,15 @@ func (*RecordingAuthorizer) Pair(action rbac.Action, object rbac.Objecter) Actio
 func (r *RecordingAuthorizer) AllAsserted() error {
 	r.RLock()
 	defer r.RUnlock()
-	missed := 0
+	missed := []authCall{}
 	for _, c := range r.Called {
 		if !c.asserted {
-			missed++
+			missed = append(missed, c)
 		}
 	}
 
-	if missed > 0 {
-		return xerrors.Errorf("missed %d calls", missed)
+	if len(missed) > 0 {
+		return xerrors.Errorf("missed calls: %+v", missed)
 	}
 	return nil
 }
