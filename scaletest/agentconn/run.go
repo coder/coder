@@ -218,7 +218,7 @@ func verifyConnection(ctx context.Context, logs io.Writer, conn *codersdk.Worksp
 
 		u := &url.URL{
 			Scheme: "http",
-			Host:   net.JoinHostPort("localhost", strconv.Itoa(codersdk.WorkspaceAgentStatisticsPort)),
+			Host:   net.JoinHostPort("localhost", strconv.Itoa(codersdk.WorkspaceAgentHTTPAPIServerPort)),
 			Path:   "/",
 		}
 		req, err := http.NewRequestWithContext(verifyCtx, http.MethodGet, u.String(), nil)

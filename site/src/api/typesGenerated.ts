@@ -291,6 +291,7 @@ export interface DangerousConfig {
 export interface DeploymentConfig {
   readonly access_url: DeploymentConfigField<string>
   readonly wildcard_access_url: DeploymentConfigField<string>
+  readonly redirect_to_access_url: DeploymentConfigField<boolean>
   readonly http_address: DeploymentConfigField<string>
   readonly autobuild_poll_interval: DeploymentConfigField<number>
   readonly derp: DERP

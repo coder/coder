@@ -6057,6 +6057,9 @@ const docTemplate = `{
                 "rate_limit": {
                     "$ref": "#/definitions/codersdk.RateLimitConfig"
                 },
+                "redirect_to_access_url": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
                 "scim_api_key": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
                 },

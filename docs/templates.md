@@ -15,7 +15,7 @@ The CLI and the server are the same binary. We did this to encourage virality so
 individuals can start their own Coder deployments.
 
 From your local machine, download the CLI for your operating system from the
-[releases](https://github.com/coder/coder/releases) or run:
+[releases](https://github.com/coder/coder/releases/latest) or run:
 
 ```console
 curl -fsSL https://coder.com/install.sh | sh

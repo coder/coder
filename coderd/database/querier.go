@@ -23,7 +23,7 @@ type sqlcQuerier interface {
 	DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
 	DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error
 	DeleteGroupByID(ctx context.Context, id uuid.UUID) error
-	DeleteGroupMember(ctx context.Context, userID uuid.UUID) error
+	DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteGroupMemberFromGroupParams) error
 	DeleteLicense(ctx context.Context, id int32) (int32, error)
 	DeleteOldAgentStats(ctx context.Context) error
 	DeleteParameterValueByID(ctx context.Context, id uuid.UUID) error

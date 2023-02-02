@@ -3516,12 +3516,12 @@ func (q *fakeQuerier) InsertGroupMember(_ context.Context, arg database.InsertGr
 	return nil
 }
 
-func (q *fakeQuerier) DeleteGroupMember(_ context.Context, userID uuid.UUID) error {
+func (q *fakeQuerier) DeleteGroupMemberFromGroup(_ context.Context, arg database.DeleteGroupMemberFromGroupParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	for i, member := range q.groupMembers {
-		if member.UserID == userID {
+		if member.UserID == arg.UserID && member.GroupID == arg.GroupID {
 			q.groupMembers = append(q.groupMembers[:i], q.groupMembers[i+1:]...)
 		}
 	}

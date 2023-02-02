@@ -133,7 +133,7 @@ services:
 
 ## Run offline via Kubernetes
 
-We publish the Helm chart for download on [GitHub Releases](https://github.com/coder/coder/releases). Follow our [Kubernetes](./kubernetes.md) documentation and modify the Helm values to specify your custom Coder image.
+We publish the Helm chart for download on [GitHub Releases](https://github.com/coder/coder/releases/latest). Follow our [Kubernetes](./kubernetes.md) documentation and modify the Helm values to specify your custom Coder image.
 
 ```yaml
 # values.yaml
