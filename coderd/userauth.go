@@ -17,6 +17,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -66,9 +67,18 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 // @Router /users/oauth2/github/callback [get]
 func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx   = r.Context()
-		state = httpmw.OAuth2(r)
+		ctx               = r.Context()
+		state             = httpmw.OAuth2(r)
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionLogin,
+		})
 	)
+	aReq.Old = database.APIKey{}
+	defer commitAudit()
 
 	oauthClient := oauth2.NewClient(ctx, oauth2.StaticTokenSource(state.Token))
 
@@ -81,6 +91,9 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 				Message: "Internal error fetching authenticated Github user organizations.",
 				Detail:  err.Error(),
 			})
+			// We pass a disposable user ID just to force an audit diff
+			// and generate a log for a failed login
+			aReq.New = database.APIKey{UserID: uuid.New()}
 			return
 		}
 
@@ -101,6 +114,9 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 				Message: "You aren't a member of the authorized Github organizations!",
 			})
+			// We pass a disposable user ID just to force an audit diff
+			// and generate a log for a failed login
+			aReq.New = database.APIKey{UserID: uuid.New()}
 			return
 		}
 	}
@@ -111,6 +127,9 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			Message: "Internal error fetching authenticated Github user.",
 			Detail:  err.Error(),
 		})
+		// We pass a disposable user ID just to force an audit diff
+		// and generate a log for a failed login
+		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 
@@ -139,6 +158,9 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 				Message: fmt.Sprintf("You aren't a member of an authorized team in the %v Github organization(s)!", organizationNames),
 			})
+			// We pass a disposable user ID just to force an audit diff
+			// and generate a log for a failed login
+			aReq.New = database.APIKey{UserID: uuid.New()}
 			return
 		}
 	}
@@ -149,6 +171,9 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			Message: "Internal error fetching personal Github user.",
 			Detail:  err.Error(),
 		})
+		// We pass a disposable user ID just to force an audit diff
+		// and generate a log for a failed login
+		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 
@@ -164,10 +189,28 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Your primary email must be verified on GitHub!",
 		})
+		// We pass a disposable user ID just to force an audit diff
+		// and generate a log for a failed login
+		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 
-	cookie, err := api.oauthLogin(r, oauthLoginParams{
+	user, link, err := findLinkedUser(ctx, api.Database, githubLinkedID(ghUser), verifiedEmail.GetEmail())
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to find linked user.",
+			Detail:  err.Error(),
+		})
+		// We pass a disposable user ID just to force an audit diff
+		// and generate a log for a failed login
+		aReq.New = database.APIKey{UserID: uuid.New()}
+		return
+	}
+	aReq.UserID = user.ID
+
+	cookie, key, err := api.oauthLogin(r, oauthLoginParams{
+		User:         user,
+		Link:         link,
 		State:        state,
 		LinkedID:     githubLinkedID(ghUser),
 		LoginType:    database.LoginTypeGithub,
@@ -182,6 +225,9 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			Message: httpErr.msg,
 			Detail:  httpErr.detail,
 		})
+		// We pass a disposable user ID just to force an audit diff
+		// and generate a log for a failed login
+		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 	if err != nil {
@@ -189,8 +235,13 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			Message: "Failed to process OAuth login.",
 			Detail:  err.Error(),
 		})
+		// We pass a disposable user ID just to force an audit diff
+		// and generate a log for a failed login
+		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
+
+	aReq.New = key
 
 	http.SetCookie(rw, cookie)
 
@@ -362,7 +413,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		picture, _ = pictureRaw.(string)
 	}
 
-	cookie, err := api.oauthLogin(r, oauthLoginParams{
+	cookie, _, err := api.oauthLogin(r, oauthLoginParams{
 		State:        state,
 		LinkedID:     oidcLinkedID(idToken),
 		LoginType:    database.LoginTypeOIDC,
@@ -397,6 +448,8 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 }
 
 type oauthLoginParams struct {
+	User      database.User
+	Link      database.UserLink
 	State     httpmw.OAuth2State
 	LinkedID  string
 	LoginType database.LoginType
@@ -423,7 +476,7 @@ func (e httpError) Error() string {
 	return e.msg
 }
 
-func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cookie, error) {
+func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cookie, database.APIKey, error) {
 	var (
 		ctx  = r.Context()
 		user database.User
@@ -435,10 +488,13 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 			err  error
 		)
 
-		user, link, err = findLinkedUser(ctx, tx, params.LinkedID, params.Email)
-		if err != nil {
-			return xerrors.Errorf("find linked user: %w", err)
-		}
+		user = params.User
+		link = params.Link
+		//
+		// 		user, link, err = findLinkedUser(ctx, tx, params.LinkedID, params.Email)
+		// 		if err != nil {
+		// 			return xerrors.Errorf("find linked user: %w", err)
+		// 		}
 
 		if user.ID == uuid.Nil && !params.AllowSignups {
 			return httpError{
@@ -599,19 +655,19 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		return nil
 	}, nil)
 	if err != nil {
-		return nil, xerrors.Errorf("in tx: %w", err)
+		return nil, database.APIKey{}, xerrors.Errorf("in tx: %w", err)
 	}
 
-	cookie, _, err := api.createAPIKey(ctx, createAPIKeyParams{
+	cookie, key, err := api.createAPIKey(ctx, createAPIKeyParams{
 		UserID:     user.ID,
 		LoginType:  params.LoginType,
 		RemoteAddr: r.RemoteAddr,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("create API key: %w", err)
+		return nil, database.APIKey{}, xerrors.Errorf("create API key: %w", err)
 	}
 
-	return cookie, nil
+	return cookie, *key, nil
 }
 
 // githubLinkedID returns the unique ID for a GitHub user.

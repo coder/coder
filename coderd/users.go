@@ -1006,7 +1006,6 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		})
 	)
 	aReq.Old = database.APIKey{}
-
 	defer commitAudit()
 
 	var loginWithPassword codersdk.LoginWithPasswordRequest
