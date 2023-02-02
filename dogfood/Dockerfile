@@ -152,8 +152,8 @@ RUN apt-get update --quiet && apt-get install --yes \
 	google-cloud-sdk-datastore-emulator \
 	kubectl \
 	postgresql-13 \
-	docker-ce \
-	docker-ce-cli \
+	containerd.io \
+	docker \
 	packer \
 	terraform \
 	fish \
