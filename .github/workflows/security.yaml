@@ -136,6 +136,15 @@ jobs:
           output: trivy-results-ironbank.sarif
           severity: "CRITICAL,HIGH"
 
+      # Update the tool name field in the ironbank SARIF file so it's not
+      # indistinguishable from findings in the non-ironbank SARIF file in the
+      # GitHub UI. Without this, findings from both scans would show up as
+      # "Trivy".
+      - name: Update tool name in SARIF file (ironbank)
+        run: |
+          set -euo pipefail
+          yq eval -i '.runs[0].tool.driver.name = "Trivy Ironbank"' trivy-results-ironbank.sarif
+
       - name: Upload Trivy scan results to GitHub Security tab (ironbank)
         uses: github/codeql-action/upload-sarif@v2
         with:
