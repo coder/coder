@@ -2,6 +2,8 @@ package authzquery
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 
 	"golang.org/x/xerrors"
 
@@ -80,11 +82,18 @@ func (q *AuthzQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids 
 	}
 
 	for _, a := range agents {
-		// Check if we can fetch the agent.
+		// Check if we can fetch the workspace by the agent ID.
 		_, err := q.GetWorkspaceByAgentID(ctx, a.ID)
-		if err != nil {
-			return nil, err
+		if err == nil {
+			continue
 		}
+		if errors.Is(err, sql.ErrNoRows) {
+			// The agent is not tied to a workspace, likely from an orphaned template version.
+			// Just return it.
+			continue
+		}
+		// Otherwise, we cannot read the workspace, so we cannot read the agent.
+		return nil, err
 	}
 	return agents, nil
 }
@@ -256,31 +265,21 @@ func (q *AuthzQuerier) GetWorkspaceResourceMetadataByResourceIDs(ctx context.Con
 }
 
 func (q *AuthzQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.WorkspaceResource, error) {
-	build, err := q.database.GetWorkspaceBuildByJobID(ctx, jobID)
+	job, err := q.database.GetProvisionerJobByID(ctx, jobID)
 	if err != nil {
-		job, err := q.database.GetProvisionerJobByID(ctx, jobID)
-		if err == nil && job.Type == database.ProvisionerJobTypeTemplateVersionDryRun {
-			// TODO: We should really remove this branch path. It is kinda jank.
-			// This is really annoying, but if a job is a dry run, there is no workspace
-			// for this job. So we need to make up an rbac object for the workspace.
-			tv, err := authorizedTemplateVersionFromJob(ctx, q, job)
-			if err != nil {
-				return nil, err
-			}
-
-			err = q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceWorkspace.InOrg(tv.OrganizationID).WithOwner(job.InitiatorID.String()))
-			if err != nil {
-				return nil, err
-			}
-
-			return q.database.GetWorkspaceResourcesByJobID(ctx, jobID)
-		}
 		return nil, err
 	}
+	var obj rbac.Objecter
+	switch job.Type {
+	case database.ProvisionerJobTypeTemplateVersionDryRun, database.ProvisionerJobTypeTemplateVersionImport:
+		obj = rbac.ResourceTemplate.InOrg(job.OrganizationID).WithOwner(job.InitiatorID.String())
+	case database.ProvisionerJobTypeWorkspaceBuild:
+		obj = rbac.ResourceWorkspace.InOrg(job.OrganizationID).WithOwner(job.InitiatorID.String())
+	default:
+		return nil, xerrors.Errorf("unknown job type: %s", job.Type)
+	}
 
-	// If the workspace can be read, then the resource can be read.
-	_, err = authorizedFetch(q.authorizer, q.database.GetWorkspaceByID)(ctx, build.WorkspaceID)
-	if err != nil {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, obj); err != nil {
 		return nil, err
 	}
 	return q.database.GetWorkspaceResourcesByJobID(ctx, jobID)
