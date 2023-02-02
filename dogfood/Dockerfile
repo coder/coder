@@ -153,7 +153,8 @@ RUN apt-get update --quiet && apt-get install --yes \
 	kubectl \
 	postgresql-13 \
 	containerd.io \
-	docker \
+	docker-ce \
+	docker-ce-cli \
 	packer \
 	terraform \
 	fish \
