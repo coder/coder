@@ -178,13 +178,13 @@ export const workspaceMachine = createMachine(
         tags: "loading",
       },
       gettingWorkspace: {
-        entry: ["clearGetWorkspaceError", "clearContext"],
+        entry: ["clearContext"],
         invoke: {
           src: "getWorkspace",
           id: "getWorkspace",
           onDone: [
             {
-              actions: "assignWorkspace",
+              actions: ["assignWorkspace", "clearGetWorkspaceError"],
               target: "gettingTemplate",
             },
           ],
@@ -198,13 +198,12 @@ export const workspaceMachine = createMachine(
         tags: "loading",
       },
       gettingTemplate: {
-        entry: "clearGetTemplateWarning",
         invoke: {
           src: "getTemplate",
           id: "getTemplate",
           onDone: [
             {
-              actions: "assignTemplate",
+              actions: ["assignTemplate", "clearGetTemplateWarning"],
               target: "gettingTemplateParameters",
             },
           ],
@@ -221,13 +220,15 @@ export const workspaceMachine = createMachine(
         tags: "loading",
       },
       gettingTemplateParameters: {
-        entry: "clearGetTemplateParametersWarning",
         invoke: {
           src: "getTemplateParameters",
           id: "getTemplateParameters",
           onDone: [
             {
-              actions: "assignTemplateParameters",
+              actions: [
+                "assignTemplateParameters",
+                "clearGetTemplateParametersWarning",
+              ],
               target: "gettingPermissions",
             },
           ],
@@ -244,13 +245,12 @@ export const workspaceMachine = createMachine(
         tags: "loading",
       },
       gettingPermissions: {
-        entry: "clearGetPermissionsError",
         invoke: {
           src: "checkPermissions",
           id: "checkPermissions",
           onDone: [
             {
-              actions: "assignPermissions",
+              actions: ["assignPermissions", "clearGetPermissionsError"],
               target: "ready",
             },
           ],
@@ -270,10 +270,7 @@ export const workspaceMachine = createMachine(
             initial: "gettingEvents",
             states: {
               gettingEvents: {
-                entry: [
-                  "clearRefreshWorkspaceWarning",
-                  "initializeEventSource",
-                ],
+                entry: ["initializeEventSource"],
                 exit: "closeEventSource",
                 invoke: {
                   src: "listening",
@@ -281,7 +278,10 @@ export const workspaceMachine = createMachine(
                 },
                 on: {
                   REFRESH_WORKSPACE: {
-                    actions: ["refreshWorkspace"],
+                    actions: [
+                      "refreshWorkspace",
+                      "clearRefreshWorkspaceWarning",
+                    ],
                   },
                   EVENT_SOURCE_ERROR: {
                     target: "error",
@@ -291,7 +291,7 @@ export const workspaceMachine = createMachine(
               error: {
                 entry: "assignRefreshWorkspaceWarning",
                 after: {
-                  "1000": {
+                  "2000": {
                     target: "gettingEvents",
                   },
                 },
@@ -443,12 +443,11 @@ export const workspaceMachine = createMachine(
             initial: "gettingBuilds",
             states: {
               gettingBuilds: {
-                entry: "clearGetBuildsError",
                 invoke: {
                   src: "getBuilds",
                   onDone: [
                     {
-                      actions: "assignBuilds",
+                      actions: ["assignBuilds", "clearGetBuildsError"],
                       target: "loadedBuilds",
                     },
                   ],
