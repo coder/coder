@@ -253,7 +253,7 @@ func configSSH() *cobra.Command {
 			configModified := configRaw
 
 			buf := &bytes.Buffer{}
-			before, after, _, err := sshConfigSplitOnCoderSection(configModified)
+			before, _, after, err := sshConfigSplitOnCoderSection(configModified)
 			if err != nil {
 				return err
 			}
