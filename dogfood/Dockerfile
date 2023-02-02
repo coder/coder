@@ -4,7 +4,7 @@ FROM rust:slim AS rust-utils
 ENV CARGO_INSTALL_ROOT=/tmp/
 RUN cargo install exa bat ripgrep typos-cli watchexec-cli
 
-FROM ubuntu AS go
+FROM ubuntu:jammy AS go
 
 RUN apt-get update && apt-get install --yes curl gcc
 # Install Go manually, so that we can control the version
@@ -80,8 +80,7 @@ RUN apk add curl unzip
 RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v21.5/protoc-21.5-linux-x86_64.zip
 RUN unzip protoc.zip
 
-# Ubuntu 20.04 LTS (Focal Fossa)
-FROM ubuntu:focal
+FROM ubuntu:jammy
 
 SHELL ["/bin/bash", "-c"]
 
