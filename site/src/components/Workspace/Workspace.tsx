@@ -45,6 +45,7 @@ export interface WorkspaceProps {
   handleUpdate: () => void
   handleCancel: () => void
   handleChangeVersion: () => void
+  handleBuildParameters: () => void
   isUpdating: boolean
   workspace: TypesGen.Workspace
   resources?: TypesGen.WorkspaceResource[]
@@ -56,6 +57,7 @@ export interface WorkspaceProps {
   buildInfo?: TypesGen.BuildInfoResponse
   applicationsHost?: string
   template?: TypesGen.Template
+  templateParameters?: TypesGen.TemplateVersionParameter[]
   quota_budget?: number
 }
 
@@ -70,6 +72,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   handleUpdate,
   handleCancel,
   handleChangeVersion,
+  handleBuildParameters,
   workspace,
   isUpdating,
   resources,
@@ -81,6 +84,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   buildInfo,
   applicationsHost,
   template,
+  templateParameters,
   quota_budget,
 }) => {
   const { t } = useTranslation("workspacePage")
@@ -122,7 +126,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   if (template !== undefined) {
     transitionStats = ActiveTransition(template, workspace)
   }
-
   return (
     <Margins>
       <PageHeader
@@ -138,6 +141,9 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             />
             <WorkspaceActions
               workspaceStatus={workspace.latest_build.status}
+              hasTemplateParameters={
+                templateParameters ? templateParameters.length > 0 : false
+              }
               isOutdated={workspace.outdated}
               handleStart={handleStart}
               handleStop={handleStop}
@@ -145,6 +151,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               handleUpdate={handleUpdate}
               handleCancel={handleCancel}
               handleChangeVersion={handleChangeVersion}
+              handleBuildParameters={handleBuildParameters}
               isUpdating={isUpdating}
             />
           </Stack>

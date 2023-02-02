@@ -30,6 +30,7 @@ const CreateWorkspacePage: FC = () => {
   })
   const {
     templates,
+    templateParameters,
     templateSchema,
     selectedTemplate,
     getTemplateSchemaError,
@@ -57,6 +58,7 @@ const CreateWorkspacePage: FC = () => {
         templateName={templateName}
         templates={templates}
         selectedTemplate={selectedTemplate}
+        templateParameters={templateParameters}
         templateSchema={templateSchema}
         createWorkspaceErrors={{
           [CreateWorkspaceErrors.GET_TEMPLATES_ERROR]: getTemplatesError,

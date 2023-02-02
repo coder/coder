@@ -1,4 +1,4 @@
-1. Download and install one of the following system packages from [GitHub releases](https://github.com/coder/coder/releases):
+1. Download and install one of the following system packages from [GitHub releases](https://github.com/coder/coder/releases/latest):
 
    - .deb (Debian, Ubuntu)
    - .rpm (Fedora, CentOS, RHEL, SUSE)
