@@ -386,6 +386,75 @@ func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDP
 	return err
 }
 
+const getAppUsageByDate = `-- name: GetAppUsageByDate :one
+SELECT
+	user_id, app_id, template_id, created_at
+FROM
+	app_usage
+WHERE
+	user_id = $1 AND template_id = $2 AND app_id = $3 AND created_at = $4
+`
+
+type GetAppUsageByDateParams struct {
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+	AppID      uuid.UUID `db:"app_id" json:"app_id"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) GetAppUsageByDate(ctx context.Context, arg GetAppUsageByDateParams) (AppUsage, error) {
+	row := q.db.QueryRowContext(ctx, getAppUsageByDate,
+		arg.UserID,
+		arg.TemplateID,
+		arg.AppID,
+		arg.CreatedAt,
+	)
+	var i AppUsage
+	err := row.Scan(
+		&i.UserID,
+		&i.AppID,
+		&i.TemplateID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const insertAppUsage = `-- name: InsertAppUsage :one
+INSERT INTO
+	app_usage (
+		user_id,
+		template_id,
+		app_id,
+		created_at
+	)
+VALUES
+	($1, $2, $3, $4) RETURNING user_id, app_id, template_id, created_at
+`
+
+type InsertAppUsageParams struct {
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+	AppID      uuid.UUID `db:"app_id" json:"app_id"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertAppUsage(ctx context.Context, arg InsertAppUsageParams) (AppUsage, error) {
+	row := q.db.QueryRowContext(ctx, insertAppUsage,
+		arg.UserID,
+		arg.TemplateID,
+		arg.AppID,
+		arg.CreatedAt,
+	)
+	var i AppUsage
+	err := row.Scan(
+		&i.UserID,
+		&i.AppID,
+		&i.TemplateID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getAuditLogsOffset = `-- name: GetAuditLogsOffset :many
 SELECT
     audit_logs.id, audit_logs.time, audit_logs.user_id, audit_logs.organization_id, audit_logs.ip, audit_logs.user_agent, audit_logs.resource_type, audit_logs.resource_id, audit_logs.resource_target, audit_logs.action, audit_logs.diff, audit_logs.status_code, audit_logs.additional_fields, audit_logs.request_id, audit_logs.resource_icon,

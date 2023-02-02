@@ -1219,6 +1219,13 @@ type AgentStat struct {
 	Payload     json.RawMessage `db:"payload" json:"payload"`
 }
 
+type AppUsage struct {
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+	AppID      uuid.UUID `db:"app_id" json:"app_id"`
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
+}
+
 type AuditLog struct {
 	ID               uuid.UUID       `db:"id" json:"id"`
 	Time             time.Time       `db:"time" json:"time"`

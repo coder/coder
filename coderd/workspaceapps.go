@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httputil"
@@ -95,6 +96,7 @@ func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
 func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 	agent := httpmw.WorkspaceAgentParam(r)
+	user := httpmw.UserParam(r)
 
 	if api.DeploymentConfig.DisablePathApps.Value {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
@@ -142,6 +144,37 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 	basePath := strings.TrimSuffix(r.URL.Path, chiPath)
 	if strings.HasSuffix(basePath, "/") {
 		chiPath = "/" + chiPath
+	}
+
+	// Add app usage
+	ctx := r.Context()
+	_, err := api.Database.GetAppUsageByDate(ctx, database.GetAppUsageByDateParams{
+		UserID:     user.ID,
+		TemplateID: workspace.TemplateID,
+		AppID:      app.ID,
+		CreatedAt:  database.Now(),
+	})
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Error on getting previous app usage.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		_, err = api.Database.InsertAppUsage(ctx, database.InsertAppUsageParams{
+			UserID:     user.ID,
+			TemplateID: workspace.TemplateID,
+			AppID:      app.ID,
+			CreatedAt:  database.Now(),
+		})
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Error on inserting app usage.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 	}
 
 	api.proxyWorkspaceApplication(proxyApplication{

@@ -64,6 +64,7 @@ func New() database.Store {
 			workspaceApps:             make([]database.WorkspaceApp, 0),
 			workspaces:                make([]database.Workspace, 0),
 			licenses:                  make([]database.License, 0),
+			appUsage:                  make([]database.AppUsage, 0),
 		},
 	}
 }
@@ -100,6 +101,7 @@ type data struct {
 	// New tables
 	agentStats                []database.AgentStat
 	auditLogs                 []database.AuditLog
+	appUsage                  []database.AppUsage
 	files                     []database.File
 	gitAuthLinks              []database.GitAuthLink
 	gitSSHKey                 []database.GitSSHKey
@@ -4261,4 +4263,44 @@ func (q *fakeQuerier) UpdateWorkspaceAgentLifecycleStateByID(_ context.Context, 
 		}
 	}
 	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) InsertAppUsage(_ context.Context, p database.InsertAppUsageParams) (database.AppUsage, error) {
+	if err := validateDatabaseType(p); err != nil {
+		return database.AppUsage{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	usage := database.AppUsage{
+		CreatedAt:  p.CreatedAt,
+		AppID:      p.AppID,
+		UserID:     p.UserID,
+		TemplateID: p.TemplateID,
+	}
+	q.appUsage = append(q.appUsage, usage)
+	return usage, nil
+}
+
+func (q *fakeQuerier) GetAppUsageByDate(_ context.Context, arg database.GetAppUsageByDateParams) (database.AppUsage, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, usage := range q.appUsage {
+		if !usage.CreatedAt.Equal(arg.CreatedAt) {
+			continue
+		}
+		if usage.AppID != arg.AppID {
+			continue
+		}
+		if usage.TemplateID != arg.TemplateID {
+			continue
+		}
+		if usage.UserID != arg.UserID {
+			continue
+		}
+		return usage, nil
+	}
+	return database.AppUsage{}, sql.ErrNoRows
 }
