@@ -22,7 +22,7 @@ var (
 	NoActorError = xerrors.Errorf("no authorization actor in context: %w", sql.ErrNoRows)
 )
 
-// NotAuthorizedError is a sentinal error that unwraps to sql.ErrNoRows.
+// NotAuthorizedError is a sentinel error that unwraps to sql.ErrNoRows.
 // This allows the internal error to be read by the caller if needed. Otherwise
 // it will be handled as a 404.
 type NotAuthorizedError struct {

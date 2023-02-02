@@ -56,7 +56,7 @@ func (q *AuthzQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) 
 	fetch := func(agent database.WorkspaceAgent, _ uuid.UUID) (database.Workspace, error) {
 		return q.database.GetWorkspaceByAgentID(ctx, agent.ID)
 	}
-	// Curently agent resource is just the related workspace resource.
+	// Currently agent resource is just the related workspace resource.
 	return authorizedQueryWithRelated(q.logger, q.authorizer, rbac.ActionRead, fetch, q.database.GetWorkspaceAgentByID)(ctx, id)
 }
 
