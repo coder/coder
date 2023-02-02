@@ -203,6 +203,9 @@ func New(options *Options) *API {
 	if options.Auditor == nil {
 		options.Auditor = audit.NewNop()
 	}
+	if options.SetUserGroups == nil {
+		options.SetUserGroups = func(context.Context, database.Store, uuid.UUID, []string) error { return nil }
+	}
 
 	siteCacheDir := options.CacheDir
 	if siteCacheDir != "" {
