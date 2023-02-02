@@ -26,7 +26,7 @@ concurrency:
 
 jobs:
   codeql:
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v3
 
@@ -60,7 +60,7 @@ jobs:
         uses: github/codeql-action/analyze@v2
 
   trivy:
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v3
         with:
@@ -101,7 +101,7 @@ jobs:
           echo "image=$(cat "$image_job")" >> $GITHUB_OUTPUT
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
+        uses: aquasecurity/trivy-action@9ab158e8597f3b310480b9a69402b419bc03dbd5
         with:
           image-ref: ${{ steps.build.outputs.image }}
           format: sarif
