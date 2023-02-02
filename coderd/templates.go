@@ -352,12 +352,6 @@ func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	templateIDs := make([]uuid.UUID, 0, len(templates))
-
-	for _, template := range templates {
-		templateIDs = append(templateIDs, template.ID)
-	}
-
 	createdByNameMap, err := getCreatedByNamesByTemplateIDs(ctx, api.Database, templates)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
