@@ -21,9 +21,10 @@ import (
 )
 
 var (
-	skipMethods = map[string]any{
-		"InTx": struct{}{},
-		"Ping": struct{}{},
+	skipMethods = map[string]string{
+		"InTx":                    "Not relevant",
+		"Ping":                    "Not relevant",
+		"GetAuthorizedWorkspaces": "Will not be exposed",
 	}
 )
 
@@ -56,6 +57,8 @@ func (s *MethodTestSuite) SetupSuite() {
 	for i := 0; i < azt.NumMethod(); i++ {
 		method := azt.Method(i)
 		if _, ok := skipMethods[method.Name]; ok {
+			// We can't use s.T().Skip as this will skip the entire suite.
+			s.T().Logf("Skipping method %q: %s", method.Name, skipMethods[method.Name])
 			continue
 		}
 		s.methodAccounting[method.Name] = 0
@@ -212,7 +215,7 @@ func asserts(inputs ...any) []AssertRBAC {
 	for i := 0; i < len(inputs); i += 2 {
 		obj, ok := inputs[i].(rbac.Objecter)
 		if !ok {
-			panic(fmt.Sprintf("object type '%T' does not implement rbac.Objecter", obj))
+			panic(fmt.Sprintf("object type '%T' does not implement rbac.Objecter", inputs[i]))
 		}
 		rbacObj := obj.RBACObject()
 
@@ -224,7 +227,7 @@ func asserts(inputs ...any) []AssertRBAC {
 				// Could be the string type.
 				actionAsString, ok := inputs[i+1].(string)
 				if !ok {
-					panic(fmt.Sprintf("action type '%T' not a supported action", obj))
+					panic(fmt.Sprintf("action '%q' not a supported action", actionAsString))
 				}
 				action = rbac.Action(actionAsString)
 			}
