@@ -763,22 +763,49 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user))
 }
 
-// @Summary Get template version by organization and name
-// @ID get-template-version-by-organization-and-name
+// @Summary Get template version by organization, template, and name
+// @ID get-template-version-by-organization-template-and-name
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
 // @Param organization path string true "Organization ID" format(uuid)
+// @Param templatename path string true "Template name"
 // @Param templateversionname path string true "Template version name"
 // @Success 200 {object} codersdk.TemplateVersion
-// @Router /organizations/{organization}/templateversions/{templateversionname} [get]
-func (api *API) templateVersionByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
+// @Router /organizations/{organization}/templates/{templatename}/versions/{templateversionname} [get]
+func (api *API) templateVersionByOrganizationTemplateAndName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
-	templateVersionName := chi.URLParam(r, "templateversionname")
-	templateVersion, err := api.Database.GetTemplateVersionByOrganizationAndName(ctx, database.GetTemplateVersionByOrganizationAndNameParams{
+	templateName := chi.URLParam(r, "templatename")
+	template, err := api.Database.GetTemplateByOrganizationAndName(ctx, database.GetTemplateByOrganizationAndNameParams{
 		OrganizationID: organization.ID,
-		Name:           templateVersionName,
+		Name:           templateName,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if !api.Authorize(r, rbac.ActionRead, template) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	templateVersionName := chi.URLParam(r, "templateversionname")
+	templateVersion, err := api.Database.GetTemplateVersionByTemplateIDAndName(ctx, database.GetTemplateVersionByTemplateIDAndNameParams{
+		TemplateID: uuid.NullUUID{
+			UUID:  template.ID,
+			Valid: true,
+		},
+		Name: templateVersionName,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
@@ -814,22 +841,49 @@ func (api *API) templateVersionByOrganizationAndName(rw http.ResponseWriter, r *
 	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user))
 }
 
-// @Summary Get previous template version by organization and name
-// @ID get-previous-template-version-by-organization-and-name
+// @Summary Get previous template version by organization, template, and name
+// @ID get-previous-template-version-by-organization-template-and-name
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
 // @Param organization path string true "Organization ID" format(uuid)
+// @Param templatename path string true "Template name"
 // @Param templateversionname path string true "Template version name"
 // @Success 200 {object} codersdk.TemplateVersion
-// @Router /organizations/{organization}/templateversions/{templateversionname}/previous [get]
-func (api *API) previousTemplateVersionByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
+// @Router /organizations/{organization}/templates/{templatename}/versions/{templateversionname}/previous [get]
+func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
-	templateVersionName := chi.URLParam(r, "templateversionname")
-	templateVersion, err := api.Database.GetTemplateVersionByOrganizationAndName(ctx, database.GetTemplateVersionByOrganizationAndNameParams{
+	templateName := chi.URLParam(r, "templatename")
+	template, err := api.Database.GetTemplateByOrganizationAndName(ctx, database.GetTemplateByOrganizationAndNameParams{
 		OrganizationID: organization.ID,
-		Name:           templateVersionName,
+		Name:           templateName,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if !api.Authorize(r, rbac.ActionRead, template) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	templateVersionName := chi.URLParam(r, "templateversionname")
+	templateVersion, err := api.Database.GetTemplateVersionByTemplateIDAndName(ctx, database.GetTemplateVersionByTemplateIDAndNameParams{
+		TemplateID: uuid.NullUUID{
+			UUID:  template.ID,
+			Valid: true,
+		},
+		Name: templateVersionName,
 	})
 	if err != nil {
 		if xerrors.Is(err, sql.ErrNoRows) {

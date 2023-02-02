@@ -394,16 +394,14 @@ func New(options *Options) *API {
 					httpmw.ExtractOrganizationParam(options.Database),
 				)
 				r.Get("/", api.organization)
-				r.Route("/templateversions", func(r chi.Router) {
-					r.Post("/", api.postTemplateVersionsByOrganization)
-					r.Get("/{templateversionname}", api.templateVersionByOrganizationAndName)
-					r.Get("/{templateversionname}/previous", api.previousTemplateVersionByOrganizationAndName)
-				})
+				r.Post("/templateversions", api.postTemplateVersionsByOrganization)
 				r.Route("/templates", func(r chi.Router) {
 					r.Post("/", api.postTemplateByOrganization)
 					r.Get("/", api.templatesByOrganization)
 					r.Get("/{templatename}", api.templateByOrganizationAndName)
 					r.Get("/examples", api.templateExamples)
+					r.Get("/versions/{templateversionname}", api.templateVersionByOrganizationTemplateAndName)
+					r.Get("/versions/{templateversionname}/previous", api.templateVersionByOrganizationTemplateAndName)
 				})
 				r.Route("/members", func(r chi.Router) {
 					r.Get("/roles", api.assignableOrgRoles)
