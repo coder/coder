@@ -71,3 +71,10 @@ func TestAuthzQueryRecursive(t *testing.T) {
 		reflect.ValueOf(q).Method(i).Call(ins)
 	}
 }
+
+func must[T any](value T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return value
+}
