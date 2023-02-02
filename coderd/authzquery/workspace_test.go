@@ -59,4 +59,13 @@ func (s *MethodTestSuite) TestWorkspace() {
 			return methodCase(inputs(agt.AuthInstanceID.String), asserts(ws, rbac.ActionRead))
 		})
 	})
+	s.Run("GetWorkspaceAgentsByResourceIDs", func() {
+		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+			ws := dbgen.Workspace(t, db, database.Workspace{})
+			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+			res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
+			_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
+			return methodCase(inputs([]uuid.UUID{res.ID}), asserts(ws, rbac.ActionRead))
+		})
+	})
 }

@@ -75,8 +75,8 @@ func WorkspaceAgent(t *testing.T, db database.Store, orig database.WorkspaceAgen
 		ResourceID: takeFirst(orig.ResourceID, uuid.New()),
 		AuthToken:  takeFirst(orig.AuthToken, uuid.New()),
 		AuthInstanceID: sql.NullString{
-			String: takeFirst(orig.AuthInstanceID.String, ""),
-			Valid:  takeFirst(orig.AuthInstanceID.Valid, false),
+			String: takeFirst(orig.AuthInstanceID.String, namesgenerator.GetRandomName(1)),
+			Valid:  takeFirst(orig.AuthInstanceID.Valid, true),
 		},
 		Architecture: takeFirst(orig.Architecture, "amd64"),
 		EnvironmentVariables: pqtype.NullRawMessage{
