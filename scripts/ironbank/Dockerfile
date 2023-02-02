@@ -42,20 +42,22 @@ RUN echo "FIPS" >/etc/crypto-policies/config && \
     ln --symbolic --force /usr/share/crypto-policies/FIPS/openssl.txt /etc/crypto-policies/back-ends/openssl.config && \
     ln --symbolic --force /usr/share/crypto-policies/FIPS/opensslcnf.txt /etc/crypto-policies/back-ends/opensslcnf.config
 
-# Copy and extract Coder binary from tar file.
+# Copy and extract Coder binary from tar file. We have to put this in /opt to
+# match the Dockerfile.
 ARG CODER_BIN=/opt/coder
-RUN mkdir -p /opt
 ARG CODER_BIN_TAR_GZ=coder.tar.gz
 COPY "$CODER_BIN_TAR_GZ" /tmp/coder.tar.gz
-RUN tar -xzvf /tmp/coder.tar.gz --directory /opt --strip-components=1 ./coder && \
+RUN mkdir -p /opt && \
+		tar -xzvf /tmp/coder.tar.gz --directory /opt --strip-components=1 ./coder && \
     rm /tmp/coder.tar.gz
+ENV PATH="/opt:${PATH}"
 
 # Copy and extract Terraform binary from zip file.
 ARG TERRAFORM_BIN_DIR=/opt/terraform
-RUN mkdir -p "$TERRAFORM_BIN_DIR"
 ARG TERRAFORM_BIN_ZIP=terraform.zip
 COPY "$TERRAFORM_BIN_ZIP" /tmp/terraform.zip
-RUN unzip /tmp/terraform.zip -d "$CODER_BIN_DIR" && \
+RUN mkdir -p "$TERRAFORM_BIN_DIR" && \
+		unzip /tmp/terraform.zip -d "$TERRAFORM_BIN_DIR" && \
 	  rm /tmp/terraform.zip
 ENV PATH="${TERRAFORM_BIN_DIR}:${PATH}"
 

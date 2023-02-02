@@ -12,8 +12,6 @@ tags:
 
 # Build args passed to Dockerfile ARGs
 args:
-  BASE_IMAGE: "redhat/ubi/ubi8"
-  BASE_TAG: "8.7"
   # Needs to be kept in sync with the resource below.
   TERRAFORM_CODER_PROVIDER_VERSION: "0.6.10"
 
@@ -48,11 +46,14 @@ resources:
       value: b8cf184dee15dfa89713fe56085313ab23db22e17284a9a27c0999c67ce3021e
   # Coder Terraform provider, bundled inside of Coder to support air-gapped
   # installs.
+  #
+  # The version of this provider needs to be kept in sync with the
+  # TERRAFORM_CODER_PROVIDER_VERSION build arg.
   - url: https://github.com/coder/terraform-provider-coder/releases/download/v0.6.10/terraform-provider-coder_0.6.10_linux_amd64.zip
     filename: "terraform-provider-coder.zip"
     validation:
       type: sha256
-      value: de6db7814d4995938dcfa46a6d5b28bf9efb095fecf737285f52cfd4c85948c5
+      value: 4c2a16010621e146251f6fb5e27105dde9213d85ca8f3c8866c3f5a4159b81b0
 
 # List of project maintainers
 maintainers:
