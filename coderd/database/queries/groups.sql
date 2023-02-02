@@ -85,13 +85,14 @@ INSERT INTO group_members (
 	user_id,
 	group_id
 )
-VALUES ( $1, $2);
+VALUES ($1, $2);
 
--- name: DeleteGroupMember :exec
+-- name: DeleteGroupMemberFromGroup :exec
 DELETE FROM
 	group_members
 WHERE
-	user_id = $1;
+	user_id = $1 AND
+	group_id = $2;
 
 -- name: DeleteGroupByID :exec
 DELETE FROM

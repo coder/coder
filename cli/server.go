@@ -4,6 +4,9 @@ package cli
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
@@ -11,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/big"
 	"net"
 	"net/http"
 	"net/http/pprof"
@@ -269,6 +273,13 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					return xerrors.New("tls address must be set if tls is enabled")
 				}
 
+				// DEPRECATED: This redirect used to default to true.
+				// It made more sense to have the redirect be opt-in.
+				if os.Getenv("CODER_TLS_REDIRECT_HTTP") == "true" || cmd.Flags().Changed("tls-redirect-http-to-https") {
+					cmd.PrintErr(cliui.Styles.Warn.Render("WARN:") + " --tls-redirect-http-to-https is deprecated, please use --redirect-to-access-url instead\n")
+					cfg.RedirectToAccessURL.Value = cfg.TLS.RedirectHTTP.Value
+				}
+
 				tlsConfig, err = configureTLS(
 					cfg.TLS.MinVersion.Value,
 					cfg.TLS.ClientAuth.Value,
@@ -391,15 +402,6 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 				cmd.Printf("%s The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL by not specifying an access URL.\n", cliui.Styles.Warn.Render("Warning:"), cliui.Styles.Field.Render(accessURLParsed.String()), reason)
 			}
-
-			// Redirect from the HTTP listener to the access URL if:
-			// 1. The redirect flag is enabled.
-			// 2. HTTP listening is enabled (obviously).
-			// 3. TLS is enabled (otherwise they're likely using a reverse proxy
-			//    which can do this instead).
-			// 4. The access URL has been set manually (not a tunnel).
-			// 5. The access URL is HTTPS.
-			shouldRedirectHTTPToAccessURL := cfg.TLS.RedirectHTTP.Value && cfg.HTTPAddress.Value != "" && cfg.TLS.Enable.Value && tunnel == nil && accessURLParsed.Scheme == "https"
 
 			// A newline is added before for visibility in terminal output.
 			cmd.Printf("\nView the Web UI: %s\n", accessURLParsed.String())
@@ -722,8 +724,8 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			// Wrap the server in middleware that redirects to the access URL if
 			// the request is not to a local IP.
 			var handler http.Handler = coderAPI.RootHandler
-			if shouldRedirectHTTPToAccessURL {
-				handler = redirectHTTPToAccessURL(handler, accessURLParsed)
+			if cfg.RedirectToAccessURL.Value {
+				handler = redirectToAccessURL(handler, accessURLParsed, tunnel != nil)
 			}
 
 			// ReadHeaderTimeout is purposefully not enabled. It caused some
@@ -1340,12 +1342,6 @@ func loadCertificates(tlsCertFiles, tlsKeyFiles []string) ([]tls.Certificate, er
 	if len(tlsCertFiles) != len(tlsKeyFiles) {
 		return nil, xerrors.New("--tls-cert-file and --tls-key-file must be used the same amount of times")
 	}
-	if len(tlsCertFiles) == 0 {
-		return nil, xerrors.New("--tls-cert-file is required when tls is enabled")
-	}
-	if len(tlsKeyFiles) == 0 {
-		return nil, xerrors.New("--tls-key-file is required when tls is enabled")
-	}
 
 	certs := make([]tls.Certificate, len(tlsCertFiles))
 	for i := range tlsCertFiles {
@@ -1359,6 +1355,36 @@ func loadCertificates(tlsCertFiles, tlsKeyFiles []string) ([]tls.Certificate, er
 	}
 
 	return certs, nil
+}
+
+// generateSelfSignedCertificate creates an unsafe self-signed certificate
+// at random that allows users to proceed with setup in the event they
+// haven't configured any TLS certificates.
+func generateSelfSignedCertificate() (*tls.Certificate, error) {
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, err
+	}
+	template := x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(time.Hour * 24 * 180),
+
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		IPAddresses:           []net.IP{net.ParseIP("127.0.0.1")},
+	}
+
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &privateKey.PublicKey, privateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	var cert tls.Certificate
+	cert.Certificate = append(cert.Certificate, derBytes)
+	cert.PrivateKey = privateKey
+	return &cert, nil
 }
 
 func configureTLS(tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles []string, tlsClientCAFile string) (*tls.Config, error) {
@@ -1397,6 +1423,14 @@ func configureTLS(tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles
 	if err != nil {
 		return nil, xerrors.Errorf("load certificates: %w", err)
 	}
+	if len(certs) == 0 {
+		selfSignedCertificate, err := generateSelfSignedCertificate()
+		if err != nil {
+			return nil, xerrors.Errorf("generate self signed certificate: %w", err)
+		}
+		certs = append(certs, *selfSignedCertificate)
+	}
+
 	tlsConfig.Certificates = certs
 	tlsConfig.GetCertificate = func(hi *tls.ClientHelloInfo) (*tls.Certificate, error) {
 		// If there's only one certificate, return it.
@@ -1661,10 +1695,23 @@ func configureHTTPClient(ctx context.Context, clientCertFile, clientKeyFile stri
 	return ctx, &http.Client{}, nil
 }
 
-func redirectHTTPToAccessURL(handler http.Handler, accessURL *url.URL) http.Handler {
+// nolint:revive
+func redirectToAccessURL(handler http.Handler, accessURL *url.URL, tunnel bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.TLS == nil {
+		redirect := func() {
 			http.Redirect(w, r, accessURL.String(), http.StatusTemporaryRedirect)
+		}
+
+		// Only do this if we aren't tunneling.
+		// If we are tunneling, we want to allow the request to go through
+		// because the tunnel doesn't proxy with TLS.
+		if !tunnel && accessURL.Scheme == "https" && r.TLS == nil {
+			redirect()
+			return
+		}
+
+		if r.Host != accessURL.Host {
+			redirect()
 			return
 		}
 

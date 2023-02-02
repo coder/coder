@@ -121,8 +121,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "provisioner": "terraform",
-    "updated_at": "2019-08-24T14:15:22Z",
-    "workspace_owner_count": 0
+    "updated_at": "2019-08-24T14:15:22Z"
   }
 ]
 ```
@@ -159,7 +158,6 @@ Status Code **200**
 | `» organization_id`                  | string(uuid)                                                                 | false    |              |                                              |
 | `» provisioner`                      | string                                                                       | false    |              |                                              |
 | `» updated_at`                       | string(date-time)                                                            | false    |              |                                              |
-| `» workspace_owner_count`            | integer                                                                      | false    |              |                                              |
 
 #### Enumerated Values
 
@@ -243,8 +241,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "workspace_owner_count": 0
+  "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -366,8 +363,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "workspace_owner_count": 0
+  "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -677,8 +673,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "workspace_owner_count": 0
+  "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -783,8 +778,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "workspace_owner_count": 0
+  "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 

@@ -8,7 +8,7 @@ FROM ubuntu AS go
 
 RUN apt-get update && apt-get install --yes curl gcc
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.19
+ARG GO_VERSION=1.20
 RUN mkdir --parents /usr/local/go
 
 # Boring Go is needed to build FIPS-compliant binaries.
@@ -210,7 +210,7 @@ RUN systemctl enable \
 ARG CLOUD_SQL_PROXY_VERSION=1.26.0 \
 	DIVE_VERSION=0.10.0 \
 	DOCKER_GCR_VERSION=2.1.0 \
-	GOLANGCI_LINT_VERSION=1.48.0 \
+	GOLANGCI_LINT_VERSION=1.51.0 \
 	GRYPE_VERSION=0.24.0 \
 	HELM_VERSION=3.8.0 \
 	KUBE_LINTER_VERSION=0.2.5 \

@@ -990,15 +990,21 @@ func (q *sqlQuerier) DeleteGroupByID(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
-const deleteGroupMember = `-- name: DeleteGroupMember :exec
+const deleteGroupMemberFromGroup = `-- name: DeleteGroupMemberFromGroup :exec
 DELETE FROM
 	group_members
 WHERE
-	user_id = $1
+	user_id = $1 AND
+	group_id = $2
 `
 
-func (q *sqlQuerier) DeleteGroupMember(ctx context.Context, userID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteGroupMember, userID)
+type DeleteGroupMemberFromGroupParams struct {
+	UserID  uuid.UUID `db:"user_id" json:"user_id"`
+	GroupID uuid.UUID `db:"group_id" json:"group_id"`
+}
+
+func (q *sqlQuerier) DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteGroupMemberFromGroupParams) error {
+	_, err := q.db.ExecContext(ctx, deleteGroupMemberFromGroup, arg.UserID, arg.GroupID)
 	return err
 }
 
@@ -1220,7 +1226,7 @@ INSERT INTO group_members (
 	user_id,
 	group_id
 )
-VALUES ( $1, $2)
+VALUES ($1, $2)
 `
 
 type InsertGroupMemberParams struct {
@@ -6469,48 +6475,6 @@ func (q *sqlQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWo
 		&i.LastUsedAt,
 	)
 	return i, err
-}
-
-const getWorkspaceOwnerCountsByTemplateIDs = `-- name: GetWorkspaceOwnerCountsByTemplateIDs :many
-SELECT
-	template_id,
-	COUNT(DISTINCT owner_id)
-FROM
-	workspaces
-WHERE
-	template_id = ANY($1 :: uuid [ ])
-	-- Ignore deleted workspaces
-	AND deleted != true
-GROUP BY
-	template_id
-`
-
-type GetWorkspaceOwnerCountsByTemplateIDsRow struct {
-	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
-	Count      int64     `db:"count" json:"count"`
-}
-
-func (q *sqlQuerier) GetWorkspaceOwnerCountsByTemplateIDs(ctx context.Context, ids []uuid.UUID) ([]GetWorkspaceOwnerCountsByTemplateIDsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceOwnerCountsByTemplateIDs, pq.Array(ids))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetWorkspaceOwnerCountsByTemplateIDsRow
-	for rows.Next() {
-		var i GetWorkspaceOwnerCountsByTemplateIDsRow
-		if err := rows.Scan(&i.TemplateID, &i.Count); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const getWorkspaces = `-- name: GetWorkspaces :many

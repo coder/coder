@@ -30,7 +30,7 @@ export const Language = {
   ariaLabel: "tooltip",
 }
 
-const HelpTooltipContext = createContext<
+export const HelpTooltipContext = createContext<
   { open: boolean; onClose: () => void } | undefined
 >(undefined)
 

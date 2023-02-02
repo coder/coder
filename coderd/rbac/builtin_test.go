@@ -360,6 +360,7 @@ func TestIsOrgRole(t *testing.T) {
 
 	// nolint:paralleltest
 	for _, c := range testCases {
+		c := c
 		t.Run(c.RoleName, func(t *testing.T) {
 			t.Parallel()
 			orgID, ok := rbac.IsOrgRole(c.RoleName)

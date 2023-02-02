@@ -24,7 +24,7 @@ import (
 func randRemoteAddr() string {
 	var b [4]byte
 	// nolint:gosec
-	rand.Read(b[:])
+	_, _ = rand.Read(b[:])
 	// nolint:gosec
 	return fmt.Sprintf("%s:%v", net.IP(b[:]).String(), rand.Int31()%(1<<16))
 }

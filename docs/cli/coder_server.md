@@ -108,6 +108,8 @@ coder server [flags]
                                                           Consumes $CODER_PROXY_TRUSTED_HEADERS
       --proxy-trusted-origins strings                     Origin addresses to respect "proxy-trusted-headers". e.g. 192.168.1.0/24
                                                           Consumes $CODER_PROXY_TRUSTED_ORIGINS
+      --redirect-to-access-url                            Specifies whether to redirect requests that do not match the access URL host.
+                                                          Consumes $CODER_REDIRECT_TO_ACCESS_URL
       --secure-auth-cookie                                Controls if the 'Secure' property is set on browser session cookies.
                                                           Consumes $CODER_SECURE_AUTH_COOKIE
       --ssh-keygen-algorithm string                       The algorithm to use for generating ssh keys. Accepted values are "ed25519", "ecdsa", or "rsa4096".
@@ -136,8 +138,6 @@ coder server [flags]
                                                           Consumes $CODER_TLS_KEY_FILE
       --tls-min-version string                            Minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13"
                                                           Consumes $CODER_TLS_MIN_VERSION (default "tls12")
-      --tls-redirect-http-to-https                        Whether HTTP requests will be redirected to the access URL (if it's a https URL and TLS is enabled). Requests to local IP addresses are never redirected regardless of this setting.
-                                                          Consumes $CODER_TLS_REDIRECT_HTTP (default true)
       --trace                                             Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md
                                                           Consumes $CODER_TRACE_ENABLE
       --trace-honeycomb-api-key string                    Enables trace exporting to Honeycomb.io using the provided API Key.
