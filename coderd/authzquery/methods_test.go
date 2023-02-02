@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"cdr.dev/slog"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -91,7 +93,7 @@ func (s *MethodTestSuite) RunMethodTest(testCaseF func(t *testing.T, db database
 	rec := &coderdtest.RecordingAuthorizer{
 		Wrapped: &coderdtest.FakeAuthorizer{},
 	}
-	az := authzquery.NewAuthzQuerier(db, rec)
+	az := authzquery.NewAuthzQuerier(db, rec, slog.Make())
 	actor := rbac.Subject{
 		ID:     uuid.NewString(),
 		Roles:  rbac.RoleNames{},

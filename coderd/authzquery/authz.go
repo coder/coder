@@ -2,6 +2,7 @@ package authzquery
 
 import (
 	"context"
+	"database/sql"
 
 	"golang.org/x/xerrors"
 
@@ -11,6 +12,14 @@ import (
 // TODO:
 // - We need to handle authorizing the CRUD of objects with RBAC being related
 //   to some other object. Eg: workspace builds, group members, etc.
+
+var (
+	// NoActorError wraps ErrNoRows for the api to return a 404. This is the correct
+	// response when the user is not authorized.
+	NoActorError = xerrors.Errorf("no authorization actor in context: %w", sql.ErrNoRows)
+	// TODO: Log this error every time it occurs.
+	NotAuthorizedError = xerrors.Errorf("unauthorized: %w", sql.ErrNoRows)
+)
 
 func authorizedInsert[ArgumentType any,
 	Insert func(ctx context.Context, arg ArgumentType) error](
@@ -40,13 +49,13 @@ func authorizedInsertWithReturn[ObjectType any, ArgumentType any,
 		// Fetch the rbac subject
 		act, ok := ActorFromContext(ctx)
 		if !ok {
-			return empty, xerrors.Errorf("no authorization actor in context")
+			return empty, NoActorError
 		}
 
 		// Authorize the action
 		err = authorizer.Authorize(ctx, act, action, object.RBACObject())
 		if err != nil {
-			return empty, xerrors.Errorf("unauthorized: %w", err)
+			return empty, NotAuthorizedError
 		}
 
 		// Insert the database object
@@ -125,7 +134,7 @@ func authorizedFetchAndQuery[ObjectType rbac.Objecter, ArgumentType any,
 		// Fetch the rbac subject
 		act, ok := ActorFromContext(ctx)
 		if !ok {
-			return empty, xerrors.Errorf("no authorization actor in context")
+			return empty, NoActorError
 		}
 
 		// Fetch the database object
@@ -137,7 +146,7 @@ func authorizedFetchAndQuery[ObjectType rbac.Objecter, ArgumentType any,
 		// Authorize the action
 		err = authorizer.Authorize(ctx, act, action, object.RBACObject())
 		if err != nil {
-			return empty, xerrors.Errorf("unauthorized: %w", err)
+			return empty, NotAuthorizedError
 		}
 
 		return queryFunc(ctx, arg)
@@ -174,7 +183,7 @@ func authorizedQuery[ArgumentType any, ObjectType rbac.Objecter,
 		// Fetch the rbac subject
 		act, ok := ActorFromContext(ctx)
 		if !ok {
-			return empty, xerrors.Errorf("no authorization actor in context")
+			return empty, NoActorError
 		}
 
 		// Fetch the database object
@@ -186,7 +195,7 @@ func authorizedQuery[ArgumentType any, ObjectType rbac.Objecter,
 		// Authorize the action
 		err = authorizer.Authorize(ctx, act, action, object.RBACObject())
 		if err != nil {
-			return empty, xerrors.Errorf("unauthorized: %w", err)
+			return empty, NotAuthorizedError
 		}
 
 		return object, nil

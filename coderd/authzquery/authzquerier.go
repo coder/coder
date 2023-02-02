@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"time"
 
+	"cdr.dev/slog"
+
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
@@ -23,12 +25,14 @@ var _ database.Store = (*AuthzQuerier)(nil)
 type AuthzQuerier struct {
 	database   database.Store
 	authorizer rbac.Authorizer
+	logger     slog.Logger
 }
 
-func NewAuthzQuerier(db database.Store, authorizer rbac.Authorizer) *AuthzQuerier {
+func NewAuthzQuerier(db database.Store, authorizer rbac.Authorizer, logger slog.Logger) *AuthzQuerier {
 	return &AuthzQuerier{
 		database:   db,
 		authorizer: authorizer,
+		logger:     logger,
 	}
 }
 
@@ -45,7 +49,7 @@ func (q *AuthzQuerier) InTx(function func(querier database.Store) error, txOpts 
 	// TODO: @emyrk verify this works.
 	return q.database.InTx(func(tx database.Store) error {
 		// Wrap the transaction store in an AuthzQuerier.
-		wrapped := NewAuthzQuerier(tx, q.authorizer)
+		wrapped := NewAuthzQuerier(tx, q.authorizer, slog.Make())
 		return function(wrapped)
 	}, txOpts)
 }

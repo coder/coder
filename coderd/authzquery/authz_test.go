@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"testing"
 
+	"cdr.dev/slog"
+
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/coderd/authzquery"
@@ -20,7 +22,7 @@ func TestAuthzQueryRecursive(t *testing.T) {
 	t.Parallel()
 	q := authzquery.NewAuthzQuerier(databasefake.New(), &coderdtest.RecordingAuthorizer{
 		Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
-	})
+	}, slog.Make())
 	actor := rbac.Subject{
 		ID:     uuid.NewString(),
 		Roles:  rbac.RoleNames{rbac.RoleOwner()},
