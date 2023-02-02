@@ -20,17 +20,44 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 )
 
+var (
+	skipMethods = map[string]any{
+		"InTx": struct{}{},
+		"Ping": struct{}{},
+	}
+)
+
 // Define the suite, and absorb the built-in basic suite
 // functionality from testify - including a T() method which
 // returns the current testing context
 type MethodTestSuite struct {
 	suite.Suite
+	// methodAccounting counts all methods called by a 'RunMethodTest'
+	methodAccounting map[string]int
 }
 
-func (suite *MethodTestSuite) SetupTest() {
+func (suite *MethodTestSuite) SetupSuite() {
+	az := &authzquery.AuthzQuerier{}
+	azt := reflect.TypeOf(az)
+	suite.methodAccounting = make(map[string]int)
+	for i := 0; i < azt.NumMethod(); i++ {
+		method := azt.Method(i)
+		if _, ok := skipMethods[method.Name]; ok {
+			continue
+		}
+		suite.methodAccounting[method.Name] = 0
+	}
 }
 
-func (suite *MethodTestSuite) TearDownTest() {
+func (suite *MethodTestSuite) TearDownSuite() {
+	suite.Run("Accounting", func() {
+		t := suite.T()
+		for m, c := range suite.methodAccounting {
+			if c <= 0 {
+				t.Errorf("Method %q never called", m)
+			}
+		}
+	})
 }
 
 // In order for 'go test' to run this suite, we need to create
@@ -49,10 +76,12 @@ type AssertRBAC struct {
 	Actions []rbac.Action
 }
 
-func (suite *MethodTestSuite) RunMethodTest(t *testing.T, testCaseF func(t *testing.T, db database.Store) MethodCase) {
+func (suite *MethodTestSuite) RunMethodTest(testCaseF func(t *testing.T, db database.Store) MethodCase) {
+	t := suite.T()
 	testName := suite.T().Name()
 	names := strings.Split(testName, "/")
 	methodName := names[len(names)-1]
+	suite.methodAccounting[methodName]++
 
 	db := databasefake.New()
 	rec := &coderdtest.RecordingAuthorizer{
