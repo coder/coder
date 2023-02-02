@@ -3528,6 +3528,50 @@ func (q *fakeQuerier) DeleteGroupMemberFromGroup(_ context.Context, arg database
 	return nil
 }
 
+func (q *fakeQuerier) InsertUserGroupsByName(_ context.Context, arg database.InsertUserGroupsByNameParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	var groupIDs []uuid.UUID
+	for _, group := range q.groups {
+		for _, groupName := range arg.GroupNames {
+			if group.Name == groupName {
+				groupIDs = append(groupIDs, group.ID)
+			}
+		}
+	}
+
+	for _, groupID := range groupIDs {
+		q.groupMembers = append(q.groupMembers, database.GroupMember{
+			UserID:  arg.UserID,
+			GroupID: groupID,
+		})
+	}
+
+	return nil
+}
+
+func (q *fakeQuerier) DeleteGroupMembersByOrgAndUser(_ context.Context, arg database.DeleteGroupMembersByOrgAndUserParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	newMembers := q.groupMembers[:0]
+	for _, member := range q.groupMembers {
+		if member.UserID == arg.UserID {
+			for _, group := range q.groups {
+				if group.ID == member.GroupID && group.OrganizationID == arg.OrganizationID {
+					continue
+				}
+
+				newMembers = append(newMembers, member)
+			}
+		}
+	}
+	q.groupMembers = newMembers
+
+	return nil
+}
+
 func (q *fakeQuerier) UpdateGroupByID(_ context.Context, arg database.UpdateGroupByIDParams) (database.Group, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.Group{}, err

@@ -115,6 +115,7 @@ type Options struct {
 	DERPServer         *derp.Server
 	DERPMap            *tailcfg.DERPMap
 	SwaggerEndpoint    bool
+	SetUserGroups      func(ctx context.Context, tx database.Store, userID uuid.UUID, groupNames []string) error
 
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
 	// Setting a rate limit <0 will disable the rate limiter across the entire
@@ -201,6 +202,9 @@ func New(options *Options) *API {
 	}
 	if options.Auditor == nil {
 		options.Auditor = audit.NewNop()
+	}
+	if options.SetUserGroups == nil {
+		options.SetUserGroups = func(context.Context, database.Store, uuid.UUID, []string) error { return nil }
 	}
 
 	siteCacheDir := options.CacheDir
