@@ -27,14 +27,14 @@ func (q *AuthzQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed tim
 
 func (q *AuthzQuerier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
 	return authorizedInsertWithReturn(q.logger, q.authorizer,
-		rbac.ActionRead,
+		rbac.ActionCreate,
 		rbac.ResourceAPIKey.WithOwner(arg.UserID.String()),
 		q.database.InsertAPIKey)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKeyByIDParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateAPIKeyByIDParams) (database.APIKey, error) {
-		return q.GetAPIKeyByID(ctx, arg.ID)
+		return q.database.GetAPIKeyByID(ctx, arg.ID)
 	}
 	return authorizedUpdate(q.logger, q.authorizer, fetch, q.database.UpdateAPIKeyByID)(ctx, arg)
 }
