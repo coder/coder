@@ -453,6 +453,7 @@ type oauthLoginParams struct {
 	Email        string
 	Username     string
 	AvatarURL    string
+	Groups       []string
 }
 
 type httpError struct {

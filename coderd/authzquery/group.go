@@ -22,6 +22,14 @@ func (q *AuthzQuerier) DeleteGroupMemberFromGroup(ctx context.Context, arg datab
 	return authorizedUpdate(q.logger, q.authorizer, fetch, q.database.DeleteGroupMemberFromGroup)(ctx, arg)
 }
 
+func (q *AuthzQuerier) InsertUserGroupsByName(ctx context.Context, arg database.InsertUserGroupsByNameParams) error {
+	panic("not implemented")
+}
+
+func (q *AuthzQuerier) DeleteGroupMembersByOrgAndUser(ctx context.Context, arg database.DeleteGroupMembersByOrgAndUserParams) error {
+	panic("not implemented")
+}
+
 func (q *AuthzQuerier) GetGroupByID(ctx context.Context, id uuid.UUID) (database.Group, error) {
 	return authorizedFetch(q.logger, q.authorizer, q.database.GetGroupByID)(ctx, id)
 }
