@@ -1245,19 +1245,16 @@ func configureTLS(tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles
 	if err != nil {
 		return nil, xerrors.Errorf("load certificates: %w", err)
 	}
-	var selfSignedCertificate *tls.Certificate
 	if len(certs) == 0 {
-		selfSignedCertificate, err = generateSelfSignedCertificate()
+		selfSignedCertificate, err := generateSelfSignedCertificate()
 		if err != nil {
 			return nil, xerrors.Errorf("generate self signed certificate: %w", err)
 		}
+		certs = append(certs, *selfSignedCertificate)
 	}
 
 	tlsConfig.Certificates = certs
 	tlsConfig.GetCertificate = func(hi *tls.ClientHelloInfo) (*tls.Certificate, error) {
-		if selfSignedCertificate != nil {
-			return selfSignedCertificate, nil
-		}
 		// If there's only one certificate, return it.
 		if len(certs) == 1 {
 			return &certs[0], nil
