@@ -3731,38 +3731,6 @@ func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.U
 	return i, err
 }
 
-const getTemplateVersionByOrganizationAndName = `-- name: GetTemplateVersionByOrganizationAndName :one
-SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by
-FROM
-	template_versions
-WHERE
-	organization_id = $1
-	AND "name" = $2
-`
-
-type GetTemplateVersionByOrganizationAndNameParams struct {
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	Name           string    `db:"name" json:"name"`
-}
-
-func (q *sqlQuerier) GetTemplateVersionByOrganizationAndName(ctx context.Context, arg GetTemplateVersionByOrganizationAndNameParams) (TemplateVersion, error) {
-	row := q.db.QueryRowContext(ctx, getTemplateVersionByOrganizationAndName, arg.OrganizationID, arg.Name)
-	var i TemplateVersion
-	err := row.Scan(
-		&i.ID,
-		&i.TemplateID,
-		&i.OrganizationID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Name,
-		&i.Readme,
-		&i.JobID,
-		&i.CreatedBy,
-	)
-	return i, err
-}
-
 const getTemplateVersionByTemplateIDAndName = `-- name: GetTemplateVersionByTemplateIDAndName :one
 SELECT
 	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by
