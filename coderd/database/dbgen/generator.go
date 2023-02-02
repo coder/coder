@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"net"
 	"testing"
 	"time"
 
@@ -20,6 +21,34 @@ import (
 
 // All methods take in a 'seed' object. Any provided fields in the seed will be
 // maintained. Any fields omitted will have sensible defaults generated.
+
+func AuditLog(t *testing.T, db database.Store, seed database.AuditLog) database.AuditLog {
+	log, err := db.InsertAuditLog(context.Background(), database.InsertAuditLogParams{
+		ID:             takeFirst(seed.ID, uuid.New()),
+		Time:           takeFirst(seed.Time, time.Now()),
+		UserID:         takeFirst(seed.UserID, uuid.New()),
+		OrganizationID: takeFirst(seed.OrganizationID, uuid.New()),
+		Ip: pqtype.Inet{
+			IPNet: takeFirstIP(seed.Ip.IPNet, net.IPNet{}),
+			Valid: takeFirst(seed.Ip.Valid, false),
+		},
+		UserAgent: sql.NullString{
+			String: takeFirst(seed.UserAgent.String, ""),
+			Valid:  takeFirst(seed.UserAgent.Valid, false),
+		},
+		ResourceType:     takeFirst(seed.ResourceType, database.ResourceTypeOrganization),
+		ResourceID:       takeFirst(seed.ResourceID, uuid.New()),
+		ResourceTarget:   takeFirst(seed.ResourceTarget, uuid.NewString()),
+		Action:           takeFirst(seed.Action, database.AuditActionCreate),
+		Diff:             takeFirstBytes(seed.Diff, []byte("{}")),
+		StatusCode:       takeFirst(seed.StatusCode, 200),
+		AdditionalFields: takeFirstBytes(seed.Diff, []byte("{}")),
+		RequestID:        takeFirst(seed.RequestID, uuid.New()),
+		ResourceIcon:     takeFirst(seed.ResourceIcon, ""),
+	})
+	require.NoError(t, err, "insert audit log")
+	return log
+}
 
 func Template(t *testing.T, db database.Store, seed database.Template) database.Template {
 	template, err := db.InsertTemplate(context.Background(), database.InsertTemplateParams{

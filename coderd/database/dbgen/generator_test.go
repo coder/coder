@@ -14,6 +14,14 @@ import (
 func TestGenerator(t *testing.T) {
 	t.Parallel()
 
+	t.Run("AuditLog", func(t *testing.T) {
+		t.Parallel()
+		db := databasefake.New()
+		_ = dbgen.AuditLog(t, db, database.AuditLog{})
+		logs := must(db.GetAuditLogsOffset(context.Background(), database.GetAuditLogsOffsetParams{Limit: 1}))
+		require.Len(t, logs, 1)
+	})
+
 	t.Run("APIKey", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
