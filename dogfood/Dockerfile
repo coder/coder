@@ -80,8 +80,7 @@ RUN apk add curl unzip
 RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v21.5/protoc-21.5-linux-x86_64.zip
 RUN unzip protoc.zip
 
-# Ubuntu 20.04 LTS (Focal Fossa)
-FROM ubuntu:focal
+FROM ubuntu
 
 SHELL ["/bin/bash", "-c"]
 
