@@ -3,6 +3,9 @@ package authzquery
 import (
 	"context"
 	"database/sql"
+	"fmt"
+
+	"cdr.dev/slog"
 
 	"golang.org/x/xerrors"
 
@@ -17,20 +20,51 @@ var (
 	// NoActorError wraps ErrNoRows for the api to return a 404. This is the correct
 	// response when the user is not authorized.
 	NoActorError = xerrors.Errorf("no authorization actor in context: %w", sql.ErrNoRows)
-	// TODO: Log this error every time it occurs.
-	NotAuthorizedError = xerrors.Errorf("unauthorized: %w", sql.ErrNoRows)
 )
+
+// NotAuthorizedError is a sentinal error that unwraps to sql.ErrNoRows.
+// This allows the internal error to be read by the caller if needed. Otherwise
+// it will be handled as a 404.
+type NotAuthorizedError struct {
+	Err error
+}
+
+func (e NotAuthorizedError) Error() string {
+	return fmt.Sprintf("unauthorized: %s", e.Err.Error())
+}
+
+// Unwrap will always unwrap to a sql.ErrNoRows so the API returns a 404.
+// So 'errors.Is(err, sql.ErrNoRows)' will always be true.
+func (e NotAuthorizedError) Unwrap() error {
+	return sql.ErrNoRows
+}
+
+func LogNotAuthorizedError(ctx context.Context, logger slog.Logger, err error) error {
+	// Only log the errors if it is an UnauthorizedError error.
+	internalError := new(rbac.UnauthorizedError)
+	if err != nil && xerrors.As(err, internalError) {
+		logger.Debug(ctx, "unauthorized",
+			slog.F("internal", internalError.Internal()),
+			slog.F("input", internalError.Input()),
+			slog.Error(err),
+		)
+	}
+	return NotAuthorizedError{
+		Err: err,
+	}
+}
 
 func authorizedInsert[ArgumentType any,
 	Insert func(ctx context.Context, arg ArgumentType) error](
 	// Arguments
+	logger slog.Logger,
 	authorizer rbac.Authorizer,
 	action rbac.Action,
 	object rbac.Objecter,
 	insertFunc Insert) Insert {
 
 	return func(ctx context.Context, arg ArgumentType) error {
-		_, err := authorizedInsertWithReturn(authorizer, action, object, func(ctx context.Context, arg ArgumentType) (rbac.Objecter, error) {
+		_, err := authorizedInsertWithReturn(logger, authorizer, action, object, func(ctx context.Context, arg ArgumentType) (rbac.Objecter, error) {
 			return rbac.Object{}, insertFunc(ctx, arg)
 		})(ctx, arg)
 		return err
@@ -40,6 +74,7 @@ func authorizedInsert[ArgumentType any,
 func authorizedInsertWithReturn[ObjectType any, ArgumentType any,
 	Insert func(ctx context.Context, arg ArgumentType) (ObjectType, error)](
 	// Arguments
+	logger slog.Logger,
 	authorizer rbac.Authorizer,
 	action rbac.Action,
 	object rbac.Objecter,
@@ -55,7 +90,7 @@ func authorizedInsertWithReturn[ObjectType any, ArgumentType any,
 		// Authorize the action
 		err = authorizer.Authorize(ctx, act, action, object.RBACObject())
 		if err != nil {
-			return empty, NotAuthorizedError
+			return empty, LogNotAuthorizedError(ctx, logger, err)
 		}
 
 		// Insert the database object
@@ -67,11 +102,12 @@ func authorizedDelete[ObjectType rbac.Objecter, ArgumentType any,
 	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 	Delete func(ctx context.Context, arg ArgumentType) error](
 	// Arguments
+	logger slog.Logger,
 	authorizer rbac.Authorizer,
 	fetchFunc Fetch,
 	deleteFunc Delete) Delete {
 
-	return authorizedFetchAndExec(authorizer,
+	return authorizedFetchAndExec(logger, authorizer,
 		rbac.ActionDelete, fetchFunc, deleteFunc)
 }
 
@@ -80,11 +116,12 @@ func authorizedUpdateWithReturn[ObjectType rbac.Objecter,
 	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 	UpdateQuery func(ctx context.Context, arg ArgumentType) (ObjectType, error)](
 	// Arguments
+	logger slog.Logger,
 	authorizer rbac.Authorizer,
 	fetchFunc Fetch,
 	updateQuery UpdateQuery) UpdateQuery {
 
-	return authorizedFetchAndQuery(authorizer, rbac.ActionUpdate, fetchFunc, updateQuery)
+	return authorizedFetchAndQuery(logger, authorizer, rbac.ActionUpdate, fetchFunc, updateQuery)
 }
 
 func authorizedUpdate[ObjectType rbac.Objecter,
@@ -92,11 +129,12 @@ func authorizedUpdate[ObjectType rbac.Objecter,
 	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 	Exec func(ctx context.Context, arg ArgumentType) error](
 	// Arguments
+	logger slog.Logger,
 	authorizer rbac.Authorizer,
 	fetchFunc Fetch,
 	updateExec Exec) Exec {
 
-	return authorizedFetchAndExec(authorizer, rbac.ActionUpdate, fetchFunc, updateExec)
+	return authorizedFetchAndExec(logger, authorizer, rbac.ActionUpdate, fetchFunc, updateExec)
 }
 
 // authorizedFetchAndExecWithConverter uses authorizedFetchAndQueryWithConverter but
@@ -107,12 +145,13 @@ func authorizedFetchAndExec[ObjectType rbac.Objecter,
 	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 	Exec func(ctx context.Context, arg ArgumentType) error](
 	// Arguments
+	logger slog.Logger,
 	authorizer rbac.Authorizer,
 	action rbac.Action,
 	fetchFunc Fetch,
 	execFunc Exec) Exec {
 
-	f := authorizedFetchAndQuery(authorizer, action, fetchFunc, func(ctx context.Context, arg ArgumentType) (empty ObjectType, err error) {
+	f := authorizedFetchAndQuery(logger, authorizer, action, fetchFunc, func(ctx context.Context, arg ArgumentType) (empty ObjectType, err error) {
 		return empty, execFunc(ctx, arg)
 	})
 	return func(ctx context.Context, arg ArgumentType) error {
@@ -125,6 +164,7 @@ func authorizedFetchAndQuery[ObjectType rbac.Objecter, ArgumentType any,
 	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 	Query func(ctx context.Context, arg ArgumentType) (ObjectType, error)](
 	// Arguments
+	logger slog.Logger,
 	authorizer rbac.Authorizer,
 	action rbac.Action,
 	fetchFunc Fetch,
@@ -146,7 +186,7 @@ func authorizedFetchAndQuery[ObjectType rbac.Objecter, ArgumentType any,
 		// Authorize the action
 		err = authorizer.Authorize(ctx, act, action, object.RBACObject())
 		if err != nil {
-			return empty, NotAuthorizedError
+			return empty, LogNotAuthorizedError(ctx, logger, err)
 		}
 
 		return queryFunc(ctx, arg)
@@ -156,10 +196,11 @@ func authorizedFetchAndQuery[ObjectType rbac.Objecter, ArgumentType any,
 func authorizedFetch[ObjectType rbac.Objecter, ArgumentType any,
 	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error)](
 	// Arguments
+	logger slog.Logger,
 	authorizer rbac.Authorizer,
 	fetchFunc Fetch) Fetch {
 
-	return authorizedQuery(authorizer, rbac.ActionRead, fetchFunc)
+	return authorizedQuery(logger, authorizer, rbac.ActionRead, fetchFunc)
 }
 
 // authorizedQuery is a generic function that wraps a database
@@ -175,6 +216,7 @@ func authorizedFetch[ObjectType rbac.Objecter, ArgumentType any,
 func authorizedQuery[ArgumentType any, ObjectType rbac.Objecter,
 	DatabaseFunc func(ctx context.Context, arg ArgumentType) (ObjectType, error)](
 	// Arguments
+	logger slog.Logger,
 	authorizer rbac.Authorizer,
 	action rbac.Action,
 	f DatabaseFunc) DatabaseFunc {
@@ -195,7 +237,7 @@ func authorizedQuery[ArgumentType any, ObjectType rbac.Objecter,
 		// Authorize the action
 		err = authorizer.Authorize(ctx, act, action, object.RBACObject())
 		if err != nil {
-			return empty, NotAuthorizedError
+			return empty, LogNotAuthorizedError(ctx, logger, err)
 		}
 
 		return object, nil
@@ -236,6 +278,7 @@ func authorizedFetchSet[ArgumentType any, ObjectType rbac.Objecter,
 // are predicated on the RBAC permissions of the related Template object.
 func authorizedQueryWithRelated[ObjectType any, ArgumentType any, Related rbac.Objecter](
 	// Arguments
+	logger slog.Logger,
 	authorizer rbac.Authorizer,
 	action rbac.Action,
 	relatedFunc func(ObjectType, ArgumentType) (Related, error),

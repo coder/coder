@@ -15,11 +15,11 @@ func (q *AuthzQuerier) GetGroupsByOrganizationID(ctx context.Context, organizati
 }
 
 func (q *AuthzQuerier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
-	return authorizedFetch(q.authorizer, q.database.GetOrganizationByID)(ctx, id)
+	return authorizedFetch(q.logger, q.authorizer, q.database.GetOrganizationByID)(ctx, id)
 }
 
 func (q *AuthzQuerier) GetOrganizationByName(ctx context.Context, name string) (database.Organization, error) {
-	return authorizedFetch(q.authorizer, q.database.GetOrganizationByName)(ctx, name)
+	return authorizedFetch(q.logger, q.authorizer, q.database.GetOrganizationByName)(ctx, name)
 }
 
 func (q *AuthzQuerier) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetOrganizationIDsByMemberIDsRow, error) {
@@ -29,7 +29,7 @@ func (q *AuthzQuerier) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []
 }
 
 func (q *AuthzQuerier) GetOrganizationMemberByUserID(ctx context.Context, arg database.GetOrganizationMemberByUserIDParams) (database.OrganizationMember, error) {
-	return authorizedFetch(q.authorizer, q.database.GetOrganizationMemberByUserID)(ctx, arg)
+	return authorizedFetch(q.logger, q.authorizer, q.database.GetOrganizationMemberByUserID)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetOrganizationMembershipsByUserID(ctx context.Context, userID uuid.UUID) ([]database.OrganizationMember, error) {
@@ -48,7 +48,7 @@ func (q *AuthzQuerier) GetOrganizationsByUserID(ctx context.Context, userID uuid
 }
 
 func (q *AuthzQuerier) InsertOrganization(ctx context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {
-	return authorizedInsertWithReturn(q.authorizer, rbac.ActionCreate, rbac.ResourceOrganization, q.database.InsertOrganization)(ctx, arg)
+	return authorizedInsertWithReturn(q.logger, q.authorizer, rbac.ActionCreate, rbac.ResourceOrganization, q.database.InsertOrganization)(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertOrganizationMember(ctx context.Context, arg database.InsertOrganizationMemberParams) (database.OrganizationMember, error) {
@@ -60,7 +60,7 @@ func (q *AuthzQuerier) InsertOrganizationMember(ctx context.Context, arg databas
 	}
 
 	obj := rbac.ResourceOrganizationMember.InOrg(arg.OrganizationID).WithID(arg.UserID)
-	return authorizedInsertWithReturn(q.authorizer, rbac.ActionCreate, obj, q.database.InsertOrganizationMember)(ctx, arg)
+	return authorizedInsertWithReturn(q.logger, q.authorizer, rbac.ActionCreate, obj, q.database.InsertOrganizationMember)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {

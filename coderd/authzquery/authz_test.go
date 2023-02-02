@@ -2,18 +2,41 @@ package authzquery_test
 
 import (
 	"context"
+	"database/sql"
 	"reflect"
 	"testing"
 
-	"cdr.dev/slog"
+	"github.com/stretchr/testify/require"
+
+	"cdr.dev/slog/sloggers/slogtest"
+
+	"golang.org/x/xerrors"
 
 	"github.com/google/uuid"
 
+	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/authzquery"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/rbac"
 )
+
+func TestNotAuthorizedError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Is404", func(t *testing.T) {
+		t.Parallel()
+
+		testErr := xerrors.New("custom error")
+
+		err := authzquery.LogNotAuthorizedError(context.Background(), slogtest.Make(t, nil), testErr)
+		require.ErrorIs(t, err, sql.ErrNoRows, "must be a sql.ErrNoRows")
+
+		var authErr authzquery.NotAuthorizedError
+		require.ErrorAs(t, err, &authErr, "must be a NotAuthorizedError")
+		require.ErrorIs(t, authErr.Err, testErr, "internal error must match")
+	})
+}
 
 // TestAuthzQueryRecursive is a simple test to search for infinite recursion
 // bugs. It isn't perfect, and only catches a subset of the possible bugs

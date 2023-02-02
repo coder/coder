@@ -24,7 +24,7 @@ func (q *AuthzQuerier) GetPreviousTemplateVersion(ctx context.Context, arg datab
 		}
 		return q.database.GetTemplateByID(ctx, arg.TemplateID.UUID)
 	}
-	return authorizedQueryWithRelated(q.authorizer, rbac.ActionRead, fetchRelated, q.database.GetPreviousTemplateVersion)(ctx, arg)
+	return authorizedQueryWithRelated(q.logger, q.authorizer, rbac.ActionRead, fetchRelated, q.database.GetPreviousTemplateVersion)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
@@ -37,15 +37,15 @@ func (q *AuthzQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg data
 		}
 		return q.database.GetTemplateByID(ctx, arg.TemplateID.UUID)
 	}
-	return authorizedQueryWithRelated(q.authorizer, rbac.ActionRead, fetchRelated, q.database.GetTemplateAverageBuildTime)(ctx, arg)
+	return authorizedQueryWithRelated(q.logger, q.authorizer, rbac.ActionRead, fetchRelated, q.database.GetTemplateAverageBuildTime)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (database.Template, error) {
-	return authorizedFetch(q.authorizer, q.database.GetTemplateByID)(ctx, id)
+	return authorizedFetch(q.logger, q.authorizer, q.database.GetTemplateByID)(ctx, id)
 }
 
 func (q *AuthzQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg database.GetTemplateByOrganizationAndNameParams) (database.Template, error) {
-	return authorizedFetch(q.authorizer, q.database.GetTemplateByOrganizationAndName)(ctx, arg)
+	return authorizedFetch(q.logger, q.authorizer, q.database.GetTemplateByOrganizationAndName)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetTemplateDAUs(ctx context.Context, templateID uuid.UUID) ([]database.GetTemplateDAUsRow, error) {
@@ -53,7 +53,7 @@ func (q *AuthzQuerier) GetTemplateDAUs(ctx context.Context, templateID uuid.UUID
 	fetchRelated := func(_ []database.GetTemplateDAUsRow, _ uuid.UUID) (rbac.Objecter, error) {
 		return q.database.GetTemplateByID(ctx, templateID)
 	}
-	return authorizedQueryWithRelated(q.authorizer, rbac.ActionRead, fetchRelated, q.database.GetTemplateDAUs)(ctx, templateID)
+	return authorizedQueryWithRelated(q.logger, q.authorizer, rbac.ActionRead, fetchRelated, q.database.GetTemplateDAUs)(ctx, templateID)
 }
 
 func (q *AuthzQuerier) GetTemplateVersionByID(ctx context.Context, tvid uuid.UUID) (database.TemplateVersion, error) {
@@ -67,6 +67,7 @@ func (q *AuthzQuerier) GetTemplateVersionByID(ctx context.Context, tvid uuid.UUI
 		return q.database.GetTemplateByID(ctx, tv.TemplateID.UUID)
 	}
 	return authorizedQueryWithRelated(
+		q.logger,
 		q.authorizer,
 		rbac.ActionRead,
 		fetchRelated,
@@ -85,6 +86,7 @@ func (q *AuthzQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid
 		return q.database.GetTemplateByID(ctx, tv.TemplateID.UUID)
 	}
 	return authorizedQueryWithRelated(
+		q.logger,
 		q.authorizer,
 		rbac.ActionRead,
 		fetchRelated,
@@ -104,6 +106,7 @@ func (q *AuthzQuerier) GetTemplateVersionByOrganizationAndName(ctx context.Conte
 	}
 
 	return authorizedQueryWithRelated(
+		q.logger,
 		q.authorizer,
 		rbac.ActionRead,
 		fetchRelated,
@@ -123,6 +126,7 @@ func (q *AuthzQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context
 	}
 
 	return authorizedQueryWithRelated(
+		q.logger,
 		q.authorizer,
 		rbac.ActionRead,
 		fetchRelated,
@@ -203,6 +207,7 @@ func (q *AuthzQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, crea
 		return rbac.ResourceTemplate.All(), nil
 	}
 	return authorizedQueryWithRelated(
+		q.logger,
 		q.authorizer,
 		rbac.ActionRead,
 		fetchRelated,
@@ -225,7 +230,7 @@ func (q *AuthzQuerier) GetTemplatesWithFilter(ctx context.Context, arg database.
 
 func (q *AuthzQuerier) InsertTemplate(ctx context.Context, arg database.InsertTemplateParams) (database.Template, error) {
 	obj := rbac.ResourceTemplate.InOrg(arg.OrganizationID)
-	return authorizedInsertWithReturn(q.authorizer, rbac.ActionCreate, obj, q.database.InsertTemplate)(ctx, arg)
+	return authorizedInsertWithReturn(q.logger, q.authorizer, rbac.ActionCreate, obj, q.database.InsertTemplate)(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertTemplateVersion(ctx context.Context, arg database.InsertTemplateVersionParams) (database.TemplateVersion, error) {
@@ -257,14 +262,14 @@ func (q *AuthzQuerier) UpdateTemplateACLByID(ctx context.Context, arg database.U
 	fetch := func(ctx context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {
 		return q.database.GetTemplateByID(ctx, arg.ID)
 	}
-	return authorizedFetchAndQuery(q.authorizer, rbac.ActionCreate, fetch, q.database.UpdateTemplateACLByID)(ctx, arg)
+	return authorizedFetchAndQuery(q.logger, q.authorizer, rbac.ActionCreate, fetch, q.database.UpdateTemplateACLByID)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateTemplateActiveVersionByID(ctx context.Context, arg database.UpdateTemplateActiveVersionByIDParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateTemplateActiveVersionByIDParams) (database.Template, error) {
 		return q.database.GetTemplateByID(ctx, arg.ID)
 	}
-	return authorizedUpdate(q.authorizer, fetch, q.database.UpdateTemplateActiveVersionByID)(ctx, arg)
+	return authorizedUpdate(q.logger, q.authorizer, fetch, q.database.UpdateTemplateActiveVersionByID)(ctx, arg)
 }
 
 func (q *AuthzQuerier) SoftDeleteTemplateByID(ctx context.Context, id uuid.UUID) error {
@@ -275,7 +280,7 @@ func (q *AuthzQuerier) SoftDeleteTemplateByID(ctx context.Context, id uuid.UUID)
 			UpdatedAt: database.Now(),
 		})
 	}
-	return authorizedDelete(q.authorizer, q.database.GetTemplateByID, deleteF)(ctx, id)
+	return authorizedDelete(q.logger, q.authorizer, q.database.GetTemplateByID, deleteF)(ctx, id)
 }
 
 // Deprecated: use SoftDeleteTemplateByID instead.
@@ -287,7 +292,7 @@ func (q *AuthzQuerier) UpdateTemplateMetaByID(ctx context.Context, arg database.
 	fetch := func(ctx context.Context, arg database.UpdateTemplateMetaByIDParams) (database.Template, error) {
 		return q.database.GetTemplateByID(ctx, arg.ID)
 	}
-	return authorizedUpdateWithReturn(q.authorizer, fetch, q.database.UpdateTemplateMetaByID)(ctx, arg)
+	return authorizedUpdateWithReturn(q.logger, q.authorizer, fetch, q.database.UpdateTemplateMetaByID)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateTemplateVersionByID(ctx context.Context, arg database.UpdateTemplateVersionByIDParams) error {

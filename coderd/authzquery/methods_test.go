@@ -8,12 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	"cdr.dev/slog"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
+	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/authzquery"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
