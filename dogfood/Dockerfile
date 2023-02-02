@@ -152,7 +152,6 @@ RUN apt-get update --quiet && apt-get install --yes \
 	google-cloud-sdk-datastore-emulator \
 	kubectl \
 	postgresql-13 \
-	containerd.io \
 	docker-ce \
 	docker-ce-cli \
 	packer \
