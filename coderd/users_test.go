@@ -743,7 +743,7 @@ func TestGrantSiteRoles(t *testing.T) {
 			AssignToUser: randOrgUser.ID.String(),
 			Roles:        []string{rbac.RoleOrgMember(randOrg.ID)},
 			Error:        true,
-			StatusCode:   http.StatusForbidden,
+			StatusCode:   http.StatusNotFound,
 		},
 		{
 			Name:         "AdminUpdateOrgSelf",
