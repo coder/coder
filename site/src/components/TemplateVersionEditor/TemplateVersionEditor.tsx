@@ -129,7 +129,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               triggerPreview()
             }}
           >
-            Preview (Ctrl + Enter)
+            Build (Ctrl + Enter)
           </Button>
 
           <Tooltip
@@ -146,7 +146,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 onUpdate()
               }}
             >
-              Update Template
+              Update
             </Button>
           </Tooltip>
         </div>
@@ -226,7 +226,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 label={<div>Build Log {templateVersion.job.status}</div>}
               />
               {!disableUpdate && (
-                <Tab style={{ minWidth: 120 }} label="Resources" />
+                <Tab style={{ minWidth: 120 }} label="Preview" />
               )}
             </Tabs>
 
