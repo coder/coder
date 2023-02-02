@@ -104,7 +104,7 @@
     "@types/semver": "7.3.12",
     "@types/ua-parser-js": "0.7.36",
     "@types/uuid": "8.3.4",
-    "@typescript-eslint/eslint-plugin": "5.38.1",
+    "@typescript-eslint/eslint-plugin": "5.50.0",
     "@typescript-eslint/parser": "5.45.1",
     "@xstate/cli": "0.3.0",
     "canvas": "2.10.0",
