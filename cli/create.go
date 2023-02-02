@@ -200,7 +200,12 @@ func prepWorkspaceBuild(cmd *cobra.Command, client *codersdk.Client, args prepWo
 		useRichParameters = true
 	}
 
-	if useRichParameters && (len(args.ExistingParams) > 0 || len(args.ParameterFile) > 0) {
+	var useLegacyParameters bool
+	if len(args.ExistingParams) > 0 || len(args.ParameterFile) > 0 {
+		useLegacyParameters = true
+	}
+
+	if useRichParameters && useLegacyParameters {
 		return nil, xerrors.Errorf("Rich parameters can't be used together with legacy parameters.")
 	}
 
