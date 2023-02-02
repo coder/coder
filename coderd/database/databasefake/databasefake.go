@@ -612,9 +612,11 @@ func (q *fakeQuerier) GetAuthorizedUserCount(ctx context.Context, params databas
 	defer q.mutex.RUnlock()
 
 	// Call this to match the same function calls as the SQL implementation.
-	_, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL())
-	if err != nil {
-		return -1, err
+	if prepared != nil {
+		_, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL())
+		if err != nil {
+			return -1, err
+		}
 	}
 
 	users := make([]database.User, 0, len(q.users))
@@ -895,10 +897,12 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	// Call this to match the same function calls as the SQL implementation.
-	_, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL())
-	if err != nil {
-		return nil, err
+	if prepared != nil {
+		// Call this to match the same function calls as the SQL implementation.
+		_, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL())
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	workspaces := make([]database.Workspace, 0)
@@ -1708,9 +1712,11 @@ func (q *fakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.G
 	defer q.mutex.RUnlock()
 
 	// Call this to match the same function calls as the SQL implementation.
-	_, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL())
-	if err != nil {
-		return nil, err
+	if prepared != nil {
+		_, err := prepared.CompileToSQL(ctx, rbac.ConfigWithACL())
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var templates []database.Template
