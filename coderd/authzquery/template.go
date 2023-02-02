@@ -215,9 +215,9 @@ func (q *AuthzQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, crea
 	)(ctx, createdAt)
 }
 
-func (q *AuthzQuerier) GetAuthorizedTemplates(ctx context.Context, _ database.GetTemplatesWithFilterParams, _ rbac.PreparedAuthorized) ([]database.Template, error) {
+func (q *AuthzQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, _ rbac.PreparedAuthorized) ([]database.Template, error) {
 	// TODO Delete this function, all GetTemplates should be authorized. For now just call getTemplates on the authz querier.
-	return q.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{})
+	return q.GetTemplatesWithFilter(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTemplatesWithFilterParams) ([]database.Template, error) {

@@ -161,6 +161,8 @@ var (
 					ResourceWorkspace.Type: {ActionRead},
 					// CRUD to provisioner daemons for now.
 					ResourceProvisionerDaemon.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+					// Needs to read all organizations since
+					ResourceOrganization.Type: {ActionRead},
 				}),
 			}
 		},
