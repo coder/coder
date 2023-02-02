@@ -14,10 +14,10 @@ type OAuthSignInFormProps = {
   authMethods?: AuthMethods
 }
 
-const useStyles = makeStyles(() => ({
+const useStyles = makeStyles((theme) => ({
   buttonIcon: {
-    width: 14,
-    height: 14,
+    width: theme.spacing(2),
+    height: theme.spacing(2),
   },
 }))
 
@@ -62,8 +62,7 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
                 <img
                   alt="Open ID Connect icon"
                   src={authMethods.oidc.iconUrl}
-                  width="24"
-                  height="24"
+                  className={styles.buttonIcon}
                 />
               ) : (
                 <KeyIcon className={styles.buttonIcon} />
