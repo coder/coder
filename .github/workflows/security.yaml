@@ -126,6 +126,7 @@ jobs:
         uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: trivy-results.sarif
+          category: "Trivy"
 
       - name: Run Trivy vulnerability scanner (ironbank)
         uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
@@ -139,6 +140,7 @@ jobs:
         uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: trivy-results-ironbank.sarif
+          category: "Trivy Ironbank"
 
       - name: Upload Trivy scan results as an artifact
         uses: actions/upload-artifact@v2
