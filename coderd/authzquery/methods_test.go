@@ -116,7 +116,17 @@ MethodLoop:
 		method := azt.Method(i)
 		if method.Name == methodName {
 			resp := reflect.ValueOf(az).Method(i).Call(append([]reflect.Value{reflect.ValueOf(ctx)}, testCase.Inputs...))
-			var _ = resp
+			// TODO: Should we assert the object returned is the correct one?
+			for _, r := range resp {
+				if r.Type().Implements(reflect.TypeOf((*error)(nil)).Elem()) {
+					err, ok := r.Interface().(error)
+					if !ok {
+						t.Fatal("error is not an error?!")
+					}
+					require.NoError(t, err, "method %q returned an error", testName)
+					break
+				}
+			}
 			found = true
 			break MethodLoop
 		}
