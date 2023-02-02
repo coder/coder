@@ -363,6 +363,38 @@ func TestAPIKey(t *testing.T) {
 		require.NotEqual(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
 	})
 
+	t.Run("NoRefresh", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db                = databasefake.New()
+			user              = dbgen.User(t, db, database.User{})
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				LastUsed:  database.Now().AddDate(0, 0, -1),
+				ExpiresAt: database.Now().AddDate(0, 0, 1),
+			})
+
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
+		)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+
+		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+			DB:                          db,
+			RedirectToLogin:             false,
+			DisableSessionExpiryRefresh: true,
+		})(successHandler).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), sentAPIKey.ID)
+		require.NoError(t, err)
+
+		require.NotEqual(t, sentAPIKey.LastUsed, gotAPIKey.LastUsed)
+		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
+	})
+
 	t.Run("OAuthNotExpired", func(t *testing.T) {
 		t.Parallel()
 		var (
