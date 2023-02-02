@@ -778,8 +778,6 @@ func (api *API) templateVersionByOrganizationTemplateAndName(rw http.ResponseWri
 	organization := httpmw.OrganizationParam(r)
 	templateName := chi.URLParam(r, "templatename")
 
-	fmt.Printf("WE GOT HERE!\n")
-
 	template, err := api.Database.GetTemplateByOrganizationAndName(ctx, database.GetTemplateByOrganizationAndNameParams{
 		OrganizationID: organization.ID,
 		Name:           templateName,
