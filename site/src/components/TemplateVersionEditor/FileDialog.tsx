@@ -16,6 +16,10 @@ export const CreateFileDialog: FC<{
     setPathValue(event.target.value)
   }
   const handleConfirm = () => {
+    if (pathValue === "") {
+      setError("You must enter a path!")
+      return
+    }
     if (checkExists(pathValue)) {
       setError("File already exists")
       return
