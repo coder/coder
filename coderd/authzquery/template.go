@@ -155,12 +155,32 @@ func (q *AuthzQuerier) GetTemplateVersionParameters(ctx context.Context, templat
 }
 
 func (q *AuthzQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.TemplateVersion, error) {
-	// An actor can read template versions if they can read the related template.
-	// There are multiple template IDs, so we will just check that all templates can be read.
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplate.All()); err != nil {
+	// TODO: This is so inefficient
+	versions, err := q.database.GetTemplateVersionsByIDs(ctx, ids)
+	if err != nil {
 		return nil, err
 	}
-	return q.database.GetTemplateVersionsByIDs(ctx, ids)
+	checked := make(map[uuid.UUID]bool)
+	for _, v := range versions {
+		if _, ok := checked[v.TemplateID.UUID]; ok {
+			continue
+		}
+
+		obj := v.RBACObjectNoTemplate()
+		template, err := q.database.GetTemplateByID(ctx, v.TemplateID.UUID)
+		if err == nil {
+			obj = v.RBACObject(template)
+		}
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
+		if err := q.authorizeContext(ctx, rbac.ActionRead, obj); err != nil {
+			return nil, err
+		}
+		checked[v.TemplateID.UUID] = true
+	}
+
+	return versions, nil
 }
 
 func (q *AuthzQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg database.GetTemplateVersionsByTemplateIDParams) ([]database.TemplateVersion, error) {
