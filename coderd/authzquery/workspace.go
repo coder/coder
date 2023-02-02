@@ -201,10 +201,20 @@ func (q *AuthzQuerier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.U
 	return authorizedFetch(q.authorizer, q.database.GetWorkspaceByAgentID)(ctx, agentID)
 }
 
+// GetWorkspaceByID
+// Gen: Workspace
+// Args: Workspace.ID
+// Assert: Workspace.read
 func (q *AuthzQuerier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (database.Workspace, error) {
 	return authorizedFetch(q.authorizer, q.database.GetWorkspaceByID)(ctx, id)
 }
 
+//OwnerID uuid.UUID `db:"owner_id" json:"owner_id"`
+//Deleted bool      `db:"deleted" json:"deleted"`
+//Name    string    `db:"name" json:"name"`
+
+// GetWorkspaceByOwnerIDAndName
+// Gen: Workspace
 func (q *AuthzQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg database.GetWorkspaceByOwnerIDAndNameParams) (database.Workspace, error) {
 	return authorizedFetch(q.authorizer, q.database.GetWorkspaceByOwnerIDAndName)(ctx, arg)
 }
