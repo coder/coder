@@ -260,8 +260,7 @@ func (q *AuthzQuerier) SoftDeleteTemplateByID(ctx context.Context, id uuid.UUID)
 
 // Deprecated: use SoftDeleteTemplateByID instead.
 func (q *AuthzQuerier) UpdateTemplateDeletedByID(ctx context.Context, arg database.UpdateTemplateDeletedByIDParams) error {
-	// TODO delete me. This function is a placeholder for database.Store.
-	return xerrors.Errorf("this function is deprecated, use SoftDeleteTemplateByID instead")
+	return q.SoftDeleteTemplateByID(ctx, arg.ID)
 }
 
 func (q *AuthzQuerier) UpdateTemplateMetaByID(ctx context.Context, arg database.UpdateTemplateMetaByIDParams) (database.Template, error) {
