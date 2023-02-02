@@ -1,4 +1,5 @@
 import { useMachine } from "@xstate/react"
+import { TemplateVersionParameter } from "api/typesGenerated"
 import { useMe } from "hooks/useMe"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import { FC } from "react"
@@ -58,7 +59,7 @@ const CreateWorkspacePage: FC = () => {
         templateName={templateName}
         templates={templates}
         selectedTemplate={selectedTemplate}
-        templateParameters={templateParameters}
+        templateParameters={orderedTemplateParameters(templateParameters)}
         templateSchema={templateSchema}
         createWorkspaceErrors={{
           [CreateWorkspaceErrors.GET_TEMPLATES_ERROR]: getTemplatesError,
@@ -102,6 +103,20 @@ const getDefaultParameterValues = (
       paramValues[paramName] = paramValue ?? ""
     })
   return paramValues
+}
+
+export const orderedTemplateParameters = (
+  templateParameters?: TemplateVersionParameter[],
+): TemplateVersionParameter[] => {
+  if (!templateParameters) {
+    return []
+  }
+
+  const immutables = templateParameters.filter(
+    (parameter) => !parameter.mutable,
+  )
+  const mutables = templateParameters.filter((parameter) => parameter.mutable)
+  return [...immutables, ...mutables]
 }
 
 export default CreateWorkspacePage
