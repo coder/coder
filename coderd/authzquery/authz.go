@@ -62,7 +62,6 @@ func authorizedInsert[ArgumentType any,
 	action rbac.Action,
 	object rbac.Objecter,
 	insertFunc Insert) Insert {
-
 	return func(ctx context.Context, arg ArgumentType) error {
 		_, err := authorizedInsertWithReturn(logger, authorizer, action, object, func(ctx context.Context, arg ArgumentType) (rbac.Objecter, error) {
 			return rbac.Object{}, insertFunc(ctx, arg)
@@ -79,7 +78,6 @@ func authorizedInsertWithReturn[ObjectType any, ArgumentType any,
 	action rbac.Action,
 	object rbac.Objecter,
 	insertFunc Insert) Insert {
-
 	return func(ctx context.Context, arg ArgumentType) (empty ObjectType, err error) {
 		// Fetch the rbac subject
 		act, ok := ActorFromContext(ctx)
@@ -106,7 +104,6 @@ func authorizedDelete[ObjectType rbac.Objecter, ArgumentType any,
 	authorizer rbac.Authorizer,
 	fetchFunc Fetch,
 	deleteFunc Delete) Delete {
-
 	return authorizedFetchAndExec(logger, authorizer,
 		rbac.ActionDelete, fetchFunc, deleteFunc)
 }
@@ -120,7 +117,6 @@ func authorizedUpdateWithReturn[ObjectType rbac.Objecter,
 	authorizer rbac.Authorizer,
 	fetchFunc Fetch,
 	updateQuery UpdateQuery) UpdateQuery {
-
 	return authorizedFetchAndQuery(logger, authorizer, rbac.ActionUpdate, fetchFunc, updateQuery)
 }
 
@@ -133,7 +129,6 @@ func authorizedUpdate[ObjectType rbac.Objecter,
 	authorizer rbac.Authorizer,
 	fetchFunc Fetch,
 	updateExec Exec) Exec {
-
 	return authorizedFetchAndExec(logger, authorizer, rbac.ActionUpdate, fetchFunc, updateExec)
 }
 
@@ -150,7 +145,6 @@ func authorizedFetchAndExec[ObjectType rbac.Objecter,
 	action rbac.Action,
 	fetchFunc Fetch,
 	execFunc Exec) Exec {
-
 	f := authorizedFetchAndQuery(logger, authorizer, action, fetchFunc, func(ctx context.Context, arg ArgumentType) (empty ObjectType, err error) {
 		return empty, execFunc(ctx, arg)
 	})
@@ -169,7 +163,6 @@ func authorizedFetchAndQuery[ObjectType rbac.Objecter, ArgumentType any,
 	action rbac.Action,
 	fetchFunc Fetch,
 	queryFunc Query) Query {
-
 	return func(ctx context.Context, arg ArgumentType) (empty ObjectType, err error) {
 		// Fetch the rbac subject
 		act, ok := ActorFromContext(ctx)
@@ -199,7 +192,6 @@ func authorizedFetch[ObjectType rbac.Objecter, ArgumentType any,
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
 	fetchFunc Fetch) Fetch {
-
 	return authorizedQuery(logger, authorizer, rbac.ActionRead, fetchFunc)
 }
 
@@ -220,7 +212,6 @@ func authorizedQuery[ArgumentType any, ObjectType rbac.Objecter,
 	authorizer rbac.Authorizer,
 	action rbac.Action,
 	f DatabaseFunc) DatabaseFunc {
-
 	return func(ctx context.Context, arg ArgumentType) (empty ObjectType, err error) {
 		// Fetch the rbac subject
 		act, ok := ActorFromContext(ctx)
@@ -251,7 +242,6 @@ func authorizedFetchSet[ArgumentType any, ObjectType rbac.Objecter,
 	// Arguments
 	authorizer rbac.Authorizer,
 	f DatabaseFunc) DatabaseFunc {
-
 	return func(ctx context.Context, arg ArgumentType) (empty []ObjectType, err error) {
 		// Fetch the rbac subject
 		act, ok := ActorFromContext(ctx)
@@ -283,7 +273,6 @@ func authorizedQueryWithRelated[ObjectType any, ArgumentType any, Related rbac.O
 	action rbac.Action,
 	relatedFunc func(ObjectType, ArgumentType) (Related, error),
 	fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error)) func(ctx context.Context, arg ArgumentType) (ObjectType, error) {
-
 	return func(ctx context.Context, arg ArgumentType) (empty ObjectType, err error) {
 		// Fetch the rbac subject
 		act, ok := ActorFromContext(ctx)
