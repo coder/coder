@@ -108,7 +108,7 @@ jobs:
         run: |
           set -euo pipefail
           # NOTE: This is not a real image tag we publish.
-          image_tag="ghcr.io/coder/coder/ironbank:v$(./scripts/version.sh)"
+          image_tag="${{ steps.build.output.image }}-ironbank"
           ./scripts/ironbank/build_ironbank.sh \
             --target "$image_tag" \
             "build/coder_$(./scripts/version.sh)_linux_amd64"
