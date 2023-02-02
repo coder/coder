@@ -6,7 +6,6 @@ RUN cargo install exa bat ripgrep typos-cli watchexec-cli
 
 FROM ubuntu AS go
 
-RUN echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com jammy main" | tee /etc/apt/sources.list.d/hashicorp.list
 RUN apt-get update && apt-get install --yes curl gcc
 # Install Go manually, so that we can control the version
 ARG GO_VERSION=1.20
