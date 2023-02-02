@@ -27,9 +27,12 @@ var (
 	}
 )
 
-// Define the suite, and absorb the built-in basic suite
-// functionality from testify - including a T() method which
-// returns the current testing context
+// MethodTestSuite runs all methods tests for AuthzQuerier. The reason we use
+// a test suite, is so we can account for all functions tested on the AuthzQuerier.
+// We can then assert all methods were tested and asserted for proper RBAC
+// checks. This forces RBAC checks to be written for all methods.
+// Additionally, the way unit tests are written allows for easily executing
+// a single test for debugging.
 type MethodTestSuite struct {
 	suite.Suite
 	// methodAccounting counts all methods called by a 'RunMethodTest'
@@ -113,6 +116,19 @@ MethodLoop:
 	}
 
 	require.True(t, found, "method %q does not exist", testName)
+
+	var pairs []coderdtest.ActionObjectPair
+	for _, assrt := range testCase.Assertions {
+		for _, action := range assrt.Actions {
+			pairs = append(pairs, coderdtest.ActionObjectPair{
+				Action: action,
+				Object: assrt.Object,
+			})
+		}
+	}
+
+	rec.AssertActor(t, actor, pairs...)
+	require.NoError(t, rec.AllAsserted(), "all rbac calls must be asserted")
 }
 
 func methodInputs(inputs ...any) []reflect.Value {
@@ -135,6 +151,7 @@ func asserts(inputs ...any) []AssertRBAC {
 		if !ok {
 			panic(fmt.Sprintf("object type '%T' not a supported key", obj))
 		}
+		rbacObj := obj.RBACObject()
 
 		var actions []rbac.Action
 		actions, ok = inputs[i+1].([]rbac.Action)
@@ -152,7 +169,7 @@ func asserts(inputs ...any) []AssertRBAC {
 		}
 
 		out = append(out, AssertRBAC{
-			Object:  rbac.Object{},
+			Object:  rbacObj,
 			Actions: actions,
 		})
 	}
