@@ -1,5 +1,13 @@
 package dbgen
 
+import "net"
+
+func takeFirstIP(values ...net.IPNet) net.IPNet {
+	return takeFirstF(values, func(v net.IPNet) bool {
+		return len(v.IP) != 0 && len(v.Mask) != 0
+	})
+}
+
 // takeFirstBytes implements takeFirst for []byte.
 // []byte is not a comparable type.
 func takeFirstBytes(values ...[]byte) []byte {

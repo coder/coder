@@ -14,6 +14,14 @@ import (
 func TestGenerator(t *testing.T) {
 	t.Parallel()
 
+	t.Run("AuditLog", func(t *testing.T) {
+		t.Parallel()
+		db := databasefake.New()
+		_ = dbgen.AuditLog(t, db, database.AuditLog{})
+		logs := must(db.GetAuditLogsOffset(context.Background(), database.GetAuditLogsOffsetParams{Limit: 1}))
+		require.Len(t, logs, 1)
+	})
+
 	t.Run("APIKey", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
@@ -56,6 +64,17 @@ func TestGenerator(t *testing.T) {
 		require.Equal(t, exp, must(db.GetGroupByID(context.Background(), exp.ID)))
 	})
 
+	t.Run("GroupMember", func(t *testing.T) {
+		t.Parallel()
+		db := databasefake.New()
+		g := dbgen.Group(t, db, database.Group{})
+		u := dbgen.User(t, db, database.User{})
+		exp := []database.User{u}
+		dbgen.GroupMember(t, db, database.GroupMember{GroupID: g.ID, UserID: u.ID})
+
+		require.Equal(t, exp, must(db.GetGroupMembers(context.Background(), g.ID)))
+	})
+
 	t.Run("Organization", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()
@@ -68,6 +87,13 @@ func TestGenerator(t *testing.T) {
 		db := databasefake.New()
 		exp := dbgen.Workspace(t, db, database.Workspace{})
 		require.Equal(t, exp, must(db.GetWorkspaceByID(context.Background(), exp.ID)))
+	})
+
+	t.Run("WorkspaceAgent", func(t *testing.T) {
+		t.Parallel()
+		db := databasefake.New()
+		exp := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{})
+		require.Equal(t, exp, must(db.GetWorkspaceAgentByID(context.Background(), exp.ID)))
 	})
 
 	t.Run("Template", func(t *testing.T) {
