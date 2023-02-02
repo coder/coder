@@ -282,7 +282,21 @@ func (q *AuthzQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID u
 	var obj rbac.Objecter
 	switch job.Type {
 	case database.ProvisionerJobTypeTemplateVersionDryRun, database.ProvisionerJobTypeTemplateVersionImport:
-		obj = rbac.ResourceTemplate.InOrg(job.OrganizationID).WithOwner(job.InitiatorID.String())
+		// We need to check if the actor is authorized to read the related template.
+		tv, err := authorizedTemplateVersionFromJob(ctx, q, job)
+		if err != nil {
+			return nil, err
+		}
+		if !tv.TemplateID.Valid {
+			// Orphaned template version
+			obj = tv.RBACObjectNoTemplate()
+		} else {
+			template, err := q.GetTemplateByID(ctx, tv.TemplateID.UUID)
+			if err != nil {
+				return nil, err
+			}
+			obj = template.RBACObject()
+		}
 	case database.ProvisionerJobTypeWorkspaceBuild:
 		obj = rbac.ResourceWorkspace.InOrg(job.OrganizationID).WithOwner(job.InitiatorID.String())
 	default:
