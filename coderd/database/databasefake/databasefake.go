@@ -2519,20 +2519,21 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 
 	//nolint:gosimple
 	template := database.Template{
-		ID:              arg.ID,
-		CreatedAt:       arg.CreatedAt,
-		UpdatedAt:       arg.UpdatedAt,
-		OrganizationID:  arg.OrganizationID,
-		Name:            arg.Name,
-		Provisioner:     arg.Provisioner,
-		ActiveVersionID: arg.ActiveVersionID,
-		Description:     arg.Description,
-		DefaultTTL:      arg.DefaultTTL,
-		CreatedBy:       arg.CreatedBy,
-		UserACL:         arg.UserACL,
-		GroupACL:        arg.GroupACL,
-		DisplayName:     arg.DisplayName,
-		Icon:            arg.Icon,
+		ID:                           arg.ID,
+		CreatedAt:                    arg.CreatedAt,
+		UpdatedAt:                    arg.UpdatedAt,
+		OrganizationID:               arg.OrganizationID,
+		Name:                         arg.Name,
+		Provisioner:                  arg.Provisioner,
+		ActiveVersionID:              arg.ActiveVersionID,
+		Description:                  arg.Description,
+		DefaultTTL:                   arg.DefaultTTL,
+		CreatedBy:                    arg.CreatedBy,
+		UserACL:                      arg.UserACL,
+		GroupACL:                     arg.GroupACL,
+		DisplayName:                  arg.DisplayName,
+		Icon:                         arg.Icon,
+		AllowUserCancelWorkspaceJobs: arg.AllowUserCancelWorkspaceJobs,
 	}
 	q.templates = append(q.templates, template)
 	return template, nil
