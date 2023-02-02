@@ -300,6 +300,17 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
     "usage": "string",
     "value": true
   },
+  "disable_session_expiry_refresh": {
+    "default": true,
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": true
+  },
   "experimental": {
     "default": true,
     "enterprise": true,
@@ -413,6 +424,17 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
       "usage": "string",
       "value": "string"
     }
+  },
+  "max_session_expiry": {
+    "default": 0,
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": 0
   },
   "max_token_lifetime": {
     "default": 0,

@@ -324,6 +324,8 @@ export interface DeploymentConfig {
   readonly logging: LoggingConfig
   readonly dangerous: DangerousConfig
   readonly disable_path_apps: DeploymentConfigField<boolean>
+  readonly max_session_expiry: DeploymentConfigField<number>
+  readonly disable_session_expiry_refresh: DeploymentConfigField<boolean>
   readonly address: DeploymentConfigField<string>
   readonly experimental: DeploymentConfigField<boolean>
 }
