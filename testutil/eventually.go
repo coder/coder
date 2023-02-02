@@ -32,9 +32,9 @@ func Eventually(ctx context.Context, t testing.TB, condition func(ctx context.Co
 	if len(msgAndArgs) > 0 {
 		if m, ok := msgAndArgs[0].(string); ok {
 			msg = fmt.Sprintf(m, msgAndArgs[1:]...)
-		} else {
-			panic("developer error: first argument of msgAndArgs must be a string")
+			return
 		}
+		panic("developer error: first argument of msgAndArgs must be a string")
 	}
 
 	ticker := time.NewTicker(tick)
