@@ -1987,6 +1987,18 @@ const docTemplate = `{
                         "name": "template",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by app usage starting from this date",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by app usage until this date",
+                        "name": "to",
+                        "in": "query"
                     }
                 ],
                 "responses": {

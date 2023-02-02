@@ -622,6 +622,8 @@ func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Templates
 // @Param template path string true "Template ID" format(uuid)
+// @Param from query string false "Filter by app usage starting from this date"
+// @Param to query string false "Filter by app usage until this date"
 // @Success 200 {object} codersdk.TemplateAppUsageResponse
 // @Router /templates/{template}/app-usage [get]
 func (api *API) appUsage(rw http.ResponseWriter, r *http.Request) {
