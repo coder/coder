@@ -271,6 +271,13 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					return xerrors.New("tls address must be set if tls is enabled")
 				}
 
+				// DEPRECATED: This redirect used to default to true.
+				// It made more sense to have the redirect be opt-in.
+				if os.Getenv("CODER_TLS_REDIRECT_HTTP") == "true" || cmd.Flags().Changed("tls-redirect-http-to-https") {
+					cmd.PrintErr(cliui.Styles.Warn.Render("WARN:") + " --tls-redirect-http-to-https is deprecated, please use --redirect-to-access-url instead\n")
+					cfg.RedirectToAccessURL.Value = cfg.TLS.RedirectHTTP.Value
+				}
+
 				tlsConfig, err = configureTLS(
 					cfg.TLS.MinVersion.Value,
 					cfg.TLS.ClientAuth.Value,
