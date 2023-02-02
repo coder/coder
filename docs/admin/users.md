@@ -35,7 +35,7 @@ The new user will appear in the **Users** list. Use the toggle to change their
 
 To create a user via the Coder CLI, run:
 
-```shell
+```console
 coder users create
 ```
 
@@ -44,7 +44,7 @@ When prompted, provide the **username** and **email** for the new user.
 You'll receive a response that includes the following; share the instructions
 with the user so that they can log into Coder:
 
-```shell
+```console
 Download the Coder command line for your operating system:
 https://github.com/coder/coder/releases/latest
 
@@ -69,7 +69,7 @@ To suspend a user via the web UI:
 
 To suspend a user via the CLI, run:
 
-```shell
+```console
 coder users suspend <username|user_id>
 ```
 
@@ -88,7 +88,7 @@ To activate a user via the web UI:
 
 To activate a user via the CLI, run:
 
-```shell
+```console
 coder users activate <username|user_id>
 ```
 
@@ -108,7 +108,7 @@ Coder will prompt the user to change their temporary password immediately after 
 
 You can also reset a password via the CLI:
 
-```shell
+```console
 # run `coder reset-password <username> --help` for usage instructions
 coder reset-password <username>
 ```

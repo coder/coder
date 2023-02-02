@@ -42,23 +42,6 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workspaceCounts, err := api.Database.GetWorkspaceOwnerCountsByTemplateIDs(ctx, []uuid.UUID{template.ID})
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace count.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	count := uint32(0)
-	if len(workspaceCounts) > 0 {
-		count = uint32(workspaceCounts[0].Count)
-	}
-
 	createdByNameMap, err := getCreatedByNamesByTemplateIDs(ctx, api.Database, []database.Template{template})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -68,7 +51,7 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(template, count, createdByNameMap[template.ID.String()]))
+	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(template, createdByNameMap[template.ID.String()]))
 }
 
 // @Summary Delete template by ID
@@ -313,7 +296,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			return xerrors.Errorf("get creator name: %w", err)
 		}
 
-		template = api.convertTemplate(dbTemplate, 0, createdByNameMap[dbTemplate.ID.String()])
+		template = api.convertTemplate(dbTemplate, createdByNameMap[dbTemplate.ID.String()])
 		return nil
 	}, nil)
 	if err != nil {
@@ -369,23 +352,6 @@ func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	templateIDs := make([]uuid.UUID, 0, len(templates))
-
-	for _, template := range templates {
-		templateIDs = append(templateIDs, template.ID)
-	}
-	workspaceCounts, err := api.Database.GetWorkspaceOwnerCountsByTemplateIDs(ctx, templateIDs)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace counts.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
 	createdByNameMap, err := getCreatedByNamesByTemplateIDs(ctx, api.Database, templates)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -395,7 +361,7 @@ func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplates(templates, workspaceCounts, createdByNameMap))
+	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplates(templates, createdByNameMap))
 }
 
 // @Summary Get templates by organization and template name
@@ -433,23 +399,6 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 		return
 	}
 
-	workspaceCounts, err := api.Database.GetWorkspaceOwnerCountsByTemplateIDs(ctx, []uuid.UUID{template.ID})
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace counts.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	count := uint32(0)
-	if len(workspaceCounts) > 0 {
-		count = uint32(workspaceCounts[0].Count)
-	}
-
 	createdByNameMap, err := getCreatedByNamesByTemplateIDs(ctx, api.Database, []database.Template{template})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -459,7 +408,7 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(template, count, createdByNameMap[template.ID.String()]))
+	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(template, createdByNameMap[template.ID.String()]))
 }
 
 // @Summary Update template metadata by ID
@@ -508,22 +457,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	count := uint32(0)
 	var updated database.Template
 	err := api.Database.InTx(func(tx database.Store) error {
-		// Fetch workspace counts
-		workspaceCounts, err := tx.GetWorkspaceOwnerCountsByTemplateIDs(ctx, []uuid.UUID{template.ID})
-		if xerrors.Is(err, sql.ErrNoRows) {
-			err = nil
-		}
-		if err != nil {
-			return err
-		}
-
-		if len(workspaceCounts) > 0 {
-			count = uint32(workspaceCounts[0].Count)
-		}
-
 		if req.Name == template.Name &&
 			req.Description == template.Description &&
 			req.DisplayName == template.DisplayName &&
@@ -550,6 +485,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			desc = template.Description
 		}
 
+		var err error
 		updated, err = tx.UpdateTemplateMetaByID(ctx, database.UpdateTemplateMetaByIDParams{
 			ID:                           template.ID,
 			UpdatedAt:                    database.Now(),
@@ -587,7 +523,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(updated, count, createdByNameMap[updated.ID.String()]))
+	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(updated, createdByNameMap[updated.ID.String()]))
 }
 
 // @Summary Get template DAUs by ID
@@ -659,22 +595,11 @@ func getCreatedByNamesByTemplateIDs(ctx context.Context, db database.Store, temp
 	return creators, nil
 }
 
-func (api *API) convertTemplates(templates []database.Template, workspaceCounts []database.GetWorkspaceOwnerCountsByTemplateIDsRow, createdByNameMap map[string]string) []codersdk.Template {
+func (api *API) convertTemplates(templates []database.Template, createdByNameMap map[string]string) []codersdk.Template {
 	apiTemplates := make([]codersdk.Template, 0, len(templates))
 
 	for _, template := range templates {
-		found := false
-		for _, workspaceCount := range workspaceCounts {
-			if workspaceCount.TemplateID.String() != template.ID.String() {
-				continue
-			}
-			apiTemplates = append(apiTemplates, api.convertTemplate(template, uint32(workspaceCount.Count), createdByNameMap[template.ID.String()]))
-			found = true
-			break
-		}
-		if !found {
-			apiTemplates = append(apiTemplates, api.convertTemplate(template, uint32(0), createdByNameMap[template.ID.String()]))
-		}
+		apiTemplates = append(apiTemplates, api.convertTemplate(template, createdByNameMap[template.ID.String()]))
 	}
 
 	// Sort templates by ActiveUserCount DESC
@@ -686,7 +611,7 @@ func (api *API) convertTemplates(templates []database.Template, workspaceCounts 
 }
 
 func (api *API) convertTemplate(
-	template database.Template, workspaceOwnerCount uint32, createdByName string,
+	template database.Template, createdByName string,
 ) codersdk.Template {
 	activeCount, _ := api.metricsCache.TemplateUniqueUsers(template.ID)
 
@@ -701,7 +626,6 @@ func (api *API) convertTemplate(
 		DisplayName:                  template.DisplayName,
 		Provisioner:                  codersdk.ProvisionerType(template.Provisioner),
 		ActiveVersionID:              template.ActiveVersionID,
-		WorkspaceOwnerCount:          workspaceOwnerCount,
 		ActiveUserCount:              activeCount,
 		BuildTimeStats:               buildTimeStats,
 		Description:                  template.Description,

@@ -30,11 +30,11 @@ func Eventually(ctx context.Context, t testing.TB, condition func(ctx context.Co
 
 	msg := "Eventually timed out"
 	if len(msgAndArgs) > 0 {
-		if m, ok := msgAndArgs[0].(string); ok {
-			msg = fmt.Sprintf(m, msgAndArgs[1:]...)
-		} else {
+		m, ok := msgAndArgs[0].(string)
+		if !ok {
 			panic("developer error: first argument of msgAndArgs must be a string")
 		}
+		msg = fmt.Sprintf(m, msgAndArgs[1:]...)
 	}
 
 	ticker := time.NewTicker(tick)

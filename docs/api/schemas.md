@@ -2138,6 +2138,17 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "value": true
     }
   },
+  "redirect_to_access_url": {
+    "default": true,
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": true
+  },
   "scim_api_key": {
     "default": "string",
     "enterprise": true,
@@ -2423,6 +2434,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `proxy_trusted_headers`              | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string)                                 | false    |              |                                                 |
 | `proxy_trusted_origins`              | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string)                                 | false    |              |                                                 |
 | `rate_limit`                         | [codersdk.RateLimitConfig](#codersdkratelimitconfig)                                                                       | false    |              |                                                 |
+| `redirect_to_access_url`             | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
 | `scim_api_key`                       | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
 | `secure_auth_cookie`                 | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
 | `ssh_keygen_algorithm`               | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
@@ -4228,8 +4240,7 @@ Parameter represents a set value for the scope.
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "workspace_owner_count": 0
+  "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -4253,7 +4264,6 @@ Parameter represents a set value for the scope.
 | `organization_id`                  | string                                                             | false    |              |                                              |
 | `provisioner`                      | string                                                             | false    |              |                                              |
 | `updated_at`                       | string                                                             | false    |              |                                              |
-| `workspace_owner_count`            | integer                                                            | false    |              |                                              |
 
 #### Enumerated Values
 

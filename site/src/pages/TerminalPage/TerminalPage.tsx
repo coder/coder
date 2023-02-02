@@ -1,5 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { useMachine } from "@xstate/react"
+import { Stack } from "components/Stack/Stack"
 import { FC, useEffect, useRef, useState } from "react"
 import { Helmet } from "react-helmet-async"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
@@ -17,6 +18,34 @@ export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
   workspaceAgentErrorMessagePrefix: "Unable to fetch workspace agent: ",
   websocketErrorMessagePrefix: "WebSocket failed: ",
+}
+
+const useReloading = (isDisconnected: boolean) => {
+  const [status, setStatus] = useState<"reloading" | "notReloading">(
+    "notReloading",
+  )
+
+  // Retry connection on key press when it is disconnected
+  useEffect(() => {
+    if (!isDisconnected) {
+      return
+    }
+
+    const keyDownHandler = () => {
+      setStatus("reloading")
+      window.location.reload()
+    }
+
+    document.addEventListener("keydown", keyDownHandler)
+
+    return () => {
+      document.removeEventListener("keydown", keyDownHandler)
+    }
+  }, [isDisconnected])
+
+  return {
+    status,
+  }
 }
 
 const TerminalPage: FC<
@@ -67,6 +96,7 @@ const TerminalPage: FC<
     workspaceAgent,
     websocketError,
   } = terminalState.context
+  const reloading = useReloading(isDisconnected)
 
   // Create the terminal!
   useEffect(() => {
@@ -216,7 +246,16 @@ const TerminalPage: FC<
       {/* This overlay makes it more obvious that the terminal is disconnected. */}
       {/* It's nice for situations where Coder restarts, and they are temporarily disconnected. */}
       <div className={`${styles.overlay} ${isDisconnected ? "" : "connected"}`}>
-        <span className={styles.overlayText}>Disconnected</span>
+        {reloading.status === "reloading" ? (
+          <span className={styles.overlayText}>Reloading...</span>
+        ) : (
+          <Stack spacing={0.5} alignItems="center">
+            <span className={styles.overlayText}>Disconnected</span>
+            <span className={styles.overlaySubtext}>
+              Press any key to retry
+            </span>
+          </Stack>
+        )}
       </div>
       <div className={styles.terminal} ref={xtermRef} data-testid="terminal" />
     </>
@@ -225,7 +264,7 @@ const TerminalPage: FC<
 
 export default TerminalPage
 
-const useStyles = makeStyles(() => ({
+const useStyles = makeStyles((theme) => ({
   overlay: {
     position: "absolute",
     pointerEvents: "none",
@@ -238,17 +277,20 @@ const useStyles = makeStyles(() => ({
     justifyContent: "center",
     display: "flex",
     color: "white",
-    fontFamily: MONOSPACE_FONT_FAMILY,
-    fontSize: 18,
+    fontSize: 16,
     backgroundColor: "rgba(0, 0, 0, 0.6)",
+    backdropFilter: "blur(4px)",
     "&.connected": {
       opacity: 0,
     },
   },
   overlayText: {
-    padding: 32,
-    fontSize: 24,
-    backgroundColor: "#000",
+    fontSize: 16,
+    fontWeight: 600,
+  },
+  overlaySubtext: {
+    fontSize: 14,
+    color: theme.palette.text.secondary,
   },
   terminal: {
     width: "100vw",

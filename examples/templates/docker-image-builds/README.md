@@ -20,7 +20,7 @@ on-screen instructions to proceed.
 
 Create a Dockerfile (e.g `images/golang.Dockerfile`):
 
-```shell
+```console
 vim images/golang.Dockerfile
 ```
 
@@ -48,7 +48,7 @@ USER coder
 
 Edit the Terraform template (`main.tf`):
 
-```shell
+```console
 vim main.tf
 ```
 
@@ -88,7 +88,7 @@ resource "docker_image" "coder_image" {
 
 Update the template:
 
-```shell
+```console
 coder template push docker-image-builds
 ```
 
@@ -99,7 +99,7 @@ the removed image until you update the workspace to the latest version.
 
 Edit the Dockerfile (or related assets):
 
-```shell
+```console
 vim images/node.Dockerfile
 ```
 
@@ -113,7 +113,7 @@ RUN DEBIAN_FRONTEND="noninteractive" apt-get update -y && \
 
 1. Edit the Terraform template (`main.tf`)
 
-```shell
+```console
 vim main.tf
 ```
 
@@ -136,13 +136,13 @@ resource "docker_image" "coder_image" {
 
 Update the template:
 
-```shell
+```console
 coder template push docker-image-builds
 ```
 
 Optional: Update workspaces to the latest template version
 
-```shell
+```console
 coder ls
 coder update [workspace name]
 ```

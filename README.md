@@ -74,7 +74,7 @@ You can run the install script with `--dry-run` to see the commands that will be
 
 Once installed, you can start a production deployment<sup>1</sup> with a single command:
 
-```shell
+```console
 # Automatically sets up an external access URL on *.try.coder.app
 coder server
 

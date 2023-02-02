@@ -30,8 +30,6 @@ var updateGoldenFiles = flag.Bool("update", false, "update .golden files")
 
 //nolint:tparallel,paralleltest // These test sets env vars.
 func TestCommandHelp(t *testing.T) {
-	t.Parallel()
-
 	commonEnv := map[string]string{
 		"CODER_CONFIG_DIR": "/tmp/coder-cli-test-config",
 	}
