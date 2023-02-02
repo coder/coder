@@ -12,6 +12,7 @@ import { LastUsed } from "../LastUsed/LastUsed"
 import { Workspace } from "api/typesGenerated"
 import { OutdatedHelpTooltip } from "components/Tooltips/OutdatedHelpTooltip"
 import { Avatar } from "components/Avatar/Avatar"
+import { Stack } from "components/Stack/Stack"
 
 export const WorkspacesRow: FC<{
   workspace: Workspace
@@ -36,7 +37,18 @@ export const WorkspacesRow: FC<{
     >
       <TableCell>
         <AvatarData
-          title={workspace.name}
+          title={
+            <Stack direction="row" spacing={0} alignItems="center">
+              {workspace.name}
+              {workspace.outdated && (
+                <OutdatedHelpTooltip
+                  onUpdateVersion={() => {
+                    onUpdateWorkspace(workspace)
+                  }}
+                />
+              )}
+            </Stack>
+          }
           subtitle={workspace.owner_name}
           avatar={
             hasTemplateIcon && (
@@ -47,19 +59,6 @@ export const WorkspacesRow: FC<{
       </TableCell>
 
       <TableCell>{displayTemplateName}</TableCell>
-
-      <TableCell>
-        <div className={styles.version}>
-          {workspace.latest_build.template_version_name}
-          {workspace.outdated && (
-            <OutdatedHelpTooltip
-              onUpdateVersion={() => {
-                onUpdateWorkspace(workspace)
-              }}
-            />
-          )}
-        </div>
-      </TableCell>
 
       <TableCell>
         <LastUsed lastUsedAt={workspace.last_used_at} />
@@ -108,9 +107,5 @@ const useStyles = makeStyles((theme) => ({
     "& img": {
       width: "100%",
     },
-  },
-
-  version: {
-    display: "flex",
   },
 }))
