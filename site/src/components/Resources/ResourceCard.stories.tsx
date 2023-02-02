@@ -1,3 +1,4 @@
+import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
 import { MockWorkspace, MockWorkspaceResource } from "testHelpers/entities"
 import { AgentRow } from "./AgentRow"
@@ -21,6 +22,7 @@ Example.args = {
       workspace={MockWorkspace}
       applicationsHost=""
       serverVersion=""
+      onUpdateAgent={action("updateAgent")}
     />
   ),
 }
@@ -75,6 +77,7 @@ BunchOfMetadata.args = {
       workspace={MockWorkspace}
       applicationsHost=""
       serverVersion=""
+      onUpdateAgent={action("updateAgent")}
     />
   ),
 }
