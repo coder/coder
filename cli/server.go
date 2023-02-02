@@ -65,9 +65,11 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/prometheusmetrics"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/updatecheck"
+	"github.com/coder/coder/coderd/userpassword"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
@@ -561,62 +563,13 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				options.Database = databasefake.New()
 				options.Pubsub = database.NewPubsubInMemory()
 			} else {
-				logger.Debug(ctx, "connecting to postgresql")
-				sqlDB, err := sql.Open(sqlDriver, cfg.PostgresURL.Value)
+				sqlDB, err := connectToPostgres(ctx, logger, sqlDriver, cfg.PostgresURL.Value)
 				if err != nil {
-					return xerrors.Errorf("dial postgres: %w", err)
+					return xerrors.Errorf("connect to postgres: %w", err)
 				}
-				defer sqlDB.Close()
-
-				pingCtx, pingCancel := context.WithTimeout(ctx, 15*time.Second)
-				defer pingCancel()
-
-				err = sqlDB.PingContext(pingCtx)
-				if err != nil {
-					return xerrors.Errorf("ping postgres: %w", err)
-				}
-
-				// Ensure the PostgreSQL version is >=13.0.0!
-				version, err := sqlDB.QueryContext(ctx, "SHOW server_version;")
-				if err != nil {
-					return xerrors.Errorf("get postgres version: %w", err)
-				}
-				if !version.Next() {
-					return xerrors.Errorf("no rows returned for version select")
-				}
-				var versionStr string
-				err = version.Scan(&versionStr)
-				if err != nil {
-					return xerrors.Errorf("scan version: %w", err)
-				}
-				_ = version.Close()
-				versionStr = strings.Split(versionStr, " ")[0]
-				if semver.Compare("v"+versionStr, "v13") < 0 {
-					return xerrors.New("PostgreSQL version must be v13.0.0 or higher!")
-				}
-				logger.Debug(ctx, "connected to postgresql", slog.F("version", versionStr))
-
-				err = migrations.Up(sqlDB)
-				if err != nil {
-					return xerrors.Errorf("migrate up: %w", err)
-				}
-				// The default is 0 but the request will fail with a 500 if the DB
-				// cannot accept new connections, so we try to limit that here.
-				// Requests will wait for a new connection instead of a hard error
-				// if a limit is set.
-				sqlDB.SetMaxOpenConns(10)
-				// Allow a max of 3 idle connections at a time. Lower values end up
-				// creating a lot of connection churn. Since each connection uses about
-				// 10MB of memory, we're allocating 30MB to Postgres connections per
-				// replica, but is better than causing Postgres to spawn a thread 15-20
-				// times/sec. PGBouncer's transaction pooling is not the greatest so
-				// it's not optimal for us to deploy.
-				//
-				// This was set to 10 before we started doing HA deployments, but 3 was
-				// later determined to be a better middle ground as to not use up all
-				// of PGs default connection limit while simultaneously avoiding a lot
-				// of connection churn.
-				sqlDB.SetMaxIdleConns(3)
+				defer func() {
+					_ = sqlDB.Close()
+				}()
 
 				options.Database = database.New(sqlDB)
 				options.Pubsub, err = database.NewPubsub(ctx, sqlDB, cfg.PostgresURL.Value)
@@ -1005,7 +958,232 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 	postgresBuiltinURLCmd.Flags().BoolVar(&pgRawURL, "raw-url", false, "Output the raw connection URL instead of a psql command.")
 	postgresBuiltinServeCmd.Flags().BoolVar(&pgRawURL, "raw-url", false, "Output the raw connection URL instead of a psql command.")
 
-	root.AddCommand(postgresBuiltinURLCmd, postgresBuiltinServeCmd)
+	var (
+		newUserDBURL              string
+		newUserSSHKeygenAlgorithm string
+		newUserUsername           string
+		newUserEmail              string
+		newUserPassword           string
+	)
+	createAdminUserCommand := &cobra.Command{
+		Use:   "create-admin-user",
+		Short: "Create a new admin user with the given username, email and password and adds it to every organization.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+
+			sshKeygenAlgorithm, err := gitsshkey.ParseAlgorithm(newUserSSHKeygenAlgorithm)
+			if err != nil {
+				return xerrors.Errorf("parse ssh keygen algorithm %q: %w", newUserSSHKeygenAlgorithm, err)
+			}
+
+			if val, exists := os.LookupEnv("CODER_POSTGRES_URL"); exists {
+				newUserDBURL = val
+			}
+			if val, exists := os.LookupEnv("CODER_SSH_KEYGEN_ALGORITHM"); exists {
+				newUserSSHKeygenAlgorithm = val
+			}
+			if val, exists := os.LookupEnv("CODER_USERNAME"); exists {
+				newUserUsername = val
+			}
+			if val, exists := os.LookupEnv("CODER_EMAIL"); exists {
+				newUserEmail = val
+			}
+			if val, exists := os.LookupEnv("CODER_PASSWORD"); exists {
+				newUserPassword = val
+			}
+
+			cfg := createConfig(cmd)
+			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
+			if ok, _ := cmd.Flags().GetBool(varVerbose); ok {
+				logger = logger.Leveled(slog.LevelDebug)
+			}
+
+			ctx, cancel := signal.NotifyContext(ctx, InterruptSignals...)
+			defer cancel()
+
+			if newUserDBURL == "" {
+				cmd.Printf("Using built-in PostgreSQL (%s)\n", cfg.PostgresPath())
+				url, closePg, err := startBuiltinPostgres(ctx, cfg, logger)
+				if err != nil {
+					return err
+				}
+				defer func() {
+					_ = closePg()
+				}()
+				newUserDBURL = url
+			}
+
+			sqlDB, err := connectToPostgres(ctx, logger, "postgres", newUserDBURL)
+			if err != nil {
+				return xerrors.Errorf("connect to postgres: %w", err)
+			}
+			defer func() {
+				_ = sqlDB.Close()
+			}()
+			db := database.New(sqlDB)
+
+			validateInputs := func(username, email, password string) error {
+				// Use the validator tags so we match the API's validation.
+				req := codersdk.CreateUserRequest{
+					Username:       "username",
+					Email:          "email@coder.com",
+					Password:       "ValidPa$$word123!",
+					OrganizationID: uuid.New(),
+				}
+				if username != "" {
+					req.Username = username
+				}
+				if email != "" {
+					req.Email = email
+				}
+				if password != "" {
+					req.Password = password
+				}
+
+				return httpapi.Validate.Struct(req)
+			}
+
+			if newUserUsername == "" {
+				newUserUsername, err = cliui.Prompt(cmd, cliui.PromptOptions{
+					Text: "Username",
+					Validate: func(val string) error {
+						if val == "" {
+							return xerrors.New("username cannot be empty")
+						}
+						return validateInputs(val, "", "")
+					},
+				})
+				if err != nil {
+					return err
+				}
+			}
+			if newUserEmail == "" {
+				newUserEmail, err = cliui.Prompt(cmd, cliui.PromptOptions{
+					Text: "Email",
+					Validate: func(val string) error {
+						if val == "" {
+							return xerrors.New("email cannot be empty")
+						}
+						return validateInputs("", val, "")
+					},
+				})
+				if err != nil {
+					return err
+				}
+			}
+			if newUserPassword == "" {
+				newUserPassword, err = cliui.Prompt(cmd, cliui.PromptOptions{
+					Text:   "Password",
+					Secret: true,
+					Validate: func(val string) error {
+						if val == "" {
+							return xerrors.New("password cannot be empty")
+						}
+						return validateInputs("", "", val)
+					},
+				})
+				if err != nil {
+					return err
+				}
+
+				// Prompt again.
+				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+					Text:   "Confirm password",
+					Secret: true,
+					Validate: func(val string) error {
+						if val != newUserPassword {
+							return xerrors.New("passwords do not match")
+						}
+						return nil
+					},
+				})
+				if err != nil {
+					return err
+				}
+			}
+
+			err = validateInputs(newUserUsername, newUserEmail, newUserPassword)
+			if err != nil {
+				return xerrors.Errorf("validate inputs: %w", err)
+			}
+
+			hashedPassword, err := userpassword.Hash(newUserPassword)
+			if err != nil {
+				return xerrors.Errorf("hash password: %w", err)
+			}
+
+			// Create the user.
+			var newUser database.User
+			err = db.InTx(func(tx database.Store) error {
+				orgs, err := tx.GetOrganizations(ctx)
+				if err != nil {
+					return xerrors.Errorf("get organizations: %w", err)
+				}
+
+				newUser, err = tx.InsertUser(ctx, database.InsertUserParams{
+					ID:             uuid.New(),
+					Email:          newUserEmail,
+					Username:       newUserUsername,
+					HashedPassword: []byte(hashedPassword),
+					CreatedAt:      database.Now(),
+					UpdatedAt:      database.Now(),
+					RBACRoles:      []string{rbac.RoleOwner()},
+					LoginType:      database.LoginTypePassword,
+				})
+				if err != nil {
+					return xerrors.Errorf("insert user: %w", err)
+				}
+
+				privateKey, publicKey, err := gitsshkey.Generate(sshKeygenAlgorithm)
+				if err != nil {
+					return xerrors.Errorf("generate user gitsshkey: %w", err)
+				}
+				_, err = tx.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
+					UserID:     newUser.ID,
+					CreatedAt:  database.Now(),
+					UpdatedAt:  database.Now(),
+					PrivateKey: privateKey,
+					PublicKey:  publicKey,
+				})
+				if err != nil {
+					return xerrors.Errorf("insert user gitsshkey: %w", err)
+				}
+
+				for _, org := range orgs {
+					_, err := tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
+						OrganizationID: org.ID,
+						UserID:         newUser.ID,
+						CreatedAt:      database.Now(),
+						UpdatedAt:      database.Now(),
+						Roles:          []string{rbac.RoleOrgAdmin(org.ID)},
+					})
+					if err != nil {
+						return xerrors.Errorf("insert organization member: %w", err)
+					}
+				}
+
+				return nil
+			}, nil)
+			if err != nil {
+				return err
+			}
+
+			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "User created successfully.")
+			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "ID:       "+newUser.ID.String())
+			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Username: "+newUser.Username)
+			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Email:    "+newUser.Email)
+			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Password: ********")
+
+			return nil
+		},
+	}
+	createAdminUserCommand.Flags().StringVar(&newUserDBURL, "postgres-url", "", "URL of a PostgreSQL database. If empty, the built-in PostgreSQL deployment will be used (Coder must not be already running in this case). Consumes $CODER_POSTGRES_URL.")
+	createAdminUserCommand.Flags().StringVar(&newUserSSHKeygenAlgorithm, "ssh-keygen-algorithm", "ed25519", "The algorithm to use for generating ssh keys. Accepted values are \"ed25519\", \"ecdsa\", or \"rsa4096\". Consumes $CODER_SSH_KEYGEN_ALGORITHM.")
+	createAdminUserCommand.Flags().StringVar(&newUserUsername, "username", "", "The username of the new user. If not specified, you will be prompted via stdin. Consumes $CODER_USERNAME.")
+	createAdminUserCommand.Flags().StringVar(&newUserEmail, "email", "", "The email of the new user. If not specified, you will be prompted via stdin. Consumes $CODER_EMAIL.")
+	createAdminUserCommand.Flags().StringVar(&newUserPassword, "password", "", "The password of the new user. If not specified, you will be prompted via stdin. Consumes $CODER_PASSWORD.")
+
+	root.AddCommand(postgresBuiltinURLCmd, postgresBuiltinServeCmd, createAdminUserCommand)
 
 	deployment.AttachFlags(root.Flags(), vip, false)
 
@@ -1559,4 +1737,72 @@ func buildLogger(cmd *cobra.Command, cfg *codersdk.DeploymentConfig) (slog.Logge
 			_ = closer()
 		}
 	}, nil
+}
+
+func connectToPostgres(ctx context.Context, logger slog.Logger, driver string, dbURL string) (*sql.DB, error) {
+	logger.Debug(ctx, "connecting to postgresql")
+	sqlDB, err := sql.Open(driver, dbURL)
+	if err != nil {
+		return nil, xerrors.Errorf("dial postgres: %w", err)
+	}
+
+	ok := false
+	defer func() {
+		if !ok {
+			_ = sqlDB.Close()
+		}
+	}()
+
+	pingCtx, pingCancel := context.WithTimeout(ctx, 15*time.Second)
+	defer pingCancel()
+
+	err = sqlDB.PingContext(pingCtx)
+	if err != nil {
+		return nil, xerrors.Errorf("ping postgres: %w", err)
+	}
+
+	// Ensure the PostgreSQL version is >=13.0.0!
+	version, err := sqlDB.QueryContext(ctx, "SHOW server_version;")
+	if err != nil {
+		return nil, xerrors.Errorf("get postgres version: %w", err)
+	}
+	if !version.Next() {
+		return nil, xerrors.Errorf("no rows returned for version select")
+	}
+	var versionStr string
+	err = version.Scan(&versionStr)
+	if err != nil {
+		return nil, xerrors.Errorf("scan version: %w", err)
+	}
+	_ = version.Close()
+	versionStr = strings.Split(versionStr, " ")[0]
+	if semver.Compare("v"+versionStr, "v13") < 0 {
+		return nil, xerrors.New("PostgreSQL version must be v13.0.0 or higher!")
+	}
+	logger.Debug(ctx, "connected to postgresql", slog.F("version", versionStr))
+
+	err = migrations.Up(sqlDB)
+	if err != nil {
+		return nil, xerrors.Errorf("migrate up: %w", err)
+	}
+	// The default is 0 but the request will fail with a 500 if the DB
+	// cannot accept new connections, so we try to limit that here.
+	// Requests will wait for a new connection instead of a hard error
+	// if a limit is set.
+	sqlDB.SetMaxOpenConns(10)
+	// Allow a max of 3 idle connections at a time. Lower values end up
+	// creating a lot of connection churn. Since each connection uses about
+	// 10MB of memory, we're allocating 30MB to Postgres connections per
+	// replica, but is better than causing Postgres to spawn a thread 15-20
+	// times/sec. PGBouncer's transaction pooling is not the greatest so
+	// it's not optimal for us to deploy.
+	//
+	// This was set to 10 before we started doing HA deployments, but 3 was
+	// later determined to be a better middle ground as to not use up all
+	// of PGs default connection limit while simultaneously avoiding a lot
+	// of connection churn.
+	sqlDB.SetMaxIdleConns(3)
+
+	ok = true
+	return sqlDB, nil
 }
