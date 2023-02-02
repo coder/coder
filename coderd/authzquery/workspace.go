@@ -32,6 +32,7 @@ func (q *AuthzQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context,
 		return q.database.GetWorkspaceByID(ctx, workspaceID)
 	}
 	return authorizedQueryWithRelated(
+		q.logger,
 		q.authorizer,
 		rbac.ActionRead,
 		fetch,
@@ -56,7 +57,7 @@ func (q *AuthzQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) 
 		return q.database.GetWorkspaceByAgentID(ctx, agent.ID)
 	}
 	// Curently agent resource is just the related workspace resource.
-	return authorizedQueryWithRelated(q.authorizer, rbac.ActionRead, fetch, q.database.GetWorkspaceAgentByID)(ctx, id)
+	return authorizedQueryWithRelated(q.logger, q.authorizer, rbac.ActionRead, fetch, q.database.GetWorkspaceAgentByID)(ctx, id)
 }
 
 // GetWorkspaceAgentByInstanceID might want to be a system call? Unsure exactly,
@@ -67,7 +68,7 @@ func (q *AuthzQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authIn
 	fetch := func(agent database.WorkspaceAgent, _ string) (database.Workspace, error) {
 		return q.database.GetWorkspaceByAgentID(ctx, agent.ID)
 	}
-	return authorizedQueryWithRelated(q.authorizer, rbac.ActionRead, fetch, q.database.GetWorkspaceAgentByInstanceID)(ctx, authInstanceID)
+	return authorizedQueryWithRelated(q.logger, q.authorizer, rbac.ActionRead, fetch, q.database.GetWorkspaceAgentByInstanceID)(ctx, authInstanceID)
 }
 
 // GetWorkspaceAgentsByResourceIDs is an all or nothing call. If the user cannot read
@@ -131,7 +132,7 @@ func (q *AuthzQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uu
 		return q.database.GetWorkspaceByAgentID(ctx, agentID)
 	}
 
-	return authorizedQueryWithRelated(q.authorizer, rbac.ActionRead, fetch, q.database.GetWorkspaceAppsByAgentID)(ctx, agentID)
+	return authorizedQueryWithRelated(q.logger, q.authorizer, rbac.ActionRead, fetch, q.database.GetWorkspaceAppsByAgentID)(ctx, agentID)
 }
 
 // GetWorkspaceAppsByAgentIDs is an all or nothing call. If the user cannot read a single app, the entire call will fail.
@@ -153,6 +154,7 @@ func (q *AuthzQuerier) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) 
 		return q.database.GetWorkspaceByID(ctx, build.WorkspaceID)
 	}
 	return authorizedQueryWithRelated(
+		q.logger,
 		q.authorizer,
 		rbac.ActionRead,
 		fetch,
@@ -176,7 +178,7 @@ func (q *AuthzQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.
 	fetch := func(_ database.WorkspaceBuild, arg database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (database.Workspace, error) {
 		return q.database.GetWorkspaceByID(ctx, arg.WorkspaceID)
 	}
-	return authorizedQueryWithRelated(q.authorizer, rbac.ActionRead, fetch, q.database.GetWorkspaceBuildByWorkspaceIDAndBuildNumber)(ctx, arg)
+	return authorizedQueryWithRelated(q.logger, q.authorizer, rbac.ActionRead, fetch, q.database.GetWorkspaceBuildByWorkspaceIDAndBuildNumber)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
@@ -194,11 +196,11 @@ func (q *AuthzQuerier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg 
 	fetch := func(_ []database.WorkspaceBuild, arg database.GetWorkspaceBuildsByWorkspaceIDParams) (database.Workspace, error) {
 		return q.database.GetWorkspaceByID(ctx, arg.WorkspaceID)
 	}
-	return authorizedQueryWithRelated(q.authorizer, rbac.ActionRead, fetch, q.database.GetWorkspaceBuildsByWorkspaceID)(ctx, arg)
+	return authorizedQueryWithRelated(q.logger, q.authorizer, rbac.ActionRead, fetch, q.database.GetWorkspaceBuildsByWorkspaceID)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (database.Workspace, error) {
-	return authorizedFetch(q.authorizer, q.database.GetWorkspaceByAgentID)(ctx, agentID)
+	return authorizedFetch(q.logger, q.authorizer, q.database.GetWorkspaceByAgentID)(ctx, agentID)
 }
 
 // GetWorkspaceByID
@@ -206,7 +208,7 @@ func (q *AuthzQuerier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.U
 // Args: Workspace.ID
 // Assert: Workspace.read
 func (q *AuthzQuerier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (database.Workspace, error) {
-	return authorizedFetch(q.authorizer, q.database.GetWorkspaceByID)(ctx, id)
+	return authorizedFetch(q.logger, q.authorizer, q.database.GetWorkspaceByID)(ctx, id)
 }
 
 // OwnerID uuid.UUID `db:"owner_id" json:"owner_id"`
@@ -216,7 +218,7 @@ func (q *AuthzQuerier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (data
 // GetWorkspaceByOwnerIDAndName
 // Gen: Workspace
 func (q *AuthzQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg database.GetWorkspaceByOwnerIDAndNameParams) (database.Workspace, error) {
-	return authorizedFetch(q.authorizer, q.database.GetWorkspaceByOwnerIDAndName)(ctx, arg)
+	return authorizedFetch(q.logger, q.authorizer, q.database.GetWorkspaceByOwnerIDAndName)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetWorkspaceOwnerCountsByTemplateIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetWorkspaceOwnerCountsByTemplateIDsRow, error) {
@@ -252,7 +254,7 @@ func (q *AuthzQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUI
 	}
 
 	// If the workspace can be read, then the resource can be read.
-	_, err = authorizedFetch(q.authorizer, q.database.GetWorkspaceByID)(ctx, build.WorkspaceID)
+	_, err = authorizedFetch(q.logger, q.authorizer, q.database.GetWorkspaceByID)(ctx, build.WorkspaceID)
 	if err != nil {
 		return database.WorkspaceResource{}, nil
 	}
@@ -326,7 +328,7 @@ func (q *AuthzQuerier) GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []
 
 func (q *AuthzQuerier) InsertWorkspace(ctx context.Context, arg database.InsertWorkspaceParams) (database.Workspace, error) {
 	obj := rbac.ResourceWorkspace.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID)
-	return authorizedInsertWithReturn(q.authorizer, rbac.ActionCreate, obj, q.database.InsertWorkspace)(ctx, arg)
+	return authorizedInsertWithReturn(q.logger, q.authorizer, rbac.ActionCreate, obj, q.database.InsertWorkspace)(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertWorkspaceBuildParams) (database.WorkspaceBuild, error) {
@@ -338,7 +340,7 @@ func (q *AuthzQuerier) InsertWorkspaceBuild(ctx context.Context, arg database.In
 	if arg.Transition == database.WorkspaceTransitionDelete {
 		action = rbac.ActionDelete
 	}
-	return authorizedQueryWithRelated(q.authorizer, action, fetch, q.database.InsertWorkspaceBuild)(ctx, arg)
+	return authorizedQueryWithRelated(q.logger, q.authorizer, action, fetch, q.database.InsertWorkspaceBuild)(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertWorkspaceBuildParameters(ctx context.Context, arg database.InsertWorkspaceBuildParametersParams) error {
@@ -370,7 +372,7 @@ func (q *AuthzQuerier) UpdateWorkspace(ctx context.Context, arg database.UpdateW
 	fetch := func(ctx context.Context, arg database.UpdateWorkspaceParams) (database.Workspace, error) {
 		return q.database.GetWorkspaceByID(ctx, arg.ID)
 	}
-	return authorizedUpdateWithReturn(q.authorizer, fetch, q.database.UpdateWorkspace)(ctx, arg)
+	return authorizedUpdateWithReturn(q.logger, q.authorizer, fetch, q.database.UpdateWorkspace)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) error {
@@ -378,7 +380,7 @@ func (q *AuthzQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, a
 	fetch := func(ctx context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) (database.Workspace, error) {
 		return q.database.GetWorkspaceByAgentID(ctx, arg.ID)
 	}
-	return authorizedUpdate(q.authorizer, fetch, q.database.UpdateWorkspaceAgentConnectionByID)(ctx, arg)
+	return authorizedUpdate(q.logger, q.authorizer, fetch, q.database.UpdateWorkspaceAgentConnectionByID)(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertAgentStat(ctx context.Context, arg database.InsertAgentStatParams) (database.AgentStat, error) {
@@ -396,7 +398,7 @@ func (q *AuthzQuerier) UpdateWorkspaceAgentVersionByID(ctx context.Context, arg 
 	fetch := func(ctx context.Context, arg database.UpdateWorkspaceAgentVersionByIDParams) (database.Workspace, error) {
 		return q.database.GetWorkspaceByAgentID(ctx, arg.ID)
 	}
-	return authorizedUpdate(q.authorizer, fetch, q.database.UpdateWorkspaceAgentVersionByID)(ctx, arg)
+	return authorizedUpdate(q.logger, q.authorizer, fetch, q.database.UpdateWorkspaceAgentVersionByID)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateWorkspaceAppHealthByID(ctx context.Context, arg database.UpdateWorkspaceAppHealthByIDParams) error {
@@ -417,7 +419,7 @@ func (q *AuthzQuerier) UpdateWorkspaceAutostart(ctx context.Context, arg databas
 	fetch := func(ctx context.Context, arg database.UpdateWorkspaceAutostartParams) (database.Workspace, error) {
 		return q.database.GetWorkspaceByID(ctx, arg.ID)
 	}
-	return authorizedUpdate(q.authorizer, fetch, q.database.UpdateWorkspaceAutostart)(ctx, arg)
+	return authorizedUpdate(q.logger, q.authorizer, fetch, q.database.UpdateWorkspaceAutostart)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateWorkspaceBuildByID(ctx context.Context, arg database.UpdateWorkspaceBuildByIDParams) (database.WorkspaceBuild, error) {
@@ -439,7 +441,7 @@ func (q *AuthzQuerier) UpdateWorkspaceBuildByID(ctx context.Context, arg databas
 }
 
 func (q *AuthzQuerier) SoftDeleteWorkspaceByID(ctx context.Context, id uuid.UUID) error {
-	return authorizedDelete(q.authorizer, q.database.GetWorkspaceByID, func(ctx context.Context, id uuid.UUID) error {
+	return authorizedDelete(q.logger, q.authorizer, q.database.GetWorkspaceByID, func(ctx context.Context, id uuid.UUID) error {
 		return q.database.UpdateWorkspaceDeletedByID(ctx, database.UpdateWorkspaceDeletedByIDParams{
 			ID:      id,
 			Deleted: true,
@@ -454,23 +456,23 @@ func (q *AuthzQuerier) UpdateWorkspaceDeletedByID(ctx context.Context, arg datab
 		return q.database.GetWorkspaceByID(ctx, arg.ID)
 	}
 	// This function is always used to delete.
-	return authorizedDelete(q.authorizer, fetch, q.database.UpdateWorkspaceDeletedByID)(ctx, arg)
+	return authorizedDelete(q.logger, q.authorizer, fetch, q.database.UpdateWorkspaceDeletedByID)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateWorkspaceLastUsedAt(ctx context.Context, arg database.UpdateWorkspaceLastUsedAtParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateWorkspaceLastUsedAtParams) (database.Workspace, error) {
 		return q.database.GetWorkspaceByID(ctx, arg.ID)
 	}
-	return authorizedUpdate(q.authorizer, fetch, q.database.UpdateWorkspaceLastUsedAt)(ctx, arg)
+	return authorizedUpdate(q.logger, q.authorizer, fetch, q.database.UpdateWorkspaceLastUsedAt)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateWorkspaceTTL(ctx context.Context, arg database.UpdateWorkspaceTTLParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateWorkspaceTTLParams) (database.Workspace, error) {
 		return q.database.GetWorkspaceByID(ctx, arg.ID)
 	}
-	return authorizedUpdate(q.authorizer, fetch, q.database.UpdateWorkspaceTTL)(ctx, arg)
+	return authorizedUpdate(q.logger, q.authorizer, fetch, q.database.UpdateWorkspaceTTL)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceAppID uuid.UUID) (database.Workspace, error) {
-	return authorizedFetch(q.authorizer, q.database.GetWorkspaceByWorkspaceAppID)(ctx, workspaceAppID)
+	return authorizedFetch(q.logger, q.authorizer, q.database.GetWorkspaceByWorkspaceAppID)(ctx, workspaceAppID)
 }

@@ -40,11 +40,11 @@ func (q *AuthzQuerier) GetQuotaConsumedForUser(ctx context.Context, userID uuid.
 }
 
 func (q *AuthzQuerier) GetUserByEmailOrUsername(ctx context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
-	return authorizedFetch(q.authorizer, q.database.GetUserByEmailOrUsername)(ctx, arg)
+	return authorizedFetch(q.logger, q.authorizer, q.database.GetUserByEmailOrUsername)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (database.User, error) {
-	return authorizedFetch(q.authorizer, q.database.GetUserByID)(ctx, id)
+	return authorizedFetch(q.logger, q.authorizer, q.database.GetUserByID)(ctx, id)
 }
 
 func (q *AuthzQuerier) GetAuthorizedUserCount(ctx context.Context, arg database.GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
@@ -103,7 +103,7 @@ func (q *AuthzQuerier) InsertUser(ctx context.Context, arg database.InsertUserPa
 		return database.User{}, err
 	}
 	obj := rbac.ResourceUser
-	return authorizedInsertWithReturn(q.authorizer, rbac.ActionCreate, obj, q.database.InsertUser)(ctx, arg)
+	return authorizedInsertWithReturn(q.logger, q.authorizer, rbac.ActionCreate, obj, q.database.InsertUser)(ctx, arg)
 }
 
 // TODO: Should this be in system.go?
@@ -121,7 +121,7 @@ func (q *AuthzQuerier) SoftDeleteUserByID(ctx context.Context, id uuid.UUID) err
 			Deleted: true,
 		})
 	}
-	return authorizedDelete(q.authorizer, q.database.GetUserByID, deleteF)(ctx, id)
+	return authorizedDelete(q.logger, q.authorizer, q.database.GetUserByID, deleteF)(ctx, id)
 }
 
 // UpdateUserDeletedByID
@@ -133,7 +133,7 @@ func (q *AuthzQuerier) UpdateUserDeletedByID(ctx context.Context, arg database.U
 	}
 	// This uses the rbac.ActionDelete action always as this function should always delete.
 	// We should delete this function in favor of 'SoftDeleteUserByID'.
-	return authorizedDelete(q.authorizer, fetch, q.database.UpdateUserDeletedByID)(ctx, arg)
+	return authorizedDelete(q.logger, q.authorizer, fetch, q.database.UpdateUserDeletedByID)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateUserHashedPassword(ctx context.Context, arg database.UpdateUserHashedPasswordParams) error {
@@ -154,37 +154,37 @@ func (q *AuthzQuerier) UpdateUserLastSeenAt(ctx context.Context, arg database.Up
 	fetch := func(ctx context.Context, arg database.UpdateUserLastSeenAtParams) (database.User, error) {
 		return q.database.GetUserByID(ctx, arg.ID)
 	}
-	return authorizedUpdateWithReturn(q.authorizer, fetch, q.database.UpdateUserLastSeenAt)(ctx, arg)
+	return authorizedUpdateWithReturn(q.logger, q.authorizer, fetch, q.database.UpdateUserLastSeenAt)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateUserProfile(ctx context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
 	fetch := func(ctx context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
 		return q.GetUserByID(ctx, arg.ID)
 	}
-	return authorizedUpdateWithReturn(q.authorizer, fetch, q.database.UpdateUserProfile)(ctx, arg)
+	return authorizedUpdateWithReturn(q.logger, q.authorizer, fetch, q.database.UpdateUserProfile)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateUserStatus(ctx context.Context, arg database.UpdateUserStatusParams) (database.User, error) {
 	fetch := func(ctx context.Context, arg database.UpdateUserStatusParams) (database.User, error) {
 		return q.database.GetUserByID(ctx, arg.ID)
 	}
-	return authorizedUpdateWithReturn(q.authorizer, fetch, q.database.UpdateUserStatus)(ctx, arg)
+	return authorizedUpdateWithReturn(q.logger, q.authorizer, fetch, q.database.UpdateUserStatus)(ctx, arg)
 }
 
 func (q *AuthzQuerier) DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error {
-	return authorizedDelete(q.authorizer, q.database.GetGitSSHKey, q.database.DeleteGitSSHKey)(ctx, userID)
+	return authorizedDelete(q.logger, q.authorizer, q.database.GetGitSSHKey, q.database.DeleteGitSSHKey)(ctx, userID)
 }
 
 func (q *AuthzQuerier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
-	return authorizedFetch(q.authorizer, q.database.GetGitSSHKey)(ctx, userID)
+	return authorizedFetch(q.logger, q.authorizer, q.database.GetGitSSHKey)(ctx, userID)
 }
 
 func (q *AuthzQuerier) InsertGitSSHKey(ctx context.Context, arg database.InsertGitSSHKeyParams) (database.GitSSHKey, error) {
-	return authorizedInsertWithReturn(q.authorizer, rbac.ActionCreate, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID), q.database.InsertGitSSHKey)(ctx, arg)
+	return authorizedInsertWithReturn(q.logger, q.authorizer, rbac.ActionCreate, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID), q.database.InsertGitSSHKey)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateGitSSHKey(ctx context.Context, arg database.UpdateGitSSHKeyParams) (database.GitSSHKey, error) {
-	return authorizedInsertWithReturn(q.authorizer, rbac.ActionUpdate, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID), q.database.UpdateGitSSHKey)(ctx, arg)
+	return authorizedInsertWithReturn(q.logger, q.authorizer, rbac.ActionUpdate, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID), q.database.UpdateGitSSHKey)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetGitAuthLink(ctx context.Context, arg database.GetGitAuthLinkParams) (database.GitAuthLink, error) {
@@ -225,7 +225,7 @@ func (q *AuthzQuerier) UpdateUserRoles(ctx context.Context, arg database.UpdateU
 	// We need to fetch the user being updated to identify the change in roles.
 	// This requires read access on the user in question, since the user is
 	// returned from this function.
-	user, err := authorizedFetch(q.authorizer, q.database.GetUserByID)(ctx, arg.ID)
+	user, err := authorizedFetch(q.logger, q.authorizer, q.database.GetUserByID)(ctx, arg.ID)
 	if err != nil {
 		return database.User{}, err
 	}

@@ -16,23 +16,23 @@ func (q *AuthzQuerier) GetLicenses(ctx context.Context) ([]database.License, err
 }
 
 func (q *AuthzQuerier) InsertLicense(ctx context.Context, arg database.InsertLicenseParams) (database.License, error) {
-	return authorizedInsertWithReturn(q.authorizer, rbac.ActionCreate, rbac.ResourceLicense, q.database.InsertLicense)(ctx, arg)
+	return authorizedInsertWithReturn(q.logger, q.authorizer, rbac.ActionCreate, rbac.ResourceLicense, q.database.InsertLicense)(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertOrUpdateLogoURL(ctx context.Context, value string) error {
-	return authorizedInsert(q.authorizer, rbac.ActionUpdate, rbac.ResourceDeploymentConfig, q.database.InsertOrUpdateLogoURL)(ctx, value)
+	return authorizedInsert(q.logger, q.authorizer, rbac.ActionUpdate, rbac.ResourceDeploymentConfig, q.database.InsertOrUpdateLogoURL)(ctx, value)
 }
 
 func (q *AuthzQuerier) InsertOrUpdateServiceBanner(ctx context.Context, value string) error {
-	return authorizedInsert(q.authorizer, rbac.ActionUpdate, rbac.ResourceDeploymentConfig, q.database.InsertOrUpdateServiceBanner)(ctx, value)
+	return authorizedInsert(q.logger, q.authorizer, rbac.ActionUpdate, rbac.ResourceDeploymentConfig, q.database.InsertOrUpdateServiceBanner)(ctx, value)
 }
 
 func (q *AuthzQuerier) GetLicenseByID(ctx context.Context, id int32) (database.License, error) {
-	return authorizedFetch(q.authorizer, q.database.GetLicenseByID)(ctx, id)
+	return authorizedFetch(q.logger, q.authorizer, q.database.GetLicenseByID)(ctx, id)
 }
 
 func (q *AuthzQuerier) DeleteLicense(ctx context.Context, id int32) (int32, error) {
-	err := authorizedDelete(q.authorizer, q.database.GetLicenseByID, func(ctx context.Context, id int32) error {
+	err := authorizedDelete(q.logger, q.authorizer, q.database.GetLicenseByID, func(ctx context.Context, id int32) error {
 		_, err := q.database.DeleteLicense(ctx, id)
 		return err
 	})(ctx, id)
