@@ -198,7 +198,7 @@ export const HelpTooltipLinksGroup: FC<PropsWithChildren<unknown>> = ({
 const getButtonSpacingFromSize = (size?: Size): number => {
   switch (size) {
     case "small":
-      return 2.75
+      return 2.5
     case "medium":
     default:
       return 3
@@ -208,7 +208,7 @@ const getButtonSpacingFromSize = (size?: Size): number => {
 const getIconSpacingFromSize = (size?: Size): number => {
   switch (size) {
     case "small":
-      return 1.75
+      return 1.5
     case "medium":
     default:
       return 2
