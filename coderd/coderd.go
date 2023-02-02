@@ -403,7 +403,7 @@ func New(options *Options) *API {
 						r.Get("/", api.templateByOrganizationAndName)
 						r.Route("/versions/{templateversionname}", func(r chi.Router) {
 							r.Get("/", api.templateVersionByOrganizationTemplateAndName)
-							r.Get("/previous", api.templateVersionByOrganizationTemplateAndName)
+							r.Get("/previous", api.previousTemplateVersionByOrganizationTemplateAndName)
 						})
 					})
 				})
