@@ -142,7 +142,11 @@ func New(ctx context.Context, options *Options) (*API, error) {
 
 	if len(options.SCIMAPIKey) != 0 {
 		api.AGPL.RootHandler.Route("/scim/v2", func(r chi.Router) {
-			r.Use(api.scimEnabledMW)
+			r.Use(
+				api.scimEnabledMW,
+				// TODO: Make a scim auth role.
+				httpmw.SystemAuthCtx,
+			)
 			r.Post("/Users", api.scimPostUser)
 			r.Route("/Users", func(r chi.Router) {
 				r.Get("/", api.scimGetUsers)
