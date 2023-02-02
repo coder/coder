@@ -43,14 +43,20 @@ func (s *MethodTestSuite) TestWorkspace() {
 	})
 	s.Run("GetWorkspaceAgentByID", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{})
-			return methodCase(inputs(agt.ID), asserts())
+			ws := dbgen.Workspace(t, db, database.Workspace{})
+			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+			res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
+			agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
+			return methodCase(inputs(agt.ID), asserts(ws, rbac.ActionRead))
 		})
 	})
 	s.Run("GetWorkspaceAgentByInstanceID", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{})
-			return methodCase(inputs(agt.AuthInstanceID.String), asserts())
+			ws := dbgen.Workspace(t, db, database.Workspace{})
+			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+			res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
+			agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
+			return methodCase(inputs(agt.AuthInstanceID.String), asserts(ws, rbac.ActionRead))
 		})
 	})
 }
