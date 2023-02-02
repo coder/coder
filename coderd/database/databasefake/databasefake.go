@@ -889,6 +889,11 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	_, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL())
+	if err != nil {
+		return nil, err
+	}
+
 	workspaces := make([]database.Workspace, 0)
 	for _, workspace := range q.workspaces {
 		if arg.OwnerID != uuid.Nil && workspace.OwnerID != arg.OwnerID {
