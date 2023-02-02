@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/cryptorand"
-	"github.com/tabbed/pqtype"
-
-	"github.com/coder/coder/coderd/database"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/stretchr/testify/require"
+	"github.com/tabbed/pqtype"
+
+	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/cryptorand"
 )
 
 // All methods take in a 'seed' object. Any provided fields in the seed will be
