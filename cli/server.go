@@ -394,12 +394,10 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				cmd.Printf("%s The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL by not specifying an access URL.\n", cliui.Styles.Warn.Render("Warning:"), cliui.Styles.Field.Render(accessURLParsed.String()), reason)
 			}
 
-			// Redirect from the HTTP listener to the access URL if:
-			// 1. The redirect flag is enabled.
-			// 2. TLS is enabled (otherwise they're likely using a reverse proxy
-			//    which can do this instead).
-			// 3. The access URL is HTTPS.
-			shouldRedirectHTTPToAccessURL := cfg.TLS.RedirectHTTP.Value && cfg.TLS.Enable.Value && accessURLParsed.Scheme == "https"
+			if cfg.TLS.RedirectHTTP.Value {
+				cmd.PrintErr(cliui.Styles.Warn.Render("WARN:") + " --tls-redirect-http-to-https is deprecated, please use --redirect-to-access-url instead")
+				cfg.RedirectToAccessURL.Value = cfg.TLS.RedirectHTTP.Value
+			}
 
 			// A newline is added before for visibility in terminal output.
 			cmd.Printf("\nView the Web UI: %s\n", accessURLParsed.String())
@@ -771,8 +769,8 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			// Wrap the server in middleware that redirects to the access URL if
 			// the request is not to a local IP.
 			var handler http.Handler = coderAPI.RootHandler
-			if shouldRedirectHTTPToAccessURL {
-				handler = redirectHTTPToAccessURL(handler, accessURLParsed)
+			if cfg.RedirectToAccessURL.Value {
+				handler = redirectToAccessURL(handler, accessURLParsed)
 			}
 
 			// ReadHeaderTimeout is purposefully not enabled. It caused some
@@ -1520,7 +1518,7 @@ func configureHTTPClient(ctx context.Context, clientCertFile, clientKeyFile stri
 	return ctx, &http.Client{}, nil
 }
 
-func redirectHTTPToAccessURL(handler http.Handler, accessURL *url.URL) http.Handler {
+func redirectToAccessURL(handler http.Handler, accessURL *url.URL) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Host != accessURL.Host {
 			http.Redirect(w, r, accessURL.String(), http.StatusTemporaryRedirect)
