@@ -1964,6 +1964,41 @@ const docTemplate = `{
                 }
             }
         },
+        "/templates/{template}/app-usage": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get template app usage by ID",
+                "operationId": "get-template-app-usage-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateAppUsageResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/templates/{template}/daus": {
             "get": {
                 "security": [
@@ -7345,6 +7380,27 @@ const docTemplate = `{
                 },
                 "workspace_owner_count": {
                     "type": "integer"
+                }
+            }
+        },
+        "codersdk.TemplateAppUsageResponse": {
+            "type": "object",
+            "properties": {
+                "app_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "template_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },

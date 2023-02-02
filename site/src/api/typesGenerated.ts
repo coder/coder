@@ -702,6 +702,14 @@ export interface TemplateACL {
 }
 
 // From codersdk/templates.go
+export interface TemplateAppUsageResponse {
+  readonly user_id: string
+  readonly app_id: string
+  readonly template_id: string
+  readonly created_at: string
+}
+
+// From codersdk/templates.go
 export type TemplateBuildTimeStats = Record<
   WorkspaceTransition,
   TransitionStats

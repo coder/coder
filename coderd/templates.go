@@ -616,6 +616,74 @@ func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
+// @Summary Get template app usage by ID
+// @ID get-template-app-usage-by-id
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Param template path string true "Template ID" format(uuid)
+// @Success 200 {object} codersdk.TemplateAppUsageResponse
+// @Router /templates/{template}/app-usage [get]
+func (api *API) appUsage(rw http.ResponseWriter, r *http.Request) {
+	var err error
+	ctx := r.Context()
+	template := httpmw.TemplateParam(r)
+	if !api.Authorize(r, rbac.ActionRead, template) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	// Default date filter values
+	from := time.Now().Add(-24 * 7 * time.Hour) // Default is last 7 days
+	to := time.Now()
+
+	// Assign date filter values
+	queryParamsValidation := []codersdk.ValidationError{}
+	q := r.URL.Query()
+	fromQueryStr := q.Get("from")
+	if fromQueryStr != "" {
+		from, err = time.Parse(time.RFC3339, fromQueryStr)
+		if err != nil {
+			queryParamsValidation = append(queryParamsValidation, codersdk.ValidationError{
+				Field: "from", Detail: "Is not a valid date",
+			})
+		}
+	}
+	toQueryStr := q.Get("to")
+	if toQueryStr != "" {
+		to, err = time.Parse(time.RFC3339, toQueryStr)
+		if err != nil {
+			queryParamsValidation = append(queryParamsValidation, codersdk.ValidationError{
+				Field: "to", Detail: "Is not a valid date",
+			})
+		}
+	}
+	if len(queryParamsValidation) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid app usage params.",
+			Validations: queryParamsValidation,
+		})
+		return
+	}
+
+	usage, err := api.Database.GetAppUsageByTemplateID(ctx, database.GetAppUsageByTemplateIDParams{
+		TemplateID: template.ID,
+		FromDate:   from,
+		ToDate:     to,
+	})
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching app usage.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		usage = make([]database.AppUsage, 0)
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, usage)
+}
+
 // @Summary Get template examples by organization
 // @ID get-template-examples-by-organization
 // @Security CoderSessionToken

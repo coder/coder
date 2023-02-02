@@ -4304,3 +4304,23 @@ func (q *fakeQuerier) GetAppUsageByDate(_ context.Context, arg database.GetAppUs
 	}
 	return database.AppUsage{}, sql.ErrNoRows
 }
+
+func (q *fakeQuerier) GetAppUsageByTemplateID(_ context.Context, arg database.GetAppUsageByTemplateIDParams) ([]database.AppUsage, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	appUsage := make([]database.AppUsage, 0)
+	for _, usage := range q.appUsage {
+		if usage.TemplateID != arg.TemplateID {
+			continue
+		}
+		if usage.CreatedAt.Equal(arg.FromDate) || (usage.CreatedAt.After(arg.FromDate) && usage.CreatedAt.Before(arg.ToDate)) {
+			appUsage = append(appUsage, usage)
+		}
+	}
+	if len(appUsage) == 0 {
+		return []database.AppUsage{}, sql.ErrNoRows
+	}
+
+	return appUsage, nil
+}

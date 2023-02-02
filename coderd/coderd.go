@@ -432,6 +432,7 @@ func New(options *Options) *API {
 				httpmw.ExtractTemplateParam(options.Database),
 			)
 			r.Get("/daus", api.templateDAUs)
+			r.Get("/app-usage", api.appUsage)
 			r.Get("/", api.template)
 			r.Delete("/", api.deleteTemplate)
 			r.Patch("/", api.patchTemplateMeta)

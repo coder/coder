@@ -263,3 +263,25 @@ func (c *Client) TemplateExamples(ctx context.Context, organizationID uuid.UUID)
 	var templateExamples []TemplateExample
 	return templateExamples, json.NewDecoder(res.Body).Decode(&templateExamples)
 }
+
+type TemplateAppUsageResponse struct {
+	UserID     uuid.UUID `json:"user_id" format:"uuid"`
+	AppID      uuid.UUID `json:"app_id" format:"uuid"`
+	TemplateID uuid.UUID `json:"template_id" format:"uuid"`
+	CreatedAt  time.Time `json:"created_at" format:"date-time"`
+}
+
+func (c *Client) TemplateAppUsage(ctx context.Context, templateID uuid.UUID) ([]TemplateAppUsageResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/app-usage", templateID), nil)
+	if err != nil {
+		return nil, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+
+	var resp []TemplateAppUsageResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}

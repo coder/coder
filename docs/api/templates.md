@@ -796,6 +796,46 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get template app usage by ID
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/templates/{template}/app-usage \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /templates/{template}/app-usage`
+
+### Parameters
+
+| Name       | In   | Type         | Required | Description |
+| ---------- | ---- | ------------ | -------- | ----------- |
+| `template` | path | string(uuid) | true     | Template ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+  "created_at": "2019-08-24T14:15:22Z",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                           |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.TemplateAppUsageResponse](schemas.md#codersdktemplateappusageresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get template DAUs by ID
 
 ### Code samples

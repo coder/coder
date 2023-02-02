@@ -33,6 +33,7 @@ type sqlcQuerier interface {
 	GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error)
 	GetActiveUserCount(ctx context.Context) (int64, error)
 	GetAppUsageByDate(ctx context.Context, arg GetAppUsageByDateParams) (AppUsage, error)
+	GetAppUsageByTemplateID(ctx context.Context, arg GetAppUsageByTemplateIDParams) ([]AppUsage, error)
 	// GetAuditLogsBefore retrieves `row_limit` number of audit logs before the provided
 	// ID.
 	GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOffsetParams) ([]GetAuditLogsOffsetRow, error)
