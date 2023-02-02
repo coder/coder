@@ -70,6 +70,13 @@ func TestGenerator(t *testing.T) {
 		require.Equal(t, exp, must(db.GetWorkspaceByID(context.Background(), exp.ID)))
 	})
 
+	t.Run("WorkspaceAgent", func(t *testing.T) {
+		t.Parallel()
+		db := databasefake.New()
+		exp := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{})
+		require.Equal(t, exp, must(db.GetWorkspaceAgentByID(context.Background(), exp.ID)))
+	})
+
 	t.Run("Template", func(t *testing.T) {
 		t.Parallel()
 		db := databasefake.New()

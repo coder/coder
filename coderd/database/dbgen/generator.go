@@ -66,6 +66,47 @@ func APIKey(t *testing.T, db database.Store, seed database.APIKey) (key database
 	return key, fmt.Sprintf("%s-%s", key.ID, secret)
 }
 
+func WorkspaceAgent(t *testing.T, db database.Store, orig database.WorkspaceAgent) database.WorkspaceAgent {
+	workspace, err := db.InsertWorkspaceAgent(context.Background(), database.InsertWorkspaceAgentParams{
+		ID:         takeFirst(orig.ID, uuid.New()),
+		CreatedAt:  takeFirst(orig.CreatedAt, time.Now()),
+		UpdatedAt:  takeFirst(orig.UpdatedAt, time.Now()),
+		Name:       takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
+		ResourceID: takeFirst(orig.ResourceID, uuid.New()),
+		AuthToken:  takeFirst(orig.AuthToken, uuid.New()),
+		AuthInstanceID: sql.NullString{
+			String: takeFirst(orig.AuthInstanceID.String, ""),
+			Valid:  takeFirst(orig.AuthInstanceID.Valid, false),
+		},
+		Architecture: takeFirst(orig.Architecture, "amd64"),
+		EnvironmentVariables: pqtype.NullRawMessage{
+			RawMessage: takeFirstBytes(orig.EnvironmentVariables.RawMessage, []byte("{}")),
+			Valid:      takeFirst(orig.EnvironmentVariables.Valid, false),
+		},
+		OperatingSystem: takeFirst(orig.OperatingSystem, "linux"),
+		StartupScript: sql.NullString{
+			String: takeFirst(orig.StartupScript.String, ""),
+			Valid:  takeFirst(orig.StartupScript.Valid, false),
+		},
+		Directory: takeFirst(orig.Directory, ""),
+		InstanceMetadata: pqtype.NullRawMessage{
+			RawMessage: takeFirstBytes(orig.ResourceMetadata.RawMessage, []byte("{}")),
+			Valid:      takeFirst(orig.ResourceMetadata.Valid, false),
+		},
+		ResourceMetadata: pqtype.NullRawMessage{
+			RawMessage: takeFirstBytes(orig.ResourceMetadata.RawMessage, []byte("{}")),
+			Valid:      takeFirst(orig.ResourceMetadata.Valid, false),
+		},
+		ConnectionTimeoutSeconds:    takeFirst(orig.ConnectionTimeoutSeconds, 3600),
+		TroubleshootingURL:          takeFirst(orig.TroubleshootingURL, "https://example.com"),
+		MOTDFile:                    takeFirst(orig.TroubleshootingURL, ""),
+		LoginBeforeReady:            takeFirst(orig.LoginBeforeReady, false),
+		StartupScriptTimeoutSeconds: takeFirst(orig.StartupScriptTimeoutSeconds, 3600),
+	})
+	require.NoError(t, err, "insert workspace agent")
+	return workspace
+}
+
 func Workspace(t *testing.T, db database.Store, orig database.Workspace) database.Workspace {
 	workspace, err := db.InsertWorkspace(context.Background(), database.InsertWorkspaceParams{
 		ID:                takeFirst(orig.ID, uuid.New()),
