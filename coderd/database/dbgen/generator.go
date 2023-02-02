@@ -130,7 +130,7 @@ func WorkspaceBuild(t *testing.T, db database.Store, orig database.WorkspaceBuil
 		UpdatedAt:         takeFirst(orig.UpdatedAt, time.Now()),
 		WorkspaceID:       takeFirst(orig.WorkspaceID, uuid.New()),
 		TemplateVersionID: takeFirst(orig.TemplateVersionID, uuid.New()),
-		BuildNumber:       takeFirst(orig.BuildNumber, 0),
+		BuildNumber:       takeFirst(orig.BuildNumber, 1),
 		Transition:        takeFirst(orig.Transition, database.WorkspaceTransitionStart),
 		InitiatorID:       takeFirst(orig.InitiatorID, uuid.New()),
 		JobID:             takeFirst(orig.JobID, uuid.New()),

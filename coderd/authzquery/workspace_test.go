@@ -35,6 +35,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 	s.Run("GetLatestWorkspaceBuildsByWorkspaceIDs", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			ws := dbgen.Workspace(t, db, database.Workspace{})
+			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID})
 			return methodCase(
 				inputs([]uuid.UUID{ws.ID}),
 				asserts(ws, rbac.ActionRead))

@@ -119,6 +119,10 @@ MethodLoop:
 			// TODO: Should we assert the object returned is the correct one?
 			for _, r := range resp {
 				if r.Type().Implements(reflect.TypeOf((*error)(nil)).Elem()) {
+					if r.IsNil() {
+						// no error!
+						break
+					}
 					err, ok := r.Interface().(error)
 					if !ok {
 						t.Fatal("error is not an error?!")
