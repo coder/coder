@@ -22,6 +22,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/coderd/authzquery"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisionerd/proto"
@@ -93,7 +95,9 @@ func New(clientDialer Dialer, opts *Options) *Server {
 		opts.Metrics = &mets
 	}
 
-	ctx, ctxCancel := context.WithCancel(context.Background())
+	// TODO: Scope down the permissions of the system context for provisionerd
+	ctx := authzquery.WithAuthorizeSystemContext(context.Background(), rbac.RolesAdminSystem())
+	ctx, ctxCancel := context.WithCancel(ctx)
 	daemon := &Server{
 		opts:   opts,
 		tracer: opts.TracerProvider.Tracer(tracing.TracerName),
