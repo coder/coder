@@ -425,6 +425,8 @@ func sshConfigParseLastOptions(r io.Reader) (o sshConfigOptions) {
 	return o
 }
 
+// sshConfigGetCoderSection is a helper function that only returns the coder
+// section of the SSH config and a boolean if it exists.
 func sshConfigGetCoderSection(data []byte) (section []byte, ok bool, err error) {
 	_, section, _, err = sshConfigSplitOnCoderSection(data)
 	if err != nil {
@@ -434,9 +436,9 @@ func sshConfigGetCoderSection(data []byte) (section []byte, ok bool, err error) 
 	return section, len(section) > 0, nil
 }
 
-// sshConfigSplitOnCoderSection splits the SSH config into two sections,
-// before contains the lines before sshStartToken and after contains the
-// lines after sshEndToken.
+// sshConfigSplitOnCoderSection splits the SSH config into 3 sections.
+// All lines before sshStartToken, the coder section, and all lines after
+// sshEndToken.
 func sshConfigSplitOnCoderSection(data []byte) (before, section []byte, after []byte, err error) {
 	startCount := bytes.Count(data, []byte(sshStartToken))
 	endCount := bytes.Count(data, []byte(sshEndToken))
