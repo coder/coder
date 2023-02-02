@@ -62,3 +62,8 @@ func OverlapCompare[T any](a []T, b []T, equal func(a, b T) bool) bool {
 	}
 	return false
 }
+
+// New is a convenience method for creating []T.
+func New[T any](items ...T) []T {
+	return items
+}
