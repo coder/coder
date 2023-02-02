@@ -24,6 +24,7 @@ type sqlcQuerier interface {
 	DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error
 	DeleteGroupByID(ctx context.Context, id uuid.UUID) error
 	DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteGroupMemberFromGroupParams) error
+	DeleteGroupMembersByOrgAndUser(ctx context.Context, arg DeleteGroupMembersByOrgAndUserParams) error
 	DeleteLicense(ctx context.Context, id int32) (int32, error)
 	DeleteOldAgentStats(ctx context.Context) error
 	DeleteParameterValueByID(ctx context.Context, id uuid.UUID) error
@@ -84,7 +85,6 @@ type sqlcQuerier interface {
 	GetTemplateDAUs(ctx context.Context, templateID uuid.UUID) ([]GetTemplateDAUsRow, error)
 	GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (TemplateVersion, error)
 	GetTemplateVersionByJobID(ctx context.Context, jobID uuid.UUID) (TemplateVersion, error)
-	GetTemplateVersionByOrganizationAndName(ctx context.Context, arg GetTemplateVersionByOrganizationAndNameParams) (TemplateVersion, error)
 	GetTemplateVersionByTemplateIDAndName(ctx context.Context, arg GetTemplateVersionByTemplateIDAndNameParams) (TemplateVersion, error)
 	GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionParameter, error)
 	GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UUID) ([]TemplateVersion, error)
@@ -123,7 +123,6 @@ type sqlcQuerier interface {
 	GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Workspace, error)
 	GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWorkspaceByOwnerIDAndNameParams) (Workspace, error)
 	GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceAppID uuid.UUID) (Workspace, error)
-	GetWorkspaceOwnerCountsByTemplateIDs(ctx context.Context, ids []uuid.UUID) ([]GetWorkspaceOwnerCountsByTemplateIDsRow, error)
 	GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID) (WorkspaceResource, error)
 	GetWorkspaceResourceMetadataByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceResourceMetadatum, error)
 	GetWorkspaceResourceMetadataCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceResourceMetadatum, error)
@@ -161,6 +160,8 @@ type sqlcQuerier interface {
 	InsertTemplateVersion(ctx context.Context, arg InsertTemplateVersionParams) (TemplateVersion, error)
 	InsertTemplateVersionParameter(ctx context.Context, arg InsertTemplateVersionParameterParams) (TemplateVersionParameter, error)
 	InsertUser(ctx context.Context, arg InsertUserParams) (User, error)
+	// InsertUserGroupsByName adds a user to all provided groups, if they exist.
+	InsertUserGroupsByName(ctx context.Context, arg InsertUserGroupsByNameParams) error
 	InsertUserLink(ctx context.Context, arg InsertUserLinkParams) (UserLink, error)
 	InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) (Workspace, error)
 	InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspaceAgentParams) (WorkspaceAgent, error)

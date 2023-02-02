@@ -247,7 +247,6 @@ export const MockTemplate: TypesGen.Template = {
   display_name: "Test Template",
   provisioner: MockProvisioner.provisioners[0],
   active_version_id: MockTemplateVersion.id,
-  workspace_owner_count: 2,
   active_user_count: 1,
   build_time_stats: {
     start: {

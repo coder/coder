@@ -215,6 +215,7 @@ func GroupMember(t *testing.T, db database.Store, orig database.GroupMember) dat
 		UserID:  takeFirst(orig.UserID, uuid.New()),
 		GroupID: takeFirst(orig.GroupID, uuid.New()),
 	}
+	//nolint:gosimple
 	err := db.InsertGroupMember(context.Background(), database.InsertGroupMemberParams{
 		UserID:  member.UserID,
 		GroupID: member.GroupID,

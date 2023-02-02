@@ -16,5 +16,4 @@ Pin-Priority: 500
 # containerd runtime
 Package: containerd.io
 Pin: origin download.docker.com
-Pin: version 1.5.11-1
 Pin-Priority: 500

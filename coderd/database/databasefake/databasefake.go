@@ -1305,41 +1305,6 @@ func (q *fakeQuerier) GetWorkspaceAppsByAgentIDs(_ context.Context, ids []uuid.U
 	return apps, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceOwnerCountsByTemplateIDs(_ context.Context, templateIDs []uuid.UUID) ([]database.GetWorkspaceOwnerCountsByTemplateIDsRow, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	counts := map[uuid.UUID]map[uuid.UUID]struct{}{}
-	for _, templateID := range templateIDs {
-		counts[templateID] = map[uuid.UUID]struct{}{}
-		for _, workspace := range q.workspaces {
-			if workspace.TemplateID != templateID {
-				continue
-			}
-			if workspace.Deleted {
-				continue
-			}
-			countByOwnerID, ok := counts[templateID]
-			if !ok {
-				countByOwnerID = map[uuid.UUID]struct{}{}
-			}
-			countByOwnerID[workspace.OwnerID] = struct{}{}
-			counts[templateID] = countByOwnerID
-		}
-	}
-	res := make([]database.GetWorkspaceOwnerCountsByTemplateIDsRow, 0)
-	for key, value := range counts {
-		res = append(res, database.GetWorkspaceOwnerCountsByTemplateIDsRow{
-			TemplateID: key,
-			Count:      int64(len(value)),
-		})
-	}
-	if len(res) == 0 {
-		return nil, sql.ErrNoRows
-	}
-	return res, nil
-}
-
 func (q *fakeQuerier) GetWorkspaceBuildByID(_ context.Context, id uuid.UUID) (database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -1871,26 +1836,6 @@ func (q *fakeQuerier) GetTemplateVersionParameters(_ context.Context, templateVe
 		parameters = append(parameters, param)
 	}
 	return parameters, nil
-}
-
-func (q *fakeQuerier) GetTemplateVersionByOrganizationAndName(_ context.Context, arg database.GetTemplateVersionByOrganizationAndNameParams) (database.TemplateVersion, error) {
-	if err := validateDatabaseType(arg); err != nil {
-		return database.TemplateVersion{}, err
-	}
-
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for _, templateVersion := range q.templateVersions {
-		if templateVersion.OrganizationID != arg.OrganizationID {
-			continue
-		}
-		if !strings.EqualFold(templateVersion.Name, arg.Name) {
-			continue
-		}
-		return templateVersion, nil
-	}
-	return database.TemplateVersion{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) GetTemplateVersionByID(_ context.Context, templateVersionID uuid.UUID) (database.TemplateVersion, error) {
@@ -2615,20 +2560,21 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 
 	//nolint:gosimple
 	template := database.Template{
-		ID:              arg.ID,
-		CreatedAt:       arg.CreatedAt,
-		UpdatedAt:       arg.UpdatedAt,
-		OrganizationID:  arg.OrganizationID,
-		Name:            arg.Name,
-		Provisioner:     arg.Provisioner,
-		ActiveVersionID: arg.ActiveVersionID,
-		Description:     arg.Description,
-		DefaultTTL:      arg.DefaultTTL,
-		CreatedBy:       arg.CreatedBy,
-		UserACL:         arg.UserACL,
-		GroupACL:        arg.GroupACL,
-		DisplayName:     arg.DisplayName,
-		Icon:            arg.Icon,
+		ID:                           arg.ID,
+		CreatedAt:                    arg.CreatedAt,
+		UpdatedAt:                    arg.UpdatedAt,
+		OrganizationID:               arg.OrganizationID,
+		Name:                         arg.Name,
+		Provisioner:                  arg.Provisioner,
+		ActiveVersionID:              arg.ActiveVersionID,
+		Description:                  arg.Description,
+		DefaultTTL:                   arg.DefaultTTL,
+		CreatedBy:                    arg.CreatedBy,
+		UserACL:                      arg.UserACL,
+		GroupACL:                     arg.GroupACL,
+		DisplayName:                  arg.DisplayName,
+		Icon:                         arg.Icon,
+		AllowUserCancelWorkspaceJobs: arg.AllowUserCancelWorkspaceJobs,
 	}
 	q.templates = append(q.templates, template)
 	return template, nil
@@ -3601,6 +3547,50 @@ func (q *fakeQuerier) DeleteGroupMemberFromGroup(_ context.Context, arg database
 			q.groupMembers = append(q.groupMembers[:i], q.groupMembers[i+1:]...)
 		}
 	}
+	return nil
+}
+
+func (q *fakeQuerier) InsertUserGroupsByName(_ context.Context, arg database.InsertUserGroupsByNameParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	var groupIDs []uuid.UUID
+	for _, group := range q.groups {
+		for _, groupName := range arg.GroupNames {
+			if group.Name == groupName {
+				groupIDs = append(groupIDs, group.ID)
+			}
+		}
+	}
+
+	for _, groupID := range groupIDs {
+		q.groupMembers = append(q.groupMembers, database.GroupMember{
+			UserID:  arg.UserID,
+			GroupID: groupID,
+		})
+	}
+
+	return nil
+}
+
+func (q *fakeQuerier) DeleteGroupMembersByOrgAndUser(_ context.Context, arg database.DeleteGroupMembersByOrgAndUserParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	newMembers := q.groupMembers[:0]
+	for _, member := range q.groupMembers {
+		if member.UserID == arg.UserID {
+			for _, group := range q.groups {
+				if group.ID == member.GroupID && group.OrganizationID == arg.OrganizationID {
+					continue
+				}
+
+				newMembers = append(newMembers, member)
+			}
+		}
+	}
+	q.groupMembers = newMembers
+
 	return nil
 }
 

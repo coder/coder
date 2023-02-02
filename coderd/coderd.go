@@ -116,6 +116,7 @@ type Options struct {
 	DERPServer         *derp.Server
 	DERPMap            *tailcfg.DERPMap
 	SwaggerEndpoint    bool
+	SetUserGroups      func(ctx context.Context, tx database.Store, userID uuid.UUID, groupNames []string) error
 
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
 	// Setting a rate limit <0 will disable the rate limiter across the entire
@@ -156,6 +157,13 @@ func New(options *Options) *API {
 		options = &Options{}
 	}
 	experiments := initExperiments(options.Logger, options.DeploymentConfig.Experiments.Value, options.DeploymentConfig.Experimental.Value)
+	// TODO: remove this once we promote authz_querier out of experiments.
+	if experiments.Enabled(codersdk.ExperimentAuthzQuerier) {
+		panic("Coming soon!")
+		// if _, ok := (options.Database).(*authzquery.AuthzQuerier); !ok {
+		// 	options.Database = authzquery.NewAuthzQuerier(options.Database, options.Authorizer)
+		// }
+	}
 	if options.AppHostname != "" && options.AppHostnameRegex == nil || options.AppHostname == "" && options.AppHostnameRegex != nil {
 		panic("coderd: both AppHostname and AppHostnameRegex must be set or unset")
 	}
@@ -201,6 +209,9 @@ func New(options *Options) *API {
 		if _, ok := (options.Database).(*authzquery.AuthzQuerier); !ok {
 			options.Database = authzquery.NewAuthzQuerier(options.Database, options.Authorizer, options.Logger.Named("authz_querier"))
 		}
+	}
+	if options.SetUserGroups == nil {
+		options.SetUserGroups = func(context.Context, database.Store, uuid.UUID, []string) error { return nil }
 	}
 
 	siteCacheDir := options.CacheDir
@@ -398,16 +409,18 @@ func New(options *Options) *API {
 					httpmw.ExtractOrganizationParam(options.Database),
 				)
 				r.Get("/", api.organization)
-				r.Route("/templateversions", func(r chi.Router) {
-					r.Post("/", api.postTemplateVersionsByOrganization)
-					r.Get("/{templateversionname}", api.templateVersionByOrganizationAndName)
-					r.Get("/{templateversionname}/previous", api.previousTemplateVersionByOrganizationAndName)
-				})
+				r.Post("/templateversions", api.postTemplateVersionsByOrganization)
 				r.Route("/templates", func(r chi.Router) {
 					r.Post("/", api.postTemplateByOrganization)
 					r.Get("/", api.templatesByOrganization)
-					r.Get("/{templatename}", api.templateByOrganizationAndName)
 					r.Get("/examples", api.templateExamples)
+					r.Route("/{templatename}", func(r chi.Router) {
+						r.Get("/", api.templateByOrganizationAndName)
+						r.Route("/versions/{templateversionname}", func(r chi.Router) {
+							r.Get("/", api.templateVersionByOrganizationTemplateAndName)
+							r.Get("/previous", api.previousTemplateVersionByOrganizationTemplateAndName)
+						})
+					})
 				})
 				r.Route("/members", func(r chi.Router) {
 					r.Get("/roles", api.assignableOrgRoles)

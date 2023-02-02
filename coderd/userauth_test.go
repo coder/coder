@@ -622,6 +622,14 @@ func TestUserOIDC(t *testing.T) {
 		AllowSignups: true,
 		AvatarURL:    "/example.png",
 		StatusCode:   http.StatusTemporaryRedirect,
+	}, {
+		Name: "GroupsDoesNothing",
+		IDTokenClaims: jwt.MapClaims{
+			"email":  "coolin@coder.com",
+			"groups": []string{"pingpong"},
+		},
+		AllowSignups: true,
+		StatusCode:   http.StatusTemporaryRedirect,
 	}} {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {

@@ -20,22 +20,6 @@ AND
 LIMIT
 	1;
 
--- name: GetGroupMembers :many
-SELECT
-	users.*
-FROM
-	users
-JOIN
-	group_members
-ON
-	users.id = group_members.user_id
-WHERE
-	group_members.group_id = $1
-AND
-	users.status = 'active'
-AND
-	users.deleted = 'false';
-
 -- name: GetGroupsByOrganizationID :many
 SELECT
 	*
@@ -55,7 +39,7 @@ INSERT INTO groups (
 	quota_allowance
 )
 VALUES
-	( $1, $2, $3, $4, $5) RETURNING *;
+	($1, $2, $3, $4, $5) RETURNING *;
 
 -- We use the organization_id as the id
 -- for simplicity since all users is
@@ -67,7 +51,7 @@ INSERT INTO groups (
 	organization_id
 )
 VALUES
-	( sqlc.arg(organization_id), 'Everyone', sqlc.arg(organization_id)) RETURNING *;
+	(sqlc.arg(organization_id), 'Everyone', sqlc.arg(organization_id)) RETURNING *;
 
 -- name: UpdateGroupByID :one
 UPDATE
@@ -79,20 +63,6 @@ SET
 WHERE
 	id = $4
 RETURNING *;
-
--- name: InsertGroupMember :exec
-INSERT INTO group_members (
-	user_id,
-	group_id
-)
-VALUES ($1, $2);
-
--- name: DeleteGroupMemberFromGroup :exec
-DELETE FROM
-	group_members
-WHERE
-	user_id = $1 AND
-	group_id = $2;
 
 -- name: DeleteGroupByID :exec
 DELETE FROM

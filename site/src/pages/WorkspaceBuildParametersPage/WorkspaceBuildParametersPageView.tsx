@@ -29,6 +29,7 @@ export interface WorkspaceBuildParametersPageViewProps {
   templateParameters?: TypesGen.TemplateVersionParameter[]
   workspaceBuildParameters?: TypesGen.WorkspaceBuildParameter[]
 
+  isLoading: boolean
   initialTouched?: FormikTouched<TypesGen.CreateWorkspaceRequest>
   updatingWorkspace: boolean
   onCancel: () => void
@@ -150,7 +151,9 @@ export const WorkspaceBuildParametersPageView: FC<
 
       <Maybe
         condition={Boolean(
-          props.templateParameters && props.templateParameters.length === 0,
+          !props.isLoading &&
+            props.templateParameters &&
+            props.templateParameters.length === 0,
         )}
       >
         <div className={styles.formSection}>
@@ -161,7 +164,8 @@ export const WorkspaceBuildParametersPageView: FC<
         </div>
       </Maybe>
 
-      {props.templateParameters &&
+      {!props.isLoading &&
+        props.templateParameters &&
         props.templateParameters.length > 0 &&
         props.workspaceBuildParameters && (
           <div className={styles.formSection}>
@@ -171,27 +175,67 @@ export const WorkspaceBuildParametersPageView: FC<
                 spacing={4} // Spacing here is diff because the fields here don't have the MUI floating label spacing
                 className={styles.formSectionFields}
               >
-                {props.templateParameters.map((parameter, index) => (
-                  <RichParameterInput
-                    {...getFieldHelpers(
-                      "rich_parameter_values[" + index + "].value",
-                    )}
-                    disabled={!parameter.mutable || form.isSubmitting}
-                    index={index}
-                    key={parameter.name}
-                    onChange={(value) => {
-                      form.setFieldValue("rich_parameter_values." + index, {
-                        name: parameter.name,
-                        value: value,
-                      })
-                    }}
-                    parameter={parameter}
-                    initialValue={workspaceBuildParameterValue(
-                      initialRichParameterValues,
-                      parameter,
-                    )}
-                  />
-                ))}
+                {props.templateParameters.filter((p) => !p.mutable).length >
+                  0 && (
+                  <div className={styles.formSectionParameterTitle}>
+                    Immutable parameters
+                  </div>
+                )}
+                {props.templateParameters.map(
+                  (parameter, index) =>
+                    !parameter.mutable && (
+                      <RichParameterInput
+                        {...getFieldHelpers(
+                          "rich_parameter_values[" + index + "].value",
+                        )}
+                        disabled={!parameter.mutable || form.isSubmitting}
+                        index={index}
+                        key={parameter.name}
+                        onChange={(value) => {
+                          form.setFieldValue("rich_parameter_values." + index, {
+                            name: parameter.name,
+                            value: value,
+                          })
+                        }}
+                        parameter={parameter}
+                        initialValue={workspaceBuildParameterValue(
+                          initialRichParameterValues,
+                          parameter,
+                        )}
+                      />
+                    ),
+                )}
+
+                {props.templateParameters.filter((p) => p.mutable).length >
+                  0 && (
+                  <div className={styles.formSectionParameterTitle}>
+                    Mutable parameters
+                  </div>
+                )}
+                {props.templateParameters.map(
+                  (parameter, index) =>
+                    parameter.mutable && (
+                      <RichParameterInput
+                        {...getFieldHelpers(
+                          "rich_parameter_values[" + index + "].value",
+                        )}
+                        disabled={!parameter.mutable || form.isSubmitting}
+                        index={index}
+                        key={parameter.name}
+                        onChange={(value) => {
+                          form.setFieldValue("rich_parameter_values." + index, {
+                            name: parameter.name,
+                            value: value,
+                          })
+                        }}
+                        parameter={parameter}
+                        initialValue={workspaceBuildParameterValue(
+                          initialRichParameterValues,
+                          parameter,
+                        )}
+                      />
+                    ),
+                )}
                 <FormFooter
                   styles={formFooterStyles}
                   onCancel={props.onCancel}
@@ -279,7 +323,7 @@ const stripImmutableParameters = (
   }
 }
 
-const useStyles = makeStyles(() => ({
+const useStyles = makeStyles((theme) => ({
   goBackSection: {
     display: "flex",
     width: "100%",
@@ -291,6 +335,13 @@ const useStyles = makeStyles(() => ({
 
   formSectionFields: {
     width: "100%",
+  },
+  formSectionParameterTitle: {
+    fontSize: 20,
+    color: theme.palette.text.primary,
+    fontWeight: 400,
+    margin: 0,
+    marginBottom: theme.spacing(1),
   },
 }))
 
