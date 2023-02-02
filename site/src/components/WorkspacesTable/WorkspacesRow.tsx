@@ -6,13 +6,15 @@ import { AvatarData } from "components/AvatarData/AvatarData"
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
 import { useClickable } from "hooks/useClickable"
 import { FC } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, Link as RouterLink } from "react-router-dom"
 import { getDisplayWorkspaceTemplateName } from "util/workspace"
 import { LastUsed } from "../LastUsed/LastUsed"
 import { Workspace } from "api/typesGenerated"
 import { OutdatedHelpTooltip } from "components/Tooltips/OutdatedHelpTooltip"
 import { Avatar } from "components/Avatar/Avatar"
 import { Stack } from "components/Stack/Stack"
+import TemplateLinkIcon from "@material-ui/icons/OpenInNewOutlined"
+import Link from "@material-ui/core/Link"
 
 export const WorkspacesRow: FC<{
   workspace: Workspace
@@ -58,7 +60,22 @@ export const WorkspacesRow: FC<{
         />
       </TableCell>
 
-      <TableCell>{displayTemplateName}</TableCell>
+      <TableCell>
+        <Link
+          component={RouterLink}
+          to={`/templates/${workspace.template_name}`}
+          className={styles.templateLink}
+          title={`Go to ${displayTemplateName} page`}
+          onClick={(e) => {
+            e.stopPropagation()
+          }}
+        >
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <TemplateLinkIcon className={styles.templateLinkIcon} />
+            <span>{displayTemplateName}</span>
+          </Stack>
+        </Link>
+      </TableCell>
 
       <TableCell>
         <LastUsed lastUsedAt={workspace.last_used_at} />
@@ -98,14 +115,17 @@ const useStyles = makeStyles((theme) => ({
     paddingLeft: theme.spacing(2),
   },
 
-  templateIconWrapper: {
-    // Same size then the avatar component
-    width: 36,
-    height: 36,
-    padding: 2,
+  templateLink: {
+    color: theme.palette.text.secondary,
 
-    "& img": {
-      width: "100%",
+    "&:hover": {
+      color: theme.palette.text.primary,
+      textDecoration: "none",
     },
+  },
+
+  templateLinkIcon: {
+    width: theme.spacing(1.5),
+    height: theme.spacing(1.5),
   },
 }))
