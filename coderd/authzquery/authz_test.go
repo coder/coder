@@ -41,7 +41,7 @@ func TestAuthzQueryRecursive(t *testing.T) {
 		}
 		// Log the name of the last method, so if there is a panic, it is
 		// easy to know which method failed.
-		//t.Log(method.Name)
+		// t.Log(method.Name)
 		// Call the function. Any infinite recursion will stack overflow.
 		reflect.ValueOf(q).Method(i).Call(ins)
 	}

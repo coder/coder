@@ -8,14 +8,11 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 )
 
-func (suite *MethodTestSuite) TestWorkspace() {
-	suite.Run("GetWorkspaceByID", func() {
-		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+func (s *MethodTestSuite) TestWorkspace() {
+	s.Run("GetWorkspaceByID", func() {
+		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			workspace := dbgen.Workspace(t, db, database.Workspace{})
-			return MethodCase{
-				Inputs:     methodInputs(workspace.ID),
-				Assertions: asserts(workspace, rbac.ActionRead),
-			}
+			return methodCase(inputs(workspace.ID), asserts(workspace, rbac.ActionRead))
 		})
 	})
 }

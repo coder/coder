@@ -209,9 +209,9 @@ func (q *AuthzQuerier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (data
 	return authorizedFetch(q.authorizer, q.database.GetWorkspaceByID)(ctx, id)
 }
 
-//OwnerID uuid.UUID `db:"owner_id" json:"owner_id"`
-//Deleted bool      `db:"deleted" json:"deleted"`
-//Name    string    `db:"name" json:"name"`
+// OwnerID uuid.UUID `db:"owner_id" json:"owner_id"`
+// Deleted bool      `db:"deleted" json:"deleted"`
+// Name    string    `db:"name" json:"name"`
 
 // GetWorkspaceByOwnerIDAndName
 // Gen: Workspace

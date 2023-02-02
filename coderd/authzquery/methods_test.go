@@ -4,19 +4,18 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
 	"github.com/google/uuid"
-
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 
 	"github.com/coder/coder/coderd/authzquery"
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database/databasefake"
-	"github.com/stretchr/testify/suite"
-
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/databasefake"
 	"github.com/coder/coder/coderd/rbac"
 )
 
@@ -27,8 +26,16 @@ var (
 	}
 )
 
-// MethodTestSuite runs all methods tests for AuthzQuerier. The reason we use
-// a test suite, is so we can account for all functions tested on the AuthzQuerier.
+// TestMethodTestSuite runs MethodTestSuite.
+// In order for 'go test' to run this suite, we need to create
+// a normal test function and pass our suite to suite.Run
+// nolint: paralleltest
+func TestMethodTestSuite(t *testing.T) {
+	suite.Run(t, new(MethodTestSuite))
+}
+
+// MethodTestSuite runs all methods tests for AuthzQuerier. We use
+// a test suite so we can account for all functions tested on the AuthzQuerier.
 // We can then assert all methods were tested and asserted for proper RBAC
 // checks. This forces RBAC checks to be written for all methods.
 // Additionally, the way unit tests are written allows for easily executing
@@ -39,52 +46,46 @@ type MethodTestSuite struct {
 	methodAccounting map[string]int
 }
 
-func (suite *MethodTestSuite) SetupSuite() {
+// SetupSuite sets up the suite by creating a map of all methods on AuthzQuerier
+// and setting their count to 0.
+func (s *MethodTestSuite) SetupSuite() {
 	az := &authzquery.AuthzQuerier{}
 	azt := reflect.TypeOf(az)
-	suite.methodAccounting = make(map[string]int)
+	s.methodAccounting = make(map[string]int)
 	for i := 0; i < azt.NumMethod(); i++ {
 		method := azt.Method(i)
 		if _, ok := skipMethods[method.Name]; ok {
 			continue
 		}
-		suite.methodAccounting[method.Name] = 0
+		s.methodAccounting[method.Name] = 0
 	}
 }
 
-func (suite *MethodTestSuite) TearDownSuite() {
-	suite.Run("Accounting", func() {
-		t := suite.T()
-		for m, c := range suite.methodAccounting {
+// TearDownSuite asserts that all methods were called at least once.
+func (s *MethodTestSuite) TearDownSuite() {
+	s.Run("Accounting", func() {
+		t := s.T()
+		notCalled := []string{}
+		for m, c := range s.methodAccounting {
 			if c <= 0 {
-				t.Errorf("Method %q never called", m)
+				notCalled = append(notCalled, m)
 			}
+		}
+		sort.Strings(notCalled)
+		for _, m := range notCalled {
+			t.Errorf("Method never called: %q", m)
 		}
 	})
 }
 
-// In order for 'go test' to run this suite, we need to create
-// a normal test function and pass our suite to suite.Run
-func TestMethodTestSuite(t *testing.T) {
-	suite.Run(t, new(MethodTestSuite))
-}
-
-type MethodCase struct {
-	Inputs     []reflect.Value
-	Assertions []AssertRBAC
-}
-
-type AssertRBAC struct {
-	Object  rbac.Object
-	Actions []rbac.Action
-}
-
-func (suite *MethodTestSuite) RunMethodTest(testCaseF func(t *testing.T, db database.Store) MethodCase) {
-	t := suite.T()
-	testName := suite.T().Name()
+// RunMethodTest runs a method test case.
+// The method to be tested is inferred from the name of the test case.
+func (s *MethodTestSuite) RunMethodTest(testCaseF func(t *testing.T, db database.Store) MethodCase) {
+	t := s.T()
+	testName := s.T().Name()
 	names := strings.Split(testName, "/")
 	methodName := names[len(names)-1]
-	suite.methodAccounting[methodName]++
+	s.methodAccounting[methodName]++
 
 	db := databasefake.New()
 	rec := &coderdtest.RecordingAuthorizer{
@@ -131,7 +132,48 @@ MethodLoop:
 	require.NoError(t, rec.AllAsserted(), "all rbac calls must be asserted")
 }
 
-func methodInputs(inputs ...any) []reflect.Value {
+// A MethodCase contains the inputs to be provided to a single method call,
+// and the assertions to be made on the RBAC checks.
+type MethodCase struct {
+	Inputs     []reflect.Value
+	Assertions []AssertRBAC
+}
+
+// AssertRBAC contains the object and actions to be asserted.
+type AssertRBAC struct {
+	Object  rbac.Object
+	Actions []rbac.Action
+}
+
+// methodCase is a convenience method for creating MethodCases.
+//
+//	methodCase(inputs(workspace, template, ...), asserts(workspace, rbac.ActionRead, template, rbac.ActionRead, ...))
+//
+// is equivalent to
+//
+//	MethodCase{
+//	  Inputs: inputs(workspace, template, ...),
+//	  Assertions: asserts(workspace, rbac.ActionRead, template, rbac.ActionRead, ...),
+//	}
+func methodCase(inputs []reflect.Value, assertions []AssertRBAC) MethodCase {
+	return MethodCase{
+		Inputs:     inputs,
+		Assertions: assertions,
+	}
+}
+
+// inputs is a convenience method for creating []reflect.Value.
+//
+// inputs(workspace, template, ...)
+//
+// is equivalent to
+//
+//	[]reflect.Value{
+//	  reflect.ValueOf(workspace),
+//	  reflect.ValueOf(template),
+//	  ...
+//	}
+func inputs(inputs ...any) []reflect.Value {
 	out := make([]reflect.Value, 0)
 	for _, input := range inputs {
 		input := input
@@ -140,6 +182,24 @@ func methodInputs(inputs ...any) []reflect.Value {
 	return out
 }
 
+// asserts is a convenience method for creating AssertRBACs.
+//
+// The number of inputs must be an even number.
+// asserts() will panic if this is not the case.
+//
+// Even-numbered inputs are the objects, and odd-numbered inputs are the actions.
+// Objects must implement rbac.Objecter.
+// Inputs can be a single rbac.Action, or a slice of rbac.Action.
+//
+//	asserts(workspace, rbac.ActionRead, template, slice(rbac.ActionRead, rbac.ActionWrite), ...)
+//
+// is equivalent to
+//
+//	[]AssertRBAC{
+//	  {Object: workspace, Actions: []rbac.Action{rbac.ActionRead}},
+//	  {Object: template, Actions: []rbac.Action{rbac.ActionRead, rbac.ActionWrite)}},
+//	   ...
+//	}
 func asserts(inputs ...any) []AssertRBAC {
 	if len(inputs)%2 != 0 {
 		panic(fmt.Sprintf("Must be an even length number of args, found %d", len(inputs)))
@@ -149,7 +209,7 @@ func asserts(inputs ...any) []AssertRBAC {
 	for i := 0; i < len(inputs); i += 2 {
 		obj, ok := inputs[i].(rbac.Objecter)
 		if !ok {
-			panic(fmt.Sprintf("object type '%T' not a supported key", obj))
+			panic(fmt.Sprintf("object type '%T' does not implement rbac.Objecter", obj))
 		}
 		rbacObj := obj.RBACObject()
 
