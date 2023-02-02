@@ -257,48 +257,107 @@ export const CreateWorkspacePageView: FC<
             </div>
           )}
 
-          {/* Rich parameters */}
-          {props.templateParameters && props.templateParameters.length > 0 && (
-            <div className={styles.formSection}>
-              <div className={styles.formSectionInfo}>
-                <h2 className={styles.formSectionInfoTitle}>
-                  Rich template params
-                </h2>
-                <p className={styles.formSectionInfoDescription}>
-                  Those values are provided by your template&lsquo;s Terraform
-                  configuration.
-                </p>
-              </div>
+          {/* Immutable rich parameters */}
+          {props.templateParameters &&
+            props.templateParameters.filter((p) => !p.mutable).length > 0 && (
+              <div className={styles.formSection}>
+                <div className={styles.formSectionInfo}>
+                  <h2 className={styles.formSectionInfoTitle}>
+                    Immutable parameters
+                  </h2>
+                  <p className={styles.formSectionInfoDescription}>
+                    Those values are provided by your template&lsquo;s Terraform
+                    configuration. Values cannot be changed after creating the
+                    workspace.
+                  </p>
+                </div>
 
-              <Stack
-                direction="column"
-                spacing={4} // Spacing here is diff because the fields here don't have the MUI floating label spacing
-                className={styles.formSectionFields}
-              >
-                {props.templateParameters.map((parameter, index) => (
-                  <RichParameterInput
-                    {...getFieldHelpers(
-                      "rich_parameter_values[" + index + "].value",
-                    )}
-                    disabled={form.isSubmitting}
-                    index={index}
-                    key={parameter.name}
-                    onChange={(value) => {
-                      form.setFieldValue("rich_parameter_values." + index, {
-                        name: parameter.name,
-                        value: value,
-                      })
-                    }}
-                    parameter={parameter}
-                    initialValue={workspaceBuildParameterValue(
-                      initialRichParameterValues,
-                      parameter,
-                    )}
-                  />
-                ))}
-              </Stack>
-            </div>
-          )}
+                <Stack
+                  direction="column"
+                  spacing={4} // Spacing here is diff because the fields here don't have the MUI floating label spacing
+                  className={styles.formSectionFields}
+                >
+                  {props.templateParameters.map(
+                    (parameter, index) =>
+                      !parameter.mutable && (
+                        <RichParameterInput
+                          {...getFieldHelpers(
+                            "rich_parameter_values[" + index + "].value",
+                          )}
+                          disabled={form.isSubmitting}
+                          index={index}
+                          key={parameter.name}
+                          onChange={(value) => {
+                            form.setFieldValue(
+                              "rich_parameter_values." + index,
+                              {
+                                name: parameter.name,
+                                value: value,
+                              },
+                            )
+                          }}
+                          parameter={parameter}
+                          initialValue={workspaceBuildParameterValue(
+                            initialRichParameterValues,
+                            parameter,
+                          )}
+                        />
+                      ),
+                  )}
+                </Stack>
+              </div>
+            )}
+
+          {/* Mutable rich parameters */}
+          {props.templateParameters &&
+            props.templateParameters.filter((p) => p.mutable).length > 0 && (
+              <div className={styles.formSection}>
+                <div className={styles.formSectionInfo}>
+                  <h2 className={styles.formSectionInfoTitle}>
+                    Mutable parameters
+                  </h2>
+                  <p className={styles.formSectionInfoDescription}>
+                    Those values are provided by your template&lsquo;s Terraform
+                    configuration. Values can be changed after creating the
+                    workspace.
+                  </p>
+                </div>
+
+                <Stack
+                  direction="column"
+                  spacing={4} // Spacing here is diff because the fields here don't have the MUI floating label spacing
+                  className={styles.formSectionFields}
+                >
+                  {props.templateParameters.map(
+                    (parameter, index) =>
+                      parameter.mutable && (
+                        <RichParameterInput
+                          {...getFieldHelpers(
+                            "rich_parameter_values[" + index + "].value",
+                          )}
+                          disabled={form.isSubmitting}
+                          index={index}
+                          key={parameter.name}
+                          onChange={(value) => {
+                            form.setFieldValue(
+                              "rich_parameter_values." + index,
+                              {
+                                name: parameter.name,
+                                value: value,
+                              },
+                            )
+                          }}
+                          parameter={parameter}
+                          initialValue={workspaceBuildParameterValue(
+                            initialRichParameterValues,
+                            parameter,
+                          )}
+                        />
+                      ),
+                  )}
+                </Stack>
+              </div>
+            )}
           <FormFooter
             styles={formFooterStyles}
             onCancel={props.onCancel}
