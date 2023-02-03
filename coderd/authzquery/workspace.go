@@ -255,7 +255,9 @@ func (q *AuthzQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID u
 	var obj rbac.Objecter
 	switch job.Type {
 	case database.ProvisionerJobTypeTemplateVersionDryRun, database.ProvisionerJobTypeTemplateVersionImport:
-		// We need to check if the actor is authorized to read the related template.
+		// We don't need to do an authorized check, but this helper function
+		// handles the job type for us.
+		// TODO: Do not duplicate auth checks.
 		tv, err := authorizedTemplateVersionFromJob(ctx, q, job)
 		if err != nil {
 			return nil, err
@@ -264,14 +266,22 @@ func (q *AuthzQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID u
 			// Orphaned template version
 			obj = tv.RBACObjectNoTemplate()
 		} else {
-			template, err := q.GetTemplateByID(ctx, tv.TemplateID.UUID)
+			template, err := q.database.GetTemplateByID(ctx, tv.TemplateID.UUID)
 			if err != nil {
 				return nil, err
 			}
 			obj = template.RBACObject()
 		}
 	case database.ProvisionerJobTypeWorkspaceBuild:
-		obj = rbac.ResourceWorkspace.InOrg(job.OrganizationID).WithOwner(job.InitiatorID.String())
+		build, err := q.database.GetWorkspaceBuildByJobID(ctx, jobID)
+		if err != nil {
+			return nil, err
+		}
+		workspace, err := q.database.GetWorkspaceByID(ctx, build.WorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+		obj = workspace
 	default:
 		return nil, xerrors.Errorf("unknown job type: %s", job.Type)
 	}
@@ -316,22 +326,17 @@ func (q *AuthzQuerier) InsertWorkspaceBuild(ctx context.Context, arg database.In
 
 func (q *AuthzQuerier) InsertWorkspaceBuildParameters(ctx context.Context, arg database.InsertWorkspaceBuildParametersParams) error {
 	// TODO: Optimize this. We always have the workspace and build already fetched.
-	build, err := q.GetWorkspaceBuildByID(ctx, arg.WorkspaceBuildID)
+	build, err := q.database.GetWorkspaceBuildByID(ctx, arg.WorkspaceBuildID)
 	if err != nil {
 		return err
 	}
 
-	var action rbac.Action = rbac.ActionUpdate
-	if build.Transition == database.WorkspaceTransitionDelete {
-		action = rbac.ActionDelete
-	}
-
-	workspace, err := q.GetWorkspaceByID(ctx, build.WorkspaceID)
+	workspace, err := q.database.GetWorkspaceByID(ctx, build.WorkspaceID)
 	if err != nil {
 		return err
 	}
 
-	err = q.authorizeContext(ctx, action, workspace)
+	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace)
 	if err != nil {
 		return err
 	}
@@ -356,8 +361,12 @@ func (q *AuthzQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, a
 
 func (q *AuthzQuerier) InsertAgentStat(ctx context.Context, arg database.InsertAgentStatParams) (database.AgentStat, error) {
 	// TODO: This is a workspace agent operation. Should users be able to query this?
-	resource := rbac.ResourceWorkspace.WithID(arg.WorkspaceID).WithOwner(arg.UserID.String())
-	err := q.authorizeContext(ctx, rbac.ActionUpdate, resource)
+	// Not really sure what this is for.
+	workspace, err := q.database.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	if err != nil {
+		return database.AgentStat{}, err
+	}
+	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace)
 	if err != nil {
 		return database.AgentStat{}, err
 	}
