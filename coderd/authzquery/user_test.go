@@ -41,7 +41,7 @@ func (s *MethodTestSuite) TestUser() {
 	s.Run("GetUserByID", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			u := dbgen.User(t, db, database.User{})
-			return methodCase(inputs(u.ID), asserts(u, rbac.ActionRead))
+			return methodCase(inputs(u.ID), asserts(u, rbac.ActionRead)).Outputs(u)
 		})
 	})
 	s.Run("GetAuthorizedUserCount", func() {

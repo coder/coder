@@ -128,7 +128,7 @@ MethodLoop:
 				// if RBAC will disallow the request. The returned error should
 				// be expected to be a NotAuthorizedError.
 				erroredResp := reflect.ValueOf(az).Method(i).Call(append([]reflect.Value{reflect.ValueOf(ctx)}, testCase.Inputs...))
-				err := findError(t, erroredResp)
+				_, err := splitResp(t, erroredResp)
 				// This is unfortunate, but if we are using `Filter` the error returned will be nil. So filter out
 				// any case where the error is nil and the response is an empty slice.
 				if err != nil || !hasEmptySliceResponse(erroredResp) {
@@ -143,8 +143,14 @@ MethodLoop:
 
 			resp := reflect.ValueOf(az).Method(i).Call(append([]reflect.Value{reflect.ValueOf(ctx)}, testCase.Inputs...))
 			// TODO: Should we assert the object returned is the correct one?
-			err := findError(t, resp)
+			outputs, err := splitResp(t, resp)
 			require.NoError(t, err, "method %q returned an error", testName)
+			if testCase.ExpectedOutputs != nil {
+				require.Equal(t, len(testCase.ExpectedOutputs), len(outputs), "method %q returned unexpected number of outputs", testName)
+				for i := range outputs {
+					require.Equal(t, testCase.ExpectedOutputs[i].Interface(), outputs[i].Interface(), "method %q returned unexpected output %d", testName, i)
+				}
+			}
 			found = true
 			break MethodLoop
 		}
@@ -177,19 +183,21 @@ func hasEmptySliceResponse(values []reflect.Value) bool {
 	return false
 }
 
-func findError(t *testing.T, values []reflect.Value) error {
+func splitResp(t *testing.T, values []reflect.Value) ([]reflect.Value, error) {
+	outputs := []reflect.Value{}
 	for _, r := range values {
 		if r.Type().Implements(reflect.TypeOf((*error)(nil)).Elem()) {
 			if r.IsNil() {
 				// Error is found, but it's nil!
-				return nil
+				return outputs, nil
 			}
 			err, ok := r.Interface().(error)
 			if !ok {
 				t.Fatal("error is not an error?!")
 			}
-			return err
+			return outputs, err
 		}
+		outputs = append(outputs, r)
 	}
 	t.Fatal("no expected error value found in responses (error can be nil)")
 	panic("unreachable") // For compile reasons
@@ -200,6 +208,8 @@ func findError(t *testing.T, values []reflect.Value) error {
 type MethodCase struct {
 	Inputs     []reflect.Value
 	Assertions []AssertRBAC
+	// Output is optional. Can assert non-error return values.
+	ExpectedOutputs []reflect.Value
 }
 
 // AssertRBAC contains the object and actions to be asserted.
@@ -218,11 +228,17 @@ type AssertRBAC struct {
 //	  Inputs: inputs(workspace, template, ...),
 //	  Assertions: asserts(workspace, rbac.ActionRead, template, rbac.ActionRead, ...),
 //	}
-func methodCase(inputs []reflect.Value, assertions []AssertRBAC) MethodCase {
+func methodCase(ins []reflect.Value, assertions []AssertRBAC) MethodCase {
 	return MethodCase{
-		Inputs:     inputs,
-		Assertions: assertions,
+		Inputs:          ins,
+		Assertions:      assertions,
+		ExpectedOutputs: nil,
 	}
+}
+
+func (m MethodCase) Outputs(outs ...any) MethodCase {
+	m.ExpectedOutputs = inputs(outs...)
+	return m
 }
 
 // inputs is a convenience method for creating []reflect.Value.
@@ -236,9 +252,9 @@ func methodCase(inputs []reflect.Value, assertions []AssertRBAC) MethodCase {
 //	  reflect.ValueOf(template),
 //	  ...
 //	}
-func inputs(inputs ...any) []reflect.Value {
+func inputs(ins ...any) []reflect.Value {
 	out := make([]reflect.Value, 0)
-	for _, input := range inputs {
+	for _, input := range ins {
 		input := input
 		out = append(out, reflect.ValueOf(input))
 	}
