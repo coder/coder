@@ -17,35 +17,35 @@ func (q *AuthzQuerier) parameterRBACResource(ctx context.Context, scope database
 	var err error
 	switch scope {
 	case database.ParameterScopeWorkspace:
-		resource, err = q.database.GetWorkspaceByID(ctx, scopeID)
+		return q.database.GetWorkspaceByID(ctx, scopeID)
 	case database.ParameterScopeImportJob:
 		var version database.TemplateVersion
 		version, err = q.database.GetTemplateVersionByJobID(ctx, scopeID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				// Template version does not exist yet, fall back to rbac.ResourceTemplate
+				// TODO: This is likely incorrect because we do not have an org ID.
 				resource = rbac.ResourceTemplate
 				err = nil
+			} else {
+				return nil, err
 			}
-			break
 		}
+		resource = version.RBACObjectNoTemplate()
+
 		var template database.Template
 		template, err = q.database.GetTemplateByID(ctx, version.TemplateID.UUID)
-		if err != nil {
-			break
+		if err == nil {
+			resource = version.RBACObject(template)
+		} else if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			return nil, err
 		}
-		resource = version.RBACObject(template)
-
+		return resource, nil
 	case database.ParameterScopeTemplate:
-		resource, err = q.database.GetTemplateByID(ctx, scopeID)
+		return q.database.GetTemplateByID(ctx, scopeID)
 	default:
-		err = xerrors.Errorf("Parameter scope %q unsupported", scope)
+		return nil, xerrors.Errorf("Parameter scope %q unsupported", scope)
 	}
-
-	if err != nil {
-		return nil, err
-	}
-	return resource, nil
 }
 
 func (q *AuthzQuerier) InsertParameterValue(ctx context.Context, arg database.InsertParameterValueParams) (database.ParameterValue, error) {
