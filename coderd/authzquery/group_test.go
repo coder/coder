@@ -15,7 +15,7 @@ func (suite *MethodTestSuite) TestGroup() {
 	suite.Run("DeleteGroupByID", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			g := dbgen.Group(t, db, database.Group{})
-			return methodCase(inputs(g.ID), asserts(g, rbac.ActionDelete))
+			return methodCase(values(g.ID), asserts(g, rbac.ActionDelete))
 		})
 	})
 	suite.Run("DeleteGroupMemberFromGroup", func() {
@@ -24,7 +24,7 @@ func (suite *MethodTestSuite) TestGroup() {
 			m := dbgen.GroupMember(t, db, database.GroupMember{
 				GroupID: g.ID,
 			})
-			return methodCase(inputs(database.DeleteGroupMemberFromGroupParams{
+			return methodCase(values(database.DeleteGroupMemberFromGroupParams{
 				UserID:  m.UserID,
 				GroupID: g.ID,
 			}), asserts(g, rbac.ActionUpdate))
@@ -33,13 +33,13 @@ func (suite *MethodTestSuite) TestGroup() {
 	suite.Run("GetGroupByID", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			g := dbgen.Group(t, db, database.Group{})
-			return methodCase(inputs(g.ID), asserts(g, rbac.ActionRead))
+			return methodCase(values(g.ID), asserts(g, rbac.ActionRead))
 		})
 	})
 	suite.Run("GetGroupByOrgAndName", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			g := dbgen.Group(t, db, database.Group{})
-			return methodCase(inputs(database.GetGroupByOrgAndNameParams{
+			return methodCase(values(database.GetGroupByOrgAndNameParams{
 				OrganizationID: g.OrganizationID,
 				Name:           g.Name,
 			}), asserts(g, rbac.ActionRead))
@@ -49,19 +49,19 @@ func (suite *MethodTestSuite) TestGroup() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			g := dbgen.Group(t, db, database.Group{})
 			_ = dbgen.GroupMember(t, db, database.GroupMember{})
-			return methodCase(inputs(g.ID), asserts(g, rbac.ActionRead))
+			return methodCase(values(g.ID), asserts(g, rbac.ActionRead))
 		})
 	})
 	suite.Run("InsertAllUsersGroup", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			o := dbgen.Organization(t, db, database.Organization{})
-			return methodCase(inputs(o.ID), asserts(rbac.ResourceGroup.InOrg(o.ID), rbac.ActionCreate))
+			return methodCase(values(o.ID), asserts(rbac.ResourceGroup.InOrg(o.ID), rbac.ActionCreate))
 		})
 	})
 	suite.Run("InsertGroup", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			o := dbgen.Organization(t, db, database.Organization{})
-			return methodCase(inputs(database.InsertGroupParams{
+			return methodCase(values(database.InsertGroupParams{
 				OrganizationID: o.ID,
 				Name:           "test",
 			}), asserts(rbac.ResourceGroup.InOrg(o.ID), rbac.ActionCreate))
@@ -70,7 +70,7 @@ func (suite *MethodTestSuite) TestGroup() {
 	suite.Run("InsertGroupMember", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			g := dbgen.Group(t, db, database.Group{})
-			return methodCase(inputs(database.InsertGroupMemberParams{
+			return methodCase(values(database.InsertGroupMemberParams{
 				UserID:  uuid.New(),
 				GroupID: g.ID,
 			}), asserts(g, rbac.ActionUpdate))
@@ -83,7 +83,7 @@ func (suite *MethodTestSuite) TestGroup() {
 			g1 := dbgen.Group(t, db, database.Group{OrganizationID: o.ID})
 			g2 := dbgen.Group(t, db, database.Group{OrganizationID: o.ID})
 			_ = dbgen.GroupMember(t, db, database.GroupMember{GroupID: g1.ID, UserID: u1.ID})
-			return methodCase(inputs(database.InsertUserGroupsByNameParams{
+			return methodCase(values(database.InsertUserGroupsByNameParams{
 				OrganizationID: o.ID,
 				UserID:         u1.ID,
 				GroupNames:     slice.New(g1.Name, g2.Name),
@@ -98,7 +98,7 @@ func (suite *MethodTestSuite) TestGroup() {
 			g2 := dbgen.Group(t, db, database.Group{OrganizationID: o.ID})
 			_ = dbgen.GroupMember(t, db, database.GroupMember{GroupID: g1.ID, UserID: u1.ID})
 			_ = dbgen.GroupMember(t, db, database.GroupMember{GroupID: g2.ID, UserID: u1.ID})
-			return methodCase(inputs(database.DeleteGroupMembersByOrgAndUserParams{
+			return methodCase(values(database.DeleteGroupMembersByOrgAndUserParams{
 				OrganizationID: o.ID,
 				UserID:         u1.ID,
 			}), asserts(rbac.ResourceGroup.InOrg(o.ID), rbac.ActionUpdate))
@@ -107,7 +107,7 @@ func (suite *MethodTestSuite) TestGroup() {
 	suite.Run("UpdateGroupByID", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			g := dbgen.Group(t, db, database.Group{})
-			return methodCase(inputs(database.UpdateGroupByIDParams{
+			return methodCase(values(database.UpdateGroupByIDParams{
 				Name: "new-name",
 				ID:   g.ID,
 			}), asserts(g, rbac.ActionUpdate))

@@ -220,30 +220,30 @@ type AssertRBAC struct {
 
 // methodCase is a convenience method for creating MethodCases.
 //
-//	methodCase(inputs(workspace, template, ...), asserts(workspace, rbac.ActionRead, template, rbac.ActionRead, ...))
+//	methodCase(values(workspace, template, ...), asserts(workspace, rbac.ActionRead, template, rbac.ActionRead, ...))
 //
 // is equivalent to
 //
 //	MethodCase{
-//	  Inputs: inputs(workspace, template, ...),
+//	  Inputs: values(workspace, template, ...),
 //	  Assertions: asserts(workspace, rbac.ActionRead, template, rbac.ActionRead, ...),
 //	}
-func methodCase(ins []reflect.Value, assertions []AssertRBAC) MethodCase {
+func methodCase(ins []reflect.Value, assertions []AssertRBAC, outs []reflect.Value) MethodCase {
 	return MethodCase{
 		Inputs:          ins,
 		Assertions:      assertions,
-		ExpectedOutputs: nil,
+		ExpectedOutputs: outs,
 	}
 }
 
 func (m MethodCase) Outputs(outs ...any) MethodCase {
-	m.ExpectedOutputs = inputs(outs...)
+	m.ExpectedOutputs = values(outs...)
 	return m
 }
 
-// inputs is a convenience method for creating []reflect.Value.
+// values is a convenience method for creating []reflect.Value.
 //
-// inputs(workspace, template, ...)
+// values(workspace, template, ...)
 //
 // is equivalent to
 //
@@ -252,7 +252,7 @@ func (m MethodCase) Outputs(outs ...any) MethodCase {
 //	  reflect.ValueOf(template),
 //	  ...
 //	}
-func inputs(ins ...any) []reflect.Value {
+func values(ins ...any) []reflect.Value {
 	out := make([]reflect.Value, 0)
 	for _, input := range ins {
 		input := input
@@ -322,12 +322,12 @@ func (s *MethodTestSuite) TestExtraMethods() {
 				ID: uuid.New(),
 			})
 			require.NoError(t, err, "insert provisioner daemon")
-			return methodCase(inputs(), asserts(d, rbac.ActionRead))
+			return methodCase(values(), asserts(d, rbac.ActionRead))
 		})
 	})
 	s.Run("GetDeploymentDAUs", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			return methodCase(inputs(), asserts(rbac.ResourceUser.All(), rbac.ActionRead))
+			return methodCase(values(), asserts(rbac.ResourceUser.All(), rbac.ActionRead))
 		})
 	})
 }

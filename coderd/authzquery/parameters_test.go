@@ -15,7 +15,7 @@ func (suite *MethodTestSuite) TestParameters() {
 	suite.Run("Workspace/InsertParameterValue", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			w := dbgen.Workspace(t, db, database.Workspace{})
-			return methodCase(inputs(database.InsertParameterValueParams{
+			return methodCase(values(database.InsertParameterValueParams{
 				ScopeID:           w.ID,
 				Scope:             database.ParameterScopeWorkspace,
 				SourceScheme:      database.ParameterSourceSchemeNone,
@@ -27,7 +27,7 @@ func (suite *MethodTestSuite) TestParameters() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			j := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{})
 			v := dbgen.TemplateVersion(t, db, database.TemplateVersion{JobID: j.ID, TemplateID: uuid.NullUUID{Valid: false}})
-			return methodCase(inputs(database.InsertParameterValueParams{
+			return methodCase(values(database.InsertParameterValueParams{
 				ScopeID:           j.ID,
 				Scope:             database.ParameterScopeImportJob,
 				SourceScheme:      database.ParameterSourceSchemeNone,
@@ -45,7 +45,7 @@ func (suite *MethodTestSuite) TestParameters() {
 					Valid: true,
 				}},
 			)
-			return methodCase(inputs(database.InsertParameterValueParams{
+			return methodCase(values(database.InsertParameterValueParams{
 				ScopeID:           j.ID,
 				Scope:             database.ParameterScopeImportJob,
 				SourceScheme:      database.ParameterSourceSchemeNone,
@@ -56,7 +56,7 @@ func (suite *MethodTestSuite) TestParameters() {
 	suite.Run("Template/InsertParameterValue", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			tpl := dbgen.Template(t, db, database.Template{})
-			return methodCase(inputs(database.InsertParameterValueParams{
+			return methodCase(values(database.InsertParameterValueParams{
 				ScopeID:           tpl.ID,
 				Scope:             database.ParameterScopeTemplate,
 				SourceScheme:      database.ParameterSourceSchemeNone,
@@ -71,7 +71,7 @@ func (suite *MethodTestSuite) TestParameters() {
 				ScopeID: tpl.ID,
 				Scope:   database.ParameterScopeTemplate,
 			})
-			return methodCase(inputs(pv.ID), asserts(tpl, rbac.ActionRead))
+			return methodCase(values(pv.ID), asserts(tpl, rbac.ActionRead))
 		})
 	})
 	suite.Run("ParameterValues", func() {
@@ -86,7 +86,7 @@ func (suite *MethodTestSuite) TestParameters() {
 				ScopeID: w.ID,
 				Scope:   database.ParameterScopeWorkspace,
 			})
-			return methodCase(inputs(database.ParameterValuesParams{
+			return methodCase(values(database.ParameterValuesParams{
 				IDs: []uuid.UUID{a.ID, b.ID},
 			}), asserts(tpl, rbac.ActionRead, w, rbac.ActionRead))
 		})
@@ -97,7 +97,7 @@ func (suite *MethodTestSuite) TestParameters() {
 			tpl := dbgen.Template(t, db, database.Template{})
 			tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{JobID: j.ID, TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}})
 			_ = dbgen.ParameterSchema(t, db, database.ParameterSchema{JobID: j.ID})
-			return methodCase(inputs(j.ID), asserts(tv.RBACObject(tpl), rbac.ActionRead))
+			return methodCase(values(j.ID), asserts(tv.RBACObject(tpl), rbac.ActionRead))
 		})
 	})
 	suite.Run("Workspace/GetParameterValueByScopeAndName", func() {
@@ -107,7 +107,7 @@ func (suite *MethodTestSuite) TestParameters() {
 				Scope:   database.ParameterScopeWorkspace,
 				ScopeID: w.ID,
 			})
-			return methodCase(inputs(database.GetParameterValueByScopeAndNameParams{
+			return methodCase(values(database.GetParameterValueByScopeAndNameParams{
 				Scope:   v.Scope,
 				ScopeID: v.ScopeID,
 				Name:    v.Name,
@@ -121,7 +121,7 @@ func (suite *MethodTestSuite) TestParameters() {
 				Scope:   database.ParameterScopeWorkspace,
 				ScopeID: w.ID,
 			})
-			return methodCase(inputs(v.ID), asserts(w, rbac.ActionUpdate))
+			return methodCase(values(v.ID), asserts(w, rbac.ActionUpdate))
 		})
 	})
 }

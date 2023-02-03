@@ -32,7 +32,7 @@ func (suite *MethodTestSuite) TestTemplate() {
 				Name:           t1.Name,
 				OrganizationID: o1.ID,
 				TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true}})
-			return methodCase(inputs(database.GetPreviousTemplateVersionParams{
+			return methodCase(values(database.GetPreviousTemplateVersionParams{
 				Name:           t1.Name,
 				OrganizationID: o1.ID,
 				TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true},
@@ -42,7 +42,7 @@ func (suite *MethodTestSuite) TestTemplate() {
 	suite.Run("GetTemplateAverageBuildTime", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			t1 := dbgen.Template(t, db, database.Template{})
-			return methodCase(inputs(database.GetTemplateAverageBuildTimeParams{
+			return methodCase(values(database.GetTemplateAverageBuildTimeParams{
 				TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
 			}), asserts(t1, rbac.ActionRead))
 		})
@@ -50,7 +50,7 @@ func (suite *MethodTestSuite) TestTemplate() {
 	suite.Run("GetTemplateByID", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			t1 := dbgen.Template(t, db, database.Template{})
-			return methodCase(inputs(t1.ID), asserts(t1, rbac.ActionRead))
+			return methodCase(values(t1.ID), asserts(t1, rbac.ActionRead))
 		})
 	})
 	suite.Run("GetTemplateByOrganizationAndName", func() {
@@ -59,7 +59,7 @@ func (suite *MethodTestSuite) TestTemplate() {
 			t1 := dbgen.Template(t, db, database.Template{
 				OrganizationID: o1.ID,
 			})
-			return methodCase(inputs(database.GetTemplateByOrganizationAndNameParams{
+			return methodCase(values(database.GetTemplateByOrganizationAndNameParams{
 				Name:           t1.Name,
 				OrganizationID: o1.ID,
 			}), asserts(t1, rbac.ActionRead))
@@ -68,7 +68,7 @@ func (suite *MethodTestSuite) TestTemplate() {
 	suite.Run("GetTemplateDAUs", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			t1 := dbgen.Template(t, db, database.Template{})
-			return methodCase(inputs(t1.ID), asserts(t1, rbac.ActionRead))
+			return methodCase(values(t1.ID), asserts(t1, rbac.ActionRead))
 		})
 	})
 	suite.Run("GetTemplateVersionByJobID", func() {
@@ -77,7 +77,7 @@ func (suite *MethodTestSuite) TestTemplate() {
 			tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 				TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
 			})
-			return methodCase(inputs(tv.JobID), asserts(t1, rbac.ActionRead))
+			return methodCase(values(tv.JobID), asserts(t1, rbac.ActionRead))
 		})
 	})
 	suite.Run("GetTemplateVersionByTemplateIDAndName", func() {
@@ -86,7 +86,7 @@ func (suite *MethodTestSuite) TestTemplate() {
 			tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 				TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
 			})
-			return methodCase(inputs(database.GetTemplateVersionByTemplateIDAndNameParams{
+			return methodCase(values(database.GetTemplateVersionByTemplateIDAndNameParams{
 				Name:       tv.Name,
 				TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
 			}), asserts(t1, rbac.ActionRead))
@@ -98,19 +98,19 @@ func (suite *MethodTestSuite) TestTemplate() {
 			tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 				TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
 			})
-			return methodCase(inputs(tv.ID), asserts(t1, rbac.ActionRead))
+			return methodCase(values(tv.ID), asserts(t1, rbac.ActionRead))
 		})
 	})
 	suite.Run("GetTemplateGroupRoles", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			t1 := dbgen.Template(t, db, database.Template{})
-			return methodCase(inputs(t1.ID), asserts(t1, rbac.ActionRead))
+			return methodCase(values(t1.ID), asserts(t1, rbac.ActionRead))
 		})
 	})
 	suite.Run("GetTemplateUserRoles", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			t1 := dbgen.Template(t, db, database.Template{})
-			return methodCase(inputs(t1.ID), asserts(t1, rbac.ActionRead))
+			return methodCase(values(t1.ID), asserts(t1, rbac.ActionRead))
 		})
 	})
 	suite.Run("GetTemplateVersionByID", func() {
@@ -119,7 +119,7 @@ func (suite *MethodTestSuite) TestTemplate() {
 			tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 				TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
 			})
-			return methodCase(inputs(tv.ID), asserts(t1, rbac.ActionRead))
+			return methodCase(values(tv.ID), asserts(t1, rbac.ActionRead))
 		})
 	})
 	suite.Run("GetTemplateVersionsByIDs", func() {
@@ -132,7 +132,7 @@ func (suite *MethodTestSuite) TestTemplate() {
 			tv2 := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 				TemplateID: uuid.NullUUID{UUID: t2.ID, Valid: true},
 			})
-			return methodCase(inputs([]uuid.UUID{tv1.ID, tv2.ID}),
+			return methodCase(values([]uuid.UUID{tv1.ID, tv2.ID}),
 				asserts(t1, rbac.ActionRead, t2, rbac.ActionRead))
 		})
 	})
@@ -145,7 +145,7 @@ func (suite *MethodTestSuite) TestTemplate() {
 			_ = dbgen.TemplateVersion(t, db, database.TemplateVersion{
 				TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
 			})
-			return methodCase(inputs(database.GetTemplateVersionsByTemplateIDParams{
+			return methodCase(values(database.GetTemplateVersionsByTemplateIDParams{
 				TemplateID: t1.ID,
 			}), asserts(t1, rbac.ActionRead))
 		})
@@ -162,20 +162,20 @@ func (suite *MethodTestSuite) TestTemplate() {
 				TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
 				CreatedAt:  now.Add(-2 * time.Hour),
 			})
-			return methodCase(inputs(now.Add(-time.Hour)), asserts(rbac.ResourceTemplate.All(), rbac.ActionRead))
+			return methodCase(values(now.Add(-time.Hour)), asserts(rbac.ResourceTemplate.All(), rbac.ActionRead))
 		})
 	})
 	suite.Run("GetTemplatesWithFilter", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			_ = dbgen.Template(t, db, database.Template{})
 			// No asserts because SQLFilter.
-			return methodCase(inputs(database.GetTemplatesWithFilterParams{}), asserts())
+			return methodCase(values(database.GetTemplatesWithFilterParams{}), asserts())
 		})
 	})
 	suite.Run("InsertTemplate", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			orgID := uuid.New()
-			return methodCase(inputs(database.InsertTemplateParams{
+			return methodCase(values(database.InsertTemplateParams{
 				Provisioner:    "echo",
 				OrganizationID: orgID,
 			}), asserts(rbac.ResourceTemplate.InOrg(orgID), rbac.ActionCreate))
@@ -184,7 +184,7 @@ func (suite *MethodTestSuite) TestTemplate() {
 	suite.Run("InsertTemplateVersion", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			t1 := dbgen.Template(t, db, database.Template{})
-			return methodCase(inputs(database.InsertTemplateVersionParams{
+			return methodCase(values(database.InsertTemplateVersionParams{
 				TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true},
 				OrganizationID: t1.OrganizationID,
 			}), asserts(t1, rbac.ActionRead, t1, rbac.ActionCreate))
@@ -193,13 +193,13 @@ func (suite *MethodTestSuite) TestTemplate() {
 	suite.Run("SoftDeleteTemplateByID", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			t1 := dbgen.Template(t, db, database.Template{})
-			return methodCase(inputs(t1.ID), asserts(t1, rbac.ActionDelete))
+			return methodCase(values(t1.ID), asserts(t1, rbac.ActionDelete))
 		})
 	})
 	suite.Run("UpdateTemplateACLByID", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			t1 := dbgen.Template(t, db, database.Template{})
-			return methodCase(inputs(database.UpdateTemplateACLByIDParams{
+			return methodCase(values(database.UpdateTemplateACLByIDParams{
 				ID: t1.ID,
 			}), asserts(t1, rbac.ActionCreate))
 		})
@@ -210,7 +210,7 @@ func (suite *MethodTestSuite) TestTemplate() {
 			tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 				TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
 			})
-			return methodCase(inputs(database.UpdateTemplateActiveVersionByIDParams{
+			return methodCase(values(database.UpdateTemplateActiveVersionByIDParams{
 				ID:              t1.ID,
 				ActiveVersionID: tv.ID,
 			}), asserts(t1, rbac.ActionUpdate))
@@ -219,7 +219,7 @@ func (suite *MethodTestSuite) TestTemplate() {
 	suite.Run("UpdateTemplateDeletedByID", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			t1 := dbgen.Template(t, db, database.Template{})
-			return methodCase(inputs(database.UpdateTemplateDeletedByIDParams{
+			return methodCase(values(database.UpdateTemplateDeletedByIDParams{
 				ID:      t1.ID,
 				Deleted: true,
 			}), asserts(t1, rbac.ActionDelete))
@@ -228,7 +228,7 @@ func (suite *MethodTestSuite) TestTemplate() {
 	suite.Run("UpdateTemplateMetaByID", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			t1 := dbgen.Template(t, db, database.Template{})
-			return methodCase(inputs(database.UpdateTemplateMetaByIDParams{
+			return methodCase(values(database.UpdateTemplateMetaByIDParams{
 				ID:   t1.ID,
 				Name: "foo",
 			}), asserts(t1, rbac.ActionUpdate))
@@ -240,7 +240,7 @@ func (suite *MethodTestSuite) TestTemplate() {
 			tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 				TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
 			})
-			return methodCase(inputs(database.UpdateTemplateVersionByIDParams{
+			return methodCase(values(database.UpdateTemplateVersionByIDParams{
 				ID:         tv.ID,
 				TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
 			}), asserts(t1, rbac.ActionUpdate))
@@ -254,7 +254,7 @@ func (suite *MethodTestSuite) TestTemplate() {
 				TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
 				JobID:      jobID,
 			})
-			return methodCase(inputs(database.UpdateTemplateVersionDescriptionByJobIDParams{
+			return methodCase(values(database.UpdateTemplateVersionDescriptionByJobIDParams{
 				JobID:  jobID,
 				Readme: "foo",
 			}), asserts(t1, rbac.ActionUpdate))
