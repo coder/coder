@@ -260,7 +260,7 @@ func (q *AuthzQuerier) SoftDeleteTemplateByID(ctx context.Context, id uuid.UUID)
 			UpdatedAt: database.Now(),
 		})
 	}
-	return delete(q.log, q.auth, q.db.GetTemplateByID, deleteF)(ctx, id)
+	return deleteQ(q.log, q.auth, q.db.GetTemplateByID, deleteF)(ctx, id)
 }
 
 // Deprecated: use SoftDeleteTemplateByID instead.

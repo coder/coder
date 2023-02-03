@@ -96,7 +96,7 @@ func insertWithReturn[ObjectType any, ArgumentType any,
 	}
 }
 
-func delete[ObjectType rbac.Objecter, ArgumentType any,
+func deleteQ[ObjectType rbac.Objecter, ArgumentType any,
 	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 	Delete func(ctx context.Context, arg ArgumentType) error](
 	// Arguments

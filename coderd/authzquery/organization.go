@@ -119,7 +119,7 @@ func (q *AuthzQuerier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, add
 	}
 
 	if len(removed) > 0 && q.authorizeContext(ctx, rbac.ActionDelete, roleAssign) != nil {
-		return xerrors.Errorf("not authorized to delete roles")
+		return xerrors.Errorf("not authorized to deleteQ roles")
 	}
 
 	for _, roleName := range grantedRoles {

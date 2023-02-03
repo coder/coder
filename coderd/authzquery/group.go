@@ -10,7 +10,7 @@ import (
 )
 
 func (q *AuthzQuerier) DeleteGroupByID(ctx context.Context, id uuid.UUID) error {
-	return delete(q.log, q.auth, q.db.GetGroupByID, q.db.DeleteGroupByID)(ctx, id)
+	return deleteQ(q.log, q.auth, q.db.GetGroupByID, q.db.DeleteGroupByID)(ctx, id)
 }
 
 func (q *AuthzQuerier) DeleteGroupMemberFromGroup(ctx context.Context, arg database.DeleteGroupMemberFromGroupParams) error {

@@ -421,7 +421,7 @@ func (q *AuthzQuerier) UpdateWorkspaceBuildByID(ctx context.Context, arg databas
 }
 
 func (q *AuthzQuerier) SoftDeleteWorkspaceByID(ctx context.Context, id uuid.UUID) error {
-	return delete(q.log, q.auth, q.db.GetWorkspaceByID, func(ctx context.Context, id uuid.UUID) error {
+	return deleteQ(q.log, q.auth, q.db.GetWorkspaceByID, func(ctx context.Context, id uuid.UUID) error {
 		return q.db.UpdateWorkspaceDeletedByID(ctx, database.UpdateWorkspaceDeletedByIDParams{
 			ID:      id,
 			Deleted: true,
@@ -431,12 +431,12 @@ func (q *AuthzQuerier) SoftDeleteWorkspaceByID(ctx context.Context, id uuid.UUID
 
 // Deprecated: Use SoftDeleteWorkspaceByID
 func (q *AuthzQuerier) UpdateWorkspaceDeletedByID(ctx context.Context, arg database.UpdateWorkspaceDeletedByIDParams) error {
-	// TODO delete me, placeholder for database.Store
+	// TODO deleteQ me, placeholder for database.Store
 	fetch := func(ctx context.Context, arg database.UpdateWorkspaceDeletedByIDParams) (database.Workspace, error) {
 		return q.db.GetWorkspaceByID(ctx, arg.ID)
 	}
-	// This function is always used to delete.
-	return delete(q.log, q.auth, fetch, q.db.UpdateWorkspaceDeletedByID)(ctx, arg)
+	// This function is always used to deleteQ.
+	return deleteQ(q.log, q.auth, fetch, q.db.UpdateWorkspaceDeletedByID)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateWorkspaceLastUsedAt(ctx context.Context, arg database.UpdateWorkspaceLastUsedAtParams) error {

@@ -32,7 +32,7 @@ func (q *AuthzQuerier) GetLicenseByID(ctx context.Context, id int32) (database.L
 }
 
 func (q *AuthzQuerier) DeleteLicense(ctx context.Context, id int32) (int32, error) {
-	err := delete(q.log, q.auth, q.db.GetLicenseByID, func(ctx context.Context, id int32) error {
+	err := deleteQ(q.log, q.auth, q.db.GetLicenseByID, func(ctx context.Context, id int32) error {
 		_, err := q.db.DeleteLicense(ctx, id)
 		return err
 	})(ctx, id)

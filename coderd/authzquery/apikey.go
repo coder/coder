@@ -10,7 +10,7 @@ import (
 )
 
 func (q *AuthzQuerier) DeleteAPIKeyByID(ctx context.Context, id string) error {
-	return delete(q.log, q.auth, q.db.GetAPIKeyByID, q.db.DeleteAPIKeyByID)(ctx, id)
+	return deleteQ(q.log, q.auth, q.db.GetAPIKeyByID, q.db.DeleteAPIKeyByID)(ctx, id)
 }
 
 func (q *AuthzQuerier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {

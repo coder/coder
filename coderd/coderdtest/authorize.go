@@ -517,8 +517,8 @@ func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck
 							assert.Equal(t, http.StatusForbidden, resp.StatusCode, "expect unauthorized")
 						}
 					}
-					if a.authorizer.LastCall() != nil {
-						last := a.authorizer.LastCall()
+					if a.authorizer.lastCall() != nil {
+						last := a.authorizer.lastCall()
 						if routeAssertions.AssertAction != "" {
 							assert.Equal(t, routeAssertions.AssertAction, last.Action, "resource action")
 						}
@@ -709,9 +709,9 @@ func (f *fakePreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.Conve
 	return f.HardCodedSQLString, nil
 }
 
-// LastCall is implemented to support legacy tests.
+// lastCall is implemented to support legacy tests.
 // Deprecated
-func (r *RecordingAuthorizer) LastCall() *authCall {
+func (r *RecordingAuthorizer) lastCall() *authCall {
 	r.RLock()
 	defer r.RUnlock()
 	if len(r.Called) == 0 {

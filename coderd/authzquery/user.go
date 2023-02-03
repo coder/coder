@@ -122,7 +122,7 @@ func (q *AuthzQuerier) SoftDeleteUserByID(ctx context.Context, id uuid.UUID) err
 			Deleted: true,
 		})
 	}
-	return delete(q.log, q.auth, q.db.GetUserByID, deleteF)(ctx, id)
+	return deleteQ(q.log, q.auth, q.db.GetUserByID, deleteF)(ctx, id)
 }
 
 // UpdateUserDeletedByID
@@ -134,7 +134,7 @@ func (q *AuthzQuerier) UpdateUserDeletedByID(ctx context.Context, arg database.U
 	}
 	// This uses the rbac.ActionDelete action always as this function should always delete.
 	// We should delete this function in favor of 'SoftDeleteUserByID'.
-	return delete(q.log, q.auth, fetch, q.db.UpdateUserDeletedByID)(ctx, arg)
+	return deleteQ(q.log, q.auth, fetch, q.db.UpdateUserDeletedByID)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateUserHashedPassword(ctx context.Context, arg database.UpdateUserHashedPasswordParams) error {
@@ -177,7 +177,7 @@ func (q *AuthzQuerier) UpdateUserStatus(ctx context.Context, arg database.Update
 }
 
 func (q *AuthzQuerier) DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error {
-	return delete(q.log, q.auth, q.db.GetGitSSHKey, q.db.DeleteGitSSHKey)(ctx, userID)
+	return deleteQ(q.log, q.auth, q.db.GetGitSSHKey, q.db.DeleteGitSSHKey)(ctx, userID)
 }
 
 func (q *AuthzQuerier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
