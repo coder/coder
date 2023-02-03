@@ -615,34 +615,6 @@ func (r *RecordingAuthorizer) AssertActor(t *testing.T, actor rbac.Subject, did 
 	assert.Equalf(t, len(did), ptr, "assert actor: didn't find all actions, %d missing actions", len(did)-ptr)
 }
 
-// UnorderedAssertActor is the same as AssertActor, except it doesn't care about
-// order. It will assert the first call that matches the actor and pair.
-// It will not assert the same call twice, so if there is a duplicate assertion,
-// the pair will need to be passed in twice.
-func (r *RecordingAuthorizer) UnorderedAssertActor(t *testing.T, actor rbac.Subject, dids ...ActionObjectPair) {
-	r.RLock()
-	defer r.RUnlock()
-	for _, did := range dids {
-		found := false
-	InnerCalledLoop:
-		for i, c := range r.Called {
-			if c.asserted {
-				// Do not assert an already asserted call.
-				continue
-			}
-
-			if c.Action != did.Action || c.Object.Equal(did.Object) || c.Actor.Equal(actor) {
-				continue
-			}
-
-			r.Called[i].asserted = true
-			found = true
-			break InnerCalledLoop
-		}
-		require.Truef(t, found, "did not find call for %s %s", did.Action, did.Object.Type)
-	}
-}
-
 // recordAuthorize is the internal method that records the Authorize() call.
 func (r *RecordingAuthorizer) recordAuthorize(subject rbac.Subject, action rbac.Action, object rbac.Object) {
 	r.Lock()
@@ -676,6 +648,8 @@ func (r *RecordingAuthorizer) Prepare(ctx context.Context, subject rbac.Subject,
 	return &PreparedRecorder{
 		rec:     r,
 		prepped: prep,
+		subject: subject,
+		action:  action,
 	}, nil
 }
 
@@ -754,10 +728,9 @@ var _ rbac.PreparedAuthorized = (*fakePreparedAuthorizer)(nil)
 // return the same error as the original FakeAuthorizer.
 type fakePreparedAuthorizer struct {
 	sync.RWMutex
-	Original           *FakeAuthorizer
-	Subject            rbac.Subject
-	Action             rbac.Action
-	ShouldCompileToSQL bool
+	Original *FakeAuthorizer
+	Subject  rbac.Subject
+	Action   rbac.Action
 }
 
 func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Object) error {
