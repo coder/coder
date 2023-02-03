@@ -30,12 +30,12 @@ func (suite *MethodTestSuite) TestLicense() {
 	})
 	suite.Run("InsertOrUpdateLogoURL", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			return methodCase(values("value"), asserts(rbac.ResourceDeploymentConfig, rbac.ActionUpdate), nil)
+			return methodCase(values("value"), asserts(rbac.ResourceDeploymentConfig, rbac.ActionCreate), nil)
 		})
 	})
 	suite.Run("InsertOrUpdateServiceBanner", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			return methodCase(values("value"), asserts(rbac.ResourceDeploymentConfig, rbac.ActionUpdate), nil)
+			return methodCase(values("value"), asserts(rbac.ResourceDeploymentConfig, rbac.ActionCreate), nil)
 		})
 	})
 	suite.Run("GetLicenseByID", func() {
