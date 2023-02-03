@@ -15,13 +15,13 @@ func (suite *MethodTestSuite) TestFile() {
 			return methodCase(values(database.GetFileByHashAndCreatorParams{
 				Hash:      f.Hash,
 				CreatedBy: f.CreatedBy,
-			}), asserts(f, rbac.ActionRead))
+			}), asserts(f, rbac.ActionRead), values(database.File{}))
 		})
 	})
 	suite.Run("GetFileByID", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			f := dbgen.File(t, db, database.File{})
-			return methodCase(values(f.ID), asserts(f, rbac.ActionRead))
+			return methodCase(values(f.ID), asserts(f, rbac.ActionRead), values(database.File{}))
 		})
 	})
 	suite.Run("InsertFile", func() {
@@ -29,7 +29,8 @@ func (suite *MethodTestSuite) TestFile() {
 			u := dbgen.User(t, db, database.User{})
 			return methodCase(values(database.InsertFileParams{
 				CreatedBy: u.ID,
-			}), asserts(rbac.ResourceFile.WithOwner(u.ID.String()), rbac.ActionCreate))
+			}), asserts(rbac.ResourceFile.WithOwner(u.ID.String()), rbac.ActionCreate),
+				values(database.File{}))
 		})
 	})
 }
