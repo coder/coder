@@ -50,7 +50,7 @@ func (suite *MethodTestSuite) TestAPIKey() {
 				LoginType: database.LoginTypePassword,
 				Scope:     database.APIKeyScopeAll,
 			}), asserts(rbac.ResourceAPIKey.WithOwner(u.ID.String()), rbac.ActionCreate),
-				values())
+				nil)
 		})
 	})
 	suite.Run("UpdateAPIKeyByID", func() {
@@ -58,7 +58,7 @@ func (suite *MethodTestSuite) TestAPIKey() {
 			a, _ := dbgen.APIKey(t, db, database.APIKey{})
 			return methodCase(values(database.UpdateAPIKeyByIDParams{
 				ID: a.ID,
-			}), asserts(a, rbac.ActionUpdate), values(a))
+			}), asserts(a, rbac.ActionUpdate), values())
 		})
 	})
 }
