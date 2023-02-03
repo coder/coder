@@ -35,11 +35,10 @@ For production deployments, we recommend using an external PostgreSQL database
 workspaces will use to connect to Coder.
 
 ```console
-docker run --rm -it \
+docker run --rm -it ghcr.io/coder/coder:latest \
   -e CODER_ACCESS_URL="https://coder.example.com" \
   -e CODER_PG_CONNECTION_URL="postgresql://username:password@database/coder" \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  ghcr.io/coder/coder:latest
+  -v /var/run/docker.sock:/var/run/docker.sock
 ```
 
 Coder configuration is defined via environment variables.
