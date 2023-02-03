@@ -117,7 +117,7 @@ func (suite *MethodTestSuite) TestSystemFunctions() {
 	})
 	suite.Run("GetUserCount", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			return methodCase(values(), asserts(), values(0))
+			return methodCase(values(), asserts(), values(int64(0)))
 		})
 	})
 	suite.Run("GetTemplates", func() {
@@ -130,7 +130,7 @@ func (suite *MethodTestSuite) TestSystemFunctions() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			b := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{})
 			o := b
-			b.DailyCost = 10
+			o.DailyCost = 10
 			return methodCase(values(database.UpdateWorkspaceBuildCostByIDParams{
 				ID:        b.ID,
 				DailyCost: 10,
