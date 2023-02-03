@@ -111,6 +111,7 @@ export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
         }
       >
         <Line
+          data-chromatic="ignore"
           data={{
             labels: labels,
             datasets: [

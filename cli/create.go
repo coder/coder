@@ -194,6 +194,21 @@ type buildParameters struct {
 // Any missing params will be prompted to the user. It supports legacy and rich parameters.
 func prepWorkspaceBuild(cmd *cobra.Command, client *codersdk.Client, args prepWorkspaceBuildArgs) (*buildParameters, error) {
 	ctx := cmd.Context()
+
+	var useRichParameters bool
+	if len(args.ExistingRichParams) > 0 && len(args.RichParameterFile) > 0 {
+		useRichParameters = true
+	}
+
+	var useLegacyParameters bool
+	if len(args.ExistingParams) > 0 || len(args.ParameterFile) > 0 {
+		useLegacyParameters = true
+	}
+
+	if useRichParameters && useLegacyParameters {
+		return nil, xerrors.Errorf("Rich parameters can't be used together with legacy parameters.")
+	}
+
 	templateVersion, err := client.TemplateVersion(ctx, args.Template.ActiveVersionID)
 	if err != nil {
 		return nil, err

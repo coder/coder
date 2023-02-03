@@ -1,5 +1,4 @@
 import { makeStyles } from "@material-ui/core/styles"
-import Typography from "@material-ui/core/Typography"
 import { FormikTouched } from "formik"
 import { FC, useState } from "react"
 import { AuthMethods } from "../../api/typesGenerated"
@@ -8,6 +7,8 @@ import { Maybe } from "../Conditionals/Maybe"
 import { PasswordSignInForm } from "./PasswordSignInForm"
 import { OAuthSignInForm } from "./OAuthSignInForm"
 import { BuiltInAuthFormValues } from "./SignInForm.types"
+import Button from "@material-ui/core/Button"
+import EmailIcon from "@material-ui/icons/EmailOutlined"
 
 export enum LoginErrors {
   AUTH_ERROR = "authError",
@@ -66,11 +67,9 @@ const useStyles = makeStyles((theme) => ({
     fontSize: 12,
     letterSpacing: 1,
   },
-  showPasswordLink: {
-    cursor: "pointer",
-    fontSize: 12,
-    color: theme.palette.text.secondary,
-    marginTop: 12,
+  icon: {
+    width: theme.spacing(2),
+    height: theme.spacing(2),
   },
 }))
 
@@ -131,13 +130,22 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
           authMethods={authMethods}
         />
       </Maybe>
+
       <Maybe condition={!showPasswordAuth}>
-        <Typography
-          className={styles.showPasswordLink}
+        <div className={styles.divider}>
+          <div className={styles.dividerLine} />
+          <div className={styles.dividerLabel}>Or</div>
+          <div className={styles.dividerLine} />
+        </div>
+
+        <Button
+          fullWidth
           onClick={() => setShowPasswordAuth(true)}
+          variant="contained"
+          startIcon={<EmailIcon className={styles.icon} />}
         >
           {loginPageTranslation.t("showPassword")}
-        </Typography>
+        </Button>
       </Maybe>
     </div>
   )

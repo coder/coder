@@ -32,6 +32,11 @@ func newConfig() *codersdk.DeploymentConfig {
 			Usage: "Specifies the wildcard hostname to use for workspace applications in the form \"*.example.com\".",
 			Flag:  "wildcard-access-url",
 		},
+		RedirectToAccessURL: &codersdk.DeploymentConfigField[bool]{
+			Name:  "Redirect to Access URL",
+			Usage: "Specifies whether to redirect requests that do not match the access URL host.",
+			Flag:  "redirect-to-access-url",
+		},
 		// DEPRECATED: Use HTTPAddress or TLS.Address instead.
 		Address: &codersdk.DeploymentConfigField[string]{
 			Name:      "Address",
@@ -300,11 +305,13 @@ func newConfig() *codersdk.DeploymentConfig {
 				Flag:    "tls-address",
 				Default: "127.0.0.1:3443",
 			},
+			// DEPRECATED: Use RedirectToAccessURL instead.
 			RedirectHTTP: &codersdk.DeploymentConfigField[bool]{
 				Name:    "Redirect HTTP to HTTPS",
 				Usage:   "Whether HTTP requests will be redirected to the access URL (if it's a https URL and TLS is enabled). Requests to local IP addresses are never redirected regardless of this setting.",
 				Flag:    "tls-redirect-http-to-https",
 				Default: true,
+				Hidden:  true,
 			},
 			CertFiles: &codersdk.DeploymentConfigField[[]string]{
 				Name:  "TLS Certificate Files",

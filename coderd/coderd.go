@@ -115,6 +115,7 @@ type Options struct {
 	DERPServer         *derp.Server
 	DERPMap            *tailcfg.DERPMap
 	SwaggerEndpoint    bool
+	SetUserGroups      func(ctx context.Context, tx database.Store, userID uuid.UUID, groupNames []string) error
 
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
 	// Setting a rate limit <0 will disable the rate limiter across the entire
@@ -201,6 +202,9 @@ func New(options *Options) *API {
 	}
 	if options.Auditor == nil {
 		options.Auditor = audit.NewNop()
+	}
+	if options.SetUserGroups == nil {
+		options.SetUserGroups = func(context.Context, database.Store, uuid.UUID, []string) error { return nil }
 	}
 
 	siteCacheDir := options.CacheDir
@@ -398,16 +402,18 @@ func New(options *Options) *API {
 					httpmw.ExtractOrganizationParam(options.Database),
 				)
 				r.Get("/", api.organization)
-				r.Route("/templateversions", func(r chi.Router) {
-					r.Post("/", api.postTemplateVersionsByOrganization)
-					r.Get("/{templateversionname}", api.templateVersionByOrganizationAndName)
-					r.Get("/{templateversionname}/previous", api.previousTemplateVersionByOrganizationAndName)
-				})
+				r.Post("/templateversions", api.postTemplateVersionsByOrganization)
 				r.Route("/templates", func(r chi.Router) {
 					r.Post("/", api.postTemplateByOrganization)
 					r.Get("/", api.templatesByOrganization)
-					r.Get("/{templatename}", api.templateByOrganizationAndName)
 					r.Get("/examples", api.templateExamples)
+					r.Route("/{templatename}", func(r chi.Router) {
+						r.Get("/", api.templateByOrganizationAndName)
+						r.Route("/versions/{templateversionname}", func(r chi.Router) {
+							r.Get("/", api.templateVersionByOrganizationTemplateAndName)
+							r.Get("/previous", api.previousTemplateVersionByOrganizationTemplateAndName)
+						})
+					})
 				})
 				r.Route("/members", func(r chi.Router) {
 					r.Get("/roles", api.assignableOrgRoles)

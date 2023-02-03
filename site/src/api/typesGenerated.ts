@@ -291,6 +291,7 @@ export interface DangerousConfig {
 export interface DeploymentConfig {
   readonly access_url: DeploymentConfigField<string>
   readonly wildcard_access_url: DeploymentConfigField<string>
+  readonly redirect_to_access_url: DeploymentConfigField<boolean>
   readonly http_address: DeploymentConfigField<string>
   readonly autobuild_poll_interval: DeploymentConfigField<number>
   readonly derp: DERP
@@ -686,7 +687,6 @@ export interface Template {
   readonly display_name: string
   readonly provisioner: ProvisionerType
   readonly active_version_id: string
-  readonly workspace_owner_count: number
   readonly active_user_count: number
   readonly build_time_stats: TemplateBuildTimeStats
   readonly description: string

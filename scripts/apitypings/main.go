@@ -37,7 +37,7 @@ func main() {
 	}
 
 	// Just cat the output to a file to capture it
-	fmt.Println(output)
+	_, _ = fmt.Println(output)
 }
 
 func Generate(directory string) (string, error) {
@@ -307,11 +307,11 @@ func (g *Generator) generateOne(m *Maps, obj types.Object) error {
 			var str strings.Builder
 			_, _ = str.WriteString(g.posLine(obj))
 			if ts.AboveTypeLine != "" {
-				str.WriteString(ts.AboveTypeLine)
-				str.WriteRune('\n')
+				_, _ = str.WriteString(ts.AboveTypeLine)
+				_, _ = str.WriteRune('\n')
 			}
 			// Use similar output syntax to enums.
-			str.WriteString(fmt.Sprintf("export type %s = %s\n", obj.Name(), ts.ValueType))
+			_, _ = str.WriteString(fmt.Sprintf("export type %s = %s\n", obj.Name(), ts.ValueType))
 			m.Structs[obj.Name()] = str.String()
 		case *types.Interface:
 			// Interfaces are used as generics. Non-generic interfaces are
@@ -353,7 +353,7 @@ func (g *Generator) generateOne(m *Maps, obj types.Object) error {
 	case *types.Func:
 		// Noop
 	default:
-		fmt.Println(obj.Name())
+		_, _ = fmt.Println(obj.Name())
 	}
 	return nil
 }
@@ -387,7 +387,7 @@ func (g *Generator) buildUnion(obj types.Object, st *types.Union) (string, error
 
 	allTypes = slice.Unique(allTypes)
 
-	s.WriteString(fmt.Sprintf("export type %s = %s\n", obj.Name(), strings.Join(allTypes, " | ")))
+	_, _ = s.WriteString(fmt.Sprintf("export type %s = %s\n", obj.Name(), strings.Join(allTypes, " | ")))
 
 	return s.String(), nil
 }

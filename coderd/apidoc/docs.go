@@ -1330,6 +1330,104 @@ const docTemplate = `{
                 }
             }
         },
+        "/organizations/{organization}/templates/{templatename}/versions/{templateversionname}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get template version by organization, template, and name",
+                "operationId": "get-template-version-by-organization-template-and-name",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Template name",
+                        "name": "templatename",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Template version name",
+                        "name": "templateversionname",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateVersion"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/templates/{templatename}/versions/{templateversionname}/previous": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get previous template version by organization, template, and name",
+                "operationId": "get-previous-template-version-by-organization-template-and-name",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Template name",
+                        "name": "templatename",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Template version name",
+                        "name": "templateversionname",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateVersion"
+                        }
+                    }
+                }
+            }
+        },
         "/organizations/{organization}/templateversions": {
             "post": {
                 "security": [
@@ -1370,90 +1468,6 @@ const docTemplate = `{
                 "responses": {
                     "201": {
                         "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.TemplateVersion"
-                        }
-                    }
-                }
-            }
-        },
-        "/organizations/{organization}/templateversions/{templateversionname}": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Templates"
-                ],
-                "summary": "Get template version by organization and name",
-                "operationId": "get-template-version-by-organization-and-name",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Template version name",
-                        "name": "templateversionname",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.TemplateVersion"
-                        }
-                    }
-                }
-            }
-        },
-        "/organizations/{organization}/templateversions/{templateversionname}/previous": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Templates"
-                ],
-                "summary": "Get previous template version by organization and name",
-                "operationId": "get-previous-template-version-by-organization-and-name",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Template version name",
-                        "name": "templateversionname",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.TemplateVersion"
                         }
@@ -6063,6 +6077,9 @@ const docTemplate = `{
                 "rate_limit": {
                     "$ref": "#/definitions/codersdk.RateLimitConfig"
                 },
+                "redirect_to_access_url": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
                 "scim_api_key": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
                 },
@@ -7348,9 +7365,6 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
-                },
-                "workspace_owner_count": {
-                    "type": "integer"
                 }
             }
         },

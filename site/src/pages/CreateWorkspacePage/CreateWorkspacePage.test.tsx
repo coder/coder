@@ -104,6 +104,7 @@ describe("CreateWorkspacePage", () => {
     jest.spyOn(API, "getTemplateVersionSchema").mockResolvedValueOnce([
       mockParameterSchema({
         name: param,
+        redisplay_value: true,
         default_source_value: "",
       }),
     ])

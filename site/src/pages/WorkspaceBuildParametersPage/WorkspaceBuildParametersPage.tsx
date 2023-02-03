@@ -9,6 +9,7 @@ import {
   UpdateWorkspaceErrors,
   WorkspaceBuildParametersPageView,
 } from "./WorkspaceBuildParametersPageView"
+import { orderedTemplateParameters } from "pages/CreateWorkspacePage/CreateWorkspacePage"
 
 export const WorkspaceBuildParametersPage: FC = () => {
   const { t } = useTranslation("workspaceBuildParametersPage")
@@ -48,8 +49,13 @@ export const WorkspaceBuildParametersPage: FC = () => {
       </Helmet>
       <WorkspaceBuildParametersPageView
         workspace={selectedWorkspace}
-        templateParameters={templateParameters}
+        templateParameters={orderedTemplateParameters(templateParameters)}
         workspaceBuildParameters={workspaceBuildParameters}
+        isLoading={
+          state.matches("gettingWorkspace") ||
+          state.matches("gettingTemplateParameters") ||
+          state.matches("gettingWorkspaceBuildParameters")
+        }
         updatingWorkspace={state.matches("updatingWorkspace")}
         hasErrors={state.matches("error")}
         updateWorkspaceErrors={{

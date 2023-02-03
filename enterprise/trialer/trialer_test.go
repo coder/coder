@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/enterprise/trialer"
 )
@@ -23,7 +23,7 @@ func TestTrialer(t *testing.T) {
 		_, _ = w.Write([]byte(license))
 	}))
 	defer srv.Close()
-	db := databasefake.New()
+	db := dbfake.New()
 
 	gen := trialer.New(db, srv.URL, coderdenttest.Keys)
 	err := gen(context.Background(), "kyle@coder.com")
