@@ -23,11 +23,24 @@ func (q *AuthzQuerier) DeleteGroupMemberFromGroup(ctx context.Context, arg datab
 }
 
 func (q *AuthzQuerier) InsertUserGroupsByName(ctx context.Context, arg database.InsertUserGroupsByNameParams) error {
-	panic("not implemented")
+	// This will add the user to all named groups. This counts as updating a group.
+	// NOTE: instead of checking if the user has permission to update each group, we instead
+	// check if the user has permission to update *a* group in the org.
+	fetch := func(ctx context.Context, arg database.InsertUserGroupsByNameParams) (rbac.Objecter, error) {
+		return rbac.ResourceGroup.InOrg(arg.OrganizationID), nil
+	}
+	return authorizedUpdate(q.logger, q.authorizer, fetch, q.database.InsertUserGroupsByName)(ctx, arg)
 }
 
 func (q *AuthzQuerier) DeleteGroupMembersByOrgAndUser(ctx context.Context, arg database.DeleteGroupMembersByOrgAndUserParams) error {
-	panic("not implemented")
+	// This will remove the user from all groups in the org. This counts as updating a group.
+	// Authorizing this 100% correctly requires fetching all groups in the org, and checking if the user is a member.
+	// If so, we then need to check if the caller has permission to update those groups.
+	// This is prohibitively expensive, so we instead check if the caller has permission to update *a* group in the org.
+	fetch := func(ctx context.Context, arg database.DeleteGroupMembersByOrgAndUserParams) (rbac.Objecter, error) {
+		return rbac.ResourceGroup.InOrg(arg.OrganizationID), nil
+	}
+	return authorizedUpdate(q.logger, q.authorizer, fetch, q.database.DeleteGroupMembersByOrgAndUser)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetGroupByID(ctx context.Context, id uuid.UUID) (database.Group, error) {

@@ -161,8 +161,7 @@ func (suite *MethodTestSuite) TestSystemFunctions() {
 	})
 	suite.Run("GetWorkspaceAppsCreatedAfter", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			// TODO: Implement this
-			//_ = dbgen.WorkspaceApp(t, db, database.WorkspaceApp{CreatedAt: time.Now().Add(-time.Hour)})
+			_ = dbgen.WorkspaceApp(t, db, database.WorkspaceApp{CreatedAt: time.Now().Add(-time.Hour)})
 			return methodCase(inputs(time.Now()), asserts())
 		})
 	})
@@ -174,8 +173,7 @@ func (suite *MethodTestSuite) TestSystemFunctions() {
 	})
 	suite.Run("GetWorkspaceResourceMetadataCreatedAfter", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			// TODO: Implement this
-			//_ = dbgen.database.WorkspaceResourceMetadatum(t, db, database.WorkspaceResourceMetadatum{CreatedAt: time.Now().Add(-time.Hour)})
+			_ = dbgen.WorkspaceResourceMetadata(t, db, database.WorkspaceResourceMetadatum{})
 			return methodCase(inputs(time.Now()), asserts())
 		})
 	})
@@ -186,8 +184,7 @@ func (suite *MethodTestSuite) TestSystemFunctions() {
 	})
 	suite.Run("GetParameterSchemasCreatedAfter", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			// TODO: Implement this
-			//schema := dbgen.ParameterSchema(t, db, database.ParameterSchema{CreatedAt: time.Now().Add(-time.Hour)})
+			_ = dbgen.ParameterSchema(t, db, database.ParameterSchema{CreatedAt: time.Now().Add(-time.Hour)})
 			return methodCase(inputs(time.Now()), asserts())
 		})
 	})

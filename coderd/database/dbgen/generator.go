@@ -314,7 +314,7 @@ func WorkspaceResource(t *testing.T, db database.Store, orig database.WorkspaceR
 	return resource
 }
 
-func WorkspaceResourceMetadatums(t *testing.T, db database.Store, seed database.WorkspaceResourceMetadatum) []database.WorkspaceResourceMetadatum {
+func WorkspaceResourceMetadata(t *testing.T, db database.Store, seed database.WorkspaceResourceMetadatum) []database.WorkspaceResourceMetadatum {
 	meta, err := db.InsertWorkspaceResourceMetadata(context.Background(), database.InsertWorkspaceResourceMetadataParams{
 		WorkspaceResourceID: takeFirst(seed.WorkspaceResourceID, uuid.New()),
 		Key:                 []string{takeFirst(seed.Key, namesgenerator.GetRandomName(1))},
