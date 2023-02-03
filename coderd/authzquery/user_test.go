@@ -2,6 +2,7 @@ package authzquery_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/coder/coder/coderd/util/slice"
 
@@ -60,8 +61,8 @@ func (s *MethodTestSuite) TestUser() {
 	})
 	s.Run("GetUsers", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			a := dbgen.User(t, db, database.User{})
-			b := dbgen.User(t, db, database.User{})
+			a := dbgen.User(t, db, database.User{CreatedAt: database.Now().Add(-time.Hour)})
+			b := dbgen.User(t, db, database.User{CreatedAt: database.Now()})
 			return methodCase(values(database.GetUsersParams{}),
 				asserts(a, rbac.ActionRead, b, rbac.ActionRead),
 				nil)
@@ -69,15 +70,15 @@ func (s *MethodTestSuite) TestUser() {
 	})
 	s.Run("GetUsersWithCount", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			a := dbgen.User(t, db, database.User{})
-			b := dbgen.User(t, db, database.User{})
+			a := dbgen.User(t, db, database.User{CreatedAt: database.Now().Add(-time.Hour)})
+			b := dbgen.User(t, db, database.User{CreatedAt: database.Now()})
 			return methodCase(values(database.GetUsersParams{}), asserts(a, rbac.ActionRead, b, rbac.ActionRead), nil)
 		})
 	})
 	s.Run("GetUsersByIDs", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			a := dbgen.User(t, db, database.User{})
-			b := dbgen.User(t, db, database.User{})
+			a := dbgen.User(t, db, database.User{CreatedAt: database.Now().Add(-time.Hour)})
+			b := dbgen.User(t, db, database.User{CreatedAt: database.Now()})
 			return methodCase(values([]uuid.UUID{a.ID, b.ID}),
 				asserts(a, rbac.ActionRead, b, rbac.ActionRead),
 				values(slice.New(a, b)))

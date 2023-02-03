@@ -92,6 +92,7 @@ func (q *AuthzQuerier) GetUsersWithCount(ctx context.Context, arg database.GetUs
 	return users, rowUsers[0].Count, nil
 }
 
+// TODO: Remove this and use a filter on GetUsers
 func (q *AuthzQuerier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]database.User, error) {
 	return fetchWithPostFilter(q.auth, q.db.GetUsersByIDs)(ctx, ids)
 }
