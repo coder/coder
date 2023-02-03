@@ -3,11 +3,10 @@ package authzquery
 import (
 	"context"
 
-	"github.com/coder/coder/coderd/rbac"
-
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/rbac"
 )
 
 func (q *AuthzQuerier) DeleteGroupByID(ctx context.Context, id uuid.UUID) error {
@@ -34,9 +33,8 @@ func (q *AuthzQuerier) InsertUserGroupsByName(ctx context.Context, arg database.
 
 func (q *AuthzQuerier) DeleteGroupMembersByOrgAndUser(ctx context.Context, arg database.DeleteGroupMembersByOrgAndUserParams) error {
 	// This will remove the user from all groups in the org. This counts as updating a group.
-	// Authorizing this 100% correctly requires fetching all groups in the org, and checking if the user is a member.
-	// If so, we then need to check if the caller has permission to update those groups.
-	// This is prohibitively expensive, so we instead check if the caller has permission to update *a* group in the org.
+	// NOTE: instead of fetching all groups in the org with arg.UserID as a member, we instead
+	// check if the caller has permission to update any group in the org.
 	fetch := func(ctx context.Context, arg database.DeleteGroupMembersByOrgAndUserParams) (rbac.Objecter, error) {
 		return rbac.ResourceGroup.InOrg(arg.OrganizationID), nil
 	}
@@ -52,15 +50,10 @@ func (q *AuthzQuerier) GetGroupByOrgAndName(ctx context.Context, arg database.Ge
 }
 
 func (q *AuthzQuerier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]database.User, error) {
-	group, err := q.database.GetGroupByID(ctx, groupID)
-	if err != nil {
-		return nil, err
+	relatedFunc := func(_ []database.User, groupID uuid.UUID) (database.Group, error) {
+		return q.database.GetGroupByID(ctx, groupID)
 	}
-	if err := q.authorizeContext(ctx, rbac.ActionRead, group); err != nil {
-		return nil, err
-	}
-
-	return q.database.GetGroupMembers(ctx, groupID)
+	return authorizedQueryWithRelated(q.logger, q.authorizer, rbac.ActionRead, relatedFunc, q.database.GetGroupMembers)(ctx, groupID)
 }
 
 func (q *AuthzQuerier) InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (database.Group, error) {
