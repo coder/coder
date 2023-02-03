@@ -16,7 +16,7 @@ import (
 	"github.com/coder/coder/coderd/authzquery"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/rbac"
 )
 
@@ -91,7 +91,7 @@ func (s *MethodTestSuite) RunMethodTest(testCaseF func(t *testing.T, db database
 	methodName := names[len(names)-1]
 	s.methodAccounting[methodName]++
 
-	db := databasefake.New()
+	db := dbfake.New()
 	rec := &coderdtest.RecordingAuthorizer{
 		Wrapped: &coderdtest.FakeAuthorizer{
 			AlwaysReturn: nil,

@@ -17,7 +17,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/authzquery"
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/rbac"
 )
 
@@ -43,7 +43,7 @@ func TestNotAuthorizedError(t *testing.T) {
 // as only the first db call will be made. But it is better than nothing.
 func TestAuthzQueryRecursive(t *testing.T) {
 	t.Parallel()
-	q := authzquery.NewAuthzQuerier(databasefake.New(), &coderdtest.RecordingAuthorizer{
+	q := authzquery.NewAuthzQuerier(dbfake.New(), &coderdtest.RecordingAuthorizer{
 		Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
 	}, slog.Make())
 	actor := rbac.Subject{
