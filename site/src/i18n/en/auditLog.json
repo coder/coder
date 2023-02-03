@@ -15,7 +15,7 @@
       "notAvailable": "Not available",
       "onBehalfOf": " on behalf of {{owner}}",
       "buildReason": "Coder automatically",
-      "unknownUser": "An unknown user"
+      "unknownUser": "an unknown user"
     }
   },
   "paywall": {

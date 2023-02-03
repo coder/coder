@@ -17,12 +17,191 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/userpassword"
 	"github.com/coder/coder/codersdk"
 )
+
+// Authenticates the user with an email and password.
+//
+// @Summary Log in user
+// @ID log-in-user
+// @Accept json
+// @Produce json
+// @Tags Authorization
+// @Param request body codersdk.LoginWithPasswordRequest true "Login request"
+// @Success 201 {object} codersdk.LoginWithPasswordResponse
+// @Router /users/login [post]
+func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx               = r.Context()
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionLogin,
+		})
+	)
+	aReq.Old = database.APIKey{}
+	defer commitAudit()
+	setAnonUser(aReq)
+
+	var loginWithPassword codersdk.LoginWithPasswordRequest
+	if !httpapi.Read(ctx, rw, r, &loginWithPassword) {
+		return
+	}
+
+	user, err := api.Database.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
+		Email: loginWithPassword.Email,
+	})
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error.",
+		})
+		return
+	}
+
+	aReq.UserID = user.ID
+
+	// If the user doesn't exist, it will be a default struct.
+	equal, err := userpassword.Compare(string(user.HashedPassword), loginWithPassword.Password)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error.",
+		})
+		return
+	}
+	if !equal {
+		// This message is the same as above to remove ease in detecting whether
+		// users are registered or not. Attackers still could with a timing attack.
+		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
+			Message: "Incorrect email or password.",
+		})
+		return
+	}
+
+	if user.LoginType != database.LoginTypePassword {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q", database.LoginTypePassword, user.LoginType),
+		})
+		return
+	}
+
+	// If the user logged into a suspended account, reject the login request.
+	if user.Status != database.UserStatusActive {
+		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
+			Message: "Your account is suspended. Contact an admin to reactivate your account.",
+		})
+		return
+	}
+
+	cookie, key, err := api.createAPIKey(ctx, createAPIKeyParams{
+		UserID:     user.ID,
+		LoginType:  database.LoginTypePassword,
+		RemoteAddr: r.RemoteAddr,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to create API key.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	aReq.New = *key
+
+	http.SetCookie(rw, cookie)
+
+	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.LoginWithPasswordResponse{
+		SessionToken: cookie.Value,
+	})
+}
+
+// Clear the user's session cookie.
+//
+// @Summary Log out user
+// @ID log-out-user
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Success 200 {object} codersdk.Response
+// @Router /users/logout [post]
+func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	// Get a blank token cookie.
+	cookie := &http.Cookie{
+		// MaxAge < 0 means to delete the cookie now.
+		MaxAge: -1,
+		Name:   codersdk.SessionTokenCookie,
+		Path:   "/",
+	}
+	http.SetCookie(rw, cookie)
+
+	// Delete the session token from database.
+	apiKey := httpmw.APIKey(r)
+	err := api.Database.DeleteAPIKeyByID(ctx, apiKey.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error deleting API key.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Deployments should not host app tokens on the same domain as the
+	// primary deployment. But in the case they are, we should also delete this
+	// token.
+	if appCookie, _ := r.Cookie(httpmw.DevURLSessionTokenCookie); appCookie != nil {
+		appCookieRemove := &http.Cookie{
+			// MaxAge < 0 means to delete the cookie now.
+			MaxAge: -1,
+			Name:   httpmw.DevURLSessionTokenCookie,
+			Path:   "/",
+			Domain: "." + api.AccessURL.Hostname(),
+		}
+		http.SetCookie(rw, appCookieRemove)
+
+		id, _, err := httpmw.SplitAPIToken(appCookie.Value)
+		if err == nil {
+			err = api.Database.DeleteAPIKeyByID(ctx, id)
+			if err != nil {
+				// Don't block logout, just log any errors.
+				api.Logger.Warn(r.Context(), "failed to delete devurl token on logout",
+					slog.Error(err),
+					slog.F("id", id),
+				)
+			}
+		}
+	}
+
+	// This code should be removed after Jan 1 2023.
+	// This code logs out of the old session cookie before we renamed it
+	// if it is a valid coder token. Otherwise, this old cookie hangs around
+	// and we never log out of the user.
+	oldCookie, err := r.Cookie("session_token")
+	if err == nil && oldCookie != nil {
+		_, _, err := httpmw.SplitAPIToken(oldCookie.Value)
+		if err == nil {
+			cookie := &http.Cookie{
+				// MaxAge < 0 means to delete the cookie now.
+				MaxAge: -1,
+				Name:   "session_token",
+				Path:   "/",
+			}
+			http.SetCookie(rw, cookie)
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
+		Message: "Logged out!",
+	})
+}
 
 // GithubOAuth2Team represents a team scoped to an organization.
 type GithubOAuth2Team struct {
@@ -79,6 +258,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	)
 	aReq.Old = database.APIKey{}
 	defer commitAudit()
+	defer setAnonUser(aReq)
 
 	oauthClient := oauth2.NewClient(ctx, oauth2.StaticTokenSource(state.Token))
 
@@ -91,9 +271,6 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 				Message: "Internal error fetching authenticated Github user organizations.",
 				Detail:  err.Error(),
 			})
-			// We pass a disposable user ID just to force an audit diff
-			// and generate a log for a failed login
-			aReq.New = database.APIKey{UserID: uuid.New()}
 			return
 		}
 
@@ -114,9 +291,6 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 				Message: "You aren't a member of the authorized Github organizations!",
 			})
-			// We pass a disposable user ID just to force an audit diff
-			// and generate a log for a failed login
-			aReq.New = database.APIKey{UserID: uuid.New()}
 			return
 		}
 	}
@@ -127,9 +301,6 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			Message: "Internal error fetching authenticated Github user.",
 			Detail:  err.Error(),
 		})
-		// We pass a disposable user ID just to force an audit diff
-		// and generate a log for a failed login
-		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 
@@ -158,9 +329,6 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 				Message: fmt.Sprintf("You aren't a member of an authorized team in the %v Github organization(s)!", organizationNames),
 			})
-			// We pass a disposable user ID just to force an audit diff
-			// and generate a log for a failed login
-			aReq.New = database.APIKey{UserID: uuid.New()}
 			return
 		}
 	}
@@ -171,9 +339,6 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			Message: "Internal error fetching personal Github user.",
 			Detail:  err.Error(),
 		})
-		// We pass a disposable user ID just to force an audit diff
-		// and generate a log for a failed login
-		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 
@@ -189,9 +354,6 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Your primary email must be verified on GitHub!",
 		})
-		// We pass a disposable user ID just to force an audit diff
-		// and generate a log for a failed login
-		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 
@@ -201,9 +363,6 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			Message: "Failed to find linked user.",
 			Detail:  err.Error(),
 		})
-		// We pass a disposable user ID just to force an audit diff
-		// and generate a log for a failed login
-		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 	aReq.UserID = user.ID
@@ -225,9 +384,6 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			Message: httpErr.msg,
 			Detail:  httpErr.detail,
 		})
-		// We pass a disposable user ID just to force an audit diff
-		// and generate a log for a failed login
-		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 	if err != nil {
@@ -235,9 +391,6 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			Message: "Failed to process OAuth login.",
 			Detail:  err.Error(),
 		})
-		// We pass a disposable user ID just to force an audit diff
-		// and generate a log for a failed login
-		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 	aReq.New = key
@@ -287,6 +440,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	)
 	aReq.Old = database.APIKey{}
 	defer commitAudit()
+	defer setAnonUser(aReq)
 
 	// See the example here: https://github.com/coreos/go-oidc
 	rawIDToken, ok := state.Token.Extra("id_token").(string)
@@ -294,9 +448,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "id_token not found in response payload. Ensure your OIDC callback is configured correctly!",
 		})
-		// We pass a disposable user ID just to force an audit diff
-		// and generate a log for a failed login
-		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 
@@ -306,9 +457,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			Message: "Failed to verify OIDC token.",
 			Detail:  err.Error(),
 		})
-		// We pass a disposable user ID just to force an audit diff
-		// and generate a log for a failed login
-		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 
@@ -322,9 +470,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			Message: "Failed to extract OIDC claims.",
 			Detail:  err.Error(),
 		})
-		// We pass a disposable user ID just to force an audit diff
-		// and generate a log for a failed login
-		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 
@@ -343,9 +488,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 				Message: "Failed to unmarshal user info claims.",
 				Detail:  err.Error(),
 			})
-			// We pass a disposable user ID just to force an audit diff
-			// and generate a log for a failed login
-			aReq.New = database.APIKey{UserID: uuid.New()}
 			return
 		}
 		for k, v := range userInfoClaims {
@@ -356,9 +498,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			Message: "Failed to obtain user information claims.",
 			Detail:  "The OIDC provider returned no claims as part of the `id_token`. The attempt to fetch claims via the UserInfo endpoint failed: " + err.Error(),
 		})
-		// We pass a disposable user ID just to force an audit diff
-		// and generate a log for a failed login
-		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 
@@ -378,9 +517,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "No email found in OIDC payload!",
 			})
-			// We pass a disposable user ID just to force an audit diff
-			// and generate a log for a failed login
-			aReq.New = database.APIKey{UserID: uuid.New()}
 			return
 		}
 		emailRaw = username
@@ -390,9 +526,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Email in OIDC payload isn't a string. Got: %t", emailRaw),
 		})
-		// We pass a disposable user ID just to force an audit diff
-		// and generate a log for a failed login
-		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 	verifiedRaw, ok := claims["email_verified"]
@@ -403,9 +536,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 				httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 					Message: fmt.Sprintf("Verify the %q email address on your OIDC provider to authenticate!", email),
 				})
-				// We pass a disposable user ID just to force an audit diff
-				// and generate a log for a failed login
-				aReq.New = database.APIKey{UserID: uuid.New()}
 				return
 			}
 			api.Logger.Warn(ctx, "allowing unverified oidc email %q")
@@ -436,9 +566,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 				Message: fmt.Sprintf("Your email %q is not in domains %q !", email, api.OIDCConfig.EmailDomain),
 			})
-			// We pass a disposable user ID just to force an audit diff
-			// and generate a log for a failed login
-			aReq.New = database.APIKey{UserID: uuid.New()}
 			return
 		}
 	}
@@ -454,9 +581,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			Message: "Failed to find linked user.",
 			Detail:  err.Error(),
 		})
-		// We pass a disposable user ID just to force an audit diff
-		// and generate a log for a failed login
-		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 	aReq.UserID = user.ID
@@ -478,9 +602,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			Message: httpErr.msg,
 			Detail:  httpErr.detail,
 		})
-		// We pass a disposable user ID just to force an audit diff
-		// and generate a log for a failed login
-		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 	if err != nil {
@@ -488,9 +609,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			Message: "Failed to process OAuth login.",
 			Detail:  err.Error(),
 		})
-		// We pass a disposable user ID just to force an audit diff
-		// and generate a log for a failed login
-		aReq.New = database.APIKey{UserID: uuid.New()}
 		return
 	}
 	aReq.New = key
@@ -720,6 +838,14 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 	}
 
 	return cookie, *key, nil
+}
+
+// setAnonUser passes a disposable user ID to force an audit diff
+// and generate a log for a failed login
+func setAnonUser(request *audit.Request[database.APIKey]) {
+	if request.New.UserID == uuid.Nil {
+		request.New = database.APIKey{UserID: uuid.New()}
+	}
 }
 
 // githubLinkedID returns the unique ID for a GitHub user.
