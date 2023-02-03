@@ -23,7 +23,7 @@ SELECT
 FROM
 	app_usage
 WHERE
-	template_id = $1 AND created_at >= @from_date :: date AND created_at <= @to_date :: date
+	template_id = $1 AND created_at >= @since_date :: date AND created_at <= @to_date :: date
 ORDER BY
 	created_at ASC;
 

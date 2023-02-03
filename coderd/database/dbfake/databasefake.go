@@ -4304,7 +4304,7 @@ func (q *fakeQuerier) GetAppUsageByTemplateID(_ context.Context, arg database.Ge
 		if usage.TemplateID != arg.TemplateID {
 			continue
 		}
-		if usage.CreatedAt.Equal(arg.FromDate) || (usage.CreatedAt.After(arg.FromDate) && usage.CreatedAt.Before(arg.ToDate)) {
+		if usage.CreatedAt.Equal(arg.SinceDate) || (usage.CreatedAt.After(arg.SinceDate) && usage.CreatedAt.Before(arg.ToDate)) {
 			appUsage = append(appUsage, usage)
 		}
 	}

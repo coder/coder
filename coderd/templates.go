@@ -572,18 +572,18 @@ func (api *API) appUsage(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Default date filter values
-	from := time.Now().Add(-24 * 7 * time.Hour) // Default is last 7 days
+	since := time.Now().Add(-24 * 7 * time.Hour) // Default is last 7 days
 	to := time.Now()
 
 	// Assign date filter values
 	queryParamsValidation := []codersdk.ValidationError{}
 	q := r.URL.Query()
-	fromQueryStr := q.Get("from")
-	if fromQueryStr != "" {
-		from, err = time.Parse(time.RFC3339, fromQueryStr)
+	sinceQueryStr := q.Get("since")
+	if sinceQueryStr != "" {
+		since, err = time.Parse(time.RFC3339, sinceQueryStr)
 		if err != nil {
 			queryParamsValidation = append(queryParamsValidation, codersdk.ValidationError{
-				Field: "from", Detail: "Is not a valid date",
+				Field: "since", Detail: "Is not a valid date",
 			})
 		}
 	}
@@ -604,22 +604,29 @@ func (api *API) appUsage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	usage, err := api.Database.GetAppUsageByTemplateID(ctx, database.GetAppUsageByTemplateIDParams{
+	var usage []database.AppUsage
+	usage, err = api.Database.GetAppUsageByTemplateID(ctx, database.GetAppUsageByTemplateIDParams{
 		TemplateID: template.ID,
-		FromDate:   from,
+		SinceDate:  since,
 		ToDate:     to,
 	})
-	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching app usage.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		usage = make([]database.AppUsage, 0)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching app usage.",
+			Detail:  err.Error(),
+		})
+		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, usage)
+	res := make([]codersdk.TemplateAppUsageResponse, len(usage))
+	for _, usageRow := range usage {
+		res = append(res, codersdk.TemplateAppUsageResponse{
+			UserID:     usageRow.UserID,
+			TemplateID: usageRow.TemplateID,
+			AppID:      usageRow.AppID,
+			CreatedAt:  usageRow.CreatedAt,
+		})
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, res)
 }
 
 // @Summary Get template examples by organization
