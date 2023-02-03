@@ -186,6 +186,18 @@ func User(t *testing.T, db database.Store, orig database.User) database.User {
 	return user
 }
 
+func GitSSHKey(t *testing.T, db database.Store, orig database.GitSSHKey) database.GitSSHKey {
+	key, err := db.InsertGitSSHKey(context.Background(), database.InsertGitSSHKeyParams{
+		UserID:     takeFirst(orig.UserID, uuid.New()),
+		CreatedAt:  takeFirst(orig.CreatedAt, time.Now()),
+		UpdatedAt:  takeFirst(orig.UpdatedAt, time.Now()),
+		PrivateKey: takeFirst(orig.PrivateKey, ""),
+		PublicKey:  takeFirst(orig.PublicKey, ""),
+	})
+	require.NoError(t, err, "insert ssh key")
+	return key
+}
+
 func Organization(t *testing.T, db database.Store, orig database.Organization) database.Organization {
 	org, err := db.InsertOrganization(context.Background(), database.InsertOrganizationParams{
 		ID:          takeFirst(orig.ID, uuid.New()),
@@ -337,6 +349,21 @@ func UserLink(t *testing.T, db database.Store, orig database.UserLink) database.
 	})
 
 	require.NoError(t, err, "insert link")
+	return link
+}
+
+func GitAuthLink(t *testing.T, db database.Store, orig database.GitAuthLink) database.GitAuthLink {
+	link, err := db.InsertGitAuthLink(context.Background(), database.InsertGitAuthLinkParams{
+		ProviderID:        takeFirst(orig.ProviderID, uuid.New().String()),
+		UserID:            takeFirst(orig.UserID, uuid.New()),
+		OAuthAccessToken:  takeFirst(orig.OAuthAccessToken, uuid.NewString()),
+		OAuthRefreshToken: takeFirst(orig.OAuthAccessToken, uuid.NewString()),
+		OAuthExpiry:       takeFirst(orig.OAuthExpiry, time.Now().Add(time.Hour*24)),
+		CreatedAt:         takeFirst(orig.CreatedAt, time.Now()),
+		UpdatedAt:         takeFirst(orig.UpdatedAt, time.Now()),
+	})
+
+	require.NoError(t, err, "insert git auth link")
 	return link
 }
 
