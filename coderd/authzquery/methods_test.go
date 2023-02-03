@@ -322,12 +322,12 @@ func (s *MethodTestSuite) TestExtraMethods() {
 				ID: uuid.New(),
 			})
 			require.NoError(t, err, "insert provisioner daemon")
-			return methodCase(values(), asserts(d, rbac.ActionRead))
+			return methodCase(values(), asserts(d, rbac.ActionRead), nil)
 		})
 	})
 	s.Run("GetDeploymentDAUs", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			return methodCase(values(), asserts(rbac.ResourceUser.All(), rbac.ActionRead))
+			return methodCase(values(), asserts(rbac.ResourceUser.All(), rbac.ActionRead), nil)
 		})
 	})
 }

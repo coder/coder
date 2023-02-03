@@ -19,7 +19,7 @@ func (suite *MethodTestSuite) TestProvsionerJob() {
 				Type: database.ProvisionerJobTypeWorkspaceBuild,
 			})
 			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: w.ID})
-			return methodCase(values(j.ID), asserts(w, rbac.ActionRead))
+			return methodCase(values(j.ID), asserts(w, rbac.ActionRead), values(j))
 		})
 	})
 	suite.Run("TemplateVersion/GetProvisionerJobByID", func() {
@@ -32,7 +32,7 @@ func (suite *MethodTestSuite) TestProvsionerJob() {
 				TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
 				JobID:      j.ID,
 			})
-			return methodCase(values(j.ID), asserts(v.RBACObject(tpl), rbac.ActionRead))
+			return methodCase(values(j.ID), asserts(v.RBACObject(tpl), rbac.ActionRead), values(j))
 		})
 	})
 	suite.Run("TemplateVersionDryRun/GetProvisionerJobByID", func() {
@@ -47,7 +47,7 @@ func (suite *MethodTestSuite) TestProvsionerJob() {
 					TemplateVersionID uuid.UUID `json:"template_version_id"`
 				}{TemplateVersionID: v.ID})),
 			})
-			return methodCase(values(j.ID), asserts(v.RBACObject(tpl), rbac.ActionRead))
+			return methodCase(values(j.ID), asserts(v.RBACObject(tpl), rbac.ActionRead), values(j))
 		})
 	})
 	suite.Run("Build/UpdateProvisionerJobWithCancelByID", func() {
@@ -58,7 +58,7 @@ func (suite *MethodTestSuite) TestProvsionerJob() {
 				Type: database.ProvisionerJobTypeWorkspaceBuild,
 			})
 			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: w.ID})
-			return methodCase(values(database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}), asserts(w, rbac.ActionUpdate))
+			return methodCase(values(database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}), asserts(w, rbac.ActionUpdate), values())
 		})
 	})
 	suite.Run("TemplateVersion/UpdateProvisionerJobWithCancelByID", func() {
@@ -72,7 +72,7 @@ func (suite *MethodTestSuite) TestProvsionerJob() {
 				JobID:      j.ID,
 			})
 			return methodCase(values(database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}),
-				asserts(v.RBACObject(tpl), []rbac.Action{rbac.ActionRead, rbac.ActionUpdate}))
+				asserts(v.RBACObject(tpl), []rbac.Action{rbac.ActionRead, rbac.ActionUpdate}), values())
 		})
 	})
 	suite.Run("TemplateVersionDryRun/UpdateProvisionerJobWithCancelByID", func() {
@@ -88,14 +88,14 @@ func (suite *MethodTestSuite) TestProvsionerJob() {
 				}{TemplateVersionID: v.ID})),
 			})
 			return methodCase(values(database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}),
-				asserts(v.RBACObject(tpl), []rbac.Action{rbac.ActionRead, rbac.ActionUpdate}))
+				asserts(v.RBACObject(tpl), []rbac.Action{rbac.ActionRead, rbac.ActionUpdate}), values())
 		})
 	})
 	suite.Run("GetProvisionerJobsByIDs", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			a := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{})
 			b := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{})
-			return methodCase(values([]uuid.UUID{a.ID, b.ID}), asserts())
+			return methodCase(values([]uuid.UUID{a.ID, b.ID}), asserts(), values(a, b))
 		})
 	})
 	suite.Run("GetProvisionerLogsByIDBetween", func() {
@@ -107,7 +107,7 @@ func (suite *MethodTestSuite) TestProvsionerJob() {
 			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: w.ID})
 			return methodCase(values(database.GetProvisionerLogsByIDBetweenParams{
 				JobID: j.ID,
-			}), asserts(w, rbac.ActionRead))
+			}), asserts(w, rbac.ActionRead), values([]database.ProvisionerJobLog{}))
 		})
 	})
 }
