@@ -7409,24 +7409,30 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.TemplateAppUsageResponse": {
+        "codersdk.TemplateAppUsageEntry": {
             "type": "object",
             "properties": {
                 "app_id": {
                     "type": "string",
                     "format": "uuid"
                 },
+                "count": {
+                    "type": "integer"
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
-                },
-                "template_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "user_id": {
-                    "type": "string",
-                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.TemplateAppUsageResponse": {
+            "type": "object",
+            "properties": {
+                "entries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateAppUsageEntry"
+                    }
                 }
             }
         },

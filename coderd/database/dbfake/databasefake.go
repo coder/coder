@@ -4349,10 +4349,16 @@ func (q *fakeQuerier) GetGroupedAppUsageByTemplateID(_ context.Context, arg data
 	for _, date := range dates {
 		appIDs := maps.Keys(usageMap[date])
 		for _, appID := range appIDs {
+			appIdx := slices.IndexFunc(q.workspaceApps, func(app database.WorkspaceApp) bool {
+				return app.ID == appID
+			})
+			app := q.workspaceApps[appIdx]
 			rows = append(rows, database.GetGroupedAppUsageByTemplateIDRow{
-				CreatedAt: date,
-				AppID:     appID,
-				Count:     usageMap[date][appID],
+				CreatedAt:      date,
+				AppID:          appID,
+				AppDisplayName: app.DisplayName,
+				AppIcon:        app.Icon,
+				Count:          usageMap[date][appID],
 			})
 		}
 	}

@@ -29,12 +29,20 @@ ORDER BY
 
 -- name: GetGroupedAppUsageByTemplateID :many
 SELECT
-	created_at, app_id, COUNT(*)
+	app_usage.created_at,
+	app_usage.app_id,
+	workspace_apps.display_name as app_display_name,
+	workspace_apps.icon as app_icon,
+	COUNT(*)
 FROM
 	app_usage
+JOIN
+	workspace_apps
+ON
+	app_usage.app_id = workspace_apps.id
 WHERE
-	template_id = $1 AND created_at BETWEEN @since_date :: date AND @to_date :: date
+	app_usage.template_id = $1 AND app_usage.created_at BETWEEN @since_date :: date AND @to_date :: date
 GROUP BY
-	created_at, app_id
+	app_usage.created_at, app_usage.app_id
 ORDER BY
-	created_at ASC;
+	app_usage.created_at ASC;

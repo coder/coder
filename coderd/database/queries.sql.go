@@ -466,15 +466,23 @@ func (q *sqlQuerier) GetAppUsageByTemplateID(ctx context.Context, arg GetAppUsag
 
 const getGroupedAppUsageByTemplateID = `-- name: GetGroupedAppUsageByTemplateID :many
 SELECT
-	created_at, app_id, COUNT(*)
+	app_usage.created_at,
+	app_usage.app_id,
+	workspace_apps.display_name as app_display_name,
+	workspace_apps.icon as app_icon,
+	COUNT(*)
 FROM
 	app_usage
+JOIN
+	workspace_apps
+ON
+	app_usage.app_id = workspace_apps.id
 WHERE
-	template_id = $1 AND created_at BETWEEN $2 :: date AND $3 :: date
+	app_usage.template_id = $1 AND app_usage.created_at BETWEEN $2 :: date AND $3 :: date
 GROUP BY
-	created_at, app_id
+	app_usage.created_at, app_usage.app_id
 ORDER BY
-	created_at ASC
+	app_usage.created_at ASC
 `
 
 type GetGroupedAppUsageByTemplateIDParams struct {
@@ -484,9 +492,11 @@ type GetGroupedAppUsageByTemplateIDParams struct {
 }
 
 type GetGroupedAppUsageByTemplateIDRow struct {
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	AppID     uuid.UUID `db:"app_id" json:"app_id"`
-	Count     int64     `db:"count" json:"count"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	AppID          uuid.UUID `db:"app_id" json:"app_id"`
+	AppDisplayName string    `db:"app_display_name" json:"app_display_name"`
+	AppIcon        string    `db:"app_icon" json:"app_icon"`
+	Count          int64     `db:"count" json:"count"`
 }
 
 func (q *sqlQuerier) GetGroupedAppUsageByTemplateID(ctx context.Context, arg GetGroupedAppUsageByTemplateIDParams) ([]GetGroupedAppUsageByTemplateIDRow, error) {
@@ -498,7 +508,13 @@ func (q *sqlQuerier) GetGroupedAppUsageByTemplateID(ctx context.Context, arg Get
 	var items []GetGroupedAppUsageByTemplateIDRow
 	for rows.Next() {
 		var i GetGroupedAppUsageByTemplateIDRow
-		if err := rows.Scan(&i.CreatedAt, &i.AppID, &i.Count); err != nil {
+		if err := rows.Scan(
+			&i.CreatedAt,
+			&i.AppID,
+			&i.AppDisplayName,
+			&i.AppIcon,
+			&i.Count,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

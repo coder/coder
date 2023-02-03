@@ -702,11 +702,15 @@ export interface TemplateACL {
 }
 
 // From codersdk/templates.go
-export interface TemplateAppUsageResponse {
-  readonly user_id: string
+export interface TemplateAppUsageEntry {
+  readonly count: number
   readonly app_id: string
-  readonly template_id: string
   readonly created_at: string
+}
+
+// From codersdk/templates.go
+export interface TemplateAppUsageResponse {
+  readonly entries: TemplateAppUsageEntry[]
 }
 
 // From codersdk/templates.go

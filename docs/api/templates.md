@@ -819,10 +819,13 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/app-usage \
 
 ```json
 {
-  "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
-  "created_at": "2019-08-24T14:15:22Z",
-  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+  "entries": [
+    {
+      "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+      "count": 0,
+      "created_at": "2019-08-24T14:15:22Z"
+    }
+  ]
 }
 ```
 
