@@ -121,7 +121,7 @@ ExtractCommandPathsLoop:
 
 			got := buf.Bytes()
 			// Remove CRLF newlines (Windows).
-			// got = bytes.ReplaceAll(got, []byte{'\r', '\n'}, []byte{'\n'})
+			got = bytes.ReplaceAll(got, []byte{'\r', '\n'}, []byte{'\n'})
 
 			// The `coder templates create --help` command prints the path
 			// to the working directory (--directory flag default value).

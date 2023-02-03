@@ -268,10 +268,13 @@ func (a *agent) run(ctx context.Context) error {
 
 		scriptDone := make(chan error, 1)
 		scriptStart := time.Now()
-		err = a.trackConnGoroutine(func() {
+		err := a.trackConnGoroutine(func() {
 			defer close(scriptDone)
 			scriptDone <- a.runStartupScript(ctx, metadata.StartupScript)
 		})
+		if err != nil {
+			return xerrors.Errorf("track startup script: %w", err)
+		}
 		go func() {
 			var timeout <-chan time.Time
 			// If timeout is zero, an older version of the coder
@@ -645,24 +648,15 @@ func (a *agent) init(ctx context.Context) {
 			sshLogger.Info(ctx, "ssh connection ended", slog.Error(err))
 		},
 		Handler: func(session ssh.Session) {
-			err := a.trackConnGoroutine(func() {
-				err := a.handleSSHSession(session)
-				var exitError *exec.ExitError
-				if xerrors.As(err, &exitError) {
-					a.logger.Debug(ctx, "ssh session returned", slog.Error(exitError))
-					_ = session.Exit(exitError.ExitCode())
-					return
-				}
-				if err != nil {
-					a.logger.Warn(ctx, "ssh session failed", slog.Error(err))
-					// This exit code is designed to be unlikely to be confused for a legit exit code
-					// from the process.
-					_ = session.Exit(MagicSessionErrorCode)
-					return
-				}
-			})
+			err := a.handleSSHSession(session)
+			var exitError *exec.ExitError
+			if xerrors.As(err, &exitError) {
+				a.logger.Debug(ctx, "ssh session returned", slog.Error(exitError))
+				_ = session.Exit(exitError.ExitCode())
+				return
+			}
 			if err != nil {
-				a.logger.Warn(ctx, "track ssh session failed", slog.Error(err))
+				a.logger.Warn(ctx, "ssh session failed", slog.Error(err))
 				// This exit code is designed to be unlikely to be confused for a legit exit code
 				// from the process.
 				_ = session.Exit(MagicSessionErrorCode)
