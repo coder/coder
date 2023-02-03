@@ -35,7 +35,7 @@ func (e NotAuthorizedError) Error() string {
 
 // Unwrap will always unwrap to a sql.ErrNoRows so the API returns a 404.
 // So 'errors.Is(err, sql.ErrNoRows)' will always be true.
-func (e NotAuthorizedError) Unwrap() error {
+func (NotAuthorizedError) Unwrap() error {
 	return sql.ErrNoRows
 }
 

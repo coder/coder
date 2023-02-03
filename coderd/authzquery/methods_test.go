@@ -258,9 +258,9 @@ func asserts(inputs ...any) []AssertRBAC {
 	return out
 }
 
-func (suite *MethodTestSuite) TestExtraMethods() {
-	suite.Run("GetProvisionerDaemons", func() {
-		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+func (s *MethodTestSuite) TestExtraMethods() {
+	s.Run("GetProvisionerDaemons", func() {
+		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			d, err := db.InsertProvisionerDaemon(context.Background(), database.InsertProvisionerDaemonParams{
 				ID: uuid.New(),
 			})
@@ -268,8 +268,8 @@ func (suite *MethodTestSuite) TestExtraMethods() {
 			return methodCase(inputs(), asserts(d, rbac.ActionRead))
 		})
 	})
-	suite.Run("GetDeploymentDAUs", func() {
-		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+	s.Run("GetDeploymentDAUs", func() {
+		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			return methodCase(inputs(), asserts(rbac.ResourceUser.All(), rbac.ActionRead))
 		})
 	})
