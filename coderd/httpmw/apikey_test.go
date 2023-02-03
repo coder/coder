@@ -366,7 +366,7 @@ func TestAPIKey(t *testing.T) {
 	t.Run("NoRefresh", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db                = databasefake.New()
+			db                = dbfake.New()
 			user              = dbgen.User(t, db, database.User{})
 			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
