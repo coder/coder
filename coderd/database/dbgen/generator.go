@@ -40,9 +40,9 @@ func AuditLog(t *testing.T, db database.Store, seed database.AuditLog) database.
 		ResourceID:       takeFirst(seed.ResourceID, uuid.New()),
 		ResourceTarget:   takeFirst(seed.ResourceTarget, uuid.NewString()),
 		Action:           takeFirst(seed.Action, database.AuditActionCreate),
-		Diff:             takeFirstBytes(seed.Diff, []byte("{}")),
+		Diff:             takeFirstSlice(seed.Diff, []byte("{}")),
 		StatusCode:       takeFirst(seed.StatusCode, 200),
-		AdditionalFields: takeFirstBytes(seed.Diff, []byte("{}")),
+		AdditionalFields: takeFirstSlice(seed.Diff, []byte("{}")),
 		RequestID:        takeFirst(seed.RequestID, uuid.New()),
 		ResourceIcon:     takeFirst(seed.ResourceIcon, ""),
 	})
@@ -81,7 +81,7 @@ func APIKey(t *testing.T, db database.Store, seed database.APIKey) (key database
 		ID: takeFirst(seed.ID, id),
 		// 0 defaults to 86400 at the db layer
 		LifetimeSeconds: takeFirst(seed.LifetimeSeconds, 0),
-		HashedSecret:    takeFirstBytes(seed.HashedSecret, hashed[:]),
+		HashedSecret:    takeFirstSlice(seed.HashedSecret, hashed[:]),
 		IPAddress:       pqtype.Inet{},
 		UserID:          takeFirst(seed.UserID, uuid.New()),
 		LastUsed:        takeFirst(seed.LastUsed, time.Now()),
@@ -109,7 +109,7 @@ func WorkspaceAgent(t *testing.T, db database.Store, orig database.WorkspaceAgen
 		},
 		Architecture: takeFirst(orig.Architecture, "amd64"),
 		EnvironmentVariables: pqtype.NullRawMessage{
-			RawMessage: takeFirstBytes(orig.EnvironmentVariables.RawMessage, []byte("{}")),
+			RawMessage: takeFirstSlice(orig.EnvironmentVariables.RawMessage, []byte("{}")),
 			Valid:      takeFirst(orig.EnvironmentVariables.Valid, false),
 		},
 		OperatingSystem: takeFirst(orig.OperatingSystem, "linux"),
@@ -119,11 +119,11 @@ func WorkspaceAgent(t *testing.T, db database.Store, orig database.WorkspaceAgen
 		},
 		Directory: takeFirst(orig.Directory, ""),
 		InstanceMetadata: pqtype.NullRawMessage{
-			RawMessage: takeFirstBytes(orig.ResourceMetadata.RawMessage, []byte("{}")),
+			RawMessage: takeFirstSlice(orig.ResourceMetadata.RawMessage, []byte("{}")),
 			Valid:      takeFirst(orig.ResourceMetadata.Valid, false),
 		},
 		ResourceMetadata: pqtype.NullRawMessage{
-			RawMessage: takeFirstBytes(orig.ResourceMetadata.RawMessage, []byte("{}")),
+			RawMessage: takeFirstSlice(orig.ResourceMetadata.RawMessage, []byte("{}")),
 			Valid:      takeFirst(orig.ResourceMetadata.Valid, false),
 		},
 		ConnectionTimeoutSeconds:    takeFirst(orig.ConnectionTimeoutSeconds, 3600),
@@ -163,7 +163,7 @@ func WorkspaceBuild(t *testing.T, db database.Store, orig database.WorkspaceBuil
 		Transition:        takeFirst(orig.Transition, database.WorkspaceTransitionStart),
 		InitiatorID:       takeFirst(orig.InitiatorID, uuid.New()),
 		JobID:             takeFirst(orig.JobID, uuid.New()),
-		ProvisionerState:  takeFirstBytes(orig.ProvisionerState, []byte{}),
+		ProvisionerState:  takeFirstSlice(orig.ProvisionerState, []byte{}),
 		Deadline:          takeFirst(orig.Deadline, time.Now().Add(time.Hour)),
 		Reason:            takeFirst(orig.Reason, database.BuildReasonInitiator),
 	})
@@ -176,7 +176,7 @@ func User(t *testing.T, db database.Store, orig database.User) database.User {
 		ID:             takeFirst(orig.ID, uuid.New()),
 		Email:          takeFirst(orig.Email, namesgenerator.GetRandomName(1)),
 		Username:       takeFirst(orig.Username, namesgenerator.GetRandomName(1)),
-		HashedPassword: takeFirstBytes(orig.HashedPassword, []byte{}),
+		HashedPassword: takeFirstSlice(orig.HashedPassword, []byte{}),
 		CreatedAt:      takeFirst(orig.CreatedAt, time.Now()),
 		UpdatedAt:      takeFirst(orig.UpdatedAt, time.Now()),
 		RBACRoles:      []string{},
@@ -196,6 +196,18 @@ func Organization(t *testing.T, db database.Store, orig database.Organization) d
 	})
 	require.NoError(t, err, "insert organization")
 	return org
+}
+
+func OrganizationMember(t *testing.T, db database.Store, orig database.OrganizationMember) database.OrganizationMember {
+	mem, err := db.InsertOrganizationMember(context.Background(), database.InsertOrganizationMemberParams{
+		OrganizationID: takeFirst(orig.OrganizationID, uuid.New()),
+		UserID:         takeFirst(orig.UserID, uuid.New()),
+		CreatedAt:      takeFirst(orig.CreatedAt, time.Now()),
+		UpdatedAt:      takeFirst(orig.UpdatedAt, time.Now()),
+		Roles:          takeFirstSlice(orig.Roles, []string{}),
+	})
+	require.NoError(t, err, "insert organization")
+	return mem
 }
 
 func Group(t *testing.T, db database.Store, orig database.Group) database.Group {
@@ -235,7 +247,7 @@ func ProvisionerJob(t *testing.T, db database.Store, orig database.ProvisionerJo
 		StorageMethod:  takeFirst(orig.StorageMethod, database.ProvisionerStorageMethodFile),
 		FileID:         takeFirst(orig.FileID, uuid.New()),
 		Type:           takeFirst(orig.Type, database.ProvisionerJobTypeWorkspaceBuild),
-		Input:          takeFirstBytes(orig.Input, []byte("{}")),
+		Input:          takeFirstSlice(orig.Input, []byte("{}")),
 		Tags:           orig.Tags,
 	})
 	require.NoError(t, err, "insert job")
@@ -262,6 +274,17 @@ func WorkspaceResource(t *testing.T, db database.Store, orig database.WorkspaceR
 	return resource
 }
 
+func WorkspaceResourceMetadatums(t *testing.T, db database.Store, seed database.WorkspaceResourceMetadatum) []database.WorkspaceResourceMetadatum {
+	meta, err := db.InsertWorkspaceResourceMetadata(context.Background(), database.InsertWorkspaceResourceMetadataParams{
+		WorkspaceResourceID: takeFirst(seed.WorkspaceResourceID, uuid.New()),
+		Key:                 []string{takeFirst(seed.Key, namesgenerator.GetRandomName(1))},
+		Value:               []string{takeFirst(seed.Value.String, namesgenerator.GetRandomName(1))},
+		Sensitive:           []bool{takeFirst(seed.Sensitive, false)},
+	})
+	require.NoError(t, err, "insert meta data")
+	return meta
+}
+
 func File(t *testing.T, db database.Store, orig database.File) database.File {
 	file, err := db.InsertFile(context.Background(), database.InsertFileParams{
 		ID:        takeFirst(orig.ID, uuid.New()),
@@ -269,7 +292,7 @@ func File(t *testing.T, db database.Store, orig database.File) database.File {
 		CreatedAt: takeFirst(orig.CreatedAt, time.Now()),
 		CreatedBy: takeFirst(orig.CreatedBy, uuid.New()),
 		Mimetype:  takeFirst(orig.Mimetype, "application/x-tar"),
-		Data:      takeFirstBytes(orig.Data, []byte{}),
+		Data:      takeFirstSlice(orig.Data, []byte{}),
 	})
 	require.NoError(t, err, "insert file")
 	return file
@@ -306,4 +329,44 @@ func TemplateVersion(t *testing.T, db database.Store, orig database.TemplateVers
 	})
 	require.NoError(t, err, "insert template version")
 	return version
+}
+
+func ParameterSchema(t *testing.T, db database.Store, seed database.ParameterSchema) database.ParameterSchema {
+	scheme, err := db.InsertParameterSchema(context.Background(), database.InsertParameterSchemaParams{
+		ID:                       takeFirst(seed.ID, uuid.New()),
+		JobID:                    takeFirst(seed.JobID, uuid.New()),
+		CreatedAt:                takeFirst(seed.CreatedAt, time.Now()),
+		Name:                     takeFirst(seed.Name, namesgenerator.GetRandomName(1)),
+		Description:              takeFirst(seed.Description, namesgenerator.GetRandomName(1)),
+		DefaultSourceScheme:      takeFirst(seed.DefaultSourceScheme, database.ParameterSourceSchemeNone),
+		DefaultSourceValue:       takeFirst(seed.DefaultSourceValue, ""),
+		AllowOverrideSource:      takeFirst(seed.AllowOverrideSource, false),
+		DefaultDestinationScheme: takeFirst(seed.DefaultDestinationScheme, database.ParameterDestinationSchemeNone),
+		AllowOverrideDestination: takeFirst(seed.AllowOverrideDestination, false),
+		DefaultRefresh:           takeFirst(seed.DefaultRefresh, ""),
+		RedisplayValue:           takeFirst(seed.RedisplayValue, false),
+		ValidationError:          takeFirst(seed.ValidationError, ""),
+		ValidationCondition:      takeFirst(seed.ValidationCondition, ""),
+		ValidationTypeSystem:     takeFirst(seed.ValidationTypeSystem, database.ParameterTypeSystemNone),
+		ValidationValueType:      takeFirst(seed.ValidationValueType, ""),
+		Index:                    takeFirst(seed.Index, 1),
+	})
+	require.NoError(t, err, "insert parameter scheme")
+	return scheme
+}
+
+func ParameterValue(t *testing.T, db database.Store, seed database.ParameterValue) database.ParameterValue {
+	scheme, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
+		ID:                takeFirst(seed.ID, uuid.New()),
+		Name:              takeFirst(seed.Name, namesgenerator.GetRandomName(1)),
+		CreatedAt:         takeFirst(seed.CreatedAt, time.Now()),
+		UpdatedAt:         takeFirst(seed.UpdatedAt, time.Now()),
+		Scope:             takeFirst(seed.Scope, database.ParameterScopeWorkspace),
+		ScopeID:           takeFirst(seed.ScopeID, uuid.New()),
+		SourceScheme:      takeFirst(seed.SourceScheme, database.ParameterSourceSchemeNone),
+		SourceValue:       takeFirst(seed.SourceValue, ""),
+		DestinationScheme: takeFirst(seed.DestinationScheme, database.ParameterDestinationSchemeNone),
+	})
+	require.NoError(t, err, "insert parameter value")
+	return scheme
 }
