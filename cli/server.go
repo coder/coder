@@ -61,7 +61,7 @@ import (
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/database/migrations"
 	"github.com/coder/coder/coderd/devtunnel"
 	"github.com/coder/coder/coderd/gitauth"
@@ -461,7 +461,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				AppHostname:                 appHostname,
 				AppHostnameRegex:            appHostnameRegex,
 				Logger:                      logger.Named("coderd"),
-				Database:                    databasefake.New(),
+				Database:                    dbfake.New(),
 				DERPMap:                     derpMap,
 				Pubsub:                      database.NewPubsubInMemory(),
 				CacheDir:                    cacheDir,
@@ -560,7 +560,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			}
 
 			if cfg.InMemoryDatabase.Value {
-				options.Database = databasefake.New()
+				options.Database = dbfake.New()
 				options.Pubsub = database.NewPubsubInMemory()
 			} else {
 				sqlDB, err := connectToPostgres(ctx, logger, sqlDriver, cfg.PostgresURL.Value)

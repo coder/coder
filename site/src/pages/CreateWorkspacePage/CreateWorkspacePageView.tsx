@@ -31,7 +31,6 @@ export interface CreateWorkspacePageViewProps {
   templates?: TypesGen.Template[]
   selectedTemplate?: TypesGen.Template
   templateParameters?: TypesGen.TemplateVersionParameter[]
-
   templateSchema?: TypesGen.ParameterSchema[]
   createWorkspaceErrors: Partial<Record<CreateWorkspaceErrors, Error | unknown>>
   canCreateForUser?: boolean
@@ -239,20 +238,23 @@ export const CreateWorkspacePageView: FC<
                 spacing={4} // Spacing here is diff because the fields here don't have the MUI floating label spacing
                 className={styles.formSectionFields}
               >
-                {props.templateSchema.map((schema) => (
-                  <ParameterInput
-                    disabled={form.isSubmitting}
-                    key={schema.id}
-                    defaultValue={parameterValues[schema.name]}
-                    onChange={(value) => {
-                      setParameterValues({
-                        ...parameterValues,
-                        [schema.name]: value,
-                      })
-                    }}
-                    schema={schema}
-                  />
-                ))}
+                {props.templateSchema
+                  // We only want to show schema that have redisplay_value equals true
+                  .filter((schema) => schema.redisplay_value)
+                  .map((schema) => (
+                    <ParameterInput
+                      disabled={form.isSubmitting}
+                      key={schema.id}
+                      defaultValue={parameterValues[schema.name]}
+                      onChange={(value) => {
+                        setParameterValues({
+                          ...parameterValues,
+                          [schema.name]: value,
+                        })
+                      }}
+                      schema={schema}
+                    />
+                  ))}
               </Stack>
             </div>
           )}

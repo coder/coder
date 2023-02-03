@@ -9,14 +9,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/database/postgres"
 )
 
 func NewDB(t *testing.T) (database.Store, database.Pubsub) {
 	t.Helper()
 
-	db := databasefake.New()
+	db := dbfake.New()
 	pubsub := database.NewPubsubInMemory()
 	if os.Getenv("DB") != "" {
 		connectionURL := os.Getenv("CODER_PG_CONNECTION_URL")
