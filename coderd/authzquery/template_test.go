@@ -9,6 +9,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/util/slice"
 )
 
 func (suite *MethodTestSuite) TestTemplate() {
@@ -137,7 +138,7 @@ func (suite *MethodTestSuite) TestTemplate() {
 			})
 			return methodCase(values([]uuid.UUID{tv1.ID, tv2.ID, tv3.ID}),
 				asserts(t1, rbac.ActionRead, t2, rbac.ActionRead),
-				values([]database.TemplateVersion{tv1, tv2, tv3}))
+				values(slice.New(tv1, tv2, tv3)))
 		})
 	})
 	suite.Run("GetTemplateVersionsByTemplateID", func() {
@@ -152,7 +153,7 @@ func (suite *MethodTestSuite) TestTemplate() {
 			return methodCase(values(database.GetTemplateVersionsByTemplateIDParams{
 				TemplateID: t1.ID,
 			}), asserts(t1, rbac.ActionRead),
-				values([]database.TemplateVersion{a, b}))
+				values(slice.New(a, b)))
 		})
 	})
 	suite.Run("GetTemplateVersionsCreatedAfter", func() {
@@ -175,8 +176,7 @@ func (suite *MethodTestSuite) TestTemplate() {
 			a := dbgen.Template(t, db, database.Template{})
 			// No asserts because SQLFilter.
 			return methodCase(values(database.GetTemplatesWithFilterParams{}),
-				asserts(),
-				values([]database.Template{a}))
+				asserts(), values(slice.New(a)))
 		})
 	})
 	suite.Run("GetAuthorizedTemplates", func() {
@@ -185,7 +185,7 @@ func (suite *MethodTestSuite) TestTemplate() {
 			// No asserts because SQLFilter.
 			return methodCase(values(database.GetTemplatesWithFilterParams{}, emptyPreparedAuthorized{}),
 				asserts(),
-				values([]database.Template{a}))
+				values(slice.New(a)))
 		})
 	})
 	suite.Run("InsertTemplate", func() {

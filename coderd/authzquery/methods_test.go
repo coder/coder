@@ -151,7 +151,12 @@ MethodLoop:
 				require.Equal(t, len(testCase.ExpectedOutputs), len(outputs), "method %q returned unexpected number of outputs", testName)
 				for i := range outputs {
 					a, b := testCase.ExpectedOutputs[i].Interface(), outputs[i].Interface()
-					require.Equal(t, a, b, "method %q returned unexpected output %d", testName, i)
+					if reflect.TypeOf(a).Kind() == reflect.Slice || reflect.TypeOf(a).Kind() == reflect.Array {
+						// Order does not matter
+						require.ElementsMatch(t, a, b, "method %q returned unexpected output %d", testName, i)
+					} else {
+						require.Equal(t, a, b, "method %q returned unexpected output %d", testName, i)
+					}
 				}
 			}
 
