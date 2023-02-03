@@ -142,15 +142,16 @@ MethodLoop:
 			}
 
 			resp := reflect.ValueOf(az).Method(i).Call(append([]reflect.Value{reflect.ValueOf(ctx)}, testCase.Inputs...))
-			// TODO: Should we assert the object returned is the correct one?
+
 			outputs, err := splitResp(t, resp)
 			require.NoError(t, err, "method %q returned an error", testName)
-			if testCase.ExpectedOutputs != nil {
-				require.Equal(t, len(testCase.ExpectedOutputs), len(outputs), "method %q returned unexpected number of outputs", testName)
-				for i := range outputs {
-					require.Equal(t, testCase.ExpectedOutputs[i].Interface(), outputs[i].Interface(), "method %q returned unexpected output %d", testName, i)
-				}
+
+			// Also assert the required outputs
+			require.Equal(t, len(testCase.ExpectedOutputs), len(outputs), "method %q returned unexpected number of outputs", testName)
+			for i := range outputs {
+				require.Equal(t, testCase.ExpectedOutputs[i].Interface(), outputs[i].Interface(), "method %q returned unexpected output %d", testName, i)
 			}
+
 			found = true
 			break MethodLoop
 		}
@@ -234,11 +235,6 @@ func methodCase(ins []reflect.Value, assertions []AssertRBAC, outs []reflect.Val
 		Assertions:      assertions,
 		ExpectedOutputs: outs,
 	}
-}
-
-func (m MethodCase) Outputs(outs ...any) MethodCase {
-	m.ExpectedOutputs = values(outs...)
-	return m
 }
 
 // values is a convenience method for creating []reflect.Value.
