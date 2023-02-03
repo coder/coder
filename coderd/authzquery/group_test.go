@@ -15,7 +15,7 @@ func (suite *MethodTestSuite) TestGroup() {
 	suite.Run("DeleteGroupByID", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			g := dbgen.Group(t, db, database.Group{})
-			return methodCase(values(g.ID), asserts(g, rbac.ActionDelete))
+			return methodCase(values(g.ID), asserts(g, rbac.ActionDelete), values())
 		})
 	})
 	suite.Run("DeleteGroupMemberFromGroup", func() {
@@ -27,13 +27,13 @@ func (suite *MethodTestSuite) TestGroup() {
 			return methodCase(values(database.DeleteGroupMemberFromGroupParams{
 				UserID:  m.UserID,
 				GroupID: g.ID,
-			}), asserts(g, rbac.ActionUpdate))
+			}), asserts(g, rbac.ActionUpdate), values())
 		})
 	})
 	suite.Run("GetGroupByID", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			g := dbgen.Group(t, db, database.Group{})
-			return methodCase(values(g.ID), asserts(g, rbac.ActionRead))
+			return methodCase(values(g.ID), asserts(g, rbac.ActionRead), values(g))
 		})
 	})
 	suite.Run("GetGroupByOrgAndName", func() {
@@ -42,20 +42,20 @@ func (suite *MethodTestSuite) TestGroup() {
 			return methodCase(values(database.GetGroupByOrgAndNameParams{
 				OrganizationID: g.OrganizationID,
 				Name:           g.Name,
-			}), asserts(g, rbac.ActionRead))
+			}), asserts(g, rbac.ActionRead), values(g))
 		})
 	})
 	suite.Run("GetGroupMembers", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			g := dbgen.Group(t, db, database.Group{})
-			_ = dbgen.GroupMember(t, db, database.GroupMember{})
-			return methodCase(values(g.ID), asserts(g, rbac.ActionRead))
+			gm := dbgen.GroupMember(t, db, database.GroupMember{})
+			return methodCase(values(g.ID), asserts(g, rbac.ActionRead), values(gm))
 		})
 	})
 	suite.Run("InsertAllUsersGroup", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			o := dbgen.Organization(t, db, database.Organization{})
-			return methodCase(values(o.ID), asserts(rbac.ResourceGroup.InOrg(o.ID), rbac.ActionCreate))
+			return methodCase(values(o.ID), asserts(rbac.ResourceGroup.InOrg(o.ID), rbac.ActionCreate), values(database.Group{}))
 		})
 	})
 	suite.Run("InsertGroup", func() {
@@ -64,7 +64,8 @@ func (suite *MethodTestSuite) TestGroup() {
 			return methodCase(values(database.InsertGroupParams{
 				OrganizationID: o.ID,
 				Name:           "test",
-			}), asserts(rbac.ResourceGroup.InOrg(o.ID), rbac.ActionCreate))
+			}), asserts(rbac.ResourceGroup.InOrg(o.ID), rbac.ActionCreate),
+				values(database.Group{}))
 		})
 	})
 	suite.Run("InsertGroupMember", func() {
@@ -73,7 +74,8 @@ func (suite *MethodTestSuite) TestGroup() {
 			return methodCase(values(database.InsertGroupMemberParams{
 				UserID:  uuid.New(),
 				GroupID: g.ID,
-			}), asserts(g, rbac.ActionUpdate))
+			}), asserts(g, rbac.ActionUpdate),
+				values())
 		})
 	})
 	suite.Run("InsertUserGroupsByName", func() {
@@ -87,7 +89,7 @@ func (suite *MethodTestSuite) TestGroup() {
 				OrganizationID: o.ID,
 				UserID:         u1.ID,
 				GroupNames:     slice.New(g1.Name, g2.Name),
-			}), asserts(rbac.ResourceGroup.InOrg(o.ID), rbac.ActionUpdate))
+			}), asserts(rbac.ResourceGroup.InOrg(o.ID), rbac.ActionUpdate), values())
 		})
 	})
 	suite.Run("DeleteGroupMembersByOrgAndUser", func() {
@@ -101,7 +103,7 @@ func (suite *MethodTestSuite) TestGroup() {
 			return methodCase(values(database.DeleteGroupMembersByOrgAndUserParams{
 				OrganizationID: o.ID,
 				UserID:         u1.ID,
-			}), asserts(rbac.ResourceGroup.InOrg(o.ID), rbac.ActionUpdate))
+			}), asserts(rbac.ResourceGroup.InOrg(o.ID), rbac.ActionUpdate), values())
 		})
 	})
 	suite.Run("UpdateGroupByID", func() {
@@ -110,7 +112,7 @@ func (suite *MethodTestSuite) TestGroup() {
 			return methodCase(values(database.UpdateGroupByIDParams{
 				Name: "new-name",
 				ID:   g.ID,
-			}), asserts(g, rbac.ActionUpdate))
+			}), asserts(g, rbac.ActionUpdate), values(g))
 		})
 	})
 }
