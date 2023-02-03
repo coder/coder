@@ -1,7 +1,6 @@
 package httpmw_test
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
