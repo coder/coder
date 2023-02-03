@@ -11,6 +11,125 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func Test_sshConfigSplitOnCoderSection(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		Name    string
+		Input   string
+		Before  string
+		Section string
+		After   string
+		Err     bool
+	}{
+		{
+			Name:    "Empty",
+			Input:   "",
+			Before:  "",
+			Section: "",
+			After:   "",
+			Err:     false,
+		},
+		{
+			Name:    "JustSection",
+			Input:   strings.Join([]string{sshStartToken, sshEndToken}, "\n"),
+			Before:  "",
+			Section: strings.Join([]string{sshStartToken, sshEndToken}, "\n"),
+			After:   "",
+			Err:     false,
+		},
+		{
+			Name:    "NoSection",
+			Input:   strings.Join([]string{"# Some content"}, "\n"),
+			Before:  "# Some content",
+			Section: "",
+			After:   "",
+			Err:     false,
+		},
+		{
+			Name: "Normal",
+			Input: strings.Join([]string{
+				"# Content before the section",
+				sshStartToken,
+				sshEndToken,
+				"# Content after the section",
+			}, "\n"),
+			Before:  "# Content before the section",
+			Section: strings.Join([]string{"", sshStartToken, sshEndToken, ""}, "\n"),
+			After:   "# Content after the section",
+			Err:     false,
+		},
+		{
+			Name: "OutOfOrder",
+			Input: strings.Join([]string{
+				"# Content before the section",
+				sshEndToken,
+				sshStartToken,
+				"# Content after the section",
+			}, "\n"),
+			Err: true,
+		},
+		{
+			Name: "MissingStart",
+			Input: strings.Join([]string{
+				"# Content before the section",
+				sshEndToken,
+				"# Content after the section",
+			}, "\n"),
+			Err: true,
+		},
+		{
+			Name: "MissingEnd",
+			Input: strings.Join([]string{
+				"# Content before the section",
+				sshEndToken,
+				"# Content after the section",
+			}, "\n"),
+			Err: true,
+		},
+		{
+			Name: "ExtraStart",
+			Input: strings.Join([]string{
+				"# Content before the section",
+				sshStartToken,
+				sshEndToken,
+				sshStartToken,
+				"# Content after the section",
+			}, "\n"),
+			Err: true,
+		},
+		{
+			Name: "ExtraEnd",
+			Input: strings.Join([]string{
+				"# Content before the section",
+				sshStartToken,
+				sshEndToken,
+				sshEndToken,
+				"# Content after the section",
+			}, "\n"),
+			Err: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+
+			before, section, after, err := sshConfigSplitOnCoderSection([]byte(tc.Input))
+			if tc.Err {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, tc.Before, string(before), "before")
+			require.Equal(t, tc.Section, string(section), "section")
+			require.Equal(t, tc.After, string(after), "after")
+		})
+	}
+}
+
 // This test tries to mimic the behavior of OpenSSH
 // when executing e.g. a ProxyCommand.
 func Test_sshConfigExecEscape(t *testing.T) {

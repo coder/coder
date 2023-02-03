@@ -17,7 +17,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/rbac/regosql"
 	"github.com/coder/coder/codersdk"
@@ -30,7 +30,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 	// in memory fake. This is because the in memory fake does not use SQL, and
 	// still uses rego. So this boolean indicates how to assert the expected
 	// behavior.
-	_, isMemoryDB := a.api.Database.(databasefake.FakeDatabase)
+	_, isMemoryDB := a.api.Database.(dbfake.FakeDatabase)
 
 	// Some quick reused objects
 	workspaceRBACObj := rbac.ResourceWorkspace.WithID(a.Workspace.ID).InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())

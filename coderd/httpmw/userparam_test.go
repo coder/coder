@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/codersdk"
 )
@@ -23,7 +23,7 @@ func TestUserParam(t *testing.T) {
 	t.Parallel()
 	setup := func(t *testing.T) (database.Store, *httptest.ResponseRecorder, *http.Request) {
 		var (
-			db         = databasefake.New()
+			db         = dbfake.New()
 			id, secret = randomAPIKeyParts()
 			hashed     = sha256.Sum256([]byte(secret))
 			r          = httptest.NewRequest("GET", "/", nil)

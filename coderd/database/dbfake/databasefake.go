@@ -1,4 +1,4 @@
-package databasefake
+package dbfake
 
 import (
 	"context"
