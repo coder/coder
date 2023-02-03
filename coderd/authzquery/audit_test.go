@@ -16,7 +16,8 @@ func (suite *MethodTestSuite) TestAuditLogs() {
 				ResourceType: database.ResourceTypeOrganization,
 				Action:       database.AuditActionCreate,
 			}),
-				asserts(rbac.ResourceAuditLog, rbac.ActionCreate))
+				asserts(rbac.ResourceAuditLog, rbac.ActionCreate),
+				values(database.AuditLog{}))
 		})
 	})
 	suite.Run("GetAuditLogsOffset", func() {
@@ -26,7 +27,8 @@ func (suite *MethodTestSuite) TestAuditLogs() {
 			return methodCase(values(database.GetAuditLogsOffsetParams{
 				Limit: 10,
 			}),
-				asserts(rbac.ResourceAuditLog, rbac.ActionRead))
+				asserts(rbac.ResourceAuditLog, rbac.ActionRead),
+				values(database.AuditLog{}))
 		})
 	})
 }
