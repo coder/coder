@@ -4,7 +4,6 @@ import TableRow from "@material-ui/core/TableRow"
 import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
-import { useClickable } from "hooks/useClickable"
 import { FC } from "react"
 import { useNavigate, Link as RouterLink } from "react-router-dom"
 import { getDisplayWorkspaceTemplateName } from "util/workspace"
@@ -15,6 +14,7 @@ import { Avatar } from "components/Avatar/Avatar"
 import { Stack } from "components/Stack/Stack"
 import TemplateLinkIcon from "@material-ui/icons/OpenInNewOutlined"
 import Link from "@material-ui/core/Link"
+import { useClickableTableRow } from "hooks/useClickableTableRow"
 
 export const WorkspacesRow: FC<{
   workspace: Workspace
@@ -23,20 +23,13 @@ export const WorkspacesRow: FC<{
   const styles = useStyles()
   const navigate = useNavigate()
   const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`
-  const hasTemplateIcon =
-    workspace.template_icon && workspace.template_icon !== ""
   const displayTemplateName = getDisplayWorkspaceTemplateName(workspace)
-  const clickable = useClickable(() => {
+  const clickable = useClickableTableRow(() => {
     navigate(workspacePageLink)
   })
 
   return (
-    <TableRow
-      className={styles.row}
-      hover
-      data-testid={`workspace-${workspace.id}`}
-      {...clickable}
-    >
+    <TableRow data-testid={`workspace-${workspace.id}`} {...clickable}>
       <TableCell>
         <AvatarData
           title={
@@ -53,9 +46,13 @@ export const WorkspacesRow: FC<{
           }
           subtitle={workspace.owner_name}
           avatar={
-            hasTemplateIcon && (
-              <Avatar src={workspace.template_icon} variant="square" fitImage />
-            )
+            <Avatar
+              src={workspace.template_icon}
+              variant={workspace.template_icon ? "square" : undefined}
+              fitImage={Boolean(workspace.template_icon)}
+            >
+              {workspace.name}
+            </Avatar>
           }
         />
       </TableCell>
@@ -95,15 +92,6 @@ export const WorkspacesRow: FC<{
 }
 
 const useStyles = makeStyles((theme) => ({
-  row: {
-    cursor: "pointer",
-
-    "&:focus": {
-      outline: `1px solid ${theme.palette.secondary.dark}`,
-      outlineOffset: -1,
-    },
-  },
-
   arrowRight: {
     color: theme.palette.text.secondary,
     width: 20,
