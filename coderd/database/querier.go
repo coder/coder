@@ -34,7 +34,7 @@ type sqlcQuerier interface {
 	GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error)
 	GetActiveUserCount(ctx context.Context) (int64, error)
 	GetAppUsageByDate(ctx context.Context, arg GetAppUsageByDateParams) (AppUsage, error)
-	GetAppUsageByTemplateID(ctx context.Context, arg GetAppUsageByTemplateIDParams) ([]AppUsage, error)
+	GetAppUsageByTemplateID(ctx context.Context, arg GetAppUsageByTemplateIDParams) ([]GetAppUsageByTemplateIDRow, error)
 	// GetAuditLogsBefore retrieves `row_limit` number of audit logs before the provided
 	// ID.
 	GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOffsetParams) ([]GetAuditLogsOffsetRow, error)
@@ -53,7 +53,6 @@ type sqlcQuerier interface {
 	GetGroupByID(ctx context.Context, id uuid.UUID) (Group, error)
 	GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrgAndNameParams) (Group, error)
 	GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]User, error)
-	GetGroupedAppUsageByTemplateID(ctx context.Context, arg GetGroupedAppUsageByTemplateIDParams) ([]GetGroupedAppUsageByTemplateIDRow, error)
 	GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]Group, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)
 	GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (WorkspaceBuild, error)

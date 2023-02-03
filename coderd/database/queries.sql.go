@@ -421,51 +421,6 @@ func (q *sqlQuerier) GetAppUsageByDate(ctx context.Context, arg GetAppUsageByDat
 
 const getAppUsageByTemplateID = `-- name: GetAppUsageByTemplateID :many
 SELECT
-	user_id, app_id, template_id, created_at
-FROM
-	app_usage
-WHERE
-	template_id = $1 AND created_at >= $2 :: date AND created_at <= $3 :: date
-ORDER BY
-	created_at ASC
-`
-
-type GetAppUsageByTemplateIDParams struct {
-	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
-	SinceDate  time.Time `db:"since_date" json:"since_date"`
-	ToDate     time.Time `db:"to_date" json:"to_date"`
-}
-
-func (q *sqlQuerier) GetAppUsageByTemplateID(ctx context.Context, arg GetAppUsageByTemplateIDParams) ([]AppUsage, error) {
-	rows, err := q.db.QueryContext(ctx, getAppUsageByTemplateID, arg.TemplateID, arg.SinceDate, arg.ToDate)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []AppUsage
-	for rows.Next() {
-		var i AppUsage
-		if err := rows.Scan(
-			&i.UserID,
-			&i.AppID,
-			&i.TemplateID,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getGroupedAppUsageByTemplateID = `-- name: GetGroupedAppUsageByTemplateID :many
-SELECT
 	app_usage.created_at,
 	app_usage.app_id,
 	workspace_apps.display_name as app_display_name,
@@ -485,13 +440,13 @@ ORDER BY
 	app_usage.created_at ASC
 `
 
-type GetGroupedAppUsageByTemplateIDParams struct {
+type GetAppUsageByTemplateIDParams struct {
 	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
 	SinceDate  time.Time `db:"since_date" json:"since_date"`
 	ToDate     time.Time `db:"to_date" json:"to_date"`
 }
 
-type GetGroupedAppUsageByTemplateIDRow struct {
+type GetAppUsageByTemplateIDRow struct {
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 	AppID          uuid.UUID `db:"app_id" json:"app_id"`
 	AppDisplayName string    `db:"app_display_name" json:"app_display_name"`
@@ -499,15 +454,15 @@ type GetGroupedAppUsageByTemplateIDRow struct {
 	Count          int64     `db:"count" json:"count"`
 }
 
-func (q *sqlQuerier) GetGroupedAppUsageByTemplateID(ctx context.Context, arg GetGroupedAppUsageByTemplateIDParams) ([]GetGroupedAppUsageByTemplateIDRow, error) {
-	rows, err := q.db.QueryContext(ctx, getGroupedAppUsageByTemplateID, arg.TemplateID, arg.SinceDate, arg.ToDate)
+func (q *sqlQuerier) GetAppUsageByTemplateID(ctx context.Context, arg GetAppUsageByTemplateIDParams) ([]GetAppUsageByTemplateIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAppUsageByTemplateID, arg.TemplateID, arg.SinceDate, arg.ToDate)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetGroupedAppUsageByTemplateIDRow
+	var items []GetAppUsageByTemplateIDRow
 	for rows.Next() {
-		var i GetGroupedAppUsageByTemplateIDRow
+		var i GetAppUsageByTemplateIDRow
 		if err := rows.Scan(
 			&i.CreatedAt,
 			&i.AppID,

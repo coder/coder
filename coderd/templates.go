@@ -604,8 +604,8 @@ func (api *API) appUsage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var usage []database.GetGroupedAppUsageByTemplateIDRow
-	usage, err = api.Database.GetGroupedAppUsageByTemplateID(ctx, database.GetGroupedAppUsageByTemplateIDParams{
+	var usage []database.GetAppUsageByTemplateIDRow
+	usage, err = api.Database.GetAppUsageByTemplateID(ctx, database.GetAppUsageByTemplateIDParams{
 		TemplateID: template.ID,
 		SinceDate:  since,
 		ToDate:     to,

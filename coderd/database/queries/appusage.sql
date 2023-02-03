@@ -19,16 +19,6 @@ WHERE
 
 -- name: GetAppUsageByTemplateID :many
 SELECT
-	*
-FROM
-	app_usage
-WHERE
-	template_id = $1 AND created_at >= @since_date :: date AND created_at <= @to_date :: date
-ORDER BY
-	created_at ASC;
-
--- name: GetGroupedAppUsageByTemplateID :many
-SELECT
 	app_usage.created_at,
 	app_usage.app_id,
 	workspace_apps.display_name as app_display_name,

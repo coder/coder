@@ -4295,32 +4295,12 @@ func (q *fakeQuerier) GetAppUsageByDate(_ context.Context, arg database.GetAppUs
 	return database.AppUsage{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetAppUsageByTemplateID(_ context.Context, arg database.GetAppUsageByTemplateIDParams) ([]database.AppUsage, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	appUsage := make([]database.AppUsage, 0)
-	for _, usage := range q.appUsage {
-		if usage.TemplateID != arg.TemplateID {
-			continue
-		}
-		if usage.CreatedAt.Equal(arg.SinceDate) || (usage.CreatedAt.After(arg.SinceDate) && usage.CreatedAt.Before(arg.ToDate)) {
-			appUsage = append(appUsage, usage)
-		}
-	}
-	if len(appUsage) == 0 {
-		return []database.AppUsage{}, sql.ErrNoRows
-	}
-
-	return appUsage, nil
-}
-
-func (q *fakeQuerier) GetGroupedAppUsageByTemplateID(_ context.Context, arg database.GetGroupedAppUsageByTemplateIDParams) ([]database.GetGroupedAppUsageByTemplateIDRow, error) {
+func (q *fakeQuerier) GetAppUsageByTemplateID(_ context.Context, arg database.GetAppUsageByTemplateIDParams) ([]database.GetAppUsageByTemplateIDRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	if len(q.appUsage) == 0 {
-		return []database.GetGroupedAppUsageByTemplateIDRow{}, sql.ErrNoRows
+		return []database.GetAppUsageByTemplateIDRow{}, sql.ErrNoRows
 	}
 
 	// usageMap is indexed by Date to a map of App IDs to the number of unique
@@ -4341,7 +4321,7 @@ func (q *fakeQuerier) GetGroupedAppUsageByTemplateID(_ context.Context, arg data
 		}
 	}
 
-	rows := make([]database.GetGroupedAppUsageByTemplateIDRow, 0)
+	rows := make([]database.GetAppUsageByTemplateIDRow, 0)
 	dates := maps.Keys(usageMap)
 	sort.Slice(dates, func(i, j int) bool {
 		return dates[i].Before(dates[j])
@@ -4353,7 +4333,7 @@ func (q *fakeQuerier) GetGroupedAppUsageByTemplateID(_ context.Context, arg data
 				return app.ID == appID
 			})
 			app := q.workspaceApps[appIdx]
-			rows = append(rows, database.GetGroupedAppUsageByTemplateIDRow{
+			rows = append(rows, database.GetAppUsageByTemplateIDRow{
 				CreatedAt:      date,
 				AppID:          appID,
 				AppDisplayName: app.DisplayName,
