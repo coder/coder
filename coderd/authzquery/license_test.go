@@ -18,22 +18,22 @@ func (suite *MethodTestSuite) TestLicense() {
 				Uuid: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 			})
 			require.NoError(t, err)
-			return methodCase(values(), asserts(l, rbac.ActionRead))
+			return methodCase(values(), asserts(l, rbac.ActionRead), values(l))
 		})
 	})
 	suite.Run("InsertLicense", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			return methodCase(values(database.InsertLicenseParams{}), asserts(rbac.ResourceLicense, rbac.ActionCreate))
+			return methodCase(values(database.InsertLicenseParams{}), asserts(rbac.ResourceLicense, rbac.ActionCreate), values(database.License{}))
 		})
 	})
 	suite.Run("InsertOrUpdateLogoURL", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			return methodCase(values("value"), asserts(rbac.ResourceDeploymentConfig, rbac.ActionUpdate))
+			return methodCase(values("value"), asserts(rbac.ResourceDeploymentConfig, rbac.ActionUpdate), nil)
 		})
 	})
 	suite.Run("InsertOrUpdateServiceBanner", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			return methodCase(values("value"), asserts(rbac.ResourceDeploymentConfig, rbac.ActionUpdate))
+			return methodCase(values("value"), asserts(rbac.ResourceDeploymentConfig, rbac.ActionUpdate), nil)
 		})
 	})
 	suite.Run("GetLicenseByID", func() {
@@ -42,7 +42,7 @@ func (suite *MethodTestSuite) TestLicense() {
 				Uuid: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 			})
 			require.NoError(t, err)
-			return methodCase(values(l.ID), asserts(l, rbac.ActionRead))
+			return methodCase(values(l.ID), asserts(l, rbac.ActionRead), values(l))
 		})
 	})
 	suite.Run("DeleteLicense", func() {
@@ -51,26 +51,26 @@ func (suite *MethodTestSuite) TestLicense() {
 				Uuid: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 			})
 			require.NoError(t, err)
-			return methodCase(values(l.ID), asserts(l, rbac.ActionDelete))
+			return methodCase(values(l.ID), asserts(l, rbac.ActionDelete), nil)
 		})
 	})
 	suite.Run("GetDeploymentID", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			return methodCase(values(), asserts())
+			return methodCase(values(), asserts(), values(""))
 		})
 	})
 	suite.Run("GetLogoURL", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			err := db.InsertOrUpdateLogoURL(context.Background(), "value")
 			require.NoError(t, err)
-			return methodCase(values(), asserts())
+			return methodCase(values(), asserts(), values("value"))
 		})
 	})
 	suite.Run("GetServiceBanner", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			err := db.InsertOrUpdateServiceBanner(context.Background(), "value")
 			require.NoError(t, err)
-			return methodCase(values(), asserts())
+			return methodCase(values(), asserts(), values("value"))
 		})
 	})
 }
