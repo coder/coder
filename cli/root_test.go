@@ -24,6 +24,10 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
+func init() {
+	// os.Setenv("NO_COLOR", "1")
+}
+
 // To update the golden files:
 // make update-golden-files
 var updateGoldenFiles = flag.Bool("update", false, "update .golden files")
@@ -112,7 +116,7 @@ ExtractCommandPathsLoop:
 
 			got := buf.Bytes()
 			// Remove CRLF newlines (Windows).
-			got = bytes.ReplaceAll(got, []byte{'\r', '\n'}, []byte{'\n'})
+			// got = bytes.ReplaceAll(got, []byte{'\r', '\n'}, []byte{'\n'})
 
 			// The `coder templates create --help` command prints the path
 			// to the working directory (--directory flag default value).

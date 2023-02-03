@@ -268,10 +268,10 @@ func (a *agent) run(ctx context.Context) error {
 
 		scriptDone := make(chan error, 1)
 		scriptStart := time.Now()
-		go func() {
+		err = a.trackConnGoroutine(func() {
 			defer close(scriptDone)
 			scriptDone <- a.runStartupScript(ctx, metadata.StartupScript)
-		}()
+		})
 		go func() {
 			var timeout <-chan time.Time
 			// If timeout is zero, an older version of the coder

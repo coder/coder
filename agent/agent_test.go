@@ -703,7 +703,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 		t.Parallel()
 
 		_, client, _, _ := setupAgent(t, agentsdk.Metadata{
-			StartupScript:        "sleep 10",
+			StartupScript:        "sleep 5",
 			StartupScriptTimeout: time.Nanosecond,
 		}, 0)
 
