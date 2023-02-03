@@ -21,15 +21,8 @@ func (q *AuthzQuerier) parameterRBACResource(ctx context.Context, scope database
 	case database.ParameterScopeImportJob:
 		var version database.TemplateVersion
 		version, err = q.database.GetTemplateVersionByJobID(ctx, scopeID)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				// Template version does not exist yet, fall back to rbac.ResourceTemplate
-				// TODO: This is likely incorrect because we do not have an org ID.
-				resource = rbac.ResourceTemplate
-				err = nil
-			} else {
-				return nil, err
-			}
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
 		}
 		resource = version.RBACObjectNoTemplate()
 
