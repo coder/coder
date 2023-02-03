@@ -149,7 +149,7 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 	// Add app usage
 	ctx := r.Context()
 	err := api.Database.InTx(func(tx database.Store) error {
-		_, err := api.Database.GetAppUsageByDate(ctx, database.GetAppUsageByDateParams{
+		_, err := tx.GetAppUsageByDate(ctx, database.GetAppUsageByDateParams{
 			UserID:     user.ID,
 			TemplateID: workspace.TemplateID,
 			AppID:      app.ID,
@@ -159,7 +159,7 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 			if !errors.Is(err, sql.ErrNoRows) {
 				return xerrors.Errorf("get app usage: %w", err)
 			}
-			_, err = api.Database.InsertAppUsage(ctx, database.InsertAppUsageParams{
+			_, err = tx.InsertAppUsage(ctx, database.InsertAppUsageParams{
 				UserID:     user.ID,
 				TemplateID: workspace.TemplateID,
 				AppID:      app.ID,

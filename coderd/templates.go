@@ -617,7 +617,7 @@ func (api *API) appUsage(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	res := make([]codersdk.TemplateAppUsageResponse, len(usage))
+	res := make([]codersdk.TemplateAppUsageResponse, 0, len(usage))
 	for _, usageRow := range usage {
 		res = append(res, codersdk.TemplateAppUsageResponse{
 			UserID:     usageRow.UserID,
