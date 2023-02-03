@@ -18,7 +18,13 @@ export const SelectedTemplate: FC<SelectedTemplateProps> = ({ template }) => {
       className={styles.template}
       alignItems="center"
     >
-      <Avatar src={template.icon}>{template.name}</Avatar>
+      <Avatar
+        variant={template.icon ? "square" : undefined}
+        fitImage={Boolean(template.icon)}
+        src={template.icon}
+      >
+        {template.name}
+      </Avatar>
 
       <Stack direction="column" spacing={0.5}>
         <span className={styles.templateName}>

@@ -156,6 +156,11 @@ interface StyleProps {
 const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
   root: {
     marginBottom: theme.spacing(2),
+
+    "&:has(button) .MuiInputBase-root": {
+      borderTopLeftRadius: 0,
+      borderBottomLeftRadius: 0,
+    },
   },
   // necessary to expand the textField
   // the length of the page (within the bordered filterContainer)
@@ -174,7 +179,6 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
   inputStyles: {
     height: "100%",
     width: "100%",
-    borderRadius: `0px ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px 0px`,
     color: theme.palette.primary.contrastText,
     backgroundColor: theme.palette.background.paper,
 
@@ -189,7 +193,7 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
       paddingTop: "inherit",
       paddingBottom: "inherit",
       // The same as the button
-      minHeight: 42,
+      minHeight: 40,
     },
   },
   searchIcon: {

@@ -549,13 +549,15 @@ type authCall struct {
 	asserted bool
 }
 
+var _ rbac.Authorizer = (*RecordingAuthorizer)(nil)
+
+// RecordingAuthorizer wraps any rbac.Authorizer and records all Authorize()
+// calls made. This is useful for testing as these calls can later be asserted.
 type RecordingAuthorizer struct {
 	sync.RWMutex
 	Called  []authCall
 	Wrapped rbac.Authorizer
 }
-
-var _ rbac.Authorizer = (*RecordingAuthorizer)(nil)
 
 type ActionObjectPair struct {
 	Action rbac.Action
@@ -571,6 +573,9 @@ func (*RecordingAuthorizer) Pair(action rbac.Action, object rbac.Objecter) Actio
 	}
 }
 
+// AllAsserted returns an error if all calls to Authorize() have not been
+// asserted and checked. This is useful for testing to ensure that all
+// Authorize() calls are checked in the unit test.
 func (r *RecordingAuthorizer) AllAsserted() error {
 	r.RLock()
 	defer r.RUnlock()
@@ -585,34 +590,6 @@ func (r *RecordingAuthorizer) AllAsserted() error {
 		return xerrors.Errorf("missed calls: %+v", missed)
 	}
 	return nil
-}
-
-// UnorderedAssertActor is the same as AssertActor, except it doesn't care about
-// order. It will assert the first call that matches the actor and pair.
-// It will not assert the same call twice, so if there is a duplicate assertion,
-// the pair will need to be passed in twice.
-func (r *RecordingAuthorizer) UnorderedAssertActor(t *testing.T, actor rbac.Subject, dids ...ActionObjectPair) {
-	r.RLock()
-	defer r.RUnlock()
-	for _, did := range dids {
-		found := false
-	InnerCalledLoop:
-		for i, c := range r.Called {
-			if c.asserted {
-				// Do not assert an already asserted call.
-				continue
-			}
-
-			if c.Action != did.Action || c.Object.Equal(did.Object) || c.Actor.Equal(actor) {
-				continue
-			}
-
-			r.Called[i].asserted = true
-			found = true
-			break InnerCalledLoop
-		}
-		require.Truef(t, found, "did not find call for %s %s", did.Action, did.Object.Type)
-	}
 }
 
 // AssertActor asserts in order. If the order of authz calls does not match,
@@ -638,7 +615,8 @@ func (r *RecordingAuthorizer) AssertActor(t *testing.T, actor rbac.Subject, did 
 	assert.Equalf(t, len(did), ptr, "assert actor: didn't find all actions, %d missing actions", len(did)-ptr)
 }
 
-func (r *RecordingAuthorizer) RecordAuthorize(subject rbac.Subject, action rbac.Action, object rbac.Object) {
+// recordAuthorize is the internal method that records the Authorize() call.
+func (r *RecordingAuthorizer) recordAuthorize(subject rbac.Subject, action rbac.Action, object rbac.Object) {
 	r.Lock()
 	defer r.Unlock()
 	r.Called = append(r.Called, authCall{
@@ -649,7 +627,7 @@ func (r *RecordingAuthorizer) RecordAuthorize(subject rbac.Subject, action rbac.
 }
 
 func (r *RecordingAuthorizer) Authorize(ctx context.Context, subject rbac.Subject, action rbac.Action, object rbac.Object) error {
-	r.RecordAuthorize(subject, action, object)
+	r.recordAuthorize(subject, action, object)
 	if r.Wrapped == nil {
 		panic("Developer error: RecordingAuthorizer.Wrapped is nil")
 	}
@@ -670,9 +648,12 @@ func (r *RecordingAuthorizer) Prepare(ctx context.Context, subject rbac.Subject,
 	return &PreparedRecorder{
 		rec:     r,
 		prepped: prep,
+		subject: subject,
+		action:  action,
 	}, nil
 }
 
+// Reset clears the recorded Authorize() calls.
 func (r *RecordingAuthorizer) Reset() {
 	r.Lock()
 	defer r.Unlock()
@@ -690,6 +671,10 @@ func (r *RecordingAuthorizer) lastCall() *authCall {
 	return &r.Called[len(r.Called)-1]
 }
 
+// PreparedRecorder is the prepared version of the RecordingAuthorizer.
+// It records the Authorize() calls to the original recorder. If the caller
+// uses CompileToSQL, all recording stops. This is to support parity between
+// memory and SQL backed dbs.
 type PreparedRecorder struct {
 	rec     *RecordingAuthorizer
 	prepped rbac.PreparedAuthorized
@@ -705,7 +690,7 @@ func (s *PreparedRecorder) Authorize(ctx context.Context, object rbac.Object) er
 	defer s.rw.Unlock()
 
 	if !s.usingSQL {
-		s.rec.RecordAuthorize(s.subject, s.action, object)
+		s.rec.recordAuthorize(s.subject, s.action, object)
 	}
 	return s.prepped.Authorize(ctx, object)
 }
@@ -717,24 +702,7 @@ func (s *PreparedRecorder) CompileToSQL(ctx context.Context, cfg regosql.Convert
 	return s.prepped.CompileToSQL(ctx, cfg)
 }
 
-type fakePreparedAuthorizer struct {
-	sync.RWMutex
-	Original           *FakeAuthorizer
-	Subject            rbac.Subject
-	Action             rbac.Action
-	ShouldCompileToSQL bool
-}
-
-func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Object) error {
-	return f.Original.Authorize(ctx, f.Subject, f.Action, object)
-}
-
-// CompileToSQL returns a compiled version of the authorizer that will work for
-// in memory databases. This fake version will not work against a SQL database.
-func (*fakePreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
-	return "not a valid sql string", nil
-}
-
+// FakeAuthorizer is an Authorizer that always returns the same error.
 type FakeAuthorizer struct {
 	// AlwaysReturn is the error that will be returned by Authorize.
 	AlwaysReturn error
@@ -752,4 +720,25 @@ func (d *FakeAuthorizer) Prepare(_ context.Context, subject rbac.Subject, action
 		Subject:  subject,
 		Action:   action,
 	}, nil
+}
+
+var _ rbac.PreparedAuthorized = (*fakePreparedAuthorizer)(nil)
+
+// fakePreparedAuthorizer is the prepared version of a FakeAuthorizer. It will
+// return the same error as the original FakeAuthorizer.
+type fakePreparedAuthorizer struct {
+	sync.RWMutex
+	Original *FakeAuthorizer
+	Subject  rbac.Subject
+	Action   rbac.Action
+}
+
+func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Object) error {
+	return f.Original.Authorize(ctx, f.Subject, f.Action, object)
+}
+
+// CompileToSQL returns a compiled version of the authorizer that will work for
+// in memory databases. This fake version will not work against a SQL database.
+func (*fakePreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
+	return "not a valid sql string", nil
 }

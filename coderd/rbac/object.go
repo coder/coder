@@ -189,7 +189,33 @@ func (z Object) Equal(b Object) bool {
 	if z.Type != b.Type {
 		return false
 	}
-	// TODO: Handle ACLS
+
+	if !equalACLLists(z.ACLUserList, b.ACLUserList) {
+		return false
+	}
+
+	if !equalACLLists(z.ACLGroupList, b.ACLGroupList) {
+		return false
+	}
+
+	return true
+}
+
+func equalACLLists(a, b map[string][]Action) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	for k, actions := range a {
+		if len(actions) != len(b[k]) {
+			return false
+		}
+		for i, a := range actions {
+			if a != b[k][i] {
+				return false
+			}
+		}
+	}
 	return true
 }
 

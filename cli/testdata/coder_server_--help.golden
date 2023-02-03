@@ -28,7 +28,7 @@ Flags:
                                                      set, it will be used for compatibility
                                                      with systemd.
                                                      Consumes $CODER_CACHE_DIRECTORY (default
-                                                     "/tmp/coder-cli-test-cache")
+                                                     "~/.cache/coder")
       --dangerous-allow-path-app-sharing             Allow workspace apps that are not served
                                                      from subdomains to be shared. Path-based
                                                      app sharing is DISABLED by default for
@@ -91,6 +91,11 @@ Flags:
                                                      recommended for security purposes if a
                                                      --wildcard-access-url is configured.
                                                      Consumes $CODER_DISABLE_PATH_APPS
+      --disable-session-expiry-refresh               Disable automatic session expiry bumping
+                                                     due to activity. This forces all sessions
+                                                     to become invalid after the session
+                                                     expiry duration has been reached.
+                                                     Consumes $CODER_DISABLE_SESSION_EXPIRY_REFRESH
       --experiments strings                          Enable one or more experiments. These are
                                                      not ready for production. Separate
                                                      multiple experiments with commas, or
@@ -111,8 +116,8 @@ Flags:
       --log-stackdriver string                       Output Stackdriver compatible logs to a
                                                      given file.
                                                      Consumes $CODER_LOGGING_STACKDRIVER
-      --max-token-lifetime duration                  The maximum lifetime duration for any
-                                                     user creating a token.
+      --max-token-lifetime duration                  The maximum lifetime duration users can
+                                                     specify when creating an API token.
                                                      Consumes $CODER_MAX_TOKEN_LIFETIME
                                                      (default 720h0m0s)
       --oauth2-github-allow-everyone                 Allow all logins, setting this option
@@ -222,6 +227,13 @@ Flags:
       --secure-auth-cookie                           Controls if the 'Secure' property is set
                                                      on browser session cookies.
                                                      Consumes $CODER_SECURE_AUTH_COOKIE
+      --session-duration duration                    The token expiry duration for browser
+                                                     sessions. Sessions may last longer if
+                                                     they are actively making requests, but
+                                                     this functionality can be disabled via
+                                                     --disable-session-expiry-refresh.
+                                                     Consumes $CODER_MAX_SESSION_EXPIRY
+                                                     (default 24h0m0s)
       --ssh-keygen-algorithm string                  The algorithm to use for generating ssh
                                                      keys. Accepted values are "ed25519",
                                                      "ecdsa", or "rsa4096".
@@ -307,7 +319,7 @@ Flags:
 
 Global Flags:
       --global-config coder   Path to the global coder config directory.
-                              Consumes $CODER_CONFIG_DIR (default "/tmp/coder-cli-test-config")
+                              Consumes $CODER_CONFIG_DIR (default "~/.config/coderv2")
       --header stringArray    HTTP headers added to all requests. Provide as "Key=Value".
                               Consumes $CODER_HEADER
       --no-feature-warning    Suppress warnings about unlicensed features.

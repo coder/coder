@@ -17,6 +17,7 @@ import (
 
 	"github.com/coder/coder/coderd/rbac/regosql"
 	"github.com/coder/coder/coderd/tracing"
+	"github.com/coder/coder/coderd/util/slice"
 )
 
 // Subject is a struct that contains all the elements of a subject in an rbac
