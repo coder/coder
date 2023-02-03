@@ -21,13 +21,13 @@ func (suite *MethodTestSuite) TestTemplate() {
 				OrganizationID:  o1.ID,
 				ActiveVersionID: tvid,
 			})
-			a := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			_ = dbgen.TemplateVersion(t, db, database.TemplateVersion{
 				CreatedAt:      now.Add(-time.Hour),
 				ID:             tvid,
 				Name:           t1.Name,
 				OrganizationID: o1.ID,
 				TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true}})
-			_ = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			b := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 				CreatedAt:      now.Add(-2 * time.Hour),
 				Name:           t1.Name,
 				OrganizationID: o1.ID,
@@ -36,7 +36,7 @@ func (suite *MethodTestSuite) TestTemplate() {
 				Name:           t1.Name,
 				OrganizationID: o1.ID,
 				TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true},
-			}), asserts(t1, rbac.ActionRead), values(a))
+			}), asserts(t1, rbac.ActionRead), values(b))
 		})
 	})
 	suite.Run("GetTemplateAverageBuildTime", func() {
@@ -220,7 +220,7 @@ func (suite *MethodTestSuite) TestTemplate() {
 			return methodCase(values(database.UpdateTemplateActiveVersionByIDParams{
 				ID:              t1.ID,
 				ActiveVersionID: tv.ID,
-			}), asserts(t1, rbac.ActionUpdate), values(t1))
+			}), asserts(t1, rbac.ActionUpdate), values())
 		})
 	})
 	suite.Run("UpdateTemplateDeletedByID", func() {
@@ -237,7 +237,7 @@ func (suite *MethodTestSuite) TestTemplate() {
 			t1 := dbgen.Template(t, db, database.Template{})
 			return methodCase(values(database.UpdateTemplateMetaByIDParams{
 				ID: t1.ID,
-			}), asserts(t1, rbac.ActionUpdate), values(t1))
+			}), asserts(t1, rbac.ActionUpdate), nil)
 		})
 	})
 	suite.Run("UpdateTemplateVersionByID", func() {
