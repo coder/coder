@@ -95,7 +95,8 @@ func (suite *MethodTestSuite) TestProvsionerJob() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			a := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{})
 			b := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{})
-			return methodCase(values([]uuid.UUID{a.ID, b.ID}), asserts(), values(a, b))
+			return methodCase(values([]uuid.UUID{a.ID, b.ID}), asserts(),
+				values([]database.ProvisionerJob{a, b}))
 		})
 	})
 	suite.Run("GetProvisionerLogsByIDBetween", func() {

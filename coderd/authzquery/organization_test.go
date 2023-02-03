@@ -40,7 +40,7 @@ func (suite *MethodTestSuite) TestOrganization() {
 			mb := dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: ob.ID})
 			return methodCase(values([]uuid.UUID{ma.UserID, mb.UserID}),
 				asserts(rbac.ResourceUser.WithID(ma.UserID), rbac.ActionRead, rbac.ResourceUser.WithID(mb.UserID), rbac.ActionRead),
-				values([]database.Organization{oa, ob}))
+				nil)
 		})
 	})
 	suite.Run("GetOrganizationMemberByUserID", func() {

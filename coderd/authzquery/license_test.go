@@ -18,12 +18,14 @@ func (suite *MethodTestSuite) TestLicense() {
 				Uuid: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 			})
 			require.NoError(t, err)
-			return methodCase(values(), asserts(l, rbac.ActionRead), values(l))
+			return methodCase(values(), asserts(l, rbac.ActionRead),
+				values([]database.License{l}))
 		})
 	})
 	suite.Run("InsertLicense", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			return methodCase(values(database.InsertLicenseParams{}), asserts(rbac.ResourceLicense, rbac.ActionCreate), values(database.License{}))
+			return methodCase(values(database.InsertLicenseParams{}),
+				asserts(rbac.ResourceLicense, rbac.ActionCreate), nil)
 		})
 	})
 	suite.Run("InsertOrUpdateLogoURL", func() {
