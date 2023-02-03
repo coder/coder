@@ -76,7 +76,9 @@ func (s *MethodTestSuite) TestUser() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			a := dbgen.User(t, db, database.User{})
 			b := dbgen.User(t, db, database.User{})
-			return methodCase(values([]uuid.UUID{a.ID, b.ID}), asserts(a, rbac.ActionRead, b, rbac.ActionRead))
+			return methodCase(values([]uuid.UUID{a.ID, b.ID}),
+				asserts(a, rbac.ActionRead, b, rbac.ActionRead),
+				values([]database.User{a, b}))
 		})
 	})
 	s.Run("InsertUser", func() {
@@ -84,7 +86,7 @@ func (s *MethodTestSuite) TestUser() {
 			return methodCase(values(database.InsertUserParams{
 				ID:        uuid.New(),
 				LoginType: database.LoginTypePassword,
-			}), asserts(rbac.ResourceRoleAssignment, rbac.ActionCreate, rbac.ResourceUser, rbac.ActionCreate))
+			}), asserts(rbac.ResourceRoleAssignment, rbac.ActionCreate, rbac.ResourceUser, rbac.ActionCreate), nil)
 		})
 	})
 	s.Run("InsertUserLink", func() {
@@ -93,22 +95,22 @@ func (s *MethodTestSuite) TestUser() {
 			return methodCase(values(database.InsertUserLinkParams{
 				UserID:    u.ID,
 				LoginType: database.LoginTypeOIDC,
-			}), asserts(u, rbac.ActionUpdate))
+			}), asserts(u, rbac.ActionUpdate), nil)
 		})
 	})
 	s.Run("SoftDeleteUserByID", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			u := dbgen.User(t, db, database.User{})
-			return methodCase(values(u.ID), asserts(u, rbac.ActionDelete))
+			return methodCase(values(u.ID), asserts(u, rbac.ActionDelete), values())
 		})
 	})
 	s.Run("UpdateUserDeletedByID", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			u := dbgen.User(t, db, database.User{})
+			u := dbgen.User(t, db, database.User{Deleted: true})
 			return methodCase(values(database.UpdateUserDeletedByIDParams{
 				ID:      u.ID,
 				Deleted: true,
-			}), asserts(u, rbac.ActionDelete))
+			}), asserts(u, rbac.ActionDelete), values(u))
 		})
 	})
 	s.Run("UpdateUserHashedPassword", func() {
@@ -116,7 +118,7 @@ func (s *MethodTestSuite) TestUser() {
 			u := dbgen.User(t, db, database.User{})
 			return methodCase(values(database.UpdateUserHashedPasswordParams{
 				ID: u.ID,
-			}), asserts(u.UserDataRBACObject(), rbac.ActionUpdate))
+			}), asserts(u.UserDataRBACObject(), rbac.ActionUpdate), values(u))
 		})
 	})
 	s.Run("UpdateUserLastSeenAt", func() {
@@ -124,7 +126,7 @@ func (s *MethodTestSuite) TestUser() {
 			u := dbgen.User(t, db, database.User{})
 			return methodCase(values(database.UpdateUserLastSeenAtParams{
 				ID: u.ID,
-			}), asserts(u, rbac.ActionUpdate))
+			}), asserts(u, rbac.ActionUpdate), values(u))
 		})
 	})
 	s.Run("UpdateUserProfile", func() {
@@ -132,7 +134,7 @@ func (s *MethodTestSuite) TestUser() {
 			u := dbgen.User(t, db, database.User{})
 			return methodCase(values(database.UpdateUserProfileParams{
 				ID: u.ID,
-			}), asserts(u.UserDataRBACObject(), rbac.ActionUpdate))
+			}), asserts(u.UserDataRBACObject(), rbac.ActionUpdate), values(u))
 		})
 	})
 	s.Run("UpdateUserStatus", func() {
@@ -141,19 +143,19 @@ func (s *MethodTestSuite) TestUser() {
 			return methodCase(values(database.UpdateUserStatusParams{
 				ID:     u.ID,
 				Status: database.UserStatusActive,
-			}), asserts(u, rbac.ActionUpdate))
+			}), asserts(u, rbac.ActionUpdate), values(u))
 		})
 	})
 	s.Run("DeleteGitSSHKey", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			key := dbgen.GitSSHKey(t, db, database.GitSSHKey{})
-			return methodCase(values(key.UserID), asserts(key, rbac.ActionDelete))
+			return methodCase(values(key.UserID), asserts(key, rbac.ActionDelete), values())
 		})
 	})
 	s.Run("GetGitSSHKey", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			key := dbgen.GitSSHKey(t, db, database.GitSSHKey{})
-			return methodCase(values(key.UserID), asserts(key, rbac.ActionRead))
+			return methodCase(values(key.UserID), asserts(key, rbac.ActionRead), values(key))
 		})
 	})
 	s.Run("InsertGitSSHKey", func() {
@@ -161,15 +163,13 @@ func (s *MethodTestSuite) TestUser() {
 			u := dbgen.User(t, db, database.User{})
 			return methodCase(values(database.InsertGitSSHKeyParams{
 				UserID: u.ID,
-			}), asserts(rbac.ResourceUserData.WithID(u.ID).WithOwner(u.ID.String()), rbac.ActionCreate))
+			}), asserts(rbac.ResourceUserData.WithID(u.ID).WithOwner(u.ID.String()), rbac.ActionCreate), nil)
 		})
 	})
 	s.Run("UpdateGitSSHKey", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			key := dbgen.GitSSHKey(t, db, database.GitSSHKey{})
-			return methodCase(values(database.UpdateGitSSHKeyParams{
-				UserID: key.UserID,
-			}), asserts(key, rbac.ActionUpdate))
+			return methodCase(values(database.UpdateGitSSHKeyParams{}), asserts(key, rbac.ActionUpdate), values(key))
 		})
 	})
 	s.Run("GetGitAuthLink", func() {
@@ -178,7 +178,7 @@ func (s *MethodTestSuite) TestUser() {
 			return methodCase(values(database.GetGitAuthLinkParams{
 				ProviderID: link.ProviderID,
 				UserID:     link.UserID,
-			}), asserts(link, rbac.ActionRead))
+			}), asserts(link, rbac.ActionRead), values(link))
 		})
 	})
 	s.Run("InsertGitAuthLink", func() {
@@ -187,7 +187,7 @@ func (s *MethodTestSuite) TestUser() {
 			return methodCase(values(database.InsertGitAuthLinkParams{
 				ProviderID: uuid.NewString(),
 				UserID:     u.ID,
-			}), asserts(rbac.ResourceUserData.WithOwner(u.ID.String()).WithID(u.ID), rbac.ActionCreate))
+			}), asserts(rbac.ResourceUserData.WithOwner(u.ID.String()).WithID(u.ID), rbac.ActionCreate), nil)
 		})
 	})
 	s.Run("UpdateGitAuthLink", func() {
@@ -196,7 +196,7 @@ func (s *MethodTestSuite) TestUser() {
 			return methodCase(values(database.UpdateGitAuthLinkParams{
 				ProviderID: link.ProviderID,
 				UserID:     link.UserID,
-			}), asserts(link, rbac.ActionUpdate))
+			}), asserts(link, rbac.ActionUpdate), values(link))
 		})
 	})
 	s.Run("UpdateUserLink", func() {
@@ -205,12 +205,14 @@ func (s *MethodTestSuite) TestUser() {
 			return methodCase(values(database.UpdateUserLinkParams{
 				UserID:    link.UserID,
 				LoginType: link.LoginType,
-			}), asserts(link, rbac.ActionUpdate))
+			}), asserts(link, rbac.ActionUpdate), values(link))
 		})
 	})
 	s.Run("UpdateUserRoles", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			u := dbgen.User(t, db, database.User{RBACRoles: []string{rbac.RoleTemplateAdmin()}})
+			o := u
+			o.RBACRoles = []string{rbac.RoleUserAdmin()}
 			return methodCase(values(database.UpdateUserRolesParams{
 				GrantedRoles: []string{rbac.RoleUserAdmin()},
 				ID:           u.ID,
@@ -218,7 +220,7 @@ func (s *MethodTestSuite) TestUser() {
 				u, rbac.ActionRead,
 				rbac.ResourceRoleAssignment, rbac.ActionCreate,
 				rbac.ResourceRoleAssignment, rbac.ActionDelete,
-			))
+			), values(o))
 		})
 	})
 }
