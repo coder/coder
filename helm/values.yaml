@@ -199,12 +199,14 @@ coder:
       # use for the wildcard host.
       wildcardSecretName: ""
 
-# extraDeploy -- Array of extra objects to deploy with the release (evaluated as a template)
-extraDeploy:
+# extraTemplates -- Array of extra objects to deploy with the release. These
+# are evaluated as a template and can use template expansions and functions.
+# Strings are used as is, and all other objects are used as yaml.
+extraTemplates:
   []
   # - apiVersion: v1
   #   kind: ConfigMap
   #   metadata:
   #     name: my-configmap
   #   data:
-  #     key: value
+  #     key: {{ .Values.myCustomvalue | quote }}

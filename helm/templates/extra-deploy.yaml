@@ -1,4 +1,4 @@
-{{- range .Values.extraDeploy }}
+{{- range .Values.extraTemplates }}
 ---
-{{ include "common.tplvalues.render" (dict "value" . "context" $) }}
+{{ include "coder.renderTemplate" (dict "value" . "context" $) }}
 {{- end }}

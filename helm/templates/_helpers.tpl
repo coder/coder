@@ -179,11 +179,11 @@ Deprecated value coder.tls.secretName must not be used.
 {{- end }}
 
 {{/*
-Renders a value that contains template.
+Renders a value that contains a template.
 Usage:
-{{ include "common.tplvalues.render" ( dict "value" .Values.path.to.the.Value "context" $) }}
+{{ include "coder.renderTemplate" ( dict "value" .Values.path.to.the.Value "context" $) }}
 */}}
-{{- define "common.tplvalues.render" -}}
+{{- define "coder.renderTemplate" -}}
     {{- if typeIs "string" .value }}
         {{- tpl .value .context }}
     {{- else }}
