@@ -206,7 +206,7 @@ func splitResp(t *testing.T, values []reflect.Value) ([]reflect.Value, error) {
 		outputs = append(outputs, r)
 	}
 	t.Fatal("no expected error value found in responses (error can be nil)")
-	panic("unreachable") // For compile reasons
+	return nil, nil // unreachable, required to compile
 }
 
 // A MethodCase contains the inputs to be provided to a single method call,

@@ -638,7 +638,7 @@ func (r *RecordingAuthorizer) AssertActor(t *testing.T, actor rbac.Subject, did 
 	assert.Equalf(t, len(did), ptr, "assert actor: didn't find all actions, %d missing actions", len(did)-ptr)
 }
 
-func (r *RecordingAuthorizer) RecordAuthorize(ctx context.Context, subject rbac.Subject, action rbac.Action, object rbac.Object) {
+func (r *RecordingAuthorizer) RecordAuthorize(subject rbac.Subject, action rbac.Action, object rbac.Object) {
 	r.Lock()
 	defer r.Unlock()
 	r.Called = append(r.Called, authCall{
@@ -649,7 +649,7 @@ func (r *RecordingAuthorizer) RecordAuthorize(ctx context.Context, subject rbac.
 }
 
 func (r *RecordingAuthorizer) Authorize(ctx context.Context, subject rbac.Subject, action rbac.Action, object rbac.Object) error {
-	r.RecordAuthorize(ctx, subject, action, object)
+	r.RecordAuthorize(subject, action, object)
 	if r.Wrapped == nil {
 		panic("Developer error: RecordingAuthorizer.Wrapped is nil")
 	}
@@ -705,7 +705,7 @@ func (s *PreparedRecorder) Authorize(ctx context.Context, object rbac.Object) er
 	defer s.rw.Unlock()
 
 	if !s.usingSQL {
-		s.rec.RecordAuthorize(ctx, s.subject, s.action, object)
+		s.rec.RecordAuthorize(s.subject, s.action, object)
 	}
 	return s.prepped.Authorize(ctx, object)
 }
@@ -731,7 +731,7 @@ func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Obje
 
 // CompileToSQL returns a compiled version of the authorizer that will work for
 // in memory databases. This fake version will not work against a SQL database.
-func (f *fakePreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
+func (*fakePreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
 	return "not a valid sql string", nil
 }
 
@@ -744,10 +744,6 @@ var _ rbac.Authorizer = (*FakeAuthorizer)(nil)
 
 func (d *FakeAuthorizer) Authorize(_ context.Context, _ rbac.Subject, _ rbac.Action, _ rbac.Object) error {
 	return d.AlwaysReturn
-}
-
-func (d *FakeAuthorizer) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
-	return "not a valid sql string", nil
 }
 
 func (d *FakeAuthorizer) Prepare(_ context.Context, subject rbac.Subject, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
