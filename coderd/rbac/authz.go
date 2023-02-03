@@ -6,8 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coder/coder/coderd/util/slice"
-
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"

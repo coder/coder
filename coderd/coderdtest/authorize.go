@@ -17,7 +17,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/rbac/regosql"
 	"github.com/coder/coder/codersdk"
@@ -26,12 +25,6 @@ import (
 )
 
 func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
-	// For any route using SQL filters, we need to know if the database is an
-	// in memory fake. This is because the in memory fake does not use SQL, and
-	// still uses rego. So this boolean indicates how to assert the expected
-	// behavior.
-	_, isMemoryDB := a.api.Database.(dbfake.FakeDatabase)
-
 	// Some quick reused objects
 	workspaceRBACObj := rbac.ResourceWorkspace.WithID(a.Workspace.ID).InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
 	workspaceExecObj := rbac.ResourceWorkspaceExecution.WithID(a.Workspace.ID).InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
@@ -265,16 +258,17 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"POST:/api/v2/workspaces/{workspace}/builds":                    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 		"POST:/api/v2/organizations/{organization}/templateversions":    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 
-		// Endpoints that use the SQLQuery filter.
+		// For any route using SQL filters, we do not check authorization.
+		// This is because the in memory fake does not use SQL.
 		"GET:/api/v2/workspaces/": {
 			StatusCode:   http.StatusOK,
-			NoAuthorize:  !isMemoryDB,
+			NoAuthorize:  true,
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceWorkspace,
 		},
 		"GET:/api/v2/organizations/{organization}/templates": {
 			StatusCode:   http.StatusOK,
-			NoAuthorize:  !isMemoryDB,
+			NoAuthorize:  true,
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceTemplate,
 		},
