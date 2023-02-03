@@ -12,7 +12,6 @@ const Language = {
   name: "Name",
   template: "Template",
   lastUsed: "Last Used",
-  version: "Version",
   status: "Status",
   lastBuiltBy: "Last Built By",
 }
@@ -33,12 +32,11 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
       <Table>
         <TableHead>
           <TableRow>
-            <TableCell width="30%">{Language.name}</TableCell>
+            <TableCell width="40%">{Language.name}</TableCell>
             <TableCell width="25%">{Language.template}</TableCell>
-            <TableCell width="25%">{Language.version}</TableCell>
             <TableCell width="20%">{Language.lastUsed}</TableCell>
-            <TableCell width="20%">{Language.status}</TableCell>
-            <TableCell width="1%"></TableCell>
+            <TableCell width="15%">{Language.status}</TableCell>
+            <TableCell width="1%" />
           </TableRow>
         </TableHead>
         <TableBody>

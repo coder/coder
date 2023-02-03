@@ -121,8 +121,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "provisioner": "terraform",
-    "updated_at": "2019-08-24T14:15:22Z",
-    "workspace_owner_count": 0
+    "updated_at": "2019-08-24T14:15:22Z"
   }
 ]
 ```
@@ -159,7 +158,6 @@ Status Code **200**
 | `» organization_id`                  | string(uuid)                                                                 | false    |              |                                              |
 | `» provisioner`                      | string                                                                       | false    |              |                                              |
 | `» updated_at`                       | string(date-time)                                                            | false    |              |                                              |
-| `» workspace_owner_count`            | integer                                                                      | false    |              |                                              |
 
 #### Enumerated Values
 
@@ -243,8 +241,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "workspace_owner_count": 0
+  "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -366,8 +363,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "workspace_owner_count": 0
+  "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -376,6 +372,158 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 | Status | Meaning                                                 | Description | Schema                                           |
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Template](schemas.md#codersdktemplate) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get template version by organization, template, and name
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /organizations/{organization}/templates/{templatename}/versions/{templateversionname}`
+
+### Parameters
+
+| Name                  | In   | Type         | Required | Description           |
+| --------------------- | ---- | ------------ | -------- | --------------------- |
+| `organization`        | path | string(uuid) | true     | Organization ID       |
+| `templatename`        | path | string       | true     | Template name         |
+| `templateversionname` | path | string       | true     | Template version name |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "created_by": {
+    "avatar_url": "http://example.com",
+    "created_at": "2019-08-24T14:15:22Z",
+    "email": "user@example.com",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "last_seen_at": "2019-08-24T14:15:22Z",
+    "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+    "roles": [
+      {
+        "display_name": "string",
+        "name": "string"
+      }
+    ],
+    "status": "active",
+    "username": "string"
+  },
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "job": {
+    "canceled_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "created_at": "2019-08-24T14:15:22Z",
+    "error": "string",
+    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "started_at": "2019-08-24T14:15:22Z",
+    "status": "pending",
+    "tags": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+  },
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "readme": "string",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                         |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.TemplateVersion](schemas.md#codersdktemplateversion) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get previous template version by organization, template, and name
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname}/previous \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /organizations/{organization}/templates/{templatename}/versions/{templateversionname}/previous`
+
+### Parameters
+
+| Name                  | In   | Type         | Required | Description           |
+| --------------------- | ---- | ------------ | -------- | --------------------- |
+| `organization`        | path | string(uuid) | true     | Organization ID       |
+| `templatename`        | path | string       | true     | Template name         |
+| `templateversionname` | path | string       | true     | Template version name |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "created_by": {
+    "avatar_url": "http://example.com",
+    "created_at": "2019-08-24T14:15:22Z",
+    "email": "user@example.com",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "last_seen_at": "2019-08-24T14:15:22Z",
+    "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+    "roles": [
+      {
+        "display_name": "string",
+        "name": "string"
+      }
+    ],
+    "status": "active",
+    "username": "string"
+  },
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "job": {
+    "canceled_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "created_at": "2019-08-24T14:15:22Z",
+    "error": "string",
+    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "started_at": "2019-08-24T14:15:22Z",
+    "status": "pending",
+    "tags": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+  },
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "readme": "string",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                         |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.TemplateVersion](schemas.md#codersdktemplateversion) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -478,156 +626,6 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get template version by organization and name
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templateversions/{templateversionname} \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`GET /organizations/{organization}/templateversions/{templateversionname}`
-
-### Parameters
-
-| Name                  | In   | Type         | Required | Description           |
-| --------------------- | ---- | ------------ | -------- | --------------------- |
-| `organization`        | path | string(uuid) | true     | Organization ID       |
-| `templateversionname` | path | string       | true     | Template version name |
-
-### Example responses
-
-> 200 Response
-
-```json
-{
-  "created_at": "2019-08-24T14:15:22Z",
-  "created_by": {
-    "avatar_url": "http://example.com",
-    "created_at": "2019-08-24T14:15:22Z",
-    "email": "user@example.com",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "last_seen_at": "2019-08-24T14:15:22Z",
-    "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-    "roles": [
-      {
-        "display_name": "string",
-        "name": "string"
-      }
-    ],
-    "status": "active",
-    "username": "string"
-  },
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "job": {
-    "canceled_at": "2019-08-24T14:15:22Z",
-    "completed_at": "2019-08-24T14:15:22Z",
-    "created_at": "2019-08-24T14:15:22Z",
-    "error": "string",
-    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "started_at": "2019-08-24T14:15:22Z",
-    "status": "pending",
-    "tags": {
-      "property1": "string",
-      "property2": "string"
-    },
-    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
-  },
-  "name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "readme": "string",
-  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-  "updated_at": "2019-08-24T14:15:22Z"
-}
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                                         |
-| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.TemplateVersion](schemas.md#codersdktemplateversion) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
-## Get previous template version by organization and name
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templateversions/{templateversionname}/previous \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`GET /organizations/{organization}/templateversions/{templateversionname}/previous`
-
-### Parameters
-
-| Name                  | In   | Type         | Required | Description           |
-| --------------------- | ---- | ------------ | -------- | --------------------- |
-| `organization`        | path | string(uuid) | true     | Organization ID       |
-| `templateversionname` | path | string       | true     | Template version name |
-
-### Example responses
-
-> 200 Response
-
-```json
-{
-  "created_at": "2019-08-24T14:15:22Z",
-  "created_by": {
-    "avatar_url": "http://example.com",
-    "created_at": "2019-08-24T14:15:22Z",
-    "email": "user@example.com",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "last_seen_at": "2019-08-24T14:15:22Z",
-    "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-    "roles": [
-      {
-        "display_name": "string",
-        "name": "string"
-      }
-    ],
-    "status": "active",
-    "username": "string"
-  },
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "job": {
-    "canceled_at": "2019-08-24T14:15:22Z",
-    "completed_at": "2019-08-24T14:15:22Z",
-    "created_at": "2019-08-24T14:15:22Z",
-    "error": "string",
-    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "started_at": "2019-08-24T14:15:22Z",
-    "status": "pending",
-    "tags": {
-      "property1": "string",
-      "property2": "string"
-    },
-    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
-  },
-  "name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "readme": "string",
-  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-  "updated_at": "2019-08-24T14:15:22Z"
-}
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                                         |
-| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.TemplateVersion](schemas.md#codersdktemplateversion) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## Get template metadata by ID
 
 ### Code samples
@@ -677,8 +675,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "workspace_owner_count": 0
+  "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -783,8 +780,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "workspace_owner_count": 0
+  "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 

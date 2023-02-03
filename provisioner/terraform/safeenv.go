@@ -19,7 +19,7 @@ import (
 const unsafeEnvCanary = "CODER_DONT_PASS"
 
 func init() {
-	os.Setenv(unsafeEnvCanary, "true")
+	_ = os.Setenv(unsafeEnvCanary, "true")
 }
 
 func envName(env string) string {

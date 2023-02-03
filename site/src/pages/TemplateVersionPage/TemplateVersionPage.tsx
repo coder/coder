@@ -18,7 +18,7 @@ export const TemplateVersionPage: FC = () => {
   const { version: versionName, template: templateName } = useParams() as Params
   const orgId = useOrganizationId()
   const [state] = useMachine(templateVersionMachine, {
-    context: { versionName, orgId },
+    context: { templateName, versionName, orgId },
   })
   const tab = useTab("file", "0")
   const { t } = useTranslation("templateVersionPage")

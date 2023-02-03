@@ -260,7 +260,7 @@ func assertGoCommentFirst(t *testing.T, comment SwaggerComment) {
 		text := strings.TrimSpace(line.Text)
 
 		if inSwaggerBlock {
-			if !strings.HasPrefix(text, "// @") {
+			if !strings.HasPrefix(text, "// @") && !strings.HasPrefix(text, "// nolint:") {
 				assert.Fail(t, "Go function comment must be placed before swagger comments")
 				return
 			}

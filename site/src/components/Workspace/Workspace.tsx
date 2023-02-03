@@ -30,6 +30,7 @@ export enum WorkspaceErrors {
   GET_BUILDS_ERROR = "getBuildsError",
   BUILD_ERROR = "buildError",
   CANCELLATION_ERROR = "cancellationError",
+  WORKSPACE_REFRESH_WARNING = "refreshWorkspaceWarning",
 }
 
 export interface WorkspaceProps {
@@ -113,7 +114,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   )
 
   const workspaceRefreshWarning = Boolean(
-    workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR],
+    workspaceErrors[WorkspaceErrors.WORKSPACE_REFRESH_WARNING],
   ) && (
     <AlertBanner
       severity="warning"
@@ -228,6 +229,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
                 hideSSHButton={hideSSHButton}
                 hideVSCodeDesktopButton={hideVSCodeDesktopButton}
                 serverVersion={serverVersion}
+                onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
               />
             )}
           />
