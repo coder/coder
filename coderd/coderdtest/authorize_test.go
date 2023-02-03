@@ -62,9 +62,9 @@ func TestAuthzRecorder(t *testing.T) {
 
 		b := randomSubject()
 
-		act, ot := randomAction(), randomObject().Type
-		prep, _ := rec.Prepare(context.Background(), b, act, ot)
-		bPairs := fuzzAuthzPrep(t, prep, 10, act, ot)
+		act, objTy := randomAction(), randomObject().Type
+		prep, _ := rec.Prepare(context.Background(), b, act, objTy)
+		bPairs := fuzzAuthzPrep(t, prep, 10, act, objTy)
 
 		rec.AssertActor(t, b, bPairs...)
 		rec.AssertActor(t, a, aPairs...)
