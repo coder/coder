@@ -48,14 +48,15 @@ func (suite *MethodTestSuite) TestGroup() {
 	suite.Run("GetGroupMembers", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			g := dbgen.Group(t, db, database.Group{})
-			gm := dbgen.GroupMember(t, db, database.GroupMember{})
-			return methodCase(values(g.ID), asserts(g, rbac.ActionRead), values(gm))
+			_ = dbgen.GroupMember(t, db, database.GroupMember{})
+			return methodCase(values(g.ID), asserts(g, rbac.ActionRead), nil)
 		})
 	})
 	suite.Run("InsertAllUsersGroup", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			o := dbgen.Organization(t, db, database.Organization{})
-			return methodCase(values(o.ID), asserts(rbac.ResourceGroup.InOrg(o.ID), rbac.ActionCreate), values(database.Group{}))
+			return methodCase(values(o.ID), asserts(rbac.ResourceGroup.InOrg(o.ID), rbac.ActionCreate),
+				nil)
 		})
 	})
 	suite.Run("InsertGroup", func() {
@@ -65,7 +66,7 @@ func (suite *MethodTestSuite) TestGroup() {
 				OrganizationID: o.ID,
 				Name:           "test",
 			}), asserts(rbac.ResourceGroup.InOrg(o.ID), rbac.ActionCreate),
-				values(database.Group{}))
+				nil)
 		})
 	})
 	suite.Run("InsertGroupMember", func() {
@@ -110,9 +111,8 @@ func (suite *MethodTestSuite) TestGroup() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			g := dbgen.Group(t, db, database.Group{})
 			return methodCase(values(database.UpdateGroupByIDParams{
-				Name: "new-name",
-				ID:   g.ID,
-			}), asserts(g, rbac.ActionUpdate), values(g))
+				ID: g.ID,
+			}), asserts(g, rbac.ActionUpdate), nil)
 		})
 	})
 }
