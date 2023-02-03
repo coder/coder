@@ -8,7 +8,6 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httputil"
@@ -148,36 +147,38 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 
 	// Add app usage
 	ctx := r.Context()
-	err := api.Database.InTx(func(tx database.Store) error {
-		_, err := tx.GetAppUsageByDate(ctx, database.GetAppUsageByDateParams{
-			UserID:     user.ID,
-			TemplateID: workspace.TemplateID,
-			AppID:      app.ID,
-			CreatedAt:  database.Now(),
-		})
-		if err != nil {
-			if !errors.Is(err, sql.ErrNoRows) {
-				return xerrors.Errorf("get app usage: %w", err)
-			}
-			_, err = tx.InsertAppUsage(ctx, database.InsertAppUsageParams{
-				UserID:     user.ID,
-				TemplateID: workspace.TemplateID,
-				AppID:      app.ID,
-				CreatedAt:  database.Now(),
-			})
-			if err != nil {
-				return xerrors.Errorf("insert app usage: %w", err)
-			}
-		}
-		return nil
-	}, nil)
+	err := api.Database.InsertAppUsage(ctx, database.InsertAppUsageParams{
+		UserID:     user.ID,
+		TemplateID: workspace.TemplateID,
+		AppID:      app.ID,
+		CreatedAt:  database.Now(),
+	})
+	// err := api.Database.InTx(func(tx database.Store) error {
+	// 	_, err := tx.GetAppUsageByDate(ctx, database.GetAppUsageByDateParams{
+	// 		UserID:     user.ID,
+	// 		TemplateID: workspace.TemplateID,
+	// 		AppID:      app.ID,
+	// 		CreatedAt:  database.Now(),
+	// 	})
+	// 	if err != nil {
+	// 		if !errors.Is(err, sql.ErrNoRows) {
+	// 			return xerrors.Errorf("get app usage: %w", err)
+	// 		}
+	// 		_, err = tx.InsertAppUsage(ctx, database.InsertAppUsageParams{
+	// 			UserID:     user.ID,
+	// 			TemplateID: workspace.TemplateID,
+	// 			AppID:      app.ID,
+	// 			CreatedAt:  database.Now(),
+	// 		})
+	// 		if err != nil {
+	// 			return xerrors.Errorf("insert app usage: %w", err)
+	// 		}
+	// 	}
+	// 	return nil
+	// }, nil)
 
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Error on inserting app usage.",
-			Detail:  err.Error(),
-		})
-		return
+		api.Logger.Error(ctx, "insert app usage", slog.Error(err))
 	}
 
 	api.proxyWorkspaceApplication(proxyApplication{

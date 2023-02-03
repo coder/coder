@@ -264,9 +264,11 @@ func (c *Client) TemplateExamples(ctx context.Context, organizationID uuid.UUID)
 }
 
 type TemplateAppUsageEntry struct {
-	Count     int       `json:"count"`
-	AppID     uuid.UUID `json:"app_id" format:"uuid"`
-	CreatedAt time.Time `json:"created_at" format:"date-time"`
+	Count          int       `json:"count"`
+	AppID          uuid.UUID `json:"app_id" format:"uuid"`
+	AppIcon        string    `json:"app_icon"`
+	AppDisplayName string    `json:"app_display_name"`
+	CreatedAt      time.Time `json:"created_at" format:"date-time"`
 }
 
 // TemplateDAUsResponse contains statistics of daily active users of the template.

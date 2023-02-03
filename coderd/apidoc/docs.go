@@ -7412,6 +7412,12 @@ const docTemplate = `{
         "codersdk.TemplateAppUsageEntry": {
             "type": "object",
             "properties": {
+                "app_display_name": {
+                    "type": "string"
+                },
+                "app_icon": {
+                    "type": "string"
+                },
                 "app_id": {
                     "type": "string",
                     "format": "uuid"

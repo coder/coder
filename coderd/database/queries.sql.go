@@ -425,19 +425,22 @@ SELECT
 	app_usage.app_id,
 	workspace_apps.display_name as app_display_name,
 	workspace_apps.icon as app_icon,
-	COUNT(*)
+  COUNT(*)
 FROM
-	app_usage
+  app_usage
 JOIN
 	workspace_apps
 ON
-	app_usage.app_id = workspace_apps.id
+  app_usage.app_id = workspace_apps.id
 WHERE
-	app_usage.template_id = $1 AND app_usage.created_at BETWEEN $2 :: date AND $3 :: date
+  app_usage.template_id = $1 AND app_usage.created_at BETWEEN $2 :: date AND $3 :: date
 GROUP BY
-	app_usage.created_at, app_usage.app_id
+  app_usage.created_at,
+  app_usage.app_id,
+  workspace_apps.display_name,
+  workspace_apps.icon
 ORDER BY
-	app_usage.created_at ASC
+  app_usage.created_at ASC
 `
 
 type GetAppUsageByTemplateIDParams struct {
@@ -483,7 +486,7 @@ func (q *sqlQuerier) GetAppUsageByTemplateID(ctx context.Context, arg GetAppUsag
 	return items, nil
 }
 
-const insertAppUsage = `-- name: InsertAppUsage :one
+const insertAppUsage = `-- name: InsertAppUsage :exec
 INSERT INTO
 	app_usage (
 		user_id,
@@ -492,7 +495,8 @@ INSERT INTO
 		created_at
 	)
 VALUES
-	($1, $2, $3, $4) RETURNING user_id, app_id, template_id, created_at
+	($1, $2, $3, $4)
+ON CONFLICT (user_id, app_id, template_id, created_at) DO NOTHING
 `
 
 type InsertAppUsageParams struct {
@@ -502,21 +506,14 @@ type InsertAppUsageParams struct {
 	CreatedAt  time.Time `db:"created_at" json:"created_at"`
 }
 
-func (q *sqlQuerier) InsertAppUsage(ctx context.Context, arg InsertAppUsageParams) (AppUsage, error) {
-	row := q.db.QueryRowContext(ctx, insertAppUsage,
+func (q *sqlQuerier) InsertAppUsage(ctx context.Context, arg InsertAppUsageParams) error {
+	_, err := q.db.ExecContext(ctx, insertAppUsage,
 		arg.UserID,
 		arg.TemplateID,
 		arg.AppID,
 		arg.CreatedAt,
 	)
-	var i AppUsage
-	err := row.Scan(
-		&i.UserID,
-		&i.AppID,
-		&i.TemplateID,
-		&i.CreatedAt,
-	)
-	return i, err
+	return err
 }
 
 const getAuditLogsOffset = `-- name: GetAuditLogsOffset :many

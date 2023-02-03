@@ -4255,22 +4255,31 @@ func (q *fakeQuerier) UpdateWorkspaceAgentLifecycleStateByID(_ context.Context, 
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) InsertAppUsage(_ context.Context, p database.InsertAppUsageParams) (database.AppUsage, error) {
+func (q *fakeQuerier) InsertAppUsage(_ context.Context, p database.InsertAppUsageParams) error {
 	if err := validateDatabaseType(p); err != nil {
-		return database.AppUsage{}, err
+		return err
 	}
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	usage := database.AppUsage{
-		CreatedAt:  p.CreatedAt,
-		AppID:      p.AppID,
-		UserID:     p.UserID,
-		TemplateID: p.TemplateID,
+	usageIdx := slices.IndexFunc(q.appUsage, func(usage database.AppUsage) bool {
+		return usage.AppID == p.AppID &&
+			usage.CreatedAt == p.CreatedAt &&
+			usage.TemplateID == p.TemplateID &&
+			usage.UserID == p.UserID
+	})
+
+	if usageIdx == -1 {
+		q.appUsage = append(q.appUsage, database.AppUsage{
+			CreatedAt:  p.CreatedAt,
+			AppID:      p.AppID,
+			UserID:     p.UserID,
+			TemplateID: p.TemplateID,
+		})
 	}
-	q.appUsage = append(q.appUsage, usage)
-	return usage, nil
+
+	return nil
 }
 
 func (q *fakeQuerier) GetAppUsageByDate(_ context.Context, arg database.GetAppUsageByDateParams) (database.AppUsage, error) {
