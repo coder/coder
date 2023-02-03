@@ -33,34 +33,29 @@ func (suite *MethodTestSuite) TestOrganization() {
 	})
 	suite.Run("GetOrganizationIDsByMemberIDs", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			o := dbgen.Organization(t, db, database.Organization{})
-			u := dbgen.User(t, db, database.User{})
-			var _ = o.ID
-			// TODO: Implement this and do rbac check
-			//mem := dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: o.ID, UserID: u.ID})
-			return methodCase(inputs([]uuid.UUID{u.ID}), asserts())
+			oa := dbgen.Organization(t, db, database.Organization{})
+			ob := dbgen.Organization(t, db, database.Organization{})
+			ma := dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: oa.ID})
+			mb := dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: ob.ID})
+			return methodCase(inputs([]uuid.UUID{ma.UserID, mb.UserID}),
+				asserts(rbac.ResourceUser.WithID(ma.UserID), rbac.ActionRead, rbac.ResourceUser.WithID(mb.UserID), rbac.ActionRead))
 		})
 	})
 	suite.Run("GetOrganizationMemberByUserID", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			o := dbgen.Organization(t, db, database.Organization{})
-			u := dbgen.User(t, db, database.User{})
-			// TODO: Implement this and do rbac check
-			//mem := dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: o.ID, UserID: u.ID})
+			mem := dbgen.OrganizationMember(t, db, database.OrganizationMember{})
 			return methodCase(inputs(database.GetOrganizationMemberByUserIDParams{
-				OrganizationID: o.ID,
-				UserID:         u.ID,
-			}), asserts())
+				OrganizationID: mem.OrganizationID,
+				UserID:         mem.UserID,
+			}), asserts(mem, rbac.ActionRead))
 		})
 	})
 	suite.Run("GetOrganizationMembershipsByUserID", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			o := dbgen.Organization(t, db, database.Organization{})
 			u := dbgen.User(t, db, database.User{})
-			var _ = o.ID
-			// TODO: Implement this and do rbac check
-			//mem := dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: o.ID, UserID: u.ID})
-			return methodCase(inputs(u.ID), asserts())
+			a := dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: u.ID})
+			b := dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: u.ID})
+			return methodCase(inputs(u.ID), asserts(a, rbac.ActionRead, b, rbac.ActionRead))
 		})
 	})
 	suite.Run("GetOrganizations", func() {
@@ -72,12 +67,12 @@ func (suite *MethodTestSuite) TestOrganization() {
 	})
 	suite.Run("GetOrganizationsByUserID", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			o := dbgen.Organization(t, db, database.Organization{})
 			u := dbgen.User(t, db, database.User{})
-			var _ = o.ID
-			// TODO: Implement this and do rbac check
-			//mem := dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: o.ID, UserID: u.ID})
-			return methodCase(inputs(u.ID), asserts(u, rbac.ActionRead))
+			a := dbgen.Organization(t, db, database.Organization{})
+			_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: u.ID, OrganizationID: a.ID})
+			b := dbgen.Organization(t, db, database.Organization{})
+			_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: u.ID, OrganizationID: b.ID})
+			return methodCase(inputs(u.ID), asserts(a, rbac.ActionRead, b, rbac.ActionRead))
 		})
 	})
 	suite.Run("InsertOrganization", func() {
@@ -107,20 +102,20 @@ func (suite *MethodTestSuite) TestOrganization() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			o := dbgen.Organization(t, db, database.Organization{})
 			u := dbgen.User(t, db, database.User{})
-			// TODO: Implement this and do rbac check
-			//mem := dbgen.OrganizationMember(t, db, database.OrganizationMember{
-			//	OrganizationID: o.ID,
-			//	UserID:         u.ID,
-			//	Roles:          []string{rbac.RoleOrgAdmin(o.ID)},
-			//})
+			mem := dbgen.OrganizationMember(t, db, database.OrganizationMember{
+				OrganizationID: o.ID,
+				UserID:         u.ID,
+				Roles:          []string{rbac.RoleOrgAdmin(o.ID)},
+			})
 
 			return methodCase(inputs(database.UpdateMemberRolesParams{
 				GrantedRoles: []string{},
 				UserID:       u.ID,
 				OrgID:        o.ID,
 			}), asserts(
-				rbac.ResourceRoleAssignment.InOrg(o.ID), rbac.ActionDelete,
-				rbac.ResourceOrganizationMember.InOrg(o.ID).WithID(u.ID), rbac.ActionCreate,
+				mem, rbac.ActionRead,
+				rbac.ResourceRoleAssignment.InOrg(o.ID), rbac.ActionCreate, // org-mem
+				rbac.ResourceRoleAssignment.InOrg(o.ID), rbac.ActionDelete, // org-admin
 			))
 		})
 	})
