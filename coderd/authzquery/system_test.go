@@ -22,13 +22,13 @@ func (suite *MethodTestSuite) TestSystemFunctions() {
 				UserID:    u.ID,
 				LinkedID:  l.LinkedID,
 				LoginType: database.LoginTypeGithub,
-			}), asserts())
+			}), asserts(), values(l))
 		})
 	})
 	suite.Run("GetUserLinkByLinkedID", func() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			l := dbgen.UserLink(t, db, database.UserLink{})
-			return methodCase(values(l.LinkedID), asserts())
+			return methodCase(values(l.LinkedID), asserts(), values(l))
 		})
 	})
 	suite.Run("GetUserLinkByUserIDLoginType", func() {
@@ -37,7 +37,7 @@ func (suite *MethodTestSuite) TestSystemFunctions() {
 			return methodCase(values(database.GetUserLinkByUserIDLoginTypeParams{
 				UserID:    l.UserID,
 				LoginType: l.LoginType,
-			}), asserts())
+			}), asserts(), values(l))
 		})
 	})
 	suite.Run("GetLatestWorkspaceBuilds", func() {
