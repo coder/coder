@@ -27,3 +27,14 @@ WHERE
 ORDER BY
 	created_at ASC;
 
+-- name: GetGroupedAppUsageByTemplateID :many
+SELECT
+	created_at, app_id, COUNT(*)
+FROM
+	app_usage
+WHERE
+	template_id = $1 AND created_at BETWEEN @since_date :: date AND @to_date :: date
+GROUP BY
+	created_at, app_id
+ORDER BY
+	created_at ASC;

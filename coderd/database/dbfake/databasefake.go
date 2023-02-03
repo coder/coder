@@ -4314,3 +4314,48 @@ func (q *fakeQuerier) GetAppUsageByTemplateID(_ context.Context, arg database.Ge
 
 	return appUsage, nil
 }
+
+func (q *fakeQuerier) GetGroupedAppUsageByTemplateID(_ context.Context, arg database.GetGroupedAppUsageByTemplateIDParams) ([]database.GetGroupedAppUsageByTemplateIDRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if len(q.appUsage) == 0 {
+		return []database.GetGroupedAppUsageByTemplateIDRow{}, sql.ErrNoRows
+	}
+
+	// usageMap is indexed by Date to a map of App IDs to the number of unique
+	// users that have used that application.
+	usageMap := make(map[time.Time]map[uuid.UUID]int64)
+	for _, usage := range q.appUsage {
+		if usage.TemplateID != arg.TemplateID {
+			continue
+		}
+		if usage.CreatedAt.Equal(arg.SinceDate) || (usage.CreatedAt.After(arg.SinceDate) && usage.CreatedAt.Before(arg.ToDate)) {
+			date := usage.CreatedAt.Truncate(time.Hour * 24)
+			appEntry := usageMap[date]
+			if appEntry == nil {
+				appEntry = make(map[uuid.UUID]int64)
+			}
+			appEntry[usage.AppID] = appEntry[usage.AppID] + 1
+			usageMap[date] = appEntry
+		}
+	}
+
+	rows := make([]database.GetGroupedAppUsageByTemplateIDRow, 0)
+	dates := maps.Keys(usageMap)
+	sort.Slice(dates, func(i, j int) bool {
+		return dates[i].Before(dates[j])
+	})
+	for _, date := range dates {
+		appIDs := maps.Keys(usageMap[date])
+		for _, appID := range appIDs {
+			rows = append(rows, database.GetGroupedAppUsageByTemplateIDRow{
+				CreatedAt: date,
+				AppID:     appID,
+				Count:     usageMap[date][appID],
+			})
+		}
+	}
+
+	return rows, nil
+}

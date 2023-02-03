@@ -263,11 +263,15 @@ func (c *Client) TemplateExamples(ctx context.Context, organizationID uuid.UUID)
 	return templateExamples, json.NewDecoder(res.Body).Decode(&templateExamples)
 }
 
+type TemplateAppUsageEntry struct {
+	Count     int       `json:"count"`
+	AppID     uuid.UUID `json:"app_id" format:"uuid"`
+	CreatedAt time.Time `json:"created_at" format:"date-time"`
+}
+
+// TemplateDAUsResponse contains statistics of daily active users of the template.
 type TemplateAppUsageResponse struct {
-	UserID     uuid.UUID `json:"user_id" format:"uuid"`
-	AppID      uuid.UUID `json:"app_id" format:"uuid"`
-	TemplateID uuid.UUID `json:"template_id" format:"uuid"`
-	CreatedAt  time.Time `json:"created_at" format:"date-time"`
+	Entries []TemplateAppUsageEntry `json:"entries"`
 }
 
 func (c *Client) TemplateAppUsage(ctx context.Context, templateID uuid.UUID) ([]TemplateAppUsageResponse, error) {

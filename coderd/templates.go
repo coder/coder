@@ -604,8 +604,8 @@ func (api *API) appUsage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var usage []database.AppUsage
-	usage, err = api.Database.GetAppUsageByTemplateID(ctx, database.GetAppUsageByTemplateIDParams{
+	var usage []database.GetGroupedAppUsageByTemplateIDRow
+	usage, err = api.Database.GetGroupedAppUsageByTemplateID(ctx, database.GetGroupedAppUsageByTemplateIDParams{
 		TemplateID: template.ID,
 		SinceDate:  since,
 		ToDate:     to,
@@ -617,16 +617,17 @@ func (api *API) appUsage(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	res := make([]codersdk.TemplateAppUsageResponse, 0, len(usage))
+	entries := make([]codersdk.TemplateAppUsageEntry, 0, len(usage))
 	for _, usageRow := range usage {
-		res = append(res, codersdk.TemplateAppUsageResponse{
-			UserID:     usageRow.UserID,
-			TemplateID: usageRow.TemplateID,
-			AppID:      usageRow.AppID,
-			CreatedAt:  usageRow.CreatedAt,
+		entries = append(entries, codersdk.TemplateAppUsageEntry{
+			Count:     int(usageRow.Count),
+			AppID:     usageRow.AppID,
+			CreatedAt: usageRow.CreatedAt,
 		})
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, res)
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.TemplateAppUsageResponse{
+		Entries: entries,
+	})
 }
 
 // @Summary Get template examples by organization

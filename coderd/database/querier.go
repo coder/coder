@@ -53,6 +53,7 @@ type sqlcQuerier interface {
 	GetGroupByID(ctx context.Context, id uuid.UUID) (Group, error)
 	GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrgAndNameParams) (Group, error)
 	GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]User, error)
+	GetGroupedAppUsageByTemplateID(ctx context.Context, arg GetGroupedAppUsageByTemplateIDParams) ([]GetGroupedAppUsageByTemplateIDRow, error)
 	GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]Group, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)
 	GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (WorkspaceBuild, error)
