@@ -4,14 +4,17 @@ import TableRow from "@material-ui/core/TableRow"
 import KeyboardArrowRight from "@material-ui/icons/KeyboardArrowRight"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
-import { useClickable } from "hooks/useClickable"
 import { FC } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, Link as RouterLink } from "react-router-dom"
 import { getDisplayWorkspaceTemplateName } from "util/workspace"
 import { LastUsed } from "../LastUsed/LastUsed"
 import { Workspace } from "api/typesGenerated"
 import { OutdatedHelpTooltip } from "components/Tooltips/OutdatedHelpTooltip"
 import { Avatar } from "components/Avatar/Avatar"
+import { Stack } from "components/Stack/Stack"
+import TemplateLinkIcon from "@material-ui/icons/OpenInNewOutlined"
+import Link from "@material-ui/core/Link"
+import { useClickableTableRow } from "hooks/useClickableTableRow"
 
 export const WorkspacesRow: FC<{
   workspace: Workspace
@@ -20,45 +23,55 @@ export const WorkspacesRow: FC<{
   const styles = useStyles()
   const navigate = useNavigate()
   const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`
-  const hasTemplateIcon =
-    workspace.template_icon && workspace.template_icon !== ""
   const displayTemplateName = getDisplayWorkspaceTemplateName(workspace)
-  const clickable = useClickable(() => {
+  const clickable = useClickableTableRow(() => {
     navigate(workspacePageLink)
   })
 
   return (
-    <TableRow
-      className={styles.row}
-      hover
-      data-testid={`workspace-${workspace.id}`}
-      {...clickable}
-    >
+    <TableRow data-testid={`workspace-${workspace.id}`} {...clickable}>
       <TableCell>
         <AvatarData
-          title={workspace.name}
+          title={
+            <Stack direction="row" spacing={0} alignItems="center">
+              {workspace.name}
+              {workspace.outdated && (
+                <OutdatedHelpTooltip
+                  onUpdateVersion={() => {
+                    onUpdateWorkspace(workspace)
+                  }}
+                />
+              )}
+            </Stack>
+          }
           subtitle={workspace.owner_name}
           avatar={
-            hasTemplateIcon && (
-              <Avatar src={workspace.template_icon} variant="square" fitImage />
-            )
+            <Avatar
+              src={workspace.template_icon}
+              variant={workspace.template_icon ? "square" : undefined}
+              fitImage={Boolean(workspace.template_icon)}
+            >
+              {workspace.name}
+            </Avatar>
           }
         />
       </TableCell>
 
-      <TableCell>{displayTemplateName}</TableCell>
-
       <TableCell>
-        <div className={styles.version}>
-          {workspace.latest_build.template_version_name}
-          {workspace.outdated && (
-            <OutdatedHelpTooltip
-              onUpdateVersion={() => {
-                onUpdateWorkspace(workspace)
-              }}
-            />
-          )}
-        </div>
+        <Link
+          component={RouterLink}
+          to={`/templates/${workspace.template_name}`}
+          className={styles.templateLink}
+          title={`Go to ${displayTemplateName} page`}
+          onClick={(e) => {
+            e.stopPropagation()
+          }}
+        >
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <TemplateLinkIcon className={styles.templateLinkIcon} />
+            <span>{displayTemplateName}</span>
+          </Stack>
+        </Link>
       </TableCell>
 
       <TableCell>
@@ -79,15 +92,6 @@ export const WorkspacesRow: FC<{
 }
 
 const useStyles = makeStyles((theme) => ({
-  row: {
-    cursor: "pointer",
-
-    "&:focus": {
-      outline: `1px solid ${theme.palette.secondary.dark}`,
-      outlineOffset: -1,
-    },
-  },
-
   arrowRight: {
     color: theme.palette.text.secondary,
     width: 20,
@@ -99,18 +103,17 @@ const useStyles = makeStyles((theme) => ({
     paddingLeft: theme.spacing(2),
   },
 
-  templateIconWrapper: {
-    // Same size then the avatar component
-    width: 36,
-    height: 36,
-    padding: 2,
+  templateLink: {
+    color: theme.palette.text.secondary,
 
-    "& img": {
-      width: "100%",
+    "&:hover": {
+      color: theme.palette.text.primary,
+      textDecoration: "none",
     },
   },
 
-  version: {
-    display: "flex",
+  templateLinkIcon: {
+    width: theme.spacing(1.5),
+    height: theme.spacing(1.5),
   },
 }))

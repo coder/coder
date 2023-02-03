@@ -1,8 +1,6 @@
 package httpmw_test
 
 import (
-	"context"
-	"crypto/sha256"
 	"fmt"
 	"math/rand"
 	"net"
@@ -12,39 +10,21 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbfake"
+	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
 )
 
-func insertAPIKey(ctx context.Context, t *testing.T, db database.Store, userID uuid.UUID) string {
-	id, secret := randomAPIKeyParts()
-	hashed := sha256.Sum256([]byte(secret))
-
-	_, err := db.InsertAPIKey(ctx, database.InsertAPIKeyParams{
-		ID:           id,
-		HashedSecret: hashed[:],
-		LastUsed:     database.Now().AddDate(0, 0, -1),
-		ExpiresAt:    database.Now().AddDate(0, 0, 1),
-		UserID:       userID,
-		LoginType:    database.LoginTypePassword,
-		Scope:        database.APIKeyScopeAll,
-	})
-	require.NoError(t, err)
-
-	return fmt.Sprintf("%s-%s", id, secret)
-}
-
 func randRemoteAddr() string {
 	var b [4]byte
 	// nolint:gosec
-	rand.Read(b[:])
+	_, _ = rand.Read(b[:])
 	// nolint:gosec
 	return fmt.Sprintf("%s:%v", net.IP(b[:]).String(), rand.Int31()%(1<<16))
 }
@@ -91,12 +71,9 @@ func TestRateLimit(t *testing.T) {
 	t.Run("RegularUser", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
-
-		db := databasefake.New()
-
-		u := createUser(ctx, t, db)
-		key := insertAPIKey(ctx, t, db, u.ID)
+		db := dbfake.New()
+		u := dbgen.User(t, db, database.User{})
+		_, key := dbgen.APIKey(t, db, database.APIKey{UserID: u.ID})
 
 		rtr := chi.NewRouter()
 		rtr.Use(httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
@@ -137,15 +114,12 @@ func TestRateLimit(t *testing.T) {
 	t.Run("OwnerBypass", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.Background()
+		db := dbfake.New()
 
-		db := databasefake.New()
-
-		u := createUser(ctx, t, db, func(u *database.InsertUserParams) {
-			u.RBACRoles = []string{rbac.RoleOwner()}
+		u := dbgen.User(t, db, database.User{
+			RBACRoles: []string{rbac.RoleOwner()},
 		})
-
-		key := insertAPIKey(ctx, t, db, u.ID)
+		_, key := dbgen.APIKey(t, db, database.APIKey{UserID: u.ID})
 
 		rtr := chi.NewRouter()
 		rtr.Use(httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{

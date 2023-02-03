@@ -268,10 +268,13 @@ func (a *agent) run(ctx context.Context) error {
 
 		scriptDone := make(chan error, 1)
 		scriptStart := time.Now()
-		go func() {
+		err := a.trackConnGoroutine(func() {
 			defer close(scriptDone)
 			scriptDone <- a.runStartupScript(ctx, metadata.StartupScript)
-		}()
+		})
+		if err != nil {
+			return xerrors.Errorf("track startup script: %w", err)
+		}
 		go func() {
 			var timeout <-chan time.Time
 			// If timeout is zero, an older version of the coder
@@ -526,23 +529,23 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 		return nil, err
 	}
 
-	statisticsListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.WorkspaceAgentStatisticsPort))
+	apiListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.WorkspaceAgentHTTPAPIServerPort))
 	if err != nil {
-		return nil, xerrors.Errorf("listen for statistics: %w", err)
+		return nil, xerrors.Errorf("api listener: %w", err)
 	}
 	defer func() {
 		if err != nil {
-			_ = statisticsListener.Close()
+			_ = apiListener.Close()
 		}
 	}()
 	if err = a.trackConnGoroutine(func() {
-		defer statisticsListener.Close()
+		defer apiListener.Close()
 		server := &http.Server{
-			Handler:           a.statisticsHandler(),
+			Handler:           a.apiHandler(),
 			ReadTimeout:       20 * time.Second,
 			ReadHeaderTimeout: 20 * time.Second,
 			WriteTimeout:      20 * time.Second,
-			ErrorLog:          slog.Stdlib(ctx, a.logger.Named("statistics_http_server"), slog.LevelInfo),
+			ErrorLog:          slog.Stdlib(ctx, a.logger.Named("http_api_server"), slog.LevelInfo),
 		}
 		go func() {
 			select {
@@ -552,9 +555,9 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 			_ = server.Close()
 		}()
 
-		err := server.Serve(statisticsListener)
+		err := server.Serve(apiListener)
 		if err != nil && !xerrors.Is(err, http.ErrServerClosed) && !strings.Contains(err.Error(), "use of closed network connection") {
-			a.logger.Critical(ctx, "serve statistics HTTP server", slog.Error(err))
+			a.logger.Critical(ctx, "serve HTTP API server", slog.Error(err))
 		}
 	}); err != nil {
 		return nil, err

@@ -1,4 +1,4 @@
-package databasefake_test
+package dbfake_test
 
 import (
 	"context"
@@ -12,14 +12,14 @@ import (
 
 	"github.com/coder/coder/coderd/database"
 
-	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbfake"
 )
 
 // test that transactions don't deadlock, and that we don't see intermediate state.
 func TestInTx(t *testing.T) {
 	t.Parallel()
 
-	uut := databasefake.New()
+	uut := dbfake.New()
 
 	inTx := make(chan any)
 	queriesDone := make(chan any)
@@ -77,7 +77,7 @@ func TestExactMethods(t *testing.T) {
 		"IsFakeDB": "Helper function used for unit testing",
 	}
 
-	fake := reflect.TypeOf(databasefake.New())
+	fake := reflect.TypeOf(dbfake.New())
 	fakeMethods := methods(fake)
 
 	store := reflect.TypeOf((*database.Store)(nil)).Elem()

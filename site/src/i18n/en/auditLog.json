@@ -12,7 +12,6 @@
       "ip": "IP: ",
       "os": "OS: ",
       "browser": "Browser: ",
-      "notAvailable": "Not available",
       "onBehalfOf": " on behalf of {{owner}}",
       "buildReason": "Coder automatically",
       "unknownUser": "an unknown user"

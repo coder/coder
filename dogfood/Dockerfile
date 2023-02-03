@@ -4,11 +4,11 @@ FROM rust:slim AS rust-utils
 ENV CARGO_INSTALL_ROOT=/tmp/
 RUN cargo install exa bat ripgrep typos-cli watchexec-cli
 
-FROM ubuntu AS go
+FROM ubuntu:jammy AS go
 
 RUN apt-get update && apt-get install --yes curl gcc
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.19
+ARG GO_VERSION=1.20
 RUN mkdir --parents /usr/local/go
 
 # Boring Go is needed to build FIPS-compliant binaries.
@@ -80,8 +80,7 @@ RUN apk add curl unzip
 RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v21.5/protoc-21.5-linux-x86_64.zip
 RUN unzip protoc.zip
 
-# Ubuntu 20.04 LTS (Focal Fossa)
-FROM ubuntu:focal
+FROM ubuntu:jammy
 
 SHELL ["/bin/bash", "-c"]
 
@@ -210,7 +209,7 @@ RUN systemctl enable \
 ARG CLOUD_SQL_PROXY_VERSION=1.26.0 \
 	DIVE_VERSION=0.10.0 \
 	DOCKER_GCR_VERSION=2.1.0 \
-	GOLANGCI_LINT_VERSION=1.48.0 \
+	GOLANGCI_LINT_VERSION=1.51.0 \
 	GRYPE_VERSION=0.24.0 \
 	HELM_VERSION=3.8.0 \
 	KUBE_LINTER_VERSION=0.2.5 \

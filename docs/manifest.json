@@ -42,6 +42,11 @@
           "path": "./install/docker.md"
         },
         {
+          "title": "Windows",
+          "description": "Install Coder on Windows",
+          "path": "./install/windows.md"
+        },
+        {
           "title": "Standalone binaries",
           "description": "Download binaries for macOS, Windows, and Linux",
           "path": "./install/binary.md"

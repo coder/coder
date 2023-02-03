@@ -25,19 +25,21 @@ import {
 } from "components/PageHeader/PageHeader"
 import { Stack } from "components/Stack/Stack"
 import { TableRowMenu } from "components/TableRowMenu/TableRowMenu"
-import { UserAutocompleteInline } from "components/UserAutocomplete/UserAutocomplete"
+import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete"
 import { useState } from "react"
 import { Helmet } from "react-helmet-async"
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom"
 import { pageTitle } from "util/page"
 import { groupMachine } from "xServices/groups/groupXService"
 import { Maybe } from "components/Conditionals/Maybe"
+import { makeStyles } from "@material-ui/core/styles"
 
 const AddGroupMember: React.FC<{
   isLoading: boolean
   onSubmit: (user: User, reset: () => void) => void
 }> = ({ isLoading, onSubmit }) => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
+  const styles = useStyles()
 
   const resetValues = () => {
     setSelectedUser(null)
@@ -54,7 +56,8 @@ const AddGroupMember: React.FC<{
       }}
     >
       <Stack direction="row" alignItems="center" spacing={1}>
-        <UserAutocompleteInline
+        <UserAutocomplete
+          className={styles.autoComplete}
           value={selectedUser}
           onChange={(newValue) => {
             setSelectedUser(newValue)
@@ -64,7 +67,6 @@ const AddGroupMember: React.FC<{
         <LoadingButton
           disabled={!selectedUser}
           type="submit"
-          size="small"
           startIcon={<PersonAdd />}
           loading={isLoading}
         >
@@ -222,5 +224,11 @@ export const GroupPage: React.FC = () => {
     </>
   )
 }
+
+const useStyles = makeStyles(() => ({
+  autoComplete: {
+    width: 300,
+  },
+}))
 
 export default GroupPage

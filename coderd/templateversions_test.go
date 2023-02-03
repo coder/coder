@@ -992,19 +992,19 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 	}
 }
 
-func TestTemplateVersionByOrganizationAndName(t *testing.T) {
+func TestTemplateVersionByOrganizationTemplateAndName(t *testing.T) {
 	t.Parallel()
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.TemplateVersionByOrganizationAndName(ctx, user.OrganizationID, "nothing")
+		_, err := client.TemplateVersionByOrganizationAndName(ctx, user.OrganizationID, template.Name, "nothing")
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
@@ -1015,12 +1015,12 @@ func TestTemplateVersionByOrganizationAndName(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.TemplateVersionByOrganizationAndName(ctx, user.OrganizationID, version.Name)
+		_, err := client.TemplateVersionByOrganizationAndName(ctx, user.OrganizationID, template.Name, version.Name)
 		require.NoError(t, err)
 	})
 }
@@ -1048,7 +1048,7 @@ func TestPreviousTemplateVersion(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.PreviousTemplateVersion(ctx, user.OrganizationID, templateBVersion1.Name)
+		_, err := client.PreviousTemplateVersion(ctx, user.OrganizationID, templateB.Name, templateBVersion1.Name)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
@@ -1075,7 +1075,7 @@ func TestPreviousTemplateVersion(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		result, err := client.PreviousTemplateVersion(ctx, user.OrganizationID, templateBVersion2.Name)
+		result, err := client.PreviousTemplateVersion(ctx, user.OrganizationID, templateB.Name, templateBVersion2.Name)
 		require.NoError(t, err)
 		require.Equal(t, templateBVersion1.ID, result.ID)
 	})

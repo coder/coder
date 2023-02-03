@@ -12,7 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbfake"
+	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/prometheusmetrics"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
@@ -23,63 +24,50 @@ func TestActiveUsers(t *testing.T) {
 
 	for _, tc := range []struct {
 		Name     string
-		Database func() database.Store
+		Database func(t *testing.T) database.Store
 		Count    int
 	}{{
 		Name: "None",
-		Database: func() database.Store {
-			return databasefake.New()
+		Database: func(t *testing.T) database.Store {
+			return dbfake.New()
 		},
 		Count: 0,
 	}, {
 		Name: "One",
-		Database: func() database.Store {
-			db := databasefake.New()
-			_, _ = db.InsertAPIKey(context.Background(), database.InsertAPIKeyParams{
-				UserID:    uuid.New(),
-				LastUsed:  database.Now(),
-				LoginType: database.LoginTypePassword,
-				Scope:     database.APIKeyScopeAll,
+		Database: func(t *testing.T) database.Store {
+			db := dbfake.New()
+			dbgen.APIKey(t, db, database.APIKey{
+				LastUsed: database.Now(),
 			})
 			return db
 		},
 		Count: 1,
 	}, {
 		Name: "OneWithExpired",
-		Database: func() database.Store {
-			db := databasefake.New()
-			_, _ = db.InsertAPIKey(context.Background(), database.InsertAPIKeyParams{
-				UserID:    uuid.New(),
-				LastUsed:  database.Now(),
-				LoginType: database.LoginTypePassword,
-				Scope:     database.APIKeyScopeAll,
+		Database: func(t *testing.T) database.Store {
+			db := dbfake.New()
+
+			dbgen.APIKey(t, db, database.APIKey{
+				LastUsed: database.Now(),
 			})
+
 			// Because this API key hasn't been used in the past hour, this shouldn't
 			// add to the user count.
-			_, _ = db.InsertAPIKey(context.Background(), database.InsertAPIKeyParams{
-				UserID:    uuid.New(),
-				LastUsed:  database.Now().Add(-2 * time.Hour),
-				LoginType: database.LoginTypePassword,
-				Scope:     database.APIKeyScopeAll,
+			dbgen.APIKey(t, db, database.APIKey{
+				LastUsed: database.Now().Add(-2 * time.Hour),
 			})
 			return db
 		},
 		Count: 1,
 	}, {
 		Name: "Multiple",
-		Database: func() database.Store {
-			db := databasefake.New()
-			_, _ = db.InsertAPIKey(context.Background(), database.InsertAPIKeyParams{
-				UserID:    uuid.New(),
-				LastUsed:  database.Now(),
-				LoginType: database.LoginTypePassword,
-				Scope:     database.APIKeyScopeAll,
+		Database: func(t *testing.T) database.Store {
+			db := dbfake.New()
+			dbgen.APIKey(t, db, database.APIKey{
+				LastUsed: database.Now(),
 			})
-			_, _ = db.InsertAPIKey(context.Background(), database.InsertAPIKeyParams{
-				UserID:    uuid.New(),
-				LastUsed:  database.Now(),
-				LoginType: database.LoginTypePassword,
-				Scope:     database.APIKeyScopeAll,
+			dbgen.APIKey(t, db, database.APIKey{
+				LastUsed: database.Now(),
 			})
 			return db
 		},
@@ -89,7 +77,7 @@ func TestActiveUsers(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			registry := prometheus.NewRegistry()
-			cancel, err := prometheusmetrics.ActiveUsers(context.Background(), registry, tc.Database(), time.Millisecond)
+			cancel, err := prometheusmetrics.ActiveUsers(context.Background(), registry, tc.Database(t), time.Millisecond)
 			require.NoError(t, err)
 			t.Cleanup(cancel)
 
@@ -193,13 +181,13 @@ func TestWorkspaces(t *testing.T) {
 	}{{
 		Name: "None",
 		Database: func() database.Store {
-			return databasefake.New()
+			return dbfake.New()
 		},
 		Total: 0,
 	}, {
 		Name: "Multiple",
 		Database: func() database.Store {
-			db := databasefake.New()
+			db := dbfake.New()
 			insertCanceled(db)
 			insertFailed(db)
 			insertFailed(db)
