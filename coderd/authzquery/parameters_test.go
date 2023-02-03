@@ -20,7 +20,7 @@ func (suite *MethodTestSuite) TestParameters() {
 				Scope:             database.ParameterScopeWorkspace,
 				SourceScheme:      database.ParameterSourceSchemeNone,
 				DestinationScheme: database.ParameterDestinationSchemeNone,
-			}), asserts(w, rbac.ActionUpdate))
+			}), asserts(w, rbac.ActionUpdate), nil)
 		})
 	})
 	suite.Run("TemplateVersionNoTemplate/InsertParameterValue", func() {
@@ -32,7 +32,7 @@ func (suite *MethodTestSuite) TestParameters() {
 				Scope:             database.ParameterScopeImportJob,
 				SourceScheme:      database.ParameterSourceSchemeNone,
 				DestinationScheme: database.ParameterDestinationSchemeNone,
-			}), asserts(v.RBACObjectNoTemplate(), rbac.ActionUpdate))
+			}), asserts(v.RBACObjectNoTemplate(), rbac.ActionUpdate), nil)
 		})
 	})
 	suite.Run("TemplateVersionTemplate/InsertParameterValue", func() {
@@ -50,7 +50,7 @@ func (suite *MethodTestSuite) TestParameters() {
 				Scope:             database.ParameterScopeImportJob,
 				SourceScheme:      database.ParameterSourceSchemeNone,
 				DestinationScheme: database.ParameterDestinationSchemeNone,
-			}), asserts(v.RBACObject(tpl), rbac.ActionUpdate))
+			}), asserts(v.RBACObject(tpl), rbac.ActionUpdate), nil)
 		})
 	})
 	suite.Run("Template/InsertParameterValue", func() {
@@ -61,7 +61,7 @@ func (suite *MethodTestSuite) TestParameters() {
 				Scope:             database.ParameterScopeTemplate,
 				SourceScheme:      database.ParameterSourceSchemeNone,
 				DestinationScheme: database.ParameterDestinationSchemeNone,
-			}), asserts(tpl, rbac.ActionUpdate))
+			}), asserts(tpl, rbac.ActionUpdate), nil)
 		})
 	})
 	suite.Run("Template/ParameterValue", func() {
@@ -71,7 +71,7 @@ func (suite *MethodTestSuite) TestParameters() {
 				ScopeID: tpl.ID,
 				Scope:   database.ParameterScopeTemplate,
 			})
-			return methodCase(values(pv.ID), asserts(tpl, rbac.ActionRead))
+			return methodCase(values(pv.ID), asserts(tpl, rbac.ActionRead), values(pv))
 		})
 	})
 	suite.Run("ParameterValues", func() {
@@ -88,7 +88,8 @@ func (suite *MethodTestSuite) TestParameters() {
 			})
 			return methodCase(values(database.ParameterValuesParams{
 				IDs: []uuid.UUID{a.ID, b.ID},
-			}), asserts(tpl, rbac.ActionRead, w, rbac.ActionRead))
+			}), asserts(tpl, rbac.ActionRead, w, rbac.ActionRead),
+				values([]database.ParameterValue{a, b}))
 		})
 	})
 	suite.Run("GetParameterSchemasByJobID", func() {
@@ -96,8 +97,9 @@ func (suite *MethodTestSuite) TestParameters() {
 			j := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{})
 			tpl := dbgen.Template(t, db, database.Template{})
 			tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{JobID: j.ID, TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}})
-			_ = dbgen.ParameterSchema(t, db, database.ParameterSchema{JobID: j.ID})
-			return methodCase(values(j.ID), asserts(tv.RBACObject(tpl), rbac.ActionRead))
+			a := dbgen.ParameterSchema(t, db, database.ParameterSchema{JobID: j.ID})
+			return methodCase(values(j.ID), asserts(tv.RBACObject(tpl), rbac.ActionRead),
+				values([]database.ParameterSchema{a}))
 		})
 	})
 	suite.Run("Workspace/GetParameterValueByScopeAndName", func() {
@@ -111,7 +113,7 @@ func (suite *MethodTestSuite) TestParameters() {
 				Scope:   v.Scope,
 				ScopeID: v.ScopeID,
 				Name:    v.Name,
-			}), asserts(w, rbac.ActionRead))
+			}), asserts(w, rbac.ActionRead), values(v))
 		})
 	})
 	suite.Run("Workspace/DeleteParameterValueByID", func() {
@@ -121,7 +123,7 @@ func (suite *MethodTestSuite) TestParameters() {
 				Scope:   database.ParameterScopeWorkspace,
 				ScopeID: w.ID,
 			})
-			return methodCase(values(v.ID), asserts(w, rbac.ActionUpdate))
+			return methodCase(values(v.ID), asserts(w, rbac.ActionUpdate), values())
 		})
 	})
 }
