@@ -268,7 +268,7 @@ func fetchWithPostFilter[ArgumentType any, ObjectType rbac.Objecter,
 // are predicated on the RBAC permissions of the related Template object.
 func queryWithRelated[ObjectType any, ArgumentType any, Related rbac.Objecter](
 	// Arguments
-	_ slog.Logger,
+	logger slog.Logger,
 	authorizer rbac.Authorizer,
 	action rbac.Action,
 	relatedFunc func(ObjectType, ArgumentType) (Related, error),
@@ -277,7 +277,7 @@ func queryWithRelated[ObjectType any, ArgumentType any, Related rbac.Objecter](
 		// Fetch the rbac subject
 		act, ok := ActorFromContext(ctx)
 		if !ok {
-			return empty, xerrors.Errorf("no authorization actor in context")
+			return empty, NoActorError
 		}
 
 		// Fetch the rbac object
@@ -295,7 +295,7 @@ func queryWithRelated[ObjectType any, ArgumentType any, Related rbac.Objecter](
 		// Authorize the action
 		err = authorizer.Authorize(ctx, act, action, rel.RBACObject())
 		if err != nil {
-			return empty, xerrors.Errorf("unauthorized: %w", err)
+			return empty, LogNotAuthorizedError(ctx, logger, err)
 		}
 
 		return obj, nil

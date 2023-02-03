@@ -100,7 +100,7 @@ func (q *AuthzQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) 
 			return database.ProvisionerJob{}, err
 		}
 	default:
-		return database.ProvisionerJob{}, xerrors.Errorf("unknown job type: %q", job.Type)
+		return database.ProvisionerJob{},  xerrors.Errorf("unknown job type: %q", job.Type)
 	}
 
 	return job, nil

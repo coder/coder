@@ -89,13 +89,13 @@ func (q *AuthzQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids 
 		if err == nil {
 			continue
 		}
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) && !errors.As(err, &NotAuthorizedError{}) {
 			// The agent is not tied to a workspace, likely from an orphaned template version.
 			// Just return it.
 			continue
 		}
 		// Otherwise, we cannot read the workspace, so we cannot read the agent.
-		return nil, err
+		return nil, LogNotAuthorizedError(ctx, q.log, err)
 	}
 	return agents, nil
 }
@@ -221,15 +221,15 @@ func (q *AuthzQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUI
 
 	build, err := q.db.GetWorkspaceBuildByJobID(ctx, resource.JobID)
 	if err != nil {
-		return database.WorkspaceResource{}, nil
+		return database.WorkspaceResource{}, err
 	}
 
 	// If the workspace can be read, then the resource can be read.
 	_, err = fetch(q.log, q.auth, q.db.GetWorkspaceByID)(ctx, build.WorkspaceID)
 	if err != nil {
-		return database.WorkspaceResource{}, nil
+		return database.WorkspaceResource{}, err
 	}
-	return resource, err
+	return resource, nil
 }
 
 // GetWorkspaceResourceMetadataByResourceIDs is an all or nothing call. If a single resource is not authorized, then
