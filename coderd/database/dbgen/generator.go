@@ -179,7 +179,7 @@ func User(t *testing.T, db database.Store, orig database.User) database.User {
 		HashedPassword: takeFirstSlice(orig.HashedPassword, []byte{}),
 		CreatedAt:      takeFirst(orig.CreatedAt, time.Now()),
 		UpdatedAt:      takeFirst(orig.UpdatedAt, time.Now()),
-		RBACRoles:      []string{},
+		RBACRoles:      takeFirstSlice(orig.RBACRoles, []string{}),
 		LoginType:      takeFirst(orig.LoginType, database.LoginTypePassword),
 	})
 	require.NoError(t, err, "insert user")
