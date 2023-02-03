@@ -151,7 +151,9 @@ func TestSessionExpiry(t *testing.T) {
 	// rejected for extra points.
 	err = db.UpdateAPIKeyByID(ctx, database.UpdateAPIKeyByIDParams{
 		ID:        apiKey.ID,
+		LastUsed:  apiKey.LastUsed,
 		ExpiresAt: database.Now().Add(-time.Hour),
+		IPAddress: apiKey.IPAddress,
 	})
 	require.NoError(t, err)
 
