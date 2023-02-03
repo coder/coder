@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
 )
@@ -117,8 +120,12 @@ func TestSessionExpiry(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	dc := coderdtest.DeploymentConfig(t)
+
+	db, pubsub := dbtestutil.NewDB(t)
 	adminClient := coderdtest.New(t, &coderdtest.Options{
 		DeploymentConfig: dc,
+		Database:         db,
+		Pubsub:           pubsub,
 	})
 	adminUser := coderdtest.CreateFirstUser(t, adminClient)
 
@@ -131,9 +138,24 @@ func TestSessionExpiry(t *testing.T) {
 	dc.SessionDuration.Value = time.Second
 
 	userClient := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
-	time.Sleep(dc.SessionDuration.Value + time.Second)
 
-	_, err := userClient.User(ctx, codersdk.Me)
+	// Find the session cookie, and ensure it has the correct expiry.
+	token := userClient.SessionToken()
+	apiKey, err := db.GetAPIKeyByID(ctx, strings.Split(token, "-")[0])
+	require.NoError(t, err)
+
+	require.EqualValues(t, dc.SessionDuration.Value.Seconds(), apiKey.LifetimeSeconds)
+	require.WithinDuration(t, apiKey.CreatedAt.Add(dc.SessionDuration.Value), apiKey.ExpiresAt, 2*time.Second)
+
+	// Update the session token to be expired so we can test that it is
+	// rejected for extra points.
+	err = db.UpdateAPIKeyByID(ctx, database.UpdateAPIKeyByIDParams{
+		ID:        apiKey.ID,
+		ExpiresAt: database.Now().Add(-time.Hour),
+	})
+	require.NoError(t, err)
+
+	_, err = userClient.User(ctx, codersdk.Me)
 	require.Error(t, err)
 	var sdkErr *codersdk.Error
 	if assert.ErrorAs(t, err, &sdkErr) {
