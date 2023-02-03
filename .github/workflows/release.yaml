@@ -337,7 +337,7 @@ jobs:
       - name: Start Packer builds
         uses: peter-evans/repository-dispatch@v2
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
           repository: coder/packages
           event-type: coder-release
           client-payload: '{"coder_version": "${{ needs.release.outputs.version }}"}'
