@@ -3,15 +3,17 @@ package dbgen
 import "net"
 
 func takeFirstIP(values ...net.IPNet) net.IPNet {
+	takeFirstSlice([]string{})
+
 	return takeFirstF(values, func(v net.IPNet) bool {
 		return len(v.IP) != 0 && len(v.Mask) != 0
 	})
 }
 
-// takeFirstBytes implements takeFirst for []byte.
-// []byte is not a comparable type.
-func takeFirstBytes(values ...[]byte) []byte {
-	return takeFirstF(values, func(v []byte) bool {
+// takeFirstSlice implements takeFirst for []any.
+// []any is not a comparable type.
+func takeFirstSlice[T any](values ...[]T) []T {
+	return takeFirstF(values, func(v []T) bool {
 		return len(v) != 0
 	})
 }
