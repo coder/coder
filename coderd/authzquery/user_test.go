@@ -136,8 +136,10 @@ func (s *MethodTestSuite) TestUser() {
 			u := dbgen.User(t, db, database.User{})
 			return methodCase(values(database.UpdateUserProfileParams{
 				ID:        u.ID,
+				Email:     u.Email,
+				Username:  u.Username,
 				UpdatedAt: u.UpdatedAt,
-			}), asserts(u.UserDataRBACObject(), rbac.ActionUpdate), values())
+			}), asserts(u.UserDataRBACObject(), rbac.ActionUpdate), values(u))
 		})
 	})
 	s.Run("UpdateUserStatus", func() {
@@ -210,8 +212,11 @@ func (s *MethodTestSuite) TestUser() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			link := dbgen.UserLink(t, db, database.UserLink{})
 			return methodCase(values(database.UpdateUserLinkParams{
-				UserID:    link.UserID,
-				LoginType: link.LoginType,
+				OAuthAccessToken:  link.OAuthAccessToken,
+				OAuthRefreshToken: link.OAuthRefreshToken,
+				OAuthExpiry:       link.OAuthExpiry,
+				UserID:            link.UserID,
+				LoginType:         link.LoginType,
 			}), asserts(link, rbac.ActionUpdate), values(link))
 		})
 	})
