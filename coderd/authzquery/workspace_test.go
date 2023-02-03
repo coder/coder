@@ -26,6 +26,15 @@ func (s *MethodTestSuite) TestWorkspace() {
 				nil) // GetWorkspacesRow
 		})
 	})
+	s.Run("GetAuthorizedWorkspaces", func() {
+		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+			_ = dbgen.Workspace(t, db, database.Workspace{})
+			_ = dbgen.Workspace(t, db, database.Workspace{})
+			// No asserts here because SQLFilter.
+			return methodCase(values(database.GetWorkspacesParams{}, emptyPreparedAuthorized{}), asserts(),
+				nil) // GetWorkspacesRow
+		})
+	})
 	s.Run("GetLatestWorkspaceBuildByWorkspaceID", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			ws := dbgen.Workspace(t, db, database.Workspace{})
