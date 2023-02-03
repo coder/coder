@@ -9,8 +9,6 @@ import (
 
 func TestAuthorizeAllEndpoints(t *testing.T) {
 	t.Parallel()
-	// TODO: DO NOT MERGE THIS
-	t.Skip("TODO: fix all the unit tests that break when this is enabled. ")
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		// Required for any subdomain-based proxy tests to pass.
 		AppHostname: "*.test.coder.com",

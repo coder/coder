@@ -181,7 +181,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
 	}
 	// TODO: remove this once we're ready to enable authz querier by default.
-	if strings.Contains(os.Getenv("CODER_EXPERIMENTS_TEST"), "authz_querier") || true {
+	if strings.Contains(os.Getenv("CODER_EXPERIMENTS_TEST"), "authz_querier") {
 		if options.Authorizer == nil {
 			options.Authorizer = &RecordingAuthorizer{
 				Wrapped: rbac.NewAuthorizer(prometheus.NewRegistry()),
