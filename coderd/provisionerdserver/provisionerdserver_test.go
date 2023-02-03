@@ -15,7 +15,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/telemetry"
@@ -35,7 +35,7 @@ func TestAcquireJob(t *testing.T) {
 	t.Parallel()
 	t.Run("Debounce", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		pubsub := database.NewPubsubInMemory()
 		srv := &provisionerdserver.Server{
 			ID:                 uuid.New(),
@@ -711,7 +711,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	}
 	t.Run("NoAgents", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		job := uuid.New()
 		err := insert(db, job, &sdkproto.Resource{
 			Name: "something",
@@ -724,7 +724,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	})
 	t.Run("InvalidAgentToken", func(t *testing.T) {
 		t.Parallel()
-		err := insert(databasefake.New(), uuid.New(), &sdkproto.Resource{
+		err := insert(dbfake.New(), uuid.New(), &sdkproto.Resource{
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
@@ -737,7 +737,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	})
 	t.Run("DuplicateApps", func(t *testing.T) {
 		t.Parallel()
-		err := insert(databasefake.New(), uuid.New(), &sdkproto.Resource{
+		err := insert(dbfake.New(), uuid.New(), &sdkproto.Resource{
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
@@ -752,7 +752,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	})
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		job := uuid.New()
 		err := insert(db, job, &sdkproto.Resource{
 			Name:      "something",
@@ -798,7 +798,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 
 func setup(t *testing.T, ignoreLogErrors bool) *provisionerdserver.Server {
 	t.Helper()
-	db := databasefake.New()
+	db := dbfake.New()
 	pubsub := database.NewPubsubInMemory()
 
 	return &provisionerdserver.Server{
