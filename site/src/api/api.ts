@@ -231,10 +231,11 @@ export const getTemplateVersions = async (
 
 export const getTemplateVersionByName = async (
   organizationId: string,
+  templateName: string,
   versionName: string,
 ): Promise<TypesGen.TemplateVersion> => {
   const response = await axios.get<TypesGen.TemplateVersion>(
-    `/api/v2/organizations/${organizationId}/templateversions/${versionName}`,
+    `/api/v2/organizations/${organizationId}/templates/${templateName}/versions/${versionName}`,
   )
   return response.data
 }
@@ -245,11 +246,12 @@ export type GetPreviousTemplateVersionByNameResponse =
 
 export const getPreviousTemplateVersionByName = async (
   organizationId: string,
+  templateName: string,
   versionName: string,
 ): Promise<GetPreviousTemplateVersionByNameResponse> => {
   try {
     const response = await axios.get<TypesGen.TemplateVersion>(
-      `/api/v2/organizations/${organizationId}/templateversions/${versionName}/previous`,
+      `/api/v2/organizations/${organizationId}/templates/${templateName}/versions/${versionName}/previous`,
     )
     return response.data
   } catch (error) {

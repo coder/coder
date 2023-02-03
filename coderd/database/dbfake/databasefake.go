@@ -1,4 +1,4 @@
-package databasefake
+package dbfake
 
 import (
 	"context"
@@ -1797,26 +1797,6 @@ func (q *fakeQuerier) GetTemplateVersionParameters(_ context.Context, templateVe
 	return parameters, nil
 }
 
-func (q *fakeQuerier) GetTemplateVersionByOrganizationAndName(_ context.Context, arg database.GetTemplateVersionByOrganizationAndNameParams) (database.TemplateVersion, error) {
-	if err := validateDatabaseType(arg); err != nil {
-		return database.TemplateVersion{}, err
-	}
-
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for _, templateVersion := range q.templateVersions {
-		if templateVersion.OrganizationID != arg.OrganizationID {
-			continue
-		}
-		if !strings.EqualFold(templateVersion.Name, arg.Name) {
-			continue
-		}
-		return templateVersion, nil
-	}
-	return database.TemplateVersion{}, sql.ErrNoRows
-}
-
 func (q *fakeQuerier) GetTemplateVersionByID(_ context.Context, templateVersionID uuid.UUID) (database.TemplateVersion, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -2539,20 +2519,21 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 
 	//nolint:gosimple
 	template := database.Template{
-		ID:              arg.ID,
-		CreatedAt:       arg.CreatedAt,
-		UpdatedAt:       arg.UpdatedAt,
-		OrganizationID:  arg.OrganizationID,
-		Name:            arg.Name,
-		Provisioner:     arg.Provisioner,
-		ActiveVersionID: arg.ActiveVersionID,
-		Description:     arg.Description,
-		DefaultTTL:      arg.DefaultTTL,
-		CreatedBy:       arg.CreatedBy,
-		UserACL:         arg.UserACL,
-		GroupACL:        arg.GroupACL,
-		DisplayName:     arg.DisplayName,
-		Icon:            arg.Icon,
+		ID:                           arg.ID,
+		CreatedAt:                    arg.CreatedAt,
+		UpdatedAt:                    arg.UpdatedAt,
+		OrganizationID:               arg.OrganizationID,
+		Name:                         arg.Name,
+		Provisioner:                  arg.Provisioner,
+		ActiveVersionID:              arg.ActiveVersionID,
+		Description:                  arg.Description,
+		DefaultTTL:                   arg.DefaultTTL,
+		CreatedBy:                    arg.CreatedBy,
+		UserACL:                      arg.UserACL,
+		GroupACL:                     arg.GroupACL,
+		DisplayName:                  arg.DisplayName,
+		Icon:                         arg.Icon,
+		AllowUserCancelWorkspaceJobs: arg.AllowUserCancelWorkspaceJobs,
 	}
 	q.templates = append(q.templates, template)
 	return template, nil

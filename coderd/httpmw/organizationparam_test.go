@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
@@ -62,7 +62,7 @@ func TestOrganizationParam(t *testing.T) {
 	t.Run("None", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db   = databasefake.New()
+			db   = dbfake.New()
 			rw   = httptest.NewRecorder()
 			r, _ = setupAuthentication(db)
 			rtr  = chi.NewRouter()
@@ -84,7 +84,7 @@ func TestOrganizationParam(t *testing.T) {
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db   = databasefake.New()
+			db   = dbfake.New()
 			rw   = httptest.NewRecorder()
 			r, _ = setupAuthentication(db)
 			rtr  = chi.NewRouter()
@@ -107,7 +107,7 @@ func TestOrganizationParam(t *testing.T) {
 	t.Run("InvalidUUID", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db   = databasefake.New()
+			db   = dbfake.New()
 			rw   = httptest.NewRecorder()
 			r, _ = setupAuthentication(db)
 			rtr  = chi.NewRouter()
@@ -130,7 +130,7 @@ func TestOrganizationParam(t *testing.T) {
 	t.Run("NotInOrganization", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db   = databasefake.New()
+			db   = dbfake.New()
 			rw   = httptest.NewRecorder()
 			r, u = setupAuthentication(db)
 			rtr  = chi.NewRouter()
@@ -163,7 +163,7 @@ func TestOrganizationParam(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db      = databasefake.New()
+			db      = dbfake.New()
 			rw      = httptest.NewRecorder()
 			r, user = setupAuthentication(db)
 			rtr     = chi.NewRouter()
