@@ -46,7 +46,7 @@ with the user so that they can log into Coder:
 
 ```console
 Download the Coder command line for your operating system:
-https://github.com/coder/coder/releases
+https://github.com/coder/coder/releases/latest
 
 Run  coder login https://<accessURL>.coder.app  to authenticate.
 

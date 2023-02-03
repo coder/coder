@@ -11,13 +11,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbfake"
+	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/codersdk"
@@ -43,7 +43,7 @@ func TestAPIKey(t *testing.T) {
 	t.Run("NoCookie", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db = databasefake.New()
+			db = dbfake.New()
 			r  = httptest.NewRequest("GET", "/", nil)
 			rw = httptest.NewRecorder()
 		)
@@ -59,7 +59,7 @@ func TestAPIKey(t *testing.T) {
 	t.Run("NoCookieRedirects", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db = databasefake.New()
+			db = dbfake.New()
 			r  = httptest.NewRequest("GET", "/", nil)
 			rw = httptest.NewRecorder()
 		)
@@ -78,7 +78,7 @@ func TestAPIKey(t *testing.T) {
 	t.Run("InvalidFormat", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db = databasefake.New()
+			db = dbfake.New()
 			r  = httptest.NewRequest("GET", "/", nil)
 			rw = httptest.NewRecorder()
 		)
@@ -96,7 +96,7 @@ func TestAPIKey(t *testing.T) {
 	t.Run("InvalidIDLength", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db = databasefake.New()
+			db = dbfake.New()
 			r  = httptest.NewRequest("GET", "/", nil)
 			rw = httptest.NewRecorder()
 		)
@@ -114,7 +114,7 @@ func TestAPIKey(t *testing.T) {
 	t.Run("InvalidSecretLength", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db = databasefake.New()
+			db = dbfake.New()
 			r  = httptest.NewRequest("GET", "/", nil)
 			rw = httptest.NewRecorder()
 		)
@@ -132,7 +132,7 @@ func TestAPIKey(t *testing.T) {
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db         = databasefake.New()
+			db         = dbfake.New()
 			id, secret = randomAPIKeyParts()
 			r          = httptest.NewRequest("GET", "/", nil)
 			rw         = httptest.NewRecorder()
@@ -151,24 +151,19 @@ func TestAPIKey(t *testing.T) {
 	t.Run("InvalidSecret", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db         = databasefake.New()
-			id, secret = randomAPIKeyParts()
-			r          = httptest.NewRequest("GET", "/", nil)
-			rw         = httptest.NewRecorder()
-			user       = createUser(r.Context(), t, db)
-		)
-		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
+			db   = dbfake.New()
+			r    = httptest.NewRequest("GET", "/", nil)
+			rw   = httptest.NewRecorder()
+			user = dbgen.User(t, db, database.User{})
 
-		// Use a different secret so they don't match!
-		hashed := sha256.Sum256([]byte("differentsecret"))
-		_, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
-			ID:           id,
-			HashedSecret: hashed[:],
-			UserID:       user.ID,
-			LoginType:    database.LoginTypePassword,
-			Scope:        database.APIKeyScopeAll,
-		})
-		require.NoError(t, err)
+			// Use a different secret so they don't match!
+			hashed   = sha256.Sum256([]byte("differentsecret"))
+			_, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:       user.ID,
+				HashedSecret: hashed[:],
+			})
+		)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
 		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
@@ -181,23 +176,18 @@ func TestAPIKey(t *testing.T) {
 	t.Run("Expired", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db         = databasefake.New()
-			id, secret = randomAPIKeyParts()
-			hashed     = sha256.Sum256([]byte(secret))
-			r          = httptest.NewRequest("GET", "/", nil)
-			rw         = httptest.NewRecorder()
-			user       = createUser(r.Context(), t, db)
-		)
-		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
+			db       = dbfake.New()
+			user     = dbgen.User(t, db, database.User{})
+			_, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				ExpiresAt: time.Now().Add(time.Hour * -1),
+			})
 
-		_, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
-			ID:           id,
-			HashedSecret: hashed[:],
-			UserID:       user.ID,
-			LoginType:    database.LoginTypePassword,
-			Scope:        database.APIKeyScopeAll,
-		})
-		require.NoError(t, err)
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
+		)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+
 		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
@@ -210,24 +200,18 @@ func TestAPIKey(t *testing.T) {
 	t.Run("Valid", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db         = databasefake.New()
-			id, secret = randomAPIKeyParts()
-			hashed     = sha256.Sum256([]byte(secret))
-			r          = httptest.NewRequest("GET", "/", nil)
-			rw         = httptest.NewRecorder()
-			user       = createUser(r.Context(), t, db)
-		)
-		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
+			db                = dbfake.New()
+			user              = dbgen.User(t, db, database.User{})
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				ExpiresAt: database.Now().AddDate(0, 0, 1),
+			})
 
-		sentAPIKey, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
-			ID:           id,
-			HashedSecret: hashed[:],
-			ExpiresAt:    database.Now().AddDate(0, 0, 1),
-			UserID:       user.ID,
-			LoginType:    database.LoginTypePassword,
-			Scope:        database.APIKeyScopeAll,
-		})
-		require.NoError(t, err)
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
+		)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+
 		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
@@ -242,7 +226,7 @@ func TestAPIKey(t *testing.T) {
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
 
-		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), id)
+		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), sentAPIKey.ID)
 		require.NoError(t, err)
 
 		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
@@ -251,27 +235,21 @@ func TestAPIKey(t *testing.T) {
 	t.Run("ValidWithScope", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db         = databasefake.New()
-			id, secret = randomAPIKeyParts()
-			hashed     = sha256.Sum256([]byte(secret))
-			r          = httptest.NewRequest("GET", "/", nil)
-			rw         = httptest.NewRecorder()
-			user       = createUser(r.Context(), t, db)
+			db       = dbfake.New()
+			user     = dbgen.User(t, db, database.User{})
+			_, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				ExpiresAt: database.Now().AddDate(0, 0, 1),
+				Scope:     database.APIKeyScopeApplicationConnect,
+			})
+
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
 		)
 		r.AddCookie(&http.Cookie{
 			Name:  codersdk.SessionTokenCookie,
-			Value: fmt.Sprintf("%s-%s", id, secret),
+			Value: token,
 		})
-
-		_, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
-			ID:           id,
-			UserID:       user.ID,
-			HashedSecret: hashed[:],
-			ExpiresAt:    database.Now().AddDate(0, 0, 1),
-			LoginType:    database.LoginTypePassword,
-			Scope:        database.APIKeyScopeApplicationConnect,
-		})
-		require.NoError(t, err)
 
 		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
@@ -294,26 +272,20 @@ func TestAPIKey(t *testing.T) {
 	t.Run("QueryParameter", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db         = databasefake.New()
-			id, secret = randomAPIKeyParts()
-			hashed     = sha256.Sum256([]byte(secret))
-			r          = httptest.NewRequest("GET", "/", nil)
-			rw         = httptest.NewRecorder()
-			user       = createUser(r.Context(), t, db)
+			db       = dbfake.New()
+			user     = dbgen.User(t, db, database.User{})
+			_, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				ExpiresAt: database.Now().AddDate(0, 0, 1),
+			})
+
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
 		)
 		q := r.URL.Query()
-		q.Add(codersdk.SessionTokenCookie, fmt.Sprintf("%s-%s", id, secret))
+		q.Add(codersdk.SessionTokenCookie, token)
 		r.URL.RawQuery = q.Encode()
 
-		_, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
-			ID:           id,
-			HashedSecret: hashed[:],
-			ExpiresAt:    database.Now().AddDate(0, 0, 1),
-			UserID:       user.ID,
-			LoginType:    database.LoginTypePassword,
-			Scope:        database.APIKeyScopeAll,
-		})
-		require.NoError(t, err)
 		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
@@ -332,25 +304,19 @@ func TestAPIKey(t *testing.T) {
 	t.Run("ValidUpdateLastUsed", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db         = databasefake.New()
-			id, secret = randomAPIKeyParts()
-			hashed     = sha256.Sum256([]byte(secret))
-			r          = httptest.NewRequest("GET", "/", nil)
-			rw         = httptest.NewRecorder()
-			user       = createUser(r.Context(), t, db)
-		)
-		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
+			db                = dbfake.New()
+			user              = dbgen.User(t, db, database.User{})
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				LastUsed:  database.Now().AddDate(0, 0, -1),
+				ExpiresAt: database.Now().AddDate(0, 0, 1),
+			})
 
-		sentAPIKey, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
-			ID:           id,
-			HashedSecret: hashed[:],
-			LastUsed:     database.Now().AddDate(0, 0, -1),
-			ExpiresAt:    database.Now().AddDate(0, 0, 1),
-			UserID:       user.ID,
-			LoginType:    database.LoginTypePassword,
-			Scope:        database.APIKeyScopeAll,
-		})
-		require.NoError(t, err)
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
+		)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+
 		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
@@ -359,7 +325,7 @@ func TestAPIKey(t *testing.T) {
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
 
-		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), id)
+		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), sentAPIKey.ID)
 		require.NoError(t, err)
 
 		require.NotEqual(t, sentAPIKey.LastUsed, gotAPIKey.LastUsed)
@@ -369,25 +335,19 @@ func TestAPIKey(t *testing.T) {
 	t.Run("ValidUpdateExpiry", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db         = databasefake.New()
-			id, secret = randomAPIKeyParts()
-			hashed     = sha256.Sum256([]byte(secret))
-			r          = httptest.NewRequest("GET", "/", nil)
-			rw         = httptest.NewRecorder()
-			user       = createUser(r.Context(), t, db)
-		)
-		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
+			db                = dbfake.New()
+			user              = dbgen.User(t, db, database.User{})
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				LastUsed:  database.Now(),
+				ExpiresAt: database.Now().Add(time.Minute),
+			})
 
-		sentAPIKey, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
-			ID:           id,
-			HashedSecret: hashed[:],
-			LastUsed:     database.Now(),
-			ExpiresAt:    database.Now().Add(time.Minute),
-			UserID:       user.ID,
-			LoginType:    database.LoginTypePassword,
-			Scope:        database.APIKeyScopeAll,
-		})
-		require.NoError(t, err)
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
+		)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+
 		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
@@ -396,41 +356,65 @@ func TestAPIKey(t *testing.T) {
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
 
-		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), id)
+		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), sentAPIKey.ID)
 		require.NoError(t, err)
 
 		require.Equal(t, sentAPIKey.LastUsed, gotAPIKey.LastUsed)
 		require.NotEqual(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
 	})
 
+	t.Run("NoRefresh", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db                = dbfake.New()
+			user              = dbgen.User(t, db, database.User{})
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				LastUsed:  database.Now().AddDate(0, 0, -1),
+				ExpiresAt: database.Now().AddDate(0, 0, 1),
+			})
+
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
+		)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+
+		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+			DB:                          db,
+			RedirectToLogin:             false,
+			DisableSessionExpiryRefresh: true,
+		})(successHandler).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), sentAPIKey.ID)
+		require.NoError(t, err)
+
+		require.NotEqual(t, sentAPIKey.LastUsed, gotAPIKey.LastUsed)
+		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
+	})
+
 	t.Run("OAuthNotExpired", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db         = databasefake.New()
-			id, secret = randomAPIKeyParts()
-			hashed     = sha256.Sum256([]byte(secret))
-			r          = httptest.NewRequest("GET", "/", nil)
-			rw         = httptest.NewRecorder()
-			user       = createUser(r.Context(), t, db)
+			db                = dbfake.New()
+			user              = dbgen.User(t, db, database.User{})
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				LastUsed:  database.Now(),
+				ExpiresAt: database.Now().AddDate(0, 0, 1),
+				LoginType: database.LoginTypeGithub,
+			})
+			_ = dbgen.UserLink(t, db, database.UserLink{
+				UserID:    user.ID,
+				LoginType: database.LoginTypeGithub,
+			})
+
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
 		)
-		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
-
-		sentAPIKey, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
-			ID:           id,
-			HashedSecret: hashed[:],
-			LoginType:    database.LoginTypeGithub,
-			LastUsed:     database.Now(),
-			ExpiresAt:    database.Now().AddDate(0, 0, 1),
-			UserID:       user.ID,
-			Scope:        database.APIKeyScopeAll,
-		})
-		require.NoError(t, err)
-
-		_, err = db.InsertUserLink(r.Context(), database.InsertUserLinkParams{
-			UserID:    user.ID,
-			LoginType: database.LoginTypeGithub,
-		})
-		require.NoError(t, err)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
 
 		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
@@ -440,7 +424,7 @@ func TestAPIKey(t *testing.T) {
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
 
-		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), id)
+		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), sentAPIKey.ID)
 		require.NoError(t, err)
 
 		require.Equal(t, sentAPIKey.LastUsed, gotAPIKey.LastUsed)
@@ -450,33 +434,27 @@ func TestAPIKey(t *testing.T) {
 	t.Run("OAuthRefresh", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db         = databasefake.New()
-			id, secret = randomAPIKeyParts()
-			hashed     = sha256.Sum256([]byte(secret))
-			r          = httptest.NewRequest("GET", "/", nil)
-			rw         = httptest.NewRecorder()
-			user       = createUser(r.Context(), t, db)
+			db                = dbfake.New()
+			user              = dbgen.User(t, db, database.User{})
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				LastUsed:  database.Now(),
+				ExpiresAt: database.Now().AddDate(0, 0, 1),
+				LoginType: database.LoginTypeGithub,
+			})
+			_ = dbgen.UserLink(t, db, database.UserLink{
+				UserID:            user.ID,
+				LoginType:         database.LoginTypeGithub,
+				OAuthRefreshToken: "hello",
+				OAuthExpiry:       database.Now().AddDate(0, 0, -1),
+			})
+
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
 		)
-		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
+		r.Header.Set(codersdk.SessionTokenHeader, token)
 
-		sentAPIKey, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
-			ID:           id,
-			HashedSecret: hashed[:],
-			LoginType:    database.LoginTypeGithub,
-			LastUsed:     database.Now(),
-			UserID:       user.ID,
-			Scope:        database.APIKeyScopeAll,
-		})
-		require.NoError(t, err)
-		_, err = db.InsertUserLink(r.Context(), database.InsertUserLinkParams{
-			UserID:            user.ID,
-			LoginType:         database.LoginTypeGithub,
-			OAuthExpiry:       database.Now().AddDate(0, 0, -1),
-			OAuthRefreshToken: "hello",
-		})
-		require.NoError(t, err)
-
-		token := &oauth2.Token{
+		oauthToken := &oauth2.Token{
 			AccessToken:  "wow",
 			RefreshToken: "moo",
 			Expiry:       database.Now().AddDate(0, 0, 1),
@@ -486,7 +464,7 @@ func TestAPIKey(t *testing.T) {
 			OAuth2Configs: &httpmw.OAuth2Configs{
 				Github: &oauth2Config{
 					tokenSource: oauth2TokenSource(func() (*oauth2.Token, error) {
-						return token, nil
+						return oauthToken, nil
 					}),
 				},
 			},
@@ -496,36 +474,30 @@ func TestAPIKey(t *testing.T) {
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
 
-		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), id)
+		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), sentAPIKey.ID)
 		require.NoError(t, err)
 
 		require.Equal(t, sentAPIKey.LastUsed, gotAPIKey.LastUsed)
-		require.Equal(t, token.Expiry, gotAPIKey.ExpiresAt)
+		require.Equal(t, oauthToken.Expiry, gotAPIKey.ExpiresAt)
 	})
 
 	t.Run("RemoteIPUpdates", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db         = databasefake.New()
-			id, secret = randomAPIKeyParts()
-			hashed     = sha256.Sum256([]byte(secret))
-			r          = httptest.NewRequest("GET", "/", nil)
-			rw         = httptest.NewRecorder()
-			user       = createUser(r.Context(), t, db)
+			db                = dbfake.New()
+			user              = dbgen.User(t, db, database.User{})
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				LastUsed:  database.Now().AddDate(0, 0, -1),
+				ExpiresAt: database.Now().AddDate(0, 0, 1),
+			})
+
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
 		)
 		r.RemoteAddr = "1.1.1.1"
-		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
+		r.Header.Set(codersdk.SessionTokenHeader, token)
 
-		_, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
-			ID:           id,
-			HashedSecret: hashed[:],
-			LastUsed:     database.Now().AddDate(0, 0, -1),
-			ExpiresAt:    database.Now().AddDate(0, 0, 1),
-			UserID:       user.ID,
-			LoginType:    database.LoginTypePassword,
-			Scope:        database.APIKeyScopeAll,
-		})
-		require.NoError(t, err)
 		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
@@ -534,7 +506,7 @@ func TestAPIKey(t *testing.T) {
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
 
-		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), id)
+		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), sentAPIKey.ID)
 		require.NoError(t, err)
 
 		require.Equal(t, net.ParseIP("1.1.1.1"), gotAPIKey.IPAddress.IPNet.IP)
@@ -543,7 +515,7 @@ func TestAPIKey(t *testing.T) {
 	t.Run("RedirectToLogin", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db = databasefake.New()
+			db = dbfake.New()
 			r  = httptest.NewRequest("GET", "/", nil)
 			rw = httptest.NewRecorder()
 		)
@@ -564,7 +536,7 @@ func TestAPIKey(t *testing.T) {
 	t.Run("Optional", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db = databasefake.New()
+			db = dbfake.New()
 			r  = httptest.NewRequest("GET", "/", nil)
 			rw = httptest.NewRecorder()
 
@@ -595,25 +567,19 @@ func TestAPIKey(t *testing.T) {
 	t.Run("Tokens", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db         = databasefake.New()
-			id, secret = randomAPIKeyParts()
-			hashed     = sha256.Sum256([]byte(secret))
-			r          = httptest.NewRequest("GET", "/", nil)
-			rw         = httptest.NewRecorder()
-			user       = createUser(r.Context(), t, db)
-		)
-		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
+			db                = dbfake.New()
+			user              = dbgen.User(t, db, database.User{})
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				LastUsed:  database.Now(),
+				ExpiresAt: database.Now().AddDate(0, 0, 1),
+				LoginType: database.LoginTypeToken,
+			})
 
-		sentAPIKey, err := db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
-			ID:           id,
-			HashedSecret: hashed[:],
-			LoginType:    database.LoginTypeToken,
-			LastUsed:     database.Now(),
-			ExpiresAt:    database.Now().AddDate(0, 0, 1),
-			UserID:       user.ID,
-			Scope:        database.APIKeyScopeAll,
-		})
-		require.NoError(t, err)
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
+		)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
 
 		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
@@ -623,32 +589,13 @@ func TestAPIKey(t *testing.T) {
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
 
-		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), id)
+		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), sentAPIKey.ID)
 		require.NoError(t, err)
 
 		require.Equal(t, sentAPIKey.LastUsed, gotAPIKey.LastUsed)
 		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
 		require.Equal(t, sentAPIKey.LoginType, gotAPIKey.LoginType)
 	})
-}
-
-func createUser(ctx context.Context, t *testing.T, db database.Store, opts ...func(u *database.InsertUserParams)) database.User {
-	insert := database.InsertUserParams{
-		ID:             uuid.New(),
-		Email:          "email@coder.com",
-		Username:       "username",
-		HashedPassword: []byte{},
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
-		RBACRoles:      []string{},
-		LoginType:      database.LoginTypePassword,
-	}
-	for _, opt := range opts {
-		opt(&insert)
-	}
-	user, err := db.InsertUser(ctx, insert)
-	require.NoError(t, err, "create user")
-	return user
 }
 
 type oauth2Config struct {

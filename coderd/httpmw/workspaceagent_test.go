@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/codersdk"
 )
@@ -28,7 +28,7 @@ func TestWorkspaceAgent(t *testing.T) {
 
 	t.Run("None", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		rtr := chi.NewRouter()
 		rtr.Use(
 			httpmw.ExtractWorkspaceAgent(db),
@@ -45,7 +45,7 @@ func TestWorkspaceAgent(t *testing.T) {
 
 	t.Run("Found", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		rtr := chi.NewRouter()
 		rtr.Use(
 			httpmw.ExtractWorkspaceAgent(db),

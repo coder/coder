@@ -207,7 +207,6 @@ const useStyles = makeStyles((theme) => ({
     padding: theme.spacing(2),
     // svg is for the Coder logo, img is for custom images
     "& svg, & img": {
-      width: "100%",
       height: "100%",
       objectFit: "contain",
     },

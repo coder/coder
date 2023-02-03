@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/cryptorand"
 )
@@ -59,7 +59,7 @@ func TestCompute(t *testing.T) {
 
 	t.Run("NoValue", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		scope := generateScope()
 		_, err := db.InsertParameterSchema(context.Background(), database.InsertParameterSchemaParams{
 			ID:                       uuid.New(),
@@ -77,7 +77,7 @@ func TestCompute(t *testing.T) {
 
 	t.Run("UseDefaultTemplateValue", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		scope := generateScope()
 		parameterSchema := generateParameter(t, db, parameterOptions{
 			TemplateImportJobID:      scope.TemplateImportJobID,
@@ -95,7 +95,7 @@ func TestCompute(t *testing.T) {
 
 	t.Run("TemplateOverridesTemplateDefault", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		scope := generateScope()
 		parameterSchema := generateParameter(t, db, parameterOptions{
 			TemplateImportJobID: scope.TemplateImportJobID,
@@ -120,7 +120,7 @@ func TestCompute(t *testing.T) {
 
 	t.Run("WorkspaceCannotOverwriteTemplateDefault", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		scope := generateScope()
 		parameterSchema := generateParameter(t, db, parameterOptions{
 			TemplateImportJobID: scope.TemplateImportJobID,
@@ -145,7 +145,7 @@ func TestCompute(t *testing.T) {
 
 	t.Run("WorkspaceOverwriteTemplateDefault", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		scope := generateScope()
 		parameterSchema := generateParameter(t, db, parameterOptions{
 			AllowOverrideSource: true,
@@ -170,7 +170,7 @@ func TestCompute(t *testing.T) {
 
 	t.Run("HideRedisplay", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		scope := generateScope()
 		_ = generateParameter(t, db, parameterOptions{
 			TemplateImportJobID:      scope.TemplateImportJobID,

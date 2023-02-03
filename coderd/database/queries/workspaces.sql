@@ -223,19 +223,6 @@ WHERE
 	AND LOWER("name") = LOWER(@name)
 ORDER BY created_at DESC;
 
--- name: GetWorkspaceOwnerCountsByTemplateIDs :many
-SELECT
-	template_id,
-	COUNT(DISTINCT owner_id)
-FROM
-	workspaces
-WHERE
-	template_id = ANY(@ids :: uuid [ ])
-	-- Ignore deleted workspaces
-	AND deleted != true
-GROUP BY
-	template_id;
-
 -- name: InsertWorkspace :one
 INSERT INTO
 	workspaces (

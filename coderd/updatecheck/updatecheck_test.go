@@ -14,7 +14,7 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 
-	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/updatecheck"
 	"github.com/coder/coder/testutil"
 )
@@ -44,12 +44,12 @@ func TestChecker_Notify(t *testing.T) {
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write(b)
+			_, _ = w.Write(b)
 		}
 	}))
 	defer srv.Close()
 
-	db := databasefake.New()
+	db := dbfake.New()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named(t.Name())
 	notify := make(chan updatecheck.Result, len(wantVersion))
 	c := updatecheck.New(db, logger, updatecheck.Options{
@@ -131,7 +131,7 @@ func TestChecker_Latest(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			db := databasefake.New()
+			db := dbfake.New()
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named(t.Name())
 			c := updatecheck.New(db, logger, updatecheck.Options{
 				URL: srv.URL,

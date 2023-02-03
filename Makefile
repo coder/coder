@@ -610,7 +610,8 @@ test-postgres-docker:
 		-c max_connections=1000 \
 		-c fsync=off \
 		-c synchronous_commit=off \
-		-c full_page_writes=off
+		-c full_page_writes=off \
+		-c log_statement=all
 	while ! pg_isready -h 127.0.0.1
 	do
 		echo "$(date) - waiting for database to start"

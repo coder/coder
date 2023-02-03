@@ -30,6 +30,7 @@ const { t } = i18next
 // It renders the workspace page and waits for it be loaded
 const renderWorkspacePage = async () => {
   jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate)
+  jest.spyOn(api, "getTemplateVersionRichParameters").mockResolvedValueOnce([])
   renderWithAuth(<WorkspacePage />, {
     route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
     path: "/@:username/:workspace",

@@ -15,7 +15,6 @@ import (
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
@@ -39,40 +38,6 @@ func TestTemplate(t *testing.T) {
 
 		_, err := client.Template(ctx, template.ID)
 		require.NoError(t, err)
-	})
-
-	t.Run("WorkspaceCount", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		member := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
-		memberWithDeleted := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-
-		// Create 3 workspaces with 3 users. 2 workspaces exist, 1 is deleted
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-
-		memberWorkspace := coderdtest.CreateWorkspace(t, member, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, member, memberWorkspace.LatestBuild.ID)
-
-		deletedWorkspace := coderdtest.CreateWorkspace(t, memberWithDeleted, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, deletedWorkspace.LatestBuild.ID)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		build, err := client.CreateWorkspaceBuild(ctx, deletedWorkspace.ID, codersdk.CreateWorkspaceBuildRequest{
-			Transition: codersdk.WorkspaceTransitionDelete,
-		})
-		require.NoError(t, err)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
-
-		template, err = client.Template(ctx, template.ID)
-		require.NoError(t, err)
-		require.Equal(t, 2, int(template.WorkspaceOwnerCount), "workspace count")
 	})
 }
 

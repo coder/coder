@@ -11,49 +11,46 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbfake"
+	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/httpmw"
 )
 
 func TestWorkspaceResourceParam(t *testing.T) {
 	t.Parallel()
 
-	setup := func(db database.Store, jobType database.ProvisionerJobType) (*http.Request, database.WorkspaceResource) {
+	setup := func(t *testing.T, db database.Store, jobType database.ProvisionerJobType) (*http.Request, database.WorkspaceResource) {
 		r := httptest.NewRequest("GET", "/", nil)
-		job, err := db.InsertProvisionerJob(context.Background(), database.InsertProvisionerJobParams{
-			ID:            uuid.New(),
+		job := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
 			Type:          jobType,
 			Provisioner:   database.ProvisionerTypeEcho,
 			StorageMethod: database.ProvisionerStorageMethodFile,
 		})
-		require.NoError(t, err)
-		workspaceBuild, err := db.InsertWorkspaceBuild(context.Background(), database.InsertWorkspaceBuildParams{
-			ID:         uuid.New(),
+
+		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 			JobID:      job.ID,
 			Transition: database.WorkspaceTransitionStart,
 			Reason:     database.BuildReasonInitiator,
 		})
-		require.NoError(t, err)
-		resource, err := db.InsertWorkspaceResource(context.Background(), database.InsertWorkspaceResourceParams{
-			ID:         uuid.New(),
+
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
 			JobID:      job.ID,
 			Transition: database.WorkspaceTransitionStart,
 		})
-		require.NoError(t, err)
 
-		ctx := chi.NewRouteContext()
-		ctx.URLParams.Add("workspacebuild", workspaceBuild.ID.String())
-		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, ctx))
+		routeCtx := chi.NewRouteContext()
+		routeCtx.URLParams.Add("workspacebuild", build.ID.String())
+		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, routeCtx))
 		return r, resource
 	}
 
 	t.Run("None", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		rtr := chi.NewRouter()
 		rtr.Use(httpmw.ExtractWorkspaceResourceParam(db))
 		rtr.Get("/", nil)
-		r, _ := setup(db, database.ProvisionerJobTypeWorkspaceBuild)
+		r, _ := setup(t, db, database.ProvisionerJobTypeWorkspaceBuild)
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
 
@@ -64,14 +61,14 @@ func TestWorkspaceResourceParam(t *testing.T) {
 
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		rtr := chi.NewRouter()
 		rtr.Use(
 			httpmw.ExtractWorkspaceResourceParam(db),
 		)
 		rtr.Get("/", nil)
 
-		r, _ := setup(db, database.ProvisionerJobTypeWorkspaceBuild)
+		r, _ := setup(t, db, database.ProvisionerJobTypeWorkspaceBuild)
 		chi.RouteContext(r.Context()).URLParams.Add("workspaceresource", uuid.NewString())
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
@@ -83,7 +80,7 @@ func TestWorkspaceResourceParam(t *testing.T) {
 
 	t.Run("FoundBadJobType", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		rtr := chi.NewRouter()
 		rtr.Use(
 			httpmw.ExtractWorkspaceResourceParam(db),
@@ -93,7 +90,7 @@ func TestWorkspaceResourceParam(t *testing.T) {
 			rw.WriteHeader(http.StatusOK)
 		})
 
-		r, job := setup(db, database.ProvisionerJobTypeTemplateVersionImport)
+		r, job := setup(t, db, database.ProvisionerJobTypeTemplateVersionImport)
 		chi.RouteContext(r.Context()).URLParams.Add("workspaceresource", job.ID.String())
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
@@ -105,7 +102,7 @@ func TestWorkspaceResourceParam(t *testing.T) {
 
 	t.Run("Found", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		rtr := chi.NewRouter()
 		rtr.Use(
 			httpmw.ExtractWorkspaceResourceParam(db),
@@ -115,7 +112,7 @@ func TestWorkspaceResourceParam(t *testing.T) {
 			rw.WriteHeader(http.StatusOK)
 		})
 
-		r, job := setup(db, database.ProvisionerJobTypeWorkspaceBuild)
+		r, job := setup(t, db, database.ProvisionerJobTypeWorkspaceBuild)
 		chi.RouteContext(r.Context()).URLParams.Add("workspaceresource", job.ID.String())
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)

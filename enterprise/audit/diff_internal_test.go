@@ -317,7 +317,7 @@ func Test_diff(t *testing.T) {
 			},
 			exp: audit.Map{
 				"id":          audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
-				"template_id": audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
+				"template_id": audit.OldNew{Old: "null", New: uuid.UUID{2}.String()},
 				"created_by":  audit.OldNew{Old: "", New: uuid.UUID{4}.String()},
 				"name":        audit.OldNew{Old: "", New: "rust"},
 			},
@@ -386,7 +386,7 @@ func Test_diff(t *testing.T) {
 				"owner_id":           audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
 				"template_id":        audit.OldNew{Old: "", New: uuid.UUID{3}.String()},
 				"name":               audit.OldNew{Old: "", New: "rust workspace"},
-				"autostart_schedule": audit.OldNew{Old: "", New: "0 12 * * 1-5"},
+				"autostart_schedule": audit.OldNew{Old: "null", New: "0 12 * * 1-5"},
 				"ttl":                audit.OldNew{Old: int64(0), New: int64(8 * time.Hour)}, // XXX: pq still does not support time.Duration
 			},
 		},
@@ -417,8 +417,8 @@ func runDiffTests(t *testing.T, tests []diffTest) {
 	t.Helper()
 
 	for _, test := range tests {
+		test := test
 		typName := reflect.TypeOf(test.left).Name()
-
 		t.Run(typName+"/"+test.name, func(t *testing.T) {
 			t.Parallel()
 			require.Equal(t,

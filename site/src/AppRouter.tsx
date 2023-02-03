@@ -7,6 +7,7 @@ import GroupsPage from "pages/GroupsPage/GroupsPage"
 import LoginPage from "pages/LoginPage/LoginPage"
 import { SetupPage } from "pages/SetupPage/SetupPage"
 import { TemplateSettingsPage } from "pages/TemplateSettingsPage/TemplateSettingsPage"
+import { WorkspaceBuildParametersPage } from "pages/WorkspaceBuildParametersPage/WorkspaceBuildParametersPage"
 import TemplatesPage from "pages/TemplatesPage/TemplatesPage"
 import UsersPage from "pages/UsersPage/UsersPage"
 import WorkspacesPage from "pages/WorkspacesPage/WorkspacesPage"
@@ -212,6 +213,10 @@ export const AppRouter: FC = () => {
                   <Route
                     path="change-version"
                     element={<WorkspaceChangeVersionPage />}
+                  />
+                  <Route
+                    path="build-parameters"
+                    element={<WorkspaceBuildParametersPage />}
                   />
                 </Route>
               </Route>

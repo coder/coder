@@ -300,6 +300,17 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
     "usage": "string",
     "value": true
   },
+  "disable_session_expiry_refresh": {
+    "default": true,
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": true
+  },
   "experimental": {
     "default": true,
     "enterprise": true,
@@ -413,6 +424,17 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
       "usage": "string",
       "value": "string"
     }
+  },
+  "max_session_expiry": {
+    "default": 0,
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": 0
   },
   "max_token_lifetime": {
     "default": 0,
@@ -562,6 +584,17 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
       "usage": "string",
       "value": ["string"]
     },
+    "icon_url": {
+      "default": "string",
+      "enterprise": true,
+      "flag": "string",
+      "hidden": true,
+      "name": "string",
+      "secret": true,
+      "shorthand": "string",
+      "usage": "string",
+      "value": "string"
+    },
     "ignore_email_verified": {
       "default": true,
       "enterprise": true,
@@ -594,6 +627,17 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
       "shorthand": "string",
       "usage": "string",
       "value": ["string"]
+    },
+    "sign_in_text": {
+      "default": "string",
+      "enterprise": true,
+      "flag": "string",
+      "hidden": true,
+      "name": "string",
+      "secret": true,
+      "shorthand": "string",
+      "usage": "string",
+      "value": "string"
     },
     "username_field": {
       "default": "string",
@@ -757,6 +801,17 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
       "usage": "string",
       "value": true
     }
+  },
+  "redirect_to_access_url": {
+    "default": true,
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": true
   },
   "scim_api_key": {
     "default": "string",

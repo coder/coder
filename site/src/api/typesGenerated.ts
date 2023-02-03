@@ -89,10 +89,15 @@ export interface AuditLogsRequest extends Pagination {
 }
 
 // From codersdk/users.go
+export interface AuthMethod {
+  readonly enabled: boolean
+}
+
+// From codersdk/users.go
 export interface AuthMethods {
-  readonly password: boolean
-  readonly github: boolean
-  readonly oidc: boolean
+  readonly password: AuthMethod
+  readonly github: AuthMethod
+  readonly oidc: OIDCAuthMethod
 }
 
 // From codersdk/authorization.go
@@ -286,6 +291,7 @@ export interface DangerousConfig {
 export interface DeploymentConfig {
   readonly access_url: DeploymentConfigField<string>
   readonly wildcard_access_url: DeploymentConfigField<string>
+  readonly redirect_to_access_url: DeploymentConfigField<boolean>
   readonly http_address: DeploymentConfigField<string>
   readonly autobuild_poll_interval: DeploymentConfigField<number>
   readonly derp: DERP
@@ -319,6 +325,8 @@ export interface DeploymentConfig {
   readonly logging: LoggingConfig
   readonly dangerous: DangerousConfig
   readonly disable_path_apps: DeploymentConfigField<boolean>
+  readonly max_session_expiry: DeploymentConfigField<number>
+  readonly disable_session_expiry_refresh: DeploymentConfigField<boolean>
   readonly address: DeploymentConfigField<string>
   readonly experimental: DeploymentConfigField<boolean>
 }
@@ -454,6 +462,12 @@ export interface OAuth2GithubConfig {
   readonly enterprise_base_url: DeploymentConfigField<string>
 }
 
+// From codersdk/users.go
+export interface OIDCAuthMethod extends AuthMethod {
+  readonly signInText: string
+  readonly iconUrl: string
+}
+
 // From codersdk/deployment.go
 export interface OIDCConfig {
   readonly allow_signups: DeploymentConfigField<boolean>
@@ -464,6 +478,8 @@ export interface OIDCConfig {
   readonly scopes: DeploymentConfigField<string[]>
   readonly ignore_email_verified: DeploymentConfigField<boolean>
   readonly username_field: DeploymentConfigField<string>
+  readonly sign_in_text: DeploymentConfigField<string>
+  readonly icon_url: DeploymentConfigField<string>
 }
 
 // From codersdk/organizations.go
@@ -671,7 +687,6 @@ export interface Template {
   readonly display_name: string
   readonly provisioner: ProvisionerType
   readonly active_version_id: string
-  readonly workspace_owner_count: number
   readonly active_user_count: number
   readonly build_time_stats: TemplateBuildTimeStats
   readonly description: string

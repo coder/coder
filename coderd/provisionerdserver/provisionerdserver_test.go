@@ -15,7 +15,8 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbfake"
+	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
@@ -34,7 +35,7 @@ func TestAcquireJob(t *testing.T) {
 	t.Parallel()
 	t.Run("Debounce", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		pubsub := database.NewPubsubInMemory()
 		srv := &provisionerdserver.Server{
 			ID:                 uuid.New(),
@@ -87,36 +88,38 @@ func TestAcquireJob(t *testing.T) {
 		t.Parallel()
 		srv := setup(t, false)
 		ctx := context.Background()
-		user, err := srv.Database.InsertUser(context.Background(), database.InsertUserParams{
-			ID:        uuid.New(),
-			Username:  "testing",
-			LoginType: database.LoginTypePassword,
-		})
-		require.NoError(t, err)
-		template, err := srv.Database.InsertTemplate(ctx, database.InsertTemplateParams{
-			ID:          uuid.New(),
+
+		user := dbgen.User(t, srv.Database, database.User{})
+		template := dbgen.Template(t, srv.Database, database.Template{
 			Name:        "template",
 			Provisioner: database.ProvisionerTypeEcho,
 		})
-		require.NoError(t, err)
-		version, err := srv.Database.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
-			ID: uuid.New(),
+		file := dbgen.File(t, srv.Database, database.File{CreatedBy: user.ID})
+		versionFile := dbgen.File(t, srv.Database, database.File{CreatedBy: user.ID})
+		version := dbgen.TemplateVersion(t, srv.Database, database.TemplateVersion{
 			TemplateID: uuid.NullUUID{
 				UUID:  template.ID,
 				Valid: true,
 			},
 			JobID: uuid.New(),
 		})
-		require.NoError(t, err)
-		workspace, err := srv.Database.InsertWorkspace(ctx, database.InsertWorkspaceParams{
-			ID:         uuid.New(),
-			OwnerID:    user.ID,
-			TemplateID: template.ID,
-			Name:       "workspace",
+		// Import version job
+		_ = dbgen.ProvisionerJob(t, srv.Database, database.ProvisionerJob{
+			ID:            version.JobID,
+			InitiatorID:   user.ID,
+			FileID:        versionFile.ID,
+			Provisioner:   database.ProvisionerTypeEcho,
+			StorageMethod: database.ProvisionerStorageMethodFile,
+			Type:          database.ProvisionerJobTypeTemplateVersionImport,
+			Input: must(json.Marshal(provisionerdserver.TemplateVersionImportJob{
+				TemplateVersionID: version.ID,
+			})),
 		})
-		require.NoError(t, err)
-		build, err := srv.Database.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
-			ID:                uuid.New(),
+		workspace := dbgen.Workspace(t, srv.Database, database.Workspace{
+			TemplateID: template.ID,
+			OwnerID:    user.ID,
+		})
+		build := dbgen.WorkspaceBuild(t, srv.Database, database.WorkspaceBuild{
 			WorkspaceID:       workspace.ID,
 			BuildNumber:       1,
 			JobID:             uuid.New(),
@@ -124,33 +127,17 @@ func TestAcquireJob(t *testing.T) {
 			Transition:        database.WorkspaceTransitionStart,
 			Reason:            database.BuildReasonInitiator,
 		})
-		require.NoError(t, err)
-
-		data, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-			WorkspaceBuildID: build.ID,
+		_ = dbgen.ProvisionerJob(t, srv.Database, database.ProvisionerJob{
+			ID:            build.ID,
+			InitiatorID:   user.ID,
+			Provisioner:   database.ProvisionerTypeEcho,
+			StorageMethod: database.ProvisionerStorageMethodFile,
+			FileID:        file.ID,
+			Type:          database.ProvisionerJobTypeWorkspaceBuild,
+			Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+				WorkspaceBuildID: build.ID,
+			})),
 		})
-		require.NoError(t, err)
-
-		file, err := srv.Database.InsertFile(ctx, database.InsertFileParams{
-			ID:   uuid.New(),
-			Hash: "something",
-			Data: []byte{},
-		})
-		require.NoError(t, err)
-
-		_, err = srv.Database.InsertProvisionerJob(context.Background(), database.InsertProvisionerJobParams{
-			ID:             build.JobID,
-			CreatedAt:      database.Now(),
-			UpdatedAt:      database.Now(),
-			OrganizationID: uuid.New(),
-			InitiatorID:    user.ID,
-			Provisioner:    database.ProvisionerTypeEcho,
-			StorageMethod:  database.ProvisionerStorageMethodFile,
-			FileID:         file.ID,
-			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			Input:          data,
-		})
-		require.NoError(t, err)
 
 		published := make(chan struct{})
 		closeSubscribe, err := srv.Pubsub.Subscribe(codersdk.WorkspaceNotifyChannel(workspace.ID), func(_ context.Context, _ []byte) {
@@ -159,8 +146,17 @@ func TestAcquireJob(t *testing.T) {
 		require.NoError(t, err)
 		defer closeSubscribe()
 
-		job, err := srv.AcquireJob(ctx, nil)
-		require.NoError(t, err)
+		var job *proto.AcquiredJob
+
+		for {
+			// Grab jobs until we find the workspace build job. There is also
+			// an import version job that we need to ignore.
+			job, err = srv.AcquireJob(ctx, nil)
+			require.NoError(t, err)
+			if _, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_); ok {
+				break
+			}
+		}
 
 		<-published
 
@@ -191,44 +187,22 @@ func TestAcquireJob(t *testing.T) {
 		t.Parallel()
 		srv := setup(t, false)
 		ctx := context.Background()
-		user, err := srv.Database.InsertUser(ctx, database.InsertUserParams{
-			ID:        uuid.New(),
-			Username:  "testing",
-			LoginType: database.LoginTypePassword,
-		})
-		require.NoError(t, err)
-		version, err := srv.Database.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
-			ID: uuid.New(),
-		})
-		require.NoError(t, err)
 
-		data, err := json.Marshal(provisionerdserver.TemplateVersionDryRunJob{
-			TemplateVersionID: version.ID,
-			WorkspaceName:     "testing",
-			ParameterValues:   []database.ParameterValue{},
+		user := dbgen.User(t, srv.Database, database.User{})
+		version := dbgen.TemplateVersion(t, srv.Database, database.TemplateVersion{})
+		file := dbgen.File(t, srv.Database, database.File{CreatedBy: user.ID})
+		_ = dbgen.ProvisionerJob(t, srv.Database, database.ProvisionerJob{
+			InitiatorID:   user.ID,
+			Provisioner:   database.ProvisionerTypeEcho,
+			StorageMethod: database.ProvisionerStorageMethodFile,
+			FileID:        file.ID,
+			Type:          database.ProvisionerJobTypeTemplateVersionDryRun,
+			Input: must(json.Marshal(provisionerdserver.TemplateVersionDryRunJob{
+				TemplateVersionID: version.ID,
+				WorkspaceName:     "testing",
+				ParameterValues:   []database.ParameterValue{},
+			})),
 		})
-		require.NoError(t, err)
-
-		file, err := srv.Database.InsertFile(ctx, database.InsertFileParams{
-			ID:   uuid.New(),
-			Hash: "something",
-			Data: []byte{},
-		})
-		require.NoError(t, err)
-
-		_, err = srv.Database.InsertProvisionerJob(context.Background(), database.InsertProvisionerJobParams{
-			ID:             uuid.New(),
-			CreatedAt:      database.Now(),
-			UpdatedAt:      database.Now(),
-			OrganizationID: uuid.New(),
-			InitiatorID:    user.ID,
-			Provisioner:    database.ProvisionerTypeEcho,
-			StorageMethod:  database.ProvisionerStorageMethodFile,
-			FileID:         file.ID,
-			Type:           database.ProvisionerJobTypeTemplateVersionDryRun,
-			Input:          data,
-		})
-		require.NoError(t, err)
 
 		job, err := srv.AcquireJob(ctx, nil)
 		require.NoError(t, err)
@@ -252,33 +226,16 @@ func TestAcquireJob(t *testing.T) {
 		t.Parallel()
 		srv := setup(t, false)
 		ctx := context.Background()
-		user, err := srv.Database.InsertUser(ctx, database.InsertUserParams{
-			ID:        uuid.New(),
-			Username:  "testing",
-			LoginType: database.LoginTypePassword,
-		})
-		require.NoError(t, err)
 
-		file, err := srv.Database.InsertFile(ctx, database.InsertFileParams{
-			ID:   uuid.New(),
-			Hash: "something",
-			Data: []byte{},
+		user := dbgen.User(t, srv.Database, database.User{})
+		file := dbgen.File(t, srv.Database, database.File{CreatedBy: user.ID})
+		_ = dbgen.ProvisionerJob(t, srv.Database, database.ProvisionerJob{
+			FileID:        file.ID,
+			InitiatorID:   user.ID,
+			Provisioner:   database.ProvisionerTypeEcho,
+			StorageMethod: database.ProvisionerStorageMethodFile,
+			Type:          database.ProvisionerJobTypeTemplateVersionImport,
 		})
-		require.NoError(t, err)
-
-		_, err = srv.Database.InsertProvisionerJob(context.Background(), database.InsertProvisionerJobParams{
-			ID:             uuid.New(),
-			CreatedAt:      database.Now(),
-			UpdatedAt:      database.Now(),
-			OrganizationID: uuid.New(),
-			InitiatorID:    user.ID,
-			Provisioner:    database.ProvisionerTypeEcho,
-			StorageMethod:  database.ProvisionerStorageMethodFile,
-			FileID:         file.ID,
-			Type:           database.ProvisionerJobTypeTemplateVersionImport,
-			Input:          json.RawMessage{},
-		})
-		require.NoError(t, err)
 
 		job, err := srv.AcquireJob(ctx, nil)
 		require.NoError(t, err)
@@ -754,7 +711,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	}
 	t.Run("NoAgents", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		job := uuid.New()
 		err := insert(db, job, &sdkproto.Resource{
 			Name: "something",
@@ -767,7 +724,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	})
 	t.Run("InvalidAgentToken", func(t *testing.T) {
 		t.Parallel()
-		err := insert(databasefake.New(), uuid.New(), &sdkproto.Resource{
+		err := insert(dbfake.New(), uuid.New(), &sdkproto.Resource{
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
@@ -780,7 +737,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	})
 	t.Run("DuplicateApps", func(t *testing.T) {
 		t.Parallel()
-		err := insert(databasefake.New(), uuid.New(), &sdkproto.Resource{
+		err := insert(dbfake.New(), uuid.New(), &sdkproto.Resource{
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
@@ -795,7 +752,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	})
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		job := uuid.New()
 		err := insert(db, job, &sdkproto.Resource{
 			Name:      "something",
@@ -841,7 +798,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 
 func setup(t *testing.T, ignoreLogErrors bool) *provisionerdserver.Server {
 	t.Helper()
-	db := databasefake.New()
+	db := dbfake.New()
 	pubsub := database.NewPubsubInMemory()
 
 	return &provisionerdserver.Server{
@@ -854,4 +811,11 @@ func setup(t *testing.T, ignoreLogErrors bool) *provisionerdserver.Server {
 		Telemetry:    telemetry.NewNoop(),
 		Auditor:      mockAuditor(),
 	}
+}
+
+func must[T any](value T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return value
 }

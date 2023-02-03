@@ -11,7 +11,7 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/metricscache"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
@@ -162,7 +162,7 @@ func TestCache_TemplateUsers(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var (
-				db    = databasefake.New()
+				db    = dbfake.New()
 				cache = metricscache.New(db, slogtest.Make(t, nil), testutil.IntervalFast)
 			)
 
@@ -289,7 +289,7 @@ func TestCache_BuildTime(t *testing.T) {
 			ctx := context.Background()
 
 			var (
-				db    = databasefake.New()
+				db    = dbfake.New()
 				cache = metricscache.New(db, slogtest.Make(t, nil), testutil.IntervalFast)
 			)
 

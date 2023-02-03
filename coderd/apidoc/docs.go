@@ -1330,6 +1330,104 @@ const docTemplate = `{
                 }
             }
         },
+        "/organizations/{organization}/templates/{templatename}/versions/{templateversionname}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get template version by organization, template, and name",
+                "operationId": "get-template-version-by-organization-template-and-name",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Template name",
+                        "name": "templatename",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Template version name",
+                        "name": "templateversionname",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateVersion"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/templates/{templatename}/versions/{templateversionname}/previous": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get previous template version by organization, template, and name",
+                "operationId": "get-previous-template-version-by-organization-template-and-name",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Template name",
+                        "name": "templatename",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Template version name",
+                        "name": "templateversionname",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateVersion"
+                        }
+                    }
+                }
+            }
+        },
         "/organizations/{organization}/templateversions": {
             "post": {
                 "security": [
@@ -1370,90 +1468,6 @@ const docTemplate = `{
                 "responses": {
                     "201": {
                         "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.TemplateVersion"
-                        }
-                    }
-                }
-            }
-        },
-        "/organizations/{organization}/templateversions/{templateversionname}": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Templates"
-                ],
-                "summary": "Get template version by organization and name",
-                "operationId": "get-template-version-by-organization-and-name",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Template version name",
-                        "name": "templateversionname",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.TemplateVersion"
-                        }
-                    }
-                }
-            }
-        },
-        "/organizations/{organization}/templateversions/{templateversionname}/previous": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Templates"
-                ],
-                "summary": "Get previous template version by organization and name",
-                "operationId": "get-previous-template-version-by-organization-and-name",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Template version name",
-                        "name": "templateversionname",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.TemplateVersion"
                         }
@@ -5448,17 +5462,25 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AuthMethod": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.AuthMethods": {
             "type": "object",
             "properties": {
                 "github": {
-                    "type": "boolean"
+                    "$ref": "#/definitions/codersdk.AuthMethod"
                 },
                 "oidc": {
-                    "type": "boolean"
+                    "$ref": "#/definitions/codersdk.OIDCAuthMethod"
                 },
                 "password": {
-                    "type": "boolean"
+                    "$ref": "#/definitions/codersdk.AuthMethod"
                 }
             }
         },
@@ -5997,6 +6019,9 @@ const docTemplate = `{
                 "disable_path_apps": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
                 },
+                "disable_session_expiry_refresh": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
                 "experimental": {
                     "description": "DEPRECATED: Use Experiments instead.",
                     "allOf": [
@@ -6019,6 +6044,9 @@ const docTemplate = `{
                 },
                 "logging": {
                     "$ref": "#/definitions/codersdk.LoggingConfig"
+                },
+                "max_session_expiry": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-time_Duration"
                 },
                 "max_token_lifetime": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-time_Duration"
@@ -6052,6 +6080,9 @@ const docTemplate = `{
                 },
                 "rate_limit": {
                     "$ref": "#/definitions/codersdk.RateLimitConfig"
+                },
+                "redirect_to_access_url": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
                 },
                 "scim_api_key": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
@@ -6630,6 +6661,20 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OIDCAuthMethod": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "iconUrl": {
+                    "type": "string"
+                },
+                "signInText": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.OIDCConfig": {
             "type": "object",
             "properties": {
@@ -6645,6 +6690,9 @@ const docTemplate = `{
                 "email_domain": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
                 },
+                "icon_url": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
                 "ignore_email_verified": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
                 },
@@ -6653,6 +6701,9 @@ const docTemplate = `{
                 },
                 "scopes": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
+                },
+                "sign_in_text": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
                 },
                 "username_field": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
@@ -7318,9 +7369,6 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
-                },
-                "workspace_owner_count": {
-                    "type": "integer"
                 }
             }
         },

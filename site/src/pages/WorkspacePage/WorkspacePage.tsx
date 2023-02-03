@@ -20,6 +20,7 @@ export const WorkspacePage: FC = () => {
     workspace,
     getWorkspaceError,
     getTemplateWarning,
+    getTemplateParametersWarning,
     checkPermissionsError,
   } = workspaceState.context
   const [quotaState, quotaSend] = useMachine(quotaMachine)
@@ -49,6 +50,12 @@ export const WorkspacePage: FC = () => {
           )}
           {Boolean(getTemplateWarning) && (
             <AlertBanner severity="error" error={getTemplateWarning} />
+          )}
+          {Boolean(getTemplateParametersWarning) && (
+            <AlertBanner
+              severity="error"
+              error={getTemplateParametersWarning}
+            />
           )}
           {Boolean(checkPermissionsError) && (
             <AlertBanner severity="error" error={checkPermissionsError} />
