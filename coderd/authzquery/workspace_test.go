@@ -14,31 +14,32 @@ func (s *MethodTestSuite) TestWorkspace() {
 	s.Run("GetWorkspaceByID", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			ws := dbgen.Workspace(t, db, database.Workspace{})
-			return methodCase(values(ws.ID), asserts(ws, rbac.ActionRead))
+			return methodCase(values(ws.ID), asserts(ws, rbac.ActionRead), values(ws))
 		})
 	})
 	s.Run("GetWorkspaces", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			_ = dbgen.Workspace(t, db, database.Workspace{})
-			_ = dbgen.Workspace(t, db, database.Workspace{})
+			a := dbgen.Workspace(t, db, database.Workspace{})
+			b := dbgen.Workspace(t, db, database.Workspace{})
 			// No asserts here because SQLFilter.
-			return methodCase(values(database.GetWorkspacesParams{}), asserts())
+			return methodCase(values(database.GetWorkspacesParams{}), asserts(),
+				values([]database.Workspace{a, b}))
 		})
 	})
 	s.Run("GetLatestWorkspaceBuildByWorkspaceID", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			ws := dbgen.Workspace(t, db, database.Workspace{})
-			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID})
-			return methodCase(values(ws.ID), asserts(ws, rbac.ActionRead))
+			b := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID})
+			return methodCase(values(ws.ID), asserts(ws, rbac.ActionRead), values(b))
 		})
 	})
 	s.Run("GetLatestWorkspaceBuildsByWorkspaceIDs", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			ws := dbgen.Workspace(t, db, database.Workspace{})
-			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID})
+			b := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID})
 			return methodCase(
 				values([]uuid.UUID{ws.ID}),
-				asserts(ws, rbac.ActionRead))
+				asserts(ws, rbac.ActionRead), values([]database.WorkspaceBuild{b}))
 		})
 	})
 	s.Run("GetWorkspaceAgentByID", func() {
@@ -47,7 +48,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 			res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
 			agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
-			return methodCase(values(agt.ID), asserts(ws, rbac.ActionRead))
+			return methodCase(values(agt.ID), asserts(ws, rbac.ActionRead), values(agt))
 		})
 	})
 	s.Run("GetWorkspaceAgentByInstanceID", func() {
@@ -56,7 +57,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 			res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
 			agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
-			return methodCase(values(agt.AuthInstanceID.String), asserts(ws, rbac.ActionRead))
+			return methodCase(values(agt.AuthInstanceID.String), asserts(ws, rbac.ActionRead), values(agt))
 		})
 	})
 	s.Run("GetWorkspaceAgentsByResourceIDs", func() {
@@ -64,8 +65,9 @@ func (s *MethodTestSuite) TestWorkspace() {
 			ws := dbgen.Workspace(t, db, database.Workspace{})
 			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 			res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
-			_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
-			return methodCase(values([]uuid.UUID{res.ID}), asserts(ws, rbac.ActionRead))
+			agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
+			return methodCase(values([]uuid.UUID{res.ID}), asserts(ws, rbac.ActionRead),
+				values([]database.WorkspaceAgent{agt}))
 		})
 	})
 	s.Run("UpdateWorkspaceAgentLifecycleStateByID", func() {
@@ -77,7 +79,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			return methodCase(values(database.UpdateWorkspaceAgentLifecycleStateByIDParams{
 				ID:             agt.ID,
 				LifecycleState: database.WorkspaceAgentLifecycleStateCreated,
-			}), asserts(ws, rbac.ActionUpdate))
+			}), asserts(ws, rbac.ActionUpdate), values())
 		})
 	})
 	s.Run("GetWorkspaceAppByAgentIDAndSlug", func() {
@@ -91,7 +93,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			return methodCase(values(database.GetWorkspaceAppByAgentIDAndSlugParams{
 				AgentID: agt.ID,
 				Slug:    app.Slug,
-			}), asserts(ws, rbac.ActionRead))
+			}), asserts(ws, rbac.ActionRead), values(app))
 		})
 	})
 	s.Run("GetWorkspaceAppsByAgentID", func() {
@@ -100,10 +102,10 @@ func (s *MethodTestSuite) TestWorkspace() {
 			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 			res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
 			agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
-			_ = dbgen.WorkspaceApp(t, db, database.WorkspaceApp{AgentID: agt.ID})
-			_ = dbgen.WorkspaceApp(t, db, database.WorkspaceApp{AgentID: agt.ID})
+			a := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{AgentID: agt.ID})
+			b := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{AgentID: agt.ID})
 
-			return methodCase(values(agt.ID), asserts(ws, rbac.ActionRead))
+			return methodCase(values(agt.ID), asserts(ws, rbac.ActionRead), values([]database.WorkspaceApp{a, b}))
 		})
 	})
 	s.Run("GetWorkspaceAppsByAgentIDs", func() {
@@ -120,21 +122,23 @@ func (s *MethodTestSuite) TestWorkspace() {
 			bAgt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: bRes.ID})
 			b := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{AgentID: bAgt.ID})
 
-			return methodCase(values([]uuid.UUID{a.AgentID, b.AgentID}), asserts(aWs, rbac.ActionRead, bWs, rbac.ActionRead))
+			return methodCase(values([]uuid.UUID{a.AgentID, b.AgentID}),
+				asserts(aWs, rbac.ActionRead, bWs, rbac.ActionRead),
+				values([]database.WorkspaceApp{a, b}))
 		})
 	})
 	s.Run("GetWorkspaceBuildByID", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			ws := dbgen.Workspace(t, db, database.Workspace{})
 			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID})
-			return methodCase(values(build.ID), asserts(ws, rbac.ActionRead))
+			return methodCase(values(build.ID), asserts(ws, rbac.ActionRead), values(build))
 		})
 	})
 	s.Run("GetWorkspaceBuildByJobID", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			ws := dbgen.Workspace(t, db, database.Workspace{})
 			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID})
-			return methodCase(values(build.JobID), asserts(ws, rbac.ActionRead))
+			return methodCase(values(build.JobID), asserts(ws, rbac.ActionRead), values(build))
 		})
 	})
 	s.Run("GetWorkspaceBuildByWorkspaceIDAndBuildNumber", func() {
@@ -144,23 +148,26 @@ func (s *MethodTestSuite) TestWorkspace() {
 			return methodCase(values(database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams{
 				WorkspaceID: ws.ID,
 				BuildNumber: build.BuildNumber,
-			}), asserts(ws, rbac.ActionRead))
+			}), asserts(ws, rbac.ActionRead), values(build))
 		})
 	})
 	s.Run("GetWorkspaceBuildParameters", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			ws := dbgen.Workspace(t, db, database.Workspace{})
 			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID})
-			return methodCase(values(build.ID), asserts(ws, rbac.ActionRead))
+			return methodCase(values(build.ID), asserts(ws, rbac.ActionRead),
+				values([]database.WorkspaceBuildParameter{}))
 		})
 	})
 	s.Run("GetWorkspaceBuildsByWorkspaceID", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			ws := dbgen.Workspace(t, db, database.Workspace{})
-			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, BuildNumber: 1})
-			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, BuildNumber: 2})
-			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, BuildNumber: 3})
-			return methodCase(values(database.GetWorkspaceBuildsByWorkspaceIDParams{WorkspaceID: ws.ID}), asserts(ws, rbac.ActionRead))
+			a := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, BuildNumber: 1})
+			b := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, BuildNumber: 2})
+			c := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, BuildNumber: 3})
+			return methodCase(values(database.GetWorkspaceBuildsByWorkspaceIDParams{WorkspaceID: ws.ID}),
+				asserts(ws, rbac.ActionRead),
+				values([]database.WorkspaceBuild{a, b, c}))
 		})
 	})
 	s.Run("GetWorkspaceByAgentID", func() {
@@ -169,7 +176,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 			res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
 			agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
-			return methodCase(values(agt.ID), asserts(ws, rbac.ActionRead))
+			return methodCase(values(agt.ID), asserts(ws, rbac.ActionRead), values(ws))
 		})
 	})
 	s.Run("GetWorkspaceByOwnerIDAndName", func() {
@@ -179,7 +186,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 				OwnerID: ws.OwnerID,
 				Deleted: ws.Deleted,
 				Name:    ws.Name,
-			}), asserts(ws, rbac.ActionRead))
+			}), asserts(ws, rbac.ActionRead), values(ws))
 		})
 	})
 	s.Run("GetWorkspaceResourceByID", func() {
@@ -187,7 +194,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			ws := dbgen.Workspace(t, db, database.Workspace{})
 			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 			res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
-			return methodCase(values(res.ID), asserts(ws, rbac.ActionRead))
+			return methodCase(values(res.ID), asserts(ws, rbac.ActionRead), values(res))
 		})
 	})
 	s.Run("GetWorkspaceResourceMetadataByResourceIDs", func() {
@@ -196,7 +203,9 @@ func (s *MethodTestSuite) TestWorkspace() {
 			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 			a := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
 			b := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
-			return methodCase(values([]uuid.UUID{a.ID, b.ID}), asserts(ws, []rbac.Action{rbac.ActionRead, rbac.ActionRead}))
+			return methodCase(values([]uuid.UUID{a.ID, b.ID}),
+				asserts(ws, []rbac.Action{rbac.ActionRead, rbac.ActionRead}),
+				nil)
 		})
 	})
 	s.Run("Build/GetWorkspaceResourcesByJobID", func() {
@@ -204,7 +213,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			ws := dbgen.Workspace(t, db, database.Workspace{})
 			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 			job := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
-			return methodCase(values(job.ID), asserts(ws, rbac.ActionRead))
+			return methodCase(values(job.ID), asserts(ws, rbac.ActionRead), values([]database.WorkspaceResource{}))
 		})
 	})
 	s.Run("Template/GetWorkspaceResourcesByJobID", func() {
@@ -212,7 +221,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			tpl := dbgen.Template(t, db, database.Template{})
 			v := dbgen.TemplateVersion(t, db, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}, JobID: uuid.New()})
 			job := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{ID: v.JobID, Type: database.ProvisionerJobTypeTemplateVersionImport})
-			return methodCase(values(job.ID), asserts(v.RBACObject(tpl), []rbac.Action{rbac.ActionRead, rbac.ActionRead}))
+			return methodCase(values(job.ID), asserts(v.RBACObject(tpl), []rbac.Action{rbac.ActionRead, rbac.ActionRead}), values([]database.WorkspaceResource{}))
 		})
 	})
 	s.Run("GetWorkspaceResourcesByJobIDs", func() {
@@ -224,7 +233,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			ws := dbgen.Workspace(t, db, database.Workspace{})
 			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 			wJob := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
-			return methodCase(values([]uuid.UUID{tJob.ID, wJob.ID}), asserts(v.RBACObject(tpl), rbac.ActionRead, ws, rbac.ActionRead))
+			return methodCase(values([]uuid.UUID{tJob.ID, wJob.ID}), asserts(v.RBACObject(tpl), rbac.ActionRead, ws, rbac.ActionRead), values([]database.WorkspaceResource{}))
 		})
 	})
 	s.Run("InsertWorkspace", func() {
@@ -235,7 +244,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 				ID:             uuid.New(),
 				OwnerID:        u.ID,
 				OrganizationID: o.ID,
-			}), asserts(rbac.ResourceWorkspace.WithOwner(u.ID.String()).InOrg(o.ID), rbac.ActionCreate))
+			}), asserts(rbac.ResourceWorkspace.WithOwner(u.ID.String()).InOrg(o.ID), rbac.ActionCreate), nil)
 		})
 	})
 	s.Run("Start/InsertWorkspaceBuild", func() {
@@ -245,7 +254,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 				WorkspaceID: w.ID,
 				Transition:  database.WorkspaceTransitionStart,
 				Reason:      database.BuildReasonInitiator,
-			}), asserts(w, rbac.ActionUpdate))
+			}), asserts(w, rbac.ActionUpdate), nil)
 		})
 	})
 	s.Run("Delete/InsertWorkspaceBuild", func() {
@@ -255,7 +264,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 				WorkspaceID: w.ID,
 				Transition:  database.WorkspaceTransitionDelete,
 				Reason:      database.BuildReasonInitiator,
-			}), asserts(w, rbac.ActionDelete))
+			}), asserts(w, rbac.ActionDelete), nil)
 		})
 	})
 	s.Run("InsertWorkspaceBuildParameters", func() {
@@ -266,7 +275,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 				WorkspaceBuildID: b.ID,
 				Name:             []string{"foo", "bar"},
 				Value:            []string{"baz", "qux"},
-			}), asserts(w, rbac.ActionUpdate))
+			}), asserts(w, rbac.ActionUpdate), nil)
 		})
 	})
 	s.Run("UpdateWorkspace", func() {
@@ -274,7 +283,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			w := dbgen.Workspace(t, db, database.Workspace{})
 			return methodCase(values(database.UpdateWorkspaceParams{
 				ID: w.ID,
-			}), asserts(w, rbac.ActionUpdate))
+			}), asserts(w, rbac.ActionUpdate), values(w))
 		})
 	})
 	s.Run("UpdateWorkspaceAgentConnectionByID", func() {
@@ -285,7 +294,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
 			return methodCase(values(database.UpdateWorkspaceAgentConnectionByIDParams{
 				ID: agt.ID,
-			}), asserts(ws, rbac.ActionUpdate))
+			}), asserts(ws, rbac.ActionUpdate), values(agt))
 		})
 	})
 	s.Run("InsertAgentStat", func() {
@@ -293,7 +302,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			ws := dbgen.Workspace(t, db, database.Workspace{})
 			return methodCase(values(database.InsertAgentStatParams{
 				WorkspaceID: ws.ID,
-			}), asserts(ws, rbac.ActionUpdate))
+			}), asserts(ws, rbac.ActionUpdate), nil)
 		})
 	})
 	s.Run("UpdateWorkspaceAgentVersionByID", func() {
@@ -303,9 +312,8 @@ func (s *MethodTestSuite) TestWorkspace() {
 			res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
 			agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
 			return methodCase(values(database.UpdateWorkspaceAgentVersionByIDParams{
-				ID:      agt.ID,
-				Version: "test",
-			}), asserts(ws, rbac.ActionUpdate))
+				ID: agt.ID,
+			}), asserts(ws, rbac.ActionUpdate), values(agt))
 		})
 	})
 	s.Run("UpdateWorkspaceAppHealthByID", func() {
@@ -316,9 +324,8 @@ func (s *MethodTestSuite) TestWorkspace() {
 			agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
 			app := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{AgentID: agt.ID})
 			return methodCase(values(database.UpdateWorkspaceAppHealthByIDParams{
-				ID:     app.ID,
-				Health: database.WorkspaceAppHealthHealthy,
-			}), asserts(ws, rbac.ActionUpdate))
+				ID: app.ID,
+			}), asserts(ws, rbac.ActionUpdate), values(app))
 		})
 	})
 	s.Run("UpdateWorkspaceAutostart", func() {
@@ -326,7 +333,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			ws := dbgen.Workspace(t, db, database.Workspace{})
 			return methodCase(values(database.UpdateWorkspaceAutostartParams{
 				ID: ws.ID,
-			}), asserts(ws, rbac.ActionUpdate))
+			}), asserts(ws, rbac.ActionUpdate), values(ws))
 		})
 	})
 	s.Run("UpdateWorkspaceBuildByID", func() {
@@ -335,22 +342,23 @@ func (s *MethodTestSuite) TestWorkspace() {
 			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 			return methodCase(values(database.UpdateWorkspaceBuildByIDParams{
 				ID: build.ID,
-			}), asserts(ws, rbac.ActionUpdate))
+			}), asserts(ws, rbac.ActionUpdate), values(build))
 		})
 	})
 	s.Run("SoftDeleteWorkspaceByID", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			ws := dbgen.Workspace(t, db, database.Workspace{})
-			return methodCase(values(ws.ID), asserts(ws, rbac.ActionDelete))
+			ws.Deleted = true
+			return methodCase(values(ws.ID), asserts(ws, rbac.ActionDelete), values(ws))
 		})
 	})
 	s.Run("UpdateWorkspaceDeletedByID", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
+			ws := dbgen.Workspace(t, db, database.Workspace{Deleted: true})
 			return methodCase(values(database.UpdateWorkspaceDeletedByIDParams{
 				ID:      ws.ID,
 				Deleted: true,
-			}), asserts(ws, rbac.ActionDelete))
+			}), asserts(ws, rbac.ActionDelete), values(ws))
 		})
 	})
 	s.Run("UpdateWorkspaceLastUsedAt", func() {
@@ -358,7 +366,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			ws := dbgen.Workspace(t, db, database.Workspace{})
 			return methodCase(values(database.UpdateWorkspaceLastUsedAtParams{
 				ID: ws.ID,
-			}), asserts(ws, rbac.ActionUpdate))
+			}), asserts(ws, rbac.ActionUpdate), values(ws))
 		})
 	})
 	s.Run("UpdateWorkspaceTTL", func() {
@@ -366,7 +374,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			ws := dbgen.Workspace(t, db, database.Workspace{})
 			return methodCase(values(database.UpdateWorkspaceTTLParams{
 				ID: ws.ID,
-			}), asserts(ws, rbac.ActionUpdate))
+			}), asserts(ws, rbac.ActionUpdate), values(ws))
 		})
 	})
 	s.Run("GetWorkspaceByWorkspaceAppID", func() {
@@ -376,7 +384,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
 			agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
 			app := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{AgentID: agt.ID})
-			return methodCase(values(app.ID), asserts(ws, rbac.ActionRead))
+			return methodCase(values(app.ID), asserts(ws, rbac.ActionRead), values(ws))
 		})
 	})
 }
