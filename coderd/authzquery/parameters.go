@@ -17,17 +17,17 @@ func (q *AuthzQuerier) parameterRBACResource(ctx context.Context, scope database
 	var err error
 	switch scope {
 	case database.ParameterScopeWorkspace:
-		return q.database.GetWorkspaceByID(ctx, scopeID)
+		return q.db.GetWorkspaceByID(ctx, scopeID)
 	case database.ParameterScopeImportJob:
 		var version database.TemplateVersion
-		version, err = q.database.GetTemplateVersionByJobID(ctx, scopeID)
+		version, err = q.db.GetTemplateVersionByJobID(ctx, scopeID)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return nil, err
 		}
 		resource = version.RBACObjectNoTemplate()
 
 		var template database.Template
-		template, err = q.database.GetTemplateByID(ctx, version.TemplateID.UUID)
+		template, err = q.db.GetTemplateByID(ctx, version.TemplateID.UUID)
 		if err == nil {
 			resource = version.RBACObject(template)
 		} else if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
@@ -35,7 +35,7 @@ func (q *AuthzQuerier) parameterRBACResource(ctx context.Context, scope database
 		}
 		return resource, nil
 	case database.ParameterScopeTemplate:
-		return q.database.GetTemplateByID(ctx, scopeID)
+		return q.db.GetTemplateByID(ctx, scopeID)
 	default:
 		return nil, xerrors.Errorf("Parameter scope %q unsupported", scope)
 	}
@@ -52,11 +52,11 @@ func (q *AuthzQuerier) InsertParameterValue(ctx context.Context, arg database.In
 		return database.ParameterValue{}, err
 	}
 
-	return q.database.InsertParameterValue(ctx, arg)
+	return q.db.InsertParameterValue(ctx, arg)
 }
 
 func (q *AuthzQuerier) ParameterValue(ctx context.Context, id uuid.UUID) (database.ParameterValue, error) {
-	parameter, err := q.database.ParameterValue(ctx, id)
+	parameter, err := q.db.ParameterValue(ctx, id)
 	if err != nil {
 		return database.ParameterValue{}, err
 	}
@@ -80,7 +80,7 @@ func (q *AuthzQuerier) ParameterValue(ctx context.Context, id uuid.UUID) (databa
 func (q *AuthzQuerier) ParameterValues(ctx context.Context, arg database.ParameterValuesParams) ([]database.ParameterValue, error) {
 	// This is a bit of a special case. Each parameter value returned might have a different scope. This could likely
 	// be implemented in a more efficient manner.
-	values, err := q.database.ParameterValues(ctx, arg)
+	values, err := q.db.ParameterValues(ctx, arg)
 	if err != nil {
 		return nil, err
 	}
@@ -107,13 +107,13 @@ func (q *AuthzQuerier) ParameterValues(ctx context.Context, arg database.Paramet
 }
 
 func (q *AuthzQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ParameterSchema, error) {
-	version, err := q.database.GetTemplateVersionByJobID(ctx, jobID)
+	version, err := q.db.GetTemplateVersionByJobID(ctx, jobID)
 	if err != nil {
 		return nil, err
 	}
 	object := version.RBACObjectNoTemplate()
 	if version.TemplateID.Valid {
-		tpl, err := q.database.GetTemplateByID(ctx, version.TemplateID.UUID)
+		tpl, err := q.db.GetTemplateByID(ctx, version.TemplateID.UUID)
 		if err != nil {
 			return nil, err
 		}
@@ -124,7 +124,7 @@ func (q *AuthzQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uui
 	if err != nil {
 		return nil, err
 	}
-	return q.database.GetParameterSchemasByJobID(ctx, jobID)
+	return q.db.GetParameterSchemasByJobID(ctx, jobID)
 }
 
 func (q *AuthzQuerier) GetParameterValueByScopeAndName(ctx context.Context, arg database.GetParameterValueByScopeAndNameParams) (database.ParameterValue, error) {
@@ -138,11 +138,11 @@ func (q *AuthzQuerier) GetParameterValueByScopeAndName(ctx context.Context, arg 
 		return database.ParameterValue{}, err
 	}
 
-	return q.database.GetParameterValueByScopeAndName(ctx, arg)
+	return q.db.GetParameterValueByScopeAndName(ctx, arg)
 }
 
 func (q *AuthzQuerier) DeleteParameterValueByID(ctx context.Context, id uuid.UUID) error {
-	parameter, err := q.database.ParameterValue(ctx, id)
+	parameter, err := q.db.ParameterValue(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -158,5 +158,5 @@ func (q *AuthzQuerier) DeleteParameterValueByID(ctx context.Context, id uuid.UUI
 		return err
 	}
 
-	return q.database.DeleteParameterValueByID(ctx, id)
+	return q.db.DeleteParameterValueByID(ctx, id)
 }

@@ -22,9 +22,9 @@ func (q *AuthzQuerier) GetPreviousTemplateVersion(ctx context.Context, arg datab
 			// If no linked template exists, check if the actor can read the template in the organization.
 			return rbac.ResourceTemplate.InOrg(arg.OrganizationID), nil
 		}
-		return q.database.GetTemplateByID(ctx, arg.TemplateID.UUID)
+		return q.db.GetTemplateByID(ctx, arg.TemplateID.UUID)
 	}
-	return authorizedQueryWithRelated(q.logger, q.authorizer, rbac.ActionRead, fetchRelated, q.database.GetPreviousTemplateVersion)(ctx, arg)
+	return queryWithRelated(q.log, q.auth, rbac.ActionRead, fetchRelated, q.db.GetPreviousTemplateVersion)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
@@ -35,25 +35,25 @@ func (q *AuthzQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg data
 			// We don't know the organization ID.
 			return rbac.ResourceTemplate, nil
 		}
-		return q.database.GetTemplateByID(ctx, arg.TemplateID.UUID)
+		return q.db.GetTemplateByID(ctx, arg.TemplateID.UUID)
 	}
-	return authorizedQueryWithRelated(q.logger, q.authorizer, rbac.ActionRead, fetchRelated, q.database.GetTemplateAverageBuildTime)(ctx, arg)
+	return queryWithRelated(q.log, q.auth, rbac.ActionRead, fetchRelated, q.db.GetTemplateAverageBuildTime)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (database.Template, error) {
-	return authorizedFetch(q.logger, q.authorizer, q.database.GetTemplateByID)(ctx, id)
+	return fetch(q.log, q.auth, q.db.GetTemplateByID)(ctx, id)
 }
 
 func (q *AuthzQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg database.GetTemplateByOrganizationAndNameParams) (database.Template, error) {
-	return authorizedFetch(q.logger, q.authorizer, q.database.GetTemplateByOrganizationAndName)(ctx, arg)
+	return fetch(q.log, q.auth, q.db.GetTemplateByOrganizationAndName)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetTemplateDAUs(ctx context.Context, templateID uuid.UUID) ([]database.GetTemplateDAUsRow, error) {
 	// An actor can read the DAUs if they can read the related template.
 	fetchRelated := func(_ []database.GetTemplateDAUsRow, _ uuid.UUID) (rbac.Objecter, error) {
-		return q.database.GetTemplateByID(ctx, templateID)
+		return q.db.GetTemplateByID(ctx, templateID)
 	}
-	return authorizedQueryWithRelated(q.logger, q.authorizer, rbac.ActionRead, fetchRelated, q.database.GetTemplateDAUs)(ctx, templateID)
+	return queryWithRelated(q.log, q.auth, rbac.ActionRead, fetchRelated, q.db.GetTemplateDAUs)(ctx, templateID)
 }
 
 func (q *AuthzQuerier) GetTemplateVersionByID(ctx context.Context, tvid uuid.UUID) (database.TemplateVersion, error) {
@@ -64,14 +64,14 @@ func (q *AuthzQuerier) GetTemplateVersionByID(ctx context.Context, tvid uuid.UUI
 			// in the organization.
 			return rbac.ResourceTemplate.InOrg(tv.OrganizationID), nil
 		}
-		return q.database.GetTemplateByID(ctx, tv.TemplateID.UUID)
+		return q.db.GetTemplateByID(ctx, tv.TemplateID.UUID)
 	}
-	return authorizedQueryWithRelated(
-		q.logger,
-		q.authorizer,
+	return queryWithRelated(
+		q.log,
+		q.auth,
 		rbac.ActionRead,
 		fetchRelated,
-		q.database.GetTemplateVersionByID,
+		q.db.GetTemplateVersionByID,
 	)(ctx, tvid)
 }
 
@@ -83,14 +83,14 @@ func (q *AuthzQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid
 			// template in the organization.
 			return rbac.ResourceTemplate.InOrg(tv.OrganizationID), nil
 		}
-		return q.database.GetTemplateByID(ctx, tv.TemplateID.UUID)
+		return q.db.GetTemplateByID(ctx, tv.TemplateID.UUID)
 	}
-	return authorizedQueryWithRelated(
-		q.logger,
-		q.authorizer,
+	return queryWithRelated(
+		q.log,
+		q.auth,
 		rbac.ActionRead,
 		fetchRelated,
-		q.database.GetTemplateVersionByJobID,
+		q.db.GetTemplateVersionByJobID,
 	)(ctx, jobID)
 }
 
@@ -102,27 +102,27 @@ func (q *AuthzQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context
 			// We don't know the organization ID.
 			return rbac.ResourceTemplate, nil
 		}
-		return q.database.GetTemplateByID(ctx, tv.TemplateID.UUID)
+		return q.db.GetTemplateByID(ctx, tv.TemplateID.UUID)
 	}
 
-	return authorizedQueryWithRelated(
-		q.logger,
-		q.authorizer,
+	return queryWithRelated(
+		q.log,
+		q.auth,
 		rbac.ActionRead,
 		fetchRelated,
-		q.database.GetTemplateVersionByTemplateIDAndName,
+		q.db.GetTemplateVersionByTemplateIDAndName,
 	)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionParameter, error) {
 	// An actor can read template version parameters if they can read the related template.
-	tv, err := q.database.GetTemplateVersionByID(ctx, templateVersionID)
+	tv, err := q.db.GetTemplateVersionByID(ctx, templateVersionID)
 	if err != nil {
 		return nil, err
 	}
 
 	var object rbac.Objecter
-	template, err := q.database.GetTemplateByID(ctx, tv.TemplateID.UUID)
+	template, err := q.db.GetTemplateByID(ctx, tv.TemplateID.UUID)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			return nil, err
@@ -135,12 +135,12 @@ func (q *AuthzQuerier) GetTemplateVersionParameters(ctx context.Context, templat
 	if err := q.authorizeContext(ctx, rbac.ActionRead, object); err != nil {
 		return nil, err
 	}
-	return q.database.GetTemplateVersionParameters(ctx, templateVersionID)
+	return q.db.GetTemplateVersionParameters(ctx, templateVersionID)
 }
 
 func (q *AuthzQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.TemplateVersion, error) {
 	// TODO: This is so inefficient
-	versions, err := q.database.GetTemplateVersionsByIDs(ctx, ids)
+	versions, err := q.db.GetTemplateVersionsByIDs(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +151,7 @@ func (q *AuthzQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.
 		}
 
 		obj := v.RBACObjectNoTemplate()
-		template, err := q.database.GetTemplateByID(ctx, v.TemplateID.UUID)
+		template, err := q.db.GetTemplateByID(ctx, v.TemplateID.UUID)
 		if err == nil {
 			obj = v.RBACObject(template)
 		}
@@ -169,7 +169,7 @@ func (q *AuthzQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.
 
 func (q *AuthzQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg database.GetTemplateVersionsByTemplateIDParams) ([]database.TemplateVersion, error) {
 	// An actor can read template versions if they can read the related template.
-	template, err := q.database.GetTemplateByID(ctx, arg.TemplateID)
+	template, err := q.db.GetTemplateByID(ctx, arg.TemplateID)
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +178,7 @@ func (q *AuthzQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg 
 		return nil, err
 	}
 
-	return q.database.GetTemplateVersionsByTemplateID(ctx, arg)
+	return q.db.GetTemplateVersionsByTemplateID(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.TemplateVersion, error) {
@@ -186,12 +186,12 @@ func (q *AuthzQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, crea
 	fetchRelated := func(tvs []database.TemplateVersion, _ time.Time) (rbac.Objecter, error) {
 		return rbac.ResourceTemplate.All(), nil
 	}
-	return authorizedQueryWithRelated(
-		q.logger,
-		q.authorizer,
+	return queryWithRelated(
+		q.log,
+		q.auth,
 		rbac.ActionRead,
 		fetchRelated,
-		q.database.GetTemplateVersionsCreatedAfter,
+		q.db.GetTemplateVersionsCreatedAfter,
 	)(ctx, createdAt)
 }
 
@@ -201,16 +201,16 @@ func (q *AuthzQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.
 }
 
 func (q *AuthzQuerier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTemplatesWithFilterParams) ([]database.Template, error) {
-	prep, err := prepareSQLFilter(ctx, q.authorizer, rbac.ActionRead, rbac.ResourceTemplate.Type)
+	prep, err := prepareSQLFilter(ctx, q.auth, rbac.ActionRead, rbac.ResourceTemplate.Type)
 	if err != nil {
 		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
 	}
-	return q.database.GetAuthorizedTemplates(ctx, arg, prep)
+	return q.db.GetAuthorizedTemplates(ctx, arg, prep)
 }
 
 func (q *AuthzQuerier) InsertTemplate(ctx context.Context, arg database.InsertTemplateParams) (database.Template, error) {
 	obj := rbac.ResourceTemplate.InOrg(arg.OrganizationID)
-	return authorizedInsertWithReturn(q.logger, q.authorizer, rbac.ActionCreate, obj, q.database.InsertTemplate)(ctx, arg)
+	return insertWithReturn(q.log, q.auth, rbac.ActionCreate, obj, q.db.InsertTemplate)(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertTemplateVersion(ctx context.Context, arg database.InsertTemplateVersionParams) (database.TemplateVersion, error) {
@@ -233,34 +233,34 @@ func (q *AuthzQuerier) InsertTemplateVersion(ctx context.Context, arg database.I
 		}
 	}
 
-	return q.database.InsertTemplateVersion(ctx, arg)
+	return q.db.InsertTemplateVersion(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {
 	// UpdateTemplateACL uses the ActionCreate action. Only users that can create the template
 	// may update the ACL.
 	fetch := func(ctx context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {
-		return q.database.GetTemplateByID(ctx, arg.ID)
+		return q.db.GetTemplateByID(ctx, arg.ID)
 	}
-	return authorizedFetchAndQuery(q.logger, q.authorizer, rbac.ActionCreate, fetch, q.database.UpdateTemplateACLByID)(ctx, arg)
+	return fetchAndQuery(q.log, q.auth, rbac.ActionCreate, fetch, q.db.UpdateTemplateACLByID)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateTemplateActiveVersionByID(ctx context.Context, arg database.UpdateTemplateActiveVersionByIDParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateTemplateActiveVersionByIDParams) (database.Template, error) {
-		return q.database.GetTemplateByID(ctx, arg.ID)
+		return q.db.GetTemplateByID(ctx, arg.ID)
 	}
-	return authorizedUpdate(q.logger, q.authorizer, fetch, q.database.UpdateTemplateActiveVersionByID)(ctx, arg)
+	return update(q.log, q.auth, fetch, q.db.UpdateTemplateActiveVersionByID)(ctx, arg)
 }
 
 func (q *AuthzQuerier) SoftDeleteTemplateByID(ctx context.Context, id uuid.UUID) error {
 	deleteF := func(ctx context.Context, id uuid.UUID) error {
-		return q.database.UpdateTemplateDeletedByID(ctx, database.UpdateTemplateDeletedByIDParams{
+		return q.db.UpdateTemplateDeletedByID(ctx, database.UpdateTemplateDeletedByIDParams{
 			ID:        id,
 			Deleted:   true,
 			UpdatedAt: database.Now(),
 		})
 	}
-	return authorizedDelete(q.logger, q.authorizer, q.database.GetTemplateByID, deleteF)(ctx, id)
+	return delete(q.log, q.auth, q.db.GetTemplateByID, deleteF)(ctx, id)
 }
 
 // Deprecated: use SoftDeleteTemplateByID instead.
@@ -270,25 +270,25 @@ func (q *AuthzQuerier) UpdateTemplateDeletedByID(ctx context.Context, arg databa
 
 func (q *AuthzQuerier) UpdateTemplateMetaByID(ctx context.Context, arg database.UpdateTemplateMetaByIDParams) (database.Template, error) {
 	fetch := func(ctx context.Context, arg database.UpdateTemplateMetaByIDParams) (database.Template, error) {
-		return q.database.GetTemplateByID(ctx, arg.ID)
+		return q.db.GetTemplateByID(ctx, arg.ID)
 	}
-	return authorizedUpdateWithReturn(q.logger, q.authorizer, fetch, q.database.UpdateTemplateMetaByID)(ctx, arg)
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateTemplateMetaByID)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateTemplateVersionByID(ctx context.Context, arg database.UpdateTemplateVersionByIDParams) error {
-	template, err := q.database.GetTemplateByID(ctx, arg.TemplateID.UUID)
+	template, err := q.db.GetTemplateByID(ctx, arg.TemplateID.UUID)
 	if err != nil {
 		return err
 	}
 	if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
 		return err
 	}
-	return q.database.UpdateTemplateVersionByID(ctx, arg)
+	return q.db.UpdateTemplateVersionByID(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateTemplateVersionDescriptionByJobID(ctx context.Context, arg database.UpdateTemplateVersionDescriptionByJobIDParams) error {
 	// An actor is allowed to update the template version description if they are authorized to update the template.
-	tv, err := q.database.GetTemplateVersionByJobID(ctx, arg.JobID)
+	tv, err := q.db.GetTemplateVersionByJobID(ctx, arg.JobID)
 	if err != nil {
 		return err
 	}
@@ -296,7 +296,7 @@ func (q *AuthzQuerier) UpdateTemplateVersionDescriptionByJobID(ctx context.Conte
 	if !tv.TemplateID.Valid {
 		obj = rbac.ResourceTemplate.InOrg(tv.OrganizationID)
 	} else {
-		tpl, err := q.database.GetTemplateByID(ctx, tv.TemplateID.UUID)
+		tpl, err := q.db.GetTemplateByID(ctx, tv.TemplateID.UUID)
 		if err != nil {
 			return err
 		}
@@ -305,29 +305,29 @@ func (q *AuthzQuerier) UpdateTemplateVersionDescriptionByJobID(ctx context.Conte
 	if err := q.authorizeContext(ctx, rbac.ActionUpdate, obj); err != nil {
 		return err
 	}
-	return q.database.UpdateTemplateVersionDescriptionByJobID(ctx, arg)
+	return q.db.UpdateTemplateVersionDescriptionByJobID(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateGroup, error) {
 	// An actor is authorized to read template group roles if they are authorized to read the template.
-	template, err := q.database.GetTemplateByID(ctx, id)
+	template, err := q.db.GetTemplateByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 	if err := q.authorizeContext(ctx, rbac.ActionRead, template); err != nil {
 		return nil, err
 	}
-	return q.database.GetTemplateGroupRoles(ctx, id)
+	return q.db.GetTemplateGroupRoles(ctx, id)
 }
 
 func (q *AuthzQuerier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateUser, error) {
 	// An actor is authorized to query template user roles if they are authorized to read the template.
-	template, err := q.database.GetTemplateByID(ctx, id)
+	template, err := q.db.GetTemplateByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 	if err := q.authorizeContext(ctx, rbac.ActionRead, template); err != nil {
 		return nil, err
 	}
-	return q.database.GetTemplateUserRoles(ctx, id)
+	return q.db.GetTemplateUserRoles(ctx, id)
 }

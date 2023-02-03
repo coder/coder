@@ -10,15 +10,15 @@ import (
 )
 
 func (q *AuthzQuerier) DeleteGroupByID(ctx context.Context, id uuid.UUID) error {
-	return authorizedDelete(q.logger, q.authorizer, q.database.GetGroupByID, q.database.DeleteGroupByID)(ctx, id)
+	return delete(q.log, q.auth, q.db.GetGroupByID, q.db.DeleteGroupByID)(ctx, id)
 }
 
 func (q *AuthzQuerier) DeleteGroupMemberFromGroup(ctx context.Context, arg database.DeleteGroupMemberFromGroupParams) error {
 	// Deleting a group member counts as updating a group.
 	fetch := func(ctx context.Context, arg database.DeleteGroupMemberFromGroupParams) (database.Group, error) {
-		return q.database.GetGroupByID(ctx, arg.GroupID)
+		return q.db.GetGroupByID(ctx, arg.GroupID)
 	}
-	return authorizedUpdate(q.logger, q.authorizer, fetch, q.database.DeleteGroupMemberFromGroup)(ctx, arg)
+	return update(q.log, q.auth, fetch, q.db.DeleteGroupMemberFromGroup)(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertUserGroupsByName(ctx context.Context, arg database.InsertUserGroupsByNameParams) error {
@@ -28,7 +28,7 @@ func (q *AuthzQuerier) InsertUserGroupsByName(ctx context.Context, arg database.
 	fetch := func(ctx context.Context, arg database.InsertUserGroupsByNameParams) (rbac.Objecter, error) {
 		return rbac.ResourceGroup.InOrg(arg.OrganizationID), nil
 	}
-	return authorizedUpdate(q.logger, q.authorizer, fetch, q.database.InsertUserGroupsByName)(ctx, arg)
+	return update(q.log, q.auth, fetch, q.db.InsertUserGroupsByName)(ctx, arg)
 }
 
 func (q *AuthzQuerier) DeleteGroupMembersByOrgAndUser(ctx context.Context, arg database.DeleteGroupMembersByOrgAndUserParams) error {
@@ -38,43 +38,43 @@ func (q *AuthzQuerier) DeleteGroupMembersByOrgAndUser(ctx context.Context, arg d
 	fetch := func(ctx context.Context, arg database.DeleteGroupMembersByOrgAndUserParams) (rbac.Objecter, error) {
 		return rbac.ResourceGroup.InOrg(arg.OrganizationID), nil
 	}
-	return authorizedUpdate(q.logger, q.authorizer, fetch, q.database.DeleteGroupMembersByOrgAndUser)(ctx, arg)
+	return update(q.log, q.auth, fetch, q.db.DeleteGroupMembersByOrgAndUser)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetGroupByID(ctx context.Context, id uuid.UUID) (database.Group, error) {
-	return authorizedFetch(q.logger, q.authorizer, q.database.GetGroupByID)(ctx, id)
+	return fetch(q.log, q.auth, q.db.GetGroupByID)(ctx, id)
 }
 
 func (q *AuthzQuerier) GetGroupByOrgAndName(ctx context.Context, arg database.GetGroupByOrgAndNameParams) (database.Group, error) {
-	return authorizedFetch(q.logger, q.authorizer, q.database.GetGroupByOrgAndName)(ctx, arg)
+	return fetch(q.log, q.auth, q.db.GetGroupByOrgAndName)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]database.User, error) {
 	relatedFunc := func(_ []database.User, groupID uuid.UUID) (database.Group, error) {
-		return q.database.GetGroupByID(ctx, groupID)
+		return q.db.GetGroupByID(ctx, groupID)
 	}
-	return authorizedQueryWithRelated(q.logger, q.authorizer, rbac.ActionRead, relatedFunc, q.database.GetGroupMembers)(ctx, groupID)
+	return queryWithRelated(q.log, q.auth, rbac.ActionRead, relatedFunc, q.db.GetGroupMembers)(ctx, groupID)
 }
 
 func (q *AuthzQuerier) InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (database.Group, error) {
 	// This method creates a new group.
-	return authorizedInsertWithReturn(q.logger, q.authorizer, rbac.ActionCreate, rbac.ResourceGroup.InOrg(organizationID), q.database.InsertAllUsersGroup)(ctx, organizationID)
+	return insertWithReturn(q.log, q.auth, rbac.ActionCreate, rbac.ResourceGroup.InOrg(organizationID), q.db.InsertAllUsersGroup)(ctx, organizationID)
 }
 
 func (q *AuthzQuerier) InsertGroup(ctx context.Context, arg database.InsertGroupParams) (database.Group, error) {
-	return authorizedInsertWithReturn(q.logger, q.authorizer, rbac.ActionCreate, rbac.ResourceGroup.InOrg(arg.OrganizationID), q.database.InsertGroup)(ctx, arg)
+	return insertWithReturn(q.log, q.auth, rbac.ActionCreate, rbac.ResourceGroup.InOrg(arg.OrganizationID), q.db.InsertGroup)(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertGroupMember(ctx context.Context, arg database.InsertGroupMemberParams) error {
 	fetch := func(ctx context.Context, arg database.InsertGroupMemberParams) (database.Group, error) {
-		return q.database.GetGroupByID(ctx, arg.GroupID)
+		return q.db.GetGroupByID(ctx, arg.GroupID)
 	}
-	return authorizedUpdate(q.logger, q.authorizer, fetch, q.database.InsertGroupMember)(ctx, arg)
+	return update(q.log, q.auth, fetch, q.db.InsertGroupMember)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateGroupByID(ctx context.Context, arg database.UpdateGroupByIDParams) (database.Group, error) {
 	fetch := func(ctx context.Context, arg database.UpdateGroupByIDParams) (database.Group, error) {
-		return q.database.GetGroupByID(ctx, arg.ID)
+		return q.db.GetGroupByID(ctx, arg.ID)
 	}
-	return authorizedUpdateWithReturn(q.logger, q.authorizer, fetch, q.database.UpdateGroupByID)(ctx, arg)
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateGroupByID)(ctx, arg)
 }

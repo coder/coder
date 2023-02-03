@@ -13,23 +13,23 @@ import (
 )
 
 func (q *AuthzQuerier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg database.UpdateProvisionerJobWithCancelByIDParams) error {
-	job, err := q.database.GetProvisionerJobByID(ctx, arg.ID)
+	job, err := q.db.GetProvisionerJobByID(ctx, arg.ID)
 	if err != nil {
 		return err
 	}
 
 	switch job.Type {
 	case database.ProvisionerJobTypeWorkspaceBuild:
-		build, err := q.database.GetWorkspaceBuildByJobID(ctx, arg.ID)
+		build, err := q.db.GetWorkspaceBuildByJobID(ctx, arg.ID)
 		if err != nil {
 			return err
 		}
-		workspace, err := q.database.GetWorkspaceByID(ctx, build.WorkspaceID)
+		workspace, err := q.db.GetWorkspaceByID(ctx, build.WorkspaceID)
 		if err != nil {
 			return err
 		}
 
-		template, err := q.database.GetTemplateByID(ctx, workspace.TemplateID)
+		template, err := q.db.GetTemplateByID(ctx, workspace.TemplateID)
 		if err != nil {
 			return err
 		}
@@ -59,7 +59,7 @@ func (q *AuthzQuerier) UpdateProvisionerJobWithCancelByID(ctx context.Context, a
 		}
 
 		if templateVersion.TemplateID.Valid {
-			template, err := q.database.GetTemplateByID(ctx, templateVersion.TemplateID.UUID)
+			template, err := q.db.GetTemplateByID(ctx, templateVersion.TemplateID.UUID)
 			if err != nil {
 				return err
 			}
@@ -76,11 +76,11 @@ func (q *AuthzQuerier) UpdateProvisionerJobWithCancelByID(ctx context.Context, a
 	default:
 		return xerrors.Errorf("unknown job type: %q", job.Type)
 	}
-	return q.database.UpdateProvisionerJobWithCancelByID(ctx, arg)
+	return q.db.UpdateProvisionerJobWithCancelByID(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
-	job, err := q.database.GetProvisionerJobByID(ctx, id)
+	job, err := q.db.GetProvisionerJobByID(ctx, id)
 	if err != nil {
 		return database.ProvisionerJob{}, err
 	}
@@ -109,7 +109,7 @@ func (q *AuthzQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) 
 func (q *AuthzQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
 	// TODO: This is missing authorization and is incorrect. This call is used by telemetry, and by 1 http route.
 	// That http handler should find a better way to fetch these jobs with easier rbac authz.
-	return q.database.GetProvisionerJobsByIDs(ctx, ids)
+	return q.db.GetProvisionerJobsByIDs(ctx, ids)
 }
 
 func (q *AuthzQuerier) GetProvisionerLogsByIDBetween(ctx context.Context, arg database.GetProvisionerLogsByIDBetweenParams) ([]database.ProvisionerJobLog, error) {
@@ -118,7 +118,7 @@ func (q *AuthzQuerier) GetProvisionerLogsByIDBetween(ctx context.Context, arg da
 	if err != nil {
 		return nil, err
 	}
-	return q.database.GetProvisionerLogsByIDBetween(ctx, arg)
+	return q.db.GetProvisionerLogsByIDBetween(ctx, arg)
 }
 
 func authorizedTemplateVersionFromJob(ctx context.Context, q *AuthzQuerier, job database.ProvisionerJob) (database.TemplateVersion, error) {

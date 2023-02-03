@@ -21,7 +21,7 @@ func (q *AuthzQuerier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UU
 	if err != nil {
 		return err
 	}
-	return q.database.DeleteAPIKeysByUserID(ctx, userID)
+	return q.db.DeleteAPIKeysByUserID(ctx, userID)
 }
 
 func (q *AuthzQuerier) GetQuotaAllowanceForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
@@ -29,7 +29,7 @@ func (q *AuthzQuerier) GetQuotaAllowanceForUser(ctx context.Context, userID uuid
 	if err != nil {
 		return -1, err
 	}
-	return q.database.GetQuotaAllowanceForUser(ctx, userID)
+	return q.db.GetQuotaAllowanceForUser(ctx, userID)
 }
 
 func (q *AuthzQuerier) GetQuotaConsumedForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
@@ -37,23 +37,23 @@ func (q *AuthzQuerier) GetQuotaConsumedForUser(ctx context.Context, userID uuid.
 	if err != nil {
 		return -1, err
 	}
-	return q.database.GetQuotaConsumedForUser(ctx, userID)
+	return q.db.GetQuotaConsumedForUser(ctx, userID)
 }
 
 func (q *AuthzQuerier) GetUserByEmailOrUsername(ctx context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
-	return authorizedFetch(q.logger, q.authorizer, q.database.GetUserByEmailOrUsername)(ctx, arg)
+	return fetch(q.log, q.auth, q.db.GetUserByEmailOrUsername)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (database.User, error) {
-	return authorizedFetch(q.logger, q.authorizer, q.database.GetUserByID)(ctx, id)
+	return fetch(q.log, q.auth, q.db.GetUserByID)(ctx, id)
 }
 
 func (q *AuthzQuerier) GetAuthorizedUserCount(ctx context.Context, arg database.GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
-	return q.database.GetAuthorizedUserCount(ctx, arg, prepared)
+	return q.db.GetAuthorizedUserCount(ctx, arg, prepared)
 }
 
 func (q *AuthzQuerier) GetFilteredUserCount(ctx context.Context, arg database.GetFilteredUserCountParams) (int64, error) {
-	prep, err := prepareSQLFilter(ctx, q.authorizer, rbac.ActionRead, rbac.ResourceUser.Type)
+	prep, err := prepareSQLFilter(ctx, q.auth, rbac.ActionRead, rbac.ResourceUser.Type)
 	if err != nil {
 		return -1, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
 	}
@@ -63,12 +63,12 @@ func (q *AuthzQuerier) GetFilteredUserCount(ctx context.Context, arg database.Ge
 
 func (q *AuthzQuerier) GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error) {
 	// TODO: We should use GetUsersWithCount with a better method signature.
-	return authorizedFetchSet(q.authorizer, q.database.GetUsers)(ctx, arg)
+	return fetchSet(q.auth, q.db.GetUsers)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetUsersWithCount(ctx context.Context, arg database.GetUsersParams) ([]database.User, int64, error) {
 	// TODO Implement this with a SQL filter. The count is incorrect without it.
-	rowUsers, err := q.database.GetUsers(ctx, arg)
+	rowUsers, err := q.db.GetUsers(ctx, arg)
 	if err != nil {
 		return nil, -1, err
 	}
@@ -84,7 +84,7 @@ func (q *AuthzQuerier) GetUsersWithCount(ctx context.Context, arg database.GetUs
 
 	// TODO: Is this correct? Should we return a restricted user?
 	users := database.ConvertUserRows(rowUsers)
-	users, err = rbac.Filter(ctx, q.authorizer, act, rbac.ActionRead, users)
+	users, err = rbac.Filter(ctx, q.auth, act, rbac.ActionRead, users)
 	if err != nil {
 		return nil, -1, err
 	}
@@ -93,7 +93,7 @@ func (q *AuthzQuerier) GetUsersWithCount(ctx context.Context, arg database.GetUs
 }
 
 func (q *AuthzQuerier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]database.User, error) {
-	return authorizedFetchSet(q.authorizer, q.database.GetUsersByIDs)(ctx, ids)
+	return fetchSet(q.auth, q.db.GetUsersByIDs)(ctx, ids)
 }
 
 func (q *AuthzQuerier) InsertUser(ctx context.Context, arg database.InsertUserParams) (database.User, error) {
@@ -104,7 +104,7 @@ func (q *AuthzQuerier) InsertUser(ctx context.Context, arg database.InsertUserPa
 		return database.User{}, err
 	}
 	obj := rbac.ResourceUser
-	return authorizedInsertWithReturn(q.logger, q.authorizer, rbac.ActionCreate, obj, q.database.InsertUser)(ctx, arg)
+	return insertWithReturn(q.log, q.auth, rbac.ActionCreate, obj, q.db.InsertUser)(ctx, arg)
 }
 
 // TODO: Should this be in system.go?
@@ -112,17 +112,17 @@ func (q *AuthzQuerier) InsertUserLink(ctx context.Context, arg database.InsertUs
 	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceUser.WithID(arg.UserID)); err != nil {
 		return database.UserLink{}, err
 	}
-	return q.database.InsertUserLink(ctx, arg)
+	return q.db.InsertUserLink(ctx, arg)
 }
 
 func (q *AuthzQuerier) SoftDeleteUserByID(ctx context.Context, id uuid.UUID) error {
 	deleteF := func(ctx context.Context, id uuid.UUID) error {
-		return q.database.UpdateUserDeletedByID(ctx, database.UpdateUserDeletedByIDParams{
+		return q.db.UpdateUserDeletedByID(ctx, database.UpdateUserDeletedByIDParams{
 			ID:      id,
 			Deleted: true,
 		})
 	}
-	return authorizedDelete(q.logger, q.authorizer, q.database.GetUserByID, deleteF)(ctx, id)
+	return delete(q.log, q.auth, q.db.GetUserByID, deleteF)(ctx, id)
 }
 
 // UpdateUserDeletedByID
@@ -130,15 +130,15 @@ func (q *AuthzQuerier) SoftDeleteUserByID(ctx context.Context, id uuid.UUID) err
 // irreversible.
 func (q *AuthzQuerier) UpdateUserDeletedByID(ctx context.Context, arg database.UpdateUserDeletedByIDParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateUserDeletedByIDParams) (database.User, error) {
-		return q.database.GetUserByID(ctx, arg.ID)
+		return q.db.GetUserByID(ctx, arg.ID)
 	}
 	// This uses the rbac.ActionDelete action always as this function should always delete.
 	// We should delete this function in favor of 'SoftDeleteUserByID'.
-	return authorizedDelete(q.logger, q.authorizer, fetch, q.database.UpdateUserDeletedByID)(ctx, arg)
+	return delete(q.log, q.auth, fetch, q.db.UpdateUserDeletedByID)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateUserHashedPassword(ctx context.Context, arg database.UpdateUserHashedPasswordParams) error {
-	user, err := q.database.GetUserByID(ctx, arg.ID)
+	user, err := q.db.GetUserByID(ctx, arg.ID)
 	if err != nil {
 		return err
 	}
@@ -148,73 +148,73 @@ func (q *AuthzQuerier) UpdateUserHashedPassword(ctx context.Context, arg databas
 		return err
 	}
 
-	return q.database.UpdateUserHashedPassword(ctx, arg)
+	return q.db.UpdateUserHashedPassword(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateUserLastSeenAt(ctx context.Context, arg database.UpdateUserLastSeenAtParams) (database.User, error) {
 	fetch := func(ctx context.Context, arg database.UpdateUserLastSeenAtParams) (database.User, error) {
-		return q.database.GetUserByID(ctx, arg.ID)
+		return q.db.GetUserByID(ctx, arg.ID)
 	}
-	return authorizedUpdateWithReturn(q.logger, q.authorizer, fetch, q.database.UpdateUserLastSeenAt)(ctx, arg)
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateUserLastSeenAt)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateUserProfile(ctx context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
-	u, err := q.database.GetUserByID(ctx, arg.ID)
+	u, err := q.db.GetUserByID(ctx, arg.ID)
 	if err != nil {
 		return database.User{}, err
 	}
 	if err := q.authorizeContext(ctx, rbac.ActionUpdate, u.UserDataRBACObject()); err != nil {
 		return database.User{}, err
 	}
-	return q.database.UpdateUserProfile(ctx, arg)
+	return q.db.UpdateUserProfile(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateUserStatus(ctx context.Context, arg database.UpdateUserStatusParams) (database.User, error) {
 	fetch := func(ctx context.Context, arg database.UpdateUserStatusParams) (database.User, error) {
-		return q.database.GetUserByID(ctx, arg.ID)
+		return q.db.GetUserByID(ctx, arg.ID)
 	}
-	return authorizedUpdateWithReturn(q.logger, q.authorizer, fetch, q.database.UpdateUserStatus)(ctx, arg)
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateUserStatus)(ctx, arg)
 }
 
 func (q *AuthzQuerier) DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error {
-	return authorizedDelete(q.logger, q.authorizer, q.database.GetGitSSHKey, q.database.DeleteGitSSHKey)(ctx, userID)
+	return delete(q.log, q.auth, q.db.GetGitSSHKey, q.db.DeleteGitSSHKey)(ctx, userID)
 }
 
 func (q *AuthzQuerier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
-	return authorizedFetch(q.logger, q.authorizer, q.database.GetGitSSHKey)(ctx, userID)
+	return fetch(q.log, q.auth, q.db.GetGitSSHKey)(ctx, userID)
 }
 
 func (q *AuthzQuerier) InsertGitSSHKey(ctx context.Context, arg database.InsertGitSSHKeyParams) (database.GitSSHKey, error) {
-	return authorizedInsertWithReturn(q.logger, q.authorizer, rbac.ActionCreate, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID), q.database.InsertGitSSHKey)(ctx, arg)
+	return insertWithReturn(q.log, q.auth, rbac.ActionCreate, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID), q.db.InsertGitSSHKey)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateGitSSHKey(ctx context.Context, arg database.UpdateGitSSHKeyParams) (database.GitSSHKey, error) {
-	return authorizedInsertWithReturn(q.logger, q.authorizer, rbac.ActionUpdate, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID), q.database.UpdateGitSSHKey)(ctx, arg)
+	return insertWithReturn(q.log, q.auth, rbac.ActionUpdate, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID), q.db.UpdateGitSSHKey)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetGitAuthLink(ctx context.Context, arg database.GetGitAuthLinkParams) (database.GitAuthLink, error) {
-	return authorizedFetch(q.logger, q.authorizer, q.database.GetGitAuthLink)(ctx, arg)
+	return fetch(q.log, q.auth, q.db.GetGitAuthLink)(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertGitAuthLink(ctx context.Context, arg database.InsertGitAuthLinkParams) (database.GitAuthLink, error) {
-	return authorizedInsertWithReturn(q.logger, q.authorizer, rbac.ActionCreate, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID), q.database.InsertGitAuthLink)(ctx, arg)
+	return insertWithReturn(q.log, q.auth, rbac.ActionCreate, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID), q.db.InsertGitAuthLink)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateGitAuthLink(ctx context.Context, arg database.UpdateGitAuthLinkParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateGitAuthLinkParams) (database.GitAuthLink, error) {
-		return q.database.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
+		return q.db.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
 	}
-	return authorizedUpdate(q.logger, q.authorizer, fetch, q.database.UpdateGitAuthLink)(ctx, arg)
+	return update(q.log, q.auth, fetch, q.db.UpdateGitAuthLink)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateUserLink(ctx context.Context, arg database.UpdateUserLinkParams) (database.UserLink, error) {
 	fetch := func(ctx context.Context, arg database.UpdateUserLinkParams) (database.UserLink, error) {
-		return q.database.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
+		return q.db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
 			UserID:    arg.UserID,
 			LoginType: arg.LoginType,
 		})
 	}
-	return authorizedUpdateWithReturn(q.logger, q.authorizer, fetch, q.database.UpdateUserLink)(ctx, arg)
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateUserLink)(ctx, arg)
 }
 
 // UpdateUserRoles updates the site roles of a user. The validation for this function include more than
@@ -223,7 +223,7 @@ func (q *AuthzQuerier) UpdateUserRoles(ctx context.Context, arg database.UpdateU
 	// We need to fetch the user being updated to identify the change in roles.
 	// This requires read access on the user in question, since the user is
 	// returned from this function.
-	user, err := authorizedFetch(q.logger, q.authorizer, q.database.GetUserByID)(ctx, arg.ID)
+	user, err := fetch(q.log, q.auth, q.db.GetUserByID)(ctx, arg.ID)
 	if err != nil {
 		return database.User{}, err
 	}
@@ -237,5 +237,5 @@ func (q *AuthzQuerier) UpdateUserRoles(ctx context.Context, arg database.UpdateU
 		return database.User{}, err
 	}
 
-	return q.database.UpdateUserRoles(ctx, arg)
+	return q.db.UpdateUserRoles(ctx, arg)
 }

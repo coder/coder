@@ -54,7 +54,7 @@ func LogNotAuthorizedError(ctx context.Context, logger slog.Logger, err error) e
 	}
 }
 
-func authorizedInsert[ArgumentType any,
+func insert[ArgumentType any,
 	Insert func(ctx context.Context, arg ArgumentType) error](
 	// Arguments
 	logger slog.Logger,
@@ -63,14 +63,14 @@ func authorizedInsert[ArgumentType any,
 	object rbac.Objecter,
 	insertFunc Insert) Insert {
 	return func(ctx context.Context, arg ArgumentType) error {
-		_, err := authorizedInsertWithReturn(logger, authorizer, action, object, func(ctx context.Context, arg ArgumentType) (rbac.Objecter, error) {
+		_, err := insertWithReturn(logger, authorizer, action, object, func(ctx context.Context, arg ArgumentType) (rbac.Objecter, error) {
 			return rbac.Object{}, insertFunc(ctx, arg)
 		})(ctx, arg)
 		return err
 	}
 }
 
-func authorizedInsertWithReturn[ObjectType any, ArgumentType any,
+func insertWithReturn[ObjectType any, ArgumentType any,
 	Insert func(ctx context.Context, arg ArgumentType) (ObjectType, error)](
 	// Arguments
 	logger slog.Logger,
@@ -96,7 +96,7 @@ func authorizedInsertWithReturn[ObjectType any, ArgumentType any,
 	}
 }
 
-func authorizedDelete[ObjectType rbac.Objecter, ArgumentType any,
+func delete[ObjectType rbac.Objecter, ArgumentType any,
 	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 	Delete func(ctx context.Context, arg ArgumentType) error](
 	// Arguments
@@ -104,11 +104,11 @@ func authorizedDelete[ObjectType rbac.Objecter, ArgumentType any,
 	authorizer rbac.Authorizer,
 	fetchFunc Fetch,
 	deleteFunc Delete) Delete {
-	return authorizedFetchAndExec(logger, authorizer,
+	return fetchAndExec(logger, authorizer,
 		rbac.ActionDelete, fetchFunc, deleteFunc)
 }
 
-func authorizedUpdateWithReturn[ObjectType rbac.Objecter,
+func updateWithReturn[ObjectType rbac.Objecter,
 	ArgumentType any,
 	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 	UpdateQuery func(ctx context.Context, arg ArgumentType) (ObjectType, error)](
@@ -117,10 +117,10 @@ func authorizedUpdateWithReturn[ObjectType rbac.Objecter,
 	authorizer rbac.Authorizer,
 	fetchFunc Fetch,
 	updateQuery UpdateQuery) UpdateQuery {
-	return authorizedFetchAndQuery(logger, authorizer, rbac.ActionUpdate, fetchFunc, updateQuery)
+	return fetchAndQuery(logger, authorizer, rbac.ActionUpdate, fetchFunc, updateQuery)
 }
 
-func authorizedUpdate[ObjectType rbac.Objecter,
+func update[ObjectType rbac.Objecter,
 	ArgumentType any,
 	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 	Exec func(ctx context.Context, arg ArgumentType) error](
@@ -129,13 +129,13 @@ func authorizedUpdate[ObjectType rbac.Objecter,
 	authorizer rbac.Authorizer,
 	fetchFunc Fetch,
 	updateExec Exec) Exec {
-	return authorizedFetchAndExec(logger, authorizer, rbac.ActionUpdate, fetchFunc, updateExec)
+	return fetchAndExec(logger, authorizer, rbac.ActionUpdate, fetchFunc, updateExec)
 }
 
 // authorizedFetchAndExecWithConverter uses authorizedFetchAndQueryWithConverter but
 // only cares about the error return type. SQL execs only return an error.
 // See authorizedFetchAndQueryWithConverter for more details.
-func authorizedFetchAndExec[ObjectType rbac.Objecter,
+func fetchAndExec[ObjectType rbac.Objecter,
 	ArgumentType any,
 	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 	Exec func(ctx context.Context, arg ArgumentType) error](
@@ -145,7 +145,7 @@ func authorizedFetchAndExec[ObjectType rbac.Objecter,
 	action rbac.Action,
 	fetchFunc Fetch,
 	execFunc Exec) Exec {
-	f := authorizedFetchAndQuery(logger, authorizer, action, fetchFunc, func(ctx context.Context, arg ArgumentType) (empty ObjectType, err error) {
+	f := fetchAndQuery(logger, authorizer, action, fetchFunc, func(ctx context.Context, arg ArgumentType) (empty ObjectType, err error) {
 		return empty, execFunc(ctx, arg)
 	})
 	return func(ctx context.Context, arg ArgumentType) error {
@@ -154,7 +154,7 @@ func authorizedFetchAndExec[ObjectType rbac.Objecter,
 	}
 }
 
-func authorizedFetchAndQuery[ObjectType rbac.Objecter, ArgumentType any,
+func fetchAndQuery[ObjectType rbac.Objecter, ArgumentType any,
 	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 	Query func(ctx context.Context, arg ArgumentType) (ObjectType, error)](
 	// Arguments
@@ -186,7 +186,7 @@ func authorizedFetchAndQuery[ObjectType rbac.Objecter, ArgumentType any,
 	}
 }
 
-func authorizedFetch[ObjectType rbac.Objecter, ArgumentType any,
+func fetch[ObjectType rbac.Objecter, ArgumentType any,
 	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error)](
 	// Arguments
 	logger slog.Logger,
@@ -235,9 +235,9 @@ func authorizedQuery[ArgumentType any, ObjectType rbac.Objecter,
 	}
 }
 
-// authorizedFetchSet is like authorizedFetch, but works with lists of objects.
+// fetchSet is like fetch, but works with lists of objects.
 // SQL filters are much more optimal.
-func authorizedFetchSet[ArgumentType any, ObjectType rbac.Objecter,
+func fetchSet[ArgumentType any, ObjectType rbac.Objecter,
 	DatabaseFunc func(ctx context.Context, arg ArgumentType) ([]ObjectType, error)](
 	// Arguments
 	authorizer rbac.Authorizer,
@@ -260,13 +260,13 @@ func authorizedFetchSet[ArgumentType any, ObjectType rbac.Objecter,
 	}
 }
 
-// authorizedQueryWithRelated performs the same function as authorizedQuery, except that
+// queryWithRelated performs the same function as authorizedQuery, except that
 // RBAC checks are performed on the result of relatedFunc() instead of the result of fetch().
 // This is useful for cases where ObjectType does not implement RBACObjecter.
 // For example, a TemplateVersion object does not implement RBACObjecter, but it is
 // related to a Template object, which does. Thus, any operations on a TemplateVersion
 // are predicated on the RBAC permissions of the related Template object.
-func authorizedQueryWithRelated[ObjectType any, ArgumentType any, Related rbac.Objecter](
+func queryWithRelated[ObjectType any, ArgumentType any, Related rbac.Objecter](
 	// Arguments
 	_ slog.Logger,
 	authorizer rbac.Authorizer,

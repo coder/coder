@@ -11,44 +11,44 @@ import (
 )
 
 func (q *AuthzQuerier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {
-	return authorizedFetchSet(q.authorizer, q.database.GetGroupsByOrganizationID)(ctx, organizationID)
+	return fetchSet(q.auth, q.db.GetGroupsByOrganizationID)(ctx, organizationID)
 }
 
 func (q *AuthzQuerier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
-	return authorizedFetch(q.logger, q.authorizer, q.database.GetOrganizationByID)(ctx, id)
+	return fetch(q.log, q.auth, q.db.GetOrganizationByID)(ctx, id)
 }
 
 func (q *AuthzQuerier) GetOrganizationByName(ctx context.Context, name string) (database.Organization, error) {
-	return authorizedFetch(q.logger, q.authorizer, q.database.GetOrganizationByName)(ctx, name)
+	return fetch(q.log, q.auth, q.db.GetOrganizationByName)(ctx, name)
 }
 
 func (q *AuthzQuerier) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetOrganizationIDsByMemberIDsRow, error) {
 	// TODO: This should be rewritten to return a list of database.OrganizationMember for consistent RBAC objects.
 	// Currently this row returns a list of org ids per user, which is challenging to check against the RBAC system.
-	return authorizedFetchSet(q.authorizer, q.database.GetOrganizationIDsByMemberIDs)(ctx, ids)
+	return fetchSet(q.auth, q.db.GetOrganizationIDsByMemberIDs)(ctx, ids)
 }
 
 func (q *AuthzQuerier) GetOrganizationMemberByUserID(ctx context.Context, arg database.GetOrganizationMemberByUserIDParams) (database.OrganizationMember, error) {
-	return authorizedFetch(q.logger, q.authorizer, q.database.GetOrganizationMemberByUserID)(ctx, arg)
+	return fetch(q.log, q.auth, q.db.GetOrganizationMemberByUserID)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetOrganizationMembershipsByUserID(ctx context.Context, userID uuid.UUID) ([]database.OrganizationMember, error) {
-	return authorizedFetchSet(q.authorizer, q.database.GetOrganizationMembershipsByUserID)(ctx, userID)
+	return fetchSet(q.auth, q.db.GetOrganizationMembershipsByUserID)(ctx, userID)
 }
 
 func (q *AuthzQuerier) GetOrganizations(ctx context.Context) ([]database.Organization, error) {
 	fetch := func(ctx context.Context, _ interface{}) ([]database.Organization, error) {
-		return q.database.GetOrganizations(ctx)
+		return q.db.GetOrganizations(ctx)
 	}
-	return authorizedFetchSet(q.authorizer, fetch)(ctx, nil)
+	return fetchSet(q.auth, fetch)(ctx, nil)
 }
 
 func (q *AuthzQuerier) GetOrganizationsByUserID(ctx context.Context, userID uuid.UUID) ([]database.Organization, error) {
-	return authorizedFetchSet(q.authorizer, q.database.GetOrganizationsByUserID)(ctx, userID)
+	return fetchSet(q.auth, q.db.GetOrganizationsByUserID)(ctx, userID)
 }
 
 func (q *AuthzQuerier) InsertOrganization(ctx context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {
-	return authorizedInsertWithReturn(q.logger, q.authorizer, rbac.ActionCreate, rbac.ResourceOrganization, q.database.InsertOrganization)(ctx, arg)
+	return insertWithReturn(q.log, q.auth, rbac.ActionCreate, rbac.ResourceOrganization, q.db.InsertOrganization)(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertOrganizationMember(ctx context.Context, arg database.InsertOrganizationMemberParams) (database.OrganizationMember, error) {
@@ -60,7 +60,7 @@ func (q *AuthzQuerier) InsertOrganizationMember(ctx context.Context, arg databas
 	}
 
 	obj := rbac.ResourceOrganizationMember.InOrg(arg.OrganizationID).WithID(arg.UserID)
-	return authorizedInsertWithReturn(q.logger, q.authorizer, rbac.ActionCreate, obj, q.database.InsertOrganizationMember)(ctx, arg)
+	return insertWithReturn(q.log, q.auth, rbac.ActionCreate, obj, q.db.InsertOrganizationMember)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
@@ -81,7 +81,7 @@ func (q *AuthzQuerier) UpdateMemberRoles(ctx context.Context, arg database.Updat
 		return database.OrganizationMember{}, err
 	}
 
-	return q.database.UpdateMemberRoles(ctx, arg)
+	return q.db.UpdateMemberRoles(ctx, arg)
 }
 
 func (q *AuthzQuerier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, removed []string) error {

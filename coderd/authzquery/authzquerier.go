@@ -21,21 +21,21 @@ var _ database.Store = (*AuthzQuerier)(nil)
 // Use WithAuthorizeContext to set the authorization subject in the context for
 // the common user case.
 type AuthzQuerier struct {
-	database   database.Store
-	authorizer rbac.Authorizer
-	logger     slog.Logger
+	db   database.Store
+	auth rbac.Authorizer
+	log  slog.Logger
 }
 
 func NewAuthzQuerier(db database.Store, authorizer rbac.Authorizer, logger slog.Logger) *AuthzQuerier {
 	return &AuthzQuerier{
-		database:   db,
-		authorizer: authorizer,
-		logger:     logger,
+		db:   db,
+		auth: authorizer,
+		log:  logger,
 	}
 }
 
 func (q *AuthzQuerier) Ping(ctx context.Context) (time.Duration, error) {
-	return q.database.Ping(ctx)
+	return q.db.Ping(ctx)
 }
 
 // InTx runs the given function in a transaction.
@@ -45,9 +45,9 @@ func (q *AuthzQuerier) Ping(ctx context.Context) (time.Duration, error) {
 // func (q *AuthzQuerier) InTx(function func(querier AuthzStore) error, txOpts *sql.TxOptions) error {
 func (q *AuthzQuerier) InTx(function func(querier database.Store) error, txOpts *sql.TxOptions) error {
 	// TODO: @emyrk verify this works.
-	return q.database.InTx(func(tx database.Store) error {
+	return q.db.InTx(func(tx database.Store) error {
 		// Wrap the transaction store in an AuthzQuerier.
-		wrapped := NewAuthzQuerier(tx, q.authorizer, slog.Make())
+		wrapped := NewAuthzQuerier(tx, q.auth, slog.Make())
 		return function(wrapped)
 	}, txOpts)
 }
@@ -59,9 +59,9 @@ func (q *AuthzQuerier) authorizeContext(ctx context.Context, action rbac.Action,
 		return NoActorError
 	}
 
-	err := q.authorizer.Authorize(ctx, act, action, object.RBACObject())
+	err := q.auth.Authorize(ctx, act, action, object.RBACObject())
 	if err != nil {
-		return LogNotAuthorizedError(ctx, q.logger, err)
+		return LogNotAuthorizedError(ctx, q.log, err)
 	}
 	return nil
 }

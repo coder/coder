@@ -11,13 +11,13 @@ import (
 )
 
 func (q *AuthzQuerier) GetFileByHashAndCreator(ctx context.Context, arg database.GetFileByHashAndCreatorParams) (database.File, error) {
-	return authorizedFetch(q.logger, q.authorizer, q.database.GetFileByHashAndCreator)(ctx, arg)
+	return fetch(q.log, q.auth, q.db.GetFileByHashAndCreator)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetFileByID(ctx context.Context, id uuid.UUID) (database.File, error) {
-	return authorizedFetch(q.logger, q.authorizer, q.database.GetFileByID)(ctx, id)
+	return fetch(q.log, q.auth, q.db.GetFileByID)(ctx, id)
 }
 
 func (q *AuthzQuerier) InsertFile(ctx context.Context, arg database.InsertFileParams) (database.File, error) {
-	return authorizedInsertWithReturn(q.logger, q.authorizer, rbac.ActionCreate, rbac.ResourceFile.WithOwner(arg.CreatedBy.String()), q.database.InsertFile)(ctx, arg)
+	return insertWithReturn(q.log, q.auth, rbac.ActionCreate, rbac.ResourceFile.WithOwner(arg.CreatedBy.String()), q.db.InsertFile)(ctx, arg)
 }

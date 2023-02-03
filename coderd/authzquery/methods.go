@@ -11,14 +11,14 @@ import (
 
 func (q *AuthzQuerier) GetProvisionerDaemons(ctx context.Context) ([]database.ProvisionerDaemon, error) {
 	fetch := func(ctx context.Context, _ interface{}) ([]database.ProvisionerDaemon, error) {
-		return q.database.GetProvisionerDaemons(ctx)
+		return q.db.GetProvisionerDaemons(ctx)
 	}
-	return authorizedFetchSet(q.authorizer, fetch)(ctx, nil)
+	return fetchSet(q.auth, fetch)(ctx, nil)
 }
 
 func (q *AuthzQuerier) GetDeploymentDAUs(ctx context.Context) ([]database.GetDeploymentDAUsRow, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUser.All()); err != nil {
 		return nil, err
 	}
-	return q.database.GetDeploymentDAUs(ctx)
+	return q.db.GetDeploymentDAUs(ctx)
 }

@@ -8,7 +8,7 @@ import (
 )
 
 func (q *AuthzQuerier) InsertAuditLog(ctx context.Context, arg database.InsertAuditLogParams) (database.AuditLog, error) {
-	return authorizedInsertWithReturn(q.logger, q.authorizer, rbac.ActionCreate, rbac.ResourceAuditLog, q.database.InsertAuditLog)(ctx, arg)
+	return insertWithReturn(q.log, q.auth, rbac.ActionCreate, rbac.ResourceAuditLog, q.db.InsertAuditLog)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
@@ -18,5 +18,5 @@ func (q *AuthzQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetA
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceAuditLog); err != nil {
 		return nil, err
 	}
-	return q.database.GetAuditLogsOffset(ctx, arg)
+	return q.db.GetAuditLogsOffset(ctx, arg)
 }
