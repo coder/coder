@@ -77,7 +77,7 @@ describe("AuditLogDescription", () => {
   })
   it("renders the correct string for unsuccessful login for an unknown user", async () => {
     render(<AuditLogRow auditLog={MockAuditLogUnsuccessfulLoginUnknownUser} />)
-    expect(getByTextContent(`An unknown user logged in`)).toBeDefined()
+    expect(getByTextContent(`an unknown user logged in`)).toBeDefined()
     const statusPill = screen.getByRole("status")
     expect(statusPill).toHaveTextContent("401")
   })
