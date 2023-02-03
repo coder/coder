@@ -333,3 +333,11 @@ jobs:
           # For gh CLI. We need a real token since we're commenting on a PR in a
           # different repo.
           GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+
+      - name: Start Packer builds
+        uses: peter-evans/repository-dispatch@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: coder/packages
+          event-type: coder-release
+          client-payload: '{"coder_version": "${{ needs.release.outputs.version }}"}'
