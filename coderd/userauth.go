@@ -133,7 +133,18 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.Response
 // @Router /users/logout [post]
 func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	var (
+		ctx               = r.Context()
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionLogout,
+		})
+	)
+	defer commitAudit()
+
 	// Get a blank token cookie.
 	cookie := &http.Cookie{
 		// MaxAge < 0 means to delete the cookie now.
@@ -145,6 +156,8 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 
 	// Delete the session token from database.
 	apiKey := httpmw.APIKey(r)
+	aReq.Old = apiKey
+
 	err := api.Database.DeleteAPIKeyByID(ctx, apiKey.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -197,6 +210,8 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 			http.SetCookie(rw, cookie)
 		}
 	}
+
+	aReq.New = database.APIKey{}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Logged out!",

@@ -327,9 +327,12 @@ func TestPostLogout(t *testing.T) {
 	// Checks that the cookie is cleared and the API Key is deleted from the database.
 	t.Run("Logout", func(t *testing.T) {
 		t.Parallel()
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
+		numLogs := len(auditor.AuditLogs)
 
-		client := coderdtest.New(t, nil)
 		admin := coderdtest.CreateFirstUser(t, client)
+		numLogs++ // add an audit log for login
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -343,9 +346,14 @@ func TestPostLogout(t *testing.T) {
 		require.NoError(t, err, "Server URL should parse successfully")
 
 		res, err := client.Request(ctx, http.MethodPost, fullURL.String(), nil)
+		numLogs++ // add an audit log for logout
+
 		require.NoError(t, err, "/logout request should succeed")
 		res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		require.Len(t, auditor.AuditLogs, numLogs)
+		require.Equal(t, database.AuditActionLogout, auditor.AuditLogs[numLogs-1].Action)
 
 		cookies := res.Cookies()
 
