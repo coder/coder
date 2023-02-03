@@ -268,7 +268,7 @@ func authorizedFetchSet[ArgumentType any, ObjectType rbac.Objecter,
 // are predicated on the RBAC permissions of the related Template object.
 func authorizedQueryWithRelated[ObjectType any, ArgumentType any, Related rbac.Objecter](
 	// Arguments
-	logger slog.Logger,
+	_ slog.Logger,
 	authorizer rbac.Authorizer,
 	action rbac.Action,
 	relatedFunc func(ObjectType, ArgumentType) (Related, error),
