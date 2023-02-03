@@ -116,7 +116,7 @@ func (q *AuthzQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context
 
 func (q *AuthzQuerier) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionParameter, error) {
 	// An actor can read template version parameters if they can read the related template.
-	tv, err := q.GetTemplateVersionByID(ctx, templateVersionID)
+	tv, err := q.database.GetTemplateVersionByID(ctx, templateVersionID)
 	if err != nil {
 		return nil, err
 	}
@@ -288,7 +288,21 @@ func (q *AuthzQuerier) UpdateTemplateVersionByID(ctx context.Context, arg databa
 
 func (q *AuthzQuerier) UpdateTemplateVersionDescriptionByJobID(ctx context.Context, arg database.UpdateTemplateVersionDescriptionByJobIDParams) error {
 	// An actor is allowed to update the template version description if they are authorized to update the template.
-	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
+	tv, err := q.database.GetTemplateVersionByJobID(ctx, arg.JobID)
+	if err != nil {
+		return err
+	}
+	var obj rbac.Objecter
+	if !tv.TemplateID.Valid {
+		obj = rbac.ResourceTemplate.InOrg(tv.OrganizationID)
+	} else {
+		tpl, err := q.database.GetTemplateByID(ctx, tv.TemplateID.UUID)
+		if err != nil {
+			return err
+		}
+		obj = tpl
+	}
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, obj); err != nil {
 		return err
 	}
 	return q.database.UpdateTemplateVersionDescriptionByJobID(ctx, arg)

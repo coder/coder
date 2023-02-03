@@ -27,6 +27,7 @@ var (
 		"InTx":                    "Not relevant",
 		"Ping":                    "Not relevant",
 		"GetAuthorizedWorkspaces": "Will not be exposed",
+		"GetAuthorizedTemplates":  "Will not be exposed",
 	}
 )
 
