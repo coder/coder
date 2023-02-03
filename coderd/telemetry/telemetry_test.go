@@ -149,7 +149,7 @@ func TestTelemetry(t *testing.T) {
 // nolint:paralleltest
 func TestTelemetryInstallSource(t *testing.T) {
 	t.Setenv("CODER_TELEMETRY_INSTALL_SOURCE", "aws_marketplace")
-	db := databasefake.New()
+	db := dbfake.New()
 	deployment, _ := collectSnapshot(t, db)
 	require.Equal(t, "aws_marketplace", deployment.InstallSource)
 }
