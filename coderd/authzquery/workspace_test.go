@@ -200,6 +200,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			ws := dbgen.Workspace(t, db, database.Workspace{})
 			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+			_ = dbgen.ProvisionerJob(t, db, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
 			res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
 			return methodCase(values(res.ID), asserts(ws, rbac.ActionRead), values(res))
 		})
@@ -208,6 +209,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			ws := dbgen.Workspace(t, db, database.Workspace{})
 			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+			_ = dbgen.ProvisionerJob(t, db, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
 			a := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
 			b := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
 			return methodCase(values([]uuid.UUID{a.ID, b.ID}),

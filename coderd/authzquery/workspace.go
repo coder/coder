@@ -219,16 +219,11 @@ func (q *AuthzQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUI
 		return database.WorkspaceResource{}, err
 	}
 
-	build, err := q.db.GetWorkspaceBuildByJobID(ctx, resource.JobID)
+	_, err = q.GetProvisionerJobByID(ctx, resource.JobID)
 	if err != nil {
 		return database.WorkspaceResource{}, err
 	}
 
-	// If the workspace can be read, then the resource can be read.
-	_, err = fetch(q.log, q.auth, q.db.GetWorkspaceByID)(ctx, build.WorkspaceID)
-	if err != nil {
-		return database.WorkspaceResource{}, err
-	}
 	return resource, nil
 }
 
