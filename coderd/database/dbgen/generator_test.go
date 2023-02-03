@@ -44,6 +44,16 @@ func TestGenerator(t *testing.T) {
 		require.Equal(t, exp, must(db.GetUserLinkByLinkedID(context.Background(), exp.LinkedID)))
 	})
 
+	t.Run("GitAuthLink", func(t *testing.T) {
+		t.Parallel()
+		db := dbfake.New()
+		exp := dbgen.GitAuthLink(t, db, database.GitAuthLink{})
+		require.Equal(t, exp, must(db.GetGitAuthLink(context.Background(), database.GetGitAuthLinkParams{
+			ProviderID: exp.ProviderID,
+			UserID:     exp.UserID,
+		})))
+	})
+
 	t.Run("WorkspaceResource", func(t *testing.T) {
 		t.Parallel()
 		db := dbfake.New()
@@ -165,6 +175,13 @@ func TestGenerator(t *testing.T) {
 		db := dbfake.New()
 		exp := dbgen.User(t, db, database.User{})
 		require.Equal(t, exp, must(db.GetUserByID(context.Background(), exp.ID)))
+	})
+
+	t.Run("SSHKey", func(t *testing.T) {
+		t.Parallel()
+		db := dbfake.New()
+		exp := dbgen.GitSSHKey(t, db, database.GitSSHKey{})
+		require.Equal(t, exp, must(db.GetGitSSHKey(context.Background(), exp.UserID)))
 	})
 }
 
