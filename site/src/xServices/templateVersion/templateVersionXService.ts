@@ -13,6 +13,7 @@ import { assign, createMachine } from "xstate"
 
 export interface TemplateVersionMachineContext {
   orgId: string
+  templateName: string
   versionName: string
   templateName: string
   template?: Template
@@ -138,10 +139,10 @@ export const templateVersionMachine = createMachine(
       }),
     },
     services: {
-      loadVersions: async ({ orgId, versionName }) => {
+      loadVersions: async ({ orgId, templateName, versionName }) => {
         const [currentVersion, previousVersion] = await Promise.all([
-          getTemplateVersionByName(orgId, versionName),
-          getPreviousTemplateVersionByName(orgId, versionName),
+          getTemplateVersionByName(orgId, templateName, versionName),
+          getPreviousTemplateVersionByName(orgId, templateName, versionName),
         ])
 
         return {

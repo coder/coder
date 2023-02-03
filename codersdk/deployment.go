@@ -108,6 +108,7 @@ func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
 type DeploymentConfig struct {
 	AccessURL                       *DeploymentConfigField[string]          `json:"access_url" typescript:",notnull"`
 	WildcardAccessURL               *DeploymentConfigField[string]          `json:"wildcard_access_url" typescript:",notnull"`
+	RedirectToAccessURL             *DeploymentConfigField[bool]            `json:"redirect_to_access_url" typescript:",notnull"`
 	HTTPAddress                     *DeploymentConfigField[string]          `json:"http_address" typescript:",notnull"`
 	AutobuildPollInterval           *DeploymentConfigField[time.Duration]   `json:"autobuild_poll_interval" typescript:",notnull"`
 	DERP                            *DERP                                   `json:"derp" typescript:",notnull"`
@@ -200,6 +201,8 @@ type OIDCConfig struct {
 	Scopes              *DeploymentConfigField[[]string] `json:"scopes" typescript:",notnull"`
 	IgnoreEmailVerified *DeploymentConfigField[bool]     `json:"ignore_email_verified" typescript:",notnull"`
 	UsernameField       *DeploymentConfigField[string]   `json:"username_field" typescript:",notnull"`
+	SignInText          *DeploymentConfigField[string]   `json:"sign_in_text" typescript:",notnull"`
+	IconURL             *DeploymentConfigField[string]   `json:"icon_url" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {

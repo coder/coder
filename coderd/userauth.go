@@ -51,10 +51,24 @@ type GithubOAuth2Config struct {
 // @Success 200 {object} codersdk.AuthMethods
 // @Router /users/authmethods [get]
 func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
+	var signInText string
+	var iconURL string
+
+	if api.OIDCConfig != nil {
+		signInText = api.OIDCConfig.SignInText
+	}
+	if api.OIDCConfig != nil {
+		iconURL = api.OIDCConfig.IconURL
+	}
+
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AuthMethods{
-		Password: true,
-		Github:   api.GithubOAuth2Config != nil,
-		OIDC:     api.OIDCConfig != nil,
+		Password: codersdk.AuthMethod{Enabled: true},
+		Github:   codersdk.AuthMethod{Enabled: api.GithubOAuth2Config != nil},
+		OIDC: codersdk.OIDCAuthMethod{
+			AuthMethod: codersdk.AuthMethod{Enabled: api.OIDCConfig != nil},
+			SignInText: signInText,
+			IconURL:    iconURL,
+		},
 	})
 }
 
@@ -215,6 +229,10 @@ type OIDCConfig struct {
 	// UsernameField selects the claim field to be used as the created user's
 	// username.
 	UsernameField string
+	// SignInText is the text to display on the OIDC login button
+	SignInText string
+	// IconURL points to the URL of an icon to display on the OIDC login button
+	IconURL string
 }
 
 // @Summary OpenID Connect Callback
@@ -293,6 +311,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	if ok {
 		username, _ = usernameRaw.(string)
 	}
+
 	emailRaw, ok := claims["email"]
 	if !ok {
 		// Email is an optional claim in OIDC and
@@ -308,6 +327,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		}
 		emailRaw = username
 	}
+
 	email, ok := emailRaw.(string)
 	if !ok {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -315,6 +335,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
 	verifiedRaw, ok := claims["email_verified"]
 	if ok {
 		verified, ok := verifiedRaw.(bool)
@@ -328,6 +349,26 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			api.Logger.Warn(ctx, "allowing unverified oidc email %q")
 		}
 	}
+
+	var groups []string
+	groupsRaw, ok := claims["groups"]
+	if ok {
+		// Convert the []interface{} we get to a []string.
+		groupsInterface, ok := groupsRaw.([]interface{})
+		if ok {
+			for _, groupInterface := range groupsInterface {
+				group, ok := groupInterface.(string)
+				if !ok {
+					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+						Message: fmt.Sprintf("Invalid group type. Expected string, got: %t", emailRaw),
+					})
+					return
+				}
+				groups = append(groups, group)
+			}
+		}
+	}
+
 	// The username is a required property in Coder. We make a best-effort
 	// attempt at using what the claims provide, but if that fails we will
 	// generate a random username.
@@ -341,6 +382,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		}
 		username = httpapi.UsernameFrom(username)
 	}
+
 	if len(api.OIDCConfig.EmailDomain) > 0 {
 		ok = false
 		for _, domain := range api.OIDCConfig.EmailDomain {
@@ -356,6 +398,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
 	var picture string
 	pictureRaw, ok := claims["picture"]
 	if ok {
@@ -370,6 +413,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		Email:        email,
 		Username:     username,
 		AvatarURL:    picture,
+		Groups:       groups,
 	})
 	var httpErr httpError
 	if xerrors.As(err, &httpErr) {
@@ -407,6 +451,7 @@ type oauthLoginParams struct {
 	Email        string
 	Username     string
 	AvatarURL    string
+	Groups       []string
 }
 
 type httpError struct {
@@ -528,22 +573,6 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 			}
 		}
 
-		// LEGACY: Remove 10/2022.
-		// We started tracking linked IDs later so it's possible for a user to be a
-		// pre-existing OAuth user and not have a linked ID.
-		// The migration that added the user_links table could not populate
-		// the 'linked_id' field since it requires fields off the access token.
-		if link.LinkedID == "" {
-			link, err = tx.UpdateUserLinkedID(ctx, database.UpdateUserLinkedIDParams{
-				UserID:    user.ID,
-				LoginType: params.LoginType,
-				LinkedID:  params.LinkedID,
-			})
-			if err != nil {
-				return xerrors.Errorf("update user linked ID: %w", err)
-			}
-		}
-
 		if link.UserID != uuid.Nil {
 			link, err = tx.UpdateUserLink(ctx, database.UpdateUserLinkParams{
 				UserID:            user.ID,
@@ -554,6 +583,14 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 			})
 			if err != nil {
 				return xerrors.Errorf("update user link: %w", err)
+			}
+		}
+
+		// Ensure groups are correct.
+		if len(params.Groups) > 0 {
+			err := api.Options.SetUserGroups(ctx, tx, user.ID, params.Groups)
+			if err != nil {
+				return xerrors.Errorf("set user groups: %w", err)
 			}
 		}
 

@@ -60,6 +60,7 @@ const (
 
 type Options struct {
 	Filesystem             afero.Fs
+	LogDir                 string
 	TempDir                string
 	ExchangeToken          func(ctx context.Context) (string, error)
 	Client                 Client
@@ -87,6 +88,12 @@ func New(options Options) io.Closer {
 	if options.TempDir == "" {
 		options.TempDir = os.TempDir()
 	}
+	if options.LogDir == "" {
+		if options.TempDir != os.TempDir() {
+			options.Logger.Debug(context.Background(), "log dir not set, using temp dir", slog.F("temp_dir", options.TempDir))
+		}
+		options.LogDir = options.TempDir
+	}
 	if options.ExchangeToken == nil {
 		options.ExchangeToken = func(ctx context.Context) (string, error) {
 			return "", nil
@@ -102,6 +109,7 @@ func New(options Options) io.Closer {
 		client:                 options.Client,
 		exchangeToken:          options.ExchangeToken,
 		filesystem:             options.Filesystem,
+		logDir:                 options.LogDir,
 		tempDir:                options.TempDir,
 		lifecycleUpdate:        make(chan struct{}, 1),
 	}
@@ -114,6 +122,7 @@ type agent struct {
 	client        Client
 	exchangeToken func(ctx context.Context) (string, error)
 	filesystem    afero.Fs
+	logDir        string
 	tempDir       string
 
 	reconnectingPTYs       sync.Map
@@ -517,23 +526,23 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 		return nil, err
 	}
 
-	statisticsListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.WorkspaceAgentStatisticsPort))
+	apiListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.WorkspaceAgentHTTPAPIServerPort))
 	if err != nil {
-		return nil, xerrors.Errorf("listen for statistics: %w", err)
+		return nil, xerrors.Errorf("api listener: %w", err)
 	}
 	defer func() {
 		if err != nil {
-			_ = statisticsListener.Close()
+			_ = apiListener.Close()
 		}
 	}()
 	if err = a.trackConnGoroutine(func() {
-		defer statisticsListener.Close()
+		defer apiListener.Close()
 		server := &http.Server{
-			Handler:           a.statisticsHandler(),
+			Handler:           a.apiHandler(),
 			ReadTimeout:       20 * time.Second,
 			ReadHeaderTimeout: 20 * time.Second,
 			WriteTimeout:      20 * time.Second,
-			ErrorLog:          slog.Stdlib(ctx, a.logger.Named("statistics_http_server"), slog.LevelInfo),
+			ErrorLog:          slog.Stdlib(ctx, a.logger.Named("http_api_server"), slog.LevelInfo),
 		}
 		go func() {
 			select {
@@ -543,9 +552,9 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 			_ = server.Close()
 		}()
 
-		err := server.Serve(statisticsListener)
+		err := server.Serve(apiListener)
 		if err != nil && !xerrors.Is(err, http.ErrServerClosed) && !strings.Contains(err.Error(), "use of closed network connection") {
-			a.logger.Critical(ctx, "serve statistics HTTP server", slog.Error(err))
+			a.logger.Critical(ctx, "serve HTTP API server", slog.Error(err))
 		}
 	}); err != nil {
 		return nil, err
@@ -582,7 +591,7 @@ func (a *agent) runStartupScript(ctx context.Context, script string) error {
 	}
 
 	a.logger.Info(ctx, "running startup script", slog.F("script", script))
-	writer, err := a.filesystem.OpenFile(filepath.Join(a.tempDir, "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0o600)
+	writer, err := a.filesystem.OpenFile(filepath.Join(a.logDir, "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return xerrors.Errorf("open startup script log file: %w", err)
 	}

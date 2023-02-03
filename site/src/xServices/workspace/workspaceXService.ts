@@ -43,6 +43,8 @@ const moreBuildsAvailable = (
 const Language = {
   getTemplateWarning:
     "Error updating workspace: latest template could not be fetched.",
+  getTemplateParametersWarning:
+    "Error updating workspace: template parameters could not be fetched.",
   buildError: "Workspace action failed.",
 }
 
@@ -53,11 +55,13 @@ export interface WorkspaceContext {
   eventSource?: EventSource
   workspace?: TypesGen.Workspace
   template?: TypesGen.Template
+  templateParameters?: TypesGen.TemplateVersionParameter[]
   build?: TypesGen.WorkspaceBuild
   getWorkspaceError?: Error | unknown
   // these are labeled as warnings because they don't make the page unusable
   refreshWorkspaceWarning?: Error | unknown
   getTemplateWarning: Error | unknown
+  getTemplateParametersWarning: Error | unknown
   // Builds
   builds?: TypesGen.WorkspaceBuild[]
   getBuildsError?: Error | unknown
@@ -130,6 +134,9 @@ export const workspaceMachine = createMachine(
         getTemplate: {
           data: TypesGen.Template
         }
+        getTemplateParameters: {
+          data: TypesGen.TemplateVersionParameter[]
+        }
         startWorkspaceWithLatestTemplate: {
           data: TypesGen.WorkspaceBuild
         }
@@ -171,13 +178,13 @@ export const workspaceMachine = createMachine(
         tags: "loading",
       },
       gettingWorkspace: {
-        entry: ["clearGetWorkspaceError", "clearContext"],
+        entry: ["clearContext"],
         invoke: {
           src: "getWorkspace",
           id: "getWorkspace",
           onDone: [
             {
-              actions: "assignWorkspace",
+              actions: ["assignWorkspace", "clearGetWorkspaceError"],
               target: "gettingTemplate",
             },
           ],
@@ -191,14 +198,13 @@ export const workspaceMachine = createMachine(
         tags: "loading",
       },
       gettingTemplate: {
-        entry: "clearGettingTemplateWarning",
         invoke: {
           src: "getTemplate",
           id: "getTemplate",
           onDone: [
             {
-              actions: "assignTemplate",
-              target: "gettingPermissions",
+              actions: ["assignTemplate", "clearGetTemplateWarning"],
+              target: "gettingTemplateParameters",
             },
           ],
           onError: [
@@ -213,14 +219,38 @@ export const workspaceMachine = createMachine(
         },
         tags: "loading",
       },
+      gettingTemplateParameters: {
+        invoke: {
+          src: "getTemplateParameters",
+          id: "getTemplateParameters",
+          onDone: [
+            {
+              actions: [
+                "assignTemplateParameters",
+                "clearGetTemplateParametersWarning",
+              ],
+              target: "gettingPermissions",
+            },
+          ],
+          onError: [
+            {
+              actions: [
+                "assignGetTemplateParametersWarning",
+                "displayGetTemplateParametersWarning",
+              ],
+              target: "error",
+            },
+          ],
+        },
+        tags: "loading",
+      },
       gettingPermissions: {
-        entry: "clearGetPermissionsError",
         invoke: {
           src: "checkPermissions",
           id: "checkPermissions",
           onDone: [
             {
-              actions: "assignPermissions",
+              actions: ["assignPermissions", "clearGetPermissionsError"],
               target: "ready",
             },
           ],
@@ -240,10 +270,7 @@ export const workspaceMachine = createMachine(
             initial: "gettingEvents",
             states: {
               gettingEvents: {
-                entry: [
-                  "clearRefreshWorkspaceWarning",
-                  "initializeEventSource",
-                ],
+                entry: ["initializeEventSource"],
                 exit: "closeEventSource",
                 invoke: {
                   src: "listening",
@@ -251,7 +278,10 @@ export const workspaceMachine = createMachine(
                 },
                 on: {
                   REFRESH_WORKSPACE: {
-                    actions: ["refreshWorkspace"],
+                    actions: [
+                      "refreshWorkspace",
+                      "clearRefreshWorkspaceWarning",
+                    ],
                   },
                   EVENT_SOURCE_ERROR: {
                     target: "error",
@@ -261,7 +291,7 @@ export const workspaceMachine = createMachine(
               error: {
                 entry: "assignRefreshWorkspaceWarning",
                 after: {
-                  "1000": {
+                  "2000": {
                     target: "gettingEvents",
                   },
                 },
@@ -413,12 +443,11 @@ export const workspaceMachine = createMachine(
             initial: "gettingBuilds",
             states: {
               gettingBuilds: {
-                entry: "clearGetBuildsError",
                 invoke: {
                   src: "getBuilds",
                   onDone: [
                     {
-                      actions: "assignBuilds",
+                      actions: ["assignBuilds", "clearGetBuildsError"],
                       target: "loadedBuilds",
                     },
                   ],
@@ -506,6 +535,9 @@ export const workspaceMachine = createMachine(
       assignTemplate: assign({
         template: (_, event) => event.data,
       }),
+      assignTemplateParameters: assign({
+        templateParameters: (_, event) => event.data,
+      }),
       assignPermissions: assign({
         // Setting event.data as Permissions to be more stricted. So we know
         // what permissions we asked for.
@@ -566,8 +598,17 @@ export const workspaceMachine = createMachine(
       displayGetTemplateWarning: () => {
         displayError(Language.getTemplateWarning)
       },
-      clearGettingTemplateWarning: assign({
+      clearGetTemplateWarning: assign({
         getTemplateWarning: (_) => undefined,
+      }),
+      assignGetTemplateParametersWarning: assign({
+        getTemplateParametersWarning: (_, event) => event.data,
+      }),
+      displayGetTemplateParametersWarning: () => {
+        displayError(Language.getTemplateParametersWarning)
+      },
+      clearGetTemplateParametersWarning: assign({
+        getTemplateParametersWarning: (_) => undefined,
       }),
       // Timeline
       assignBuilds: assign({
@@ -627,6 +668,15 @@ export const workspaceMachine = createMachine(
           return await API.getTemplate(context.workspace.template_id)
         } else {
           throw Error("Cannot get template without workspace")
+        }
+      },
+      getTemplateParameters: async (context) => {
+        if (context.workspace) {
+          return await API.getTemplateVersionRichParameters(
+            context.workspace.latest_build.template_version_id,
+          )
+        } else {
+          throw Error("Cannot get template parameters without workspace")
         }
       },
       startWorkspaceWithLatestTemplate: (context) => async (send) => {

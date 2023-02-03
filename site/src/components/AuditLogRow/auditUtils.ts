@@ -14,13 +14,13 @@ export const determineGroupDiff = (auditLogDiff: AuditDiff): AuditDiff => {
   return {
     ...auditLogDiff,
     members: {
-      old: auditLogDiff.members.old?.map(
+      old: auditLogDiff.members?.old?.map(
         (groupMember: GroupMember) => groupMember.user_id,
       ),
-      new: auditLogDiff.members.new?.map(
+      new: auditLogDiff.members?.new?.map(
         (groupMember: GroupMember) => groupMember.user_id,
       ),
-      secret: auditLogDiff.members.secret,
+      secret: auditLogDiff.members?.secret,
     },
   }
 }

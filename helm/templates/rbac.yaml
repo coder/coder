@@ -16,10 +16,10 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: coder
+  name: {{ .Values.coder.serviceAccount.name | quote }}
 subjects:
   - kind: ServiceAccount
-    name: coder
+    name: {{ .Values.coder.serviceAccount.name | quote }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role

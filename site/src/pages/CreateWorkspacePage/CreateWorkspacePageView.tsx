@@ -2,10 +2,10 @@ import TextField from "@material-ui/core/TextField"
 import * as TypesGen from "api/typesGenerated"
 import { FormFooter } from "components/FormFooter/FormFooter"
 import { ParameterInput } from "components/ParameterInput/ParameterInput"
+import { RichParameterInput } from "components/RichParameterInput/RichParameterInput"
 import { Stack } from "components/Stack/Stack"
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
-import { i18n } from "i18n"
 import { FC, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { getFormHelpers, nameValidator, onChangeTrimmed } from "util/formUtils"
@@ -30,6 +30,7 @@ export interface CreateWorkspacePageViewProps {
   templateName: string
   templates?: TypesGen.Template[]
   selectedTemplate?: TypesGen.Template
+  templateParameters?: TypesGen.TemplateVersionParameter[]
   templateSchema?: TypesGen.ParameterSchema[]
   createWorkspaceErrors: Partial<Record<CreateWorkspaceErrors, Error | unknown>>
   canCreateForUser?: boolean
@@ -42,30 +43,36 @@ export interface CreateWorkspacePageViewProps {
   defaultParameterValues?: Record<string, string>
 }
 
-const { t } = i18n
-
-export const validationSchema = Yup.object({
-  name: nameValidator(t("nameLabel", { ns: "createWorkspacePage" })),
-})
-
 export const CreateWorkspacePageView: FC<
   React.PropsWithChildren<CreateWorkspacePageViewProps>
 > = (props) => {
-  const { t } = useTranslation("createWorkspacePage")
   const styles = useStyles()
   const formFooterStyles = useFormFooterStyles()
   const [parameterValues, setParameterValues] = useState<
     Record<string, string>
   >(props.defaultParameterValues ?? {})
+  const initialRichParameterValues = selectInitialRichParametersValues(
+    props.templateParameters,
+    props.defaultParameterValues,
+  )
+
+  const { t } = useTranslation("createWorkspacePage")
 
   const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
     useFormik<TypesGen.CreateWorkspaceRequest>({
       initialValues: {
         name: "",
         template_id: props.selectedTemplate ? props.selectedTemplate.id : "",
+        rich_parameter_values: initialRichParameterValues,
       },
+      validationSchema: Yup.object({
+        name: nameValidator(t("nameLabel", { ns: "createWorkspacePage" })),
+        rich_parameter_values: ValidationSchemaForRichParameters(
+          "createWorkspacePage",
+          props.templateParameters,
+        ),
+      }),
       enableReinitialize: true,
-      validationSchema,
       initialTouched: props.initialTouched,
       onSubmit: (request) => {
         if (!props.templateSchema) {
@@ -231,24 +238,128 @@ export const CreateWorkspacePageView: FC<
                 spacing={4} // Spacing here is diff because the fields here don't have the MUI floating label spacing
                 className={styles.formSectionFields}
               >
-                {props.templateSchema.map((schema) => (
-                  <ParameterInput
-                    disabled={form.isSubmitting}
-                    key={schema.id}
-                    defaultValue={parameterValues[schema.name]}
-                    onChange={(value) => {
-                      setParameterValues({
-                        ...parameterValues,
-                        [schema.name]: value,
-                      })
-                    }}
-                    schema={schema}
-                  />
-                ))}
+                {props.templateSchema
+                  // We only want to show schema that have redisplay_value equals true
+                  .filter((schema) => schema.redisplay_value)
+                  .map((schema) => (
+                    <ParameterInput
+                      disabled={form.isSubmitting}
+                      key={schema.id}
+                      defaultValue={parameterValues[schema.name]}
+                      onChange={(value) => {
+                        setParameterValues({
+                          ...parameterValues,
+                          [schema.name]: value,
+                        })
+                      }}
+                      schema={schema}
+                    />
+                  ))}
               </Stack>
             </div>
           )}
 
+          {/* Immutable rich parameters */}
+          {props.templateParameters &&
+            props.templateParameters.filter((p) => !p.mutable).length > 0 && (
+              <div className={styles.formSection}>
+                <div className={styles.formSectionInfo}>
+                  <h2 className={styles.formSectionInfoTitle}>
+                    Immutable parameters
+                  </h2>
+                  <p className={styles.formSectionInfoDescription}>
+                    Those values are provided by your template&lsquo;s Terraform
+                    configuration. Values cannot be changed after creating the
+                    workspace.
+                  </p>
+                </div>
+
+                <Stack
+                  direction="column"
+                  spacing={4} // Spacing here is diff because the fields here don't have the MUI floating label spacing
+                  className={styles.formSectionFields}
+                >
+                  {props.templateParameters.map(
+                    (parameter, index) =>
+                      !parameter.mutable && (
+                        <RichParameterInput
+                          {...getFieldHelpers(
+                            "rich_parameter_values[" + index + "].value",
+                          )}
+                          disabled={form.isSubmitting}
+                          index={index}
+                          key={parameter.name}
+                          onChange={(value) => {
+                            form.setFieldValue(
+                              "rich_parameter_values." + index,
+                              {
+                                name: parameter.name,
+                                value: value,
+                              },
+                            )
+                          }}
+                          parameter={parameter}
+                          initialValue={workspaceBuildParameterValue(
+                            initialRichParameterValues,
+                            parameter,
+                          )}
+                        />
+                      ),
+                  )}
+                </Stack>
+              </div>
+            )}
+
+          {/* Mutable rich parameters */}
+          {props.templateParameters &&
+            props.templateParameters.filter((p) => p.mutable).length > 0 && (
+              <div className={styles.formSection}>
+                <div className={styles.formSectionInfo}>
+                  <h2 className={styles.formSectionInfoTitle}>
+                    Mutable parameters
+                  </h2>
+                  <p className={styles.formSectionInfoDescription}>
+                    Those values are provided by your template&lsquo;s Terraform
+                    configuration. Values can be changed after creating the
+                    workspace.
+                  </p>
+                </div>
+
+                <Stack
+                  direction="column"
+                  spacing={4} // Spacing here is diff because the fields here don't have the MUI floating label spacing
+                  className={styles.formSectionFields}
+                >
+                  {props.templateParameters.map(
+                    (parameter, index) =>
+                      parameter.mutable && (
+                        <RichParameterInput
+                          {...getFieldHelpers(
+                            "rich_parameter_values[" + index + "].value",
+                          )}
+                          disabled={form.isSubmitting}
+                          index={index}
+                          key={parameter.name}
+                          onChange={(value) => {
+                            form.setFieldValue(
+                              "rich_parameter_values." + index,
+                              {
+                                name: parameter.name,
+                                value: value,
+                              },
+                            )
+                          }}
+                          parameter={parameter}
+                          initialValue={workspaceBuildParameterValue(
+                            initialRichParameterValues,
+                            parameter,
+                          )}
+                        />
+                      ),
+                  )}
+                </Stack>
+              </div>
+            )}
           <FormFooter
             styles={formFooterStyles}
             onCancel={props.onCancel}
@@ -332,3 +443,122 @@ const useFormFooterStyles = makeStyles((theme) => ({
     },
   },
 }))
+
+const selectInitialRichParametersValues = (
+  templateParameters?: TypesGen.TemplateVersionParameter[],
+  defaultValuesFromQuery?: Record<string, string>,
+): TypesGen.WorkspaceBuildParameter[] => {
+  const defaults: TypesGen.WorkspaceBuildParameter[] = []
+  if (!templateParameters) {
+    return defaults
+  }
+
+  templateParameters.forEach((parameter) => {
+    if (parameter.options.length > 0) {
+      let parameterValue = parameter.options[0].value
+      if (defaultValuesFromQuery && defaultValuesFromQuery[parameter.name]) {
+        parameterValue = defaultValuesFromQuery[parameter.name]
+      }
+
+      const buildParameter: TypesGen.WorkspaceBuildParameter = {
+        name: parameter.name,
+        value: parameterValue,
+      }
+      defaults.push(buildParameter)
+      return
+    }
+
+    let parameterValue = parameter.default_value
+    if (defaultValuesFromQuery && defaultValuesFromQuery[parameter.name]) {
+      parameterValue = defaultValuesFromQuery[parameter.name]
+    }
+
+    const buildParameter: TypesGen.WorkspaceBuildParameter = {
+      name: parameter.name,
+      value: parameterValue || "",
+    }
+    defaults.push(buildParameter)
+  })
+  return defaults
+}
+
+export const workspaceBuildParameterValue = (
+  workspaceBuildParameters: TypesGen.WorkspaceBuildParameter[],
+  parameter: TypesGen.TemplateVersionParameter,
+): string => {
+  const buildParameter = workspaceBuildParameters.find((buildParameter) => {
+    return buildParameter.name === parameter.name
+  })
+  return (buildParameter && buildParameter.value) || ""
+}
+
+export const ValidationSchemaForRichParameters = (
+  ns: string,
+  templateParameters?: TypesGen.TemplateVersionParameter[],
+): Yup.AnySchema => {
+  const { t } = useTranslation(ns)
+
+  if (!templateParameters) {
+    return Yup.object()
+  }
+
+  return Yup.array()
+    .of(
+      Yup.object().shape({
+        name: Yup.string().required(),
+        value: Yup.string()
+          .required(t("validationRequiredParameter"))
+          .test("verify with template", (val, ctx) => {
+            const name = ctx.parent.name
+            const templateParameter = templateParameters.find(
+              (parameter) => parameter.name === name,
+            )
+            if (templateParameter) {
+              switch (templateParameter.type) {
+                case "number":
+                  if (
+                    templateParameter.validation_min === 0 &&
+                    templateParameter.validation_max === 0
+                  ) {
+                    return true
+                  }
+
+                  if (
+                    Number(val) < templateParameter.validation_min ||
+                    templateParameter.validation_max < Number(val)
+                  ) {
+                    return ctx.createError({
+                      path: ctx.path,
+                      message: t("validationNumberNotInRange", {
+                        min: templateParameter.validation_min,
+                        max: templateParameter.validation_max,
+                      }),
+                    })
+                  }
+                  break
+                case "string":
+                  {
+                    if (templateParameter.validation_regex.length === 0) {
+                      return true
+                    }
+
+                    const regex = new RegExp(templateParameter.validation_regex)
+                    if (val && !regex.test(val)) {
+                      return ctx.createError({
+                        path: ctx.path,
+                        message: t("validationPatternNotMatched", {
+                          error: templateParameter.validation_error,
+                          pattern: templateParameter.validation_regex,
+                        }),
+                      })
+                    }
+                  }
+                  break
+              }
+            }
+            return true
+          }),
+      }),
+    )
+    .required()
+}

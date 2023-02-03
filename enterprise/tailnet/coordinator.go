@@ -568,9 +568,9 @@ func (c *haCoordinator) handlePubsubMessage(ctx context.Context, message []byte)
 func (c *haCoordinator) formatCallMeMaybe(recipient uuid.UUID, nodes []*agpl.Node) ([]byte, error) {
 	buf := bytes.Buffer{}
 
-	buf.WriteString(c.id.String() + "|")
-	buf.WriteString("callmemaybe|")
-	buf.WriteString(recipient.String() + "|")
+	_, _ = buf.WriteString(c.id.String() + "|")
+	_, _ = buf.WriteString("callmemaybe|")
+	_, _ = buf.WriteString(recipient.String() + "|")
 	err := json.NewEncoder(&buf).Encode(nodes)
 	if err != nil {
 		return nil, xerrors.Errorf("encode node: %w", err)
@@ -583,9 +583,9 @@ func (c *haCoordinator) formatCallMeMaybe(recipient uuid.UUID, nodes []*agpl.Nod
 func (c *haCoordinator) formatAgentHello(id uuid.UUID) ([]byte, error) {
 	buf := bytes.Buffer{}
 
-	buf.WriteString(c.id.String() + "|")
-	buf.WriteString("agenthello|")
-	buf.WriteString(id.String() + "|")
+	_, _ = buf.WriteString(c.id.String() + "|")
+	_, _ = buf.WriteString("agenthello|")
+	_, _ = buf.WriteString(id.String() + "|")
 
 	return buf.Bytes(), nil
 }
@@ -594,9 +594,9 @@ func (c *haCoordinator) formatAgentHello(id uuid.UUID) ([]byte, error) {
 func (c *haCoordinator) formatClientHello(id uuid.UUID) ([]byte, error) {
 	buf := bytes.Buffer{}
 
-	buf.WriteString(c.id.String() + "|")
-	buf.WriteString("clienthello|")
-	buf.WriteString(id.String() + "|")
+	_, _ = buf.WriteString(c.id.String() + "|")
+	_, _ = buf.WriteString("clienthello|")
+	_, _ = buf.WriteString(id.String() + "|")
 
 	return buf.Bytes(), nil
 }
@@ -605,9 +605,9 @@ func (c *haCoordinator) formatClientHello(id uuid.UUID) ([]byte, error) {
 func (c *haCoordinator) formatAgentUpdate(id uuid.UUID, node *agpl.Node) ([]byte, error) {
 	buf := bytes.Buffer{}
 
-	buf.WriteString(c.id.String() + "|")
-	buf.WriteString("agentupdate|")
-	buf.WriteString(id.String() + "|")
+	_, _ = buf.WriteString(c.id.String() + "|")
+	_, _ = buf.WriteString("agentupdate|")
+	_, _ = buf.WriteString(id.String() + "|")
 	err := json.NewEncoder(&buf).Encode(node)
 	if err != nil {
 		return nil, xerrors.Errorf("encode node: %w", err)
@@ -622,8 +622,8 @@ func (c *haCoordinator) ServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
-	fmt.Fprintln(w, "<h1>high-availability wireguard coordinator debug</h1>")
-	fmt.Fprintln(w, "<h4 style=\"margin-top:-25px\">warning: this only provides info from the node that served the request, if there are multiple replicas this data may be incomplete</h4>")
+	_, _ = fmt.Fprintln(w, "<h1>high-availability wireguard coordinator debug</h1>")
+	_, _ = fmt.Fprintln(w, "<h4 style=\"margin-top:-25px\">warning: this only provides info from the node that served the request, if there are multiple replicas this data may be incomplete</h4>")
 
 	agpl.CoordinatorHTTPDebug(c.agentSockets, c.agentToConnectionSockets, c.agentNameCache)(w, r)
 }

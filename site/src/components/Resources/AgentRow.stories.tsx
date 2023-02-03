@@ -3,6 +3,7 @@ import {
   MockWorkspace,
   MockWorkspaceAgent,
   MockWorkspaceAgentConnecting,
+  MockWorkspaceAgentOutdated,
   MockWorkspaceAgentStartError,
   MockWorkspaceAgentStarting,
   MockWorkspaceAgentStartTimeout,
@@ -119,4 +120,13 @@ ShowingPortForward.args = {
   workspace: MockWorkspace,
   applicationsHost: "https://coder.com",
   showApps: true,
+}
+
+export const Outdated = Template.bind({})
+Outdated.args = {
+  agent: MockWorkspaceAgentOutdated,
+  workspace: MockWorkspace,
+  applicationsHost: "",
+  showApps: true,
+  serverVersion: "v99.999.9999+c1cdf14",
 }

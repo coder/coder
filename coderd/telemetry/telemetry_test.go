@@ -19,7 +19,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/telemetry"
 )
 
@@ -34,7 +34,7 @@ func TestTelemetry(t *testing.T) {
 
 		var err error
 
-		db := databasefake.New()
+		db := dbfake.New()
 
 		ctx := context.Background()
 		_, err = db.InsertAPIKey(ctx, database.InsertAPIKeyParams{
@@ -117,7 +117,7 @@ func TestTelemetry(t *testing.T) {
 			},
 		})
 		assert.NoError(t, err)
-		snapshot := collectSnapshot(t, db)
+		_, snapshot := collectSnapshot(t, db)
 		require.Len(t, snapshot.ParameterSchemas, 1)
 		require.Len(t, snapshot.ProvisionerJobs, 1)
 		require.Len(t, snapshot.Licenses, 1)
@@ -132,7 +132,7 @@ func TestTelemetry(t *testing.T) {
 	})
 	t.Run("HashedEmail", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		_, err := db.InsertUser(context.Background(), database.InsertUserParams{
 			ID:        uuid.New(),
 			Email:     "kyle@coder.com",
@@ -140,21 +140,32 @@ func TestTelemetry(t *testing.T) {
 			LoginType: database.LoginTypePassword,
 		})
 		require.NoError(t, err)
-		snapshot := collectSnapshot(t, db)
+		_, snapshot := collectSnapshot(t, db)
 		require.Len(t, snapshot.Users, 1)
 		require.Equal(t, snapshot.Users[0].EmailHashed, "bb44bf07cf9a2db0554bba63a03d822c927deae77df101874496df5a6a3e896d@coder.com")
 	})
 }
 
-func collectSnapshot(t *testing.T, db database.Store) *telemetry.Snapshot {
+// nolint:paralleltest
+func TestTelemetryInstallSource(t *testing.T) {
+	t.Setenv("CODER_TELEMETRY_INSTALL_SOURCE", "aws_marketplace")
+	db := dbfake.New()
+	deployment, _ := collectSnapshot(t, db)
+	require.Equal(t, "aws_marketplace", deployment.InstallSource)
+}
+
+func collectSnapshot(t *testing.T, db database.Store) (*telemetry.Deployment, *telemetry.Snapshot) {
 	t.Helper()
-	deployment := make(chan struct{}, 64)
+	deployment := make(chan *telemetry.Deployment, 64)
 	snapshot := make(chan *telemetry.Snapshot, 64)
 	r := chi.NewRouter()
 	r.Post("/deployment", func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, buildinfo.Version(), r.Header.Get(telemetry.VersionHeader))
 		w.WriteHeader(http.StatusAccepted)
-		deployment <- struct{}{}
+		dd := &telemetry.Deployment{}
+		err := json.NewDecoder(r.Body).Decode(dd)
+		require.NoError(t, err)
+		deployment <- dd
 	})
 	r.Post("/snapshot", func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, buildinfo.Version(), r.Header.Get(telemetry.VersionHeader))
@@ -176,6 +187,5 @@ func collectSnapshot(t *testing.T, db database.Store) *telemetry.Snapshot {
 	})
 	require.NoError(t, err)
 	t.Cleanup(reporter.Close)
-	<-deployment
-	return <-snapshot
+	return <-deployment, <-snapshot
 }

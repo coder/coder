@@ -663,23 +663,45 @@
 | `audit_logs` | array of [codersdk.AuditLog](#codersdkauditlog) | false    |              |             |
 | `count`      | integer                                         | false    |              |             |
 
-## codersdk.AuthMethods
+## codersdk.AuthMethod
 
 ```json
 {
-  "github": true,
-  "oidc": true,
-  "password": true
+  "enabled": true
 }
 ```
 
 ### Properties
 
-| Name       | Type    | Required | Restrictions | Description |
-| ---------- | ------- | -------- | ------------ | ----------- |
-| `github`   | boolean | false    |              |             |
-| `oidc`     | boolean | false    |              |             |
-| `password` | boolean | false    |              |             |
+| Name      | Type    | Required | Restrictions | Description |
+| --------- | ------- | -------- | ------------ | ----------- |
+| `enabled` | boolean | false    |              |             |
+
+## codersdk.AuthMethods
+
+```json
+{
+  "github": {
+    "enabled": true
+  },
+  "oidc": {
+    "enabled": true,
+    "iconUrl": "string",
+    "signInText": "string"
+  },
+  "password": {
+    "enabled": true
+  }
+}
+```
+
+### Properties
+
+| Name       | Type                                               | Required | Restrictions | Description |
+| ---------- | -------------------------------------------------- | -------- | ------------ | ----------- |
+| `github`   | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
+| `oidc`     | [codersdk.OIDCAuthMethod](#codersdkoidcauthmethod) | false    |              |             |
+| `password` | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
 
 ## codersdk.AuthorizationCheck
 
@@ -991,6 +1013,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 ```json
 {
   "action": "create",
+  "additional_fields": [0],
   "build_reason": "autostart",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "resource_type": "template",
@@ -1000,13 +1023,14 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ### Properties
 
-| Name            | Type                                           | Required | Restrictions | Description |
-| --------------- | ---------------------------------------------- | -------- | ------------ | ----------- |
-| `action`        | [codersdk.AuditAction](#codersdkauditaction)   | false    |              |             |
-| `build_reason`  | [codersdk.BuildReason](#codersdkbuildreason)   | false    |              |             |
-| `resource_id`   | string                                         | false    |              |             |
-| `resource_type` | [codersdk.ResourceType](#codersdkresourcetype) | false    |              |             |
-| `time`          | string                                         | false    |              |             |
+| Name                | Type                                           | Required | Restrictions | Description |
+| ------------------- | ---------------------------------------------- | -------- | ------------ | ----------- |
+| `action`            | [codersdk.AuditAction](#codersdkauditaction)   | false    |              |             |
+| `additional_fields` | array of integer                               | false    |              |             |
+| `build_reason`      | [codersdk.BuildReason](#codersdkbuildreason)   | false    |              |             |
+| `resource_id`       | string                                         | false    |              |             |
+| `resource_type`     | [codersdk.ResourceType](#codersdkresourcetype) | false    |              |             |
+| `time`              | string                                         | false    |              |             |
 
 #### Enumerated Values
 
@@ -1896,6 +1920,17 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "usage": "string",
       "value": ["string"]
     },
+    "icon_url": {
+      "default": "string",
+      "enterprise": true,
+      "flag": "string",
+      "hidden": true,
+      "name": "string",
+      "secret": true,
+      "shorthand": "string",
+      "usage": "string",
+      "value": "string"
+    },
     "ignore_email_verified": {
       "default": true,
       "enterprise": true,
@@ -1928,6 +1963,17 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "shorthand": "string",
       "usage": "string",
       "value": ["string"]
+    },
+    "sign_in_text": {
+      "default": "string",
+      "enterprise": true,
+      "flag": "string",
+      "hidden": true,
+      "name": "string",
+      "secret": true,
+      "shorthand": "string",
+      "usage": "string",
+      "value": "string"
     },
     "username_field": {
       "default": "string",
@@ -2091,6 +2137,17 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "usage": "string",
       "value": true
     }
+  },
+  "redirect_to_access_url": {
+    "default": true,
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": true
   },
   "scim_api_key": {
     "default": "string",
@@ -2377,6 +2434,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `proxy_trusted_headers`              | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string)                                 | false    |              |                                                 |
 | `proxy_trusted_origins`              | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string)                                 | false    |              |                                                 |
 | `rate_limit`                         | [codersdk.RateLimitConfig](#codersdkratelimitconfig)                                                                       | false    |              |                                                 |
+| `redirect_to_access_url`             | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
 | `scim_api_key`                       | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
 | `secure_auth_cookie`                 | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
 | `ssh_keygen_algorithm`               | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
@@ -3190,6 +3248,24 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `client_secret`       | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
 | `enterprise_base_url` | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
 
+## codersdk.OIDCAuthMethod
+
+```json
+{
+  "enabled": true,
+  "iconUrl": "string",
+  "signInText": "string"
+}
+```
+
+### Properties
+
+| Name         | Type    | Required | Restrictions | Description |
+| ------------ | ------- | -------- | ------------ | ----------- |
+| `enabled`    | boolean | false    |              |             |
+| `iconUrl`    | string  | false    |              |             |
+| `signInText` | string  | false    |              |             |
+
 ## codersdk.OIDCConfig
 
 ```json
@@ -3238,6 +3314,17 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "usage": "string",
     "value": ["string"]
   },
+  "icon_url": {
+    "default": "string",
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": "string"
+  },
   "ignore_email_verified": {
     "default": true,
     "enterprise": true,
@@ -3271,6 +3358,17 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "usage": "string",
     "value": ["string"]
   },
+  "sign_in_text": {
+    "default": "string",
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": "string"
+  },
   "username_field": {
     "default": "string",
     "enterprise": true,
@@ -3293,9 +3391,11 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `client_id`             | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
 | `client_secret`         | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
 | `email_domain`          | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string) | false    |              |             |
+| `icon_url`              | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
 | `ignore_email_verified` | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                 | false    |              |             |
 | `issuer_url`            | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
 | `scopes`                | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string) | false    |              |             |
+| `sign_in_text`          | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
 | `username_field`        | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
 
 ## codersdk.Organization
@@ -4140,8 +4240,7 @@ Parameter represents a set value for the scope.
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "workspace_owner_count": 0
+  "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -4165,7 +4264,6 @@ Parameter represents a set value for the scope.
 | `organization_id`                  | string                                                             | false    |              |                                              |
 | `provisioner`                      | string                                                             | false    |              |                                              |
 | `updated_at`                       | string                                                             | false    |              |                                              |
-| `workspace_owner_count`            | integer                                                            | false    |              |                                              |
 
 #### Enumerated Values
 

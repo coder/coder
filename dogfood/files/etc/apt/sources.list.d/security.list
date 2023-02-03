@@ -1,1 +1,1 @@
-deb http://security.ubuntu.com/ubuntu/ focal-security main restricted universe
+deb http://security.ubuntu.com/ubuntu/ jammy-security main restricted universe

@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/pprof"
 	"net/url"
@@ -10,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
@@ -29,6 +31,7 @@ import (
 func workspaceAgent() *cobra.Command {
 	var (
 		auth         string
+		logDir       string
 		pprofAddress string
 		noReap       bool
 	)
@@ -55,7 +58,7 @@ func workspaceAgent() *cobra.Command {
 			// of zombie processes.
 			if reaper.IsInitProcess() && !noReap && isLinux {
 				logWriter := &lumberjack.Logger{
-					Filename: filepath.Join(os.TempDir(), "coder-agent-init.log"),
+					Filename: filepath.Join(logDir, "coder-agent-init.log"),
 					MaxSize:  5, // MB
 				}
 				defer logWriter.Close()
@@ -90,11 +93,14 @@ func workspaceAgent() *cobra.Command {
 			// reaper.
 			go dumpHandler(ctx)
 
-			logWriter := &lumberjack.Logger{
-				Filename: filepath.Join(os.TempDir(), "coder-agent.log"),
+			ljLogger := &lumberjack.Logger{
+				Filename: filepath.Join(logDir, "coder-agent.log"),
 				MaxSize:  5, // MB
 			}
+			defer ljLogger.Close()
+			logWriter := &closeWriter{w: ljLogger}
 			defer logWriter.Close()
+
 			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()), sloghuman.Sink(logWriter)).Leveled(slog.LevelDebug)
 
 			version := buildinfo.Version()
@@ -178,6 +184,7 @@ func workspaceAgent() *cobra.Command {
 			closer := agent.New(agent.Options{
 				Client: client,
 				Logger: logger,
+				LogDir: logDir,
 				ExchangeToken: func(ctx context.Context) (string, error) {
 					if exchangeToken == nil {
 						return client.SDK.SessionToken(), nil
@@ -199,8 +206,9 @@ func workspaceAgent() *cobra.Command {
 	}
 
 	cliflag.StringVarP(cmd.Flags(), &auth, "auth", "", "CODER_AGENT_AUTH", "token", "Specify the authentication type to use for the agent")
-	cliflag.BoolVarP(cmd.Flags(), &noReap, "no-reap", "", "", false, "Do not start a process reaper.")
+	cliflag.StringVarP(cmd.Flags(), &logDir, "log-dir", "", "CODER_AGENT_LOG_DIR", os.TempDir(), "Specify the location for the agent log files")
 	cliflag.StringVarP(cmd.Flags(), &pprofAddress, "pprof-address", "", "CODER_AGENT_PPROF_ADDRESS", "127.0.0.1:6060", "The address to serve pprof.")
+	cliflag.BoolVarP(cmd.Flags(), &noReap, "no-reap", "", "", false, "Do not start a process reaper.")
 	return cmd
 }
 
@@ -225,4 +233,31 @@ func serveHandler(ctx context.Context, logger slog.Logger, handler http.Handler,
 	return func() {
 		_ = srv.Close()
 	}
+}
+
+// closeWriter is a wrapper around an io.WriteCloser that prevents
+// writes after Close. This is necessary because lumberjack will
+// re-open the file on write.
+type closeWriter struct {
+	w      io.WriteCloser
+	mu     sync.Mutex // Protects following.
+	closed bool
+}
+
+func (c *closeWriter) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.closed = true
+	return c.w.Close()
+}
+
+func (c *closeWriter) Write(p []byte) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.closed {
+		return 0, io.ErrClosedPipe
+	}
+	return c.w.Write(p)
 }
