@@ -176,6 +176,49 @@ type Object struct {
 	ACLGroupList map[string][]Action ` json:"acl_group_list"`
 }
 
+func (z Object) Equal(b Object) bool {
+	if z.ID != b.ID {
+		return false
+	}
+	if z.Owner != b.Owner {
+		return false
+	}
+	if z.OrgID != b.OrgID {
+		return false
+	}
+	if z.Type != b.Type {
+		return false
+	}
+
+	if !equalACLLists(z.ACLUserList, b.ACLUserList) {
+		return false
+	}
+
+	if !equalACLLists(z.ACLGroupList, b.ACLGroupList) {
+		return false
+	}
+
+	return true
+}
+
+func equalACLLists(a, b map[string][]Action) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	for k, actions := range a {
+		if len(actions) != len(b[k]) {
+			return false
+		}
+		for i, a := range actions {
+			if a != b[k][i] {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func (z Object) RBACObject() Object {
 	return z
 }

@@ -1,13 +1,43 @@
 package slice_test
 
 import (
+	"math/rand"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/util/slice"
 )
+
+func TestSameElements(t *testing.T) {
+	t.Parallel()
+
+	// True
+	testSameElements(t, []int{})
+	testSameElements(t, []int{1, 2, 3})
+	testSameElements(t, slice.New("a", "b", "c"))
+	testSameElements(t, slice.New(uuid.New(), uuid.New(), uuid.New()))
+
+	// False
+	assert.False(t, slice.SameElements([]int{1, 2, 3}, []int{1, 2, 3, 4}))
+	assert.False(t, slice.SameElements([]int{1, 2, 3}, []int{1, 2}))
+	assert.False(t, slice.SameElements([]int{1, 2, 3}, []int{}))
+	assert.False(t, slice.SameElements([]int{}, []int{1, 2, 3}))
+	assert.False(t, slice.SameElements([]int{1, 2, 3}, []int{1, 2, 4}))
+	assert.False(t, slice.SameElements([]int{1}, []int{2}))
+}
+
+func testSameElements[T comparable](t *testing.T, elements []T) {
+	cpy := make([]T, len(elements))
+	copy(cpy, elements)
+	rand.Shuffle(len(cpy), func(i, j int) {
+		cpy[i], cpy[j] = cpy[j], cpy[i]
+	})
+	assert.True(t, slice.SameElements(elements, cpy))
+}
 
 func TestUnique(t *testing.T) {
 	t.Parallel()
