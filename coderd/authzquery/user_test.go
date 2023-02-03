@@ -14,7 +14,7 @@ func (s *MethodTestSuite) TestUser() {
 	s.Run("DeleteAPIKeysByUserID", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			u := dbgen.User(t, db, database.User{})
-			return methodCase(inputs(u.ID), asserts(u.UserDataRBACObject(), rbac.ActionUpdate))
+			return methodCase(inputs(u.ID), asserts(rbac.ResourceAPIKey.WithOwner(u.ID.String()), rbac.ActionDelete))
 		})
 	})
 	s.Run("GetQuotaAllowanceForUser", func() {
@@ -82,7 +82,7 @@ func (s *MethodTestSuite) TestUser() {
 			return methodCase(inputs(database.InsertUserParams{
 				ID:        uuid.New(),
 				LoginType: database.LoginTypePassword,
-			}), asserts(rbac.ResourceUser, rbac.ActionCreate))
+			}), asserts(rbac.ResourceRoleAssignment, rbac.ActionCreate, rbac.ResourceUser, rbac.ActionCreate))
 		})
 	})
 	s.Run("InsertUserLink", func() {
@@ -114,7 +114,7 @@ func (s *MethodTestSuite) TestUser() {
 			u := dbgen.User(t, db, database.User{})
 			return methodCase(inputs(database.UpdateUserHashedPasswordParams{
 				ID: u.ID,
-			}), asserts(u, rbac.ActionUpdate))
+			}), asserts(u.UserDataRBACObject(), rbac.ActionUpdate))
 		})
 	})
 	s.Run("UpdateUserLastSeenAt", func() {
@@ -185,14 +185,14 @@ func (s *MethodTestSuite) TestUser() {
 			return methodCase(inputs(database.InsertGitAuthLinkParams{
 				ProviderID: uuid.NewString(),
 				UserID:     u.ID,
-			}), asserts(rbac.ResourceUserData.WithOwner(u.ID.String()).WithID(u.ID), rbac.ActionRead))
+			}), asserts(rbac.ResourceUserData.WithOwner(u.ID.String()).WithID(u.ID), rbac.ActionCreate))
 		})
 	})
 	s.Run("UpdateGitAuthLink", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			link := dbgen.GitAuthLink(t, db, database.GitAuthLink{})
 			return methodCase(inputs(database.UpdateGitAuthLinkParams{
-				ProviderID: uuid.NewString(),
+				ProviderID: link.ProviderID,
 				UserID:     link.UserID,
 			}), asserts(link, rbac.ActionUpdate))
 		})

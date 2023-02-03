@@ -15,8 +15,9 @@ import (
 // which is problematic since we don't want to leak information about users.
 
 func (q *AuthzQuerier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
-	err := q.authorizeContext(ctx, rbac.ActionUpdate,
-		rbac.ResourceUserData.WithOwner(userID.String()).WithID(userID))
+	// TODO: This is not 100% correct because it omits apikey IDs.
+	err := q.authorizeContext(ctx, rbac.ActionDelete,
+		rbac.ResourceAPIKey.WithOwner(userID.String()))
 	if err != nil {
 		return err
 	}
@@ -158,7 +159,7 @@ func (q *AuthzQuerier) UpdateUserLastSeenAt(ctx context.Context, arg database.Up
 }
 
 func (q *AuthzQuerier) UpdateUserProfile(ctx context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
-	u, err := q.GetUserByID(ctx, arg.ID)
+	u, err := q.database.GetUserByID(ctx, arg.ID)
 	if err != nil {
 		return database.User{}, err
 	}
