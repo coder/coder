@@ -48,7 +48,7 @@ func (q *AuthzQuerier) GetOrganizationsByUserID(ctx context.Context, userID uuid
 }
 
 func (q *AuthzQuerier) InsertOrganization(ctx context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {
-	return insertWithReturn(q.log, q.auth, rbac.ActionCreate, rbac.ResourceOrganization, q.db.InsertOrganization)(ctx, arg)
+	return insertWithReturn(q.log, q.auth, rbac.ResourceOrganization, q.db.InsertOrganization)(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertOrganizationMember(ctx context.Context, arg database.InsertOrganizationMemberParams) (database.OrganizationMember, error) {
@@ -60,7 +60,7 @@ func (q *AuthzQuerier) InsertOrganizationMember(ctx context.Context, arg databas
 	}
 
 	obj := rbac.ResourceOrganizationMember.InOrg(arg.OrganizationID).WithID(arg.UserID)
-	return insertWithReturn(q.log, q.auth, rbac.ActionCreate, obj, q.db.InsertOrganizationMember)(ctx, arg)
+	return insertWithReturn(q.log, q.auth, obj, q.db.InsertOrganizationMember)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {

@@ -59,11 +59,10 @@ func insert[ArgumentType any,
 	// Arguments
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
-	action rbac.Action,
 	object rbac.Objecter,
 	insertFunc Insert) Insert {
 	return func(ctx context.Context, arg ArgumentType) error {
-		_, err := insertWithReturn(logger, authorizer, action, object, func(ctx context.Context, arg ArgumentType) (rbac.Objecter, error) {
+		_, err := insertWithReturn(logger, authorizer, object, func(ctx context.Context, arg ArgumentType) (rbac.Objecter, error) {
 			return rbac.Object{}, insertFunc(ctx, arg)
 		})(ctx, arg)
 		return err
@@ -75,7 +74,6 @@ func insertWithReturn[ObjectType any, ArgumentType any,
 	// Arguments
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
-	action rbac.Action,
 	object rbac.Objecter,
 	insertFunc Insert) Insert {
 	return func(ctx context.Context, arg ArgumentType) (empty ObjectType, err error) {
@@ -86,7 +84,7 @@ func insertWithReturn[ObjectType any, ArgumentType any,
 		}
 
 		// Authorize the action
-		err = authorizer.Authorize(ctx, act, action, object.RBACObject())
+		err = authorizer.Authorize(ctx, act, rbac.ActionCreate, object.RBACObject())
 		if err != nil {
 			return empty, LogNotAuthorizedError(ctx, logger, err)
 		}

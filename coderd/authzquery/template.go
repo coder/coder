@@ -210,7 +210,7 @@ func (q *AuthzQuerier) GetTemplatesWithFilter(ctx context.Context, arg database.
 
 func (q *AuthzQuerier) InsertTemplate(ctx context.Context, arg database.InsertTemplateParams) (database.Template, error) {
 	obj := rbac.ResourceTemplate.InOrg(arg.OrganizationID)
-	return insertWithReturn(q.log, q.auth, rbac.ActionCreate, obj, q.db.InsertTemplate)(ctx, arg)
+	return insertWithReturn(q.log, q.auth, obj, q.db.InsertTemplate)(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertTemplateVersion(ctx context.Context, arg database.InsertTemplateVersionParams) (database.TemplateVersion, error) {

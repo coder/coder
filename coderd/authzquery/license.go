@@ -16,15 +16,15 @@ func (q *AuthzQuerier) GetLicenses(ctx context.Context) ([]database.License, err
 }
 
 func (q *AuthzQuerier) InsertLicense(ctx context.Context, arg database.InsertLicenseParams) (database.License, error) {
-	return insertWithReturn(q.log, q.auth, rbac.ActionCreate, rbac.ResourceLicense, q.db.InsertLicense)(ctx, arg)
+	return insertWithReturn(q.log, q.auth, rbac.ResourceLicense, q.db.InsertLicense)(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertOrUpdateLogoURL(ctx context.Context, value string) error {
-	return insert(q.log, q.auth, rbac.ActionUpdate, rbac.ResourceDeploymentConfig, q.db.InsertOrUpdateLogoURL)(ctx, value)
+	return insert(q.log, q.auth, rbac.ResourceDeploymentConfig, q.db.InsertOrUpdateLogoURL)(ctx, value)
 }
 
 func (q *AuthzQuerier) InsertOrUpdateServiceBanner(ctx context.Context, value string) error {
-	return insert(q.log, q.auth, rbac.ActionUpdate, rbac.ResourceDeploymentConfig, q.db.InsertOrUpdateServiceBanner)(ctx, value)
+	return insert(q.log, q.auth, rbac.ResourceDeploymentConfig, q.db.InsertOrUpdateServiceBanner)(ctx, value)
 }
 
 func (q *AuthzQuerier) GetLicenseByID(ctx context.Context, id int32) (database.License, error) {

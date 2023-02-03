@@ -27,7 +27,6 @@ func (q *AuthzQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed tim
 
 func (q *AuthzQuerier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
 	return insertWithReturn(q.log, q.auth,
-		rbac.ActionCreate,
 		rbac.ResourceAPIKey.WithOwner(arg.UserID.String()),
 		q.db.InsertAPIKey)(ctx, arg)
 }
