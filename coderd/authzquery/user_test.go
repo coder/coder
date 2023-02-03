@@ -3,6 +3,8 @@ package authzquery_test
 import (
 	"testing"
 
+	"github.com/coder/coder/coderd/util/slice"
+
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/coderd/database"
@@ -78,7 +80,7 @@ func (s *MethodTestSuite) TestUser() {
 			b := dbgen.User(t, db, database.User{})
 			return methodCase(values([]uuid.UUID{a.ID, b.ID}),
 				asserts(a, rbac.ActionRead, b, rbac.ActionRead),
-				values([]database.User{a, b}))
+				values(slice.New(a, b)))
 		})
 	})
 	s.Run("InsertUser", func() {

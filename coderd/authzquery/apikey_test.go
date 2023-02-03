@@ -7,6 +7,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/util/slice"
 )
 
 func (suite *MethodTestSuite) TestAPIKey() {
@@ -29,7 +30,7 @@ func (suite *MethodTestSuite) TestAPIKey() {
 			_, _ = dbgen.APIKey(t, db, database.APIKey{LoginType: database.LoginTypeGithub})
 			return methodCase(values(database.LoginTypePassword),
 				asserts(a, rbac.ActionRead, b, rbac.ActionRead),
-				values([]database.APIKey{a, b}))
+				values(slice.New(a, b)))
 		})
 	})
 	suite.Run("GetAPIKeysLastUsedAfter", func() {
@@ -39,7 +40,7 @@ func (suite *MethodTestSuite) TestAPIKey() {
 			_, _ = dbgen.APIKey(t, db, database.APIKey{LastUsed: time.Now().Add(-time.Hour)})
 			return methodCase(values(time.Now()),
 				asserts(a, rbac.ActionRead, b, rbac.ActionRead),
-				values([]database.APIKey{a, b}))
+				values(slice.New(a, b)))
 		})
 	})
 	suite.Run("InsertAPIKey", func() {

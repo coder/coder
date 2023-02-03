@@ -9,6 +9,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/util/slice"
 )
 
 func (suite *MethodTestSuite) TestProvsionerJob() {
@@ -95,8 +96,7 @@ func (suite *MethodTestSuite) TestProvsionerJob() {
 		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			a := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{})
 			b := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{})
-			return methodCase(values([]uuid.UUID{a.ID, b.ID}), asserts(),
-				values([]database.ProvisionerJob{a, b}))
+			return methodCase(values([]uuid.UUID{a.ID, b.ID}), asserts(), values(slice.New(a, b)))
 		})
 	})
 	suite.Run("GetProvisionerLogsByIDBetween", func() {

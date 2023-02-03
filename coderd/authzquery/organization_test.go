@@ -8,6 +8,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/util/slice"
 )
 
 func (suite *MethodTestSuite) TestOrganization() {
@@ -59,7 +60,7 @@ func (suite *MethodTestSuite) TestOrganization() {
 			a := dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: u.ID})
 			b := dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: u.ID})
 			return methodCase(values(u.ID), asserts(a, rbac.ActionRead, b, rbac.ActionRead),
-				values([]database.OrganizationMember{a, b}))
+				values(slice.New(a, b)))
 		})
 	})
 	suite.Run("GetOrganizations", func() {
@@ -67,7 +68,7 @@ func (suite *MethodTestSuite) TestOrganization() {
 			a := dbgen.Organization(t, db, database.Organization{})
 			b := dbgen.Organization(t, db, database.Organization{})
 			return methodCase(values(), asserts(a, rbac.ActionRead, b, rbac.ActionRead),
-				values([]database.Organization{a, b}))
+				values(slice.New(a, b)))
 		})
 	})
 	suite.Run("GetOrganizationsByUserID", func() {
@@ -78,7 +79,7 @@ func (suite *MethodTestSuite) TestOrganization() {
 			b := dbgen.Organization(t, db, database.Organization{})
 			_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: u.ID, OrganizationID: b.ID})
 			return methodCase(values(u.ID), asserts(a, rbac.ActionRead, b, rbac.ActionRead),
-				values([]database.Organization{a, b}))
+				values(slice.New(a, b)))
 		})
 	})
 	suite.Run("InsertOrganization", func() {

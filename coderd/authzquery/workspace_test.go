@@ -3,6 +3,8 @@ package authzquery_test
 import (
 	"testing"
 
+	"github.com/coder/coder/coderd/util/slice"
+
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/coderd/database"
@@ -48,7 +50,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			b := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID})
 			return methodCase(
 				values([]uuid.UUID{ws.ID}),
-				asserts(ws, rbac.ActionRead), values([]database.WorkspaceBuild{b}))
+				asserts(ws, rbac.ActionRead), values(slice.New(b)))
 		})
 	})
 	s.Run("GetWorkspaceAgentByID", func() {
@@ -114,7 +116,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			a := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{AgentID: agt.ID})
 			b := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{AgentID: agt.ID})
 
-			return methodCase(values(agt.ID), asserts(ws, rbac.ActionRead), values([]database.WorkspaceApp{a, b}))
+			return methodCase(values(agt.ID), asserts(ws, rbac.ActionRead), values(slice.New(a, b)))
 		})
 	})
 	s.Run("GetWorkspaceAppsByAgentIDs", func() {

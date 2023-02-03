@@ -3,6 +3,8 @@ package authzquery_test
 import (
 	"testing"
 
+	"github.com/coder/coder/coderd/util/slice"
+
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/coderd/database/dbgen"
@@ -88,8 +90,7 @@ func (suite *MethodTestSuite) TestParameters() {
 			})
 			return methodCase(values(database.ParameterValuesParams{
 				IDs: []uuid.UUID{a.ID, b.ID},
-			}), asserts(tpl, rbac.ActionRead, w, rbac.ActionRead),
-				values([]database.ParameterValue{a, b}))
+			}), asserts(tpl, rbac.ActionRead, w, rbac.ActionRead), values(slice.New(a, b)))
 		})
 	})
 	suite.Run("GetParameterSchemasByJobID", func() {
