@@ -60,14 +60,16 @@ func (s *MethodTestSuite) TestUser() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			a := dbgen.User(t, db, database.User{})
 			b := dbgen.User(t, db, database.User{})
-			return methodCase(values(database.GetUsersParams{}), asserts(a, rbac.ActionRead, b, rbac.ActionRead))
+			return methodCase(values(database.GetUsersParams{}),
+				asserts(a, rbac.ActionRead, b, rbac.ActionRead),
+				values([]database.User{a, b}))
 		})
 	})
 	s.Run("GetUsersWithCount", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			a := dbgen.User(t, db, database.User{})
 			b := dbgen.User(t, db, database.User{})
-			return methodCase(values(database.GetUsersParams{}), asserts(a, rbac.ActionRead, b, rbac.ActionRead))
+			return methodCase(values(database.GetUsersParams{}), asserts(a, rbac.ActionRead, b, rbac.ActionRead), nil)
 		})
 	})
 	s.Run("GetUsersByIDs", func() {

@@ -146,10 +146,14 @@ MethodLoop:
 			outputs, err := splitResp(t, resp)
 			require.NoError(t, err, "method %q returned an error", testName)
 
-			// Also assert the required outputs
-			require.Equal(t, len(testCase.ExpectedOutputs), len(outputs), "method %q returned unexpected number of outputs", testName)
-			for i := range outputs {
-				require.Equal(t, testCase.ExpectedOutputs[i].Interface(), outputs[i].Interface(), "method %q returned unexpected output %d", testName, i)
+			// Some tests may not care about the outputs, so we only assert if
+			// they are provided.
+			if testCase.ExpectedOutputs != nil {
+				// Assert the required outputs
+				require.Equal(t, len(testCase.ExpectedOutputs), len(outputs), "method %q returned unexpected number of outputs", testName)
+				for i := range outputs {
+					require.Equal(t, testCase.ExpectedOutputs[i].Interface(), outputs[i].Interface(), "method %q returned unexpected output %d", testName, i)
+				}
 			}
 
 			found = true
