@@ -2,11 +2,14 @@ package authzquery_test
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
+
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/rbac/regosql"
 
@@ -95,10 +98,11 @@ func (s *MethodTestSuite) RunMethodTest(testCaseF func(t *testing.T, db database
 	s.methodAccounting[methodName]++
 
 	db := dbfake.New()
+	fakeAuthorizer := &coderdtest.FakeAuthorizer{
+		AlwaysReturn: nil,
+	}
 	rec := &coderdtest.RecordingAuthorizer{
-		Wrapped: &coderdtest.FakeAuthorizer{
-			AlwaysReturn: nil,
-		},
+		Wrapped: fakeAuthorizer,
 	}
 	az := authzquery.NewAuthzQuerier(db, rec, slog.Make())
 	actor := rbac.Subject{
@@ -118,22 +122,25 @@ MethodLoop:
 	for i := 0; i < azt.NumMethod(); i++ {
 		method := azt.Method(i)
 		if method.Name == methodName {
+			if len(testCase.Assertions) > 0 {
+				fakeAuthorizer.AlwaysReturn = xerrors.New("Always fail authz")
+				// If we have assertions, that means the method should FAIL
+				// if RBAC will disallow the request. The returned error should
+				// be expected to be a NotAuthorizedError.
+				erroredResp := reflect.ValueOf(az).Method(i).Call(append([]reflect.Value{reflect.ValueOf(ctx)}, testCase.Inputs...))
+				err := findError(t, erroredResp)
+				require.Errorf(t, err, "method %q should an error with disallow authz", testName)
+				require.ErrorIsf(t, err, sql.ErrNoRows, "error should match sql.ErrNoRows")
+				require.ErrorAs(t, err, &authzquery.NotAuthorizedError{}, "error should be NotAuthorizedError")
+				// Set things back to normal.
+				fakeAuthorizer.AlwaysReturn = nil
+				rec.Reset()
+			}
+
 			resp := reflect.ValueOf(az).Method(i).Call(append([]reflect.Value{reflect.ValueOf(ctx)}, testCase.Inputs...))
 			// TODO: Should we assert the object returned is the correct one?
-			for _, r := range resp {
-				if r.Type().Implements(reflect.TypeOf((*error)(nil)).Elem()) {
-					if r.IsNil() {
-						// no error!
-						break
-					}
-					err, ok := r.Interface().(error)
-					if !ok {
-						t.Fatal("error is not an error?!")
-					}
-					require.NoError(t, err, "method %q returned an error", testName)
-					break
-				}
-			}
+			err := findError(t, resp)
+			require.NoError(t, err, "method %q returned an error", testName)
 			found = true
 			break MethodLoop
 		}
@@ -153,6 +160,24 @@ MethodLoop:
 
 	rec.AssertActor(t, actor, pairs...)
 	require.NoError(t, rec.AllAsserted(), "all rbac calls must be asserted")
+}
+
+func findError(t *testing.T, values []reflect.Value) error {
+	for _, r := range values {
+		if r.Type().Implements(reflect.TypeOf((*error)(nil)).Elem()) {
+			if r.IsNil() {
+				// Error is found, but it's nil!
+				return nil
+			}
+			err, ok := r.Interface().(error)
+			if !ok {
+				t.Fatal("error is not an error?!")
+			}
+			return err
+		}
+	}
+	t.Fatal("no expected error value found in responses (error can be nil)")
+	panic("unreachable") // For compile reasons
 }
 
 // A MethodCase contains the inputs to be provided to a single method call,

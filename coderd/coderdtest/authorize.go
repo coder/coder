@@ -486,7 +486,7 @@ func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck
 				return nil
 			}
 			a.t.Run(name, func(t *testing.T) {
-				a.authorizer.reset()
+				a.authorizer.Reset()
 				routeKey := strings.TrimRight(name, "/")
 
 				routeAssertions, ok := assertRoute[routeKey]
@@ -676,7 +676,7 @@ func (r *RecordingAuthorizer) Prepare(_ context.Context, subject rbac.Subject, a
 	}, nil
 }
 
-func (r *RecordingAuthorizer) reset() {
+func (r *RecordingAuthorizer) Reset() {
 	r.Lock()
 	defer r.Unlock()
 	r.Called = nil
