@@ -15,10 +15,10 @@ func TestSameElements(t *testing.T) {
 	t.Parallel()
 
 	// True
-	testSameElements(t, []int{})
-	testSameElements(t, []int{1, 2, 3})
-	testSameElements(t, slice.New("a", "b", "c"))
-	testSameElements(t, slice.New(uuid.New(), uuid.New(), uuid.New()))
+	assertSameElements(t, []int{})
+	assertSameElements(t, []int{1, 2, 3})
+	assertSameElements(t, slice.New("a", "b", "c"))
+	assertSameElements(t, slice.New(uuid.New(), uuid.New(), uuid.New()))
 
 	// False
 	assert.False(t, slice.SameElements([]int{1, 2, 3}, []int{1, 2, 3, 4}))
@@ -29,7 +29,7 @@ func TestSameElements(t *testing.T) {
 	assert.False(t, slice.SameElements([]int{1}, []int{2}))
 }
 
-func testSameElements[T comparable](t *testing.T, elements []T) {
+func assertSameElements[T comparable](t *testing.T, elements []T) {
 	cpy := make([]T, len(elements))
 	copy(cpy, elements)
 	rand.Shuffle(len(cpy), func(i, j int) {

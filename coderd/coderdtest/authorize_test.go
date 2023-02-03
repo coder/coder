@@ -29,6 +29,8 @@ func TestAuthzRecorder(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Authorize", func(t *testing.T) {
+		t.Parallel()
+
 		rec := &coderdtest.RecordingAuthorizer{
 			Wrapped: &coderdtest.FakeAuthorizer{},
 		}
@@ -39,6 +41,8 @@ func TestAuthzRecorder(t *testing.T) {
 	})
 
 	t.Run("Authorize2Subjects", func(t *testing.T) {
+		t.Parallel()
+
 		rec := &coderdtest.RecordingAuthorizer{
 			Wrapped: &coderdtest.FakeAuthorizer{},
 		}
@@ -54,6 +58,8 @@ func TestAuthzRecorder(t *testing.T) {
 	})
 
 	t.Run("Authorize&Prepared", func(t *testing.T) {
+		t.Parallel()
+
 		rec := &coderdtest.RecordingAuthorizer{
 			Wrapped: &coderdtest.FakeAuthorizer{},
 		}
