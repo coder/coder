@@ -148,33 +148,36 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 
 	// Add app usage
 	ctx := r.Context()
-	_, err := api.Database.GetAppUsageByDate(ctx, database.GetAppUsageByDateParams{
-		UserID:     user.ID,
-		TemplateID: workspace.TemplateID,
-		AppID:      app.ID,
-		CreatedAt:  database.Now(),
-	})
-	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Error on getting previous app usage.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		_, err = api.Database.InsertAppUsage(ctx, database.InsertAppUsageParams{
+	err := api.Database.InTx(func(tx database.Store) error {
+		_, err := api.Database.GetAppUsageByDate(ctx, database.GetAppUsageByDateParams{
 			UserID:     user.ID,
 			TemplateID: workspace.TemplateID,
 			AppID:      app.ID,
 			CreatedAt:  database.Now(),
 		})
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Error on inserting app usage.",
-				Detail:  err.Error(),
+			if !errors.Is(err, sql.ErrNoRows) {
+				return xerrors.Errorf("get app usage: %w", err)
+			}
+			_, err = api.Database.InsertAppUsage(ctx, database.InsertAppUsageParams{
+				UserID:     user.ID,
+				TemplateID: workspace.TemplateID,
+				AppID:      app.ID,
+				CreatedAt:  database.Now(),
 			})
-			return
+			if err != nil {
+				return xerrors.Errorf("insert app usage: %w", err)
+			}
 		}
+		return nil
+	}, nil)
+
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error on inserting app usage.",
+			Detail:  err.Error(),
+		})
+		return
 	}
 
 	api.proxyWorkspaceApplication(proxyApplication{
