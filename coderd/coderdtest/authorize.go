@@ -444,7 +444,6 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck, skipRoutes map[string]string) {
 	// Always fail auth from this point forward
 	a.authorizer.Wrapped = &FakeAuthorizer{
-		Original:     a.authorizer,
 		AlwaysReturn: rbac.ForbiddenWithInternal(xerrors.New("fake implementation"), nil, nil),
 	}
 
@@ -639,16 +638,7 @@ func (r *RecordingAuthorizer) AssertActor(t *testing.T, actor rbac.Subject, did 
 	assert.Equalf(t, len(did), ptr, "assert actor: didn't find all actions, %d missing actions", len(did)-ptr)
 }
 
-// _AuthorizeSQL does not record the call. This matches the postgres behavior
-// of not calling Authorize()
-func (r *RecordingAuthorizer) _AuthorizeSQL(ctx context.Context, subject rbac.Subject, action rbac.Action, object rbac.Object) error {
-	if r.Wrapped == nil {
-		panic("Developer error: RecordingAuthorizer.Wrapped is nil")
-	}
-	return r.Wrapped.Authorize(ctx, subject, action, object)
-}
-
-func (r *RecordingAuthorizer) Authorize(ctx context.Context, subject rbac.Subject, action rbac.Action, object rbac.Object) error {
+func (r *RecordingAuthorizer) RecordAuthorize(ctx context.Context, subject rbac.Subject, action rbac.Action, object rbac.Object) {
 	r.Lock()
 	defer r.Unlock()
 	r.Called = append(r.Called, authCall{
@@ -656,23 +646,30 @@ func (r *RecordingAuthorizer) Authorize(ctx context.Context, subject rbac.Subjec
 		Action: action,
 		Object: object,
 	})
+}
+
+func (r *RecordingAuthorizer) Authorize(ctx context.Context, subject rbac.Subject, action rbac.Action, object rbac.Object) error {
+	r.RecordAuthorize(ctx, subject, action, object)
 	if r.Wrapped == nil {
 		panic("Developer error: RecordingAuthorizer.Wrapped is nil")
 	}
 	return r.Wrapped.Authorize(ctx, subject, action, object)
 }
 
-func (r *RecordingAuthorizer) Prepare(_ context.Context, subject rbac.Subject, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
+func (r *RecordingAuthorizer) Prepare(ctx context.Context, subject rbac.Subject, action rbac.Action, objectType string) (rbac.PreparedAuthorized, error) {
 	r.RLock()
 	defer r.RUnlock()
 	if r.Wrapped == nil {
 		panic("Developer error: RecordingAuthorizer.Wrapped is nil")
 	}
-	return &fakePreparedAuthorizer{
-		Original:           r,
-		Subject:            subject,
-		Action:             action,
-		HardCodedSQLString: "true",
+
+	prep, err := r.Wrapped.Prepare(ctx, subject, action, objectType)
+	if err != nil {
+		return nil, err
+	}
+	return &PreparedRecorder{
+		rec:     r,
+		prepped: prep,
 	}, nil
 }
 
@@ -680,33 +677,6 @@ func (r *RecordingAuthorizer) Reset() {
 	r.Lock()
 	defer r.Unlock()
 	r.Called = nil
-}
-
-type fakePreparedAuthorizer struct {
-	sync.RWMutex
-	Original           *RecordingAuthorizer
-	Subject            rbac.Subject
-	Action             rbac.Action
-	HardCodedSQLString string
-	ShouldCompileToSQL bool
-}
-
-func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Object) error {
-	f.RLock()
-	defer f.RUnlock()
-	if f.ShouldCompileToSQL {
-		return f.Original._AuthorizeSQL(ctx, f.Subject, f.Action, object)
-	}
-	return f.Original.Authorize(ctx, f.Subject, f.Action, object)
-}
-
-// CompileToSQL returns a compiled version of the authorizer that will work for
-// in memory databases. This fake version will not work against a SQL database.
-func (f *fakePreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
-	f.Lock()
-	f.ShouldCompileToSQL = true
-	f.Unlock()
-	return f.HardCodedSQLString, nil
 }
 
 // lastCall is implemented to support legacy tests.
@@ -720,8 +690,52 @@ func (r *RecordingAuthorizer) lastCall() *authCall {
 	return &r.Called[len(r.Called)-1]
 }
 
+type PreparedRecorder struct {
+	rec     *RecordingAuthorizer
+	prepped rbac.PreparedAuthorized
+	subject rbac.Subject
+	action  rbac.Action
+
+	rw       sync.Mutex
+	usingSQL bool
+}
+
+func (s *PreparedRecorder) Authorize(ctx context.Context, object rbac.Object) error {
+	s.rw.Lock()
+	defer s.rw.Unlock()
+
+	if !s.usingSQL {
+		s.rec.RecordAuthorize(ctx, s.subject, s.action, object)
+	}
+	return s.prepped.Authorize(ctx, object)
+}
+func (s *PreparedRecorder) CompileToSQL(ctx context.Context, cfg regosql.ConvertConfig) (string, error) {
+	s.rw.Lock()
+	defer s.rw.Unlock()
+
+	s.usingSQL = true
+	return s.prepped.CompileToSQL(ctx, cfg)
+}
+
+type fakePreparedAuthorizer struct {
+	sync.RWMutex
+	Original           *FakeAuthorizer
+	Subject            rbac.Subject
+	Action             rbac.Action
+	ShouldCompileToSQL bool
+}
+
+func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Object) error {
+	return f.Original.Authorize(ctx, f.Subject, f.Action, object)
+}
+
+// CompileToSQL returns a compiled version of the authorizer that will work for
+// in memory databases. This fake version will not work against a SQL database.
+func (f *fakePreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
+	return "not a valid sql string", nil
+}
+
 type FakeAuthorizer struct {
-	Original *RecordingAuthorizer
 	// AlwaysReturn is the error that will be returned by Authorize.
 	AlwaysReturn error
 }
@@ -732,11 +746,14 @@ func (d *FakeAuthorizer) Authorize(_ context.Context, _ rbac.Subject, _ rbac.Act
 	return d.AlwaysReturn
 }
 
+func (d *FakeAuthorizer) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
+	return "not a valid sql string", nil
+}
+
 func (d *FakeAuthorizer) Prepare(_ context.Context, subject rbac.Subject, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
 	return &fakePreparedAuthorizer{
-		Original:           d.Original,
-		Subject:            subject,
-		Action:             action,
-		HardCodedSQLString: "true",
+		Original: d,
+		Subject:  subject,
+		Action:   action,
 	}, nil
 }

@@ -129,9 +129,13 @@ MethodLoop:
 				// be expected to be a NotAuthorizedError.
 				erroredResp := reflect.ValueOf(az).Method(i).Call(append([]reflect.Value{reflect.ValueOf(ctx)}, testCase.Inputs...))
 				err := findError(t, erroredResp)
-				require.Errorf(t, err, "method %q should an error with disallow authz", testName)
-				require.ErrorIsf(t, err, sql.ErrNoRows, "error should match sql.ErrNoRows")
-				require.ErrorAs(t, err, &authzquery.NotAuthorizedError{}, "error should be NotAuthorizedError")
+				// This is unfortunate, but if we are using `Filter` the error returned will be nil. So filter out
+				// any case where the error is nil and the response is an empty slice.
+				if err != nil || !hasEmptySliceResponse(erroredResp) {
+					require.Errorf(t, err, "method %q should an error with disallow authz", testName)
+					require.ErrorIsf(t, err, sql.ErrNoRows, "error should match sql.ErrNoRows")
+					require.ErrorAs(t, err, &authzquery.NotAuthorizedError{}, "error should be NotAuthorizedError")
+				}
 				// Set things back to normal.
 				fakeAuthorizer.AlwaysReturn = nil
 				rec.Reset()
@@ -160,6 +164,17 @@ MethodLoop:
 
 	rec.AssertActor(t, actor, pairs...)
 	require.NoError(t, rec.AllAsserted(), "all rbac calls must be asserted")
+}
+
+func hasEmptySliceResponse(values []reflect.Value) bool {
+	for _, r := range values {
+		if r.Kind() == reflect.Slice || r.Kind() == reflect.Array {
+			if r.Len() == 0 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func findError(t *testing.T, values []reflect.Value) error {
