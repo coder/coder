@@ -2,11 +2,11 @@
 
 There are a few ways to run Docker within container-based Coder workspaces.
 
-| Method                                                                                | Description                                                                                                                               | Limitations                                                                                                                                                                                                 |
-| ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Sysbox container runtime](#sysbox-container-runtime)                                 | Install the sysbox runtime on your Kubernetes nodes for secure docker-in-docker and systemd-in-docker. Works with GKE, EKS, AKS.          | Requires [compatible nodes](https://github.com/nestybox/sysbox#host-requirements). Max of 16 sysbox pods per node. [See all](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/limitations.md) |
-| [Rootless Podman](https://github.com/bpmct/coder-templates/tree/main/rootless-podman) | Run podman inside Coder workspaces. Does not require a custom runtime or priviledged containers. Works with GKE, EKS, AKS, RKE, OpenShift | [See limitations](https://github.com/containers/podman/blob/main/rootless.md#shortcomings-of-rootless-podman)                                                                                               |
-| [Privileged docker sidecar](#privileged-sidecar-container)                            | Run docker as a privilged sidecar container.                                                                                              | Requires a privileged container. Workspaces can break out to root on the host machine.                                                                                                                      |
+| Method                                                                                | Description                                                                                                                              | Limitations                                                                                                                                                                                                 |
+| ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Sysbox container runtime](#sysbox-container-runtime)                                 | Install the sysbox runtime on your Kubernetes nodes for secure docker-in-docker and systemd-in-docker. Works with GKE, EKS, AKS.         | Requires [compatible nodes](https://github.com/nestybox/sysbox#host-requirements). Max of 16 sysbox pods per node. [See all](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/limitations.md) |
+| [Rootless Podman](https://github.com/bpmct/coder-templates/tree/main/rootless-podman) | Run podman inside Coder workspaces. Does not require a custom runtime or privileged containers. Works with GKE, EKS, AKS, RKE, OpenShift | Requires smarter-device-manager for FUSE mounts. [See all](https://github.com/containers/podman/blob/main/rootless.md#shortcomings-of-rootless-podman)                                                      |
+| [Privileged docker sidecar](#privileged-sidecar-container)                            | Run docker as a privileged sidecar container.                                                                                            | Requires a privileged container. Workspaces can break out to root on the host machine.                                                                                                                      |
 
 ## Sysbox container runtime
 
@@ -109,6 +109,75 @@ resource "kubernetes_pod" "dev" {
 ```
 
 > Sysbox CE (Community Edition) supports a maximum of 16 pods (workspaces) per node on Kubernetes. See the [Sysbox documentation](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/install-k8s.md#limitations) for more details.
+
+## Rootless podman
+
+[Podman](https://docs.podman.io/en/latest/) is Docker alternative that is compatible with OCI containers specification. which can run rootless inside Kubernetes pods. No custom RuntimeClass is required.
+
+Prior to completing the steps below, please review the following Podman documentation:
+
+- [Basic setup and use of Podman in a rootless environment](https://github.com/containers/podman/blob/main/docs/tutorials/rootless_tutorial.md)
+
+- [Shortcomings of Rootless Podman](https://github.com/containers/podman/blob/main/rootless.md#shortcomings-of-rootless-podman)
+
+1. Enable [smart-device-manager](https://gitlab.com/arm-research/smarter/smarter-device-manager#enabling-access) to securely expose a FUSE devices to pods.
+
+   ```sh
+     cat <<EOF | kubectl create -f -
+     apiVersion: apps/v1
+     kind: DaemonSet
+     metadata:
+     name: fuse-device-plugin-daemonset
+     namespace: kube-system
+     spec:
+     selector:
+     matchLabels:
+         name: fuse-device-plugin-ds
+     template:
+     metadata:
+         labels:
+         name: fuse-device-plugin-ds
+     spec:
+         hostNetwork: true
+         containers:
+         - image: soolaugust/fuse-device-plugin:v1.0
+         name: fuse-device-plugin-ctr
+         securityContext:
+             allowPrivilegeEscalation: false
+             capabilities:
+             drop: ["ALL"]
+         volumeMounts:
+             - name: device-plugin
+             mountPath: /var/lib/kubelet/device-plugins
+         volumes:
+         - name: device-plugin
+             hostPath:
+             path: /var/lib/kubelet/device-plugins
+         imagePullSecrets:
+         - name: registry-secret
+     EOF
+   ```
+
+2. Be sure to label your nodes to enable smarter-device-manager:
+
+   ```sh
+   kubectl get nodes
+   kubectl label nodes --all smarter-device-manager=enabled
+   ```
+
+   > ⚠️ **Warning**: If you are using a managed Kubernetes distribution (e.g. AKS, EKS, GKE), be sure to set node labels via your cloud provider. Otherwise, your nodes may drop the labels and break podman functionality.
+
+3. For systems running SELinux (typically Fedora-, CentOS-, and Red Hat-based systems), you may need to disable SELinux or set it to permissive mode.
+
+4. Import our [kubernetes-podman](https://github.com/coder/coder/tree/main/examples/templates/kubernetes-podman) example template, or make your own.
+
+   ```sh
+   echo "kubernetes-podman" | coder templates init
+   cd ./kubernetes-podman
+   coder templates create
+   ```
+
+   > For more information around the requirements of rootless podman pods, see: [How to run Podman inside of Kubernetes](https://www.redhat.com/sysadmin/podman-inside-kubernetes)
 
 ## Privileged sidecar container
 
