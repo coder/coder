@@ -254,6 +254,34 @@ func ProvisionerJob(t *testing.T, db database.Store, orig database.ProvisionerJo
 	return job
 }
 
+func WorkspaceApp(t *testing.T, db database.Store, orig database.WorkspaceApp) database.WorkspaceApp {
+	resource, err := db.InsertWorkspaceApp(context.Background(), database.InsertWorkspaceAppParams{
+		ID:          takeFirst(orig.ID, uuid.New()),
+		CreatedAt:   takeFirst(orig.CreatedAt, time.Now()),
+		AgentID:     takeFirst(orig.AgentID, uuid.New()),
+		Slug:        takeFirst(orig.Slug, namesgenerator.GetRandomName(1)),
+		DisplayName: takeFirst(orig.DisplayName, namesgenerator.GetRandomName(1)),
+		Icon:        takeFirst(orig.Icon, namesgenerator.GetRandomName(1)),
+		Command: sql.NullString{
+			String: takeFirst(orig.Command.String, "ls"),
+			Valid:  orig.Command.Valid,
+		},
+		Url: sql.NullString{
+			String: takeFirst(orig.Url.String),
+			Valid:  orig.Url.Valid,
+		},
+		External:             orig.External,
+		Subdomain:            orig.Subdomain,
+		SharingLevel:         takeFirst(orig.SharingLevel, database.AppSharingLevelOwner),
+		HealthcheckUrl:       takeFirst(orig.HealthcheckUrl, "https://localhost:8000"),
+		HealthcheckInterval:  takeFirst(orig.HealthcheckInterval, 60),
+		HealthcheckThreshold: takeFirst(orig.HealthcheckThreshold, 60),
+		Health:               takeFirst(orig.Health, database.WorkspaceAppHealthHealthy),
+	})
+	require.NoError(t, err, "insert app")
+	return resource
+}
+
 func WorkspaceResource(t *testing.T, db database.Store, orig database.WorkspaceResource) database.WorkspaceResource {
 	resource, err := db.InsertWorkspaceResource(context.Background(), database.InsertWorkspaceResourceParams{
 		ID:         takeFirst(orig.ID, uuid.New()),
