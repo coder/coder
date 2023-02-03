@@ -142,6 +142,16 @@ func (u GitSSHKey) RBACObject() rbac.Object {
 	return rbac.ResourceUserData.WithID(u.UserID).WithOwner(u.UserID.String())
 }
 
+func (u GitAuthLink) RBACObject() rbac.Object {
+	// I assume UserData is ok?
+	return rbac.ResourceUserData.WithID(u.UserID).WithOwner(u.UserID.String())
+}
+
+func (u UserLink) RBACObject() rbac.Object {
+	// I assume UserData is ok?
+	return rbac.ResourceUserData.WithOwner(u.UserID.String()).WithID(u.UserID)
+}
+
 func (l License) RBACObject() rbac.Object {
 	return rbac.ResourceLicense.WithIDString(strconv.FormatInt(int64(l.ID), 10))
 }

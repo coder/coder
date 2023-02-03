@@ -108,7 +108,7 @@ func (q *AuthzQuerier) InsertUser(ctx context.Context, arg database.InsertUserPa
 
 // TODO: Should this be in system.go?
 func (q *AuthzQuerier) InsertUserLink(ctx context.Context, arg database.InsertUserLinkParams) (database.UserLink, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceUser); err != nil {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceUser.WithID(arg.UserID)); err != nil {
 		return database.UserLink{}, err
 	}
 	return q.database.InsertUserLink(ctx, arg)
@@ -158,10 +158,14 @@ func (q *AuthzQuerier) UpdateUserLastSeenAt(ctx context.Context, arg database.Up
 }
 
 func (q *AuthzQuerier) UpdateUserProfile(ctx context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
-	fetch := func(ctx context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
-		return q.GetUserByID(ctx, arg.ID)
+	u, err := q.GetUserByID(ctx, arg.ID)
+	if err != nil {
+		return database.User{}, err
 	}
-	return authorizedUpdateWithReturn(q.logger, q.authorizer, fetch, q.database.UpdateUserProfile)(ctx, arg)
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, u.UserDataRBACObject()); err != nil {
+		return database.User{}, err
+	}
+	return q.database.UpdateUserProfile(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateUserStatus(ctx context.Context, arg database.UpdateUserStatusParams) (database.User, error) {
@@ -188,35 +192,28 @@ func (q *AuthzQuerier) UpdateGitSSHKey(ctx context.Context, arg database.UpdateG
 }
 
 func (q *AuthzQuerier) GetGitAuthLink(ctx context.Context, arg database.GetGitAuthLinkParams) (database.GitAuthLink, error) {
-	// TODO: assuming ResourceUserData is correct for this.
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID)); err != nil {
-		return database.GitAuthLink{}, err
-	}
-	return q.database.GetGitAuthLink(ctx, arg)
+	return authorizedFetch(q.logger, q.authorizer, q.database.GetGitAuthLink)(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertGitAuthLink(ctx context.Context, arg database.InsertGitAuthLinkParams) (database.GitAuthLink, error) {
-	// TODO: assuming ResourceUserData is correct for this.
-	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID)); err != nil {
-		return database.GitAuthLink{}, err
-	}
-	return q.database.InsertGitAuthLink(ctx, arg)
+	return authorizedInsertWithReturn(q.logger, q.authorizer, rbac.ActionCreate, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID), q.database.InsertGitAuthLink)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateGitAuthLink(ctx context.Context, arg database.UpdateGitAuthLinkParams) error {
-	// TODO: assuming ResourceUserData is correct for this.
-	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID)); err != nil {
-		return err
+	fetch := func(ctx context.Context, arg database.UpdateGitAuthLinkParams) (database.GitAuthLink, error) {
+		return q.database.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
 	}
-	return q.database.UpdateGitAuthLink(ctx, arg)
+	return authorizedUpdate(q.logger, q.authorizer, fetch, q.database.UpdateGitAuthLink)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateUserLink(ctx context.Context, arg database.UpdateUserLinkParams) (database.UserLink, error) {
-	// TODO: assuming ResourceUserData is correct for this.
-	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID)); err != nil {
-		return database.UserLink{}, err
+	fetch := func(ctx context.Context, arg database.UpdateUserLinkParams) (database.UserLink, error) {
+		return q.database.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
+			UserID:    arg.UserID,
+			LoginType: arg.LoginType,
+		})
 	}
-	return q.database.UpdateUserLink(ctx, arg)
+	return authorizedUpdateWithReturn(q.logger, q.authorizer, fetch, q.database.UpdateUserLink)(ctx, arg)
 }
 
 // UpdateUserRoles updates the site roles of a user. The validation for this function include more than

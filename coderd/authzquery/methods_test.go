@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/coder/coder/coderd/rbac/regosql"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -271,4 +273,11 @@ func (suite *MethodTestSuite) TestExtraMethods() {
 			return methodCase(inputs(), asserts(rbac.ResourceUser.All(), rbac.ActionRead))
 		})
 	})
+}
+
+type emptyPreparedAuthorized struct{}
+
+func (emptyPreparedAuthorized) Authorize(_ context.Context, _ rbac.Object) error { return nil }
+func (emptyPreparedAuthorized) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
+	return "", nil
 }
