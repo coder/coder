@@ -186,31 +186,18 @@ func fetchAndQuery[ObjectType rbac.Objecter, ArgumentType any,
 	}
 }
 
-func fetch[ObjectType rbac.Objecter, ArgumentType any,
-	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error)](
-	// Arguments
-	logger slog.Logger,
-	authorizer rbac.Authorizer,
-	fetchFunc Fetch) Fetch {
-	return authorizedQuery(logger, authorizer, rbac.ActionRead, fetchFunc)
-}
-
-// authorizedQuery is a generic function that wraps a database
+// fetch is a generic function that wraps a database
 // query function (returns an object and an error) with authorization. The
 // returned function has the same arguments as the database function.
 //
 // The database query function will **ALWAYS** hit the database, even if the
 // user cannot read the resource. This is because the resource details are
 // required to run a proper authorization check.
-//
-// An optimized version of this could be written if the object's authz
-// subject properties are known by the caller.
-func authorizedQuery[ArgumentType any, ObjectType rbac.Objecter,
+func fetch[ArgumentType any, ObjectType rbac.Objecter,
 	DatabaseFunc func(ctx context.Context, arg ArgumentType) (ObjectType, error)](
 	// Arguments
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
-	action rbac.Action,
 	f DatabaseFunc) DatabaseFunc {
 	return func(ctx context.Context, arg ArgumentType) (empty ObjectType, err error) {
 		// Fetch the rbac subject
@@ -226,7 +213,7 @@ func authorizedQuery[ArgumentType any, ObjectType rbac.Objecter,
 		}
 
 		// Authorize the action
-		err = authorizer.Authorize(ctx, act, action, object.RBACObject())
+		err = authorizer.Authorize(ctx, act, rbac.ActionRead, object.RBACObject())
 		if err != nil {
 			return empty, LogNotAuthorizedError(ctx, logger, err)
 		}
