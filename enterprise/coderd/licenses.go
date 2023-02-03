@@ -8,6 +8,7 @@ import (
 	_ "embed"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -98,14 +99,18 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	id, err := uuid.Parse(claims.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Invalid license ID %q", claims.ID),
+			Detail:  err.Error(),
+		})
+		return
+	}
 	dl, err := api.Database.InsertLicense(ctx, database.InsertLicenseParams{
 		UploadedAt: database.Now(),
 		JWT:        addLicense.License,
 		Exp:        expTime,
-		Uuid: uuid.NullUUID{
-			UUID:  id,
-			Valid: err == nil,
-		},
+		UUID:       id,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -229,7 +234,7 @@ func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {
 func convertLicense(dl database.License, c jwt.MapClaims) codersdk.License {
 	return codersdk.License{
 		ID:         dl.ID,
-		UUID:       dl.Uuid.UUID,
+		UUID:       dl.UUID,
 		UploadedAt: dl.UploadedAt,
 		Claims:     c,
 	}

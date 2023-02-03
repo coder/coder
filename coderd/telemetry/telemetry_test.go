@@ -111,10 +111,7 @@ func TestTelemetry(t *testing.T) {
 			UploadedAt: database.Now(),
 			JWT:        "",
 			Exp:        database.Now().Add(time.Hour),
-			Uuid: uuid.NullUUID{
-				UUID:  uuid.New(),
-				Valid: true,
-			},
+			UUID:       uuid.New(),
 		})
 		assert.NoError(t, err)
 		snapshot := collectSnapshot(t, db)
