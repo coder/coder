@@ -37,6 +37,8 @@ coder server [flags]
                                                      Consumes $CODER_DERP_SERVER_STUN_ADDRESSES (default [stun.l.google.com:19302])
       --disable-path-apps                            Disable workspace apps that are not served from subdomains. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. This is recommended for security purposes if a --wildcard-access-url is configured.
                                                      Consumes $CODER_DISABLE_PATH_APPS
+      --disable-session-expiry-refresh               Disable automatic session expiry bumping due to activity. This forces all sessions to become invalid after the session expiry duration has been reached.
+                                                     Consumes $CODER_DISABLE_SESSION_EXPIRY_REFRESH
       --experiments strings                          Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.
                                                      Consumes $CODER_EXPERIMENTS
   -h, --help                                         help for server
@@ -48,7 +50,7 @@ coder server [flags]
                                                      Consumes $CODER_LOGGING_JSON
       --log-stackdriver string                       Output Stackdriver compatible logs to a given file.
                                                      Consumes $CODER_LOGGING_STACKDRIVER
-      --max-token-lifetime duration                  The maximum lifetime duration for any user creating a token.
+      --max-token-lifetime duration                  The maximum lifetime duration users can specify when creating an API token.
                                                      Consumes $CODER_MAX_TOKEN_LIFETIME (default 720h0m0s)
       --oauth2-github-allow-everyone                 Allow all logins, setting this option means allowed orgs and teams must be empty.
                                                      Consumes $CODER_OAUTH2_GITHUB_ALLOW_EVERYONE
@@ -110,6 +112,8 @@ coder server [flags]
                                                      Consumes $CODER_REDIRECT_TO_ACCESS_URL
       --secure-auth-cookie                           Controls if the 'Secure' property is set on browser session cookies.
                                                      Consumes $CODER_SECURE_AUTH_COOKIE
+      --session-duration duration                    The token expiry duration for browser sessions. Sessions may last longer if they are actively making requests, but this functionality can be disabled via --disable-session-expiry-refresh.
+                                                     Consumes $CODER_MAX_SESSION_EXPIRY (default 24h0m0s)
       --ssh-keygen-algorithm string                  The algorithm to use for generating ssh keys. Accepted values are "ed25519", "ecdsa", or "rsa4096".
                                                      Consumes $CODER_SSH_KEYGEN_ALGORITHM (default "ed25519")
       --swagger-enable                               Expose the swagger endpoint via /swagger.
