@@ -12,7 +12,7 @@ func (q *AuthzQuerier) GetLicenses(ctx context.Context) ([]database.License, err
 	fetch := func(ctx context.Context, _ interface{}) ([]database.License, error) {
 		return q.db.GetLicenses(ctx)
 	}
-	return fetchSet(q.auth, fetch)(ctx, nil)
+	return fetchWithPostFilter(q.auth, fetch)(ctx, nil)
 }
 
 func (q *AuthzQuerier) InsertLicense(ctx context.Context, arg database.InsertLicenseParams) (database.License, error) {

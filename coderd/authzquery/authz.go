@@ -235,9 +235,9 @@ func authorizedQuery[ArgumentType any, ObjectType rbac.Objecter,
 	}
 }
 
-// fetchSet is like fetch, but works with lists of objects.
+// fetchWithPostFilter is like fetch, but works with lists of objects.
 // SQL filters are much more optimal.
-func fetchSet[ArgumentType any, ObjectType rbac.Objecter,
+func fetchWithPostFilter[ArgumentType any, ObjectType rbac.Objecter,
 	DatabaseFunc func(ctx context.Context, arg ArgumentType) ([]ObjectType, error)](
 	// Arguments
 	authorizer rbac.Authorizer,

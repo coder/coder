@@ -63,7 +63,7 @@ func (q *AuthzQuerier) GetFilteredUserCount(ctx context.Context, arg database.Ge
 
 func (q *AuthzQuerier) GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error) {
 	// TODO: We should use GetUsersWithCount with a better method signature.
-	return fetchSet(q.auth, q.db.GetUsers)(ctx, arg)
+	return fetchWithPostFilter(q.auth, q.db.GetUsers)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetUsersWithCount(ctx context.Context, arg database.GetUsersParams) ([]database.User, int64, error) {
@@ -93,7 +93,7 @@ func (q *AuthzQuerier) GetUsersWithCount(ctx context.Context, arg database.GetUs
 }
 
 func (q *AuthzQuerier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]database.User, error) {
-	return fetchSet(q.auth, q.db.GetUsersByIDs)(ctx, ids)
+	return fetchWithPostFilter(q.auth, q.db.GetUsersByIDs)(ctx, ids)
 }
 
 func (q *AuthzQuerier) InsertUser(ctx context.Context, arg database.InsertUserParams) (database.User, error) {
@@ -189,7 +189,10 @@ func (q *AuthzQuerier) InsertGitSSHKey(ctx context.Context, arg database.InsertG
 }
 
 func (q *AuthzQuerier) UpdateGitSSHKey(ctx context.Context, arg database.UpdateGitSSHKeyParams) (database.GitSSHKey, error) {
-	return insertWithReturn(q.log, q.auth, rbac.ActionUpdate, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID), q.db.UpdateGitSSHKey)(ctx, arg)
+	fetch := func(ctx context.Context, arg database.UpdateGitSSHKeyParams) (database.GitSSHKey, error) {
+		return q.db.GetGitSSHKey(ctx, arg.UserID)
+	}
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateGitSSHKey)(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetGitAuthLink(ctx context.Context, arg database.GetGitAuthLinkParams) (database.GitAuthLink, error) {

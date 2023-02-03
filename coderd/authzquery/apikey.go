@@ -18,11 +18,11 @@ func (q *AuthzQuerier) GetAPIKeyByID(ctx context.Context, id string) (database.A
 }
 
 func (q *AuthzQuerier) GetAPIKeysByLoginType(ctx context.Context, loginType database.LoginType) ([]database.APIKey, error) {
-	return fetchSet(q.auth, q.db.GetAPIKeysByLoginType)(ctx, loginType)
+	return fetchWithPostFilter(q.auth, q.db.GetAPIKeysByLoginType)(ctx, loginType)
 }
 
 func (q *AuthzQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]database.APIKey, error) {
-	return fetchSet(q.auth, q.db.GetAPIKeysLastUsedAfter)(ctx, lastUsed)
+	return fetchWithPostFilter(q.auth, q.db.GetAPIKeysLastUsedAfter)(ctx, lastUsed)
 }
 
 func (q *AuthzQuerier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {

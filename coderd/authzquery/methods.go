@@ -13,7 +13,7 @@ func (q *AuthzQuerier) GetProvisionerDaemons(ctx context.Context) ([]database.Pr
 	fetch := func(ctx context.Context, _ interface{}) ([]database.ProvisionerDaemon, error) {
 		return q.db.GetProvisionerDaemons(ctx)
 	}
-	return fetchSet(q.auth, fetch)(ctx, nil)
+	return fetchWithPostFilter(q.auth, fetch)(ctx, nil)
 }
 
 func (q *AuthzQuerier) GetDeploymentDAUs(ctx context.Context) ([]database.GetDeploymentDAUsRow, error) {

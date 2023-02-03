@@ -11,7 +11,7 @@ import (
 )
 
 func (q *AuthzQuerier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {
-	return fetchSet(q.auth, q.db.GetGroupsByOrganizationID)(ctx, organizationID)
+	return fetchWithPostFilter(q.auth, q.db.GetGroupsByOrganizationID)(ctx, organizationID)
 }
 
 func (q *AuthzQuerier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
@@ -25,7 +25,7 @@ func (q *AuthzQuerier) GetOrganizationByName(ctx context.Context, name string) (
 func (q *AuthzQuerier) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetOrganizationIDsByMemberIDsRow, error) {
 	// TODO: This should be rewritten to return a list of database.OrganizationMember for consistent RBAC objects.
 	// Currently this row returns a list of org ids per user, which is challenging to check against the RBAC system.
-	return fetchSet(q.auth, q.db.GetOrganizationIDsByMemberIDs)(ctx, ids)
+	return fetchWithPostFilter(q.auth, q.db.GetOrganizationIDsByMemberIDs)(ctx, ids)
 }
 
 func (q *AuthzQuerier) GetOrganizationMemberByUserID(ctx context.Context, arg database.GetOrganizationMemberByUserIDParams) (database.OrganizationMember, error) {
@@ -33,18 +33,18 @@ func (q *AuthzQuerier) GetOrganizationMemberByUserID(ctx context.Context, arg da
 }
 
 func (q *AuthzQuerier) GetOrganizationMembershipsByUserID(ctx context.Context, userID uuid.UUID) ([]database.OrganizationMember, error) {
-	return fetchSet(q.auth, q.db.GetOrganizationMembershipsByUserID)(ctx, userID)
+	return fetchWithPostFilter(q.auth, q.db.GetOrganizationMembershipsByUserID)(ctx, userID)
 }
 
 func (q *AuthzQuerier) GetOrganizations(ctx context.Context) ([]database.Organization, error) {
 	fetch := func(ctx context.Context, _ interface{}) ([]database.Organization, error) {
 		return q.db.GetOrganizations(ctx)
 	}
-	return fetchSet(q.auth, fetch)(ctx, nil)
+	return fetchWithPostFilter(q.auth, fetch)(ctx, nil)
 }
 
 func (q *AuthzQuerier) GetOrganizationsByUserID(ctx context.Context, userID uuid.UUID) ([]database.Organization, error) {
-	return fetchSet(q.auth, q.db.GetOrganizationsByUserID)(ctx, userID)
+	return fetchWithPostFilter(q.auth, q.db.GetOrganizationsByUserID)(ctx, userID)
 }
 
 func (q *AuthzQuerier) InsertOrganization(ctx context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {
