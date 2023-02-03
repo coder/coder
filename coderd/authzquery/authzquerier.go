@@ -47,7 +47,7 @@ func (q *AuthzQuerier) InTx(function func(querier database.Store) error, txOpts 
 	// TODO: @emyrk verify this works.
 	return q.db.InTx(func(tx database.Store) error {
 		// Wrap the transaction store in an AuthzQuerier.
-		wrapped := NewAuthzQuerier(tx, q.auth, slog.Make())
+		wrapped := NewAuthzQuerier(tx, q.auth, q.log)
 		return function(wrapped)
 	}, txOpts)
 }

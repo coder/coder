@@ -6,18 +6,17 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-
-	"cdr.dev/slog/sloggers/slogtest"
-
 	"golang.org/x/xerrors"
 
-	"github.com/google/uuid"
-
 	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd/authzquery"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbfake"
+	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/rbac"
 )
 
@@ -35,6 +34,15 @@ func TestNotAuthorizedError(t *testing.T) {
 		var authErr authzquery.NotAuthorizedError
 		require.ErrorAs(t, err, &authErr, "must be a NotAuthorizedError")
 		require.ErrorIs(t, authErr.Err, testErr, "internal error must match")
+	})
+
+	t.Run("MissingActor", func(t *testing.T) {
+		q := authzquery.NewAuthzQuerier(dbfake.New(), &coderdtest.RecordingAuthorizer{
+			Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
+		}, slog.Make())
+		// This should fail because the actor is missing.
+		_, err := q.GetWorkspaceByID(context.Background(), uuid.New())
+		require.ErrorIs(t, err, authzquery.NoActorError, "must be a NoActorError")
 	})
 }
 
@@ -70,6 +78,40 @@ func TestAuthzQueryRecursive(t *testing.T) {
 		// Call the function. Any infinite recursion will stack overflow.
 		reflect.ValueOf(q).Method(i).Call(ins)
 	}
+}
+
+func TestPing(t *testing.T) {
+	t.Parallel()
+
+	q := authzquery.NewAuthzQuerier(dbfake.New(), &coderdtest.RecordingAuthorizer{}, slog.Make())
+	_, err := q.Ping(context.Background())
+	require.NoError(t, err, "must not error")
+}
+
+// TestInTX is not perfect, just checks that it properly checks auth.
+func TestInTX(t *testing.T) {
+	t.Parallel()
+
+	db := dbfake.New()
+	q := authzquery.NewAuthzQuerier(db, &coderdtest.RecordingAuthorizer{
+		Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: xerrors.New("custom error")},
+	}, slog.Make())
+	actor := rbac.Subject{
+		ID:     uuid.NewString(),
+		Roles:  rbac.RoleNames{rbac.RoleOwner()},
+		Groups: []string{},
+		Scope:  rbac.ScopeAll,
+	}
+
+	w := dbgen.Workspace(t, db, database.Workspace{})
+	ctx := authzquery.WithAuthorizeContext(context.Background(), actor)
+	err := q.InTx(func(tx database.Store) error {
+		// The inner tx should use the parent's authz
+		_, err := tx.GetWorkspaceByID(ctx, w.ID)
+		return err
+	}, nil)
+	require.Error(t, err, "must error")
+	require.ErrorAs(t, err, &authzquery.NotAuthorizedError{}, "must be an authorized error")
 }
 
 func must[T any](value T, err error) T {
