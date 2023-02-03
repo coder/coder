@@ -37,6 +37,7 @@ func TestNotAuthorizedError(t *testing.T) {
 	})
 
 	t.Run("MissingActor", func(t *testing.T) {
+		t.Parallel()
 		q := authzquery.NewAuthzQuerier(dbfake.New(), &coderdtest.RecordingAuthorizer{
 			Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
 		}, slog.Make())
