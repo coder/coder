@@ -19,7 +19,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/telemetry"
 )
 
@@ -34,7 +34,7 @@ func TestTelemetry(t *testing.T) {
 
 		var err error
 
-		db := databasefake.New()
+		db := dbfake.New()
 
 		ctx := context.Background()
 		_, err = db.InsertAPIKey(ctx, database.InsertAPIKeyParams{
@@ -132,7 +132,7 @@ func TestTelemetry(t *testing.T) {
 	})
 	t.Run("HashedEmail", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		_, err := db.InsertUser(context.Background(), database.InsertUserParams{
 			ID:        uuid.New(),
 			Email:     "kyle@coder.com",
