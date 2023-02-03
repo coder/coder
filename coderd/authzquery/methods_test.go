@@ -152,7 +152,8 @@ MethodLoop:
 				// Assert the required outputs
 				require.Equal(t, len(testCase.ExpectedOutputs), len(outputs), "method %q returned unexpected number of outputs", testName)
 				for i := range outputs {
-					require.Equal(t, testCase.ExpectedOutputs[i].Interface(), outputs[i].Interface(), "method %q returned unexpected output %d", testName, i)
+					a, b := testCase.ExpectedOutputs[i].Interface(), outputs[i].Interface()
+					require.Equal(t, a, b, "method %q returned unexpected output %d", testName, i)
 				}
 			}
 

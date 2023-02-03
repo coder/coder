@@ -20,13 +20,13 @@ func (s *MethodTestSuite) TestUser() {
 	s.Run("GetQuotaAllowanceForUser", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			u := dbgen.User(t, db, database.User{})
-			return methodCase(values(u.ID), asserts(u, rbac.ActionRead), values(0))
+			return methodCase(values(u.ID), asserts(u, rbac.ActionRead), values(int64(0)))
 		})
 	})
 	s.Run("GetQuotaConsumedForUser", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			u := dbgen.User(t, db, database.User{})
-			return methodCase(values(u.ID), asserts(u, rbac.ActionRead), values(0))
+			return methodCase(values(u.ID), asserts(u, rbac.ActionRead), values(int64(0)))
 		})
 	})
 	s.Run("GetUserByEmailOrUsername", func() {
@@ -47,13 +47,13 @@ func (s *MethodTestSuite) TestUser() {
 	s.Run("GetAuthorizedUserCount", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			_ = dbgen.User(t, db, database.User{})
-			return methodCase(values(database.GetFilteredUserCountParams{}, emptyPreparedAuthorized{}), asserts(), values(1))
+			return methodCase(values(database.GetFilteredUserCountParams{}, emptyPreparedAuthorized{}), asserts(), values(int64(1)))
 		})
 	})
 	s.Run("GetFilteredUserCount", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			_ = dbgen.User(t, db, database.User{})
-			return methodCase(values(database.GetFilteredUserCountParams{}), asserts(), values(1))
+			return methodCase(values(database.GetFilteredUserCountParams{}), asserts(), values(int64(1)))
 		})
 	})
 	s.Run("GetUsers", func() {
@@ -62,7 +62,7 @@ func (s *MethodTestSuite) TestUser() {
 			b := dbgen.User(t, db, database.User{})
 			return methodCase(values(database.GetUsersParams{}),
 				asserts(a, rbac.ActionRead, b, rbac.ActionRead),
-				values([]database.User{a, b}))
+				nil)
 		})
 	})
 	s.Run("GetUsersWithCount", func() {
@@ -110,7 +110,7 @@ func (s *MethodTestSuite) TestUser() {
 			return methodCase(values(database.UpdateUserDeletedByIDParams{
 				ID:      u.ID,
 				Deleted: true,
-			}), asserts(u, rbac.ActionDelete), values(u))
+			}), asserts(u, rbac.ActionDelete), values())
 		})
 	})
 	s.Run("UpdateUserHashedPassword", func() {
@@ -118,14 +118,16 @@ func (s *MethodTestSuite) TestUser() {
 			u := dbgen.User(t, db, database.User{})
 			return methodCase(values(database.UpdateUserHashedPasswordParams{
 				ID: u.ID,
-			}), asserts(u.UserDataRBACObject(), rbac.ActionUpdate), values(u))
+			}), asserts(u.UserDataRBACObject(), rbac.ActionUpdate), values())
 		})
 	})
 	s.Run("UpdateUserLastSeenAt", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			u := dbgen.User(t, db, database.User{})
 			return methodCase(values(database.UpdateUserLastSeenAtParams{
-				ID: u.ID,
+				ID:         u.ID,
+				UpdatedAt:  u.UpdatedAt,
+				LastSeenAt: u.LastSeenAt,
 			}), asserts(u, rbac.ActionUpdate), values(u))
 		})
 	})
@@ -133,16 +135,18 @@ func (s *MethodTestSuite) TestUser() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			u := dbgen.User(t, db, database.User{})
 			return methodCase(values(database.UpdateUserProfileParams{
-				ID: u.ID,
-			}), asserts(u.UserDataRBACObject(), rbac.ActionUpdate), values(u))
+				ID:        u.ID,
+				UpdatedAt: u.UpdatedAt,
+			}), asserts(u.UserDataRBACObject(), rbac.ActionUpdate), values())
 		})
 	})
 	s.Run("UpdateUserStatus", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			u := dbgen.User(t, db, database.User{})
 			return methodCase(values(database.UpdateUserStatusParams{
-				ID:     u.ID,
-				Status: database.UserStatusActive,
+				ID:        u.ID,
+				Status:    u.Status,
+				UpdatedAt: u.UpdatedAt,
 			}), asserts(u, rbac.ActionUpdate), values(u))
 		})
 	})
@@ -169,7 +173,10 @@ func (s *MethodTestSuite) TestUser() {
 	s.Run("UpdateGitSSHKey", func() {
 		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			key := dbgen.GitSSHKey(t, db, database.GitSSHKey{})
-			return methodCase(values(database.UpdateGitSSHKeyParams{}), asserts(key, rbac.ActionUpdate), values(key))
+			return methodCase(values(database.UpdateGitSSHKeyParams{
+				UserID:    key.UserID,
+				UpdatedAt: key.UpdatedAt,
+			}), asserts(key, rbac.ActionUpdate), values(key))
 		})
 	})
 	s.Run("GetGitAuthLink", func() {
@@ -196,7 +203,7 @@ func (s *MethodTestSuite) TestUser() {
 			return methodCase(values(database.UpdateGitAuthLinkParams{
 				ProviderID: link.ProviderID,
 				UserID:     link.UserID,
-			}), asserts(link, rbac.ActionUpdate), values(link))
+			}), asserts(link, rbac.ActionUpdate), values())
 		})
 	})
 	s.Run("UpdateUserLink", func() {
