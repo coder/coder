@@ -186,6 +186,18 @@ func User(t *testing.T, db database.Store, orig database.User) database.User {
 	return user
 }
 
+func GitSSHKey(t *testing.T, db database.Store, orig database.GitSSHKey) database.GitSSHKey {
+	key, err := db.InsertGitSSHKey(context.Background(), database.InsertGitSSHKeyParams{
+		UserID:     takeFirst(orig.UserID, uuid.New()),
+		CreatedAt:  takeFirst(orig.CreatedAt, time.Now()),
+		UpdatedAt:  takeFirst(orig.UpdatedAt, time.Now()),
+		PrivateKey: takeFirst(orig.PrivateKey, ""),
+		PublicKey:  takeFirst(orig.PublicKey, ""),
+	})
+	require.NoError(t, err, "insert ssh key")
+	return key
+}
+
 func Organization(t *testing.T, db database.Store, orig database.Organization) database.Organization {
 	org, err := db.InsertOrganization(context.Background(), database.InsertOrganizationParams{
 		ID:          takeFirst(orig.ID, uuid.New()),
@@ -254,6 +266,34 @@ func ProvisionerJob(t *testing.T, db database.Store, orig database.ProvisionerJo
 	return job
 }
 
+func WorkspaceApp(t *testing.T, db database.Store, orig database.WorkspaceApp) database.WorkspaceApp {
+	resource, err := db.InsertWorkspaceApp(context.Background(), database.InsertWorkspaceAppParams{
+		ID:          takeFirst(orig.ID, uuid.New()),
+		CreatedAt:   takeFirst(orig.CreatedAt, time.Now()),
+		AgentID:     takeFirst(orig.AgentID, uuid.New()),
+		Slug:        takeFirst(orig.Slug, namesgenerator.GetRandomName(1)),
+		DisplayName: takeFirst(orig.DisplayName, namesgenerator.GetRandomName(1)),
+		Icon:        takeFirst(orig.Icon, namesgenerator.GetRandomName(1)),
+		Command: sql.NullString{
+			String: takeFirst(orig.Command.String, "ls"),
+			Valid:  orig.Command.Valid,
+		},
+		Url: sql.NullString{
+			String: takeFirst(orig.Url.String),
+			Valid:  orig.Url.Valid,
+		},
+		External:             orig.External,
+		Subdomain:            orig.Subdomain,
+		SharingLevel:         takeFirst(orig.SharingLevel, database.AppSharingLevelOwner),
+		HealthcheckUrl:       takeFirst(orig.HealthcheckUrl, "https://localhost:8000"),
+		HealthcheckInterval:  takeFirst(orig.HealthcheckInterval, 60),
+		HealthcheckThreshold: takeFirst(orig.HealthcheckThreshold, 60),
+		Health:               takeFirst(orig.Health, database.WorkspaceAppHealthHealthy),
+	})
+	require.NoError(t, err, "insert app")
+	return resource
+}
+
 func WorkspaceResource(t *testing.T, db database.Store, orig database.WorkspaceResource) database.WorkspaceResource {
 	resource, err := db.InsertWorkspaceResource(context.Background(), database.InsertWorkspaceResourceParams{
 		ID:         takeFirst(orig.ID, uuid.New()),
@@ -309,6 +349,21 @@ func UserLink(t *testing.T, db database.Store, orig database.UserLink) database.
 	})
 
 	require.NoError(t, err, "insert link")
+	return link
+}
+
+func GitAuthLink(t *testing.T, db database.Store, orig database.GitAuthLink) database.GitAuthLink {
+	link, err := db.InsertGitAuthLink(context.Background(), database.InsertGitAuthLinkParams{
+		ProviderID:        takeFirst(orig.ProviderID, uuid.New().String()),
+		UserID:            takeFirst(orig.UserID, uuid.New()),
+		OAuthAccessToken:  takeFirst(orig.OAuthAccessToken, uuid.NewString()),
+		OAuthRefreshToken: takeFirst(orig.OAuthAccessToken, uuid.NewString()),
+		OAuthExpiry:       takeFirst(orig.OAuthExpiry, time.Now().Add(time.Hour*24)),
+		CreatedAt:         takeFirst(orig.CreatedAt, time.Now()),
+		UpdatedAt:         takeFirst(orig.UpdatedAt, time.Now()),
+	})
+
+	require.NoError(t, err, "insert git auth link")
 	return link
 }
 
