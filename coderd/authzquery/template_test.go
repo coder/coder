@@ -132,9 +132,12 @@ func (suite *MethodTestSuite) TestTemplate() {
 			tv2 := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 				TemplateID: uuid.NullUUID{UUID: t2.ID, Valid: true},
 			})
-			return methodCase(values([]uuid.UUID{tv1.ID, tv2.ID}),
+			tv3 := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				TemplateID: uuid.NullUUID{UUID: t2.ID, Valid: true},
+			})
+			return methodCase(values([]uuid.UUID{tv1.ID, tv2.ID, tv3.ID}),
 				asserts(t1, rbac.ActionRead, t2, rbac.ActionRead),
-				values([]database.TemplateVersion{tv1, tv2}))
+				values([]database.TemplateVersion{tv1, tv2, tv3}))
 		})
 	})
 	suite.Run("GetTemplateVersionsByTemplateID", func() {
@@ -172,6 +175,15 @@ func (suite *MethodTestSuite) TestTemplate() {
 			a := dbgen.Template(t, db, database.Template{})
 			// No asserts because SQLFilter.
 			return methodCase(values(database.GetTemplatesWithFilterParams{}),
+				asserts(),
+				values([]database.Template{a}))
+		})
+	})
+	suite.Run("GetAuthorizedTemplates", func() {
+		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+			a := dbgen.Template(t, db, database.Template{})
+			// No asserts because SQLFilter.
+			return methodCase(values(database.GetTemplatesWithFilterParams{}, emptyPreparedAuthorized{}),
 				asserts(),
 				values([]database.Template{a}))
 		})
