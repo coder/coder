@@ -31,7 +31,7 @@ Flags:
                                                           $CACHE_DIRECTORY is set, it will be
                                                           used for compatibility with systemd.
                                                           Consumes $CODER_CACHE_DIRECTORY
-                                                          (default "/tmp/coder-cli-test-cache")
+                                                          (default "~/.cache/coder")
       --dangerous-allow-path-app-sharing                  Allow workspace apps that are not
                                                           served from subdomains to be shared.
                                                           Path-based app sharing is DISABLED
@@ -349,7 +349,7 @@ Flags:
 
 Global Flags:
       --global-config coder   Path to the global coder config directory.
-                              Consumes $CODER_CONFIG_DIR (default "/tmp/coder-cli-test-config")
+                              Consumes $CODER_CONFIG_DIR (default "~/.config/coderv2")
       --header stringArray    HTTP headers added to all requests. Provide as "Key=Value".
                               Consumes $CODER_HEADER
       --no-feature-warning    Suppress warnings about unlicensed features.
