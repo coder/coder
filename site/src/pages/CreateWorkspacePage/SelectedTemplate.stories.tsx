@@ -13,7 +13,10 @@ const Template: Story<SelectedTemplateProps> = (args) => (
 
 export const WithIcon = Template.bind({})
 WithIcon.args = {
-  template: MockTemplate,
+  template: {
+    ...MockTemplate,
+    icon: "/icon/docker.png",
+  },
 }
 
 export const WithoutIcon = Template.bind({})
