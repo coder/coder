@@ -174,16 +174,16 @@ jobs:
           fi
 
       - name: Create empty base-build-context directory
-        if: steps.image-base-tag.outputs.tag != ""
+        if: steps.image-base-tag.outputs.tag != ''
         run: mkdir base-build-context
 
       - name: Install depot.dev CLI
-        if: steps.image-base-tag.outputs.tag != ""
+        if: steps.image-base-tag.outputs.tag != ''
         uses: depot/setup-action@v1
 
       # This uses OIDC authentication, so no auth variables are required.
       - name: Build base Docker image via depot.dev
-        if: steps.image-base-tag.outputs.tag != ""
+        if: steps.image-base-tag.outputs.tag != ''
         uses: depot/build-push-action@v1
         with:
           project: wl5hnrrkns
