@@ -3,10 +3,10 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -66,7 +66,7 @@ func (c *committer) CommitQuota(
 			if build.DailyCost < previousBuild.DailyCost {
 				netIncrease = false
 			}
-		} else if !xerrors.Is(err, sql.ErrNoRows) {
+		} else if !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
 

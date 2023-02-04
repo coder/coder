@@ -19,7 +19,6 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.11.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/atomic"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/tracing"
@@ -380,10 +379,10 @@ func (p *Server) acquireJob(ctx context.Context) {
 }
 
 func retryable(err error) bool {
-	return xerrors.Is(err, yamux.ErrSessionShutdown) || xerrors.Is(err, io.EOF) || xerrors.Is(err, fasthttputil.ErrInmemoryListenerClosed) ||
+	return errors.Is(err, yamux.ErrSessionShutdown) || errors.Is(err, io.EOF) || errors.Is(err, fasthttputil.ErrInmemoryListenerClosed) ||
 		// annoyingly, dRPC sometimes returns context.Canceled if the transport was closed, even if the context for
 		// the RPC *is not canceled*.  Retrying is fine if the RPC context is not canceled.
-		xerrors.Is(err, context.Canceled)
+		errors.Is(err, context.Canceled)
 }
 
 // clientDoWithRetries runs the function f with a client, and retries with backoff until either the error returned

@@ -2,13 +2,13 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
 	"time"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -90,7 +90,7 @@ func provisionerDaemonStart() *cobra.Command {
 					CachePath: cacheDir,
 					Logger:    logger.Named("terraform"),
 				})
-				if err != nil && !xerrors.Is(err, context.Canceled) {
+				if err != nil && !errors.Is(err, context.Canceled) {
 					select {
 					case errCh <- err:
 					default:
@@ -130,7 +130,7 @@ func provisionerDaemonStart() *cobra.Command {
 				))
 			case exitErr = <-errCh:
 			}
-			if exitErr != nil && !xerrors.Is(exitErr, context.Canceled) {
+			if exitErr != nil && !errors.Is(exitErr, context.Canceled) {
 				cmd.Printf("Unexpected error, shutting down server: %s\n", exitErr)
 			}
 
@@ -142,7 +142,7 @@ func provisionerDaemonStart() *cobra.Command {
 			}
 
 			cancel()
-			if xerrors.Is(exitErr, context.Canceled) {
+			if errors.Is(exitErr, context.Canceled) {
 				return nil
 			}
 			return exitErr

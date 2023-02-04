@@ -45,7 +45,6 @@ import (
 	"golang.org/x/oauth2"
 	xgithub "golang.org/x/oauth2/github"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/xerrors"
 
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
@@ -872,7 +871,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 			case exitErr = <-errCh:
 			}
-			if exitErr != nil && !xerrors.Is(exitErr, context.Canceled) {
+			if exitErr != nil && !errors.Is(exitErr, context.Canceled) {
 				cmd.Printf("Unexpected error, shutting down server: %s\n", exitErr)
 			}
 
@@ -949,7 +948,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			// Trigger context cancellation for any remaining services.
 			cancel()
 
-			if xerrors.Is(exitErr, context.Canceled) {
+			if errors.Is(exitErr, context.Canceled) {
 				return nil
 			}
 			return exitErr
@@ -1095,7 +1094,7 @@ func newProvisionerDaemon(
 			CachePath: cacheDir,
 			Logger:    logger,
 		})
-		if err != nil && !xerrors.Is(err, context.Canceled) {
+		if err != nil && !errors.Is(err, context.Canceled) {
 			select {
 			case errCh <- err:
 			default:

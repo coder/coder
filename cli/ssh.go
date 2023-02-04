@@ -22,7 +22,6 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 	gosshagent "golang.org/x/crypto/ssh/agent"
 	"golang.org/x/term"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/cliflag"
@@ -94,10 +93,10 @@ func ssh() *cobra.Command {
 				NoWait: noWait,
 			})
 			if err != nil {
-				if xerrors.Is(err, context.Canceled) {
+				if errors.Is(err, context.Canceled) {
 					return cliui.Canceled
 				}
-				if xerrors.Is(err, cliui.AgentStartError) {
+				if errors.Is(err, cliui.AgentStartError) {
 					return fmt.Errorf("Agent startup script exited with non-zero status, use --no-wait to login anyway.")
 				}
 				return fmt.Errorf("await agent: %w", err)

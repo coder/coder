@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -21,7 +22,6 @@ import (
 	"github.com/kirsle/configdir"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/cliflag"
@@ -565,7 +565,7 @@ func FormatCobraError(err error, cmd *cobra.Command) string {
 		output  strings.Builder
 	)
 
-	if xerrors.As(err, &httpErr) {
+	if errors.As(err, &httpErr) {
 		_, _ = fmt.Fprintln(&output, httpErr.Friendly())
 	}
 
@@ -747,5 +747,5 @@ func isConnectionError(err error) bool {
 		opErr *net.OpError
 	)
 
-	return xerrors.As(err, &dnsErr) || xerrors.As(err, &opErr)
+	return errors.As(err, &dnsErr) || errors.As(err, &opErr)
 }

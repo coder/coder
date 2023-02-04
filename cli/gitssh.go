@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -13,7 +14,6 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliui"
 )
@@ -87,7 +87,7 @@ func gitssh() *cobra.Command {
 			err = c.Run()
 			if err != nil {
 				exitErr := &exec.ExitError{}
-				if xerrors.As(err, &exitErr) && exitErr.ExitCode() == 255 {
+				if errors.As(err, &exitErr) && exitErr.ExitCode() == 255 {
 					_, _ = fmt.Fprintln(cmd.ErrOrStderr(),
 						"\n"+cliui.Styles.Wrap.Render("Coder authenticates with "+cliui.Styles.Field.Render("git")+
 							" using the public key below. All clones with SSH are authenticated automatically 🪄.")+"\n")

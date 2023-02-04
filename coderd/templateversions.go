@@ -13,7 +13,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 
@@ -553,7 +552,7 @@ func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Re
 	}
 
 	job, err := api.Database.GetProvisionerJobByID(ctx, jobUUID)
-	if xerrors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: fmt.Sprintf("Provisioner job %q not found.", jobUUID),
 		})
@@ -627,7 +626,7 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 			// See if the record exists first. If the record does not exist, the pagination
 			// query will not work.
 			_, err := store.GetTemplateVersionByID(ctx, paginationParams.AfterID)
-			if err != nil && xerrors.Is(err, sql.ErrNoRows) {
+			if err != nil && errors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: fmt.Sprintf("Record at \"after_id\" (%q) does not exists.", paginationParams.AfterID.String()),
 				})
@@ -887,7 +886,7 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 		Name: templateVersionName,
 	})
 	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: fmt.Sprintf("No template version found by name %q.", templateVersionName),
 			})
@@ -908,7 +907,7 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 	})
 
 	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: fmt.Sprintf("No previous template version found for %q.", templateVersionName),
 			})
@@ -1117,7 +1116,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		// lookup template tar from embedded examples
 		tar, err := examples.Archive(req.ExampleID)
 		if err != nil {
-			if xerrors.Is(err, examples.ErrNotFound) {
+			if errors.Is(err, examples.ErrNotFound) {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: "Example not found.",
 					Detail:  err.Error(),

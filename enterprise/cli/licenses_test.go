@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -16,7 +17,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -138,7 +138,7 @@ func TestLicensesAddReal(t *testing.T) {
 		}()
 		err := <-errC
 		var coderError *codersdk.Error
-		require.True(t, xerrors.As(err, &coderError))
+		require.True(t, errors.As(err, &coderError))
 		assert.Equal(t, 400, coderError.StatusCode())
 		assert.Contains(t, "Invalid license", coderError.Message)
 	})
@@ -232,7 +232,7 @@ func TestLicensesDeleteReal(t *testing.T) {
 		}()
 		err := <-errC
 		var coderError *codersdk.Error
-		require.True(t, xerrors.As(err, &coderError))
+		require.True(t, errors.As(err, &coderError))
 		assert.Equal(t, 404, coderError.StatusCode())
 		assert.Contains(t, "Unknown license ID", coderError.Message)
 	})

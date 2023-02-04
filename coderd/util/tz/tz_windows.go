@@ -3,6 +3,7 @@
 package tz
 
 import (
+	"fmt"
 	"os/exec"
 	"strings"
 	"time"
@@ -24,7 +25,7 @@ func TimezoneIANA() (*time.Location, error) {
 	if err == nil {
 		return loc, nil
 	}
-	if !xerrors.Is(err, errNoEnvSet) {
+	if !errors.Is(err, errNoEnvSet) {
 		return nil, fmt.Errorf("lookup timezone from env: %w", err)
 	}
 

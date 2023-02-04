@@ -1,6 +1,7 @@
 package deployment
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -12,7 +13,6 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/cliui"
@@ -565,7 +565,7 @@ func Config(flagset *pflag.FlagSet, vip *viper.Viper) (*codersdk.DeploymentConfi
 	if flg != "" {
 		vip.SetConfigFile(flg + "/server.yaml")
 		err = vip.ReadInConfig()
-		if err != nil && !xerrors.Is(err, os.ErrNotExist) {
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return dc, fmt.Errorf("reading deployment config: %w", err)
 		}
 	}

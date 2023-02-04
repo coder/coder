@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"github.com/moby/moby/pkg/namesgenerator"
-	"golang.org/x/xerrors"
 
 	"nhooyr.io/websocket"
 	"storj.io/drpc/drpcmux"
@@ -227,14 +226,14 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	}
 	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
 		Log: func(err error) {
-			if xerrors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) {
 				return
 			}
 			api.Logger.Debug(r.Context(), "drpc server error", slog.Error(err))
 		},
 	})
 	err = server.Serve(r.Context(), session)
-	if err != nil && !xerrors.Is(err, io.EOF) {
+	if err != nil && !errors.Is(err, io.EOF) {
 		api.Logger.Debug(r.Context(), "provisioner daemon disconnected", slog.Error(err))
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("serve: %s", err))
 		return

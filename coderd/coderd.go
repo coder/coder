@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,7 +26,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	httpSwagger "github.com/swaggo/http-swagger"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/xerrors"
 
 	"google.golang.org/api/idtoken"
 	"storj.io/drpc/drpcmux"
@@ -788,7 +788,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 	}
 	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
 		Log: func(err error) {
-			if xerrors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) {
 				return
 			}
 			api.Logger.Debug(ctx, "drpc server error", slog.Error(err))
@@ -796,7 +796,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 	})
 	go func() {
 		err := server.Serve(ctx, serverSession)
-		if err != nil && !xerrors.Is(err, io.EOF) {
+		if err != nil && !errors.Is(err, io.EOF) {
 			api.Logger.Debug(ctx, "provisioner daemon disconnected", slog.Error(err))
 		}
 		// close the sessions so we don't leak goroutines serving them.

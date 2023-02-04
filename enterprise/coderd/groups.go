@@ -2,11 +2,11 @@ package coderd
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/audit"
@@ -152,7 +152,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 			OrganizationID: group.OrganizationID,
 			UserID:         uuid.MustParse(id),
 		})
-		if xerrors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: fmt.Sprintf("User %q must be a member of organization %q", id, group.ID),
 			})
@@ -241,7 +241,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if xerrors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to add or remove non-existent group member",
 			Detail:  err.Error(),
@@ -350,7 +350,7 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	users, err := api.Database.GetGroupMembers(ctx, group.ID)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
@@ -385,7 +385,7 @@ func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 	)
 
 	groups, err := api.Database.GetGroupsByOrganizationID(ctx, org.ID)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}

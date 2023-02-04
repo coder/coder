@@ -3,11 +3,11 @@ package httpmw
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -68,7 +68,7 @@ func ExtractUserParam(db database.Store, redirectToLoginOnMe bool) func(http.Han
 					return
 				}
 				user, err = db.GetUserByID(ctx, apiKey.UserID)
-				if xerrors.Is(err, sql.ErrNoRows) {
+				if errors.Is(err, sql.ErrNoRows) {
 					httpapi.ResourceNotFound(rw)
 					return
 				}

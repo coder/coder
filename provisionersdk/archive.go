@@ -2,13 +2,12 @@ package provisionersdk
 
 import (
 	"archive/tar"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
-
-	"golang.org/x/xerrors"
 )
 
 const (
@@ -124,7 +123,7 @@ func Untar(directory string, r io.Reader) error {
 	tarReader := tar.NewReader(r)
 	for {
 		header, err := tarReader.Next()
-		if xerrors.Is(err, io.EOF) {
+		if errors.Is(err, io.EOF) {
 			return nil
 		}
 		if err != nil {
@@ -149,7 +148,7 @@ func Untar(directory string, r io.Reader) error {
 			}
 			// Max file size of 10MB.
 			_, err = io.CopyN(file, tarReader, (1<<20)*10)
-			if xerrors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) {
 				err = nil
 			}
 			if err != nil {

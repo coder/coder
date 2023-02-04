@@ -1,11 +1,11 @@
 package httpmw
 
 import (
+	"errors"
 	"net/http"
 	"regexp"
 
 	"github.com/justinas/nosurf"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/codersdk"
 )
@@ -42,7 +42,7 @@ func CSRF(secureCookie bool) func(next http.Handler) http.Handler {
 			// If no cookie is present, then there is no risk of CSRF.
 			//nolint:govet
 			sessCookie, err := r.Cookie(codersdk.SessionTokenCookie)
-			if xerrors.Is(err, http.ErrNoCookie) {
+			if errors.Is(err, http.ErrNoCookie) {
 				return true
 			}
 

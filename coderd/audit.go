@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -14,7 +15,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/tabbed/pqtype"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/audit"
@@ -298,7 +298,7 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 	case database.ResourceTypeTemplate:
 		template, err := api.Database.GetTemplateByID(ctx, alog.ResourceID)
 		if err != nil {
-			if xerrors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, sql.ErrNoRows) {
 				return true
 			}
 			api.Logger.Error(ctx, "fetch template", slog.Error(err))
@@ -307,7 +307,7 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 	case database.ResourceTypeUser:
 		user, err := api.Database.GetUserByID(ctx, alog.ResourceID)
 		if err != nil {
-			if xerrors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, sql.ErrNoRows) {
 				return true
 			}
 			api.Logger.Error(ctx, "fetch user", slog.Error(err))
@@ -316,7 +316,7 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 	case database.ResourceTypeWorkspace:
 		workspace, err := api.Database.GetWorkspaceByID(ctx, alog.ResourceID)
 		if err != nil {
-			if xerrors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, sql.ErrNoRows) {
 				return true
 			}
 			api.Logger.Error(ctx, "fetch workspace", slog.Error(err))
@@ -325,7 +325,7 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 	case database.ResourceTypeWorkspaceBuild:
 		workspaceBuild, err := api.Database.GetWorkspaceBuildByID(ctx, alog.ResourceID)
 		if err != nil {
-			if xerrors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, sql.ErrNoRows) {
 				return true
 			}
 			api.Logger.Error(ctx, "fetch workspace build", slog.Error(err))
@@ -333,7 +333,7 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 		// We use workspace as a proxy for workspace build here
 		workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
 		if err != nil {
-			if xerrors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, sql.ErrNoRows) {
 				return true
 			}
 			api.Logger.Error(ctx, "fetch workspace", slog.Error(err))

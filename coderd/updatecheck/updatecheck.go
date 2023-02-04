@@ -9,6 +9,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,7 +17,6 @@ import (
 
 	"github.com/google/go-github/v43/github"
 	"golang.org/x/mod/semver"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 
@@ -114,7 +114,7 @@ func (c *Checker) init() (Result, error) {
 	defer close(c.firstCheck)
 
 	r, err := c.lastUpdateCheck(c.ctx)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return Result{}, fmt.Errorf("last update check: %w", err)
 	}
 	if r.Checked.IsZero() || time.Since(r.Checked) > c.opts.Interval {
@@ -132,7 +132,7 @@ func (c *Checker) start() {
 
 	r, err := c.init()
 	if err != nil {
-		if xerrors.Is(err, context.Canceled) {
+		if errors.Is(err, context.Canceled) {
 			return
 		}
 		c.log.Error(c.ctx, "init failed", slog.Error(err))
@@ -156,7 +156,7 @@ func (c *Checker) start() {
 		case <-t.C:
 			rr, err := c.update()
 			if err != nil {
-				if xerrors.Is(err, context.Canceled) {
+				if errors.Is(err, context.Canceled) {
 					return
 				}
 				c.log.Error(c.ctx, "update check failed", slog.Error(err))

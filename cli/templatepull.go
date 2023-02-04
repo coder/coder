@@ -1,13 +1,13 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"sort"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
@@ -87,7 +87,7 @@ func templatePull() *cobra.Command {
 
 			// Stat the destination to ensure nothing exists already.
 			fi, err := os.Stat(dest)
-			if err != nil && !xerrors.Is(err, fs.ErrNotExist) {
+			if err != nil && !errors.Is(err, fs.ErrNotExist) {
 				return fmt.Errorf("stat destination: %w", err)
 			}
 

@@ -3,6 +3,7 @@
 package pty
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"sync"

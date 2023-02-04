@@ -3,12 +3,12 @@
 package reaper
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"syscall"
 
 	"github.com/hashicorp/go-reap"
-	"golang.org/x/xerrors"
 )
 
 // IsInitProcess returns true if the current process's PID is 1.
@@ -56,7 +56,7 @@ func ForkReap(opt ...Option) error {
 
 	var wstatus syscall.WaitStatus
 	_, err = syscall.Wait4(pid, &wstatus, 0, nil)
-	for xerrors.Is(err, syscall.EINTR) {
+	for errors.Is(err, syscall.EINTR) {
 		_, err = syscall.Wait4(pid, &wstatus, 0, nil)
 	}
 

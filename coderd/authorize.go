@@ -1,11 +1,11 @@
 package coderd
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/httpapi"
@@ -70,7 +70,7 @@ func (h *HTTPAuthorizer) Authorize(r *http.Request, action rbac.Action, object r
 		// Log the errors for debugging
 		internalError := new(rbac.UnauthorizedError)
 		logger := h.Logger
-		if xerrors.As(err, internalError) {
+		if errors.As(err, internalError) {
 			logger = h.Logger.With(slog.F("internal", internalError.Internal()))
 		}
 		// Log information for debugging. This will be very helpful

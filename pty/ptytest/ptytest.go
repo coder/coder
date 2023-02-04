@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -16,7 +17,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/pty"
 	"github.com/coder/coder/testutil"
@@ -347,7 +347,7 @@ func (b *stdbuf) Read(p []byte) (int, error) {
 	}
 
 	n, err := b.r.Read(p)
-	if xerrors.Is(err, io.EOF) {
+	if errors.Is(err, io.EOF) {
 		b.r = nil
 		err = nil
 		if n == 0 {

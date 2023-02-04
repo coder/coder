@@ -15,7 +15,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/oauth2"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -191,7 +190,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		AvatarURL:    ghUser.GetAvatarURL(),
 	})
 	var httpErr httpError
-	if xerrors.As(err, &httpErr) {
+	if errors.As(err, &httpErr) {
 		httpapi.Write(ctx, rw, httpErr.code, codersdk.Response{
 			Message: httpErr.msg,
 			Detail:  httpErr.detail,
@@ -416,7 +415,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		Groups:       groups,
 	})
 	var httpErr httpError
-	if xerrors.As(err, &httpErr) {
+	if errors.As(err, &httpErr) {
 		httpapi.Write(ctx, rw, httpErr.code, codersdk.Response{
 			Message: httpErr.msg,
 			Detail:  httpErr.detail,
@@ -530,7 +529,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 					_, err := tx.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
 						Username: params.Username,
 					})
-					if xerrors.Is(err, sql.ErrNoRows) {
+					if errors.Is(err, sql.ErrNoRows) {
 						validUsername = true
 						break
 					}

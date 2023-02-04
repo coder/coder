@@ -39,7 +39,7 @@ func TestStart(t *testing.T) {
 		assert.NoError(t, err)
 		err = ps.Wait()
 		var exitErr *exec.ExitError
-		require.True(t, xerrors.As(err, &exitErr))
+		require.True(t, errors.As(err, &exitErr))
 		assert.NotEqual(t, 0, exitErr.ExitCode())
 	})
 }

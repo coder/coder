@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,7 +17,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
@@ -189,7 +189,7 @@ func (o *scaleTestOutput) write(res harness.Results, stdout io.Writer) error {
 		err := s.Sync()
 		// On Linux, EINVAL is returned when calling fsync on /dev/stdout. We
 		// can safely ignore this error.
-		if err != nil && !xerrors.Is(err, syscall.EINVAL) {
+		if err != nil && !errors.Is(err, syscall.EINVAL) {
 			return fmt.Errorf("flush output file: %w", err)
 		}
 	}

@@ -3,13 +3,13 @@ package reconnectingpty
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -89,7 +89,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 		if err == nil {
 			return fmt.Errorf("expected timeout, but the command exited successfully")
 		}
-		if !xerrors.Is(err, context.DeadlineExceeded) {
+		if !errors.Is(err, context.DeadlineExceeded) {
 			return fmt.Errorf("expected timeout, but got a different error: %w", err)
 		}
 	} else if err != nil {

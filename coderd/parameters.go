@@ -9,7 +9,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -270,7 +269,7 @@ func (api *API) parameterRBACResource(rw http.ResponseWriter, r *http.Request, s
 
 	// Write error payload to rw if we cannot find the resource for the scope
 	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: fmt.Sprintf("Scope %q resource %q not found.", scope, scopeID),
 			})

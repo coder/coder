@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httputil"
@@ -19,7 +20,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/xerrors"
 
 	jose "gopkg.in/square/go-jose.v2"
 
@@ -332,7 +332,7 @@ func (api *API) handleWorkspaceAppLogout(rw http.ResponseWriter, r *http.Request
 			// unchecked API key, we validate that the secret matches the secret
 			// we store in the database.
 			apiKey, err := api.Database.GetAPIKeyByID(ctx, id)
-			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Failed to lookup API key.",
 					Detail:  err.Error(),
@@ -414,7 +414,7 @@ func (api *API) lookupWorkspaceApp(rw http.ResponseWriter, r *http.Request, agen
 		AgentID: agentID,
 		Slug:    appSlug,
 	})
-	if xerrors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		renderApplicationNotFound(rw, r, api.AccessURL)
 		return database.WorkspaceApp{}, false
 	}

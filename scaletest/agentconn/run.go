@@ -2,6 +2,7 @@ package agentconn
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -12,7 +13,6 @@ import (
 	"time"
 
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -354,7 +354,7 @@ func holdConnection(ctx context.Context, logs io.Writer, conn *codersdk.Workspac
 	})
 
 	err := eg.Wait()
-	if err != nil && !xerrors.Is(err, holdDurationEndedError{}) {
+	if err != nil && !errors.Is(err, holdDurationEndedError{}) {
 		return fmt.Errorf("run connections loop: %w", err)
 	}
 

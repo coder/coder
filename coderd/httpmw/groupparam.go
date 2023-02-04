@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -45,7 +44,7 @@ func ExtractGroupByNameParam(db database.Store) func(http.Handler) http.Handler 
 				OrganizationID: org.ID,
 				Name:           name,
 			})
-			if xerrors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, sql.ErrNoRows) {
 				httpapi.ResourceNotFound(rw)
 				return
 			}

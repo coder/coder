@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,7 +17,6 @@ import (
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	"gopkg.in/natefinch/lumberjack.v2"
 
@@ -226,7 +226,7 @@ func serveHandler(ctx context.Context, logger slog.Logger, handler http.Handler,
 	}
 	go func() {
 		err := srv.ListenAndServe()
-		if err != nil && !xerrors.Is(err, http.ErrServerClosed) {
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Error(ctx, "http server listen", slog.F("name", name), slog.Error(err))
 		}
 	}()

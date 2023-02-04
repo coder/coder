@@ -2,13 +2,13 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/codersdk"
@@ -147,7 +147,7 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, apps []codersdk.Workspace
 	return func(ctx context.Context) {
 		for r := retry.New(time.Second, 30*time.Second); r.Wait(ctx); {
 			err := runHealthcheckLoop(ctx)
-			if err == nil || xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
+			if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				return
 			}
 			logger.Error(ctx, "failed running workspace app reporter", slog.Error(err))

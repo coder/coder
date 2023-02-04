@@ -13,7 +13,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"golang.org/x/exp/slices"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -121,7 +120,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			// See if the record exists first. If the record does not exist, the pagination
 			// query will not work.
 			_, err := store.GetWorkspaceBuildByID(ctx, paginationParams.AfterID)
-			if err != nil && xerrors.Is(err, sql.ErrNoRows) {
+			if err != nil && errors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: fmt.Sprintf("Record at \"after_id\" (%q) does not exist.", paginationParams.AfterID.String()),
 				})
@@ -143,7 +142,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Since:       database.Time(since),
 		}
 		workspaceBuilds, err = store.GetWorkspaceBuildsByWorkspaceID(ctx, req)
-		if xerrors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			err = nil
 		}
 		if err != nil {
@@ -510,7 +509,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		Scopes:   []database.ParameterScope{database.ParameterScopeWorkspace},
 		ScopeIds: []uuid.UUID{workspace.ID},
 	})
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Error fetching previous legacy parameters.",
 			Detail:  err.Error(),
@@ -537,7 +536,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 				// If the param exists, delete the old param before inserting the new one
 				if exists.Name == param.Name {
 					err = db.DeleteParameterValueByID(ctx, exists.ID)
-					if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+					if err != nil && !errors.Is(err, sql.ErrNoRows) {
 						return fmt.Errorf("Failed to delete old param %q: %w", exists.Name, err)
 					}
 				}

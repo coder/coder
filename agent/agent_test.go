@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -36,7 +37,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/text/encoding/unicode"
 	"golang.org/x/text/transform"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -177,7 +177,7 @@ func TestAgent_SessionTTYExitCode(t *testing.T) {
 	require.NoError(t, err)
 	err = session.Wait()
 	exitErr := &ssh.ExitError{}
-	require.True(t, xerrors.As(err, &exitErr))
+	require.True(t, errors.As(err, &exitErr))
 	if runtime.GOOS == "windows" {
 		assert.Equal(t, 1, exitErr.ExitStatus())
 	} else {

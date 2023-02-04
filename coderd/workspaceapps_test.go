@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -17,7 +18,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
@@ -1416,7 +1416,7 @@ func TestWorkspaceAppsNonCanonicalHeaders(t *testing.T) {
 		go func() {
 			for {
 				c, err := ln.Accept()
-				if xerrors.Is(err, net.ErrClosed) {
+				if errors.Is(err, net.ErrClosed) {
 					return
 				}
 				require.NoError(t, err)

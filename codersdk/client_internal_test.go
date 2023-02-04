@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -23,7 +24,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -304,7 +304,7 @@ func assertSDKError(t *testing.T, err error) *Error {
 
 	var sdkErr *Error
 	require.Error(t, err)
-	require.True(t, xerrors.As(err, &sdkErr))
+	require.True(t, errors.As(err, &sdkErr))
 
 	return sdkErr
 }

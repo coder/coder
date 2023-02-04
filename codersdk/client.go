@@ -18,7 +18,6 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	semconv "go.opentelemetry.io/otel/semconv/v1.11.0"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/tracing"
 
@@ -386,12 +385,12 @@ func IsConnectionError(err error) bool {
 		opErr *net.OpError
 	)
 
-	return xerrors.As(err, &dnsErr) || xerrors.As(err, &opErr)
+	return errors.As(err, &dnsErr) || errors.As(err, &opErr)
 }
 
 func AsError(err error) (*Error, bool) {
 	var e *Error
-	return e, xerrors.As(err, &e)
+	return e, errors.As(err, &e)
 }
 
 // RequestOption is a function that can be used to modify an http.Request.

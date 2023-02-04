@@ -2,13 +2,13 @@ package terraform
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/cli/safeexec"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/provisionersdk"
@@ -77,7 +77,7 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 			// This is an early exit to prevent extra execution in case the context is canceled.
 			// It generally happens in unit tests since this method is asynchronous and
 			// the unit test kills the app before this is complete.
-			if xerrors.Is(err, context.Canceled) {
+			if errors.Is(err, context.Canceled) {
 				return fmt.Errorf("absolute binary context canceled: %w", err)
 			}
 

@@ -3,6 +3,7 @@ package agentsdk
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -13,7 +14,6 @@ import (
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
-	"golang.org/x/xerrors"
 
 	"nhooyr.io/websocket"
 	"tailscale.com/tailcfg"
@@ -392,7 +392,7 @@ func (c *Client) ReportStats(
 			for r := retry.New(100*time.Millisecond, time.Minute); r.Wait(ctx); {
 				resp, err := c.PostStats(ctx, getStats())
 				if err != nil {
-					if !xerrors.Is(err, context.Canceled) {
+					if !errors.Is(err, context.Canceled) {
 						log.Error(ctx, "report stats", slog.Error(err))
 					}
 					continue

@@ -2,12 +2,12 @@ package coderd_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
@@ -45,7 +45,7 @@ func TestPostLicense(t *testing.T) {
 			License: "content",
 		})
 		errResp := &codersdk.Error{}
-		if xerrors.As(err, &errResp) {
+		if errors.As(err, &errResp) {
 			assert.Equal(t, 401, errResp.StatusCode())
 		} else {
 			t.Error("expected to get error status 401")
@@ -61,7 +61,7 @@ func TestPostLicense(t *testing.T) {
 			License: "invalid",
 		})
 		errResp := &codersdk.Error{}
-		if xerrors.As(err, &errResp) {
+		if errors.As(err, &errResp) {
 			assert.Equal(t, 400, errResp.StatusCode())
 		} else {
 			t.Error("expected to get error status 400")
@@ -139,7 +139,7 @@ func TestDeleteLicense(t *testing.T) {
 
 		err := client.DeleteLicense(ctx, 1)
 		errResp := &codersdk.Error{}
-		if xerrors.As(err, &errResp) {
+		if errors.As(err, &errResp) {
 			assert.Equal(t, 404, errResp.StatusCode())
 		} else {
 			t.Error("expected to get error status 404")

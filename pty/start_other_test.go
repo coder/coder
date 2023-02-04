@@ -3,6 +3,7 @@
 package pty_test
 
 import (
+	"errors"
 	"os/exec"
 	"testing"
 
@@ -10,7 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/pty"
 	"github.com/coder/coder/pty/ptytest"
@@ -37,7 +37,7 @@ func TestStart(t *testing.T) {
 		assert.NoError(t, err)
 		err = ps.Wait()
 		var exitErr *exec.ExitError
-		require.True(t, xerrors.As(err, &exitErr))
+		require.True(t, errors.As(err, &exitErr))
 		assert.NotEqual(t, 0, exitErr.ExitCode())
 	})
 

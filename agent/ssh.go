@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/gliderlabs/ssh"
 	gossh "golang.org/x/crypto/ssh"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 )
@@ -109,7 +109,7 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 			for {
 				c, err := ln.Accept()
 				if err != nil {
-					if !xerrors.Is(err, net.ErrClosed) {
+					if !errors.Is(err, net.ErrClosed) {
 						h.log.Warn(ctx, "accept on local Unix socket for SSH unix forward request",
 							slog.F("socket_path", addr),
 							slog.Error(err),

@@ -40,7 +40,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
-	"golang.org/x/xerrors"
 
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
@@ -468,7 +467,7 @@ func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationI
 	user, err := client.CreateUser(context.Background(), req)
 	var apiError *codersdk.Error
 	// If the user already exists by username or email conflict, try again up to "retries" times.
-	if err != nil && retries >= 0 && xerrors.As(err, &apiError) {
+	if err != nil && retries >= 0 && errors.As(err, &apiError) {
 		if apiError.StatusCode() == http.StatusConflict {
 			retries--
 			return createAnotherUserRetry(t, client, organizationID, retries, roles...)

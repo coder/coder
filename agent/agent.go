@@ -31,7 +31,6 @@ import (
 	"go.uber.org/atomic"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
-	"golang.org/x/xerrors"
 
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
@@ -205,7 +204,7 @@ func (a *agent) reportLifecycleLoop(ctx context.Context) {
 				lastReported = state
 				break
 			}
-			if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				return
 			}
 			// If we fail to report the state we probably shouldn't exit, log only.
@@ -557,7 +556,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 		}()
 
 		err := server.Serve(apiListener)
-		if err != nil && !xerrors.Is(err, http.ErrServerClosed) && !strings.Contains(err.Error(), "use of closed network connection") {
+		if err != nil && !errors.Is(err, http.ErrServerClosed) && !strings.Contains(err.Error(), "use of closed network connection") {
 			a.logger.Critical(ctx, "serve HTTP API server", slog.Error(err))
 		}
 	}); err != nil {
@@ -651,7 +650,7 @@ func (a *agent) init(ctx context.Context) {
 		Handler: func(session ssh.Session) {
 			err := a.handleSSHSession(session)
 			var exitError *exec.ExitError
-			if xerrors.As(err, &exitError) {
+			if errors.As(err, &exitError) {
 				a.logger.Debug(ctx, "ssh session returned", slog.Error(exitError))
 				_ = session.Exit(exitError.ExitCode())
 				return
@@ -935,7 +934,7 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 		var exitErr *exec.ExitError
 		// ExitErrors just mean the command we run returned a non-zero exit code, which is normal
 		// and not something to be concerned about.  But, if it's something else, we should log it.
-		if err != nil && !xerrors.As(err, &exitErr) {
+		if err != nil && !errors.As(err, &exitErr) {
 			a.logger.Warn(ctx, "wait error", slog.Error(err))
 		}
 		return err
@@ -1129,7 +1128,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 	var req codersdk.ReconnectingPTYRequest
 	for {
 		err = decoder.Decode(&req)
-		if xerrors.Is(err, io.EOF) {
+		if errors.Is(err, io.EOF) {
 			return nil
 		}
 		if err != nil {
@@ -1275,7 +1274,7 @@ func showMOTD(dest io.Writer, filename string) error {
 
 	f, err := os.Open(filename)
 	if err != nil {
-		if xerrors.Is(err, os.ErrNotExist) {
+		if errors.Is(err, os.ErrNotExist) {
 			// This is not an error, there simply isn't a MOTD to show.
 			return nil
 		}

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -13,7 +14,6 @@ import (
 
 	"github.com/pion/udp"
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/cliflag"
@@ -197,7 +197,7 @@ func listenAndPortForward(ctx context.Context, cmd *cobra.Command, conn *codersd
 			netConn, err := l.Accept()
 			if err != nil {
 				// Silently ignore net.ErrClosed errors.
-				if xerrors.Is(err, net.ErrClosed) {
+				if errors.Is(err, net.ErrClosed) {
 					return
 				}
 				_, _ = fmt.Fprintf(cmd.OutOrStderr(), "Error accepting connection from '%v://%v': %v\n", spec.listenNetwork, spec.listenAddress, err)
