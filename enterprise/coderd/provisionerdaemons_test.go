@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"testing"
@@ -119,7 +120,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 			}},
 		})
 		require.NoError(t, err)
-		file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, data)
+		file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, bytes.NewReader(data))
 		require.NoError(t, err)
 
 		version, err := client.CreateTemplateVersion(context.Background(), user.OrganizationID, codersdk.CreateTemplateVersionRequest{
