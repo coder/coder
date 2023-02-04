@@ -2,6 +2,7 @@ package provisionersdk
 
 import (
 	"archive/tar"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
