@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"

@@ -16,7 +16,7 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/xerrors"
+
 	"tailscale.com/net/speedtest"
 
 	"github.com/coder/coder/coderd/tracing"
