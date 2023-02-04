@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	Canceled = fmt.Errorf("canceled")
+	ErrCanceled = fmt.Errorf("canceled")
 
 	defaultStyles = common.DefaultStyles()
 )

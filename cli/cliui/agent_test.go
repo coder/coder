@@ -214,7 +214,7 @@ func TestAgent_StartErrorExit(t *testing.T) {
 	setState(codersdk.WorkspaceAgentLifecycleStartError)
 	ptty.ExpectMatchContext(ctx, "ran into a problem")
 	err := <-done
-	require.ErrorIs(t, err, cliui.AgentStartError, "lifecycle start_error should exit with error")
+	require.ErrorIs(t, err, cliui.ErrAgentStart, "lifecycle start_error should exit with error")
 }
 
 func TestAgent_NoWait(t *testing.T) {

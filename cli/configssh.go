@@ -235,7 +235,7 @@ func configSSH() *cobra.Command {
 					IsConfirm: true,
 				})
 				if err != nil {
-					if line == "" && errors.Is(err, cliui.Canceled) {
+					if line == "" && errors.Is(err, cliui.ErrCanceled) {
 						return nil
 					}
 					// Selecting "no" will use the last config.

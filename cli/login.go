@@ -108,7 +108,7 @@ func login() *cobra.Command {
 						Default:   cliui.ConfirmYes,
 						IsConfirm: true,
 					})
-					if errors.Is(err, cliui.Canceled) {
+					if errors.Is(err, cliui.ErrCanceled) {
 						return nil
 					}
 					if err != nil {
@@ -122,7 +122,7 @@ func login() *cobra.Command {
 						Text:    "What " + cliui.Styles.Field.Render("username") + " would you like?",
 						Default: currentUser.Username,
 					})
-					if errors.Is(err, cliui.Canceled) {
+					if errors.Is(err, cliui.ErrCanceled) {
 						return nil
 					}
 					if err != nil {

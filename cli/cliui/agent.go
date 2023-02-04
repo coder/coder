@@ -16,7 +16,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-var AgentStartError = fmt.Errorf("agent startup exited with non-zero exit status")
+var ErrAgentStart = fmt.Errorf("agent startup exited with non-zero exit status")
 
 type AgentOptions struct {
 	WorkspaceName string
@@ -144,7 +144,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 					showMessage()
 				case codersdk.WorkspaceAgentLifecycleStartError:
 					showMessage()
-					return AgentStartError
+					return ErrAgentStart
 				default:
 					select {
 					case <-warningShown:

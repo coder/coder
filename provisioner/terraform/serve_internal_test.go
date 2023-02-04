@@ -33,7 +33,7 @@ func Test_absoluteBinaryPath(t *testing.T) {
 			name:             "TestOldVersion",
 			args:             args{ctx: context.Background()},
 			terraformVersion: "1.0.9",
-			expectedErr:      terraformMinorVersionMismatch,
+			expectedErr:      errTerraformMinorVersionMismatch,
 		},
 		{
 			name:             "TestNewVersion",

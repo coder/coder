@@ -23,7 +23,7 @@ var (
 	minTerraformVersion = version.Must(version.NewVersion("1.1.0"))
 	maxTerraformVersion = version.Must(version.NewVersion("1.3.4"))
 
-	terraformMinorVersionMismatch = fmt.Errorf("Terraform binary minor version mismatch.")
+	errTerraformMinorVersionMismatch = fmt.Errorf("Terraform binary minor version mismatch.")
 )
 
 // Install implements a thread-safe, idempotent Terraform Install

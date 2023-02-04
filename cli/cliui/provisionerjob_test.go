@@ -153,7 +153,7 @@ func newProvisionerJob(t *testing.T) provisionerJobTest {
 		defer close(done)
 		err := cmd.ExecuteContext(context.Background())
 		if err != nil {
-			assert.ErrorIs(t, err, cliui.Canceled)
+			assert.ErrorIs(t, err, cliui.ErrCanceled)
 		}
 	}()
 	t.Cleanup(func() {

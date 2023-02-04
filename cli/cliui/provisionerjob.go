@@ -174,7 +174,7 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 				switch job.Status {
 				case codersdk.ProvisionerJobCanceled:
 					jobMutex.Unlock()
-					return Canceled
+					return ErrCanceled
 				case codersdk.ProvisionerJobSucceeded:
 					jobMutex.Unlock()
 					return nil

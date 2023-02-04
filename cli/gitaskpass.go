@@ -45,7 +45,7 @@ func gitAskpass() *cobra.Command {
 					// This prevents the "Run 'coder --help' for usage"
 					// message from occurring.
 					cmd.Printf("%s\n", apiError.Message)
-					return cliui.Canceled
+					return cliui.ErrCanceled
 				}
 				return fmt.Errorf("get git token: %w", err)
 			}

@@ -113,7 +113,7 @@ func Select(cmd *cobra.Command, opts SelectOptions) (string, error) {
 		Writer: cmd.OutOrStdout(),
 	}, cmd.OutOrStdout()))
 	if errors.Is(err, terminal.InterruptErr) {
-		return value, Canceled
+		return value, ErrCanceled
 	}
 	return value, err
 }

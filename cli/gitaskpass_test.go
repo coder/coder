@@ -57,7 +57,7 @@ func TestGitAskpass(t *testing.T) {
 		pty := ptytest.New(t)
 		cmd.SetOutput(pty.Output())
 		err := cmd.Execute()
-		require.ErrorIs(t, err, cliui.Canceled)
+		require.ErrorIs(t, err, cliui.ErrCanceled)
 		pty.ExpectMatch("Nope!")
 	})
 
