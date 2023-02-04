@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"testing"
@@ -108,7 +109,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		file, err := client.Upload(ctx, codersdk.ContentTypeTar, data)
+		file, err := client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader(data))
 		require.NoError(t, err)
 		version, err := client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 			Name:          "bananas",
@@ -895,7 +896,7 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 	templateVersionIDs := make([]uuid.UUID, total)
 	data, err := echo.Tar(nil)
 	require.NoError(t, err)
-	file, err := client.Upload(egCtx, codersdk.ContentTypeTar, data)
+	file, err := client.Upload(egCtx, codersdk.ContentTypeTar, bytes.NewReader(data))
 	require.NoError(t, err)
 	for i := 0; i < total; i++ {
 		i := i

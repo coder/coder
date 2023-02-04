@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -70,7 +71,7 @@ func templateInit() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			err = provisionersdk.Untar(directory, archive)
+			err = provisionersdk.Untar(directory, bytes.NewReader(archive))
 			if err != nil {
 				return err
 			}
