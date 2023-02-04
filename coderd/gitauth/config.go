@@ -83,7 +83,7 @@ func ConvertConfig(entries []codersdk.GitAuthConfig, accessURL *url.URL) ([]*Con
 		if entry.Regex != "" {
 			regex, err = regexp.Compile(entry.Regex)
 			if err != nil {
-				return nil, fmt.Errorf("compile regex for git auth provider %q: %w", entry.ID, entry.Regex)
+				return nil, fmt.Errorf("compile regex for git auth provider %v %q: %w", entry.ID, entry.Regex, err)
 			}
 		}
 
