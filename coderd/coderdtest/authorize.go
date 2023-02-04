@@ -15,7 +15,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database/dbfake"
