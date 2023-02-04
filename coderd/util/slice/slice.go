@@ -1,5 +1,25 @@
 package slice
 
+// New is a convenience method for creating []T.
+func New[T any](items ...T) []T {
+	return items
+}
+
+// SameElements returns true if the 2 lists have the same elements in any
+// order.
+func SameElements[T comparable](a []T, b []T) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	for _, element := range a {
+		if !Contains(b, element) {
+			return false
+		}
+	}
+	return true
+}
+
 func ContainsCompare[T any](haystack []T, needle T, equal func(a, b T) bool) bool {
 	for _, hay := range haystack {
 		if equal(needle, hay) {

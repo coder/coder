@@ -6018,6 +6018,9 @@ const docTemplate = `{
                 "disable_path_apps": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
                 },
+                "disable_session_expiry_refresh": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
                 "experimental": {
                     "description": "DEPRECATED: Use Experiments instead.",
                     "allOf": [
@@ -6040,6 +6043,9 @@ const docTemplate = `{
                 },
                 "logging": {
                     "$ref": "#/definitions/codersdk.LoggingConfig"
+                },
+                "max_session_expiry": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-time_Duration"
                 },
                 "max_token_lifetime": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-time_Duration"
