@@ -58,7 +58,7 @@ for i in $(seq 1 2); do
 		1>&2 && rc=0 && break || rc=$?
 
 	log "rcodesign exit code: $rc"
-	if [[ $i -lt 5 ]]; then
+	if [[ $i -lt 2 ]]; then
 		log
 		log "Retrying notarization in 30 seconds"
 		log

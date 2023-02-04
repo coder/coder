@@ -112,17 +112,17 @@ jobs:
           set -euo pipefail
           wget -O /tmp/nfpm.deb https://github.com/goreleaser/nfpm/releases/download/v2.18.1/nfpm_amd64.deb
           sudo dpkg -i /tmp/nfpm.deb
+          rm /tmp/nfpm.deb
 
       - name: Install rcodesign
         run: |
           set -euo pipefail
-
-          # Install a prebuilt binary of rcodesign for linux amd64. Once the
-          # following PR is merged and released upstream, we can download
-          # directly from GitHub releases instead:
-          #   https://github.com/indygreg/PyOxidizer/pull/635
-          wget -O /tmp/rcodesign https://cdn.discordapp.com/attachments/283356472258199552/1016767245717872700/rcodesign
-          sudo install --mode 755 /tmp/rcodesign /usr/local/bin/rcodesign
+          wget -O /tmp/rcodesign.tar.gz https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.22.0/apple-codesign-0.22.0-x86_64-unknown-linux-musl.tar.gz
+          tar -xzf /tmp/rcodesign.tar.gz \
+            -C /usr/bin \
+            --strip-components=1 \
+            apple-codesign-0.22.0-x86_64-unknown-linux-musl/rcodesign
+          rm /tmp/rcodesign.tar.gz
 
       - name: Setup Apple Developer certificate and API key
         run: |
@@ -287,6 +287,14 @@ jobs:
             ./build/*.rpm
           retention-days: 7
 
+      - name: Start Packer builds
+        uses: peter-evans/repository-dispatch@v2
+        with:
+          token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+          repository: coder/packages
+          event-type: coder-release
+          client-payload: '{"coder_version": "${{ steps.version.outputs.version }}"}'
+
   publish-winget:
     name: Publish to winget-pkgs
     runs-on: windows-latest
@@ -368,11 +376,3 @@ jobs:
           # For gh CLI. We need a real token since we're commenting on a PR in a
           # different repo.
           GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
-
-      - name: Start Packer builds
-        uses: peter-evans/repository-dispatch@v2
-        with:
-          token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
-          repository: coder/packages
-          event-type: coder-release
-          client-payload: '{"coder_version": "${{ needs.release.outputs.version }}"}'
