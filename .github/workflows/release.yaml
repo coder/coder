@@ -118,7 +118,7 @@ jobs:
         run: |
           set -euo pipefail
           wget -O /tmp/rcodesign.tar.gz https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.22.0/apple-codesign-0.22.0-x86_64-unknown-linux-musl.tar.gz
-          tar -xzf /tmp/rcodesign.tar.gz \
+          sudo tar -xzf /tmp/rcodesign.tar.gz \
             -C /usr/bin \
             --strip-components=1 \
             apple-codesign-0.22.0-x86_64-unknown-linux-musl/rcodesign
