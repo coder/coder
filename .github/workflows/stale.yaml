@@ -1,11 +1,11 @@
-name: Stale Issue Cron
+name: Stale Issue and Branch Cleanup
 on:
   schedule:
     # Every day at midnight
     - cron: "0 0 * * *"
   workflow_dispatch:
 jobs:
-  stale:
+  issues:
     runs-on: ubuntu-latest
     permissions:
       issues: write
@@ -32,3 +32,17 @@ jobs:
           operations-per-run: 60
           # Start with the oldest issues, always.
           ascending: true
+  branches:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Run delete-old-branches-action
+        uses: beatlabs/delete-old-branches-action@v0.0.9
+        with:
+          repo_token: ${{ github.token }}
+          date: "6 months ago"
+          dry_run: false
+          delete_tags: false
+          # extra_protected_branch_regex: ^(foo|bar)$
+          exclude_open_pr_branches: true
