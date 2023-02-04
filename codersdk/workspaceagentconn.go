@@ -16,6 +16,7 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/xerrors"
 	"tailscale.com/net/speedtest"
 
 	"github.com/coder/coder/coderd/tracing"
@@ -301,7 +302,7 @@ func (c *WorkspaceAgentConn) apiRequest(ctx context.Context, method, path string
 
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
-		return nil, xerrors.Errorf("new http api request to %q: %w", url, err)
+		return nil, fmt.Errorf("new http api request to %q: %w", url, err)
 	}
 
 	return c.apiClient().Do(req)
@@ -326,12 +327,12 @@ func (c *WorkspaceAgentConn) apiClient() *http.Client {
 				// Verify that host is TailnetIP and port is
 				// TailnetStatisticsPort.
 				if host != WorkspaceAgentIP.String() || port != strconv.Itoa(WorkspaceAgentHTTPAPIServerPort) {
-					return nil, xerrors.Errorf("request %q does not appear to be for http api", addr)
+					return nil, fmt.Errorf("request %q does not appear to be for http api", addr)
 				}
 
 				conn, err := c.DialContextTCP(context.Background(), netip.AddrPortFrom(WorkspaceAgentIP, WorkspaceAgentHTTPAPIServerPort))
 				if err != nil {
-					return nil, xerrors.Errorf("dial http api: %w", err)
+					return nil, fmt.Errorf("dial http api: %w", err)
 				}
 
 				return conn, nil
