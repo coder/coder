@@ -13,6 +13,8 @@ on:
     # frequently to ensure that packages are up-to-date.
     - cron: "43 9 * * 1,3,5"
 
+  workflow_dispatch:
+
 # Avoid running multiple jobs for the same commit.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-docker-base

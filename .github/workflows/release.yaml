@@ -164,6 +164,8 @@ jobs:
         id: image-base-tag
         run: |
           set -euo pipefail
+          echo "tag=ghcr.io/coder/coder-base:${{ steps.version.outputs.version }}" >> $GITHUB_OUTPUT
+          exit 0
           if [[ "${CODER_RELEASE:-}" != *t* ]] || [[ "${CODER_DRY_RUN:-}" == *t* ]]; then
             # Empty value means use the default and avoid building a fresh one.
             echo "tag=" >> $GITHUB_OUTPUT
