@@ -9,8 +9,6 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
-
-	"golang.org/x/xerrors"
 )
 
 var (
@@ -33,7 +31,7 @@ func newPty(opt ...Option) (PTY, error) {
 		vsn.BuildNumber < 17763 {
 		// If the CreatePseudoConsole API is not available, we fall back to a simpler
 		// implementation that doesn't create an actual PTY - just uses os.Pipe
-		return nil, xerrors.Errorf("pty not supported")
+		return nil, fmt.Errorf("pty not supported")
 	}
 
 	pty := &ptyWindows{
@@ -65,7 +63,7 @@ func newPty(opt ...Option) (PTY, error) {
 	)
 	if int32(ret) < 0 {
 		_ = pty.Close()
-		return nil, xerrors.Errorf("create pseudo console (%d): %w", int32(ret), err)
+		return nil, fmt.Errorf("create pseudo console (%d): %w", int32(ret), err)
 	}
 	return pty, nil
 }
@@ -133,7 +131,7 @@ func (p *ptyWindows) Close() error {
 
 	ret, _, err := procClosePseudoConsole.Call(uintptr(p.console))
 	if ret < 0 {
-		return xerrors.Errorf("close pseudo console: %w", err)
+		return fmt.Errorf("close pseudo console: %w", err)
 	}
 
 	_ = p.outputWrite.Close()

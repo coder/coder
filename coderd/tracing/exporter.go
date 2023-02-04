@@ -2,6 +2,7 @@ package tracing
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
@@ -13,7 +14,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.11.0"
-	"golang.org/x/xerrors"
 	"google.golang.org/grpc/credentials"
 )
 
@@ -48,7 +48,7 @@ func TracerProvider(ctx context.Context, service string, opts TracerOpts) (*sdkt
 	if opts.Default {
 		exporter, err := DefaultExporter(ctx)
 		if err != nil {
-			return nil, nil, xerrors.Errorf("default exporter: %w", err)
+			return nil, nil, fmt.Errorf("default exporter: %w", err)
 		}
 		closers = append(closers, exporter.Shutdown)
 		tracerOpts = append(tracerOpts, sdktrace.WithBatcher(exporter))
@@ -56,7 +56,7 @@ func TracerProvider(ctx context.Context, service string, opts TracerOpts) (*sdkt
 	if opts.Coder {
 		exporter, err := CoderExporter(ctx)
 		if err != nil {
-			return nil, nil, xerrors.Errorf("coder exporter: %w", err)
+			return nil, nil, fmt.Errorf("coder exporter: %w", err)
 		}
 		closers = append(closers, exporter.Shutdown)
 		tracerOpts = append(tracerOpts, sdktrace.WithBatcher(exporter))
@@ -64,7 +64,7 @@ func TracerProvider(ctx context.Context, service string, opts TracerOpts) (*sdkt
 	if opts.Honeycomb != "" {
 		exporter, err := HoneycombExporter(ctx, opts.Honeycomb)
 		if err != nil {
-			return nil, nil, xerrors.Errorf("honeycomb exporter: %w", err)
+			return nil, nil, fmt.Errorf("honeycomb exporter: %w", err)
 		}
 		closers = append(closers, exporter.Shutdown)
 		tracerOpts = append(tracerOpts, sdktrace.WithBatcher(exporter))
@@ -86,17 +86,17 @@ func TracerProvider(ctx context.Context, service string, opts TracerOpts) (*sdkt
 		var merr error
 		err := tracerProvider.ForceFlush(ctx)
 		if err != nil {
-			merr = multierror.Append(merr, xerrors.Errorf("tracerProvider.ForceFlush(): %w", err))
+			merr = multierror.Append(merr, fmt.Errorf("tracerProvider.ForceFlush(): %w", err))
 		}
 		for i, closer := range closers {
 			err = closer(ctx)
 			if err != nil {
-				merr = multierror.Append(merr, xerrors.Errorf("closer() %d: %w", i, err))
+				merr = multierror.Append(merr, fmt.Errorf("closer() %d: %w", i, err))
 			}
 		}
 		err = tracerProvider.Shutdown(ctx)
 		if err != nil {
-			merr = multierror.Append(merr, xerrors.Errorf("tracerProvider.Shutdown(): %w", err))
+			merr = multierror.Append(merr, fmt.Errorf("tracerProvider.Shutdown(): %w", err))
 		}
 
 		return merr
@@ -106,7 +106,7 @@ func TracerProvider(ctx context.Context, service string, opts TracerOpts) (*sdkt
 func DefaultExporter(ctx context.Context) (*otlptrace.Exporter, error) {
 	exporter, err := otlptrace.New(ctx, otlptracegrpc.NewClient(otlptracegrpc.WithInsecure()))
 	if err != nil {
-		return nil, xerrors.Errorf("create otlp exporter: %w", err)
+		return nil, fmt.Errorf("create otlp exporter: %w", err)
 	}
 
 	return exporter, nil
@@ -120,7 +120,7 @@ func CoderExporter(ctx context.Context) (*otlptrace.Exporter, error) {
 
 	exporter, err := otlptrace.New(ctx, otlptracehttp.NewClient(opts...))
 	if err != nil {
-		return nil, xerrors.Errorf("create otlp exporter: %w", err)
+		return nil, fmt.Errorf("create otlp exporter: %w", err)
 	}
 
 	return exporter, nil
@@ -137,7 +137,7 @@ func HoneycombExporter(ctx context.Context, apiKey string) (*otlptrace.Exporter,
 
 	exporter, err := otlptrace.New(ctx, otlptracegrpc.NewClient(opts...))
 	if err != nil {
-		return nil, xerrors.Errorf("create otlp exporter: %w", err)
+		return nil, fmt.Errorf("create otlp exporter: %w", err)
 	}
 
 	return exporter, nil

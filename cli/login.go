@@ -15,7 +15,6 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
@@ -56,7 +55,7 @@ func login() *cobra.Command {
 				var err error
 				rawURL, err = cmd.Flags().GetString(varURL)
 				if err != nil {
-					return xerrors.Errorf("get global url flag")
+					return fmt.Errorf("get global url flag")
 				}
 			} else {
 				rawURL = args[0]
@@ -71,7 +70,7 @@ func login() *cobra.Command {
 			}
 			serverURL, err := url.Parse(rawURL)
 			if err != nil {
-				return xerrors.Errorf("parse raw url %q: %w", rawURL, err)
+				return fmt.Errorf("parse raw url %q: %w", rawURL, err)
 			}
 			// Default to HTTPs. Enables simple URLs like: master.cdr.dev
 			if serverURL.Scheme == "" {
@@ -95,14 +94,14 @@ func login() *cobra.Command {
 
 			hasInitialUser, err := client.HasFirstUser(cmd.Context())
 			if err != nil {
-				return xerrors.Errorf("Failed to check server %q for first user, is the URL correct and is coder accessible from your browser? Error - has initial user: %w", serverURL.String(), err)
+				return fmt.Errorf("Failed to check server %q for first user, is the URL correct and is coder accessible from your browser? Error - has initial user: %w", serverURL.String(), err)
 			}
 			if !hasInitialUser {
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), Caret+"Your Coder deployment hasn't been set up!\n")
 
 				if username == "" {
 					if !isTTY(cmd) {
-						return xerrors.New("the initial user cannot be created in non-interactive mode. use the API")
+						return fmt.Errorf("the initial user cannot be created in non-interactive mode. use the API")
 					}
 					_, err := cliui.Prompt(cmd, cliui.PromptOptions{
 						Text:      "Would you like to create the first user?",
@@ -117,7 +116,7 @@ func login() *cobra.Command {
 					}
 					currentUser, err := user.Current()
 					if err != nil {
-						return xerrors.Errorf("get current user: %w", err)
+						return fmt.Errorf("get current user: %w", err)
 					}
 					username, err = cliui.Prompt(cmd, cliui.PromptOptions{
 						Text:    "What " + cliui.Styles.Field.Render("username") + " would you like?",
@@ -127,7 +126,7 @@ func login() *cobra.Command {
 						return nil
 					}
 					if err != nil {
-						return xerrors.Errorf("pick username prompt: %w", err)
+						return fmt.Errorf("pick username prompt: %w", err)
 					}
 				}
 
@@ -137,13 +136,13 @@ func login() *cobra.Command {
 						Validate: func(s string) error {
 							err := validator.New().Var(s, "email")
 							if err != nil {
-								return xerrors.New("That's not a valid email address!")
+								return fmt.Errorf("That's not a valid email address!")
 							}
 							return err
 						},
 					})
 					if err != nil {
-						return xerrors.Errorf("specify email prompt: %w", err)
+						return fmt.Errorf("specify email prompt: %w", err)
 					}
 				}
 
@@ -157,14 +156,14 @@ func login() *cobra.Command {
 							Validate: cliui.ValidateNotEmpty,
 						})
 						if err != nil {
-							return xerrors.Errorf("specify password prompt: %w", err)
+							return fmt.Errorf("specify password prompt: %w", err)
 						}
 						confirm, err := cliui.Prompt(cmd, cliui.PromptOptions{
 							Text:   "Confirm " + cliui.Styles.Field.Render("password") + ":",
 							Secret: true,
 						})
 						if err != nil {
-							return xerrors.Errorf("confirm password prompt: %w", err)
+							return fmt.Errorf("confirm password prompt: %w", err)
 						}
 
 						matching = confirm == password
@@ -190,25 +189,25 @@ func login() *cobra.Command {
 					Trial:    trial,
 				})
 				if err != nil {
-					return xerrors.Errorf("create initial user: %w", err)
+					return fmt.Errorf("create initial user: %w", err)
 				}
 				resp, err := client.LoginWithPassword(cmd.Context(), codersdk.LoginWithPasswordRequest{
 					Email:    email,
 					Password: password,
 				})
 				if err != nil {
-					return xerrors.Errorf("login with password: %w", err)
+					return fmt.Errorf("login with password: %w", err)
 				}
 
 				sessionToken := resp.SessionToken
 				config := createConfig(cmd)
 				err = config.Session().Write(sessionToken)
 				if err != nil {
-					return xerrors.Errorf("write session token: %w", err)
+					return fmt.Errorf("write session token: %w", err)
 				}
 				err = config.URL().Write(serverURL.String())
 				if err != nil {
-					return xerrors.Errorf("write server url: %w", err)
+					return fmt.Errorf("write server url: %w", err)
 				}
 
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(),
@@ -238,13 +237,13 @@ func login() *cobra.Command {
 						client.SetSessionToken(token)
 						_, err := client.User(cmd.Context(), codersdk.Me)
 						if err != nil {
-							return xerrors.New("That's not a valid token!")
+							return fmt.Errorf("That's not a valid token!")
 						}
 						return err
 					},
 				})
 				if err != nil {
-					return xerrors.Errorf("paste token prompt: %w", err)
+					return fmt.Errorf("paste token prompt: %w", err)
 				}
 			}
 
@@ -252,17 +251,17 @@ func login() *cobra.Command {
 			client.SetSessionToken(sessionToken)
 			resp, err := client.User(cmd.Context(), codersdk.Me)
 			if err != nil {
-				return xerrors.Errorf("get user: %w", err)
+				return fmt.Errorf("get user: %w", err)
 			}
 
 			config := createConfig(cmd)
 			err = config.Session().Write(sessionToken)
 			if err != nil {
-				return xerrors.Errorf("write session token: %w", err)
+				return fmt.Errorf("write session token: %w", err)
 			}
 			err = config.URL().Write(serverURL.String())
 			if err != nil {
-				return xerrors.Errorf("write server url: %w", err)
+				return fmt.Errorf("write server url: %w", err)
 			}
 
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), Caret+"Welcome to Coder, %s! You're authenticated.\n", cliui.Styles.Keyword.Render(resp.Username))
@@ -283,7 +282,7 @@ func isWSL() (bool, error) {
 	}
 	data, err := os.ReadFile("/proc/version")
 	if err != nil {
-		return false, xerrors.Errorf("read /proc/version: %w", err)
+		return false, fmt.Errorf("read /proc/version: %w", err)
 	}
 	return strings.Contains(strings.ToLower(string(data)), "microsoft"), nil
 }
@@ -295,11 +294,11 @@ func openURL(cmd *cobra.Command, urlToOpen string) error {
 		panic(err)
 	}
 	if noOpen {
-		return xerrors.New("opening is blocked")
+		return fmt.Errorf("opening is blocked")
 	}
 	wsl, err := isWSL()
 	if err != nil {
-		return xerrors.Errorf("test running Windows Subsystem for Linux: %w", err)
+		return fmt.Errorf("test running Windows Subsystem for Linux: %w", err)
 	}
 
 	if wsl {
@@ -313,7 +312,7 @@ func openURL(cmd *cobra.Command, urlToOpen string) error {
 		cmd := exec.CommandContext(cmd.Context(), "sh", "-c", browserSh)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
-			return xerrors.Errorf("failed to run %v (out: %q): %w", cmd.Args, out, err)
+			return fmt.Errorf("failed to run %v (out: %q): %w", cmd.Args, out, err)
 		}
 		return nil
 	}

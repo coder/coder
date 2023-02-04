@@ -142,7 +142,7 @@ func validateDatabaseTypeWithValid(v reflect.Value) (handled bool, err error) {
 		}
 		if valid, ok := v.Interface().(interface{ Valid() bool }); ok {
 			if !valid.Valid() {
-				return true, xerrors.Errorf("invalid %s: %q", v.Type().Name(), v.Interface())
+				return true, fmt.Errorf("invalid %s: %q", v.Type().Name(), v.Interface())
 			}
 		}
 		return true, nil
@@ -182,7 +182,7 @@ func validateDatabaseType(args interface{}) error {
 			}
 		}
 		if len(errs) > 0 {
-			return xerrors.Errorf("invalid database type fields:\n\t%s", strings.Join(errs, "\n\t"))
+			return fmt.Errorf("invalid database type fields:\n\t%s", strings.Join(errs, "\n\t"))
 		}
 	default:
 		panic(fmt.Sprintf("unhandled type: %s", v.Type().Name()))
@@ -229,7 +229,7 @@ func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 		if arg.Tags != nil {
 			err := json.Unmarshal(arg.Tags, &tags)
 			if err != nil {
-				return provisionerJob, xerrors.Errorf("unmarshal: %w", err)
+				return provisionerJob, fmt.Errorf("unmarshal: %w", err)
 			}
 		}
 
@@ -920,12 +920,12 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 		if arg.Status != "" {
 			build, err := q.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
 			if err != nil {
-				return nil, xerrors.Errorf("get latest build: %w", err)
+				return nil, fmt.Errorf("get latest build: %w", err)
 			}
 
 			job, err := q.GetProvisionerJobByID(ctx, build.JobID)
 			if err != nil {
-				return nil, xerrors.Errorf("get provisioner job: %w", err)
+				return nil, fmt.Errorf("get provisioner job: %w", err)
 			}
 
 			switch arg.Status {
@@ -1002,24 +1002,24 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 				}
 
 			default:
-				return nil, xerrors.Errorf("unknown workspace status in filter: %q", arg.Status)
+				return nil, fmt.Errorf("unknown workspace status in filter: %q", arg.Status)
 			}
 		}
 
 		if arg.HasAgent != "" {
 			build, err := q.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
 			if err != nil {
-				return nil, xerrors.Errorf("get latest build: %w", err)
+				return nil, fmt.Errorf("get latest build: %w", err)
 			}
 
 			job, err := q.GetProvisionerJobByID(ctx, build.JobID)
 			if err != nil {
-				return nil, xerrors.Errorf("get provisioner job: %w", err)
+				return nil, fmt.Errorf("get provisioner job: %w", err)
 			}
 
 			workspaceResources, err := q.GetWorkspaceResourcesByJobID(ctx, job.ID)
 			if err != nil {
-				return nil, xerrors.Errorf("get workspace resources: %w", err)
+				return nil, fmt.Errorf("get workspace resources: %w", err)
 			}
 
 			var workspaceResourceIDs []uuid.UUID
@@ -1029,7 +1029,7 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 
 			workspaceAgents, err := q.GetWorkspaceAgentsByResourceIDs(ctx, workspaceResourceIDs)
 			if err != nil {
-				return nil, xerrors.Errorf("get workspace agents: %w", err)
+				return nil, fmt.Errorf("get workspace agents: %w", err)
 			}
 
 			var hasAgentMatched bool
@@ -2040,7 +2040,7 @@ func (q *fakeQuerier) GetTemplateUserRoles(_ context.Context, id uuid.UUID) ([]d
 	for k, v := range template.UserACL {
 		user, err := q.getUserByIDNoLock(uuid.MustParse(k))
 		if err != nil && xerrors.Is(err, sql.ErrNoRows) {
-			return nil, xerrors.Errorf("get user by ID: %w", err)
+			return nil, fmt.Errorf("get user by ID: %w", err)
 		}
 		// We don't delete users from the map if they
 		// get deleted so just skip.
@@ -2081,7 +2081,7 @@ func (q *fakeQuerier) GetTemplateGroupRoles(_ context.Context, id uuid.UUID) ([]
 	for k, v := range template.GroupACL {
 		group, err := q.GetGroupByID(context.Background(), uuid.MustParse(k))
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-			return nil, xerrors.Errorf("get group by ID: %w", err)
+			return nil, fmt.Errorf("get group by ID: %w", err)
 		}
 		// We don't delete groups from the map if they
 		// get deleted so just skip.

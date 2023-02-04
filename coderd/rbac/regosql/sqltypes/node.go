@@ -1,8 +1,6 @@
 package sqltypes
 
-import (
-	"golang.org/x/xerrors"
-)
+import "fmt"
 
 type Node interface {
 	SQLString(cfg *SQLGenerator) string
@@ -26,7 +24,7 @@ type invalidNode struct{}
 func (invalidNode) UseAs() Node { return invalidNode{} }
 
 func (invalidNode) SQLString(cfg *SQLGenerator) string {
-	cfg.AddError(xerrors.Errorf("invalid node called"))
+	cfg.AddError(fmt.Errorf("invalid node called"))
 	return "invalid_type"
 }
 

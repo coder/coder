@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	agpl "github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/cliui"
@@ -54,7 +53,7 @@ func licenseAdd() *cobra.Command {
 
 			switch {
 			case filename != "" && license != "":
-				return xerrors.New("only one of (--file, --license) may be specified")
+				return fmt.Errorf("only one of (--file, --license) may be specified")
 
 			case filename == "" && license == "":
 				license, err = cliui.Prompt(cmd, cliui.PromptOptions{
@@ -116,7 +115,7 @@ func validJWT(s string) error {
 	if jwtRegexp.MatchString(s) {
 		return nil
 	}
-	return xerrors.New("Invalid license")
+	return fmt.Errorf("Invalid license")
 }
 
 func licensesList() *cobra.Command {
@@ -161,7 +160,7 @@ func licenseDelete() *cobra.Command {
 			}
 			id, err := strconv.ParseInt(args[0], 10, 32)
 			if err != nil {
-				return xerrors.Errorf("license ID must be an integer: %s", args[0])
+				return fmt.Errorf("license ID must be an integer: %s", args[0])
 			}
 			err = client.DeleteLicense(cmd.Context(), int32(id))
 			if err != nil {

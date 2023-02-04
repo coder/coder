@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 )
 
 // Template is the JSON representation of a Coder template. This type matches the
@@ -125,7 +124,7 @@ func (c *Client) UpdateTemplateMeta(ctx context.Context, templateID uuid.UUID, r
 	}
 	defer res.Body.Close()
 	if res.StatusCode == http.StatusNotModified {
-		return Template{}, xerrors.New("template metadata not modified")
+		return Template{}, fmt.Errorf("template metadata not modified")
 	}
 	if res.StatusCode != http.StatusOK {
 		return Template{}, ReadBodyAsError(res)
@@ -222,7 +221,7 @@ type TemplateDAUsResponse struct {
 func (c *Client) TemplateDAUs(ctx context.Context, templateID uuid.UUID) (*TemplateDAUsResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/daus", templateID), nil)
 	if err != nil {
-		return nil, xerrors.Errorf("execute request: %w", err)
+		return nil, fmt.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
 

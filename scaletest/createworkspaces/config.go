@@ -1,8 +1,9 @@
 package createworkspaces
 
 import (
+	"fmt"
+
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/scaletest/agentconn"
@@ -21,13 +22,13 @@ type UserConfig struct {
 
 func (c UserConfig) Validate() error {
 	if c.OrganizationID == uuid.Nil {
-		return xerrors.New("organization_id must not be a nil UUID")
+		return fmt.Errorf("organization_id must not be a nil UUID")
 	}
 	if c.Username == "" {
-		return xerrors.New("username must be set")
+		return fmt.Errorf("username must be set")
 	}
 	if c.Email == "" {
-		return xerrors.New("email must be set")
+		return fmt.Errorf("email must be set")
 	}
 
 	return nil
@@ -62,26 +63,26 @@ type Config struct {
 
 func (c Config) Validate() error {
 	if err := c.User.Validate(); err != nil {
-		return xerrors.Errorf("validate user: %w", err)
+		return fmt.Errorf("validate user: %w", err)
 	}
 	c.Workspace.OrganizationID = c.User.OrganizationID
 	// This value will be overwritten during the test.
 	c.Workspace.UserID = codersdk.Me
 	if err := c.Workspace.Validate(); err != nil {
-		return xerrors.Errorf("validate workspace: %w", err)
+		return fmt.Errorf("validate workspace: %w", err)
 	}
 	if c.ReconnectingPTY != nil {
 		// This value will be overwritten during the test.
 		c.ReconnectingPTY.AgentID = uuid.New()
 		if err := c.ReconnectingPTY.Validate(); err != nil {
-			return xerrors.Errorf("validate reconnecting pty: %w", err)
+			return fmt.Errorf("validate reconnecting pty: %w", err)
 		}
 	}
 	if c.AgentConn != nil {
 		// This value will be overwritten during the test.
 		c.AgentConn.AgentID = uuid.New()
 		if err := c.AgentConn.Validate(); err != nil {
-			return xerrors.Errorf("validate agent conn: %w", err)
+			return fmt.Errorf("validate agent conn: %w", err)
 		}
 	}
 

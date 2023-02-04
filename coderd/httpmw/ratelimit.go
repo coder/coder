@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/go-chi/httprate"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -58,7 +57,7 @@ func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler 
 				}
 			}
 
-			return apiKey.UserID.String(), xerrors.Errorf(
+			return apiKey.UserID.String(), fmt.Errorf(
 				"%q provided but user is not %v",
 				codersdk.BypassRatelimitHeader, rbac.RoleOwner(),
 			)

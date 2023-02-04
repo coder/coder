@@ -66,7 +66,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 
 	conn, err := r.client.WorkspaceAgentReconnectingPTY(ctx, r.cfg.AgentID, id, width, height, r.cfg.Init.Command)
 	if err != nil {
-		return xerrors.Errorf("open reconnecting PTY: %w", err)
+		return fmt.Errorf("open reconnecting PTY: %w", err)
 	}
 	defer conn.Close()
 
@@ -87,16 +87,16 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	matched, err := copyContext(copyCtx, copyOutput, conn, r.cfg.ExpectOutput)
 	if r.cfg.ExpectTimeout {
 		if err == nil {
-			return xerrors.Errorf("expected timeout, but the command exited successfully")
+			return fmt.Errorf("expected timeout, but the command exited successfully")
 		}
 		if !xerrors.Is(err, context.DeadlineExceeded) {
-			return xerrors.Errorf("expected timeout, but got a different error: %w", err)
+			return fmt.Errorf("expected timeout, but got a different error: %w", err)
 		}
 	} else if err != nil {
-		return xerrors.Errorf("copy context: %w", err)
+		return fmt.Errorf("copy context: %w", err)
 	}
 	if !matched {
-		return xerrors.Errorf("expected string %q not found in output", r.cfg.ExpectOutput)
+		return fmt.Errorf("expected string %q not found in output", r.cfg.ExpectOutput)
 	}
 
 	return nil
@@ -134,13 +134,13 @@ func copyContext(ctx context.Context, dst io.Writer, src io.Reader, expectOutput
 
 			_, err := dst.Write([]byte("\t" + scanner.Text() + "\n"))
 			if err != nil {
-				copyErr <- xerrors.Errorf("write to logs: %w", err)
+				copyErr <- fmt.Errorf("write to logs: %w", err)
 				return
 			}
 			processing <- struct{}{}
 		}
 		if scanner.Err() != nil {
-			copyErr <- xerrors.Errorf("read from reconnecting PTY: %w", scanner.Err())
+			copyErr <- fmt.Errorf("read from reconnecting PTY: %w", scanner.Err())
 			return
 		}
 	}()

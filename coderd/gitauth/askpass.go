@@ -1,11 +1,10 @@
 package gitauth
 
 import (
+	"fmt"
 	"net/url"
 	"regexp"
 	"strings"
-
-	"golang.org/x/xerrors"
 )
 
 // https://github.com/microsoft/vscode/blob/328646ebc2f5016a1c67e0b23a0734bd598ec5a8/extensions/git/src/askpass-main.ts#L46
@@ -34,13 +33,13 @@ func CheckCommand(args, env []string) bool {
 func ParseAskpass(prompt string) (user string, host string, err error) {
 	parts := strings.Fields(prompt)
 	if len(parts) < 3 {
-		return "", "", xerrors.Errorf("askpass prompt must contain 3 words; got %d: %q", len(parts), prompt)
+		return "", "", fmt.Errorf("askpass prompt must contain 3 words; got %d: %q", len(parts), prompt)
 	}
 
 	switch parts[0] {
 	case "Username", "Password":
 	default:
-		return "", "", xerrors.Errorf("unknown prompt type: %q", prompt)
+		return "", "", fmt.Errorf("unknown prompt type: %q", prompt)
 	}
 
 	host = parts[2]
@@ -49,17 +48,17 @@ func ParseAskpass(prompt string) (user string, host string, err error) {
 	// Validate the input URL to ensure it's in an expected format.
 	u, err := url.Parse(host)
 	if err != nil {
-		return "", "", xerrors.Errorf("parse host failed: %w", err)
+		return "", "", fmt.Errorf("parse host failed: %w", err)
 	}
 
 	switch u.Scheme {
 	case "http", "https":
 	default:
-		return "", "", xerrors.Errorf("unsupported scheme: %q", u.Scheme)
+		return "", "", fmt.Errorf("unsupported scheme: %q", u.Scheme)
 	}
 
 	if u.Host == "" {
-		return "", "", xerrors.Errorf("host is empty")
+		return "", "", fmt.Errorf("host is empty")
 	}
 
 	user = u.User.Username()

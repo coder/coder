@@ -8,6 +8,7 @@ import (
 	_ "embed"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -256,11 +257,11 @@ func convertLicenses(licenses []database.License) ([]codersdk.License, error) {
 func decodeClaims(l database.License) (jwt.MapClaims, error) {
 	parts := strings.Split(l.JWT, ".")
 	if len(parts) != 3 {
-		return nil, xerrors.Errorf("Unable to parse license %d as JWT", l.ID)
+		return nil, fmt.Errorf("Unable to parse license %d as JWT", l.ID)
 	}
 	cb, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		return nil, xerrors.Errorf("Unable to decode license %d claims: %w", l.ID, err)
+		return nil, fmt.Errorf("Unable to decode license %d claims: %w", l.ID, err)
 	}
 	c := make(jwt.MapClaims)
 	d := json.NewDecoder(bytes.NewBuffer(cb))

@@ -3,12 +3,12 @@ package gitauth
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/adrg/xdg"
 	"github.com/spf13/afero"
-	"golang.org/x/xerrors"
 )
 
 // OverrideVSCodeConfigs overwrites a few properties to consume
@@ -36,45 +36,45 @@ func OverrideVSCodeConfigs(fs afero.Fs) error {
 		_, err := fs.Stat(configPath)
 		if err != nil {
 			if !errors.Is(err, os.ErrNotExist) {
-				return xerrors.Errorf("stat %q: %w", configPath, err)
+				return fmt.Errorf("stat %q: %w", configPath, err)
 			}
 
 			m := map[string]interface{}{}
 			mutate(m)
 			data, err := json.MarshalIndent(m, "", "\t")
 			if err != nil {
-				return xerrors.Errorf("marshal: %w", err)
+				return fmt.Errorf("marshal: %w", err)
 			}
 
 			err = fs.MkdirAll(filepath.Dir(configPath), 0o700)
 			if err != nil {
-				return xerrors.Errorf("mkdir all: %w", err)
+				return fmt.Errorf("mkdir all: %w", err)
 			}
 
 			err = afero.WriteFile(fs, configPath, data, 0600)
 			if err != nil {
-				return xerrors.Errorf("write %q: %w", configPath, err)
+				return fmt.Errorf("write %q: %w", configPath, err)
 			}
 			continue
 		}
 
 		data, err := afero.ReadFile(fs, configPath)
 		if err != nil {
-			return xerrors.Errorf("read %q: %w", configPath, err)
+			return fmt.Errorf("read %q: %w", configPath, err)
 		}
 		mapping := map[string]interface{}{}
 		err = json.Unmarshal(data, &mapping)
 		if err != nil {
-			return xerrors.Errorf("unmarshal %q: %w", configPath, err)
+			return fmt.Errorf("unmarshal %q: %w", configPath, err)
 		}
 		mutate(mapping)
 		data, err = json.MarshalIndent(mapping, "", "\t")
 		if err != nil {
-			return xerrors.Errorf("marshal %q: %w", configPath, err)
+			return fmt.Errorf("marshal %q: %w", configPath, err)
 		}
 		err = afero.WriteFile(fs, configPath, data, 0600)
 		if err != nil {
-			return xerrors.Errorf("write %q: %w", configPath, err)
+			return fmt.Errorf("write %q: %w", configPath, err)
 		}
 	}
 	return nil

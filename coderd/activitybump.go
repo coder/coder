@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
@@ -26,12 +26,12 @@ func activityBumpWorkspace(log slog.Logger, db database.Store, workspaceID uuid.
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
 		} else if err != nil {
-			return xerrors.Errorf("get latest workspace build: %w", err)
+			return fmt.Errorf("get latest workspace build: %w", err)
 		}
 
 		job, err := s.GetProvisionerJobByID(ctx, build.JobID)
 		if err != nil {
-			return xerrors.Errorf("get provisioner job: %w", err)
+			return fmt.Errorf("get provisioner job: %w", err)
 		}
 
 		if build.Transition != database.WorkspaceTransitionStart || !job.CompletedAt.Valid {
@@ -45,7 +45,7 @@ func activityBumpWorkspace(log slog.Logger, db database.Store, workspaceID uuid.
 
 		workspace, err := s.GetWorkspaceByID(ctx, workspaceID)
 		if err != nil {
-			return xerrors.Errorf("get workspace: %w", err)
+			return fmt.Errorf("get workspace: %w", err)
 		}
 
 		var (
@@ -77,7 +77,7 @@ func activityBumpWorkspace(log slog.Logger, db database.Store, workspaceID uuid.
 			ProvisionerState: build.ProvisionerState,
 			Deadline:         newDeadline,
 		}); err != nil {
-			return xerrors.Errorf("update workspace build: %w", err)
+			return fmt.Errorf("update workspace build: %w", err)
 		}
 		return nil
 	}, nil)

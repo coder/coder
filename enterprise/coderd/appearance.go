@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
@@ -72,10 +70,10 @@ func (api *API) appearance(rw http.ResponseWriter, r *http.Request) {
 
 func validateHexColor(color string) error {
 	if len(color) != 7 {
-		return xerrors.New("expected 7 characters")
+		return fmt.Errorf("expected 7 characters")
 	}
 	if color[0] != '#' {
-		return xerrors.New("no # prefix")
+		return fmt.Errorf("no # prefix")
 	}
 	_, err := hex.DecodeString(color[1:])
 	return err

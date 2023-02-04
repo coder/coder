@@ -2,6 +2,7 @@ package harness_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"sort"
 	"strconv"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/scaletest/harness"
 )
@@ -29,7 +29,7 @@ func Test_LinearExecutionStrategy(t *testing.T) {
 		time.Sleep(2 * time.Millisecond)
 
 		if i%2 == 0 {
-			return xerrors.New("error")
+			return fmt.Errorf("error")
 		}
 		return nil
 	})
@@ -53,7 +53,7 @@ func Test_ConcurrentExecutionStrategy(t *testing.T) {
 	runs, fns := strategyTestData(10, func(_ context.Context, i int, _ io.Writer) error {
 		time.Sleep(1 * time.Second)
 		if i%2 == 0 {
-			return xerrors.New("error")
+			return fmt.Errorf("error")
 		}
 		return nil
 	})
@@ -81,7 +81,7 @@ func Test_ParallelExecutionStrategy(t *testing.T) {
 	runs, fns := strategyTestData(10, func(_ context.Context, i int, _ io.Writer) error {
 		time.Sleep(1 * time.Second)
 		if i%2 == 0 {
-			return xerrors.New("error")
+			return fmt.Errorf("error")
 		}
 		return nil
 	})
@@ -134,7 +134,7 @@ func Test_TimeoutExecutionStrategy(t *testing.T) {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			return xerrors.New("context wasn't canceled")
+			return fmt.Errorf("context wasn't canceled")
 		}
 	})
 	strategy := harness.TimeoutExecutionStrategyWrapper{

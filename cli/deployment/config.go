@@ -539,7 +539,7 @@ func Config(flagset *pflag.FlagSet, vip *viper.Viper) (*codersdk.DeploymentConfi
 	dc := newConfig()
 	flg, err := flagset.GetString(config.FlagName)
 	if err != nil {
-		return nil, xerrors.Errorf("get global config from flag: %w", err)
+		return nil, fmt.Errorf("get global config from flag: %w", err)
 	}
 	vip.SetEnvPrefix("coder")
 
@@ -547,7 +547,7 @@ func Config(flagset *pflag.FlagSet, vip *viper.Viper) (*codersdk.DeploymentConfi
 		vip.SetConfigFile(flg + "/server.yaml")
 		err = vip.ReadInConfig()
 		if err != nil && !xerrors.Is(err, os.ErrNotExist) {
-			return dc, xerrors.Errorf("reading deployment config: %w", err)
+			return dc, fmt.Errorf("reading deployment config: %w", err)
 		}
 	}
 

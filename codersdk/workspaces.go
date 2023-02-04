@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/tracing"
 )
@@ -194,7 +193,7 @@ func (c *Client) UpdateWorkspace(ctx context.Context, id uuid.UUID, req UpdateWo
 	path := fmt.Sprintf("/api/v2/workspaces/%s", id.String())
 	res, err := c.Request(ctx, http.MethodPatch, path, req)
 	if err != nil {
-		return xerrors.Errorf("update workspace: %w", err)
+		return fmt.Errorf("update workspace: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusNoContent {
@@ -214,7 +213,7 @@ func (c *Client) UpdateWorkspaceAutostart(ctx context.Context, id uuid.UUID, req
 	path := fmt.Sprintf("/api/v2/workspaces/%s/autostart", id.String())
 	res, err := c.Request(ctx, http.MethodPut, path, req)
 	if err != nil {
-		return xerrors.Errorf("update workspace autostart: %w", err)
+		return fmt.Errorf("update workspace autostart: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusNoContent {
@@ -234,7 +233,7 @@ func (c *Client) UpdateWorkspaceTTL(ctx context.Context, id uuid.UUID, req Updat
 	path := fmt.Sprintf("/api/v2/workspaces/%s/ttl", id.String())
 	res, err := c.Request(ctx, http.MethodPut, path, req)
 	if err != nil {
-		return xerrors.Errorf("update workspace time until shutdown: %w", err)
+		return fmt.Errorf("update workspace time until shutdown: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusNoContent {
@@ -254,7 +253,7 @@ func (c *Client) PutExtendWorkspace(ctx context.Context, id uuid.UUID, req PutEx
 	path := fmt.Sprintf("/api/v2/workspaces/%s/extend", id.String())
 	res, err := c.Request(ctx, http.MethodPut, path, req)
 	if err != nil {
-		return xerrors.Errorf("extend workspace time until shutdown: %w", err)
+		return fmt.Errorf("extend workspace time until shutdown: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNotModified {

@@ -1,8 +1,9 @@
 package cli
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliui"
 )
@@ -20,11 +21,11 @@ func show() *cobra.Command {
 			}
 			buildInfo, err := client.BuildInfo(cmd.Context())
 			if err != nil {
-				return xerrors.Errorf("get server version: %w", err)
+				return fmt.Errorf("get server version: %w", err)
 			}
 			workspace, err := namedWorkspace(cmd, client, args[0])
 			if err != nil {
-				return xerrors.Errorf("get workspace: %w", err)
+				return fmt.Errorf("get workspace: %w", err)
 			}
 			return cliui.WorkspaceResources(cmd.OutOrStdout(), workspace.LatestBuild.Resources, cliui.WorkspaceResourcesOptions{
 				WorkspaceName: workspace.Name,

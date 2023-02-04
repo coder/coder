@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	agpl "github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/cliui"
@@ -49,7 +48,7 @@ func featuresList() *cobra.Command {
 			entitlements, err := client.Entitlements(cmd.Context())
 			var apiError *codersdk.Error
 			if errors.As(err, &apiError) && apiError.StatusCode() == http.StatusNotFound {
-				return xerrors.New("You are on the AGPL licensed version of Coder that does not have Enterprise functionality!")
+				return fmt.Errorf("You are on the AGPL licensed version of Coder that does not have Enterprise functionality!")
 			}
 			if err != nil {
 				return err
@@ -60,7 +59,7 @@ func featuresList() *cobra.Command {
 			case "table", "":
 				out, err = displayFeatures(columns, entitlements.Features)
 				if err != nil {
-					return xerrors.Errorf("render table: %w", err)
+					return fmt.Errorf("render table: %w", err)
 				}
 			case "json":
 				buf := new(bytes.Buffer)
@@ -68,11 +67,11 @@ func featuresList() *cobra.Command {
 				enc.SetIndent("", "  ")
 				err = enc.Encode(entitlements)
 				if err != nil {
-					return xerrors.Errorf("marshal features to JSON: %w", err)
+					return fmt.Errorf("marshal features to JSON: %w", err)
 				}
 				out = buf.String()
 			default:
-				return xerrors.Errorf(`unknown output format %q, only "table" and "json" are supported`, outputFormat)
+				return fmt.Errorf(`unknown output format %q, only "table" and "json" are supported`, outputFormat)
 			}
 
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), out)

@@ -3,12 +3,12 @@ package codersdk
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
 	"golang.org/x/mod/semver"
-	"golang.org/x/xerrors"
 )
 
 // Entitlement represents whether a feature is licensed.
@@ -326,7 +326,7 @@ func (f *DeploymentConfigField[T]) MarshalJSON() ([]byte, error) {
 func (c *Client) DeploymentConfig(ctx context.Context) (DeploymentConfig, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/config/deployment", nil)
 	if err != nil {
-		return DeploymentConfig{}, xerrors.Errorf("execute request: %w", err)
+		return DeploymentConfig{}, fmt.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
 
@@ -464,7 +464,7 @@ type DeploymentDAUsResponse struct {
 func (c *Client) DeploymentDAUs(ctx context.Context) (*DeploymentDAUsResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/insights/daus", nil)
 	if err != nil {
-		return nil, xerrors.Errorf("execute request: %w", err)
+		return nil, fmt.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
 

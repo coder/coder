@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
@@ -31,7 +30,7 @@ func main() {
 				Default: "acme-corp",
 				Validate: func(s string) error {
 					if !strings.EqualFold(s, "coder") {
-						return xerrors.New("Err... nope!")
+						return fmt.Errorf("Err... nope!")
 					}
 					return nil
 				},

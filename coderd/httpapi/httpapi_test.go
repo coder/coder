@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
@@ -37,7 +37,7 @@ func TestInternalServerError(t *testing.T) {
 		t.Parallel()
 		var (
 			w       = httptest.NewRecorder()
-			httpErr = xerrors.New("error!")
+			httpErr = fmt.Errorf("error!")
 		)
 
 		httpapi.InternalServerError(w, httpErr)

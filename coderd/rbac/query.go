@@ -2,13 +2,12 @@ package rbac
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/coder/coder/coderd/rbac/regosql"
 
 	"github.com/coder/coder/coderd/rbac/regosql/sqltypes"
-
-	"golang.org/x/xerrors"
 )
 
 type AuthorizeFilter interface {
@@ -35,7 +34,7 @@ func ConfigWithoutACL() regosql.ConvertConfig {
 func Compile(cfg regosql.ConvertConfig, pa *PartialAuthorizer) (AuthorizeFilter, error) {
 	root, err := regosql.ConvertRegoAst(cfg, pa.partialQueries)
 	if err != nil {
-		return nil, xerrors.Errorf("convert rego ast: %w", err)
+		return nil, fmt.Errorf("convert rego ast: %w", err)
 	}
 
 	// Generate the SQL
@@ -46,7 +45,7 @@ func Compile(cfg regosql.ConvertConfig, pa *PartialAuthorizer) (AuthorizeFilter,
 		for _, err := range gen.Errors() {
 			errStrings = append(errStrings, err.Error())
 		}
-		return nil, xerrors.Errorf("sql generation errors: %v", strings.Join(errStrings, ", "))
+		return nil, fmt.Errorf("sql generation errors: %v", strings.Join(errStrings, ", "))
 	}
 
 	return &authorizedSQLFilter{

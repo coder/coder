@@ -6,8 +6,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-
-	"golang.org/x/xerrors"
 )
 
 var (
@@ -56,7 +54,7 @@ func (a ApplicationURL) String() string {
 func ParseSubdomainAppURL(subdomain string) (ApplicationURL, error) {
 	matches := appURL.FindAllStringSubmatch(subdomain, -1)
 	if len(matches) == 0 {
-		return ApplicationURL{}, xerrors.Errorf("invalid application url format: %q", subdomain)
+		return ApplicationURL{}, fmt.Errorf("invalid application url format: %q", subdomain)
 	}
 	matchGroup := matches[0]
 
@@ -121,22 +119,22 @@ func HostnamesMatch(a, b string) bool {
 func CompileHostnamePattern(pattern string) (*regexp.Regexp, error) {
 	pattern = strings.ToLower(pattern)
 	if strings.Contains(pattern, "http:") || strings.Contains(pattern, "https:") {
-		return nil, xerrors.Errorf("hostname pattern must not contain a scheme: %q", pattern)
+		return nil, fmt.Errorf("hostname pattern must not contain a scheme: %q", pattern)
 	}
 	if strings.Contains(pattern, ":") {
-		return nil, xerrors.Errorf("hostname pattern must not contain a port: %q", pattern)
+		return nil, fmt.Errorf("hostname pattern must not contain a port: %q", pattern)
 	}
 	if strings.HasPrefix(pattern, ".") || strings.HasSuffix(pattern, ".") {
-		return nil, xerrors.Errorf("hostname pattern must not start or end with a period: %q", pattern)
+		return nil, fmt.Errorf("hostname pattern must not start or end with a period: %q", pattern)
 	}
 	if strings.Count(pattern, ".") < 1 {
-		return nil, xerrors.Errorf("hostname pattern must contain at least two labels/segments: %q", pattern)
+		return nil, fmt.Errorf("hostname pattern must contain at least two labels/segments: %q", pattern)
 	}
 	if strings.Count(pattern, "*") != 1 {
-		return nil, xerrors.Errorf("hostname pattern must contain exactly one asterisk: %q", pattern)
+		return nil, fmt.Errorf("hostname pattern must contain exactly one asterisk: %q", pattern)
 	}
 	if !strings.HasPrefix(pattern, "*") {
-		return nil, xerrors.Errorf("hostname pattern must only contain an asterisk at the beginning: %q", pattern)
+		return nil, fmt.Errorf("hostname pattern must only contain an asterisk at the beginning: %q", pattern)
 	}
 	for i, label := range strings.Split(pattern, ".") {
 		if i == 0 {
@@ -145,7 +143,7 @@ func CompileHostnamePattern(pattern string) (*regexp.Regexp, error) {
 			label = "a" + label
 		}
 		if !validHostnameLabelRegex.MatchString(label) {
-			return nil, xerrors.Errorf("hostname pattern contains invalid label %q: %q", label, pattern)
+			return nil, fmt.Errorf("hostname pattern contains invalid label %q: %q", label, pattern)
 		}
 	}
 

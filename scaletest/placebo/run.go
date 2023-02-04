@@ -7,8 +7,6 @@ import (
 	"math/rand"
 	"time"
 
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/scaletest/harness"
 )
 
@@ -58,7 +56,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 
 		if roll < r.cfg.FailureChance {
 			_, _ = fmt.Fprintln(logs, ":(")
-			return xerrors.New("test failed due to configured failure chance")
+			return fmt.Errorf("test failed due to configured failure chance")
 		}
 	}
 

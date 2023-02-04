@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 )
 
 type ProvisionerStorageMethod string
@@ -102,7 +101,7 @@ type CreateWorkspaceRequest struct {
 func (c *Client) Organization(ctx context.Context, id uuid.UUID) (Organization, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s", id.String()), nil)
 	if err != nil {
-		return Organization{}, xerrors.Errorf("execute request: %w", err)
+		return Organization{}, fmt.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
 
@@ -121,7 +120,7 @@ func (c *Client) ProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, e
 		nil,
 	)
 	if err != nil {
-		return nil, xerrors.Errorf("execute request: %w", err)
+		return nil, fmt.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
 
@@ -141,7 +140,7 @@ func (c *Client) CreateTemplateVersion(ctx context.Context, organizationID uuid.
 		req,
 	)
 	if err != nil {
-		return TemplateVersion{}, xerrors.Errorf("execute request: %w", err)
+		return TemplateVersion{}, fmt.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
 
@@ -160,7 +159,7 @@ func (c *Client) TemplateVersionByOrganizationAndName(ctx context.Context, organ
 	)
 
 	if err != nil {
-		return TemplateVersion{}, xerrors.Errorf("execute request: %w", err)
+		return TemplateVersion{}, fmt.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
 
@@ -179,7 +178,7 @@ func (c *Client) CreateTemplate(ctx context.Context, organizationID uuid.UUID, r
 		request,
 	)
 	if err != nil {
-		return Template{}, xerrors.Errorf("execute request: %w", err)
+		return Template{}, fmt.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
 
@@ -198,7 +197,7 @@ func (c *Client) TemplatesByOrganization(ctx context.Context, organizationID uui
 		nil,
 	)
 	if err != nil {
-		return nil, xerrors.Errorf("execute request: %w", err)
+		return nil, fmt.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
 
@@ -217,7 +216,7 @@ func (c *Client) TemplateByName(ctx context.Context, organizationID uuid.UUID, n
 		nil,
 	)
 	if err != nil {
-		return Template{}, xerrors.Errorf("execute request: %w", err)
+		return Template{}, fmt.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
 

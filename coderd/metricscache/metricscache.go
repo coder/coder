@@ -3,12 +3,12 @@ package metricscache
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"sync/atomic"
 	"time"
 
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
-	"golang.org/x/xerrors"
 
 	"github.com/google/uuid"
 
@@ -144,7 +144,7 @@ func countUniqueUsers(rows []database.GetTemplateDAUsRow) int {
 func (c *Cache) refresh(ctx context.Context) error {
 	err := c.database.DeleteOldAgentStats(ctx)
 	if err != nil {
-		return xerrors.Errorf("delete old stats: %w", err)
+		return fmt.Errorf("delete old stats: %w", err)
 	}
 
 	templates, err := c.database.GetTemplates(ctx)

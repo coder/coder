@@ -1,8 +1,6 @@
 package sqltypes
 
-import (
-	"golang.org/x/xerrors"
-)
+import "fmt"
 
 type AstString struct {
 	Source RegoSource
@@ -24,6 +22,6 @@ func (s AstString) EqualsSQLString(cfg *SQLGenerator, not bool, other Node) (str
 	case AstString:
 		return basicSQLEquality(cfg, not, s, other), nil
 	default:
-		return "", xerrors.Errorf("unsupported equality: %T %s %T", s, equalsOp(not), other)
+		return "", fmt.Errorf("unsupported equality: %T %s %T", s, equalsOp(not), other)
 	}
 }

@@ -6,7 +6,6 @@ import (
 	"github.com/fatih/color"
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	agpl "github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/cliui"
@@ -25,17 +24,17 @@ func groupList() *cobra.Command {
 
 			client, err := agpl.CreateClient(cmd)
 			if err != nil {
-				return xerrors.Errorf("create client: %w", err)
+				return fmt.Errorf("create client: %w", err)
 			}
 
 			org, err := agpl.CurrentOrganization(cmd, client)
 			if err != nil {
-				return xerrors.Errorf("current organization: %w", err)
+				return fmt.Errorf("current organization: %w", err)
 			}
 
 			groups, err := client.GroupsByOrganization(ctx, org.ID)
 			if err != nil {
-				return xerrors.Errorf("get groups: %w", err)
+				return fmt.Errorf("get groups: %w", err)
 			}
 
 			if len(groups) == 0 {
@@ -46,7 +45,7 @@ func groupList() *cobra.Command {
 
 			out, err := displayGroups(groups...)
 			if err != nil {
-				return xerrors.Errorf("display groups: %w", err)
+				return fmt.Errorf("display groups: %w", err)
 			}
 
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), out)

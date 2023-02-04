@@ -7,7 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
@@ -49,7 +48,7 @@ func create() *cobra.Command {
 					Validate: func(workspaceName string) error {
 						_, err = client.WorkspaceByOwnerAndName(cmd.Context(), codersdk.Me, workspaceName, codersdk.WorkspaceOptions{})
 						if err == nil {
-							return xerrors.Errorf("A workspace already exists named %q!", workspaceName)
+							return fmt.Errorf("A workspace already exists named %q!", workspaceName)
 						}
 						return nil
 					},
@@ -61,7 +60,7 @@ func create() *cobra.Command {
 
 			_, err = client.WorkspaceByOwnerAndName(cmd.Context(), codersdk.Me, workspaceName, codersdk.WorkspaceOptions{})
 			if err == nil {
-				return xerrors.Errorf("A workspace already exists named %q!", workspaceName)
+				return fmt.Errorf("A workspace already exists named %q!", workspaceName)
 			}
 
 			var template codersdk.Template
@@ -109,7 +108,7 @@ func create() *cobra.Command {
 			} else {
 				template, err = client.TemplateByName(cmd.Context(), organization.ID, templateName)
 				if err != nil {
-					return xerrors.Errorf("get template by name: %w", err)
+					return fmt.Errorf("get template by name: %w", err)
 				}
 			}
 
@@ -259,7 +258,7 @@ PromptParamLoop:
 	// Rich parameters
 	templateVersionParameters, err := client.TemplateVersionRichParameters(cmd.Context(), templateVersion.ID)
 	if err != nil {
-		return nil, xerrors.Errorf("get template version rich parameters: %w", err)
+		return nil, fmt.Errorf("get template version rich parameters: %w", err)
 	}
 
 	parameterMapFromFile = map[string]string{}
@@ -316,7 +315,7 @@ PromptRichParamLoop:
 		RichParameterValues: richParameters,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("begin workspace dry-run: %w", err)
+		return nil, fmt.Errorf("begin workspace dry-run: %w", err)
 	}
 	_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Planning workspace...")
 	err = cliui.ProvisionerJob(cmd.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
@@ -335,12 +334,12 @@ PromptRichParamLoop:
 	if err != nil {
 		// TODO (Dean): reprompt for parameter values if we deem it to
 		// be a validation error
-		return nil, xerrors.Errorf("dry-run workspace: %w", err)
+		return nil, fmt.Errorf("dry-run workspace: %w", err)
 	}
 
 	resources, err := client.TemplateVersionDryRunResources(cmd.Context(), templateVersion.ID, dryRun.ID)
 	if err != nil {
-		return nil, xerrors.Errorf("get workspace dry-run resources: %w", err)
+		return nil, fmt.Errorf("get workspace dry-run resources: %w", err)
 	}
 
 	err = cliui.WorkspaceResources(cmd.OutOrStdout(), resources, cliui.WorkspaceResourcesOptions{

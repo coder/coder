@@ -2,11 +2,11 @@ package harness
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/tracing"
 )
@@ -64,7 +64,7 @@ func (h *TestHarness) Run(ctx context.Context) (err error) {
 	defer func() {
 		e := recover()
 		if e != nil {
-			err = xerrors.Errorf("panic in harness.Run: %+v", e)
+			err = fmt.Errorf("panic in harness.Run: %+v", e)
 		}
 	}()
 
@@ -104,14 +104,14 @@ func (h *TestHarness) Cleanup(ctx context.Context) (err error) {
 	defer func() {
 		e := recover()
 		if e != nil {
-			err = xerrors.Errorf("panic in harness.Cleanup: %+v", e)
+			err = fmt.Errorf("panic in harness.Cleanup: %+v", e)
 		}
 	}()
 
 	var cleanupErrs []error
 	cleanupErrs, err = h.cleanupStrategy.Run(ctx, cleanupFns)
 	if err != nil {
-		err = xerrors.Errorf("cleanup strategy error: %w", err)
+		err = fmt.Errorf("cleanup strategy error: %w", err)
 		//nolint:revive // we use named returns because we mutate it in a defer
 		return
 	}

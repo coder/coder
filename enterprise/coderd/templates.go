@@ -148,7 +148,7 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 		var err error
 		template, err = tx.GetTemplateByID(ctx, template.ID)
 		if err != nil {
-			return xerrors.Errorf("get template by ID: %w", err)
+			return fmt.Errorf("get template by ID: %w", err)
 		}
 
 		if len(req.UserPerms) > 0 {
@@ -181,7 +181,7 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 			GroupACL: template.GroupACL,
 		})
 		if err != nil {
-			return xerrors.Errorf("update template ACL by ID: %w", err)
+			return fmt.Errorf("update template ACL by ID: %w", err)
 		}
 		return nil
 	}, nil)
@@ -248,7 +248,7 @@ func convertTemplateUsers(tus []database.TemplateUser, orgIDsByUserIDs map[uuid.
 func validateTemplateRole(role codersdk.TemplateRole) error {
 	actions := convertSDKTemplateRole(role)
 	if actions == nil && role != codersdk.TemplateRoleDeleted {
-		return xerrors.Errorf("role %q is not a valid Template role", role)
+		return fmt.Errorf("role %q is not a valid Template role", role)
 	}
 
 	return nil

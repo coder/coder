@@ -14,7 +14,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
 	"go4.org/netipx"
-	"golang.org/x/xerrors"
+
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"tailscale.com/hostinfo"
 	"tailscale.com/ipn/ipnstate"
@@ -68,10 +68,10 @@ func NewConn(options *Options) (*Conn, error) {
 		options = &Options{}
 	}
 	if len(options.Addresses) == 0 {
-		return nil, xerrors.New("At least one IP range must be provided")
+		return nil, fmt.Errorf("At least one IP range must be provided")
 	}
 	if options.DERPMap == nil {
-		return nil, xerrors.New("DERPMap must be provided")
+		return nil, fmt.Errorf("DERPMap must be provided")
 	}
 	nodePrivateKey := key.NewNode()
 	nodePublicKey := nodePrivateKey.Public()
@@ -111,7 +111,7 @@ func NewConn(options *Options) (*Conn, error) {
 	}
 	nodeID, err := cryptorand.Int63()
 	if err != nil {
-		return nil, xerrors.Errorf("generate node id: %w", err)
+		return nil, fmt.Errorf("generate node id: %w", err)
 	}
 	// This is used by functions below to identify the node via key
 	netMap.SelfNode = &tailcfg.Node{
@@ -123,7 +123,7 @@ func NewConn(options *Options) (*Conn, error) {
 
 	wireguardMonitor, err := monitor.New(Logger(options.Logger.Named("wgmonitor")))
 	if err != nil {
-		return nil, xerrors.Errorf("create wireguard link monitor: %w", err)
+		return nil, fmt.Errorf("create wireguard link monitor: %w", err)
 	}
 
 	dialer := &tsdial.Dialer{
@@ -134,7 +134,7 @@ func NewConn(options *Options) (*Conn, error) {
 		Dialer:      dialer,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("create wgengine: %w", err)
+		return nil, fmt.Errorf("create wgengine: %w", err)
 	}
 	dialer.UseNetstackForIP = func(ip netip.Addr) bool {
 		_, ok := wireguardEngine.PeerForIP(ip)
@@ -145,25 +145,25 @@ func NewConn(options *Options) (*Conn, error) {
 	// https://github.com/tailscale/tailscale/blob/0f05b2c13ff0c305aa7a1655fa9c17ed969d65be/tsnet/tsnet.go#L247-L255
 	wireguardInternals, ok := wireguardEngine.(wgengine.InternalsGetter)
 	if !ok {
-		return nil, xerrors.Errorf("wireguard engine isn't the correct type %T", wireguardEngine)
+		return nil, fmt.Errorf("wireguard engine isn't the correct type %T", wireguardEngine)
 	}
 	tunDevice, magicConn, dnsManager, ok := wireguardInternals.GetInternals()
 	if !ok {
-		return nil, xerrors.New("get wireguard internals")
+		return nil, fmt.Errorf("get wireguard internals")
 	}
 	tunDevice.SetStatisticsEnabled(options.EnableTrafficStats)
 
 	// Update the keys for the magic connection!
 	err = magicConn.SetPrivateKey(nodePrivateKey)
 	if err != nil {
-		return nil, xerrors.Errorf("set node private key: %w", err)
+		return nil, fmt.Errorf("set node private key: %w", err)
 	}
 	netMap.SelfNode.DiscoKey = magicConn.DiscoPublicKey()
 
 	netStack, err := netstack.Create(
 		Logger(options.Logger.Named("netstack")), tunDevice, wireguardEngine, magicConn, dialer, dnsManager)
 	if err != nil {
-		return nil, xerrors.Errorf("create netstack: %w", err)
+		return nil, fmt.Errorf("create netstack: %w", err)
 	}
 	dialer.NetstackDialTCP = func(ctx context.Context, dst netip.AddrPort) (net.Conn, error) {
 		return netStack.DialContextTCP(ctx, dst)
@@ -171,7 +171,7 @@ func NewConn(options *Options) (*Conn, error) {
 	netStack.ProcessLocalIPs = true
 	err = netStack.Start()
 	if err != nil {
-		return nil, xerrors.Errorf("start netstack: %w", err)
+		return nil, fmt.Errorf("start netstack: %w", err)
 	}
 	wireguardEngine = wgengine.NewWatchdog(wireguardEngine)
 	wireguardEngine.SetDERPMap(options.DERPMap)
@@ -335,7 +335,7 @@ func (c *Conn) RemoveAllPeers() error {
 	c.wireguardEngine.SetNetworkMap(&netMapCopy)
 	cfg, err := nmcfg.WGCfg(c.netMap, Logger(c.logger.Named("wgconfig")), netmap.AllowSingleHosts, "")
 	if err != nil {
-		return xerrors.Errorf("update wireguard config: %w", err)
+		return fmt.Errorf("update wireguard config: %w", err)
 	}
 	err = c.wireguardEngine.Reconfig(cfg, c.wireguardRouter, &dns.Config{}, &tailcfg.Debug{})
 	if err != nil {
@@ -345,7 +345,7 @@ func (c *Conn) RemoveAllPeers() error {
 		if errors.Is(err, wgengine.ErrNoChanges) {
 			return nil
 		}
-		return xerrors.Errorf("reconfig: %w", err)
+		return fmt.Errorf("reconfig: %w", err)
 	}
 	return nil
 }
@@ -410,7 +410,7 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 	c.wireguardEngine.SetNetworkMap(&netMapCopy)
 	cfg, err := nmcfg.WGCfg(c.netMap, Logger(c.logger.Named("wgconfig")), netmap.AllowSingleHosts, "")
 	if err != nil {
-		return xerrors.Errorf("update wireguard config: %w", err)
+		return fmt.Errorf("update wireguard config: %w", err)
 	}
 	err = c.wireguardEngine.Reconfig(cfg, c.wireguardRouter, &dns.Config{}, &tailcfg.Debug{})
 	if err != nil {
@@ -420,7 +420,7 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 		if errors.Is(err, wgengine.ErrNoChanges) {
 			return nil
 		}
-		return xerrors.Errorf("reconfig: %w", err)
+		return fmt.Errorf("reconfig: %w", err)
 	}
 	return nil
 }
@@ -439,7 +439,7 @@ func (c *Conn) Ping(ctx context.Context, ip netip.Addr) (time.Duration, bool, er
 	prChan := make(chan *ipnstate.PingResult, 1)
 	go c.wireguardEngine.Ping(ip, tailcfg.PingDisco, func(pr *ipnstate.PingResult) {
 		if pr.Err != "" {
-			errCh <- xerrors.New(pr.Err)
+			errCh <- fmt.Errorf(pr.Err)
 			return
 		}
 		prChan <- pr
@@ -611,7 +611,7 @@ func (c *Conn) selfNode() *Node {
 func (c *Conn) Listen(network, addr string) (net.Listener, error) {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
-		return nil, xerrors.Errorf("wgnet: %w", err)
+		return nil, fmt.Errorf("wgnet: %w", err)
 	}
 	lk := listenKey{network, host, port}
 	ln := &listener{
@@ -625,14 +625,14 @@ func (c *Conn) Listen(network, addr string) (net.Listener, error) {
 	c.mutex.Lock()
 	if c.isClosed() {
 		c.mutex.Unlock()
-		return nil, xerrors.New("closed")
+		return nil, fmt.Errorf("closed")
 	}
 	if c.listeners == nil {
 		c.listeners = map[listenKey]*listener{}
 	}
 	if _, ok := c.listeners[lk]; ok {
 		c.mutex.Unlock()
-		return nil, xerrors.Errorf("wgnet: listener already open for %s, %s", network, addr)
+		return nil, fmt.Errorf("wgnet: listener already open for %s, %s", network, addr)
 	}
 	c.listeners[lk] = ln
 	c.mutex.Unlock()
@@ -727,7 +727,7 @@ func (ln *listener) Accept() (net.Conn, error) {
 	select {
 	case c = <-ln.conn:
 	case <-ln.closed:
-		return nil, xerrors.Errorf("wgnet: %w", net.ErrClosed)
+		return nil, fmt.Errorf("wgnet: %w", net.ErrClosed)
 	}
 	return c, nil
 }

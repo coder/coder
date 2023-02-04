@@ -70,7 +70,7 @@ func TestIsConnectionErr(t *testing.T) {
 		},
 		{
 			name:           "OpaqueError",
-			err:            xerrors.Errorf("I'm opaque!"),
+			err:            fmt.Errorf("I'm opaque!"),
 			expectedResult: false,
 		},
 	}

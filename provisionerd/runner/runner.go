@@ -21,7 +21,6 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.11.0"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/tracing"
@@ -34,7 +33,7 @@ const (
 )
 
 var (
-	errUpdateSkipped = xerrors.New("update skipped; job complete or failed")
+	errUpdateSkipped = fmt.Errorf("update skipped; job complete or failed")
 )
 
 type Runner struct {
@@ -180,7 +179,7 @@ func (r *Runner) Run() {
 		return
 	}
 	if r.failedJob != nil {
-		span.RecordError(xerrors.New(r.failedJob.Error))
+		span.RecordError(fmt.Errorf(r.failedJob.Error))
 		span.SetStatus(codes.Error, r.failedJob.Error)
 
 		r.logger.Debug(ctx, "sending FailedJob")
@@ -612,13 +611,13 @@ func (r *Runner) runTemplateImportParse(ctx context.Context) ([]*sdkproto.Parame
 		Directory: r.workDirectory,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("parse source: %w", err)
+		return nil, fmt.Errorf("parse source: %w", err)
 	}
 	defer stream.Close()
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
-			return nil, xerrors.Errorf("recv parse source: %w", err)
+			return nil, fmt.Errorf("recv parse source: %w", err)
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Parse_Response_Log:
@@ -640,7 +639,7 @@ func (r *Runner) runTemplateImportParse(ctx context.Context) ([]*sdkproto.Parame
 
 			return msgType.Complete.ParameterSchemas, nil
 		default:
-			return nil, xerrors.Errorf("invalid message type %q received from provisioner",
+			return nil, fmt.Errorf("invalid message type %q received from provisioner",
 				reflect.TypeOf(msg.Type).String())
 		}
 	}
@@ -670,7 +669,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(ctx context.Contex
 	// to send the cancel to the provisioner
 	stream, err := r.provisioner.Provision(ctx)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("provision: %w", err)
+		return nil, nil, fmt.Errorf("provision: %w", err)
 	}
 	defer stream.Close()
 	go func() {
@@ -698,13 +697,13 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(ctx context.Contex
 		},
 	})
 	if err != nil {
-		return nil, nil, xerrors.Errorf("start provision: %w", err)
+		return nil, nil, fmt.Errorf("start provision: %w", err)
 	}
 
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
-			return nil, nil, xerrors.Errorf("recv import provision: %w", err)
+			return nil, nil, fmt.Errorf("recv import provision: %w", err)
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Provision_Response_Log:
@@ -725,7 +724,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(ctx context.Contex
 					slog.F("error", msgType.Complete.Error),
 				)
 
-				return nil, nil, xerrors.New(msgType.Complete.Error)
+				return nil, nil, fmt.Errorf(msgType.Complete.Error)
 			}
 
 			r.logger.Info(context.Background(), "parse dry-run provision successful",
@@ -736,7 +735,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(ctx context.Contex
 
 			return msgType.Complete.Resources, msgType.Complete.Parameters, nil
 		default:
-			return nil, nil, xerrors.Errorf("invalid message type %q received from provisioner",
+			return nil, nil, fmt.Errorf("invalid message type %q received from provisioner",
 				reflect.TypeOf(msg.Type).String())
 		}
 	}

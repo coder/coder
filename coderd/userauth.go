@@ -455,7 +455,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 
 		user, link, err = findLinkedUser(ctx, tx, params.LinkedID, params.Email)
 		if err != nil {
-			return xerrors.Errorf("find linked user: %w", err)
+			return fmt.Errorf("find linked user: %w", err)
 		}
 
 		if user.ID == uuid.Nil && !params.AllowSignups {
@@ -508,7 +508,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 						break
 					}
 					if err != nil {
-						return xerrors.Errorf("get user by email/username: %w", err)
+						return fmt.Errorf("get user by email/username: %w", err)
 					}
 				}
 				if !validUsername {
@@ -528,7 +528,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 				LoginType: params.LoginType,
 			})
 			if err != nil {
-				return xerrors.Errorf("create user: %w", err)
+				return fmt.Errorf("create user: %w", err)
 			}
 		}
 
@@ -542,7 +542,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 				OAuthExpiry:       params.State.Token.Expiry,
 			})
 			if err != nil {
-				return xerrors.Errorf("insert user link: %w", err)
+				return fmt.Errorf("insert user link: %w", err)
 			}
 		}
 
@@ -558,7 +558,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 				LinkedID:  params.LinkedID,
 			})
 			if err != nil {
-				return xerrors.Errorf("update user linked ID: %w", err)
+				return fmt.Errorf("update user linked ID: %w", err)
 			}
 		}
 
@@ -571,7 +571,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 				OAuthExpiry:       params.State.Token.Expiry,
 			})
 			if err != nil {
-				return xerrors.Errorf("update user link: %w", err)
+				return fmt.Errorf("update user link: %w", err)
 			}
 		}
 
@@ -610,14 +610,14 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 				AvatarURL: user.AvatarURL,
 			})
 			if err != nil {
-				return xerrors.Errorf("update user profile: %w", err)
+				return fmt.Errorf("update user profile: %w", err)
 			}
 		}
 
 		return nil
 	}, nil)
 	if err != nil {
-		return nil, xerrors.Errorf("in tx: %w", err)
+		return nil, fmt.Errorf("in tx: %w", err)
 	}
 
 	cookie, err := api.createAPIKey(ctx, createAPIKeyParams{
@@ -626,7 +626,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		RemoteAddr: r.RemoteAddr,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("create API key: %w", err)
+		return nil, fmt.Errorf("create API key: %w", err)
 	}
 
 	return cookie, nil
@@ -652,13 +652,13 @@ func findLinkedUser(ctx context.Context, db database.Store, linkedID string, ema
 	)
 	link, err := db.GetUserLinkByLinkedID(ctx, linkedID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return user, link, xerrors.Errorf("get user auth by linked ID: %w", err)
+		return user, link, fmt.Errorf("get user auth by linked ID: %w", err)
 	}
 
 	if err == nil {
 		user, err = db.GetUserByID(ctx, link.UserID)
 		if err != nil {
-			return database.User{}, database.UserLink{}, xerrors.Errorf("get user by id: %w", err)
+			return database.User{}, database.UserLink{}, fmt.Errorf("get user by id: %w", err)
 		}
 		if !user.Deleted {
 			return user, link, nil
@@ -672,7 +672,7 @@ func findLinkedUser(ctx context.Context, db database.Store, linkedID string, ema
 			Email: email,
 		})
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return user, link, xerrors.Errorf("get user by email: %w", err)
+			return user, link, fmt.Errorf("get user by email: %w", err)
 		}
 		if errors.Is(err, sql.ErrNoRows) {
 			continue
@@ -693,7 +693,7 @@ func findLinkedUser(ctx context.Context, db database.Store, linkedID string, ema
 		LoginType: user.LoginType,
 	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return database.User{}, database.UserLink{}, xerrors.Errorf("get user link by user id and login type: %w", err)
+		return database.User{}, database.UserLink{}, fmt.Errorf("get user link by user id and login type: %w", err)
 	}
 
 	return user, link, nil

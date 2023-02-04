@@ -14,6 +14,7 @@ import (
 
 	"cloud.google.com/go/compute/metadata"
 	"golang.org/x/xerrors"
+
 	"nhooyr.io/websocket"
 	"tailscale.com/tailcfg"
 
@@ -53,7 +54,7 @@ type GitSSHKey struct {
 func (c *Client) GitSSHKey(ctx context.Context) (GitSSHKey, error) {
 	res, err := c.SDK.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/gitsshkey", nil)
 	if err != nil {
-		return GitSSHKey{}, xerrors.Errorf("execute request: %w", err)
+		return GitSSHKey{}, fmt.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
 
@@ -104,7 +105,7 @@ func (c *Client) Metadata(ctx context.Context) (Metadata, error) {
 	}
 	accessPort, err := strconv.Atoi(accessingPort)
 	if err != nil {
-		return Metadata{}, xerrors.Errorf("convert accessing port %q: %w", accessingPort, err)
+		return Metadata{}, fmt.Errorf("convert accessing port %q: %w", accessingPort, err)
 	}
 	// Agents can provide an arbitrary access URL that may be different
 	// that the globally configured one. This breaks the built-in DERP,
@@ -134,11 +135,11 @@ func (c *Client) Metadata(ctx context.Context) (Metadata, error) {
 func (c *Client) Listen(ctx context.Context) (net.Conn, error) {
 	coordinateURL, err := c.SDK.URL.Parse("/api/v2/workspaceagents/me/coordinate")
 	if err != nil {
-		return nil, xerrors.Errorf("parse url: %w", err)
+		return nil, fmt.Errorf("parse url: %w", err)
 	}
 	jar, err := cookiejar.New(nil)
 	if err != nil {
-		return nil, xerrors.Errorf("create cookie jar: %w", err)
+		return nil, fmt.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(coordinateURL, []*http.Cookie{{
 		Name:  codersdk.SessionTokenCookie,
@@ -243,7 +244,7 @@ func (c *Client) AuthGoogleInstanceIdentity(ctx context.Context, serviceAccount 
 	// "format=full" is required, otherwise the responding payload will be missing "instance_id".
 	jwt, err := gcpClient.Get(fmt.Sprintf("instance/service-accounts/%s/identity?audience=coder&format=full", serviceAccount))
 	if err != nil {
-		return AuthenticateResponse{}, xerrors.Errorf("get metadata identity: %w", err)
+		return AuthenticateResponse{}, fmt.Errorf("get metadata identity: %w", err)
 	}
 	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/google-instance-identity", GoogleInstanceIdentityToken{
 		JSONWebToken: jwt,
@@ -281,7 +282,7 @@ func (c *Client) AuthAWSInstanceIdentity(ctx context.Context) (AuthenticateRespo
 	defer res.Body.Close()
 	token, err := io.ReadAll(res.Body)
 	if err != nil {
-		return AuthenticateResponse{}, xerrors.Errorf("read token: %w", err)
+		return AuthenticateResponse{}, fmt.Errorf("read token: %w", err)
 	}
 
 	req, err = http.NewRequestWithContext(ctx, http.MethodGet, "http://169.254.169.254/latest/dynamic/instance-identity/signature", nil)
@@ -296,7 +297,7 @@ func (c *Client) AuthAWSInstanceIdentity(ctx context.Context) (AuthenticateRespo
 	defer res.Body.Close()
 	signature, err := io.ReadAll(res.Body)
 	if err != nil {
-		return AuthenticateResponse{}, xerrors.Errorf("read token: %w", err)
+		return AuthenticateResponse{}, fmt.Errorf("read token: %w", err)
 	}
 
 	req, err = http.NewRequestWithContext(ctx, http.MethodGet, "http://169.254.169.254/latest/dynamic/instance-identity/document", nil)
@@ -311,7 +312,7 @@ func (c *Client) AuthAWSInstanceIdentity(ctx context.Context) (AuthenticateRespo
 	defer res.Body.Close()
 	document, err := io.ReadAll(res.Body)
 	if err != nil {
-		return AuthenticateResponse{}, xerrors.Errorf("read token: %w", err)
+		return AuthenticateResponse{}, fmt.Errorf("read token: %w", err)
 	}
 
 	res, err = c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/aws-instance-identity", AWSInstanceIdentityToken{
@@ -436,7 +437,7 @@ type StatsResponse struct {
 func (c *Client) PostStats(ctx context.Context, stats *Stats) (StatsResponse, error) {
 	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/report-stats", stats)
 	if err != nil {
-		return StatsResponse{}, xerrors.Errorf("send request: %w", err)
+		return StatsResponse{}, fmt.Errorf("send request: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
@@ -446,7 +447,7 @@ func (c *Client) PostStats(ctx context.Context, stats *Stats) (StatsResponse, er
 	var interval StatsResponse
 	err = json.NewDecoder(res.Body).Decode(&interval)
 	if err != nil {
-		return StatsResponse{}, xerrors.Errorf("decode stats response: %w", err)
+		return StatsResponse{}, fmt.Errorf("decode stats response: %w", err)
 	}
 
 	return interval, nil
@@ -459,7 +460,7 @@ type PostLifecycleRequest struct {
 func (c *Client) PostLifecycle(ctx context.Context, req PostLifecycleRequest) error {
 	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/report-lifecycle", req)
 	if err != nil {
-		return xerrors.Errorf("agent state post request: %w", err)
+		return fmt.Errorf("agent state post request: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusNoContent {
@@ -501,7 +502,7 @@ func (c *Client) GitAuth(ctx context.Context, gitURL string, listen bool) (GitAu
 	}
 	res, err := c.SDK.Request(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
-		return GitAuthResponse{}, xerrors.Errorf("execute request: %w", err)
+		return GitAuthResponse{}, fmt.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
 

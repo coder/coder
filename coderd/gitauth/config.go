@@ -6,7 +6,6 @@ import (
 	"regexp"
 
 	"golang.org/x/oauth2"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -51,40 +50,40 @@ func ConvertConfig(entries []codersdk.GitAuthConfig, accessURL *url.URL) ([]*Con
 		case codersdk.GitProviderGitLab:
 			typ = codersdk.GitProviderGitLab
 		default:
-			return nil, xerrors.Errorf("unknown git provider type: %q", entry.Type)
+			return nil, fmt.Errorf("unknown git provider type: %q", entry.Type)
 		}
 		if entry.ID == "" {
 			// Default to the type.
 			entry.ID = string(typ)
 		}
 		if valid := httpapi.NameValid(entry.ID); valid != nil {
-			return nil, xerrors.Errorf("git auth provider %q doesn't have a valid id: %w", entry.ID, valid)
+			return nil, fmt.Errorf("git auth provider %q doesn't have a valid id: %w", entry.ID, valid)
 		}
 
 		_, exists := ids[entry.ID]
 		if exists {
 			if entry.ID == string(typ) {
-				return nil, xerrors.Errorf("multiple %s git auth providers provided. you must specify a unique id for each", typ)
+				return nil, fmt.Errorf("multiple %s git auth providers provided. you must specify a unique id for each", typ)
 			}
-			return nil, xerrors.Errorf("multiple git providers exist with the id %q. specify a unique id for each", entry.ID)
+			return nil, fmt.Errorf("multiple git providers exist with the id %q. specify a unique id for each", entry.ID)
 		}
 		ids[entry.ID] = struct{}{}
 
 		if entry.ClientID == "" {
-			return nil, xerrors.Errorf("%q git auth provider: client_id must be provided", entry.ID)
+			return nil, fmt.Errorf("%q git auth provider: client_id must be provided", entry.ID)
 		}
 		if entry.ClientSecret == "" {
-			return nil, xerrors.Errorf("%q git auth provider: client_secret must be provided", entry.ID)
+			return nil, fmt.Errorf("%q git auth provider: client_secret must be provided", entry.ID)
 		}
 		authRedirect, err := accessURL.Parse(fmt.Sprintf("/gitauth/%s/callback", entry.ID))
 		if err != nil {
-			return nil, xerrors.Errorf("parse gitauth callback url: %w", err)
+			return nil, fmt.Errorf("parse gitauth callback url: %w", err)
 		}
 		regex := regex[typ]
 		if entry.Regex != "" {
 			regex, err = regexp.Compile(entry.Regex)
 			if err != nil {
-				return nil, xerrors.Errorf("compile regex for git auth provider %q: %w", entry.ID, entry.Regex)
+				return nil, fmt.Errorf("compile regex for git auth provider %q: %w", entry.ID, entry.Regex)
 			}
 		}
 

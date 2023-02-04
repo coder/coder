@@ -3,8 +3,6 @@ package regosql
 import (
 	"fmt"
 
-	"golang.org/x/xerrors"
-
 	"github.com/open-policy-agent/opa/ast"
 
 	"github.com/coder/coder/coderd/rbac/regosql/sqltypes"
@@ -97,6 +95,6 @@ func (g ACLGroupVar) ContainsSQL(cfg *sqltypes.SQLGenerator, other sqltypes.Node
 	case sqltypes.AstString:
 		return fmt.Sprintf("%s ? %s", g.SQLString(cfg), other.SQLString(cfg)), nil
 	default:
-		return "", xerrors.Errorf("unsupported acl group contains %T", other)
+		return "", fmt.Errorf("unsupported acl group contains %T", other)
 	}
 }

@@ -1,10 +1,10 @@
 package cli
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v3"
 
 	"github.com/coder/coder/cli/cliui"
@@ -32,7 +32,7 @@ func createParameterMapFromFile(parameterFile string) (map[string]string, error)
 		return parameterMap, nil
 	}
 
-	return nil, xerrors.Errorf("Parameter file name is not specified")
+	return nil, fmt.Errorf("Parameter file name is not specified")
 }
 
 // Returns a parameter value from a given map, if the map does not exist or does not contain the item, it takes input from the user.

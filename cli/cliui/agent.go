@@ -12,12 +12,11 @@ import (
 	"github.com/briandowns/spinner"
 	"github.com/muesli/reflow/indent"
 	"github.com/muesli/reflow/wordwrap"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/codersdk"
 )
 
-var AgentStartError = xerrors.New("agent startup exited with non-zero exit status")
+var AgentStartError = fmt.Errorf("agent startup exited with non-zero exit status")
 
 type AgentOptions struct {
 	WorkspaceName string
@@ -38,7 +37,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 	var resourceMutex sync.Mutex
 	agent, err := opts.Fetch(ctx)
 	if err != nil {
-		return xerrors.Errorf("fetch: %w", err)
+		return fmt.Errorf("fetch: %w", err)
 	}
 
 	// Fast path if the agent is ready (avoid showing connecting prompt).
@@ -129,7 +128,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 		agent, err = opts.Fetch(ctx)
 		if err != nil {
 			resourceMutex.Unlock()
-			return xerrors.Errorf("fetch: %w", err)
+			return fmt.Errorf("fetch: %w", err)
 		}
 		resourceMutex.Unlock()
 		switch agent.Status {

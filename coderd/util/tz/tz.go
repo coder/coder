@@ -2,13 +2,12 @@
 package tz
 
 import (
+	"fmt"
 	"os"
 	"time"
-
-	"golang.org/x/xerrors"
 )
 
-var errNoEnvSet = xerrors.New("no env set")
+var errNoEnvSet = fmt.Errorf("no env set")
 
 func locationFromEnv() (*time.Location, error) {
 	tzEnv, found := os.LookupEnv("TZ")
@@ -23,7 +22,7 @@ func locationFromEnv() (*time.Location, error) {
 
 	loc, err := time.LoadLocation(tzEnv)
 	if err != nil {
-		return nil, xerrors.Errorf("load location from TZ env: %w", err)
+		return nil, fmt.Errorf("load location from TZ env: %w", err)
 	}
 
 	return loc, nil

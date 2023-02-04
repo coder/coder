@@ -3,6 +3,7 @@
 package tz
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 	"time"
@@ -26,18 +27,18 @@ func TimezoneIANA() (*time.Location, error) {
 		return loc, nil
 	}
 	if !xerrors.Is(err, errNoEnvSet) {
-		return nil, xerrors.Errorf("lookup timezone from env: %w", err)
+		return nil, fmt.Errorf("lookup timezone from env: %w", err)
 	}
 
 	lp, err := filepath.EvalSymlinks(etcLocaltime)
 	if err != nil {
-		return nil, xerrors.Errorf("read location of %s: %w", etcLocaltime, err)
+		return nil, fmt.Errorf("read location of %s: %w", etcLocaltime, err)
 	}
 	stripped := strings.Replace(lp, zoneInfoPath, "", -1)
 	stripped = strings.TrimPrefix(stripped, string(filepath.Separator))
 	loc, err = time.LoadLocation(stripped)
 	if err != nil {
-		return nil, xerrors.Errorf("invalid location %q guessed from %s: %w", stripped, lp, err)
+		return nil, fmt.Errorf("invalid location %q guessed from %s: %w", stripped, lp, err)
 	}
 	return loc, nil
 }

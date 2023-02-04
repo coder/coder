@@ -20,7 +20,7 @@ import (
 	"github.com/quasilyte/go-ruleguard/dsl/types"
 )
 
-// Use xerrors everywhere! It provides additional stacktrace info!
+// Use fmt.Errorf instead of xerrors, xerrors is deprecated.
 //
 //nolint:unused,deadcode,varnamelen
 func xerrors(m dsl.Matcher) {
@@ -28,14 +28,14 @@ func xerrors(m dsl.Matcher) {
 	m.Import("fmt")
 	m.Import("golang.org/x/xerrors")
 
-	m.Match("fmt.Errorf($*args)").
-		Suggest("xerrors.New($args)").
-		Report("Use xerrors to provide additional stacktrace information!")
+	m.Match("xerrors.New($*args)").
+		Suggest("fmt.Errorf($args)").
+		Report("Use fmt.Errorf to provide additional stacktrace information!")
 
 	m.Match("errors.$_($msg)").
 		Where(m["msg"].Type.Is("string")).
-		Suggest("xerrors.New($msg)").
-		Report("Use xerrors to provide additional stacktrace information!")
+		Suggest("fmt.Errorf($msg)").
+		Report("Use fmt.Errorf to provide additional stacktrace information!")
 }
 
 // databaseImport enforces not importing any database types into /codersdk.

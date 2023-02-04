@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-
-	"golang.org/x/xerrors"
 )
 
 // RoutePatterns provides a method to generate a regex which will match a URL
@@ -43,7 +41,7 @@ func (rp RoutePatterns) Compile() (*regexp.Regexp, error) {
 	pattern := fmt.Sprintf("^(%s)$", strings.Join(patterns, "|"))
 	re, err := regexp.Compile(pattern)
 	if err != nil {
-		return nil, xerrors.Errorf("compile regex %q: %w", pattern, err)
+		return nil, fmt.Errorf("compile regex %q: %w", pattern, err)
 	}
 
 	return re, nil

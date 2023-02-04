@@ -2,8 +2,6 @@ package rbac
 
 import (
 	"fmt"
-
-	"golang.org/x/xerrors"
 )
 
 type ExpandableScope interface {
@@ -80,7 +78,7 @@ var builtinScopes = map[ScopeName]Scope{
 func ExpandScope(scope ScopeName) (Scope, error) {
 	role, ok := builtinScopes[scope]
 	if !ok {
-		return Scope{}, xerrors.Errorf("no scope named %q", scope)
+		return Scope{}, fmt.Errorf("no scope named %q", scope)
 	}
 	return role, nil
 }

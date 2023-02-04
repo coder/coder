@@ -17,12 +17,11 @@ import (
 	"text/template"
 	"time"
 
-	"golang.org/x/xerrors"
-
 	"github.com/charmbracelet/lipgloss"
 	"github.com/kirsle/configdir"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/cliflag"
@@ -65,7 +64,7 @@ const (
 )
 
 var (
-	errUnauthenticated = xerrors.New(notLoggedInMessage)
+	errUnauthenticated = fmt.Errorf(notLoggedInMessage)
 )
 
 func init() {
@@ -325,7 +324,7 @@ func createUnauthenticatedClient(cmd *cobra.Command, serverURL *url.URL) (*coder
 	for _, header := range headers {
 		parts := strings.SplitN(header, "=", 2)
 		if len(parts) < 2 {
-			return nil, xerrors.Errorf("split header %q had less than two parts", header)
+			return nil, fmt.Errorf("split header %q had less than two parts", header)
 		}
 		transport.headers[parts[0]] = parts[1]
 	}
@@ -379,7 +378,7 @@ func namedWorkspace(cmd *cobra.Command, client *codersdk.Client, identifier stri
 		owner = parts[0]
 		name = parts[1]
 	default:
-		return codersdk.Workspace{}, xerrors.Errorf("invalid workspace name: %q", identifier)
+		return codersdk.Workspace{}, fmt.Errorf("invalid workspace name: %q", identifier)
 	}
 
 	return client.WorkspaceByOwnerAndName(cmd.Context(), owner, name, codersdk.WorkspaceOptions{})
@@ -597,7 +596,7 @@ func checkVersions(cmd *cobra.Command, client *codersdk.Client) error {
 	}
 
 	if err != nil {
-		return xerrors.Errorf("build info: %w", err)
+		return fmt.Errorf("build info: %w", err)
 	}
 
 	fmtWarningText := `version mismatch: client %s, server %s

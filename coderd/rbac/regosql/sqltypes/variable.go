@@ -1,7 +1,7 @@
 package sqltypes
 
 import (
-	"golang.org/x/xerrors"
+	"fmt"
 
 	"github.com/open-policy-agent/opa/ast"
 )
@@ -38,30 +38,30 @@ func (vc *VariableConverter) ConvertVariable(rego ast.Ref) (Node, bool) {
 // returned. The first term must always be a Var.
 func RegoVarPath(path []string, terms []*ast.Term) ([]*ast.Term, error) {
 	if len(terms) < len(path) {
-		return nil, xerrors.Errorf("path %s longer than rego path %s", path, terms)
+		return nil, fmt.Errorf("path %s longer than rego path %s", path, terms)
 	}
 
 	if len(terms) == 0 || len(path) == 0 {
-		return nil, xerrors.Errorf("path %s and rego path %s must not be empty", path, terms)
+		return nil, fmt.Errorf("path %s and rego path %s must not be empty", path, terms)
 	}
 
 	varTerm, ok := terms[0].Value.(ast.Var)
 	if !ok {
-		return nil, xerrors.Errorf("expected var, got %T", terms[0])
+		return nil, fmt.Errorf("expected var, got %T", terms[0])
 	}
 
 	if string(varTerm) != path[0] {
-		return nil, xerrors.Errorf("expected var %s, got %s", path[0], varTerm)
+		return nil, fmt.Errorf("expected var %s, got %s", path[0], varTerm)
 	}
 
 	for i := 1; i < len(path); i++ {
 		nextTerm, ok := terms[i].Value.(ast.String)
 		if !ok {
-			return nil, xerrors.Errorf("expected ast.string, got %T", terms[i])
+			return nil, fmt.Errorf("expected ast.string, got %T", terms[i])
 		}
 
 		if string(nextTerm) != path[i] {
-			return nil, xerrors.Errorf("expected string %s, got %s", path[i], nextTerm)
+			return nil, fmt.Errorf("expected string %s, got %s", path[i], nextTerm)
 		}
 	}
 
@@ -108,6 +108,6 @@ func (s astStringVar) EqualsSQLString(cfg *SQLGenerator, not bool, other Node) (
 	case AstString:
 		return basicSQLEquality(cfg, not, s, other), nil
 	default:
-		return "", xerrors.Errorf("unsupported equality: %T %s %T", s, equalsOp(not), other)
+		return "", fmt.Errorf("unsupported equality: %T %s %T", s, equalsOp(not), other)
 	}
 }

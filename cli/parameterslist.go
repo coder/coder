@@ -5,7 +5,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
@@ -29,7 +28,7 @@ func parameterList() *cobra.Command {
 
 			organization, err := CurrentOrganization(cmd, client)
 			if err != nil {
-				return xerrors.Errorf("get current organization: %w", err)
+				return fmt.Errorf("get current organization: %w", err)
 			}
 
 			var scopeID uuid.UUID
@@ -43,14 +42,14 @@ func parameterList() *cobra.Command {
 			case codersdk.ParameterTemplate:
 				template, err := client.TemplateByName(cmd.Context(), organization.ID, name)
 				if err != nil {
-					return xerrors.Errorf("get workspace template: %w", err)
+					return fmt.Errorf("get workspace template: %w", err)
 				}
 				scopeID = template.ID
 			case codersdk.ParameterImportJob, "template_version":
 				scope = string(codersdk.ParameterImportJob)
 				scopeID, err = uuid.Parse(name)
 				if err != nil {
-					return xerrors.Errorf("%q must be a uuid for this scope type", name)
+					return fmt.Errorf("%q must be a uuid for this scope type", name)
 				}
 
 				// Could be a template_version id or a job id. Check for the
@@ -61,19 +60,19 @@ func parameterList() *cobra.Command {
 				}
 
 			default:
-				return xerrors.Errorf("%q is an unsupported scope, use %v", scope, []codersdk.ParameterScope{
+				return fmt.Errorf("%q is an unsupported scope, use %v", scope, []codersdk.ParameterScope{
 					codersdk.ParameterWorkspace, codersdk.ParameterTemplate, codersdk.ParameterImportJob,
 				})
 			}
 
 			params, err := client.Parameters(cmd.Context(), codersdk.ParameterScope(scope), scopeID)
 			if err != nil {
-				return xerrors.Errorf("fetch params: %w", err)
+				return fmt.Errorf("fetch params: %w", err)
 			}
 
 			out, err := cliui.DisplayTable(params, "name", columns)
 			if err != nil {
-				return xerrors.Errorf("render table: %w", err)
+				return fmt.Errorf("render table: %w", err)
 			}
 
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), out)

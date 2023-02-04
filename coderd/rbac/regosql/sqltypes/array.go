@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
-
-	"golang.org/x/xerrors"
 )
 
 type ASTArray struct {
@@ -19,7 +17,7 @@ func Array(source RegoSource, nodes ...Node) (Node, error) {
 	for i := 1; i < len(nodes); i++ {
 		if reflect.TypeOf(nodes[0]) != reflect.TypeOf(nodes[i]) {
 			// Do not allow mixed types in arrays
-			return nil, xerrors.Errorf("array element %d in %q: type mismatch", i, source)
+			return nil, fmt.Errorf("array element %d in %q: type mismatch", i, source)
 		}
 	}
 	return ASTArray{Value: nodes, Source: source}, nil
@@ -36,7 +34,7 @@ func (a ASTArray) ContainsSQL(cfg *SQLGenerator, needle Node) (string, error) {
 	// This condition supports any contains function if the needle type is
 	// the same as the ASTArray element type.
 	if reflect.TypeOf(a.MyType().UseAs()) != reflect.TypeOf(needle.UseAs()) {
-		return "ArrayContainsError", xerrors.Errorf("array contains %q: type mismatch (%T, %T)",
+		return "ArrayContainsError", fmt.Errorf("array contains %q: type mismatch (%T, %T)",
 			a.Source, a.MyType(), needle)
 	}
 
@@ -46,7 +44,7 @@ func (a ASTArray) ContainsSQL(cfg *SQLGenerator, needle Node) (string, error) {
 func (a ASTArray) SQLString(cfg *SQLGenerator) string {
 	switch a.MyType().UseAs().(type) {
 	case invalidNode:
-		cfg.AddError(xerrors.Errorf("array %q: empty array", a.Source))
+		cfg.AddError(fmt.Errorf("array %q: empty array", a.Source))
 		return "ArrayError"
 	case AstNumber, AstString, AstBoolean:
 		// Primitive types
@@ -57,7 +55,7 @@ func (a ASTArray) SQLString(cfg *SQLGenerator) string {
 		return fmt.Sprintf("ARRAY [%s]", strings.Join(values, ","))
 	}
 
-	cfg.AddError(xerrors.Errorf("array %q: unsupported type %T", a.Source, a.MyType()))
+	cfg.AddError(fmt.Errorf("array %q: unsupported type %T", a.Source, a.MyType()))
 	return "ArrayError"
 }
 

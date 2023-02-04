@@ -16,7 +16,6 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/xerrors"
 	"tailscale.com/net/speedtest"
 
 	"github.com/coder/coder/coderd/tracing"
@@ -218,7 +217,7 @@ func (c *WorkspaceAgentConn) SSHClient(ctx context.Context) (*ssh.Client, error)
 	defer span.End()
 	netConn, err := c.SSH(ctx)
 	if err != nil {
-		return nil, xerrors.Errorf("ssh: %w", err)
+		return nil, fmt.Errorf("ssh: %w", err)
 	}
 	sshConn, channels, requests, err := ssh.NewClientConn(netConn, "localhost:22", &ssh.ClientConfig{
 		// SSH host validation isn't helpful, because obtaining a peer
@@ -227,7 +226,7 @@ func (c *WorkspaceAgentConn) SSHClient(ctx context.Context) (*ssh.Client, error)
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("ssh conn: %w", err)
+		return nil, fmt.Errorf("ssh conn: %w", err)
 	}
 	return ssh.NewClient(sshConn, channels, requests), nil
 }
@@ -238,11 +237,11 @@ func (c *WorkspaceAgentConn) Speedtest(ctx context.Context, direction speedtest.
 	defer span.End()
 	speedConn, err := c.DialContextTCP(ctx, netip.AddrPortFrom(WorkspaceAgentIP, WorkspaceAgentSpeedtestPort))
 	if err != nil {
-		return nil, xerrors.Errorf("dial speedtest: %w", err)
+		return nil, fmt.Errorf("dial speedtest: %w", err)
 	}
 	results, err := speedtest.RunClientWithConn(direction, duration, speedConn)
 	if err != nil {
-		return nil, xerrors.Errorf("run speedtest: %w", err)
+		return nil, fmt.Errorf("run speedtest: %w", err)
 	}
 	return results, err
 }
@@ -253,7 +252,7 @@ func (c *WorkspaceAgentConn) DialContext(ctx context.Context, network string, ad
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 	if network == "unix" {
-		return nil, xerrors.New("network must be tcp or udp")
+		return nil, fmt.Errorf("network must be tcp or udp")
 	}
 	_, rawPort, _ := net.SplitHostPort(addr)
 	port, _ := strconv.ParseUint(rawPort, 10, 16)
@@ -284,7 +283,7 @@ func (c *WorkspaceAgentConn) ListeningPorts(ctx context.Context) (WorkspaceAgent
 	defer span.End()
 	res, err := c.requestStatisticsServer(ctx, http.MethodGet, "/api/v0/listening-ports", nil)
 	if err != nil {
-		return WorkspaceAgentListeningPortsResponse{}, xerrors.Errorf("do request: %w", err)
+		return WorkspaceAgentListeningPortsResponse{}, fmt.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
@@ -304,7 +303,7 @@ func (c *WorkspaceAgentConn) requestStatisticsServer(ctx context.Context, method
 
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
-		return nil, xerrors.Errorf("new statistics server request to %q: %w", url, err)
+		return nil, fmt.Errorf("new statistics server request to %q: %w", url, err)
 	}
 
 	return c.statisticsServerClient().Do(req)
@@ -320,21 +319,21 @@ func (c *WorkspaceAgentConn) statisticsServerClient() *http.Client {
 			DisableKeepAlives: true,
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				if network != "tcp" {
-					return nil, xerrors.Errorf("network must be tcp")
+					return nil, fmt.Errorf("network must be tcp")
 				}
 				host, port, err := net.SplitHostPort(addr)
 				if err != nil {
-					return nil, xerrors.Errorf("split host port %q: %w", addr, err)
+					return nil, fmt.Errorf("split host port %q: %w", addr, err)
 				}
 				// Verify that host is TailnetIP and port is
 				// TailnetStatisticsPort.
 				if host != WorkspaceAgentIP.String() || port != strconv.Itoa(WorkspaceAgentStatisticsPort) {
-					return nil, xerrors.Errorf("request %q does not appear to be for statistics server", addr)
+					return nil, fmt.Errorf("request %q does not appear to be for statistics server", addr)
 				}
 
 				conn, err := c.DialContextTCP(context.Background(), netip.AddrPortFrom(WorkspaceAgentIP, WorkspaceAgentStatisticsPort))
 				if err != nil {
-					return nil, xerrors.Errorf("dial statistics: %w", err)
+					return nil, fmt.Errorf("dial statistics: %w", err)
 				}
 
 				return conn, nil

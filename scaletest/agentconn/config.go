@@ -1,10 +1,10 @@
 package agentconn
 
 import (
+	"fmt"
 	"net/url"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/httpapi"
 )
@@ -48,40 +48,40 @@ type Connection struct {
 
 func (c Config) Validate() error {
 	if c.AgentID == uuid.Nil {
-		return xerrors.New("agent_id must be set")
+		return fmt.Errorf("agent_id must be set")
 	}
 	if c.ConnectionMode == "" {
-		return xerrors.New("connection_mode must be set")
+		return fmt.Errorf("connection_mode must be set")
 	}
 	switch c.ConnectionMode {
 	case ConnectionModeDirect:
 	case ConnectionModeDerp:
 	default:
-		return xerrors.Errorf("invalid connection_mode: %q", c.ConnectionMode)
+		return fmt.Errorf("invalid connection_mode: %q", c.ConnectionMode)
 	}
 	if c.HoldDuration < 0 {
-		return xerrors.New("hold_duration must be a positive value")
+		return fmt.Errorf("hold_duration must be a positive value")
 	}
 
 	for i, conn := range c.Connections {
 		if conn.URL == "" {
-			return xerrors.Errorf("connections[%d].url must be set", i)
+			return fmt.Errorf("connections[%d].url must be set", i)
 		}
 		u, err := url.Parse(conn.URL)
 		if err != nil {
-			return xerrors.Errorf("connections[%d].url is not a valid URL: %w", i, err)
+			return fmt.Errorf("connections[%d].url is not a valid URL: %w", i, err)
 		}
 		if u.Scheme != "http" {
-			return xerrors.Errorf("connections[%d].url has an unsupported scheme %q, only http is supported", i, u.Scheme)
+			return fmt.Errorf("connections[%d].url has an unsupported scheme %q, only http is supported", i, u.Scheme)
 		}
 		if conn.Interval < 0 {
-			return xerrors.Errorf("connections[%d].interval must be a positive value", i)
+			return fmt.Errorf("connections[%d].interval must be a positive value", i)
 		}
 		if conn.Interval > 0 && c.HoldDuration == 0 {
-			return xerrors.Errorf("connections[%d].interval must be 0 if hold_duration is 0", i)
+			return fmt.Errorf("connections[%d].interval must be 0 if hold_duration is 0", i)
 		}
 		if conn.Timeout < 0 {
-			return xerrors.Errorf("connections[%d].timeout must be a positive value", i)
+			return fmt.Errorf("connections[%d].timeout must be a positive value", i)
 		}
 	}
 

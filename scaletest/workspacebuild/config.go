@@ -1,8 +1,9 @@
 package workspacebuild
 
 import (
+	"fmt"
+
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/codersdk"
 )
@@ -23,19 +24,19 @@ type Config struct {
 
 func (c Config) Validate() error {
 	if c.OrganizationID == uuid.Nil {
-		return xerrors.New("organization_id must be set")
+		return fmt.Errorf("organization_id must be set")
 	}
 	if c.UserID == "" {
-		return xerrors.New("user_id must be set")
+		return fmt.Errorf("user_id must be set")
 	}
 	if c.UserID != codersdk.Me {
 		_, err := uuid.Parse(c.UserID)
 		if err != nil {
-			return xerrors.Errorf("user_id must be %q or a valid UUID: %w", codersdk.Me, err)
+			return fmt.Errorf("user_id must be %q or a valid UUID: %w", codersdk.Me, err)
 		}
 	}
 	if c.Request.TemplateID == uuid.Nil {
-		return xerrors.New("request.template_id must be set")
+		return fmt.Errorf("request.template_id must be set")
 	}
 
 	return nil

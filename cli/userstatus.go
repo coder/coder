@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
@@ -50,18 +49,18 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *cobra.Command {
 
 			identifier := args[0]
 			if identifier == "" {
-				return xerrors.Errorf("user identifier cannot be an empty string")
+				return fmt.Errorf("user identifier cannot be an empty string")
 			}
 
 			user, err := client.User(cmd.Context(), identifier)
 			if err != nil {
-				return xerrors.Errorf("fetch user: %w", err)
+				return fmt.Errorf("fetch user: %w", err)
 			}
 
 			// Display the user
 			table, err := cliui.DisplayTable([]codersdk.User{user}, "", columns)
 			if err != nil {
-				return xerrors.Errorf("render user table: %w", err)
+				return fmt.Errorf("render user table: %w", err)
 			}
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), table)
 
@@ -83,7 +82,7 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *cobra.Command {
 
 			_, err = client.UpdateUserStatus(cmd.Context(), user.ID.String(), sdkStatus)
 			if err != nil {
-				return xerrors.Errorf("%s user: %w", verb, err)
+				return fmt.Errorf("%s user: %w", verb, err)
 			}
 
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nUser %s has been %s!\n", cliui.Styles.Keyword.Render(user.Username), pastVerb)

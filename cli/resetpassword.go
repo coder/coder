@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
@@ -28,17 +27,17 @@ func resetPassword() *cobra.Command {
 
 			sqlDB, err := sql.Open("postgres", postgresURL)
 			if err != nil {
-				return xerrors.Errorf("dial postgres: %w", err)
+				return fmt.Errorf("dial postgres: %w", err)
 			}
 			defer sqlDB.Close()
 			err = sqlDB.Ping()
 			if err != nil {
-				return xerrors.Errorf("ping postgres: %w", err)
+				return fmt.Errorf("ping postgres: %w", err)
 			}
 
 			err = migrations.EnsureClean(sqlDB)
 			if err != nil {
-				return xerrors.Errorf("database needs migration: %w", err)
+				return fmt.Errorf("database needs migration: %w", err)
 			}
 			db := database.New(sqlDB)
 
@@ -46,7 +45,7 @@ func resetPassword() *cobra.Command {
 				Username: username,
 			})
 			if err != nil {
-				return xerrors.Errorf("retrieving user: %w", err)
+				return fmt.Errorf("retrieving user: %w", err)
 			}
 
 			password, err := cliui.Prompt(cmd, cliui.PromptOptions{
@@ -55,7 +54,7 @@ func resetPassword() *cobra.Command {
 				Validate: cliui.ValidateNotEmpty,
 			})
 			if err != nil {
-				return xerrors.Errorf("password prompt: %w", err)
+				return fmt.Errorf("password prompt: %w", err)
 			}
 			confirmedPassword, err := cliui.Prompt(cmd, cliui.PromptOptions{
 				Text:     "Confirm " + cliui.Styles.Field.Render("password") + ":",
@@ -63,15 +62,15 @@ func resetPassword() *cobra.Command {
 				Validate: cliui.ValidateNotEmpty,
 			})
 			if err != nil {
-				return xerrors.Errorf("confirm password prompt: %w", err)
+				return fmt.Errorf("confirm password prompt: %w", err)
 			}
 			if password != confirmedPassword {
-				return xerrors.New("Passwords do not match")
+				return fmt.Errorf("Passwords do not match")
 			}
 
 			hashedPassword, err := userpassword.Hash(password)
 			if err != nil {
-				return xerrors.Errorf("hash password: %w", err)
+				return fmt.Errorf("hash password: %w", err)
 			}
 
 			err = db.UpdateUserHashedPassword(cmd.Context(), database.UpdateUserHashedPasswordParams{
@@ -79,7 +78,7 @@ func resetPassword() *cobra.Command {
 				HashedPassword: []byte(hashedPassword),
 			})
 			if err != nil {
-				return xerrors.Errorf("updating password: %w", err)
+				return fmt.Errorf("updating password: %w", err)
 			}
 
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nPassword has been reset for user %s!\n", cliui.Styles.Keyword.Render(user.Username))

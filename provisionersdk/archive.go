@@ -3,6 +3,7 @@ package provisionersdk
 import (
 	"archive/tar"
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -50,7 +51,7 @@ func Tar(directory string, limit int64) ([]byte, error) {
 
 		// Show absolute path to aid in debugging. E.g. showing "." is
 		// useless.
-		return nil, xerrors.Errorf(
+		return nil, fmt.Errorf(
 			"%s is not a valid template since it has no %s files",
 			absPath, tfExt,
 		)
@@ -106,7 +107,7 @@ func Tar(directory string, limit int64) ([]byte, error) {
 		}
 		totalSize += wrote
 		if limit != 0 && totalSize >= limit {
-			return xerrors.Errorf("Archive too big. Must be <= %d bytes", limit)
+			return fmt.Errorf("Archive too big. Must be <= %d bytes", limit)
 		}
 		return data.Close()
 	})

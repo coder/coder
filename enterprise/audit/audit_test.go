@@ -2,10 +2,10 @@ package audit_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/enterprise/audit"
@@ -61,13 +61,13 @@ func TestAuditor(t *testing.T) {
 		},
 		{
 			name:            "FilterError",
-			filterError:     xerrors.New("filter errored"),
+			filterError:     fmt.Errorf("filter errored"),
 			backendDecision: audit.FilterDecisionExport,
 			shouldExport:    false,
 		},
 		{
 			name:         "BackendError",
-			backendError: xerrors.New("backend errored"),
+			backendError: fmt.Errorf("backend errored"),
 			shouldExport: false,
 		},
 		// When more filters are written they should have their own tests.

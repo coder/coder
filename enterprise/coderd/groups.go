@@ -180,7 +180,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		var err error
 		group, err = tx.GetGroupByID(ctx, group.ID)
 		if err != nil {
-			return xerrors.Errorf("get group by ID: %w", err)
+			return fmt.Errorf("get group by ID: %w", err)
 		}
 
 		updateGroupParams := database.UpdateGroupByIDParams{
@@ -203,7 +203,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 
 		group, err = tx.UpdateGroupByID(ctx, updateGroupParams)
 		if err != nil {
-			return xerrors.Errorf("update group by ID: %w", err)
+			return fmt.Errorf("update group by ID: %w", err)
 		}
 
 		for _, id := range req.AddUsers {
@@ -212,13 +212,13 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 				UserID:  uuid.MustParse(id),
 			})
 			if err != nil {
-				return xerrors.Errorf("insert group member %q: %w", id, err)
+				return fmt.Errorf("insert group member %q: %w", id, err)
 			}
 		}
 		for _, id := range req.RemoveUsers {
 			err := tx.DeleteGroupMember(ctx, uuid.MustParse(id))
 			if err != nil {
-				return xerrors.Errorf("insert group member %q: %w", id, err)
+				return fmt.Errorf("insert group member %q: %w", id, err)
 			}
 		}
 		return nil

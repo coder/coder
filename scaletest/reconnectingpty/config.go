@@ -1,10 +1,10 @@
 package reconnectingpty
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
@@ -42,10 +42,10 @@ type Config struct {
 
 func (c Config) Validate() error {
 	if c.AgentID == uuid.Nil {
-		return xerrors.New("agent_id must be set")
+		return fmt.Errorf("agent_id must be set")
 	}
 	if c.Timeout < 0 {
-		return xerrors.New("timeout must be a positive value")
+		return fmt.Errorf("timeout must be a positive value")
 	}
 
 	return nil

@@ -16,7 +16,6 @@ import (
 
 	"github.com/hashicorp/go-version"
 	tfjson "github.com/hashicorp/terraform-json"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/provisionersdk/proto"
@@ -59,7 +58,7 @@ func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []str
 	}
 
 	if isCanarySet(env) {
-		return xerrors.New("environment variables not sanitized, this is a bug within Coder")
+		return fmt.Errorf("environment variables not sanitized, this is a bug within Coder")
 	}
 
 	// #nosec
@@ -110,14 +109,14 @@ func (e *executor) execParseJSON(ctx, killCtx context.Context, args, env []strin
 	err = cmd.Wait()
 	if err != nil {
 		errString, _ := io.ReadAll(stdErr)
-		return xerrors.Errorf("%s: %w", errString, err)
+		return fmt.Errorf("%s: %w", errString, err)
 	}
 
 	dec := json.NewDecoder(out)
 	dec.UseNumber()
 	err = dec.Decode(v)
 	if err != nil {
-		return xerrors.Errorf("decode terraform json: %w", err)
+		return fmt.Errorf("decode terraform json: %w", err)
 	}
 	return nil
 }
@@ -128,7 +127,7 @@ func (e *executor) checkMinVersion(ctx context.Context) error {
 		return err
 	}
 	if !v.GreaterThanOrEqual(minTerraformVersion) {
-		return xerrors.Errorf(
+		return fmt.Errorf(
 			"terraform version %q is too old. required >= %q",
 			v.String(),
 			minTerraformVersion.String())
@@ -221,7 +220,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 
 	err := e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
 	if err != nil {
-		return nil, xerrors.Errorf("terraform plan: %w", err)
+		return nil, fmt.Errorf("terraform plan: %w", err)
 	}
 	resources, parameters, err := e.planResources(ctx, killCtx, planfilePath)
 	if err != nil {
@@ -246,12 +245,12 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 func (e *executor) planResources(ctx, killCtx context.Context, planfilePath string) ([]*proto.Resource, []*proto.RichParameter, error) {
 	plan, err := e.showPlan(ctx, killCtx, planfilePath)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("show terraform plan file: %w", err)
+		return nil, nil, fmt.Errorf("show terraform plan file: %w", err)
 	}
 
 	rawGraph, err := e.graph(ctx, killCtx)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("graph: %w", err)
+		return nil, nil, fmt.Errorf("graph: %w", err)
 	}
 	modules := []*tfjson.StateModule{}
 	if plan.PriorState != nil {
@@ -289,7 +288,7 @@ func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
 
 	err = cmd.Wait()
 	if err != nil {
-		return "", xerrors.Errorf("graph: %w", err)
+		return "", fmt.Errorf("graph: %w", err)
 	}
 	return out.String(), nil
 }
@@ -302,11 +301,11 @@ func (e *executor) apply(
 
 	planFile, err := os.CreateTemp("", "coder-terrafrom-plan")
 	if err != nil {
-		return nil, xerrors.Errorf("create plan file: %w", err)
+		return nil, fmt.Errorf("create plan file: %w", err)
 	}
 	_, err = planFile.Write(plan)
 	if err != nil {
-		return nil, xerrors.Errorf("write plan file: %w", err)
+		return nil, fmt.Errorf("write plan file: %w", err)
 	}
 	defer os.Remove(planFile.Name())
 
@@ -330,7 +329,7 @@ func (e *executor) apply(
 
 	err = e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
 	if err != nil {
-		return nil, xerrors.Errorf("terraform apply: %w", err)
+		return nil, fmt.Errorf("terraform apply: %w", err)
 	}
 	resources, parameters, err := e.stateResources(ctx, killCtx)
 	if err != nil {
@@ -339,7 +338,7 @@ func (e *executor) apply(
 	statefilePath := filepath.Join(e.workdir, "terraform.tfstate")
 	stateContent, err := os.ReadFile(statefilePath)
 	if err != nil {
-		return nil, xerrors.Errorf("read statefile %q: %w", statefilePath, err)
+		return nil, fmt.Errorf("read statefile %q: %w", statefilePath, err)
 	}
 	return &proto.Provision_Response{
 		Type: &proto.Provision_Response_Complete{
@@ -360,7 +359,7 @@ func (e *executor) stateResources(ctx, killCtx context.Context) ([]*proto.Resour
 	}
 	rawGraph, err := e.graph(ctx, killCtx)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("get terraform graph: %w", err)
+		return nil, nil, fmt.Errorf("get terraform graph: %w", err)
 	}
 	var resources []*proto.Resource
 	var parameters []*proto.RichParameter
@@ -381,7 +380,7 @@ func (e *executor) state(ctx, killCtx context.Context) (*tfjson.State, error) {
 	state := &tfjson.State{}
 	err := e.execParseJSON(ctx, killCtx, args, e.basicEnv(), state)
 	if err != nil {
-		return nil, xerrors.Errorf("terraform show state: %w", err)
+		return nil, fmt.Errorf("terraform show state: %w", err)
 	}
 	return state, nil
 }

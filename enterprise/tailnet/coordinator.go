@@ -14,7 +14,6 @@ import (
 
 	"github.com/google/uuid"
 	lru "github.com/hashicorp/golang-lru/v2"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
@@ -44,7 +43,7 @@ func NewCoordinator(logger slog.Logger, pubsub database.Pubsub) (agpl.Coordinato
 	}
 
 	if err := coord.runPubsub(ctx); err != nil {
-		return nil, xerrors.Errorf("run coordinator pubsub: %w", err)
+		return nil, fmt.Errorf("run coordinator pubsub: %w", err)
 	}
 
 	return coord, nil
@@ -90,16 +89,16 @@ func (c *haCoordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID
 	if ok {
 		data, err := json.Marshal([]*agpl.Node{node})
 		if err != nil {
-			return xerrors.Errorf("marshal node: %w", err)
+			return fmt.Errorf("marshal node: %w", err)
 		}
 		_, err = conn.Write(data)
 		if err != nil {
-			return xerrors.Errorf("write nodes: %w", err)
+			return fmt.Errorf("write nodes: %w", err)
 		}
 	} else {
 		err := c.publishClientHello(agent)
 		if err != nil {
-			return xerrors.Errorf("publish client hello: %w", err)
+			return fmt.Errorf("publish client hello: %w", err)
 		}
 	}
 
@@ -144,7 +143,7 @@ func (c *haCoordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID
 			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) {
 				return nil
 			}
-			return xerrors.Errorf("handle next client message: %w", err)
+			return fmt.Errorf("handle next client message: %w", err)
 		}
 	}
 }
@@ -153,7 +152,7 @@ func (c *haCoordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *js
 	var node agpl.Node
 	err := decoder.Decode(&node)
 	if err != nil {
-		return xerrors.Errorf("read json: %w", err)
+		return fmt.Errorf("read json: %w", err)
 	}
 
 	c.mutex.Lock()
@@ -169,7 +168,7 @@ func (c *haCoordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *js
 		// owns the agent.
 		err := c.publishNodesToAgent(agent, []*agpl.Node{&node})
 		if err != nil {
-			return xerrors.Errorf("publish node to agent")
+			return fmt.Errorf("publish node to agent")
 		}
 		return nil
 	}
@@ -178,7 +177,7 @@ func (c *haCoordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *js
 	// connected agent.
 	data, err := json.Marshal([]*agpl.Node{&node})
 	if err != nil {
-		return xerrors.Errorf("marshal nodes: %w", err)
+		return fmt.Errorf("marshal nodes: %w", err)
 	}
 
 	_, err = agentSocket.Write(data)
@@ -186,7 +185,7 @@ func (c *haCoordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *js
 		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) {
 			return nil
 		}
-		return xerrors.Errorf("write json: %w", err)
+		return fmt.Errorf("write json: %w", err)
 	}
 
 	return nil
@@ -200,7 +199,7 @@ func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) err
 	// Tell clients on other instances to send a callmemaybe to us.
 	err := c.publishAgentHello(id)
 	if err != nil {
-		return xerrors.Errorf("publish agent hello: %w", err)
+		return fmt.Errorf("publish agent hello: %w", err)
 	}
 
 	// Publish all nodes on this instance that want to connect to this agent.
@@ -208,11 +207,11 @@ func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) err
 	if len(nodes) > 0 {
 		data, err := json.Marshal(nodes)
 		if err != nil {
-			return xerrors.Errorf("marshal json: %w", err)
+			return fmt.Errorf("marshal json: %w", err)
 		}
 		_, err = conn.Write(data)
 		if err != nil {
-			return xerrors.Errorf("write nodes: %w", err)
+			return fmt.Errorf("write nodes: %w", err)
 		}
 	}
 
@@ -260,12 +259,12 @@ func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) err
 			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) || errors.Is(err, context.Canceled) {
 				return nil
 			}
-			return xerrors.Errorf("handle next agent message: %w", err)
+			return fmt.Errorf("handle next agent message: %w", err)
 		}
 
 		err = c.publishAgentToNodes(id, node)
 		if err != nil {
-			return xerrors.Errorf("publish agent to nodes: %w", err)
+			return fmt.Errorf("publish agent to nodes: %w", err)
 		}
 	}
 }
@@ -304,7 +303,7 @@ func (c *haCoordinator) handleAgentUpdate(id uuid.UUID, decoder *json.Decoder) (
 	var node agpl.Node
 	err := decoder.Decode(&node)
 	if err != nil {
-		return nil, xerrors.Errorf("read json: %w", err)
+		return nil, fmt.Errorf("read json: %w", err)
 	}
 
 	c.mutex.Lock()
@@ -325,7 +324,7 @@ func (c *haCoordinator) handleAgentUpdate(id uuid.UUID, decoder *json.Decoder) (
 	data, err := json.Marshal([]*agpl.Node{&node})
 	if err != nil {
 		c.mutex.Unlock()
-		return nil, xerrors.Errorf("marshal nodes: %w", err)
+		return nil, fmt.Errorf("marshal nodes: %w", err)
 	}
 
 	// Publish the new node to every listening socket.
@@ -386,12 +385,12 @@ func (c *haCoordinator) Close() error {
 func (c *haCoordinator) publishNodesToAgent(recipient uuid.UUID, nodes []*agpl.Node) error {
 	msg, err := c.formatCallMeMaybe(recipient, nodes)
 	if err != nil {
-		return xerrors.Errorf("format publish message: %w", err)
+		return fmt.Errorf("format publish message: %w", err)
 	}
 
 	err = c.pubsub.Publish("wireguard_peers", msg)
 	if err != nil {
-		return xerrors.Errorf("publish message: %w", err)
+		return fmt.Errorf("publish message: %w", err)
 	}
 
 	return nil
@@ -400,12 +399,12 @@ func (c *haCoordinator) publishNodesToAgent(recipient uuid.UUID, nodes []*agpl.N
 func (c *haCoordinator) publishAgentHello(id uuid.UUID) error {
 	msg, err := c.formatAgentHello(id)
 	if err != nil {
-		return xerrors.Errorf("format publish message: %w", err)
+		return fmt.Errorf("format publish message: %w", err)
 	}
 
 	err = c.pubsub.Publish("wireguard_peers", msg)
 	if err != nil {
-		return xerrors.Errorf("publish message: %w", err)
+		return fmt.Errorf("publish message: %w", err)
 	}
 
 	return nil
@@ -414,11 +413,11 @@ func (c *haCoordinator) publishAgentHello(id uuid.UUID) error {
 func (c *haCoordinator) publishClientHello(id uuid.UUID) error {
 	msg, err := c.formatClientHello(id)
 	if err != nil {
-		return xerrors.Errorf("format client hello: %w", err)
+		return fmt.Errorf("format client hello: %w", err)
 	}
 	err = c.pubsub.Publish("wireguard_peers", msg)
 	if err != nil {
-		return xerrors.Errorf("publish client hello: %w", err)
+		return fmt.Errorf("publish client hello: %w", err)
 	}
 	return nil
 }
@@ -426,12 +425,12 @@ func (c *haCoordinator) publishClientHello(id uuid.UUID) error {
 func (c *haCoordinator) publishAgentToNodes(id uuid.UUID, node *agpl.Node) error {
 	msg, err := c.formatAgentUpdate(id, node)
 	if err != nil {
-		return xerrors.Errorf("format publish message: %w", err)
+		return fmt.Errorf("format publish message: %w", err)
 	}
 
 	err = c.pubsub.Publish("wireguard_peers", msg)
 	if err != nil {
-		return xerrors.Errorf("publish message: %w", err)
+		return fmt.Errorf("publish message: %w", err)
 	}
 
 	return nil
@@ -447,7 +446,7 @@ func (c *haCoordinator) runPubsub(ctx context.Context) error {
 		}
 	})
 	if err != nil {
-		return xerrors.Errorf("subscribe wireguard peers")
+		return fmt.Errorf("subscribe wireguard peers")
 	}
 	go func() {
 		for {
@@ -573,7 +572,7 @@ func (c *haCoordinator) formatCallMeMaybe(recipient uuid.UUID, nodes []*agpl.Nod
 	buf.WriteString(recipient.String() + "|")
 	err := json.NewEncoder(&buf).Encode(nodes)
 	if err != nil {
-		return nil, xerrors.Errorf("encode node: %w", err)
+		return nil, fmt.Errorf("encode node: %w", err)
 	}
 
 	return buf.Bytes(), nil
@@ -610,7 +609,7 @@ func (c *haCoordinator) formatAgentUpdate(id uuid.UUID, node *agpl.Node) ([]byte
 	buf.WriteString(id.String() + "|")
 	err := json.NewEncoder(&buf).Encode(node)
 	if err != nil {
-		return nil, xerrors.Errorf("encode node: %w", err)
+		return nil, fmt.Errorf("encode node: %w", err)
 	}
 
 	return buf.Bytes(), nil

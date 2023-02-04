@@ -1,11 +1,11 @@
 package parameter
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
-	"golang.org/x/xerrors"
 )
 
 // Contains parses possible values for a conditional.
@@ -15,7 +15,7 @@ func Contains(condition string) ([]string, bool, error) {
 	}
 	expression, diags := hclsyntax.ParseExpression([]byte(condition), "", hcl.InitialPos)
 	if len(diags) > 0 {
-		return nil, false, xerrors.Errorf("parse condition: %s", diags.Error())
+		return nil, false, fmt.Errorf("parse condition: %s", diags.Error())
 	}
 	functionCallExpression, valid := expression.(*hclsyntax.FunctionCallExpr)
 	if !valid {
@@ -29,7 +29,7 @@ func Contains(condition string) ([]string, bool, error) {
 	}
 	value, diags := functionCallExpression.Args[0].Value(&hcl.EvalContext{})
 	if len(diags) > 0 {
-		return nil, false, xerrors.Errorf("parse value: %s", diags.Error())
+		return nil, false, fmt.Errorf("parse value: %s", diags.Error())
 	}
 	possible := make([]string, 0)
 	for _, subValue := range value.AsValueSlice() {

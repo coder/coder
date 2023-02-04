@@ -3,11 +3,11 @@ package derpmesh
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net"
 	"net/url"
 	"sync"
 
-	"golang.org/x/xerrors"
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
 	"tailscale.com/types/key"
@@ -102,7 +102,7 @@ func (m *Mesh) addAddress(address string, connect bool) (bool, error) {
 	}
 	client, err := derphttp.NewClient(m.server.PrivateKey(), address, tailnet.Logger(m.logger.Named("client")))
 	if err != nil {
-		return false, xerrors.Errorf("create derp client: %w", err)
+		return false, fmt.Errorf("create derp client: %w", err)
 	}
 	client.TLSConfig = m.tlsConfig
 	client.MeshKey = m.server.MeshKey()

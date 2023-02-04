@@ -6,15 +6,13 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/util/tz"
 )
 
-var errInvalidScheduleFormat = xerrors.New("Schedule must be in the format Mon-Fri 09:00AM America/Chicago")
-var errInvalidTimeFormat = xerrors.New("Start time must be in the format hh:mm[am|pm] or HH:MM")
-var errUnsupportedTimezone = xerrors.New("The location you provided looks like a timezone. Check https://ipinfo.io for your location.")
+var errInvalidScheduleFormat = fmt.Errorf("Schedule must be in the format Mon-Fri 09:00AM America/Chicago")
+var errInvalidTimeFormat = fmt.Errorf("Start time must be in the format hh:mm[am|pm] or HH:MM")
+var errUnsupportedTimezone = fmt.Errorf("The location you provided looks like a timezone. Check https://ipinfo.io for your location.")
 
 // durationDisplay formats a duration for easier display:
 //   - Durations of 24 hours or greater are displays as Xd
@@ -96,7 +94,7 @@ func parseCLISchedule(parts ...string) (*schedule.Schedule, error) {
 			if err == nil {
 				return nil, errUnsupportedTimezone
 			}
-			return nil, xerrors.Errorf("Invalid timezone %q specified: a valid IANA timezone is required", parts[2])
+			return nil, fmt.Errorf("Invalid timezone %q specified: a valid IANA timezone is required", parts[2])
 		}
 	case 2:
 		// Did they provide day-of-week or location?
@@ -128,7 +126,7 @@ func parseCLISchedule(parts ...string) (*schedule.Schedule, error) {
 	))
 	if err != nil {
 		// This will either be an invalid dayOfWeek or an invalid timezone.
-		return nil, xerrors.Errorf("Invalid schedule: %w", err)
+		return nil, fmt.Errorf("Invalid schedule: %w", err)
 	}
 
 	return sched, nil

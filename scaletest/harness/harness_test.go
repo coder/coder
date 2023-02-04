@@ -2,12 +2,12 @@ package harness_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/scaletest/harness"
 )
@@ -38,7 +38,7 @@ func Test_TestHarness(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		expectedErr := xerrors.New("expected error")
+		expectedErr := fmt.Errorf("expected error")
 
 		h := harness.NewTestHarness(harness.LinearExecutionStrategy{}, harness.LinearExecutionStrategy{})
 		r1 := h.AddRun("test", "1", fakeTestFns(nil, nil))
@@ -63,7 +63,7 @@ func Test_TestHarness(t *testing.T) {
 	t.Run("CatchesExecutionError", func(t *testing.T) {
 		t.Parallel()
 
-		expectedErr := xerrors.New("expected error")
+		expectedErr := fmt.Errorf("expected error")
 
 		h := harness.NewTestHarness(erroringExecutionStrategy{err: expectedErr}, harness.LinearExecutionStrategy{})
 		_ = h.AddRun("test", "1", fakeTestFns(nil, nil))
@@ -91,7 +91,7 @@ func Test_TestHarness(t *testing.T) {
 		t.Run("Error", func(t *testing.T) {
 			t.Parallel()
 
-			expectedErr := xerrors.New("expected error")
+			expectedErr := fmt.Errorf("expected error")
 
 			h := harness.NewTestHarness(harness.LinearExecutionStrategy{}, harness.LinearExecutionStrategy{})
 			_ = h.AddRun("test", "1", fakeTestFns(nil, expectedErr))
@@ -129,7 +129,7 @@ func Test_TestHarness(t *testing.T) {
 		t.Run("CatchesExecutionError", func(t *testing.T) {
 			t.Parallel()
 
-			expectedErr := xerrors.New("expected error")
+			expectedErr := fmt.Errorf("expected error")
 
 			h := harness.NewTestHarness(harness.LinearExecutionStrategy{}, erroringExecutionStrategy{err: expectedErr})
 			_ = h.AddRun("test", "1", fakeTestFns(nil, nil))

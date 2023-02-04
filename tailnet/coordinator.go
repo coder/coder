@@ -16,7 +16,7 @@ import (
 	"github.com/google/uuid"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/exp/slices"
-	"golang.org/x/xerrors"
+
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 )
@@ -83,12 +83,12 @@ func ServeCoordinator(conn net.Conn, updateNodes func(node []*Node) error) (func
 			var nodes []*Node
 			err := decoder.Decode(&nodes)
 			if err != nil {
-				sendErr(xerrors.Errorf("read: %w", err))
+				sendErr(fmt.Errorf("read: %w", err))
 				return
 			}
 			err = updateNodes(nodes)
 			if err != nil {
-				sendErr(xerrors.Errorf("update nodes: %w", err))
+				sendErr(fmt.Errorf("update nodes: %w", err))
 			}
 		}
 	}()
@@ -96,12 +96,12 @@ func ServeCoordinator(conn net.Conn, updateNodes func(node []*Node) error) (func
 	return func(node *Node) {
 		data, err := json.Marshal(node)
 		if err != nil {
-			sendErr(xerrors.Errorf("marshal node: %w", err))
+			sendErr(fmt.Errorf("marshal node: %w", err))
 			return
 		}
 		_, err = conn.Write(data)
 		if err != nil {
-			sendErr(xerrors.Errorf("write: %w", err))
+			sendErr(fmt.Errorf("write: %w", err))
 		}
 	}, errChan
 }
@@ -192,7 +192,7 @@ func (c *coordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) 
 	c.mutex.Lock()
 	if c.closed {
 		c.mutex.Unlock()
-		return xerrors.New("coordinator is closed")
+		return fmt.Errorf("coordinator is closed")
 	}
 
 	// When a new connection is requested, we update it with the latest
@@ -202,11 +202,11 @@ func (c *coordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) 
 	if ok {
 		data, err := json.Marshal([]*Node{node})
 		if err != nil {
-			return xerrors.Errorf("marshal node: %w", err)
+			return fmt.Errorf("marshal node: %w", err)
 		}
 		_, err = conn.Write(data)
 		if err != nil {
-			return xerrors.Errorf("write nodes: %w", err)
+			return fmt.Errorf("write nodes: %w", err)
 		}
 	}
 	c.mutex.Lock()
@@ -248,7 +248,7 @@ func (c *coordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) 
 			if errors.Is(err, io.EOF) {
 				return nil
 			}
-			return xerrors.Errorf("handle next client message: %w", err)
+			return fmt.Errorf("handle next client message: %w", err)
 		}
 	}
 }
@@ -257,7 +257,7 @@ func (c *coordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *json
 	var node Node
 	err := decoder.Decode(&node)
 	if err != nil {
-		return xerrors.Errorf("read json: %w", err)
+		return fmt.Errorf("read json: %w", err)
 	}
 
 	c.mutex.Lock()
@@ -276,7 +276,7 @@ func (c *coordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *json
 	// Write the new node from this client to the actively connected agent.
 	data, err := json.Marshal([]*Node{&node})
 	if err != nil {
-		return xerrors.Errorf("marshal nodes: %w", err)
+		return fmt.Errorf("marshal nodes: %w", err)
 	}
 
 	_, err = agentSocket.Write(data)
@@ -284,7 +284,7 @@ func (c *coordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *json
 		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) || errors.Is(err, context.Canceled) {
 			return nil
 		}
-		return xerrors.Errorf("write json: %w", err)
+		return fmt.Errorf("write json: %w", err)
 	}
 
 	return nil
@@ -296,7 +296,7 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) error
 	c.mutex.Lock()
 	if c.closed {
 		c.mutex.Unlock()
-		return xerrors.New("coordinator is closed")
+		return fmt.Errorf("coordinator is closed")
 	}
 
 	c.agentNameCache.Add(id, name)
@@ -316,11 +316,11 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) error
 		c.mutex.Unlock()
 		data, err := json.Marshal(nodes)
 		if err != nil {
-			return xerrors.Errorf("marshal json: %w", err)
+			return fmt.Errorf("marshal json: %w", err)
 		}
 		_, err = conn.Write(data)
 		if err != nil {
-			return xerrors.Errorf("write nodes: %w", err)
+			return fmt.Errorf("write nodes: %w", err)
 		}
 		c.mutex.Lock()
 	}
@@ -370,7 +370,7 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) error
 			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) || errors.Is(err, context.Canceled) {
 				return nil
 			}
-			return xerrors.Errorf("handle next agent message: %w", err)
+			return fmt.Errorf("handle next agent message: %w", err)
 		}
 	}
 }
@@ -379,7 +379,7 @@ func (c *coordinator) handleNextAgentMessage(id uuid.UUID, decoder *json.Decoder
 	var node Node
 	err := decoder.Decode(&node)
 	if err != nil {
-		return xerrors.Errorf("read json: %w", err)
+		return fmt.Errorf("read json: %w", err)
 	}
 
 	c.mutex.Lock()
@@ -392,7 +392,7 @@ func (c *coordinator) handleNextAgentMessage(id uuid.UUID, decoder *json.Decoder
 	data, err := json.Marshal([]*Node{&node})
 	if err != nil {
 		c.mutex.Unlock()
-		return xerrors.Errorf("marshal nodes: %w", err)
+		return fmt.Errorf("marshal nodes: %w", err)
 	}
 
 	// Publish the new node to every listening socket.

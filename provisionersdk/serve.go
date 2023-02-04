@@ -3,13 +3,13 @@ package provisionersdk
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"os"
 
 	"github.com/hashicorp/yamux"
 	"github.com/valyala/fasthttp/fasthttputil"
-	"golang.org/x/xerrors"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 
@@ -36,7 +36,7 @@ func Serve(ctx context.Context, server proto.DRPCProvisionerServer, options *Ser
 			Writer:     os.Stdout,
 		}, config)
 		if err != nil {
-			return xerrors.Errorf("create yamux: %w", err)
+			return fmt.Errorf("create yamux: %w", err)
 		}
 		go func() {
 			<-ctx.Done()
@@ -50,7 +50,7 @@ func Serve(ctx context.Context, server proto.DRPCProvisionerServer, options *Ser
 	mux := drpcmux.New()
 	err := proto.DRPCRegisterProvisioner(mux, server)
 	if err != nil {
-		return xerrors.Errorf("register provisioner: %w", err)
+		return fmt.Errorf("register provisioner: %w", err)
 	}
 	srv := drpcserver.New(mux)
 	// Only serve a single connection on the transport.
@@ -66,7 +66,7 @@ func Serve(ctx context.Context, server proto.DRPCProvisionerServer, options *Ser
 			return nil
 		}
 
-		return xerrors.Errorf("serve transport: %w", err)
+		return fmt.Errorf("serve transport: %w", err)
 	}
 	return nil
 }

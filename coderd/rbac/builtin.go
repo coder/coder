@@ -1,11 +1,10 @@
 package rbac
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
-
-	"golang.org/x/xerrors"
 )
 
 const (
@@ -267,20 +266,20 @@ func CanAssignRole(expandable ExpandableRoles, assignedRole string) bool {
 func RoleByName(name string) (Role, error) {
 	roleName, orgID, err := roleSplit(name)
 	if err != nil {
-		return Role{}, xerrors.Errorf("parse role name: %w", err)
+		return Role{}, fmt.Errorf("parse role name: %w", err)
 	}
 
 	roleFunc, ok := builtInRoles[roleName]
 	if !ok {
 		// No role found
-		return Role{}, xerrors.Errorf("role %q not found", roleName)
+		return Role{}, fmt.Errorf("role %q not found", roleName)
 	}
 
 	// Ensure all org roles are properly scoped a non-empty organization id.
 	// This is just some defensive programming.
 	role := roleFunc(orgID)
 	if len(role.Org) > 0 && orgID == "" {
-		return Role{}, xerrors.Errorf("expect a org id for role %q", roleName)
+		return Role{}, fmt.Errorf("expect a org id for role %q", roleName)
 	}
 
 	return role, nil
@@ -291,7 +290,7 @@ func rolesByNames(roleNames []string) ([]Role, error) {
 	for _, n := range roleNames {
 		r, err := RoleByName(n)
 		if err != nil {
-			return nil, xerrors.Errorf("get role permissions: %w", err)
+			return nil, fmt.Errorf("get role permissions: %w", err)
 		}
 		roles = append(roles, r)
 	}
@@ -395,11 +394,11 @@ func roleName(name string, orgID string) string {
 func roleSplit(role string) (name string, orgID string, err error) {
 	arr := strings.Split(role, ":")
 	if len(arr) > 2 {
-		return "", "", xerrors.Errorf("too many colons in role name")
+		return "", "", fmt.Errorf("too many colons in role name")
 	}
 
 	if arr[0] == "" {
-		return "", "", xerrors.Errorf("role cannot be the empty string")
+		return "", "", fmt.Errorf("role cannot be the empty string")
 	}
 
 	if len(arr) == 2 {

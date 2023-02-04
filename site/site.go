@@ -58,7 +58,7 @@ func Handler(siteFS fs.FS, binFS http.FileSystem, binHashes map[string]string) h
 	//         CSRF.
 	files, err := htmlFiles(siteFS)
 	if err != nil {
-		panic(xerrors.Errorf("Failed to return handler for static files. Html files failed to load: %w", err))
+		panic(fmt.Errorf("Failed to return handler for static files. Html files failed to load: %w", err))
 	}
 
 	binHashCache := newBinHashCache(binFS, binHashes)
@@ -455,7 +455,7 @@ func ExtractOrReadBinFS(dest string, siteFS fs.FS) (http.FileSystem, map[string]
 		// No destination on fs, embedded fs is the only option.
 		binFS, err := fs.Sub(siteFS, "bin")
 		if err != nil {
-			return nil, nil, xerrors.Errorf("cache path is empty and embedded fs does not have /bin: %w", err)
+			return nil, nil, fmt.Errorf("cache path is empty and embedded fs does not have /bin: %w", err)
 		}
 		return http.FS(binFS), nil, nil
 	}
@@ -464,7 +464,7 @@ func ExtractOrReadBinFS(dest string, siteFS fs.FS) (http.FileSystem, map[string]
 	mkdest := func() (http.FileSystem, error) {
 		err := os.MkdirAll(dest, 0o700)
 		if err != nil {
-			return nil, xerrors.Errorf("mkdir failed: %w", err)
+			return nil, fmt.Errorf("mkdir failed: %w", err)
 		}
 		return http.Dir(dest), nil
 	}
@@ -479,18 +479,18 @@ func ExtractOrReadBinFS(dest string, siteFS fs.FS) (http.FileSystem, map[string]
 					// directory without extracting anything.
 					binFS, err := mkdest()
 					if err != nil {
-						return nil, nil, xerrors.Errorf("mkdest failed: %w", err)
+						return nil, nil, fmt.Errorf("mkdest failed: %w", err)
 					}
 					return binFS, map[string]string{}, nil
 				}
-				return nil, nil, xerrors.Errorf("site fs read dir failed: %w", err)
+				return nil, nil, fmt.Errorf("site fs read dir failed: %w", err)
 			}
 
 			if len(filterFiles(files, "GITKEEP")) > 0 {
 				// If there are other files than bin/GITKEEP, serve the files.
 				binFS, err := fs.Sub(siteFS, "bin")
 				if err != nil {
-					return nil, nil, xerrors.Errorf("site fs sub dir failed: %w", err)
+					return nil, nil, fmt.Errorf("site fs sub dir failed: %w", err)
 				}
 				return http.FS(binFS), nil, nil
 			}
@@ -499,11 +499,11 @@ func ExtractOrReadBinFS(dest string, siteFS fs.FS) (http.FileSystem, map[string]
 			// binaries to be placed there.
 			binFS, err := mkdest()
 			if err != nil {
-				return nil, nil, xerrors.Errorf("mkdest failed: %w", err)
+				return nil, nil, fmt.Errorf("mkdest failed: %w", err)
 			}
 			return binFS, map[string]string{}, nil
 		}
-		return nil, nil, xerrors.Errorf("open coder binary archive failed: %w", err)
+		return nil, nil, fmt.Errorf("open coder binary archive failed: %w", err)
 	}
 	defer archive.Close()
 
@@ -514,20 +514,20 @@ func ExtractOrReadBinFS(dest string, siteFS fs.FS) (http.FileSystem, map[string]
 
 	shaFiles, err := parseSHA1(siteFS)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("parse sha1 file failed: %w", err)
+		return nil, nil, fmt.Errorf("parse sha1 file failed: %w", err)
 	}
 
 	ok, err := verifyBinSha1IsCurrent(dest, siteFS, shaFiles)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("verify coder binaries sha1 failed: %w", err)
+		return nil, nil, fmt.Errorf("verify coder binaries sha1 failed: %w", err)
 	}
 	if !ok {
 		n, err := extractBin(dest, archive)
 		if err != nil {
-			return nil, nil, xerrors.Errorf("extract coder binaries failed: %w", err)
+			return nil, nil, fmt.Errorf("extract coder binaries failed: %w", err)
 		}
 		if n == 0 {
-			return nil, nil, xerrors.New("no files were extracted from coder binaries archive")
+			return nil, nil, fmt.Errorf("no files were extracted from coder binaries archive")
 		}
 	}
 
@@ -546,24 +546,24 @@ func filterFiles(files []fs.DirEntry, names ...string) []fs.DirEntry {
 }
 
 // errHashMismatch is a sentinel error used in verifyBinSha1IsCurrent.
-var errHashMismatch = xerrors.New("hash mismatch")
+var errHashMismatch = fmt.Errorf("hash mismatch")
 
 func parseSHA1(siteFS fs.FS) (map[string]string, error) {
 	b, err := fs.ReadFile(siteFS, "bin/coder.sha1")
 	if err != nil {
-		return nil, xerrors.Errorf("read coder sha1 from embedded fs failed: %w", err)
+		return nil, fmt.Errorf("read coder sha1 from embedded fs failed: %w", err)
 	}
 
 	shaFiles := make(map[string]string)
 	for _, line := range bytes.Split(bytes.TrimSpace(b), []byte{'\n'}) {
 		parts := bytes.Split(line, []byte{' ', '*'})
 		if len(parts) != 2 {
-			return nil, xerrors.Errorf("malformed sha1 file: %w", err)
+			return nil, fmt.Errorf("malformed sha1 file: %w", err)
 		}
 		shaFiles[string(parts[1])] = strings.ToLower(string(parts[0]))
 	}
 	if len(shaFiles) == 0 {
-		return nil, xerrors.Errorf("empty sha1 file: %w", err)
+		return nil, fmt.Errorf("empty sha1 file: %w", err)
 	}
 
 	return shaFiles, nil
@@ -572,14 +572,14 @@ func parseSHA1(siteFS fs.FS) (map[string]string, error) {
 func verifyBinSha1IsCurrent(dest string, siteFS fs.FS, shaFiles map[string]string) (ok bool, err error) {
 	b1, err := fs.ReadFile(siteFS, "bin/coder.sha1")
 	if err != nil {
-		return false, xerrors.Errorf("read coder sha1 from embedded fs failed: %w", err)
+		return false, fmt.Errorf("read coder sha1 from embedded fs failed: %w", err)
 	}
 	b2, err := os.ReadFile(filepath.Join(dest, "coder.sha1"))
 	if err != nil {
 		if xerrors.Is(err, fs.ErrNotExist) {
 			return false, nil
 		}
-		return false, xerrors.Errorf("read coder sha1 failed: %w", err)
+		return false, fmt.Errorf("read coder sha1 failed: %w", err)
 	}
 
 	// Check shasum files for equality for early-exit.
@@ -604,7 +604,7 @@ func verifyBinSha1IsCurrent(dest string, siteFS fs.FS, shaFiles map[string]strin
 				if xerrors.Is(err, fs.ErrNotExist) {
 					return errHashMismatch
 				}
-				return xerrors.Errorf("hash file failed: %w", err)
+				return fmt.Errorf("hash file failed: %w", err)
 			}
 			if !strings.EqualFold(hash1, hash2) {
 				return errHashMismatch
@@ -659,7 +659,7 @@ func extractBin(dest string, r io.Reader) (numExtracted int, err error) {
 	}
 	zr, err := zstd.NewReader(r, opts...)
 	if err != nil {
-		return 0, xerrors.Errorf("open zstd archive failed: %w", err)
+		return 0, fmt.Errorf("open zstd archive failed: %w", err)
 	}
 	defer zr.Close()
 
@@ -671,7 +671,7 @@ func extractBin(dest string, r io.Reader) (numExtracted int, err error) {
 			if errors.Is(err, io.EOF) {
 				return n, nil
 			}
-			return n, xerrors.Errorf("read tar archive failed: %w", err)
+			return n, fmt.Errorf("read tar archive failed: %w", err)
 		}
 		if h.Name == "." || strings.Contains(h.Name, "..") {
 			continue
@@ -680,17 +680,17 @@ func extractBin(dest string, r io.Reader) (numExtracted int, err error) {
 		name := filepath.Join(dest, filepath.Base(h.Name))
 		f, err := os.Create(name)
 		if err != nil {
-			return n, xerrors.Errorf("create file failed: %w", err)
+			return n, fmt.Errorf("create file failed: %w", err)
 		}
 		//#nosec // We created this tar, no risk of decompression bomb.
 		_, err = io.Copy(f, tr)
 		if err != nil {
 			_ = f.Close()
-			return n, xerrors.Errorf("write file contents failed: %w", err)
+			return n, fmt.Errorf("write file contents failed: %w", err)
 		}
 		err = f.Close()
 		if err != nil {
-			return n, xerrors.Errorf("close file failed: %w", err)
+			return n, fmt.Errorf("close file failed: %w", err)
 		}
 
 		n++

@@ -2,9 +2,8 @@ package httpapi
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
-
-	"golang.org/x/xerrors"
 )
 
 // Duration wraps time.Duration and provides better JSON marshaling and
@@ -29,7 +28,7 @@ func (d *Duration) UnmarshalJSON(b []byte) error {
 	var v interface{}
 	err := json.Unmarshal(b, &v)
 	if err != nil {
-		return xerrors.Errorf("unmarshal JSON value: %w", err)
+		return fmt.Errorf("unmarshal JSON value: %w", err)
 	}
 
 	switch value := v.(type) {
@@ -39,12 +38,12 @@ func (d *Duration) UnmarshalJSON(b []byte) error {
 	case string:
 		tmp, err := time.ParseDuration(value)
 		if err != nil {
-			return xerrors.Errorf("parse duration %q: %w", value, err)
+			return fmt.Errorf("parse duration %q: %w", value, err)
 		}
 
 		*d = Duration(tmp)
 		return nil
 	}
 
-	return xerrors.New("invalid duration")
+	return fmt.Errorf("invalid duration")
 }

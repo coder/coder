@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -12,7 +13,6 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
-	"golang.org/x/xerrors"
 )
 
 var (
@@ -59,7 +59,7 @@ func main() {
 func readMetrics() ([]dto.MetricFamily, error) {
 	f, err := os.Open(metricsFile)
 	if err != nil {
-		return nil, xerrors.New("can't open metrics file")
+		return nil, fmt.Errorf("can't open metrics file")
 	}
 
 	var metrics []dto.MetricFamily
@@ -93,13 +93,13 @@ func readPrometheusDoc() ([]byte, error) {
 func updatePrometheusDoc(doc []byte, metricFamilies []dto.MetricFamily) ([]byte, error) {
 	i := bytes.Index(doc, generatorPrefix)
 	if i < 0 {
-		return nil, xerrors.New("generator prefix tag not found")
+		return nil, fmt.Errorf("generator prefix tag not found")
 	}
 	tableStartIndex := i + len(generatorPrefix) + 1
 
 	j := bytes.Index(doc[tableStartIndex:], generatorSuffix)
 	if j < 0 {
-		return nil, xerrors.New("generator suffix tag not found")
+		return nil, fmt.Errorf("generator suffix tag not found")
 	}
 	tableEndIndex := tableStartIndex + j
 

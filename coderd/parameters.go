@@ -198,7 +198,7 @@ func convertParameterSchema(parameterSchema database.ParameterSchema) (codersdk.
 		var err error
 		contains, _, err = parameter.Contains(parameterSchema.ValidationCondition)
 		if err != nil {
-			return codersdk.ParameterSchema{}, xerrors.Errorf("parse validation condition for %q: %w", parameterSchema.Name, err)
+			return codersdk.ParameterSchema{}, fmt.Errorf("parse validation condition for %q: %w", parameterSchema.Name, err)
 		}
 	}
 
@@ -265,7 +265,7 @@ func (api *API) parameterRBACResource(rw http.ResponseWriter, r *http.Request, s
 	case database.ParameterScopeTemplate:
 		resource, err = api.Database.GetTemplateByID(ctx, scopeID)
 	default:
-		err = xerrors.Errorf("Parameter scope %q unsupported", scope)
+		err = fmt.Errorf("Parameter scope %q unsupported", scope)
 	}
 
 	// Write error payload to rw if we cannot find the resource for the scope

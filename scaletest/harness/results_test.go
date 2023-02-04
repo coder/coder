@@ -2,11 +2,11 @@ package harness_test
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/scaletest/harness"
@@ -25,7 +25,7 @@ func Test_Results(t *testing.T) {
 				TestName:   "test-0",
 				ID:         "0",
 				Logs:       "test-0/0 log line 1\ntest-0/0 log line 2",
-				Error:      xerrors.New("test-0/0 error"),
+				Error:      fmt.Errorf("test-0/0 error"),
 				StartedAt:  time.Now(),
 				Duration:   httpapi.Duration(time.Second),
 				DurationMS: 1000,

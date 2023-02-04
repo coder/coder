@@ -12,7 +12,6 @@ import (
 	"github.com/bgentry/speakeasy"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 )
 
 // PromptOptions supply a set of options to the prompt.
@@ -104,7 +103,7 @@ func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
 		return "", err
 	case line := <-lineCh:
 		if opts.IsConfirm && line != "yes" && line != "y" {
-			return line, xerrors.Errorf("got %q: %w", line, Canceled)
+			return line, fmt.Errorf("got %q: %w", line, Canceled)
 		}
 		if opts.Validate != nil {
 			err := opts.Validate(line)
@@ -152,7 +151,7 @@ func promptJSON(reader *bufio.Reader, line string) (string, error) {
 		data.Reset()
 		err = json.Compact(&data, rawJSON)
 		if err != nil {
-			return line, xerrors.Errorf("compact json: %w", err)
+			return line, fmt.Errorf("compact json: %w", err)
 		}
 		return data.String(), nil
 	}

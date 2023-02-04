@@ -13,7 +13,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/tabbed/pqtype"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -271,11 +270,11 @@ type createAPIKeyParams struct {
 
 func (api *API) validateAPIKeyLifetime(lifetime time.Duration) error {
 	if lifetime <= 0 {
-		return xerrors.New("lifetime must be positive number greater than 0")
+		return fmt.Errorf("lifetime must be positive number greater than 0")
 	}
 
 	if lifetime > api.DeploymentConfig.MaxTokenLifetime.Value {
-		return xerrors.Errorf("lifetime must be less than %s", api.DeploymentConfig.MaxTokenLifetime.Value)
+		return fmt.Errorf("lifetime must be less than %s", api.DeploymentConfig.MaxTokenLifetime.Value)
 	}
 
 	return nil
@@ -284,7 +283,7 @@ func (api *API) validateAPIKeyLifetime(lifetime time.Duration) error {
 func (api *API) createAPIKey(ctx context.Context, params createAPIKeyParams) (*http.Cookie, error) {
 	keyID, keySecret, err := GenerateAPIKeyIDSecret()
 	if err != nil {
-		return nil, xerrors.Errorf("generate API key: %w", err)
+		return nil, fmt.Errorf("generate API key: %w", err)
 	}
 	hashed := sha256.Sum256([]byte(keySecret))
 
@@ -310,7 +309,7 @@ func (api *API) createAPIKey(ctx context.Context, params createAPIKeyParams) (*h
 	switch scope {
 	case database.APIKeyScopeAll, database.APIKeyScopeApplicationConnect:
 	default:
-		return nil, xerrors.Errorf("invalid API key scope: %q", scope)
+		return nil, fmt.Errorf("invalid API key scope: %q", scope)
 	}
 
 	key, err := api.Database.InsertAPIKey(ctx, database.InsertAPIKeyParams{
@@ -333,7 +332,7 @@ func (api *API) createAPIKey(ctx context.Context, params createAPIKeyParams) (*h
 		Scope:        scope,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("insert API key: %w", err)
+		return nil, fmt.Errorf("insert API key: %w", err)
 	}
 
 	api.Telemetry.Report(&telemetry.Snapshot{

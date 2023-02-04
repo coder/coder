@@ -2,11 +2,10 @@ package coderd
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/google/uuid"
-
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/rbac"
 
@@ -94,26 +93,26 @@ func (api *API) updateOrganizationMemberRoles(ctx context.Context, args database
 		// Must be an org role for the org in the args
 		orgID, ok := rbac.IsOrgRole(r)
 		if !ok {
-			return database.OrganizationMember{}, xerrors.Errorf("must only update organization roles")
+			return database.OrganizationMember{}, fmt.Errorf("must only update organization roles")
 		}
 
 		roleOrg, err := uuid.Parse(orgID)
 		if err != nil {
-			return database.OrganizationMember{}, xerrors.Errorf("Role must have proper UUIDs for organization, %q does not", r)
+			return database.OrganizationMember{}, fmt.Errorf("Role must have proper UUIDs for organization, %q does not", r)
 		}
 
 		if roleOrg != args.OrgID {
-			return database.OrganizationMember{}, xerrors.Errorf("Must only pass roles for org %q", args.OrgID.String())
+			return database.OrganizationMember{}, fmt.Errorf("Must only pass roles for org %q", args.OrgID.String())
 		}
 
 		if _, err := rbac.RoleByName(r); err != nil {
-			return database.OrganizationMember{}, xerrors.Errorf("%q is not a supported role", r)
+			return database.OrganizationMember{}, fmt.Errorf("%q is not a supported role", r)
 		}
 	}
 
 	updatedUser, err := api.Database.UpdateMemberRoles(ctx, args)
 	if err != nil {
-		return database.OrganizationMember{}, xerrors.Errorf("Update site roles: %w", err)
+		return database.OrganizationMember{}, fmt.Errorf("Update site roles: %w", err)
 	}
 	return updatedUser, nil
 }

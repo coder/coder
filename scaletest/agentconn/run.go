@@ -68,20 +68,20 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 		BlockEndpoints: r.cfg.ConnectionMode == ConnectionModeDerp,
 	})
 	if err != nil {
-		return xerrors.Errorf("dial workspace agent: %w", err)
+		return fmt.Errorf("dial workspace agent: %w", err)
 	}
 	defer conn.Close()
 
 	err = waitForDisco(ctx, logs, conn)
 	if err != nil {
-		return xerrors.Errorf("wait for discovery connection: %w", err)
+		return fmt.Errorf("wait for discovery connection: %w", err)
 	}
 
 	// Wait for a direct connection if requested.
 	if r.cfg.ConnectionMode == ConnectionModeDirect {
 		err = waitForDirectConnection(ctx, logs, conn)
 		if err != nil {
-			return xerrors.Errorf("wait for direct connection: %w", err)
+			return fmt.Errorf("wait for direct connection: %w", err)
 		}
 	}
 
@@ -89,11 +89,11 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	if r.cfg.ConnectionMode == ConnectionModeDerp {
 		status := conn.Status()
 		if len(status.Peers()) != 1 {
-			return xerrors.Errorf("check connection mode: expected 1 peer, got %d", len(status.Peers()))
+			return fmt.Errorf("check connection mode: expected 1 peer, got %d", len(status.Peers()))
 		}
 		peer := status.Peer[status.Peers()[0]]
 		if peer.Relay == "" || peer.CurAddr != "" {
-			return xerrors.Errorf("check connection mode: peer is connected directly, not via DERP")
+			return fmt.Errorf("check connection mode: peer is connected directly, not via DERP")
 		}
 	}
 
@@ -104,7 +104,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	// sure why this is the case but it seems to be necessary.
 	err = verifyConnection(ctx, logs, conn)
 	if err != nil {
-		return xerrors.Errorf("verify connection: %w", err)
+		return fmt.Errorf("verify connection: %w", err)
 	}
 
 	_, _ = fmt.Fprint(logs, "\nConnection verified.\n\n")
@@ -113,19 +113,19 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	// reachable before we start spawning a bunch of goroutines and tickers.
 	err = performInitialConnections(ctx, logs, conn, r.cfg.Connections)
 	if err != nil {
-		return xerrors.Errorf("perform initial connections: %w", err)
+		return fmt.Errorf("perform initial connections: %w", err)
 	}
 
 	if r.cfg.HoldDuration > 0 {
 		err = holdConnection(ctx, logs, conn, time.Duration(r.cfg.HoldDuration), r.cfg.Connections)
 		if err != nil {
-			return xerrors.Errorf("hold connection: %w", err)
+			return fmt.Errorf("hold connection: %w", err)
 		}
 	}
 
 	err = conn.Close()
 	if err != nil {
-		return xerrors.Errorf("close connection: %w", err)
+		return fmt.Errorf("close connection: %w", err)
 	}
 
 	return nil
@@ -147,12 +147,12 @@ func waitForDisco(ctx context.Context, logs io.Writer, conn *codersdk.WorkspaceA
 			break
 		}
 		if i == pingAttempts-1 {
-			return xerrors.Errorf("ping workspace agent: %w", err)
+			return fmt.Errorf("ping workspace agent: %w", err)
 		}
 
 		select {
 		case <-ctx.Done():
-			return xerrors.Errorf("wait for connection to be established: %w", ctx.Err())
+			return fmt.Errorf("wait for connection to be established: %w", ctx.Err())
 		// We use time.After here since it's a very short duration so leaking a
 		// timer is fine.
 		case <-time.After(pingDelay):
@@ -176,25 +176,25 @@ func waitForDirectConnection(ctx context.Context, logs io.Writer, conn *codersdk
 		var err error
 		if len(status.Peers()) != 1 {
 			_, _ = fmt.Fprintf(logs, "\t\tExpected 1 peer, found %d", len(status.Peers()))
-			err = xerrors.Errorf("expected 1 peer, got %d", len(status.Peers()))
+			err = fmt.Errorf("expected 1 peer, got %d", len(status.Peers()))
 		} else {
 			peer := status.Peer[status.Peers()[0]]
 			_, _ = fmt.Fprintf(logs, "\t\tCurAddr: %s\n", peer.CurAddr)
 			_, _ = fmt.Fprintf(logs, "\t\tRelay: %s\n", peer.Relay)
 			if peer.Relay != "" && peer.CurAddr == "" {
-				err = xerrors.Errorf("peer is connected via DERP, not direct")
+				err = fmt.Errorf("peer is connected via DERP, not direct")
 			}
 		}
 		if err == nil {
 			break
 		}
 		if i == directConnectionAttempts-1 {
-			return xerrors.Errorf("wait for direct connection to agent: %w", err)
+			return fmt.Errorf("wait for direct connection to agent: %w", err)
 		}
 
 		select {
 		case <-ctx.Done():
-			return xerrors.Errorf("wait for direct connection to agent: %w", ctx.Err())
+			return fmt.Errorf("wait for direct connection to agent: %w", ctx.Err())
 		// We use time.After here since it's a very short duration so
 		// leaking a timer is fine.
 		case <-time.After(directConnectionDelay):
@@ -224,7 +224,7 @@ func verifyConnection(ctx context.Context, logs io.Writer, conn *codersdk.Worksp
 		req, err := http.NewRequestWithContext(verifyCtx, http.MethodGet, u.String(), nil)
 		if err != nil {
 			cancel()
-			return xerrors.Errorf("new verify connection request to %q: %w", u.String(), err)
+			return fmt.Errorf("new verify connection request to %q: %w", u.String(), err)
 		}
 		resp, err := client.Do(req)
 		cancel()
@@ -233,12 +233,12 @@ func verifyConnection(ctx context.Context, logs io.Writer, conn *codersdk.Worksp
 			break
 		}
 		if i == verifyConnectionAttempts-1 {
-			return xerrors.Errorf("verify connection: %w", err)
+			return fmt.Errorf("verify connection: %w", err)
 		}
 
 		select {
 		case <-ctx.Done():
-			return xerrors.Errorf("verify connection: %w", ctx.Err())
+			return fmt.Errorf("verify connection: %w", ctx.Err())
 		case <-time.After(verifyConnectionDelay):
 		}
 	}
@@ -267,14 +267,14 @@ func performInitialConnections(ctx context.Context, logs io.Writer, conn *coders
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, connSpec.URL, nil)
 		if err != nil {
 			cancel()
-			return xerrors.Errorf("create request: %w", err)
+			return fmt.Errorf("create request: %w", err)
 		}
 
 		res, err := client.Do(req)
 		cancel()
 		if err != nil {
 			_, _ = fmt.Fprintf(logs, "\t\tFailed: %+v\n", err)
-			return xerrors.Errorf("make initial connection to conn spec %d %q: %w", i, connSpec.URL, err)
+			return fmt.Errorf("make initial connection to conn spec %d %q: %w", i, connSpec.URL, err)
 		}
 		_ = res.Body.Close()
 
@@ -317,14 +317,14 @@ func holdConnection(ctx context.Context, logs io.Writer, conn *codersdk.Workspac
 					req, err := http.NewRequestWithContext(ctx, http.MethodGet, connSpec.URL, nil)
 					if err != nil {
 						cancel()
-						return xerrors.Errorf("create request: %w", err)
+						return fmt.Errorf("create request: %w", err)
 					}
 
 					res, err := client.Do(req)
 					cancel()
 					if err != nil {
 						_, _ = fmt.Fprintf(logs, "\tERR: %s (%d): %+v\n", connSpec.URL, i, err)
-						return xerrors.Errorf("make connection to conn spec %d %q: %w", i, connSpec.URL, err)
+						return fmt.Errorf("make connection to conn spec %d %q: %w", i, connSpec.URL, err)
 					}
 					res.Body.Close()
 
@@ -355,7 +355,7 @@ func holdConnection(ctx context.Context, logs io.Writer, conn *codersdk.Workspac
 
 	err := eg.Wait()
 	if err != nil && !xerrors.Is(err, holdDurationEndedError{}) {
-		return xerrors.Errorf("run connections loop: %w", err)
+		return fmt.Errorf("run connections loop: %w", err)
 	}
 
 	return nil
@@ -368,12 +368,12 @@ func agentHTTPClient(conn *codersdk.WorkspaceAgentConn) *http.Client {
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				_, port, err := net.SplitHostPort(addr)
 				if err != nil {
-					return nil, xerrors.Errorf("split host port %q: %w", addr, err)
+					return nil, fmt.Errorf("split host port %q: %w", addr, err)
 				}
 
 				portUint, err := strconv.ParseUint(port, 10, 16)
 				if err != nil {
-					return nil, xerrors.Errorf("parse port %q: %w", port, err)
+					return nil, fmt.Errorf("parse port %q: %w", port, err)
 				}
 				return conn.DialContextTCP(ctx, netip.AddrPortFrom(codersdk.WorkspaceAgentIP, uint16(portUint)))
 			},

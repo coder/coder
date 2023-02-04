@@ -16,7 +16,6 @@ import (
 
 	"github.com/fatih/structtag"
 	"golang.org/x/tools/go/packages"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -116,12 +115,12 @@ func GenerateFromDirectory(ctx context.Context, log slog.Logger, directory strin
 	}
 	err := g.parsePackage(ctx, directory)
 	if err != nil {
-		return nil, xerrors.Errorf("parse package %q: %w", directory, err)
+		return nil, fmt.Errorf("parse package %q: %w", directory, err)
 	}
 
 	codeBlocks, err := g.generateAll()
 	if err != nil {
-		return nil, xerrors.Errorf("parse package %q: %w", directory, err)
+		return nil, fmt.Errorf("parse package %q: %w", directory, err)
 	}
 
 	return codeBlocks, nil
@@ -155,13 +154,13 @@ func (g *Generator) parsePackage(ctx context.Context, patterns ...string) error 
 
 	pkgs, err := packages.Load(cfg, patterns...)
 	if err != nil {
-		return xerrors.Errorf("load package: %w", err)
+		return fmt.Errorf("load package: %w", err)
 	}
 
 	// Only support 1 package for now. We can expand it if we need later, we
 	// just need to hook up multiple packages in the generator.
 	if len(pkgs) != 1 {
-		return xerrors.Errorf("expected 1 package, found %d", len(pkgs))
+		return fmt.Errorf("expected 1 package, found %d", len(pkgs))
 	}
 
 	g.pkg = pkgs[0]
@@ -200,7 +199,7 @@ func (g *Generator) generateAll() (*TypescriptTypes, error) {
 		obj := g.pkg.Types.Scope().Lookup(n)
 		err := g.generateOne(m, obj)
 		if err != nil {
-			return nil, xerrors.Errorf("%q: %w", n, err)
+			return nil, fmt.Errorf("%q: %w", n, err)
 		}
 	}
 
@@ -286,7 +285,7 @@ func (g *Generator) generateOne(m *Maps, obj types.Object) error {
 			// Structs are obvious.
 			codeBlock, err := g.buildStruct(obj, underNamed)
 			if err != nil {
-				return xerrors.Errorf("generate %q: %w", obj.Name(), err)
+				return fmt.Errorf("generate %q: %w", obj.Name(), err)
 			}
 			m.Structs[obj.Name()] = codeBlock
 		case *types.Basic:
@@ -301,7 +300,7 @@ func (g *Generator) generateOne(m *Maps, obj types.Object) error {
 			// These are **NOT** enums, as a map in Go would never be used for an enum.
 			ts, err := g.typescriptType(obj.Type().Underlying())
 			if err != nil {
-				return xerrors.Errorf("(map) generate %q: %w", obj.Name(), err)
+				return fmt.Errorf("(map) generate %q: %w", obj.Name(), err)
 			}
 
 			var str strings.Builder
@@ -330,7 +329,7 @@ func (g *Generator) generateOne(m *Maps, obj types.Object) error {
 
 				block, err := g.buildUnion(obj, union)
 				if err != nil {
-					return xerrors.Errorf("generate union %q: %w", obj.Name(), err)
+					return fmt.Errorf("generate union %q: %w", obj.Name(), err)
 				}
 				m.Generics[obj.Name()] = block
 			}
@@ -340,7 +339,7 @@ func (g *Generator) generateOne(m *Maps, obj types.Object) error {
 			// If you hit this error, you added a new unsupported named type.
 			// The easiest way to solve this is add a new case above with
 			// your type and a TODO to implement it.
-			return xerrors.Errorf("unsupported named type %q", underNamed.String())
+			return fmt.Errorf("unsupported named type %q", underNamed.String())
 		}
 	case *types.Var:
 		// TODO: Are any enums var declarations? This is also codersdk.Me.
@@ -375,7 +374,7 @@ func (g *Generator) buildUnion(obj types.Object, st *types.Union) (string, error
 		term := st.Term(i)
 		scriptType, err := g.typescriptType(term.Type())
 		if err != nil {
-			return "", xerrors.Errorf("union %q for %q failed to get type: %w", st.String(), obj.Name(), err)
+			return "", fmt.Errorf("union %q for %q failed to get type: %w", st.String(), obj.Name(), err)
 		}
 		allTypes = append(allTypes, scriptType.ValueType)
 		optional = optional || scriptType.Optional
@@ -417,7 +416,7 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 	})
 	tpl, err := tpl.Parse(structTemplate)
 	if err != nil {
-		return "", xerrors.Errorf("parse struct template: %w", err)
+		return "", fmt.Errorf("parse struct template: %w", err)
 	}
 
 	state.PosLine = g.posLine(obj)
@@ -476,7 +475,7 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 		// Infer the type.
 		tsType, err := g.typescriptType(field.Type())
 		if err != nil {
-			return "", xerrors.Errorf("typescript type: %w", err)
+			return "", fmt.Errorf("typescript type: %w", err)
 		}
 
 		// If a `typescript:"string"` exists, we take this, and ignore what we
@@ -538,12 +537,12 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 	// from our fields does not guarantee the order.
 	named, ok := obj.(*types.TypeName)
 	if !ok {
-		return "", xerrors.Errorf("generic param ordering undefined on %q", obj.Name())
+		return "", fmt.Errorf("generic param ordering undefined on %q", obj.Name())
 	}
 
 	namedType, ok := named.Type().(*types.Named)
 	if !ok {
-		return "", xerrors.Errorf("generic param %q unexpected type %q", obj.Name(), named.Type().String())
+		return "", fmt.Errorf("generic param %q unexpected type %q", obj.Name(), named.Type().String())
 	}
 
 	// Ensure proper generic param ordering
@@ -563,7 +562,7 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 			//	type Foo[A any] struct {
 			//	  Bar string
 			//	}
-			return "", xerrors.Errorf("generic param %q missing on %q, fix your data structure", name, obj.Name())
+			return "", fmt.Errorf("generic param %q missing on %q, fix your data structure", name, obj.Name())
 		}
 
 		state.Generics = append(state.Generics, fmt.Sprintf("%s extends %s", name, constraint))
@@ -572,7 +571,7 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 	data := bytes.NewBuffer(make([]byte, 0))
 	err = tpl.Execute(data, state)
 	if err != nil {
-		return "", xerrors.Errorf("execute struct template: %w", err)
+		return "", fmt.Errorf("execute struct template: %w", err)
 	}
 	return data.String(), nil
 }
@@ -651,11 +650,11 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		m := ty
 		keyType, err := g.typescriptType(m.Key())
 		if err != nil {
-			return TypescriptType{}, xerrors.Errorf("map key: %w", err)
+			return TypescriptType{}, fmt.Errorf("map key: %w", err)
 		}
 		valueType, err := g.typescriptType(m.Elem())
 		if err != nil {
-			return TypescriptType{}, xerrors.Errorf("map key: %w", err)
+			return TypescriptType{}, fmt.Errorf("map key: %w", err)
 		}
 
 		aboveTypeLine := keyType.AboveTypeLine
@@ -686,7 +685,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			// By default, just do an array of the underlying type.
 			underlying, err := g.typescriptType(arr.Elem())
 			if err != nil {
-				return TypescriptType{}, xerrors.Errorf("array: %w", err)
+				return TypescriptType{}, fmt.Errorf("array: %w", err)
 			}
 			return TypescriptType{ValueType: underlying.ValueType + "[]", AboveTypeLine: underlying.AboveTypeLine}, nil
 		}
@@ -727,7 +726,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 				for i := 0; i < args.Len(); i++ {
 					genType, err := g.typescriptType(args.At(i))
 					if err != nil {
-						return TypescriptType{}, xerrors.Errorf("generic field %q<%q>: %w", name, args.At(i).String(), err)
+						return TypescriptType{}, fmt.Errorf("generic field %q<%q>: %w", name, args.At(i).String(), err)
 					}
 
 					if param, ok := args.At(i).(*types.TypeParam); ok {
@@ -763,7 +762,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		// Defer to the underlying type.
 		ts, err := g.typescriptType(ty.Underlying())
 		if err != nil {
-			return TypescriptType{}, xerrors.Errorf("named underlying: %w", err)
+			return TypescriptType{}, fmt.Errorf("named underlying: %w", err)
 		}
 		ts.AboveTypeLine = indentedComment(fmt.Sprintf("This is likely an enum in an external package (%q)", n.String()))
 		return ts, nil
@@ -772,7 +771,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		pt := ty
 		resp, err := g.typescriptType(pt.Elem())
 		if err != nil {
-			return TypescriptType{}, xerrors.Errorf("pointer: %w", err)
+			return TypescriptType{}, fmt.Errorf("pointer: %w", err)
 		}
 		resp.Optional = true
 		return resp, nil
@@ -783,13 +782,13 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{ValueType: "any",
 				AboveTypeLine: indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed")}, nil
 		}
-		return TypescriptType{}, xerrors.New("only empty interface types are supported")
+		return TypescriptType{}, fmt.Errorf("only empty interface types are supported")
 	case *types.TypeParam:
 		_, ok := ty.Underlying().(*types.Interface)
 		if !ok {
 			// If it's not an interface, it is likely a usage of generics that
 			// we have not hit yet. Feel free to add support for it.
-			return TypescriptType{}, xerrors.New("type param must be an interface")
+			return TypescriptType{}, fmt.Errorf("type param must be an interface")
 		}
 
 		generic := ty.Constraint()
@@ -832,7 +831,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 
 	// These are all the other types we need to support.
 	// time.Time, uuid, etc.
-	return TypescriptType{}, xerrors.Errorf("unknown type: %s", ty.String())
+	return TypescriptType{}, fmt.Errorf("unknown type: %s", ty.String())
 }
 
 // isBuiltIn returns the string for a builtin type that we want to support

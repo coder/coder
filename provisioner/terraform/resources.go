@@ -1,12 +1,12 @@
 package terraform
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/awalterschulze/gographviz"
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/mitchellh/mapstructure"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/terraform-provider-coder/provider"
 
@@ -78,11 +78,11 @@ type metadataItem struct {
 func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph string) ([]*proto.Resource, []*proto.RichParameter, error) {
 	parsedGraph, err := gographviz.ParseString(rawGraph)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("parse graph: %w", err)
+		return nil, nil, fmt.Errorf("parse graph: %w", err)
 	}
 	graph, err := gographviz.NewAnalysedGraph(parsedGraph)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("analyze graph: %w", err)
+		return nil, nil, fmt.Errorf("analyze graph: %w", err)
 	}
 
 	resources := make([]*proto.Resource, 0)
@@ -115,11 +115,11 @@ func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph strin
 		var attrs agentAttributes
 		err = mapstructure.Decode(tfResource.AttributeValues, &attrs)
 		if err != nil {
-			return nil, nil, xerrors.Errorf("decode agent attributes: %w", err)
+			return nil, nil, fmt.Errorf("decode agent attributes: %w", err)
 		}
 
 		if _, ok := agentNames[tfResource.Name]; ok {
-			return nil, nil, xerrors.Errorf("duplicate agent name: %s", tfResource.Name)
+			return nil, nil, fmt.Errorf("duplicate agent name: %s", tfResource.Name)
 		}
 		agentNames[tfResource.Name] = struct{}{}
 
@@ -168,7 +168,7 @@ func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph strin
 			break
 		}
 		if agentNode == nil {
-			return nil, nil, xerrors.Errorf("couldn't find node on graph: %q", agentLabel)
+			return nil, nil, fmt.Errorf("couldn't find node on graph: %q", agentLabel)
 		}
 
 		var agentResource *graphResource
@@ -253,7 +253,7 @@ func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph strin
 		var attrs agentAppAttributes
 		err = mapstructure.Decode(resource.AttributeValues, &attrs)
 		if err != nil {
-			return nil, nil, xerrors.Errorf("decode app attributes: %w", err)
+			return nil, nil, fmt.Errorf("decode app attributes: %w", err)
 		}
 
 		// Default to the resource name if none is set!
@@ -270,11 +270,11 @@ func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph strin
 		}
 
 		if !provisioner.AppSlugRegex.MatchString(attrs.Slug) {
-			return nil, nil, xerrors.Errorf("invalid app slug %q, please update your coder/coder provider to the latest version and specify the slug property on each coder_app", attrs.Slug)
+			return nil, nil, fmt.Errorf("invalid app slug %q, please update your coder/coder provider to the latest version and specify the slug property on each coder_app", attrs.Slug)
 		}
 
 		if _, exists := appSlugs[attrs.Slug]; exists {
-			return nil, nil, xerrors.Errorf("duplicate app slug, they must be unique per template: %q", attrs.Slug)
+			return nil, nil, fmt.Errorf("duplicate app slug, they must be unique per template: %q", attrs.Slug)
 		}
 		appSlugs[attrs.Slug] = struct{}{}
 
@@ -332,7 +332,7 @@ func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph strin
 		var attrs metadataAttributes
 		err = mapstructure.Decode(resource.AttributeValues, &attrs)
 		if err != nil {
-			return nil, nil, xerrors.Errorf("decode metadata attributes: %w", err)
+			return nil, nil, fmt.Errorf("decode metadata attributes: %w", err)
 		}
 
 		resourceLabel := convertAddressToLabel(resource.Address)
@@ -419,7 +419,7 @@ func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph strin
 		var param provider.Parameter
 		err = mapstructure.Decode(resource.AttributeValues, &param)
 		if err != nil {
-			return nil, nil, xerrors.Errorf("decode map values for coder_parameter.%s: %w", resource.Name, err)
+			return nil, nil, fmt.Errorf("decode map values for coder_parameter.%s: %w", resource.Name, err)
 		}
 		protoParam := &proto.RichParameter{
 			Name:         param.Name,

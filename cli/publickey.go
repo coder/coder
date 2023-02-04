@@ -1,10 +1,10 @@
 package cli
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
@@ -22,7 +22,7 @@ func publickey() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := CreateClient(cmd)
 			if err != nil {
-				return xerrors.Errorf("create codersdk client: %w", err)
+				return fmt.Errorf("create codersdk client: %w", err)
 			}
 
 			if reset {
@@ -46,7 +46,7 @@ func publickey() *cobra.Command {
 
 			key, err := client.GitSSHKey(cmd.Context(), codersdk.Me)
 			if err != nil {
-				return xerrors.Errorf("create codersdk client: %w", err)
+				return fmt.Errorf("create codersdk client: %w", err)
 			}
 
 			cmd.Println(cliui.Styles.Wrap.Render(

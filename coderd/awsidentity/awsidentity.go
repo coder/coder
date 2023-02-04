@@ -8,8 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
-
-	"golang.org/x/xerrors"
+	"fmt"
 )
 
 // Region represents the AWS locations a public-key covers.
@@ -63,26 +62,26 @@ func Validate(signature, document string, certificates Certificates) (Identity, 
 	var instanceIdentity awsInstanceIdentityDocument
 	err := json.Unmarshal([]byte(document), &instanceIdentity)
 	if err != nil {
-		return Identity{}, xerrors.Errorf("parse document: %w", err)
+		return Identity{}, fmt.Errorf("parse document: %w", err)
 	}
 	rawSignature, err := base64.StdEncoding.DecodeString(signature)
 	if err != nil {
-		return Identity{}, xerrors.Errorf("decode signature: %w", err)
+		return Identity{}, fmt.Errorf("decode signature: %w", err)
 	}
 	hashedDocument := sha256.Sum256([]byte(document))
 
 	for region, certificate := range certificates {
 		regionBlock, rest := pem.Decode([]byte(certificate))
 		if len(rest) != 0 {
-			return Identity{}, xerrors.Errorf("invalid certificate for %q. %d bytes remain", region, len(rest))
+			return Identity{}, fmt.Errorf("invalid certificate for %q. %d bytes remain", region, len(rest))
 		}
 		regionCert, err := x509.ParseCertificate(regionBlock.Bytes)
 		if err != nil {
-			return Identity{}, xerrors.Errorf("parse certificate: %w", err)
+			return Identity{}, fmt.Errorf("parse certificate: %w", err)
 		}
 		regionPublicKey, valid := regionCert.PublicKey.(*rsa.PublicKey)
 		if !valid {
-			return Identity{}, xerrors.Errorf("certificate for %q was not an rsa key", region)
+			return Identity{}, fmt.Errorf("certificate for %q was not an rsa key", region)
 		}
 		err = rsa.VerifyPKCS1v15(regionPublicKey, crypto.SHA256, hashedDocument[:], rawSignature)
 		if err != nil {

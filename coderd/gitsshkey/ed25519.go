@@ -37,10 +37,10 @@ package gitsshkey
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"fmt"
 
 	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/xerrors"
 )
 
 func MarshalED25519PrivateKey(key ed25519.PrivateKey) ([]byte, error) {
@@ -70,7 +70,7 @@ func MarshalED25519PrivateKey(key ed25519.PrivateKey) ([]byte, error) {
 	// Random check bytes
 	var check uint32
 	if err := binary.Read(rand.Reader, binary.BigEndian, &check); err != nil {
-		return nil, xerrors.Errorf("generate random bytes: %w", err)
+		return nil, fmt.Errorf("generate random bytes: %w", err)
 	}
 
 	pk1.Check1 = check
@@ -82,7 +82,7 @@ func MarshalED25519PrivateKey(key ed25519.PrivateKey) ([]byte, error) {
 	// Add the pubkey to the optionally-encrypted block
 	pk, ok := key.Public().(ed25519.PublicKey)
 	if !ok {
-		return nil, xerrors.Errorf("ed25519.PublicKey type assertion failed on an ed25519 public key")
+		return nil, fmt.Errorf("ed25519.PublicKey type assertion failed on an ed25519 public key")
 	}
 	pubKey := []byte(pk)
 	pk1.Pub = pubKey

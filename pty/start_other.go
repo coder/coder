@@ -8,8 +8,6 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
-
-	"golang.org/x/xerrors"
 )
 
 func startPty(cmd *exec.Cmd, opt ...StartOption) (retPTY *otherPty, proc Process, err error) {
@@ -20,7 +18,7 @@ func startPty(cmd *exec.Cmd, opt ...StartOption) (retPTY *otherPty, proc Process
 
 	opty, err := newPty(opts.ptyOpts...)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("newPty failed: %w", err)
+		return nil, nil, fmt.Errorf("newPty failed: %w", err)
 	}
 
 	origEnv := cmd.Env
@@ -48,7 +46,7 @@ func startPty(cmd *exec.Cmd, opt ...StartOption) (retPTY *otherPty, proc Process
 			cmd.Env = origEnv
 			return startPty(cmd, opt...)
 		}
-		return nil, nil, xerrors.Errorf("start: %w", err)
+		return nil, nil, fmt.Errorf("start: %w", err)
 	}
 	oProcess := &otherProcess{
 		pty:     opty.pty,

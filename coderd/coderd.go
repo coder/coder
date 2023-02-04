@@ -26,6 +26,7 @@ import (
 	httpSwagger "github.com/swaggo/http-swagger"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
+
 	"google.golang.org/api/idtoken"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
@@ -209,7 +210,7 @@ func New(options *Options) *API {
 	}
 	binFS, binHashes, err := site.ExtractOrReadBinFS(siteCacheDir, site.FS())
 	if err != nil {
-		panic(xerrors.Errorf("read site bin failed: %w", err))
+		panic(fmt.Errorf("read site bin failed: %w", err))
 	}
 
 	metricsCache := metricscache.New(
@@ -749,12 +750,12 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 		},
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("insert provisioner daemon %q: %w", name, err)
+		return nil, fmt.Errorf("insert provisioner daemon %q: %w", name, err)
 	}
 
 	tags, err := json.Marshal(daemon.Tags)
 	if err != nil {
-		return nil, xerrors.Errorf("marshal tags: %w", err)
+		return nil, fmt.Errorf("marshal tags: %w", err)
 	}
 
 	mux := drpcmux.New()

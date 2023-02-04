@@ -5,7 +5,6 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
@@ -43,7 +42,7 @@ func userCreate() *cobra.Command {
 					Validate: func(s string) error {
 						err := validator.New().Var(s, "email")
 						if err != nil {
-							return xerrors.New("That's not a valid email address!")
+							return fmt.Errorf("That's not a valid email address!")
 						}
 						return err
 					},

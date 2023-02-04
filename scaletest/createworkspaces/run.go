@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -53,7 +52,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	_, _ = fmt.Fprintln(logs, "Generating user password...")
 	password, err := cryptorand.HexString(16)
 	if err != nil {
-		return xerrors.Errorf("generate random password for user: %w", err)
+		return fmt.Errorf("generate random password for user: %w", err)
 	}
 
 	_, _ = fmt.Fprintln(logs, "Creating user:")
@@ -68,7 +67,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		Password:       password,
 	})
 	if err != nil {
-		return xerrors.Errorf("create user: %w", err)
+		return fmt.Errorf("create user: %w", err)
 	}
 	r.userID = user.ID
 
@@ -79,7 +78,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		Password: password,
 	})
 	if err != nil {
-		return xerrors.Errorf("login as new user: %w", err)
+		return fmt.Errorf("login as new user: %w", err)
 	}
 	userClient.SetSessionToken(loginRes.SessionToken)
 
@@ -90,7 +89,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	r.workspacebuildRunner = workspacebuild.NewRunner(userClient, workspaceBuildConfig)
 	err = r.workspacebuildRunner.Run(ctx, id, logs)
 	if err != nil {
-		return xerrors.Errorf("create workspace: %w", err)
+		return fmt.Errorf("create workspace: %w", err)
 	}
 
 	if r.cfg.Workspace.NoWaitForAgents {
@@ -100,11 +99,11 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	// Get the workspace.
 	workspaceID, err := r.workspacebuildRunner.WorkspaceID()
 	if err != nil {
-		return xerrors.Errorf("get workspace ID: %w", err)
+		return fmt.Errorf("get workspace ID: %w", err)
 	}
 	workspace, err := userClient.Workspace(ctx, workspaceID)
 	if err != nil {
-		return xerrors.Errorf("get workspace %q: %w", workspaceID.String(), err)
+		return fmt.Errorf("get workspace %q: %w", workspaceID.String(), err)
 	}
 
 	// Find the first agent.
@@ -117,7 +116,7 @@ resourceLoop:
 		}
 	}
 	if agent.ID == uuid.Nil {
-		return xerrors.Errorf("no agents found for workspace %q", workspaceID.String())
+		return fmt.Errorf("no agents found for workspace %q", workspaceID.String())
 	}
 
 	eg, egCtx := errgroup.WithContext(ctx)
@@ -129,7 +128,7 @@ resourceLoop:
 			reconnectingPTYRunner := reconnectingpty.NewRunner(userClient, reconnectingPTYConfig)
 			err := reconnectingPTYRunner.Run(egCtx, id, logs)
 			if err != nil {
-				return xerrors.Errorf("run reconnecting pty: %w", err)
+				return fmt.Errorf("run reconnecting pty: %w", err)
 			}
 
 			return nil
@@ -143,7 +142,7 @@ resourceLoop:
 			agentConnRunner := agentconn.NewRunner(userClient, agentConnConfig)
 			err := agentConnRunner.Run(egCtx, id, logs)
 			if err != nil {
-				return xerrors.Errorf("run agent connection: %w", err)
+				return fmt.Errorf("run agent connection: %w", err)
 			}
 
 			return nil
@@ -152,7 +151,7 @@ resourceLoop:
 
 	err = eg.Wait()
 	if err != nil {
-		return xerrors.Errorf("run workspace connections in parallel: %w", err)
+		return fmt.Errorf("run workspace connections in parallel: %w", err)
 	}
 
 	return nil
@@ -167,14 +166,14 @@ func (r *Runner) Cleanup(ctx context.Context, id string) error {
 	if r.workspacebuildRunner != nil {
 		err := r.workspacebuildRunner.Cleanup(ctx, id)
 		if err != nil {
-			return xerrors.Errorf("cleanup workspace: %w", err)
+			return fmt.Errorf("cleanup workspace: %w", err)
 		}
 	}
 
 	if r.userID != uuid.Nil {
 		err := r.client.DeleteUser(ctx, r.userID)
 		if err != nil {
-			return xerrors.Errorf("delete user: %w", err)
+			return fmt.Errorf("delete user: %w", err)
 		}
 	}
 

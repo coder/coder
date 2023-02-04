@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	agpl "github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/cliflag"
@@ -27,12 +26,12 @@ func groupCreate() *cobra.Command {
 
 			client, err := agpl.CreateClient(cmd)
 			if err != nil {
-				return xerrors.Errorf("create client: %w", err)
+				return fmt.Errorf("create client: %w", err)
 			}
 
 			org, err := agpl.CurrentOrganization(cmd, client)
 			if err != nil {
-				return xerrors.Errorf("current organization: %w", err)
+				return fmt.Errorf("current organization: %w", err)
 			}
 
 			group, err := client.CreateGroup(ctx, org.ID, codersdk.CreateGroupRequest{
@@ -40,7 +39,7 @@ func groupCreate() *cobra.Command {
 				AvatarURL: avatarURL,
 			})
 			if err != nil {
-				return xerrors.Errorf("create group: %w", err)
+				return fmt.Errorf("create group: %w", err)
 			}
 
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Successfully created group %s!\n", cliui.Styles.Keyword.Render(group.Name))

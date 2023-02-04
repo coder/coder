@@ -2,6 +2,7 @@ package terraform
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -10,7 +11,6 @@ import (
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hc-install/product"
 	"github.com/hashicorp/hc-install/releases"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 )
@@ -23,7 +23,7 @@ var (
 	minTerraformVersion = version.Must(version.NewVersion("1.1.0"))
 	maxTerraformVersion = version.Must(version.NewVersion("1.3.4"))
 
-	terraformMinorVersionMismatch = xerrors.New("Terraform binary minor version mismatch.")
+	terraformMinorVersionMismatch = fmt.Errorf("Terraform binary minor version mismatch.")
 )
 
 // Install implements a thread-safe, idempotent Terraform Install
@@ -41,7 +41,7 @@ func Install(ctx context.Context, log slog.Logger, dir string, wantVersion *vers
 	lock := flock.New(lockFilePath)
 	ok, err := lock.TryLockContext(ctx, time.Millisecond*100)
 	if !ok {
-		return "", xerrors.Errorf("could not acquire flock for %v: %w", lockFilePath, err)
+		return "", fmt.Errorf("could not acquire flock for %v: %w", lockFilePath, err)
 	}
 	defer lock.Close()
 
@@ -67,13 +67,13 @@ func Install(ctx context.Context, log slog.Logger, dir string, wantVersion *vers
 
 	path, err := installer.Install(ctx)
 	if err != nil {
-		return "", xerrors.Errorf("install: %w", err)
+		return "", fmt.Errorf("install: %w", err)
 	}
 
 	// Sanity-check: if path != binPath then future invocations of Install
 	// will fail.
 	if path != binPath {
-		return "", xerrors.Errorf("%s should be %s", path, binPath)
+		return "", fmt.Errorf("%s should be %s", path, binPath)
 	}
 
 	return path, nil

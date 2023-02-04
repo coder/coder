@@ -175,18 +175,18 @@ func configSSH() *cobra.Command {
 			}
 			escapedCoderBinary, err := sshConfigExecEscape(coderBinary)
 			if err != nil {
-				return xerrors.Errorf("escape coder binary for ssh failed: %w", err)
+				return fmt.Errorf("escape coder binary for ssh failed: %w", err)
 			}
 
 			root := createConfig(cmd)
 			escapedGlobalConfig, err := sshConfigExecEscape(string(root))
 			if err != nil {
-				return xerrors.Errorf("escape global config for ssh failed: %w", err)
+				return fmt.Errorf("escape global config for ssh failed: %w", err)
 			}
 
 			homedir, err := os.UserHomeDir()
 			if err != nil {
-				return xerrors.Errorf("user home dir failed: %w", err)
+				return fmt.Errorf("user home dir failed: %w", err)
 			}
 
 			if strings.HasPrefix(sshConfigFile, "~/") {
@@ -197,7 +197,7 @@ func configSSH() *cobra.Command {
 			// the users SSH config.
 			configRaw, err := os.ReadFile(sshConfigFile)
 			if err != nil && !errors.Is(err, fs.ErrNotExist) {
-				return xerrors.Errorf("read ssh config failed: %w", err)
+				return fmt.Errorf("read ssh config failed: %w", err)
 			}
 
 			// Keep track of changes we are making.
@@ -260,7 +260,7 @@ func configSSH() *cobra.Command {
 
 			workspaceConfigs, err := recvWorkspaceConfigs()
 			if err != nil {
-				return xerrors.Errorf("fetch workspace configs failed: %w", err)
+				return fmt.Errorf("fetch workspace configs failed: %w", err)
 			}
 			// Ensure stable sorting of output.
 			slices.SortFunc(workspaceConfigs, func(a, b sshWorkspaceConfig) bool {
@@ -323,7 +323,7 @@ func configSSH() *cobra.Command {
 				color := isTTYOut(cmd)
 				diff, err := diffBytes(sshConfigFile, configRaw, configModified, color)
 				if err != nil {
-					return xerrors.Errorf("diff failed: %w", err)
+					return fmt.Errorf("diff failed: %w", err)
 				}
 				if len(diff) > 0 {
 					// Write diff to stdout.
@@ -350,7 +350,7 @@ func configSSH() *cobra.Command {
 			if !bytes.Equal(configRaw, configModified) {
 				err = writeWithTempFileAndMove(sshConfigFile, bytes.NewReader(configModified))
 				if err != nil {
-					return xerrors.Errorf("write ssh config failed: %w", err)
+					return fmt.Errorf("write ssh config failed: %w", err)
 				}
 			}
 
@@ -460,14 +460,14 @@ func writeWithTempFileAndMove(path string, r io.Reader) (err error) {
 
 	// Ensure that e.g. the ~/.ssh directory exists.
 	if err = os.MkdirAll(dir, 0o700); err != nil {
-		return xerrors.Errorf("create directory: %w", err)
+		return fmt.Errorf("create directory: %w", err)
 	}
 
 	// Create a tempfile in the same directory for ensuring write
 	// operation does not fail.
 	f, err := os.CreateTemp(dir, fmt.Sprintf(".%s.", name))
 	if err != nil {
-		return xerrors.Errorf("create temp file failed: %w", err)
+		return fmt.Errorf("create temp file failed: %w", err)
 	}
 	defer func() {
 		if err != nil {
@@ -478,17 +478,17 @@ func writeWithTempFileAndMove(path string, r io.Reader) (err error) {
 	_, err = io.Copy(f, r)
 	if err != nil {
 		_ = f.Close()
-		return xerrors.Errorf("write temp file failed: %w", err)
+		return fmt.Errorf("write temp file failed: %w", err)
 	}
 
 	err = f.Close()
 	if err != nil {
-		return xerrors.Errorf("close temp file failed: %w", err)
+		return fmt.Errorf("close temp file failed: %w", err)
 	}
 
 	err = os.Rename(f.Name(), path)
 	if err != nil {
-		return xerrors.Errorf("rename temp file failed: %w", err)
+		return fmt.Errorf("rename temp file failed: %w", err)
 	}
 
 	return nil
@@ -525,7 +525,7 @@ func sshConfigExecEscape(path string) (string, error) {
 	// This is unlikely to ever happen, but newlines are allowed on
 	// certain filesystems, but cannot be used inside ssh config.
 	if strings.ContainsAny(path, "\n") {
-		return "", xerrors.Errorf("invalid path: %s", path)
+		return "", fmt.Errorf("invalid path: %s", path)
 	}
 	// In the unlikely even that a path contains quotes, they must be
 	// escaped so that they are not interpreted as shell quotes.
@@ -545,7 +545,7 @@ func sshConfigExecEscape(path string) (string, error) {
 func currentBinPath(w io.Writer) (string, error) {
 	exePath, err := os.Executable()
 	if err != nil {
-		return "", xerrors.Errorf("get executable path: %w", err)
+		return "", fmt.Errorf("get executable path: %w", err)
 	}
 
 	binName := filepath.Base(exePath)

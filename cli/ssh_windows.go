@@ -13,7 +13,6 @@ import (
 	"time"
 
 	gossh "golang.org/x/crypto/ssh"
-	"golang.org/x/xerrors"
 )
 
 func listenWindowSize(ctx context.Context) <-chan os.Signal {
@@ -50,7 +49,7 @@ func forwardGPGAgent(ctx context.Context, stderr io.Writer, sshClient *gossh.Cli
 	}
 	f, err := os.Open(localSocket)
 	if err != nil {
-		return nil, xerrors.Errorf("open gpg-agent-extra socket file %q: %w", localSocket, err)
+		return nil, fmt.Errorf("open gpg-agent-extra socket file %q: %w", localSocket, err)
 	}
 
 	// Scan lines from file to get port and cookie.
@@ -64,24 +63,24 @@ func forwardGPGAgent(ctx context.Context, stderr io.Writer, sshClient *gossh.Cli
 		case 0:
 			port64, err := strconv.ParseUint(scanner.Text(), 10, 16)
 			if err != nil {
-				return nil, xerrors.Errorf("parse gpg-agent-extra socket file %q: line 1: convert string to integer: %w", localSocket, err)
+				return nil, fmt.Errorf("parse gpg-agent-extra socket file %q: line 1: convert string to integer: %w", localSocket, err)
 			}
 			port = uint16(port64)
 
 		case 1:
 			cookie = scanner.Bytes()
 			if len(cookie) != 16 {
-				return nil, xerrors.Errorf("parse gpg-agent-extra socket file %q: line 2: expected 16 bytes, got %v bytes", localSocket, len(cookie))
+				return nil, fmt.Errorf("parse gpg-agent-extra socket file %q: line 2: expected 16 bytes, got %v bytes", localSocket, len(cookie))
 			}
 
 		default:
-			return nil, xerrors.Errorf("parse gpg-agent-extra socket file %q: file contains more than 2 lines", localSocket)
+			return nil, fmt.Errorf("parse gpg-agent-extra socket file %q: file contains more than 2 lines", localSocket)
 		}
 	}
 
 	err = scanner.Err()
 	if err != nil {
-		return nil, xerrors.Errorf("parse gpg-agent-extra socket file: %q: %w", localSocket, err)
+		return nil, fmt.Errorf("parse gpg-agent-extra socket file: %q: %w", localSocket, err)
 	}
 
 	remoteSocket, err := remoteGPGAgentSocket(sshClient)

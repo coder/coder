@@ -3,9 +3,8 @@ package cryptorand
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"fmt"
 	"time"
-
-	"golang.org/x/xerrors"
 )
 
 // Most of this code is inspired by math/rand, so shares similar
@@ -17,7 +16,7 @@ func Int63() (int64, error) {
 	var i int64
 	err := binary.Read(rand.Reader, binary.BigEndian, &i)
 	if err != nil {
-		return 0, xerrors.Errorf("read binary: %w", err)
+		return 0, fmt.Errorf("read binary: %w", err)
 	}
 
 	if i < 0 {
@@ -30,12 +29,12 @@ func Int63() (int64, error) {
 func Uint64() (uint64, error) {
 	upper, err := Int63()
 	if err != nil {
-		return 0, xerrors.Errorf("read upper: %w", err)
+		return 0, fmt.Errorf("read upper: %w", err)
 	}
 
 	lower, err := Int63()
 	if err != nil {
-		return 0, xerrors.Errorf("read lower: %w", err)
+		return 0, fmt.Errorf("read lower: %w", err)
 	}
 
 	return uint64(lower)>>31 | uint64(upper)<<32, nil

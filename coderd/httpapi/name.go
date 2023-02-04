@@ -1,11 +1,11 @@
 package httpapi
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 
 	"github.com/moby/moby/pkg/namesgenerator"
-	"golang.org/x/xerrors"
 )
 
 var (
@@ -40,14 +40,14 @@ func UsernameFrom(str string) string {
 // It is a generic validator for any name (user, workspace, template, etc.).
 func NameValid(str string) error {
 	if len(str) > 32 {
-		return xerrors.New("must be <= 32 characters")
+		return fmt.Errorf("must be <= 32 characters")
 	}
 	if len(str) < 1 {
-		return xerrors.New("must be >= 1 character")
+		return fmt.Errorf("must be >= 1 character")
 	}
 	matched := UsernameValidRegex.MatchString(str)
 	if !matched {
-		return xerrors.New("must be alphanumeric with hyphens")
+		return fmt.Errorf("must be alphanumeric with hyphens")
 	}
 	return nil
 }
@@ -58,11 +58,11 @@ func TemplateDisplayNameValid(str string) error {
 		return nil // empty display_name is correct
 	}
 	if len(str) > 64 {
-		return xerrors.New("must be <= 64 characters")
+		return fmt.Errorf("must be <= 64 characters")
 	}
 	matched := templateDisplayName.MatchString(str)
 	if !matched {
-		return xerrors.New("must be alphanumeric with spaces")
+		return fmt.Errorf("must be alphanumeric with spaces")
 	}
 	return nil
 }

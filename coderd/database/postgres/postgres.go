@@ -12,7 +12,6 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database/migrations"
 	"github.com/coder/coder/cryptorand"
@@ -31,19 +30,19 @@ func Open() (string, func(), error) {
 		dbURL := "postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable"
 		db, err := sql.Open("postgres", dbURL)
 		if err != nil {
-			return "", nil, xerrors.Errorf("connect to ci postgres: %w", err)
+			return "", nil, fmt.Errorf("connect to ci postgres: %w", err)
 		}
 		defer db.Close()
 
 		dbName, err := cryptorand.StringCharset(cryptorand.Lower, 10)
 		if err != nil {
-			return "", nil, xerrors.Errorf("generate db name: %w", err)
+			return "", nil, fmt.Errorf("generate db name: %w", err)
 		}
 
 		dbName = "ci" + dbName
 		_, err = db.Exec("CREATE DATABASE " + dbName + " WITH TEMPLATE " + os.Getenv("DB_FROM"))
 		if err != nil {
-			return "", nil, xerrors.Errorf("create db with template: %w", err)
+			return "", nil, fmt.Errorf("create db with template: %w", err)
 		}
 
 		deleteDB := func() {
@@ -57,12 +56,12 @@ func Open() (string, func(), error) {
 
 	pool, err := dockertest.NewPool("")
 	if err != nil {
-		return "", nil, xerrors.Errorf("create pool: %w", err)
+		return "", nil, fmt.Errorf("create pool: %w", err)
 	}
 
 	tempDir, err := os.MkdirTemp(os.TempDir(), "postgres")
 	if err != nil {
-		return "", nil, xerrors.Errorf("create tempdir: %w", err)
+		return "", nil, fmt.Errorf("create tempdir: %w", err)
 	}
 
 	openPortMutex.Lock()
@@ -71,7 +70,7 @@ func Open() (string, func(), error) {
 	port, err := getFreePort()
 	if err != nil {
 		openPortMutex.Unlock()
-		return "", nil, xerrors.Errorf("get free port: %w", err)
+		return "", nil, fmt.Errorf("get free port: %w", err)
 	}
 
 	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
@@ -110,7 +109,7 @@ func Open() (string, func(), error) {
 	})
 	if err != nil {
 		openPortMutex.Unlock()
-		return "", nil, xerrors.Errorf("could not start resource: %w", err)
+		return "", nil, fmt.Errorf("could not start resource: %w", err)
 	}
 	openPortMutex.Unlock()
 
@@ -120,7 +119,7 @@ func Open() (string, func(), error) {
 	// Docker should hard-kill the container after 120 seconds.
 	err = resource.Expire(120)
 	if err != nil {
-		return "", nil, xerrors.Errorf("expire resource: %w", err)
+		return "", nil, fmt.Errorf("expire resource: %w", err)
 	}
 
 	pool.MaxWait = 120 * time.Second
@@ -132,20 +131,20 @@ func Open() (string, func(), error) {
 	err = pool.Retry(func() error {
 		db, err := sql.Open("postgres", dbURL)
 		if err != nil {
-			retryErr = xerrors.Errorf("open postgres: %w", err)
+			retryErr = fmt.Errorf("open postgres: %w", err)
 			return retryErr
 		}
 		defer db.Close()
 
 		err = db.Ping()
 		if err != nil {
-			retryErr = xerrors.Errorf("ping postgres: %w", err)
+			retryErr = fmt.Errorf("ping postgres: %w", err)
 			return retryErr
 		}
 
 		err = migrations.Up(db)
 		if err != nil {
-			retryErr = xerrors.Errorf("migrate db: %w", err)
+			retryErr = fmt.Errorf("migrate db: %w", err)
 			// Only try to migrate once.
 			return backoff.Permanent(retryErr)
 		}

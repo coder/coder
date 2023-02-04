@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 
@@ -57,11 +56,11 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, pubsub data
 	}
 	hostname, err := os.Hostname()
 	if err != nil {
-		return nil, xerrors.Errorf("get hostname: %w", err)
+		return nil, fmt.Errorf("get hostname: %w", err)
 	}
 	databaseLatency, err := db.Ping(ctx)
 	if err != nil {
-		return nil, xerrors.Errorf("ping database: %w", err)
+		return nil, fmt.Errorf("ping database: %w", err)
 	}
 	replica, err := db.InsertReplica(ctx, database.InsertReplicaParams{
 		ID:              options.ID,
@@ -75,11 +74,11 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, pubsub data
 		DatabaseLatency: int32(databaseLatency.Microseconds()),
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("insert replica: %w", err)
+		return nil, fmt.Errorf("insert replica: %w", err)
 	}
 	err = pubsub.Publish(PubsubEvent, []byte(options.ID.String()))
 	if err != nil {
-		return nil, xerrors.Errorf("publish new replica: %w", err)
+		return nil, fmt.Errorf("publish new replica: %w", err)
 	}
 	ctx, cancelFunc := context.WithCancel(ctx)
 	manager := &Manager{
@@ -94,11 +93,11 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, pubsub data
 	}
 	err = manager.syncReplicas(ctx)
 	if err != nil {
-		return nil, xerrors.Errorf("run replica: %w", err)
+		return nil, fmt.Errorf("run replica: %w", err)
 	}
 	err = manager.subscribe(ctx)
 	if err != nil {
-		return nil, xerrors.Errorf("subscribe: %w", err)
+		return nil, fmt.Errorf("subscribe: %w", err)
 	}
 	manager.closeWait.Add(1)
 	go manager.loop(ctx)
@@ -222,7 +221,7 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 	// If they don't, assume death!
 	replicas, err := m.db.GetReplicasUpdatedAfter(ctx, m.updateInterval())
 	if err != nil {
-		return xerrors.Errorf("get replicas: %w", err)
+		return fmt.Errorf("get replicas: %w", err)
 	}
 
 	m.mutex.Lock()
@@ -273,7 +272,7 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 
 	databaseLatency, err := m.db.Ping(ctx)
 	if err != nil {
-		return xerrors.Errorf("ping database: %w", err)
+		return fmt.Errorf("ping database: %w", err)
 	}
 
 	m.mutex.Lock()
@@ -291,13 +290,13 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		DatabaseLatency: int32(databaseLatency.Microseconds()),
 	})
 	if err != nil {
-		return xerrors.Errorf("update replica: %w", err)
+		return fmt.Errorf("update replica: %w", err)
 	}
 	if m.self.Error != replica.Error {
 		// Publish an update occurred!
 		err = m.pubsub.Publish(PubsubEvent, []byte(m.self.ID.String()))
 		if err != nil {
-			return xerrors.Errorf("publish replica update: %w", err)
+			return fmt.Errorf("publish replica update: %w", err)
 		}
 	}
 	m.self = replica
@@ -383,11 +382,11 @@ func (m *Manager) Close() error {
 		Error:        m.self.Error,
 	})
 	if err != nil {
-		return xerrors.Errorf("update replica: %w", err)
+		return fmt.Errorf("update replica: %w", err)
 	}
 	err = m.pubsub.Publish(PubsubEvent, []byte(m.self.ID.String()))
 	if err != nil {
-		return xerrors.Errorf("publish replica update: %w", err)
+		return fmt.Errorf("publish replica update: %w", err)
 	}
 	return nil
 }

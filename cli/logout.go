@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliui"
 )
@@ -36,27 +35,27 @@ func logout() *cobra.Command {
 
 			err = client.Logout(cmd.Context())
 			if err != nil {
-				errors = append(errors, xerrors.Errorf("logout api: %w", err))
+				errors = append(errors, fmt.Errorf("logout api: %w", err))
 			}
 
 			err = config.URL().Delete()
 			// Only throw error if the URL configuration file is present,
 			// otherwise the user is already logged out, and we proceed
 			if err != nil && !os.IsNotExist(err) {
-				errors = append(errors, xerrors.Errorf("remove URL file: %w", err))
+				errors = append(errors, fmt.Errorf("remove URL file: %w", err))
 			}
 
 			err = config.Session().Delete()
 			// Only throw error if the session configuration file is present,
 			// otherwise the user is already logged out, and we proceed
 			if err != nil && !os.IsNotExist(err) {
-				errors = append(errors, xerrors.Errorf("remove session file: %w", err))
+				errors = append(errors, fmt.Errorf("remove session file: %w", err))
 			}
 
 			err = config.Organization().Delete()
 			// If the organization configuration file is absent, we still proceed
 			if err != nil && !os.IsNotExist(err) {
-				errors = append(errors, xerrors.Errorf("remove organization file: %w", err))
+				errors = append(errors, fmt.Errorf("remove organization file: %w", err))
 			}
 
 			if len(errors) > 0 {
@@ -65,7 +64,7 @@ func logout() *cobra.Command {
 					_, _ = fmt.Fprint(&errorStringBuilder, "\t"+err.Error()+"\n")
 				}
 				errorString := strings.TrimRight(errorStringBuilder.String(), "\n")
-				return xerrors.New("Failed to log out.\n" + errorString)
+				return fmt.Errorf("Failed to log out.\n" + errorString)
 			}
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), Caret+"You are no longer logged in. You can log in using 'coder login <url>'.\n")
 			return nil

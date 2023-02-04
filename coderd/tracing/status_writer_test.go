@@ -3,13 +3,13 @@ package tracing_test
 import (
 	"bufio"
 	"crypto/rand"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/tracing"
 )
@@ -125,7 +125,7 @@ type hijacker struct {
 }
 
 func (hijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	return nil, nil, xerrors.New("hijacked")
+	return nil, nil, fmt.Errorf("hijacked")
 }
 
 func (h hijacker) Flush() {

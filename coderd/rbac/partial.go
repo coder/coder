@@ -2,12 +2,12 @@ package rbac
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/rbac/regosql"
 	"github.com/coder/coder/coderd/tracing"
@@ -41,7 +41,7 @@ func (pa *PartialAuthorizer) CompileToSQL(ctx context.Context, cfg regosql.Conve
 
 	filter, err := Compile(cfg, pa)
 	if err != nil {
-		return "", xerrors.Errorf("compile: %w", err)
+		return "", fmt.Errorf("compile: %w", err)
 	}
 	return filter.SQLString(), nil
 }
@@ -54,14 +54,14 @@ func (pa *PartialAuthorizer) Authorize(ctx context.Context, object Object) error
 	// If we have no queries, then no queries can return 'true'.
 	// So the result is always 'false'.
 	if len(pa.preparedQueries) == 0 {
-		return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), pa.input, nil)
+		return ForbiddenWithInternal(fmt.Errorf("policy disallows request"), pa.input, nil)
 	}
 
 	parsed, err := ast.InterfaceToValue(map[string]interface{}{
 		"object": object,
 	})
 	if err != nil {
-		return xerrors.Errorf("parse object: %w", err)
+		return fmt.Errorf("parse object: %w", err)
 	}
 
 	// How to interpret the results of the partial queries.
@@ -118,25 +118,25 @@ EachQueryLoop:
 		return nil
 	}
 
-	return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), pa.input, nil)
+	return ForbiddenWithInternal(fmt.Errorf("policy disallows request"), pa.input, nil)
 }
 
 func newPartialAuthorizer(ctx context.Context, subject Subject, action Action, objectType string) (*PartialAuthorizer, error) {
 	if subject.Roles == nil {
-		return nil, xerrors.Errorf("subject must have roles")
+		return nil, fmt.Errorf("subject must have roles")
 	}
 	if subject.Scope == nil {
-		return nil, xerrors.Errorf("subject must have a scope")
+		return nil, fmt.Errorf("subject must have a scope")
 	}
 
 	roles, err := subject.Roles.Expand()
 	if err != nil {
-		return nil, xerrors.Errorf("expand roles: %w", err)
+		return nil, fmt.Errorf("expand roles: %w", err)
 	}
 
 	scope, err := subject.Scope.Expand()
 	if err != nil {
-		return nil, xerrors.Errorf("expand scope: %w", err)
+		return nil, fmt.Errorf("expand scope: %w", err)
 	}
 
 	input := map[string]interface{}{
@@ -167,7 +167,7 @@ func newPartialAuthorizer(ctx context.Context, subject Subject, action Action, o
 		rego.Input(input),
 	).Partial(ctx)
 	if err != nil {
-		return nil, xerrors.Errorf("prepare: %w", err)
+		return nil, fmt.Errorf("prepare: %w", err)
 	}
 
 	pAuth := &PartialAuthorizer{
@@ -192,7 +192,7 @@ func newPartialAuthorizer(ctx context.Context, subject Subject, action Action, o
 			rego.ParsedQuery(q),
 		).PrepareForEval(ctx)
 		if err != nil {
-			return nil, xerrors.Errorf("prepare query %s: %w", q.String(), err)
+			return nil, fmt.Errorf("prepare query %s: %w", q.String(), err)
 		}
 		preparedQueries = append(preparedQueries, results)
 	}

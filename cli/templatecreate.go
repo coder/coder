@@ -11,7 +11,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
@@ -50,12 +49,12 @@ func templateCreate() *cobra.Command {
 			}
 
 			if utf8.RuneCountInString(templateName) > 31 {
-				return xerrors.Errorf("Template name must be less than 32 characters")
+				return fmt.Errorf("Template name must be less than 32 characters")
 			}
 
 			_, err = client.TemplateByName(cmd.Context(), organization.ID, templateName)
 			if err == nil {
-				return xerrors.Errorf("A template already exists named %q!", templateName)
+				return fmt.Errorf("A template already exists named %q!", templateName)
 			}
 
 			// Confirm upload of the directory.
@@ -198,13 +197,13 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 	if args.ReuseParameters && args.Template != nil {
 		activeVersion, err := client.TemplateVersion(cmd.Context(), args.Template.ActiveVersionID)
 		if err != nil {
-			return nil, nil, xerrors.Errorf("Fetch current active template version: %w", err)
+			return nil, nil, fmt.Errorf("Fetch current active template version: %w", err)
 		}
 
 		// We don't want to compute the params, we only want to copy from this scope
 		values, err := client.Parameters(cmd.Context(), codersdk.ParameterImportJob, activeVersion.Job.ID)
 		if err != nil {
-			return nil, nil, xerrors.Errorf("Fetch previous version parameters: %w", err)
+			return nil, nil, fmt.Errorf("Fetch previous version parameters: %w", err)
 		}
 		for _, value := range values {
 			lastParameterValues[value.Name] = value
@@ -278,7 +277,7 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 	}
 
 	if version.Job.Status != codersdk.ProvisionerJobSucceeded {
-		return nil, nil, xerrors.New(version.Job.Error)
+		return nil, nil, fmt.Errorf(version.Job.Error)
 	}
 
 	resources, err := client.TemplateVersionResources(cmd.Context(), version.ID)
@@ -299,7 +298,7 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 		Title:          "Template Preview",
 	})
 	if err != nil {
-		return nil, nil, xerrors.Errorf("preview template resources: %w", err)
+		return nil, nil, fmt.Errorf("preview template resources: %w", err)
 	}
 
 	return &version, parameters, nil
@@ -327,7 +326,7 @@ func ParseProvisionerTags(rawTags []string) (map[string]string, error) {
 	for _, rawTag := range rawTags {
 		parts := strings.SplitN(rawTag, "=", 2)
 		if len(parts) < 2 {
-			return nil, xerrors.Errorf("invalid tag format for %q. must be key=value", rawTag)
+			return nil, fmt.Errorf("invalid tag format for %q. must be key=value", rawTag)
 		}
 		tags[parts[0]] = parts[1]
 	}

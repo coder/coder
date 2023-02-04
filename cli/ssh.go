@@ -98,9 +98,9 @@ func ssh() *cobra.Command {
 					return cliui.Canceled
 				}
 				if xerrors.Is(err, cliui.AgentStartError) {
-					return xerrors.New("Agent startup script exited with non-zero status, use --no-wait to login anyway.")
+					return fmt.Errorf("Agent startup script exited with non-zero status, use --no-wait to login anyway.")
 				}
-				return xerrors.Errorf("await agent: %w", err)
+				return fmt.Errorf("await agent: %w", err)
 			}
 
 			conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, &codersdk.DialWorkspaceAgentOptions{})
@@ -151,26 +151,26 @@ func ssh() *cobra.Command {
 			if forwardAgent && identityAgent != "" {
 				err = gosshagent.ForwardToRemote(sshClient, identityAgent)
 				if err != nil {
-					return xerrors.Errorf("forward agent: %w", err)
+					return fmt.Errorf("forward agent: %w", err)
 				}
 				err = gosshagent.RequestAgentForwarding(sshSession)
 				if err != nil {
-					return xerrors.Errorf("request agent forwarding failed: %w", err)
+					return fmt.Errorf("request agent forwarding failed: %w", err)
 				}
 			}
 
 			if forwardGPG {
 				if workspaceAgent.OperatingSystem == "windows" {
-					return xerrors.New("GPG forwarding is not supported for Windows workspaces")
+					return fmt.Errorf("GPG forwarding is not supported for Windows workspaces")
 				}
 
 				err = uploadGPGKeys(ctx, sshClient)
 				if err != nil {
-					return xerrors.Errorf("upload GPG public keys and ownertrust to workspace: %w", err)
+					return fmt.Errorf("upload GPG public keys and ownertrust to workspace: %w", err)
 				}
 				closer, err := forwardGPGAgent(ctx, cmd.ErrOrStderr(), sshClient)
 				if err != nil {
-					return xerrors.Errorf("forward GPG socket: %w", err)
+					return fmt.Errorf("forward GPG socket: %w", err)
 				}
 				defer closer.Close()
 			}
@@ -235,7 +235,7 @@ func ssh() *cobra.Command {
 				// ExitMissingError but no other error details, so try to at
 				// least give the user a better message
 				if errors.Is(err, &gossh.ExitMissingError{}) {
-					return xerrors.New("SSH connection ended unexpectedly")
+					return fmt.Errorf("SSH connection ended unexpectedly")
 				}
 				return err
 			}
@@ -271,7 +271,7 @@ func getWorkspaceAndAgent(ctx context.Context, cmd *cobra.Command, client *coder
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 		}
 		if len(res.Workspaces) == 0 {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("no workspaces to shuffle")
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, fmt.Errorf("no workspaces to shuffle")
 		}
 
 		workspace, err = cryptorand.Element(res.Workspaces)
@@ -286,7 +286,7 @@ func getWorkspaceAndAgent(ctx context.Context, cmd *cobra.Command, client *coder
 	}
 
 	if workspace.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
-		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("workspace must be in start transition to ssh")
+		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, fmt.Errorf("workspace must be in start transition to ssh")
 	}
 	if workspace.LatestBuild.Job.CompletedAt == nil {
 		err := cliui.WorkspaceBuild(ctx, cmd.ErrOrStderr(), client, workspace.LatestBuild.ID)
@@ -295,7 +295,7 @@ func getWorkspaceAndAgent(ctx context.Context, cmd *cobra.Command, client *coder
 		}
 	}
 	if workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionDelete {
-		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q is being deleted", workspace.Name)
+		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, fmt.Errorf("workspace %q is being deleted", workspace.Name)
 	}
 
 	resources := workspace.LatestBuild.Resources
@@ -305,7 +305,7 @@ func getWorkspaceAndAgent(ctx context.Context, cmd *cobra.Command, client *coder
 		agents = append(agents, resource.Agents...)
 	}
 	if len(agents) == 0 {
-		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("workspace %q has no agents", workspace.Name)
+		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, fmt.Errorf("workspace %q has no agents", workspace.Name)
 	}
 	var workspaceAgent codersdk.WorkspaceAgent
 	if len(workspaceParts) >= 2 {
@@ -317,13 +317,13 @@ func getWorkspaceAndAgent(ctx context.Context, cmd *cobra.Command, client *coder
 			break
 		}
 		if workspaceAgent.ID == uuid.Nil {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("agent not found by name %q", workspaceParts[1])
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, fmt.Errorf("agent not found by name %q", workspaceParts[1])
 		}
 	}
 	if workspaceAgent.ID == uuid.Nil {
 		if len(agents) > 1 {
 			if !shuffle {
-				return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("you must specify the name of an agent")
+				return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, fmt.Errorf("you must specify the name of an agent")
 			}
 			workspaceAgent, err = cryptorand.Element(agents)
 			if err != nil {
@@ -410,7 +410,7 @@ func runLocal(ctx context.Context, stdin io.Reader, name string, args ...string)
 			stderr = exitErr.Stderr
 		}
 
-		return out, xerrors.Errorf(
+		return out, fmt.Errorf(
 			"`%s %s` failed: stderr: %s\n\nstdout: %s\n\n%w",
 			name,
 			strings.Join(args, " "),
@@ -427,7 +427,7 @@ func runLocal(ctx context.Context, stdin io.Reader, name string, args ...string)
 func runRemoteSSH(sshClient *gossh.Client, stdin io.Reader, cmd string) ([]byte, error) {
 	sess, err := sshClient.NewSession()
 	if err != nil {
-		return nil, xerrors.Errorf("create SSH session")
+		return nil, fmt.Errorf("create SSH session")
 	}
 	defer sess.Close()
 
@@ -438,7 +438,7 @@ func runRemoteSSH(sshClient *gossh.Client, stdin io.Reader, cmd string) ([]byte,
 	// so it's best we capture the output of both.
 	out, err := sess.CombinedOutput(cmd)
 	if err != nil {
-		return out, xerrors.Errorf(
+		return out, fmt.Errorf(
 			"`%s` failed: stderr: %s\n\nstdout: %s:\n\n%w",
 			cmd,
 			bytes.TrimSpace(stderr.Bytes()),
@@ -473,37 +473,37 @@ test ! -S "$agent_socket"
 `)
 	agentSocket := strings.TrimSpace(string(agentSocketBytes))
 	if err != nil {
-		return xerrors.Errorf("check if agent socket is running (check if %q exists): %w", agentSocket, err)
+		return fmt.Errorf("check if agent socket is running (check if %q exists): %w", agentSocket, err)
 	}
 	if agentSocket == "" {
-		return xerrors.Errorf("agent socket path is empty, check the output of `gpgconf --list-dir agent-socket`")
+		return fmt.Errorf("agent socket path is empty, check the output of `gpgconf --list-dir agent-socket`")
 	}
 
 	// Read the user's public keys and ownertrust from GPG.
 	pubKeyExport, err := runLocal(ctx, nil, "gpg", "--armor", "--export")
 	if err != nil {
-		return xerrors.Errorf("export local public keys from GPG: %w", err)
+		return fmt.Errorf("export local public keys from GPG: %w", err)
 	}
 	ownerTrustExport, err := runLocal(ctx, nil, "gpg", "--export-ownertrust")
 	if err != nil {
-		return xerrors.Errorf("export local ownertrust from GPG: %w", err)
+		return fmt.Errorf("export local ownertrust from GPG: %w", err)
 	}
 
 	// Import the public keys and ownertrust into the workspace.
 	_, err = runRemoteSSH(sshClient, bytes.NewReader(pubKeyExport), "gpg --import")
 	if err != nil {
-		return xerrors.Errorf("import public keys into workspace: %w", err)
+		return fmt.Errorf("import public keys into workspace: %w", err)
 	}
 	_, err = runRemoteSSH(sshClient, bytes.NewReader(ownerTrustExport), "gpg --import-ownertrust")
 	if err != nil {
-		return xerrors.Errorf("import ownertrust into workspace: %w", err)
+		return fmt.Errorf("import ownertrust into workspace: %w", err)
 	}
 
 	// Kill the agent in the workspace if it was started by one of the above
 	// commands.
 	_, err = runRemoteSSH(sshClient, nil, fmt.Sprintf("gpgconf --kill gpg-agent && rm -f %q", agentSocket))
 	if err != nil {
-		return xerrors.Errorf("kill existing agent in workspace: %w", err)
+		return fmt.Errorf("kill existing agent in workspace: %w", err)
 	}
 
 	return nil
@@ -512,7 +512,7 @@ test ! -S "$agent_socket"
 func localGPGExtraSocket(ctx context.Context) (string, error) {
 	localSocket, err := runLocal(ctx, nil, "gpgconf", "--list-dir", "agent-extra-socket")
 	if err != nil {
-		return "", xerrors.Errorf("get local GPG agent socket: %w", err)
+		return "", fmt.Errorf("get local GPG agent socket: %w", err)
 	}
 
 	return string(bytes.TrimSpace(localSocket)), nil
@@ -521,7 +521,7 @@ func localGPGExtraSocket(ctx context.Context) (string, error) {
 func remoteGPGAgentSocket(sshClient *gossh.Client) (string, error) {
 	remoteSocket, err := runRemoteSSH(sshClient, nil, "gpgconf --list-dir agent-socket")
 	if err != nil {
-		return "", xerrors.Errorf("get remote GPG agent socket: %w", err)
+		return "", fmt.Errorf("get remote GPG agent socket: %w", err)
 	}
 
 	return string(bytes.TrimSpace(remoteSocket)), nil
@@ -541,7 +541,7 @@ type cookieAddr struct {
 func sshForwardRemote(ctx context.Context, stderr io.Writer, sshClient *gossh.Client, localAddr, remoteAddr net.Addr) (io.Closer, error) {
 	listener, err := sshClient.Listen(remoteAddr.Network(), remoteAddr.String())
 	if err != nil {
-		return nil, xerrors.Errorf("listen on remote SSH address %s: %w", remoteAddr.String(), err)
+		return nil, fmt.Errorf("listen on remote SSH address %s: %w", remoteAddr.String(), err)
 	}
 
 	go func() {

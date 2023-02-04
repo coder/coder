@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -84,7 +83,7 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 			UpdatedAt: database.Now(),
 		})
 		if err != nil {
-			return xerrors.Errorf("create organization: %w", err)
+			return fmt.Errorf("create organization: %w", err)
 		}
 		_, err = tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
 			OrganizationID: organization.ID,
@@ -100,12 +99,12 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 			},
 		})
 		if err != nil {
-			return xerrors.Errorf("create organization admin: %w", err)
+			return fmt.Errorf("create organization admin: %w", err)
 		}
 
 		_, err = tx.InsertAllUsersGroup(ctx, organization.ID)
 		if err != nil {
-			return xerrors.Errorf("create %q group: %w", database.AllUsersGroup, err)
+			return fmt.Errorf("create %q group: %w", database.AllUsersGroup, err)
 		}
 		return nil
 	}, nil)

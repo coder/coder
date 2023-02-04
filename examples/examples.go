@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"embed"
+	"fmt"
 	"io"
 	"io/fs"
 	"path"
@@ -12,7 +13,6 @@ import (
 
 	"github.com/gohugoio/hugo/parser/pageparser"
 	"golang.org/x/sync/singleflight"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/codersdk"
 )
@@ -38,7 +38,7 @@ var (
 	examples        = make([]codersdk.TemplateExample, 0)
 	parseExamples   sync.Once
 	archives        = singleflight.Group{}
-	ErrNotFound     = xerrors.New("example not found")
+	ErrNotFound     = fmt.Errorf("example not found")
 )
 
 const rootDir = "templates"
@@ -49,12 +49,12 @@ func List() ([]codersdk.TemplateExample, error) {
 	parseExamples.Do(func() {
 		files, err := fs.Sub(files, rootDir)
 		if err != nil {
-			returnError = xerrors.Errorf("get example fs: %w", err)
+			returnError = fmt.Errorf("get example fs: %w", err)
 		}
 
 		dirs, err := fs.ReadDir(files, ".")
 		if err != nil {
-			returnError = xerrors.Errorf("read dir: %w", err)
+			returnError = fmt.Errorf("read dir: %w", err)
 			return
 		}
 
@@ -67,37 +67,37 @@ func List() ([]codersdk.TemplateExample, error) {
 			// Each one of these is a example!
 			readme, err := fs.ReadFile(files, path.Join(dir.Name(), "README.md"))
 			if err != nil {
-				returnError = xerrors.Errorf("example %q does not contain README.md", exampleID)
+				returnError = fmt.Errorf("example %q does not contain README.md", exampleID)
 				return
 			}
 
 			frontMatter, err := pageparser.ParseFrontMatterAndContent(bytes.NewReader(readme))
 			if err != nil {
-				returnError = xerrors.Errorf("parse example %q front matter: %w", exampleID, err)
+				returnError = fmt.Errorf("parse example %q front matter: %w", exampleID, err)
 				return
 			}
 
 			nameRaw, exists := frontMatter.FrontMatter["name"]
 			if !exists {
-				returnError = xerrors.Errorf("example %q front matter does not contain name", exampleID)
+				returnError = fmt.Errorf("example %q front matter does not contain name", exampleID)
 				return
 			}
 
 			name, valid := nameRaw.(string)
 			if !valid {
-				returnError = xerrors.Errorf("example %q name isn't a string", exampleID)
+				returnError = fmt.Errorf("example %q name isn't a string", exampleID)
 				return
 			}
 
 			descriptionRaw, exists := frontMatter.FrontMatter["description"]
 			if !exists {
-				returnError = xerrors.Errorf("example %q front matter does not contain name", exampleID)
+				returnError = fmt.Errorf("example %q front matter does not contain name", exampleID)
 				return
 			}
 
 			description, valid := descriptionRaw.(string)
 			if !valid {
-				returnError = xerrors.Errorf("example %q description isn't a string", exampleID)
+				returnError = fmt.Errorf("example %q description isn't a string", exampleID)
 				return
 			}
 
@@ -106,13 +106,13 @@ func List() ([]codersdk.TemplateExample, error) {
 			if exists {
 				tagsI, valid := tagsRaw.([]interface{})
 				if !valid {
-					returnError = xerrors.Errorf("example %q tags isn't a slice: type %T", exampleID, tagsRaw)
+					returnError = fmt.Errorf("example %q tags isn't a slice: type %T", exampleID, tagsRaw)
 					return
 				}
 				for _, tagI := range tagsI {
 					tag, valid := tagI.(string)
 					if !valid {
-						returnError = xerrors.Errorf("example %q tag isn't a string: type %T", exampleID, tagI)
+						returnError = fmt.Errorf("example %q tag isn't a string: type %T", exampleID, tagI)
 						return
 					}
 					tags = append(tags, tag)
@@ -124,7 +124,7 @@ func List() ([]codersdk.TemplateExample, error) {
 			if exists {
 				icon, valid = iconRaw.(string)
 				if !valid {
-					returnError = xerrors.Errorf("example %q icon isn't a string", exampleID)
+					returnError = fmt.Errorf("example %q icon isn't a string", exampleID)
 					return
 				}
 			}
@@ -148,7 +148,7 @@ func Archive(exampleID string) ([]byte, error) {
 	rawData, err, _ := archives.Do(exampleID, func() (interface{}, error) {
 		examples, err := List()
 		if err != nil {
-			return nil, xerrors.Errorf("list: %w", err)
+			return nil, fmt.Errorf("list: %w", err)
 		}
 
 		var selected codersdk.TemplateExample
@@ -161,12 +161,12 @@ func Archive(exampleID string) ([]byte, error) {
 		}
 
 		if selected.ID == "" {
-			return nil, xerrors.Errorf("example with id %q not found: %w", exampleID, ErrNotFound)
+			return nil, fmt.Errorf("example with id %q not found: %w", exampleID, ErrNotFound)
 		}
 
 		exampleFiles, err := fs.Sub(files, path.Join(rootDir, exampleID))
 		if err != nil {
-			return nil, xerrors.Errorf("get example fs: %w", err)
+			return nil, fmt.Errorf("get example fs: %w", err)
 		}
 
 		var buffer bytes.Buffer
@@ -183,12 +183,12 @@ func Archive(exampleID string) ([]byte, error) {
 
 			info, err := entry.Info()
 			if err != nil {
-				return xerrors.Errorf("stat file: %w", err)
+				return fmt.Errorf("stat file: %w", err)
 			}
 
 			header, err := tar.FileInfoHeader(info, "")
 			if err != nil {
-				return xerrors.Errorf("get file header: %w", err)
+				return fmt.Errorf("get file header: %w", err)
 			}
 			header.Name = strings.TrimPrefix(path, "./")
 			header.Mode = 0644
@@ -203,34 +203,34 @@ func Archive(exampleID string) ([]byte, error) {
 				header.Typeflag = tar.TypeDir
 				err = tarWriter.WriteHeader(header)
 				if err != nil {
-					return xerrors.Errorf("write file: %w", err)
+					return fmt.Errorf("write file: %w", err)
 				}
 			} else {
 				file, err := exampleFiles.Open(path)
 				if err != nil {
-					return xerrors.Errorf("open file %s: %w", path, err)
+					return fmt.Errorf("open file %s: %w", path, err)
 				}
 				defer file.Close()
 
 				err = tarWriter.WriteHeader(header)
 				if err != nil {
-					return xerrors.Errorf("write file: %w", err)
+					return fmt.Errorf("write file: %w", err)
 				}
 
 				_, err = io.Copy(tarWriter, file)
 				if err != nil {
-					return xerrors.Errorf("write: %w", err)
+					return fmt.Errorf("write: %w", err)
 				}
 			}
 			return nil
 		})
 		if err != nil {
-			return nil, xerrors.Errorf("walk example directory: %w", err)
+			return nil, fmt.Errorf("walk example directory: %w", err)
 		}
 
 		err = tarWriter.Close()
 		if err != nil {
-			return nil, xerrors.Errorf("close archive: %w", err)
+			return nil, fmt.Errorf("close archive: %w", err)
 		}
 
 		return buffer.Bytes(), nil

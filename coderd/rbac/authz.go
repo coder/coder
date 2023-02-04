@@ -3,6 +3,7 @@ package rbac
 import (
 	"context"
 	_ "embed"
+	"fmt"
 	"sync"
 	"time"
 
@@ -11,7 +12,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/rbac/regosql"
 	"github.com/coder/coder/coderd/tracing"
@@ -88,7 +88,7 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, a
 		for _, o := range objects {
 			rbacObj := o.RBACObject()
 			if rbacObj.Type != objectType {
-				return nil, xerrors.Errorf("object types must be uniform across the set (%s), found %s", objectType, rbacObj)
+				return nil, fmt.Errorf("object types must be uniform across the set (%s), found %s", objectType, rbacObj)
 			}
 			err := auth.Authorize(ctx, subject, action, o.RBACObject())
 			if err == nil {
@@ -100,13 +100,13 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, a
 
 	prepared, err := auth.Prepare(ctx, subject, action, objectType)
 	if err != nil {
-		return nil, xerrors.Errorf("prepare: %w", err)
+		return nil, fmt.Errorf("prepare: %w", err)
 	}
 
 	for _, object := range objects {
 		rbacObj := object.RBACObject()
 		if rbacObj.Type != objectType {
-			return nil, xerrors.Errorf("object types must be uniform across the set (%s), found %s", objectType, object.RBACObject().Type)
+			return nil, fmt.Errorf("object types must be uniform across the set (%s), found %s", objectType, object.RBACObject().Type)
 		}
 		err := prepared.Authorize(ctx, rbacObj)
 		if err == nil {
@@ -144,7 +144,7 @@ func NewAuthorizer(registry prometheus.Registerer) *RegoAuthorizer {
 			rego.Module("policy.rego", policy),
 		).PrepareForEval(context.Background())
 		if err != nil {
-			panic(xerrors.Errorf("compile rego: %w", err))
+			panic(fmt.Errorf("compile rego: %w", err))
 		}
 	})
 
@@ -237,20 +237,20 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subject Subject, action A
 // nolint:revive
 func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action Action, object Object) error {
 	if subject.Roles == nil {
-		return xerrors.Errorf("subject must have roles")
+		return fmt.Errorf("subject must have roles")
 	}
 	if subject.Scope == nil {
-		return xerrors.Errorf("subject must have a scope")
+		return fmt.Errorf("subject must have a scope")
 	}
 
 	subjRoles, err := subject.Roles.Expand()
 	if err != nil {
-		return xerrors.Errorf("expand roles: %w", err)
+		return fmt.Errorf("expand roles: %w", err)
 	}
 
 	subjScope, err := subject.Scope.Expand()
 	if err != nil {
-		return xerrors.Errorf("expand scope: %w", err)
+		return fmt.Errorf("expand scope: %w", err)
 	}
 
 	input := map[string]interface{}{
@@ -266,11 +266,11 @@ func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action A
 
 	results, err := a.query.Eval(ctx, rego.EvalInput(input))
 	if err != nil {
-		return ForbiddenWithInternal(xerrors.Errorf("eval rego: %w", err), input, results)
+		return ForbiddenWithInternal(fmt.Errorf("eval rego: %w", err), input, results)
 	}
 
 	if !results.Allowed() {
-		return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), input, results)
+		return ForbiddenWithInternal(fmt.Errorf("policy disallows request"), input, results)
 	}
 	return nil
 }
@@ -287,7 +287,7 @@ func (a RegoAuthorizer) Prepare(ctx context.Context, subject Subject, action Act
 
 	prepared, err := newPartialAuthorizer(ctx, subject, action, objectType)
 	if err != nil {
-		return nil, xerrors.Errorf("new partial authorizer: %w", err)
+		return nil, fmt.Errorf("new partial authorizer: %w", err)
 	}
 
 	// Add attributes of the Prepare results. This will help understand the

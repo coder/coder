@@ -1,7 +1,7 @@
 package placebo
 
 import (
-	"golang.org/x/xerrors"
+	"fmt"
 
 	"github.com/coder/coder/coderd/httpapi"
 )
@@ -21,16 +21,16 @@ type Config struct {
 
 func (c Config) Validate() error {
 	if c.Sleep < 0 {
-		return xerrors.New("sleep must be set to a positive value")
+		return fmt.Errorf("sleep must be set to a positive value")
 	}
 	if c.Jitter < 0 {
-		return xerrors.New("jitter must be set to a positive value")
+		return fmt.Errorf("jitter must be set to a positive value")
 	}
 	if c.Jitter > 0 && c.Sleep == 0 {
-		return xerrors.New("jitter must be 0 if sleep is 0")
+		return fmt.Errorf("jitter must be 0 if sleep is 0")
 	}
 	if c.FailureChance < 0 || c.FailureChance > 1 {
-		return xerrors.New("failure_chance must be between 0 and 1")
+		return fmt.Errorf("failure_chance must be between 0 and 1")
 	}
 
 	return nil

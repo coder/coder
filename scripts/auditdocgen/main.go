@@ -3,13 +3,12 @@ package main
 import (
 	"bytes"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
-
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/enterprise/audit"
 )
@@ -99,13 +98,13 @@ func updateAuditDoc(doc []byte, auditableResourcesMap AuditableResourcesMap) ([]
 
 	i := bytes.Index(doc, generatorPrefix)
 	if i < 0 {
-		return nil, xerrors.New("generator prefix tag not found")
+		return nil, fmt.Errorf("generator prefix tag not found")
 	}
 	tableStartIndex := i + len(generatorPrefix) + 1
 
 	j := bytes.Index(doc[tableStartIndex:], generatorSuffix)
 	if j < 0 {
-		return nil, xerrors.New("generator suffix tag not found")
+		return nil, fmt.Errorf("generator suffix tag not found")
 	}
 	tableEndIndex := tableStartIndex + j
 

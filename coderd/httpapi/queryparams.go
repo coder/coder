@@ -9,8 +9,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/codersdk"
-
-	"golang.org/x/xerrors"
 )
 
 // QueryParamParser is a helper for parsing all query params and gathering all
@@ -72,7 +70,7 @@ func (p *QueryParamParser) UUIDs(vals url.Values, def []uuid.UUID, queryParam st
 		}
 
 		if len(badValues) > 0 {
-			return []uuid.UUID{}, xerrors.Errorf("%s", strings.Join(badValues, ","))
+			return []uuid.UUID{}, fmt.Errorf("%s", strings.Join(badValues, ","))
 		}
 		return ids, nil
 	}, def, queryParam)

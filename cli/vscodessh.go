@@ -14,7 +14,6 @@ import (
 
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
 	"github.com/coder/coder/codersdk"
@@ -43,13 +42,13 @@ func vscodeSSH() *cobra.Command {
 		Args:   cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if networkInfoDir == "" {
-				return xerrors.New("network-info-dir must be specified")
+				return fmt.Errorf("network-info-dir must be specified")
 			}
 			if sessionTokenFile == "" {
-				return xerrors.New("session-token-file must be specified")
+				return fmt.Errorf("session-token-file must be specified")
 			}
 			if urlFile == "" {
-				return xerrors.New("url-file must be specified")
+				return fmt.Errorf("url-file must be specified")
 			}
 
 			fs, ok := cmd.Context().Value("fs").(afero.Fs)
@@ -59,15 +58,15 @@ func vscodeSSH() *cobra.Command {
 
 			sessionToken, err := afero.ReadFile(fs, sessionTokenFile)
 			if err != nil {
-				return xerrors.Errorf("read session token: %w", err)
+				return fmt.Errorf("read session token: %w", err)
 			}
 			rawURL, err := afero.ReadFile(fs, urlFile)
 			if err != nil {
-				return xerrors.Errorf("read url: %w", err)
+				return fmt.Errorf("read url: %w", err)
 			}
 			serverURL, err := url.Parse(string(rawURL))
 			if err != nil {
-				return xerrors.Errorf("parse url: %w", err)
+				return fmt.Errorf("parse url: %w", err)
 			}
 
 			ctx, cancel := context.WithCancel(cmd.Context())
@@ -75,7 +74,7 @@ func vscodeSSH() *cobra.Command {
 
 			err = fs.MkdirAll(networkInfoDir, 0700)
 			if err != nil {
-				return xerrors.Errorf("mkdir: %w", err)
+				return fmt.Errorf("mkdir: %w", err)
 			}
 
 			client := codersdk.New(serverURL)
@@ -83,14 +82,14 @@ func vscodeSSH() *cobra.Command {
 
 			parts := strings.Split(args[0], "--")
 			if len(parts) < 3 {
-				return xerrors.Errorf("invalid argument format. must be: coder-vscode--<owner>-<name>-<agent?>")
+				return fmt.Errorf("invalid argument format. must be: coder-vscode--<owner>-<name>-<agent?>")
 			}
 			owner := parts[1]
 			name := parts[2]
 
 			workspace, err := client.WorkspaceByOwnerAndName(ctx, owner, name, codersdk.WorkspaceOptions{})
 			if err != nil {
-				return xerrors.Errorf("find workspace: %w", err)
+				return fmt.Errorf("find workspace: %w", err)
 			}
 			var agent codersdk.WorkspaceAgent
 			var found bool
@@ -121,7 +120,7 @@ func vscodeSSH() *cobra.Command {
 				EnableTrafficStats: true,
 			})
 			if err != nil {
-				return xerrors.Errorf("dial workspace agent: %w", err)
+				return fmt.Errorf("dial workspace agent: %w", err)
 			}
 			defer agentConn.Close()
 			agentConn.AwaitReachable(ctx)

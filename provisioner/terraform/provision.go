@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/terraform-provider-coder/provider"
@@ -97,7 +95,7 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 	if len(config.State) > 0 {
 		err = os.WriteFile(statefilePath, config.State, 0o600)
 		if err != nil {
-			return xerrors.Errorf("write statefile %q: %w", statefilePath, err)
+			return fmt.Errorf("write statefile %q: %w", statefilePath, err)
 		}
 	}
 
@@ -135,7 +133,7 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 				},
 			})
 		}
-		return xerrors.Errorf("initialize terraform: %w", err)
+		return fmt.Errorf("initialize terraform: %w", err)
 	}
 	s.logger.Debug(ctx, "ran initialization")
 
@@ -165,7 +163,7 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 					},
 				})
 			}
-			return xerrors.Errorf("plan terraform: %w", err)
+			return fmt.Errorf("plan terraform: %w", err)
 		}
 		return stream.Send(resp)
 	}
@@ -199,7 +197,7 @@ func planVars(plan *proto.Provision_Plan) ([]string, error) {
 		case proto.ParameterDestination_PROVISIONER_VARIABLE:
 			vars = append(vars, fmt.Sprintf("%s=%s", param.Name, param.Value))
 		default:
-			return nil, xerrors.Errorf("unsupported parameter type %q for %q", param.DestinationScheme, param.Name)
+			return nil, fmt.Errorf("unsupported parameter type %q for %q", param.DestinationScheme, param.Name)
 		}
 	}
 	return vars, nil
@@ -226,7 +224,7 @@ func provisionEnv(config *proto.Provision_Config, params []*proto.ParameterValue
 		case proto.ParameterDestination_PROVISIONER_VARIABLE:
 			continue
 		default:
-			return nil, xerrors.Errorf("unsupported parameter type %q for %q", param.DestinationScheme, param.Name)
+			return nil, fmt.Errorf("unsupported parameter type %q for %q", param.DestinationScheme, param.Name)
 		}
 	}
 	for _, param := range richParams {

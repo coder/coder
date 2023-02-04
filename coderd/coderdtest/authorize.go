@@ -15,7 +15,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/rbac"
@@ -437,7 +436,7 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 
 func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck, skipRoutes map[string]string) {
 	// Always fail auth from this point forward
-	a.authorizer.AlwaysReturn = rbac.ForbiddenWithInternal(xerrors.New("fake implementation"), nil, nil)
+	a.authorizer.AlwaysReturn = rbac.ForbiddenWithInternal(fmt.Errorf("fake implementation"), nil, nil)
 
 	routeMissing := make(map[string]bool)
 	for k, v := range assertRoute {
@@ -588,7 +587,7 @@ func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Obje
 // CompileToSQL returns a compiled version of the authorizer that will work for
 // in memory databases. This fake version will not work against a SQL database.
 func (fakePreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
-	return "", xerrors.New("not implemented")
+	return "", fmt.Errorf("not implemented")
 }
 
 func (f *fakePreparedAuthorizer) Eval(object rbac.Object) bool {

@@ -32,6 +32,7 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
+
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/netlogtype"
@@ -232,18 +233,18 @@ func (a *agent) run(ctx context.Context) error {
 	// may not have re-provisioned, but a new agent ID was created.
 	sessionToken, err := a.exchangeToken(ctx)
 	if err != nil {
-		return xerrors.Errorf("exchange token: %w", err)
+		return fmt.Errorf("exchange token: %w", err)
 	}
 	a.sessionToken.Store(&sessionToken)
 
 	err = a.client.PostVersion(ctx, buildinfo.Version())
 	if err != nil {
-		return xerrors.Errorf("update workspace agent version: %w", err)
+		return fmt.Errorf("update workspace agent version: %w", err)
 	}
 
 	metadata, err := a.client.Metadata(ctx)
 	if err != nil {
-		return xerrors.Errorf("fetch metadata: %w", err)
+		return fmt.Errorf("fetch metadata: %w", err)
 	}
 	a.logger.Info(ctx, "fetched metadata")
 	oldMetadata := a.metadata.Swap(metadata)
@@ -321,7 +322,7 @@ func (a *agent) run(ctx context.Context) error {
 		a.logger.Debug(ctx, "creating tailnet")
 		network, err = a.createTailnet(ctx, metadata.DERPMap)
 		if err != nil {
-			return xerrors.Errorf("create tailnet: %w", err)
+			return fmt.Errorf("create tailnet: %w", err)
 		}
 		a.closeMutex.Lock()
 		// Re-check if agent was closed while initializing the network.
@@ -332,7 +333,7 @@ func (a *agent) run(ctx context.Context) error {
 		a.closeMutex.Unlock()
 		if closed {
 			_ = network.Close()
-			return xerrors.New("agent is closed")
+			return fmt.Errorf("agent is closed")
 		}
 
 		// Report statistics from the created network.
@@ -362,7 +363,7 @@ func (a *agent) run(ctx context.Context) error {
 	err = a.runCoordinator(ctx, network)
 	if err != nil {
 		a.logger.Debug(ctx, "coordinator exited", slog.Error(err))
-		return xerrors.Errorf("run coordinator: %w", err)
+		return fmt.Errorf("run coordinator: %w", err)
 	}
 	return nil
 }
@@ -371,7 +372,7 @@ func (a *agent) trackConnGoroutine(fn func()) error {
 	a.closeMutex.Lock()
 	defer a.closeMutex.Unlock()
 	if a.isClosed() {
-		return xerrors.New("track conn goroutine: agent is closed")
+		return fmt.Errorf("track conn goroutine: agent is closed")
 	}
 	a.connCloseWait.Add(1)
 	go func() {
@@ -389,7 +390,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 		EnableTrafficStats: true,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("create tailnet: %w", err)
+		return nil, fmt.Errorf("create tailnet: %w", err)
 	}
 	defer func() {
 		if err != nil {
@@ -399,7 +400,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 
 	sshListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.WorkspaceAgentSSHPort))
 	if err != nil {
-		return nil, xerrors.Errorf("listen on the ssh port: %w", err)
+		return nil, fmt.Errorf("listen on the ssh port: %w", err)
 	}
 	defer func() {
 		if err != nil {
@@ -435,7 +436,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 
 	reconnectingPTYListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.WorkspaceAgentReconnectingPTYPort))
 	if err != nil {
-		return nil, xerrors.Errorf("listen for reconnecting pty: %w", err)
+		return nil, fmt.Errorf("listen for reconnecting pty: %w", err)
 	}
 	defer func() {
 		if err != nil {
@@ -491,7 +492,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 
 	speedtestListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.WorkspaceAgentSpeedtestPort))
 	if err != nil {
-		return nil, xerrors.Errorf("listen for speedtest: %w", err)
+		return nil, fmt.Errorf("listen for speedtest: %w", err)
 	}
 	defer func() {
 		if err != nil {
@@ -528,7 +529,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 
 	statisticsListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.WorkspaceAgentStatisticsPort))
 	if err != nil {
-		return nil, xerrors.Errorf("listen for statistics: %w", err)
+		return nil, fmt.Errorf("listen for statistics: %w", err)
 	}
 	defer func() {
 		if err != nil {
@@ -593,14 +594,14 @@ func (a *agent) runStartupScript(ctx context.Context, script string) error {
 	a.logger.Info(ctx, "running startup script", slog.F("script", script))
 	writer, err := a.filesystem.OpenFile(filepath.Join(a.logDir, "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
-		return xerrors.Errorf("open startup script log file: %w", err)
+		return fmt.Errorf("open startup script log file: %w", err)
 	}
 	defer func() {
 		_ = writer.Close()
 	}()
 	cmd, err := a.createCommand(ctx, script, nil)
 	if err != nil {
-		return xerrors.Errorf("create command: %w", err)
+		return fmt.Errorf("create command: %w", err)
 	}
 	cmd.Stdout = writer
 	cmd.Stderr = writer
@@ -611,7 +612,7 @@ func (a *agent) runStartupScript(ctx context.Context, script string) error {
 			return ctx.Err()
 		}
 
-		return xerrors.Errorf("run: %w", err)
+		return fmt.Errorf("run: %w", err)
 	}
 
 	return nil
@@ -761,22 +762,22 @@ func convertAgentStats(counts map[netlogtype.Connection]netlogtype.Counts) *agen
 func (a *agent) createCommand(ctx context.Context, rawCommand string, env []string) (*exec.Cmd, error) {
 	currentUser, err := user.Current()
 	if err != nil {
-		return nil, xerrors.Errorf("get current user: %w", err)
+		return nil, fmt.Errorf("get current user: %w", err)
 	}
 	username := currentUser.Username
 
 	shell, err := usershell.Get(username)
 	if err != nil {
-		return nil, xerrors.Errorf("get user shell: %w", err)
+		return nil, fmt.Errorf("get user shell: %w", err)
 	}
 
 	rawMetadata := a.metadata.Load()
 	if rawMetadata == nil {
-		return nil, xerrors.Errorf("no metadata was provided: %w", err)
+		return nil, fmt.Errorf("no metadata was provided: %w", err)
 	}
 	metadata, valid := rawMetadata.(agentsdk.Metadata)
 	if !valid {
-		return nil, xerrors.Errorf("metadata is the wrong type: %T", metadata)
+		return nil, fmt.Errorf("metadata is the wrong type: %T", metadata)
 	}
 
 	// OpenSSH executes all commands with the users current shell.
@@ -804,14 +805,14 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 		// Default to user home if a directory is not set.
 		homedir, err := userHomeDir()
 		if err != nil {
-			return nil, xerrors.Errorf("get home dir: %w", err)
+			return nil, fmt.Errorf("get home dir: %w", err)
 		}
 		cmd.Dir = homedir
 	}
 	cmd.Env = append(os.Environ(), env...)
 	executablePath, err := os.Executable()
 	if err != nil {
-		return nil, xerrors.Errorf("getting os executable: %w", err)
+		return nil, fmt.Errorf("getting os executable: %w", err)
 	}
 	// Set environment variables reliable detection of being inside a
 	// Coder workspace.
@@ -869,7 +870,7 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 	if ssh.AgentRequested(session) {
 		l, err := ssh.NewAgentListener()
 		if err != nil {
-			return xerrors.Errorf("new agent listener: %w", err)
+			return fmt.Errorf("new agent listener: %w", err)
 		}
 		defer l.Close()
 		go ssh.ForwardAgentConnections(l, session)
@@ -902,7 +903,7 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 			pty.WithLogger(slog.Stdlib(ctx, a.logger, slog.LevelInfo)),
 		))
 		if err != nil {
-			return xerrors.Errorf("start command: %w", err)
+			return fmt.Errorf("start command: %w", err)
 		}
 		defer func() {
 			closeErr := ptty.Close()
@@ -943,7 +944,7 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 	// use StdinPipe. It's unknown what causes this.
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
-		return xerrors.Errorf("create stdin pipe: %w", err)
+		return fmt.Errorf("create stdin pipe: %w", err)
 	}
 	go func() {
 		_, _ = io.Copy(stdinPipe, session)
@@ -951,7 +952,7 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 	}()
 	err = cmd.Start()
 	if err != nil {
-		return xerrors.Errorf("start: %w", err)
+		return fmt.Errorf("start: %w", err)
 	}
 	return cmd.Wait()
 }
@@ -985,7 +986,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 		logger.Debug(ctx, "connecting to existing session")
 		rpty, ok = rawRPTY.(*reconnectingPTY)
 		if !ok {
-			return xerrors.Errorf("found invalid type in reconnecting pty map: %T", rawRPTY)
+			return fmt.Errorf("found invalid type in reconnecting pty map: %T", rawRPTY)
 		}
 	} else {
 		logger.Debug(ctx, "creating new session")
@@ -993,19 +994,19 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 		// Empty command will default to the users shell!
 		cmd, err := a.createCommand(ctx, msg.Command, nil)
 		if err != nil {
-			return xerrors.Errorf("create command: %w", err)
+			return fmt.Errorf("create command: %w", err)
 		}
 		cmd.Env = append(cmd.Env, "TERM=xterm-256color")
 
 		// Default to buffer 64KiB.
 		circularBuffer, err := circbuf.NewBuffer(64 << 10)
 		if err != nil {
-			return xerrors.Errorf("create circular buffer: %w", err)
+			return fmt.Errorf("create circular buffer: %w", err)
 		}
 
 		ptty, process, err := pty.Start(cmd)
 		if err != nil {
-			return xerrors.Errorf("start command: %w", err)
+			return fmt.Errorf("start command: %w", err)
 		}
 
 		ctx, cancelFunc := context.WithCancel(ctx)
@@ -1065,7 +1066,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			rpty.Close()
 			a.reconnectingPTYs.Delete(msg.ID)
 		}); err != nil {
-			return xerrors.Errorf("start routine: %w", err)
+			return fmt.Errorf("start routine: %w", err)
 		}
 	}
 	// Resize the PTY to initial height + width.
@@ -1085,7 +1086,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 	// while also holding circularBufferMutex seems dangerous.
 	_, err = conn.Write(prevBuf)
 	if err != nil {
-		return xerrors.Errorf("write buffer to conn: %w", err)
+		return fmt.Errorf("write buffer to conn: %w", err)
 	}
 	// Multiple connections to the same TTY are permitted.
 	// This could easily be used for terminal sharing, but
@@ -1275,7 +1276,7 @@ func showMOTD(dest io.Writer, filename string) error {
 			// This is not an error, there simply isn't a MOTD to show.
 			return nil
 		}
-		return xerrors.Errorf("open MOTD: %w", err)
+		return fmt.Errorf("open MOTD: %w", err)
 	}
 	defer f.Close()
 
@@ -1285,11 +1286,11 @@ func showMOTD(dest io.Writer, filename string) error {
 		// at the beginning of the terminal.
 		_, err = fmt.Fprint(dest, s.Text()+"\r\n")
 		if err != nil {
-			return xerrors.Errorf("write MOTD: %w", err)
+			return fmt.Errorf("write MOTD: %w", err)
 		}
 	}
 	if err := s.Err(); err != nil {
-		return xerrors.Errorf("read MOTD: %w", err)
+		return fmt.Errorf("read MOTD: %w", err)
 	}
 
 	return nil
@@ -1307,7 +1308,7 @@ func userHomeDir() (string, error) {
 	// As a fallback, we try the user information.
 	u, err := user.Current()
 	if err != nil {
-		return "", xerrors.Errorf("current user: %w", err)
+		return "", fmt.Errorf("current user: %w", err)
 	}
 	return u.HomeDir, nil
 }

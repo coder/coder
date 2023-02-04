@@ -268,7 +268,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
 		})
 		if err != nil {
-			return xerrors.Errorf("insert template: %s", err)
+			return fmt.Errorf("insert template: %s", err)
 		}
 
 		templateAudit.New = dbTemplate
@@ -282,7 +282,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			UpdatedAt: database.Now(),
 		})
 		if err != nil {
-			return xerrors.Errorf("insert template version: %s", err)
+			return fmt.Errorf("insert template version: %s", err)
 		}
 		newTemplateVersion := templateVersion
 		newTemplateVersion.TemplateID = uuid.NullUUID{
@@ -304,13 +304,13 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 				DestinationScheme: database.ParameterDestinationScheme(parameterValue.DestinationScheme),
 			})
 			if err != nil {
-				return xerrors.Errorf("insert parameter value: %w", err)
+				return fmt.Errorf("insert parameter value: %w", err)
 			}
 		}
 
 		createdByNameMap, err := getCreatedByNamesByTemplateIDs(ctx, tx, []database.Template{dbTemplate})
 		if err != nil {
-			return xerrors.Errorf("get creator name: %w", err)
+			return fmt.Errorf("get creator name: %w", err)
 		}
 
 		template = api.convertTemplate(dbTemplate, 0, createdByNameMap[dbTemplate.ID.String()])

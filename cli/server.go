@@ -42,6 +42,7 @@ import (
 	xgithub "golang.org/x/oauth2/github"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
+
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
 	"tailscale.com/tailcfg"
@@ -94,7 +95,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 
 			cfg, err := deployment.Config(cmd.Flags(), vip)
 			if err != nil {
-				return xerrors.Errorf("getting deployment config: %w", err)
+				return fmt.Errorf("getting deployment config: %w", err)
 			}
 
 			// Validate bind addresses.
@@ -109,10 +110,10 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 			}
 			if cfg.TLS.Enable.Value && cfg.TLS.Address.Value == "" {
-				return xerrors.Errorf("TLS address must be set if TLS is enabled")
+				return fmt.Errorf("TLS address must be set if TLS is enabled")
 			}
 			if !cfg.TLS.Enable.Value && cfg.HTTPAddress.Value == "" {
-				return xerrors.Errorf("TLS is disabled. Enable with --tls-enable or specify a HTTP address")
+				return fmt.Errorf("TLS is disabled. Enable with --tls-enable or specify a HTTP address")
 			}
 
 			// Disable rate limits if the `--dangerous-disable-rate-limits` flag
@@ -128,7 +129,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			printLogo(cmd)
 			logger, logCloser, err := buildLogger(cmd, cfg)
 			if err != nil {
-				return xerrors.Errorf("make logger: %w", err)
+				return fmt.Errorf("make logger: %w", err)
 			}
 			defer logCloser()
 
@@ -149,7 +150,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			cacheDir := filepath.Join(cfg.CacheDirectory.Value, uuid.NewString())
 			err = os.MkdirAll(cacheDir, 0o700)
 			if err != nil {
-				return xerrors.Errorf("create cache directory: %w", err)
+				return fmt.Errorf("create cache directory: %w", err)
 			}
 			defer os.RemoveAll(cacheDir)
 
@@ -226,7 +227,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			if cfg.HTTPAddress.Value != "" {
 				httpListener, err = net.Listen("tcp", cfg.HTTPAddress.Value)
 				if err != nil {
-					return xerrors.Errorf("listen %q: %w", cfg.HTTPAddress.Value, err)
+					return fmt.Errorf("listen %q: %w", cfg.HTTPAddress.Value, err)
 				}
 				defer httpListener.Close()
 
@@ -246,7 +247,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				// Set the http URL we want to use when connecting to ourselves.
 				tcpAddr, tcpAddrValid := httpListener.Addr().(*net.TCPAddr)
 				if !tcpAddrValid {
-					return xerrors.Errorf("invalid TCP address type %T", httpListener.Addr())
+					return fmt.Errorf("invalid TCP address type %T", httpListener.Addr())
 				}
 				if tcpAddr.IP.IsUnspecified() {
 					tcpAddr.IP = net.IPv4(127, 0, 0, 1)
@@ -264,7 +265,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			)
 			if cfg.TLS.Enable.Value {
 				if cfg.TLS.Address.Value == "" {
-					return xerrors.New("tls address must be set if tls is enabled")
+					return fmt.Errorf("tls address must be set if tls is enabled")
 				}
 
 				tlsConfig, err = configureTLS(
@@ -275,11 +276,11 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					cfg.TLS.ClientCAFile.Value,
 				)
 				if err != nil {
-					return xerrors.Errorf("configure tls: %w", err)
+					return fmt.Errorf("configure tls: %w", err)
 				}
 				httpsListenerInner, err := net.Listen("tcp", cfg.TLS.Address.Value)
 				if err != nil {
-					return xerrors.Errorf("listen %q: %w", cfg.TLS.Address.Value, err)
+					return fmt.Errorf("listen %q: %w", cfg.TLS.Address.Value, err)
 				}
 				defer httpsListenerInner.Close()
 
@@ -304,7 +305,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				// ourselves.
 				tcpAddr, tcpAddrValid := httpsListener.Addr().(*net.TCPAddr)
 				if !tcpAddrValid {
-					return xerrors.Errorf("invalid TCP address type %T", httpsListener.Addr())
+					return fmt.Errorf("invalid TCP address type %T", httpsListener.Addr())
 				}
 				if tcpAddr.IP.IsUnspecified() {
 					tcpAddr.IP = net.IPv4(127, 0, 0, 1)
@@ -317,7 +318,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 
 			// Sanity check that at least one listener was started.
 			if httpListener == nil && httpsListener == nil {
-				return xerrors.New("must listen on at least one address")
+				return fmt.Errorf("must listen on at least one address")
 			}
 
 			// Prefer HTTP because it's less prone to TLS errors over localhost.
@@ -333,7 +334,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				cfg.TLS.ClientCAFile.Value,
 			)
 			if err != nil {
-				return xerrors.Errorf("configure http client: %w", err)
+				return fmt.Errorf("configure http client: %w", err)
 			}
 
 			var (
@@ -349,14 +350,14 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				cmd.Printf("Opening tunnel so workspaces can connect to your deployment. For production scenarios, specify an external access URL\n")
 				tunnel, tunnelErr, err = devtunnel.New(ctxTunnel, logger.Named("devtunnel"))
 				if err != nil {
-					return xerrors.Errorf("create tunnel: %w", err)
+					return fmt.Errorf("create tunnel: %w", err)
 				}
 				cfg.AccessURL.Value = tunnel.URL
 
 				if cfg.WildcardAccessURL.Value == "" {
 					u, err := parseURL(tunnel.URL)
 					if err != nil {
-						return xerrors.Errorf("parse tunnel url: %w", err)
+						return fmt.Errorf("parse tunnel url: %w", err)
 					}
 
 					// Suffixed wildcard access URL.
@@ -366,7 +367,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 
 			accessURLParsed, err := parseURL(cfg.AccessURL.Value)
 			if err != nil {
-				return xerrors.Errorf("parse URL: %w", err)
+				return fmt.Errorf("parse URL: %w", err)
 			}
 			accessURLPortRaw := accessURLParsed.Port()
 			if accessURLPortRaw == "" {
@@ -377,7 +378,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			}
 			accessURLPort, err := strconv.Atoi(accessURLPortRaw)
 			if err != nil {
-				return xerrors.Errorf("parse access URL port: %w", err)
+				return fmt.Errorf("parse access URL port: %w", err)
 			}
 
 			// Warn the user if the access URL appears to be a loopback address.
@@ -410,7 +411,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 
 			sshKeygenAlgorithm, err := gitsshkey.ParseAlgorithm(cfg.SSHKeygenAlgorithm.Value)
 			if err != nil {
-				return xerrors.Errorf("parse ssh keygen algorithm %s: %w", cfg.SSHKeygenAlgorithm.Value, err)
+				return fmt.Errorf("parse ssh keygen algorithm %s: %w", cfg.SSHKeygenAlgorithm.Value, err)
 			}
 
 			defaultRegion := &tailcfg.DERPRegion{
@@ -432,7 +433,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			}
 			derpMap, err := tailnet.NewDERPMap(ctx, defaultRegion, cfg.DERP.Server.STUNAddresses.Value, cfg.DERP.Config.URL.Value, cfg.DERP.Config.Path.Value)
 			if err != nil {
-				return xerrors.Errorf("create derp map: %w", err)
+				return fmt.Errorf("create derp map: %w", err)
 			}
 
 			appHostname := strings.TrimSpace(cfg.WildcardAccessURL.Value)
@@ -440,18 +441,18 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			if appHostname != "" {
 				appHostnameRegex, err = httpapi.CompileHostnamePattern(appHostname)
 				if err != nil {
-					return xerrors.Errorf("parse wildcard access URL %q: %w", appHostname, err)
+					return fmt.Errorf("parse wildcard access URL %q: %w", appHostname, err)
 				}
 			}
 
 			gitAuthConfigs, err := gitauth.ConvertConfig(cfg.GitAuth.Value, accessURLParsed)
 			if err != nil {
-				return xerrors.Errorf("parse git auth config: %w", err)
+				return fmt.Errorf("parse git auth config: %w", err)
 			}
 
 			realIPConfig, err := httpmw.ParseRealIPConfig(cfg.ProxyTrustedHeaders.Value, cfg.ProxyTrustedOrigins.Value)
 			if err != nil {
-				return xerrors.Errorf("parse real ip config: %w", err)
+				return fmt.Errorf("parse real ip config: %w", err)
 			}
 
 			options := &coderd.Options{
@@ -513,16 +514,16 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					cfg.OAuth2.Github.EnterpriseBaseURL.Value,
 				)
 				if err != nil {
-					return xerrors.Errorf("configure github oauth2: %w", err)
+					return fmt.Errorf("configure github oauth2: %w", err)
 				}
 			}
 
 			if cfg.OIDC.ClientSecret.Value != "" {
 				if cfg.OIDC.ClientID.Value == "" {
-					return xerrors.Errorf("OIDC client ID be set!")
+					return fmt.Errorf("OIDC client ID be set!")
 				}
 				if cfg.OIDC.IssuerURL.Value == "" {
-					return xerrors.Errorf("OIDC issuer URL must be set!")
+					return fmt.Errorf("OIDC issuer URL must be set!")
 				}
 
 				if cfg.OIDC.IgnoreEmailVerified.Value {
@@ -531,11 +532,11 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 
 				oidcProvider, err := oidc.NewProvider(ctx, cfg.OIDC.IssuerURL.Value)
 				if err != nil {
-					return xerrors.Errorf("configure oidc provider: %w", err)
+					return fmt.Errorf("configure oidc provider: %w", err)
 				}
 				redirectURL, err := accessURLParsed.Parse("/api/v2/users/oidc/callback")
 				if err != nil {
-					return xerrors.Errorf("parse oidc oauth callback url: %w", err)
+					return fmt.Errorf("parse oidc oauth callback url: %w", err)
 				}
 				options.OIDCConfig = &coderd.OIDCConfig{
 					OAuth2Config: &oauth2.Config{
@@ -564,7 +565,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				logger.Debug(ctx, "connecting to postgresql")
 				sqlDB, err := sql.Open(sqlDriver, cfg.PostgresURL.Value)
 				if err != nil {
-					return xerrors.Errorf("dial postgres: %w", err)
+					return fmt.Errorf("dial postgres: %w", err)
 				}
 				defer sqlDB.Close()
 
@@ -573,32 +574,32 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 
 				err = sqlDB.PingContext(pingCtx)
 				if err != nil {
-					return xerrors.Errorf("ping postgres: %w", err)
+					return fmt.Errorf("ping postgres: %w", err)
 				}
 
 				// Ensure the PostgreSQL version is >=13.0.0!
 				version, err := sqlDB.QueryContext(ctx, "SHOW server_version;")
 				if err != nil {
-					return xerrors.Errorf("get postgres version: %w", err)
+					return fmt.Errorf("get postgres version: %w", err)
 				}
 				if !version.Next() {
-					return xerrors.Errorf("no rows returned for version select")
+					return fmt.Errorf("no rows returned for version select")
 				}
 				var versionStr string
 				err = version.Scan(&versionStr)
 				if err != nil {
-					return xerrors.Errorf("scan version: %w", err)
+					return fmt.Errorf("scan version: %w", err)
 				}
 				_ = version.Close()
 				versionStr = strings.Split(versionStr, " ")[0]
 				if semver.Compare("v"+versionStr, "v13") < 0 {
-					return xerrors.New("PostgreSQL version must be v13.0.0 or higher!")
+					return fmt.Errorf("PostgreSQL version must be v13.0.0 or higher!")
 				}
 				logger.Debug(ctx, "connected to postgresql", slog.F("version", versionStr))
 
 				err = migrations.Up(sqlDB)
 				if err != nil {
-					return xerrors.Errorf("migrate up: %w", err)
+					return fmt.Errorf("migrate up: %w", err)
 				}
 				// The default is 0 but the request will fail with a 500 if the DB
 				// cannot accept new connections, so we try to limit that here.
@@ -621,7 +622,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				options.Database = database.New(sqlDB)
 				options.Pubsub, err = database.NewPubsub(ctx, sqlDB, cfg.PostgresURL.Value)
 				if err != nil {
-					return xerrors.Errorf("create pubsub: %w", err)
+					return fmt.Errorf("create pubsub: %w", err)
 				}
 				defer options.Pubsub.Close()
 			}
@@ -631,13 +632,13 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				err = nil
 			}
 			if err != nil {
-				return xerrors.Errorf("get deployment id: %w", err)
+				return fmt.Errorf("get deployment id: %w", err)
 			}
 			if deploymentID == "" {
 				deploymentID = uuid.NewString()
 				err = options.Database.InsertDeploymentID(ctx, deploymentID)
 				if err != nil {
-					return xerrors.Errorf("set deployment id: %w", err)
+					return fmt.Errorf("set deployment id: %w", err)
 				}
 			}
 
@@ -649,7 +650,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				// Parse the raw telemetry URL!
 				telemetryURL, err := parseURL(cfg.Telemetry.URL.Value)
 				if err != nil {
-					return xerrors.Errorf("parse telemetry url: %w", err)
+					return fmt.Errorf("parse telemetry url: %w", err)
 				}
 
 				gitAuth := make([]telemetry.GitAuth, 0)
@@ -676,7 +677,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					Tunnel:             tunnel != nil,
 				})
 				if err != nil {
-					return xerrors.Errorf("create telemetry reporter: %w", err)
+					return fmt.Errorf("create telemetry reporter: %w", err)
 				}
 				defer options.Telemetry.Close()
 			}
@@ -693,13 +694,13 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 
 				closeUsersFunc, err := prometheusmetrics.ActiveUsers(ctx, options.PrometheusRegistry, options.Database, 0)
 				if err != nil {
-					return xerrors.Errorf("register active users prometheus metric: %w", err)
+					return fmt.Errorf("register active users prometheus metric: %w", err)
 				}
 				defer closeUsersFunc()
 
 				closeWorkspacesFunc, err := prometheusmetrics.Workspaces(ctx, options.PrometheusRegistry, options.Database, 0)
 				if err != nil {
-					return xerrors.Errorf("register workspaces prometheus metric: %w", err)
+					return fmt.Errorf("register workspaces prometheus metric: %w", err)
 				}
 				defer closeWorkspacesFunc()
 
@@ -758,7 +759,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				daemonCacheDir := filepath.Join(cacheDir, fmt.Sprintf("provisioner-%d", i))
 				daemon, err := newProvisionerDaemon(ctx, coderAPI, provisionerdMetrics, logger, cfg, daemonCacheDir, errCh, false)
 				if err != nil {
-					return xerrors.Errorf("create provisioner daemon: %w", err)
+					return fmt.Errorf("create provisioner daemon: %w", err)
 				}
 				provisionerDaemons = append(provisionerDaemons, daemon)
 			}
@@ -845,7 +846,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			// Updates the systemd status from activating to activated.
 			_, err = daemon.SdNotify(false, daemon.SdNotifyReady)
 			if err != nil {
-				return xerrors.Errorf("notify systemd: %w", err)
+				return fmt.Errorf("notify systemd: %w", err)
 			}
 
 			autobuildPoller := time.NewTicker(cfg.AutobuildPollInterval.Value)
@@ -865,7 +866,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				))
 			case exitErr = <-tunnelErr:
 				if exitErr == nil {
-					exitErr = xerrors.New("dev tunnel closed unexpectedly")
+					exitErr = fmt.Errorf("dev tunnel closed unexpectedly")
 				}
 			case exitErr = <-errCh:
 			}
@@ -1019,7 +1020,7 @@ func parseURL(u string) (*url.URL, error) {
 	)
 
 	if !hasScheme {
-		return nil, xerrors.Errorf("URL %q must have a scheme of either http or https", u)
+		return nil, fmt.Errorf("URL %q must have a scheme of either http or https", u)
 	}
 
 	parsed, err := url.Parse(u)
@@ -1073,7 +1074,7 @@ func newProvisionerDaemon(
 
 	err = os.MkdirAll(cacheDir, 0o700)
 	if err != nil {
-		return nil, xerrors.Errorf("mkdir %q: %w", cacheDir, err)
+		return nil, fmt.Errorf("mkdir %q: %w", cacheDir, err)
 	}
 
 	terraformClient, terraformServer := provisionersdk.MemTransportPipe()
@@ -1160,13 +1161,13 @@ func printLogo(cmd *cobra.Command) {
 
 func loadCertificates(tlsCertFiles, tlsKeyFiles []string) ([]tls.Certificate, error) {
 	if len(tlsCertFiles) != len(tlsKeyFiles) {
-		return nil, xerrors.New("--tls-cert-file and --tls-key-file must be used the same amount of times")
+		return nil, fmt.Errorf("--tls-cert-file and --tls-key-file must be used the same amount of times")
 	}
 	if len(tlsCertFiles) == 0 {
-		return nil, xerrors.New("--tls-cert-file is required when tls is enabled")
+		return nil, fmt.Errorf("--tls-cert-file is required when tls is enabled")
 	}
 	if len(tlsKeyFiles) == 0 {
-		return nil, xerrors.New("--tls-key-file is required when tls is enabled")
+		return nil, fmt.Errorf("--tls-key-file is required when tls is enabled")
 	}
 
 	certs := make([]tls.Certificate, len(tlsCertFiles))
@@ -1174,7 +1175,7 @@ func loadCertificates(tlsCertFiles, tlsKeyFiles []string) ([]tls.Certificate, er
 		certFile, keyFile := tlsCertFiles[i], tlsKeyFiles[i]
 		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 		if err != nil {
-			return nil, xerrors.Errorf("load TLS key pair %d (%q, %q): %w", i, certFile, keyFile, err)
+			return nil, fmt.Errorf("load TLS key pair %d (%q, %q): %w", i, certFile, keyFile, err)
 		}
 
 		certs[i] = cert
@@ -1197,7 +1198,7 @@ func configureTLS(tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles
 	case "tls13":
 		tlsConfig.MinVersion = tls.VersionTLS13
 	default:
-		return nil, xerrors.Errorf("unrecognized tls version: %q", tlsMinVersion)
+		return nil, fmt.Errorf("unrecognized tls version: %q", tlsMinVersion)
 	}
 
 	switch tlsClientAuth {
@@ -1212,12 +1213,12 @@ func configureTLS(tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles
 	case "require-and-verify":
 		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	default:
-		return nil, xerrors.Errorf("unrecognized tls client auth: %q", tlsClientAuth)
+		return nil, fmt.Errorf("unrecognized tls client auth: %q", tlsClientAuth)
 	}
 
 	certs, err := loadCertificates(tlsCertFiles, tlsKeyFiles)
 	if err != nil {
-		return nil, xerrors.Errorf("load certificates: %w", err)
+		return nil, fmt.Errorf("load certificates: %w", err)
 	}
 	tlsConfig.Certificates = certs
 	tlsConfig.GetCertificate = func(hi *tls.ClientHelloInfo) (*tls.Certificate, error) {
@@ -1255,10 +1256,10 @@ func configureCAPool(tlsClientCAFile string, tlsConfig *tls.Config) error {
 		caPool := x509.NewCertPool()
 		data, err := os.ReadFile(tlsClientCAFile)
 		if err != nil {
-			return xerrors.Errorf("read %q: %w", tlsClientCAFile, err)
+			return fmt.Errorf("read %q: %w", tlsClientCAFile, err)
 		}
 		if !caPool.AppendCertsFromPEM(data) {
-			return xerrors.Errorf("failed to parse CA certificate in tls-client-ca-file")
+			return fmt.Errorf("failed to parse CA certificate in tls-client-ca-file")
 		}
 		tlsConfig.ClientCAs = caPool
 	}
@@ -1269,22 +1270,22 @@ func configureCAPool(tlsClientCAFile string, tlsConfig *tls.Config) error {
 func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, allowSignups, allowEveryone bool, allowOrgs []string, rawTeams []string, enterpriseBaseURL string) (*coderd.GithubOAuth2Config, error) {
 	redirectURL, err := accessURL.Parse("/api/v2/users/oauth2/github/callback")
 	if err != nil {
-		return nil, xerrors.Errorf("parse github oauth callback url: %w", err)
+		return nil, fmt.Errorf("parse github oauth callback url: %w", err)
 	}
 	if allowEveryone && len(allowOrgs) > 0 {
-		return nil, xerrors.New("allow everyone and allowed orgs cannot be used together")
+		return nil, fmt.Errorf("allow everyone and allowed orgs cannot be used together")
 	}
 	if allowEveryone && len(rawTeams) > 0 {
-		return nil, xerrors.New("allow everyone and allowed teams cannot be used together")
+		return nil, fmt.Errorf("allow everyone and allowed teams cannot be used together")
 	}
 	if !allowEveryone && len(allowOrgs) == 0 {
-		return nil, xerrors.New("allowed orgs is empty: must specify at least one org or allow everyone")
+		return nil, fmt.Errorf("allowed orgs is empty: must specify at least one org or allow everyone")
 	}
 	allowTeams := make([]coderd.GithubOAuth2Team, 0, len(rawTeams))
 	for _, rawTeam := range rawTeams {
 		parts := strings.SplitN(rawTeam, "/", 2)
 		if len(parts) != 2 {
-			return nil, xerrors.Errorf("github team allowlist is formatted incorrectly. got %s; wanted <organization>/<team>", rawTeam)
+			return nil, fmt.Errorf("github team allowlist is formatted incorrectly. got %s; wanted <organization>/<team>", rawTeam)
 		}
 		allowTeams = append(allowTeams, coderd.GithubOAuth2Team{
 			Organization: parts[0],
@@ -1302,15 +1303,15 @@ func configureGithubOAuth2(accessURL *url.URL, clientID, clientSecret string, al
 	if enterpriseBaseURL != "" {
 		enterpriseURL, err := url.Parse(enterpriseBaseURL)
 		if err != nil {
-			return nil, xerrors.Errorf("parse enterprise base url: %w", err)
+			return nil, fmt.Errorf("parse enterprise base url: %w", err)
 		}
 		authURL, err := enterpriseURL.Parse("/login/oauth/authorize")
 		if err != nil {
-			return nil, xerrors.Errorf("parse enterprise auth url: %w", err)
+			return nil, fmt.Errorf("parse enterprise auth url: %w", err)
 		}
 		tokenURL, err := enterpriseURL.Parse("/login/oauth/access_token")
 		if err != nil {
-			return nil, xerrors.Errorf("parse enterprise token url: %w", err)
+			return nil, fmt.Errorf("parse enterprise token url: %w", err)
 		}
 		endpoint = oauth2.Endpoint{
 			AuthURL:  authURL.String(),
@@ -1380,11 +1381,11 @@ func embeddedPostgresURL(cfg config.Root) (string, error) {
 	if errors.Is(err, os.ErrNotExist) {
 		pgPassword, err = cryptorand.String(16)
 		if err != nil {
-			return "", xerrors.Errorf("generate password: %w", err)
+			return "", fmt.Errorf("generate password: %w", err)
 		}
 		err = cfg.PostgresPassword().Write(pgPassword)
 		if err != nil {
-			return "", xerrors.Errorf("write password: %w", err)
+			return "", fmt.Errorf("write password: %w", err)
 		}
 	}
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -1394,17 +1395,17 @@ func embeddedPostgresURL(cfg config.Root) (string, error) {
 	if errors.Is(err, os.ErrNotExist) {
 		listener, err := net.Listen("tcp4", "127.0.0.1:0")
 		if err != nil {
-			return "", xerrors.Errorf("listen for random port: %w", err)
+			return "", fmt.Errorf("listen for random port: %w", err)
 		}
 		_ = listener.Close()
 		tcpAddr, valid := listener.Addr().(*net.TCPAddr)
 		if !valid {
-			return "", xerrors.Errorf("listener returned non TCP addr: %T", tcpAddr)
+			return "", fmt.Errorf("listener returned non TCP addr: %T", tcpAddr)
 		}
 		pgPort = strconv.Itoa(tcpAddr.Port)
 		err = cfg.PostgresPort().Write(pgPort)
 		if err != nil {
-			return "", xerrors.Errorf("write postgres port: %w", err)
+			return "", fmt.Errorf("write postgres port: %w", err)
 		}
 	}
 	return fmt.Sprintf("postgres://coder@localhost:%s/coder?sslmode=disable&password=%s", pgPort, pgPassword), nil
@@ -1416,7 +1417,7 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 		return "", nil, err
 	}
 	if usr.Uid == "0" {
-		return "", nil, xerrors.New("The built-in PostgreSQL cannot run as the root user. Create a non-root user and run again!")
+		return "", nil, fmt.Errorf("The built-in PostgreSQL cannot run as the root user. Create a non-root user and run again!")
 	}
 
 	// Ensure a password and port have been generated!
@@ -1426,15 +1427,15 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	}
 	pgPassword, err := cfg.PostgresPassword().Read()
 	if err != nil {
-		return "", nil, xerrors.Errorf("read postgres password: %w", err)
+		return "", nil, fmt.Errorf("read postgres password: %w", err)
 	}
 	pgPortRaw, err := cfg.PostgresPort().Read()
 	if err != nil {
-		return "", nil, xerrors.Errorf("read postgres port: %w", err)
+		return "", nil, fmt.Errorf("read postgres port: %w", err)
 	}
 	pgPort, err := strconv.ParseUint(pgPortRaw, 10, 16)
 	if err != nil {
-		return "", nil, xerrors.Errorf("parse postgres port: %w", err)
+		return "", nil, fmt.Errorf("parse postgres port: %w", err)
 	}
 
 	stdlibLogger := slog.Stdlib(ctx, logger.Named("postgres"), slog.LevelDebug)
@@ -1453,7 +1454,7 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	)
 	err = ep.Start()
 	if err != nil {
-		return "", nil, xerrors.Errorf("Failed to start built-in PostgreSQL. Optionally, specify an external deployment with `--postgres-url`: %w", err)
+		return "", nil, fmt.Errorf("Failed to start built-in PostgreSQL. Optionally, specify an external deployment with `--postgres-url`: %w", err)
 	}
 	return connectionURL, ep.Stop, nil
 }
@@ -1519,7 +1520,7 @@ func buildLogger(cmd *cobra.Command, cfg *codersdk.DeploymentConfig) (slog.Logge
 		default:
 			fi, err := os.OpenFile(loc, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 			if err != nil {
-				return xerrors.Errorf("open log file %q: %w", loc, err)
+				return fmt.Errorf("open log file %q: %w", loc, err)
 			}
 
 			closers = append(closers, fi.Close)
@@ -1530,15 +1531,15 @@ func buildLogger(cmd *cobra.Command, cfg *codersdk.DeploymentConfig) (slog.Logge
 
 	err := addSinkIfProvided(sloghuman.Sink, cfg.Logging.Human.Value)
 	if err != nil {
-		return slog.Logger{}, nil, xerrors.Errorf("add human sink: %w", err)
+		return slog.Logger{}, nil, fmt.Errorf("add human sink: %w", err)
 	}
 	err = addSinkIfProvided(slogjson.Sink, cfg.Logging.JSON.Value)
 	if err != nil {
-		return slog.Logger{}, nil, xerrors.Errorf("add json sink: %w", err)
+		return slog.Logger{}, nil, fmt.Errorf("add json sink: %w", err)
 	}
 	err = addSinkIfProvided(slogstackdriver.Sink, cfg.Logging.Stackdriver.Value)
 	if err != nil {
-		return slog.Logger{}, nil, xerrors.Errorf("add stackdriver sink: %w", err)
+		return slog.Logger{}, nil, fmt.Errorf("add stackdriver sink: %w", err)
 	}
 
 	if cfg.Trace.CaptureLogs.Value {
@@ -1551,7 +1552,7 @@ func buildLogger(cmd *cobra.Command, cfg *codersdk.DeploymentConfig) (slog.Logge
 	}
 
 	if len(sinks) == 0 {
-		return slog.Logger{}, nil, xerrors.New("no loggers provided")
+		return slog.Logger{}, nil, fmt.Errorf("no loggers provided")
 	}
 
 	return slog.Make(sinks...).Leveled(level), func() {

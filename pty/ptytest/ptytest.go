@@ -285,7 +285,7 @@ func (p *PTY) doMatchWithDeadline(ctx context.Context, name string, fn func() er
 		_ = p.close("match deadline exceeded")
 		<-match
 
-		return xerrors.Errorf("match deadline exceeded: %w", ctx.Err())
+		return fmt.Errorf("match deadline exceeded: %w", ctx.Err())
 	}
 }
 

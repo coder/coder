@@ -4,12 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"golang.org/x/xerrors"
 )
 
 // Listener represents a pubsub handler.
@@ -42,7 +42,7 @@ func (p *pgPubsub) Subscribe(event string, listener Listener) (cancel func(), er
 		err = nil
 	}
 	if err != nil {
-		return nil, xerrors.Errorf("listen: %w", err)
+		return nil, fmt.Errorf("listen: %w", err)
 	}
 
 	var eventListeners map[uuid.UUID]Listener
@@ -79,7 +79,7 @@ func (p *pgPubsub) Publish(event string, message []byte) error {
 	//nolint:gosec
 	_, err := p.db.ExecContext(context.Background(), `select pg_notify(`+pq.QuoteLiteral(event)+`, $1)`, message)
 	if err != nil {
-		return xerrors.Errorf("exec pg_notify: %w", err)
+		return fmt.Errorf("exec pg_notify: %w", err)
 	}
 	return nil
 }
@@ -144,7 +144,7 @@ func NewPubsub(ctx context.Context, database *sql.DB, connectURL string) (Pubsub
 	select {
 	case err := <-errCh:
 		if err != nil {
-			return nil, xerrors.Errorf("create pq listener: %w", err)
+			return nil, fmt.Errorf("create pq listener: %w", err)
 		}
 	case <-ctx.Done():
 		return nil, ctx.Err()

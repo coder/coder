@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 	"tailscale.com/tailcfg"
 
@@ -115,7 +114,7 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 	var connInfo WorkspaceAgentConnectionInfo
 	err = json.NewDecoder(res.Body).Decode(&connInfo)
 	if err != nil {
-		return nil, xerrors.Errorf("decode conn info: %w", err)
+		return nil, fmt.Errorf("decode conn info: %w", err)
 	}
 
 	ip := tailnet.IP()
@@ -127,16 +126,16 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 		EnableTrafficStats: options.EnableTrafficStats,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("create tailnet: %w", err)
+		return nil, fmt.Errorf("create tailnet: %w", err)
 	}
 
 	coordinateURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/coordinate", agentID))
 	if err != nil {
-		return nil, xerrors.Errorf("parse url: %w", err)
+		return nil, fmt.Errorf("parse url: %w", err)
 	}
 	jar, err := cookiejar.New(nil)
 	if err != nil {
-		return nil, xerrors.Errorf("create cookie jar: %w", err)
+		return nil, fmt.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(coordinateURL, []*http.Cookie{{
 		Name:  SessionTokenCookie,
@@ -229,7 +228,7 @@ func (c *Client) WorkspaceAgent(ctx context.Context, id uuid.UUID) (WorkspaceAge
 func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, agentID, reconnect uuid.UUID, height, width uint16, command string) (net.Conn, error) {
 	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/pty", agentID))
 	if err != nil {
-		return nil, xerrors.Errorf("parse url: %w", err)
+		return nil, fmt.Errorf("parse url: %w", err)
 	}
 	q := serverURL.Query()
 	q.Set("reconnect", reconnect.String())
@@ -240,7 +239,7 @@ func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, agentID, rec
 
 	jar, err := cookiejar.New(nil)
 	if err != nil {
-		return nil, xerrors.Errorf("create cookie jar: %w", err)
+		return nil, fmt.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(serverURL, []*http.Cookie{{
 		Name:  SessionTokenCookie,

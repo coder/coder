@@ -2,10 +2,9 @@ package tracing
 
 import (
 	"bufio"
+	"fmt"
 	"net"
 	"net/http"
-
-	"golang.org/x/xerrors"
 )
 
 var _ http.ResponseWriter = (*StatusWriter)(nil)
@@ -69,7 +68,7 @@ func minInt(a, b int) int {
 func (w *StatusWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	hijacker, ok := w.ResponseWriter.(http.Hijacker)
 	if !ok {
-		return nil, nil, xerrors.Errorf("%T is not a http.Hijacker", w.ResponseWriter)
+		return nil, nil, fmt.Errorf("%T is not a http.Hijacker", w.ResponseWriter)
 	}
 	w.Hijacked = true
 

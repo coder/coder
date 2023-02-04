@@ -3,6 +3,7 @@ package wsconncache
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -10,7 +11,6 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/atomic"
 	"golang.org/x/sync/singleflight"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/codersdk"
 )
@@ -90,7 +90,7 @@ func (c *Cache) Acquire(r *http.Request, id uuid.UUID) (*Conn, func(), error) {
 			select {
 			case <-c.closed:
 				c.closeMutex.Unlock()
-				return nil, xerrors.New("closed")
+				return nil, fmt.Errorf("closed")
 			default:
 			}
 			c.closeGroup.Add(1)
@@ -98,7 +98,7 @@ func (c *Cache) Acquire(r *http.Request, id uuid.UUID) (*Conn, func(), error) {
 			agentConn, err := c.dialer(r, id)
 			if err != nil {
 				c.closeGroup.Done()
-				return nil, xerrors.Errorf("dial: %w", err)
+				return nil, fmt.Errorf("dial: %w", err)
 			}
 			timeoutCtx, timeoutCancelFunc := context.WithCancel(context.Background())
 			defaultTransport, valid := http.DefaultTransport.(*http.Transport)

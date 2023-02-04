@@ -10,7 +10,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
@@ -40,17 +39,17 @@ func userList() *cobra.Command {
 			case "table", "":
 				out, err = cliui.DisplayTable(res.Users, "Username", columns)
 				if err != nil {
-					return xerrors.Errorf("render table: %w", err)
+					return fmt.Errorf("render table: %w", err)
 				}
 			case "json":
 				outBytes, err := json.Marshal(res.Users)
 				if err != nil {
-					return xerrors.Errorf("marshal users to JSON: %w", err)
+					return fmt.Errorf("marshal users to JSON: %w", err)
 				}
 
 				out = string(outBytes)
 			default:
-				return xerrors.Errorf(`unknown output format %q, only "table" and "json" are supported`, outputFormat)
+				return fmt.Errorf(`unknown output format %q, only "table" and "json" are supported`, outputFormat)
 			}
 
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), out)
@@ -93,12 +92,12 @@ func userSingle() *cobra.Command {
 			case "json":
 				outBytes, err := json.Marshal(user)
 				if err != nil {
-					return xerrors.Errorf("marshal user to JSON: %w", err)
+					return fmt.Errorf("marshal user to JSON: %w", err)
 				}
 
 				out = string(outBytes)
 			default:
-				return xerrors.Errorf(`unknown output format %q, only "table" and "json" are supported`, outputFormat)
+				return fmt.Errorf(`unknown output format %q, only "table" and "json" are supported`, outputFormat)
 			}
 
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), out)

@@ -1,6 +1,7 @@
 package coderdtest
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -12,7 +13,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 )
 
 type SwaggerComment struct {
@@ -52,7 +52,7 @@ func ParseSwaggerComments(dirs ...string) ([]SwaggerComment, error) {
 	for _, dir := range dirs {
 		nodes, err := parser.ParseDir(fileSet, dir, nil, parser.ParseComments)
 		if err != nil {
-			return nil, xerrors.Errorf(`parser.ParseDir failed for "%s": %w`, dir, err)
+			return nil, fmt.Errorf(`parser.ParseDir failed for "%s": %w`, dir, err)
 		}
 
 		for _, node := range nodes {

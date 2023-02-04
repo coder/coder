@@ -8,7 +8,6 @@ import (
 	"go.nhat.io/otelsql"
 	semconv "go.opentelemetry.io/otel/semconv/v1.11.0"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/xerrors"
 )
 
 // Postgres driver will register a new tracing sql driver and return the driver name.
@@ -24,7 +23,7 @@ func PostgresDriver(tp trace.TracerProvider, service string) (string, error) {
 		otelsql.WithSpanNameFormatter(formatPostgresSpan),
 	)
 	if err != nil {
-		return "", xerrors.Errorf("registering postgres tracing driver: %w", err)
+		return "", fmt.Errorf("registering postgres tracing driver: %w", err)
 	}
 
 	return driverName, nil

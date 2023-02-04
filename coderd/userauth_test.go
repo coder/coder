@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -143,7 +142,7 @@ func TestUserOAuth2Github(t *testing.T) {
 					}, nil
 				},
 				TeamMembership: func(ctx context.Context, client *http.Client, org, team, username string) (*github.Membership, error) {
-					return nil, xerrors.New("no perms")
+					return nil, fmt.Errorf("no perms")
 				},
 			},
 		})
@@ -417,7 +416,7 @@ func TestUserOAuth2Github(t *testing.T) {
 					return []*github.Membership{}, nil
 				},
 				TeamMembership: func(ctx context.Context, client *http.Client, org, team, username string) (*github.Membership, error) {
-					return nil, xerrors.New("no teams")
+					return nil, fmt.Errorf("no teams")
 				},
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
 					return &github.User{

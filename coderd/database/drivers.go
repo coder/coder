@@ -3,8 +3,7 @@ package database
 import (
 	"database/sql/driver"
 	"encoding/json"
-
-	"golang.org/x/xerrors"
+	"fmt"
 
 	"github.com/coder/coder/coderd/rbac"
 )
@@ -18,7 +17,7 @@ func (a *Actions) Scan(src interface{}) error {
 	case []byte:
 		return json.Unmarshal(v, &a)
 	}
-	return xerrors.Errorf("unexpected type %T", src)
+	return fmt.Errorf("unexpected type %T", src)
 }
 
 func (a *Actions) Value() (driver.Value, error) {
@@ -37,7 +36,7 @@ func (t *TemplateACL) Scan(src interface{}) error {
 		return json.Unmarshal(v.([]byte), &t)
 	}
 
-	return xerrors.Errorf("unexpected type %T", src)
+	return fmt.Errorf("unexpected type %T", src)
 }
 
 func (t TemplateACL) Value() (driver.Value, error) {

@@ -9,10 +9,10 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"strings"
 
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/xerrors"
 )
 
 type Algorithm string
@@ -41,7 +41,7 @@ func ParseAlgorithm(t string) (Algorithm, error) {
 		}
 	}
 
-	return "", xerrors.Errorf(`invalid key type: %s, must be one of: %s`, t, strings.Join(ok, ","))
+	return "", fmt.Errorf(`invalid key type: %s, must be one of: %s`, t, strings.Join(ok, ","))
 }
 
 // Generate creates a private key in the OpenSSH PEM format and public key in
@@ -55,7 +55,7 @@ func Generate(algo Algorithm) (privateKey string, publicKey string, err error) {
 	case AlgorithmRSA4096:
 		return rsa4096KeyGen()
 	default:
-		return "", "", xerrors.Errorf("invalid algorithm: %s", algo)
+		return "", "", fmt.Errorf("invalid algorithm: %s", algo)
 	}
 }
 
@@ -63,7 +63,7 @@ func Generate(algo Algorithm) (privateKey string, publicKey string, err error) {
 func ed25519KeyGen() (privateKey string, publicKey string, err error) {
 	_, privateKeyRaw, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
-		return "", "", xerrors.Errorf("generate ed25519 private key: %w", err)
+		return "", "", fmt.Errorf("generate ed25519 private key: %w", err)
 	}
 
 	// NOTE: as of the time of writing, x/crypto/ssh is unable to marshal an ED25519 private key
@@ -71,7 +71,7 @@ func ed25519KeyGen() (privateKey string, publicKey string, err error) {
 	// Until this support is added, using a third-party implementation.
 	byt, err := MarshalED25519PrivateKey(privateKeyRaw)
 	if err != nil {
-		return "", "", xerrors.Errorf("marshal ed25519 private key: %w", err)
+		return "", "", fmt.Errorf("marshal ed25519 private key: %w", err)
 	}
 
 	return generateKeys(pem.Block{
@@ -84,11 +84,11 @@ func ed25519KeyGen() (privateKey string, publicKey string, err error) {
 func ecdsaKeyGen() (privateKey string, publicKey string, err error) {
 	privateKeyRaw, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return "", "", xerrors.Errorf("generate ecdsa private key: %w", err)
+		return "", "", fmt.Errorf("generate ecdsa private key: %w", err)
 	}
 	byt, err := x509.MarshalECPrivateKey(privateKeyRaw)
 	if err != nil {
-		return "", "", xerrors.Errorf("marshal private key: %w", err)
+		return "", "", fmt.Errorf("marshal private key: %w", err)
 	}
 
 	return generateKeys(pem.Block{
@@ -103,7 +103,7 @@ func ecdsaKeyGen() (privateKey string, publicKey string, err error) {
 func rsa4096KeyGen() (privateKey string, publicKey string, err error) {
 	privateKeyRaw, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
-		return "", "", xerrors.Errorf("generate RSA4096 private key: %w", err)
+		return "", "", fmt.Errorf("generate RSA4096 private key: %w", err)
 	}
 
 	return generateKeys(pem.Block{

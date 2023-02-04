@@ -104,7 +104,7 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 
 	serverURL, err := c.URL.Parse(path)
 	if err != nil {
-		return nil, xerrors.Errorf("parse url: %w", err)
+		return nil, fmt.Errorf("parse url: %w", err)
 	}
 
 	var r io.Reader
@@ -118,7 +118,7 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 			enc.SetEscapeHTML(false)
 			err = enc.Encode(body)
 			if err != nil {
-				return nil, xerrors.Errorf("encode body: %w", err)
+				return nil, fmt.Errorf("encode body: %w", err)
 			}
 
 			r = buf
@@ -130,14 +130,14 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	if r != nil && c.LogBodies {
 		reqBody, err = io.ReadAll(r)
 		if err != nil {
-			return nil, xerrors.Errorf("read request body: %w", err)
+			return nil, fmt.Errorf("read request body: %w", err)
 		}
 		r = bytes.NewReader(reqBody)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, method, serverURL.String(), r)
 	if err != nil {
-		return nil, xerrors.Errorf("create request: %w", err)
+		return nil, fmt.Errorf("create request: %w", err)
 	}
 	req.Header.Set(SessionTokenHeader, c.SessionToken())
 
@@ -170,7 +170,7 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
-		return nil, xerrors.Errorf("do: %w", err)
+		return nil, fmt.Errorf("do: %w", err)
 	}
 
 	span.SetAttributes(semconv.HTTPStatusCodeKey.Int(resp.StatusCode))
@@ -183,11 +183,11 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 		if _, ok := loggableMimeTypes[mimeType]; ok {
 			respBody, err = io.ReadAll(resp.Body)
 			if err != nil {
-				return nil, xerrors.Errorf("copy response body for logs: %w", err)
+				return nil, fmt.Errorf("copy response body for logs: %w", err)
 			}
 			err = resp.Body.Close()
 			if err != nil {
-				return nil, xerrors.Errorf("close response body: %w", err)
+				return nil, fmt.Errorf("close response body: %w", err)
 			}
 			resp.Body = io.NopCloser(bytes.NewReader(respBody))
 		}
@@ -210,7 +210,7 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 // wraps it in a codersdk.Error type for easy marshaling.
 func ReadBodyAsError(res *http.Response) error {
 	if res == nil {
-		return xerrors.Errorf("no body returned")
+		return fmt.Errorf("no body returned")
 	}
 	defer res.Body.Close()
 	contentType := res.Header.Get("Content-Type")
@@ -232,7 +232,7 @@ func ReadBodyAsError(res *http.Response) error {
 
 	resp, err := io.ReadAll(res.Body)
 	if err != nil {
-		return xerrors.Errorf("read body: %w", err)
+		return fmt.Errorf("read body: %w", err)
 	}
 
 	mimeType := parseMimeType(contentType)
@@ -265,7 +265,7 @@ func ReadBodyAsError(res *http.Response) error {
 				Helper: helpMessage,
 			}
 		}
-		return xerrors.Errorf("decode body: %w", err)
+		return fmt.Errorf("decode body: %w", err)
 	}
 	if m.Message == "" {
 		if len(resp) > 1024 {

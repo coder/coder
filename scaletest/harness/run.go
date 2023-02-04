@@ -3,10 +3,9 @@ package harness
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"time"
-
-	"golang.org/x/xerrors"
 )
 
 // Runnable is a test interface that can be executed by a TestHarness.
@@ -99,7 +98,7 @@ func (r *TestRun) Run(ctx context.Context) (err error) {
 	defer func() {
 		e := recover()
 		if e != nil {
-			err = xerrors.Errorf("panic: %v", e)
+			err = fmt.Errorf("panic: %v", e)
 		}
 	}()
 
@@ -124,7 +123,7 @@ func (r *TestRun) Cleanup(ctx context.Context) (err error) {
 	defer func() {
 		e := recover()
 		if e != nil {
-			err = xerrors.Errorf("panic: %v", e)
+			err = fmt.Errorf("panic: %v", e)
 		}
 	}()
 

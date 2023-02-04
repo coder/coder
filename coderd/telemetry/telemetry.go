@@ -19,7 +19,6 @@ import (
 	"github.com/elastic/go-sysinfo"
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 
@@ -63,11 +62,11 @@ func New(options Options) (Reporter, error) {
 	}
 	snapshotURL, err := options.URL.Parse("/snapshot")
 	if err != nil {
-		return nil, xerrors.Errorf("parse snapshot url: %w", err)
+		return nil, fmt.Errorf("parse snapshot url: %w", err)
 	}
 	deploymentURL, err := options.URL.Parse("/deployment")
 	if err != nil {
-		return nil, xerrors.Errorf("parse deployment url: %w", err)
+		return nil, fmt.Errorf("parse deployment url: %w", err)
 	}
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -218,11 +217,11 @@ func (r *remoteReporter) reportWithDeployment() {
 func (r *remoteReporter) deployment() error {
 	sysInfoHost, err := sysinfo.Host()
 	if err != nil {
-		return xerrors.Errorf("get host info: %w", err)
+		return fmt.Errorf("get host info: %w", err)
 	}
 	mem, err := sysInfoHost.Memory()
 	if err != nil {
-		return xerrors.Errorf("get memory info: %w", err)
+		return fmt.Errorf("get memory info: %w", err)
 	}
 	sysInfo := sysInfoHost.Info()
 
@@ -257,20 +256,20 @@ func (r *remoteReporter) deployment() error {
 		ShutdownAt:         r.shutdownAt,
 	})
 	if err != nil {
-		return xerrors.Errorf("marshal deployment: %w", err)
+		return fmt.Errorf("marshal deployment: %w", err)
 	}
 	req, err := http.NewRequestWithContext(r.ctx, "POST", r.deploymentURL.String(), bytes.NewReader(data))
 	if err != nil {
-		return xerrors.Errorf("create deployment request: %w", err)
+		return fmt.Errorf("create deployment request: %w", err)
 	}
 	req.Header.Set(VersionHeader, buildinfo.Version())
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return xerrors.Errorf("perform request: %w", err)
+		return fmt.Errorf("perform request: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusAccepted {
-		return xerrors.Errorf("update deployment: %w", err)
+		return fmt.Errorf("update deployment: %w", err)
 	}
 	r.options.Logger.Debug(r.ctx, "submitted deployment info")
 	return nil
@@ -292,7 +291,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		apiKeys, err := r.options.Database.GetAPIKeysLastUsedAfter(ctx, createdAfter)
 		if err != nil {
-			return xerrors.Errorf("get api keys last used: %w", err)
+			return fmt.Errorf("get api keys last used: %w", err)
 		}
 		snapshot.APIKeys = make([]APIKey, 0, len(apiKeys))
 		for _, apiKey := range apiKeys {
@@ -303,7 +302,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		schemas, err := r.options.Database.GetParameterSchemasCreatedAfter(ctx, createdAfter)
 		if err != nil {
-			return xerrors.Errorf("get parameter schemas: %w", err)
+			return fmt.Errorf("get parameter schemas: %w", err)
 		}
 		snapshot.ParameterSchemas = make([]ParameterSchema, 0, len(schemas))
 		for _, schema := range schemas {
@@ -319,7 +318,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		jobs, err := r.options.Database.GetProvisionerJobsCreatedAfter(ctx, createdAfter)
 		if err != nil {
-			return xerrors.Errorf("get provisioner jobs: %w", err)
+			return fmt.Errorf("get provisioner jobs: %w", err)
 		}
 		snapshot.ProvisionerJobs = make([]ProvisionerJob, 0, len(jobs))
 		for _, job := range jobs {
@@ -330,7 +329,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		templates, err := r.options.Database.GetTemplates(ctx)
 		if err != nil {
-			return xerrors.Errorf("get templates: %w", err)
+			return fmt.Errorf("get templates: %w", err)
 		}
 		snapshot.Templates = make([]Template, 0, len(templates))
 		for _, dbTemplate := range templates {
@@ -341,7 +340,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		templateVersions, err := r.options.Database.GetTemplateVersionsCreatedAfter(ctx, createdAfter)
 		if err != nil {
-			return xerrors.Errorf("get template versions: %w", err)
+			return fmt.Errorf("get template versions: %w", err)
 		}
 		snapshot.TemplateVersions = make([]TemplateVersion, 0, len(templateVersions))
 		for _, version := range templateVersions {
@@ -352,7 +351,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		userRows, err := r.options.Database.GetUsers(ctx, database.GetUsersParams{})
 		if err != nil {
-			return xerrors.Errorf("get users: %w", err)
+			return fmt.Errorf("get users: %w", err)
 		}
 		users := database.ConvertUserRows(userRows)
 		var firstUser database.User
@@ -382,7 +381,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		workspaceRows, err := r.options.Database.GetWorkspaces(ctx, database.GetWorkspacesParams{})
 		if err != nil {
-			return xerrors.Errorf("get workspaces: %w", err)
+			return fmt.Errorf("get workspaces: %w", err)
 		}
 		workspaces := database.ConvertWorkspaceRows(workspaceRows)
 		snapshot.Workspaces = make([]Workspace, 0, len(workspaces))
@@ -394,7 +393,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		workspaceApps, err := r.options.Database.GetWorkspaceAppsCreatedAfter(ctx, createdAfter)
 		if err != nil {
-			return xerrors.Errorf("get workspace apps: %w", err)
+			return fmt.Errorf("get workspace apps: %w", err)
 		}
 		snapshot.WorkspaceApps = make([]WorkspaceApp, 0, len(workspaceApps))
 		for _, app := range workspaceApps {
@@ -405,7 +404,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		workspaceAgents, err := r.options.Database.GetWorkspaceAgentsCreatedAfter(ctx, createdAfter)
 		if err != nil {
-			return xerrors.Errorf("get workspace agents: %w", err)
+			return fmt.Errorf("get workspace agents: %w", err)
 		}
 		snapshot.WorkspaceAgents = make([]WorkspaceAgent, 0, len(workspaceAgents))
 		for _, agent := range workspaceAgents {
@@ -416,7 +415,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		workspaceBuilds, err := r.options.Database.GetWorkspaceBuildsCreatedAfter(ctx, createdAfter)
 		if err != nil {
-			return xerrors.Errorf("get workspace builds: %w", err)
+			return fmt.Errorf("get workspace builds: %w", err)
 		}
 		snapshot.WorkspaceBuilds = make([]WorkspaceBuild, 0, len(workspaceBuilds))
 		for _, build := range workspaceBuilds {
@@ -427,7 +426,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		workspaceResources, err := r.options.Database.GetWorkspaceResourcesCreatedAfter(ctx, createdAfter)
 		if err != nil {
-			return xerrors.Errorf("get workspace resources: %w", err)
+			return fmt.Errorf("get workspace resources: %w", err)
 		}
 		snapshot.WorkspaceResources = make([]WorkspaceResource, 0, len(workspaceResources))
 		for _, resource := range workspaceResources {
@@ -438,7 +437,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		workspaceMetadata, err := r.options.Database.GetWorkspaceResourceMetadataCreatedAfter(ctx, createdAfter)
 		if err != nil {
-			return xerrors.Errorf("get workspace resource metadata: %w", err)
+			return fmt.Errorf("get workspace resource metadata: %w", err)
 		}
 		snapshot.WorkspaceResourceMetadata = make([]WorkspaceResourceMetadata, 0, len(workspaceMetadata))
 		for _, metadata := range workspaceMetadata {
@@ -449,7 +448,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		licenses, err := r.options.Database.GetUnexpiredLicenses(ctx)
 		if err != nil {
-			return xerrors.Errorf("get licenses: %w", err)
+			return fmt.Errorf("get licenses: %w", err)
 		}
 		snapshot.Licenses = make([]License, 0, len(licenses))
 		for _, license := range licenses {

@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"golang.org/x/xerrors"
 	protobuf "google.golang.org/protobuf/proto"
 
 	"github.com/spf13/afero"
@@ -88,18 +87,18 @@ func (e *echo) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_
 		if err != nil {
 			if index == 0 {
 				// Error if nothing is around to enable failed states.
-				return xerrors.Errorf("no state: %w", err)
+				return fmt.Errorf("no state: %w", err)
 			}
 			break
 		}
 		data, err := afero.ReadFile(e.filesystem, path)
 		if err != nil {
-			return xerrors.Errorf("read file %q: %w", path, err)
+			return fmt.Errorf("read file %q: %w", path, err)
 		}
 		var response proto.Parse_Response
 		err = protobuf.Unmarshal(data, &response)
 		if err != nil {
-			return xerrors.Errorf("unmarshal: %w", err)
+			return fmt.Errorf("unmarshal: %w", err)
 		}
 		err = stream.Send(&response)
 		if err != nil {
@@ -137,7 +136,7 @@ func (e *echo) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 
 			switch toks[0] {
 			case errorKey:
-				return xerrors.Errorf("returning error: %v", toks[1])
+				return fmt.Errorf("returning error: %v", toks[1])
 			default:
 				// Do nothing
 			}
@@ -156,18 +155,18 @@ func (e *echo) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 		if err != nil {
 			if index == 0 {
 				// Error if nothing is around to enable failed states.
-				return xerrors.New("no state")
+				return fmt.Errorf("no state")
 			}
 			break
 		}
 		data, err := afero.ReadFile(e.filesystem, path)
 		if err != nil {
-			return xerrors.Errorf("read file %q: %w", path, err)
+			return fmt.Errorf("read file %q: %w", path, err)
 		}
 		var response proto.Provision_Response
 		err = protobuf.Unmarshal(data, &response)
 		if err != nil {
-			return xerrors.Errorf("unmarshal: %w", err)
+			return fmt.Errorf("unmarshal: %w", err)
 		}
 		err = stream.Send(&response)
 		if err != nil {

@@ -7,7 +7,6 @@ import (
 	"io"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/deployment"
 
@@ -18,7 +17,7 @@ import (
 func server() *cobra.Command {
 	vip := deployment.NewViper()
 	cmd := agpl.Server(vip, func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, io.Closer, error) {
-		return nil, nil, xerrors.Errorf("slim build does not support `coder server`")
+		return nil, nil, fmt.Errorf("slim build does not support `coder server`")
 	})
 
 	deployment.AttachFlags(cmd.Flags(), vip, true)

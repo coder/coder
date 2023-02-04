@@ -40,16 +40,16 @@ func gitssh() *cobra.Command {
 
 			client, err := createAgentClient(cmd)
 			if err != nil {
-				return xerrors.Errorf("create agent client: %w", err)
+				return fmt.Errorf("create agent client: %w", err)
 			}
 			key, err := client.GitSSHKey(ctx)
 			if err != nil {
-				return xerrors.Errorf("get agent git ssh token: %w", err)
+				return fmt.Errorf("get agent git ssh token: %w", err)
 			}
 
 			privateKeyFile, err := os.CreateTemp("", "coder-gitsshkey-*")
 			if err != nil {
-				return xerrors.Errorf("create temp gitsshkey file: %w", err)
+				return fmt.Errorf("create temp gitsshkey file: %w", err)
 			}
 			defer func() {
 				_ = privateKeyFile.Close()
@@ -57,11 +57,11 @@ func gitssh() *cobra.Command {
 			}()
 			_, err = privateKeyFile.WriteString(key.PrivateKey)
 			if err != nil {
-				return xerrors.Errorf("write to temp gitsshkey file: %w", err)
+				return fmt.Errorf("write to temp gitsshkey file: %w", err)
 			}
 			err = privateKeyFile.Close()
 			if err != nil {
-				return xerrors.Errorf("close temp gitsshkey file: %w", err)
+				return fmt.Errorf("close temp gitsshkey file: %w", err)
 			}
 
 			// Append our key, giving precedence to user keys. Note that
@@ -98,7 +98,7 @@ func gitssh() *cobra.Command {
 					_, _ = fmt.Fprintln(cmd.ErrOrStderr())
 					return err
 				}
-				return xerrors.Errorf("run ssh command: %w", err)
+				return fmt.Errorf("run ssh command: %w", err)
 			}
 
 			return nil
@@ -137,7 +137,7 @@ var fallbackIdentityFiles = strings.Join([]string{
 func parseIdentityFilesForHost(ctx context.Context, args, env []string) (identityFiles []string, error error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return nil, xerrors.Errorf("get user home dir failed: %w", err)
+		return nil, fmt.Errorf("get user home dir failed: %w", err)
 	}
 
 	var outBuf bytes.Buffer
@@ -182,7 +182,7 @@ func parseIdentityFilesForHost(ctx context.Context, args, env []string) (identit
 	}
 	if err := s.Err(); err != nil {
 		// This should never happen, the check is for completeness.
-		return nil, xerrors.Errorf("scan ssh output: %w", err)
+		return nil, fmt.Errorf("scan ssh output: %w", err)
 	}
 
 	return identityFiles, nil

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/robfig/cron/v3"
-	"golang.org/x/xerrors"
 )
 
 // For the purposes of this library, we only need minute, hour, and
@@ -38,7 +37,7 @@ var defaultParser = cron.NewParser(parserFormat)
 //	// Output: 2022-04-04T14:30:00Z
 func Weekly(raw string) (*Schedule, error) {
 	if err := validateWeeklySpec(raw); err != nil {
-		return nil, xerrors.Errorf("validate weekly schedule: %w", err)
+		return nil, fmt.Errorf("validate weekly schedule: %w", err)
 	}
 
 	// If schedule does not specify a timezone, default to UTC. Otherwise,
@@ -49,16 +48,16 @@ func Weekly(raw string) (*Schedule, error) {
 
 	specSched, err := defaultParser.Parse(raw)
 	if err != nil {
-		return nil, xerrors.Errorf("parse schedule: %w", err)
+		return nil, fmt.Errorf("parse schedule: %w", err)
 	}
 
 	schedule, ok := specSched.(*cron.SpecSchedule)
 	if !ok {
-		return nil, xerrors.Errorf("expected *cron.SpecSchedule but got %T", specSched)
+		return nil, fmt.Errorf("expected *cron.SpecSchedule but got %T", specSched)
 	}
 
 	if schedule.Location == time.Local {
-		return nil, xerrors.Errorf("schedules scoped to time.Local are not supported")
+		return nil, fmt.Errorf("schedules scoped to time.Local are not supported")
 	}
 
 	// Strip the leading CRON_TZ prefix so we just store the cron string.
@@ -178,13 +177,13 @@ func (s Schedule) DaysOfWeek() string {
 func validateWeeklySpec(spec string) error {
 	parts := strings.Fields(spec)
 	if len(parts) < 5 {
-		return xerrors.Errorf("expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix")
+		return fmt.Errorf("expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix")
 	}
 	if len(parts) == 6 {
 		parts = parts[1:]
 	}
 	if parts[2] != "*" || parts[3] != "*" {
-		return xerrors.Errorf("expected month and dom to be *")
+		return fmt.Errorf("expected month and dom to be *")
 	}
 	return nil
 }

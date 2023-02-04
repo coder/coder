@@ -5,11 +5,10 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
-
-	"golang.org/x/xerrors"
 
 	"github.com/google/uuid"
 
@@ -27,41 +26,41 @@ func New(db database.Store, url string, keys map[string]ed25519.PublicKey) func(
 	return func(ctx context.Context, email string) error {
 		deploymentID, err := db.GetDeploymentID(ctx)
 		if err != nil {
-			return xerrors.Errorf("get deployment id: %w", err)
+			return fmt.Errorf("get deployment id: %w", err)
 		}
 		data, err := json.Marshal(request{
 			DeploymentID: deploymentID,
 			Email:        email,
 		})
 		if err != nil {
-			return xerrors.Errorf("marshal: %w", err)
+			return fmt.Errorf("marshal: %w", err)
 		}
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
 		if err != nil {
-			return xerrors.Errorf("create license request: %w", err)
+			return fmt.Errorf("create license request: %w", err)
 		}
 		res, err := http.DefaultClient.Do(req)
 		if err != nil {
-			return xerrors.Errorf("perform license request: %w", err)
+			return fmt.Errorf("perform license request: %w", err)
 		}
 		defer res.Body.Close()
 		raw, err := io.ReadAll(res.Body)
 		if err != nil {
-			return xerrors.Errorf("read license: %w", err)
+			return fmt.Errorf("read license: %w", err)
 		}
 		rawClaims, err := license.ParseRaw(string(raw), keys)
 		if err != nil {
-			return xerrors.Errorf("parse license: %w", err)
+			return fmt.Errorf("parse license: %w", err)
 		}
 		exp, ok := rawClaims["exp"].(float64)
 		if !ok {
-			return xerrors.New("invalid license missing exp claim")
+			return fmt.Errorf("invalid license missing exp claim")
 		}
 		expTime := time.Unix(int64(exp), 0)
 
 		claims, err := license.ParseClaims(string(raw), keys)
 		if err != nil {
-			return xerrors.Errorf("parse claims: %w", err)
+			return fmt.Errorf("parse claims: %w", err)
 		}
 		id, err := uuid.Parse(claims.ID)
 		_, err = db.InsertLicense(ctx, database.InsertLicenseParams{
@@ -74,7 +73,7 @@ func New(db database.Store, url string, keys map[string]ed25519.PublicKey) func(
 			},
 		})
 		if err != nil {
-			return xerrors.Errorf("insert license: %w", err)
+			return fmt.Errorf("insert license: %w", err)
 		}
 		return nil
 	}

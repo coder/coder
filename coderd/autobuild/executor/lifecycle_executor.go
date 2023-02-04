@@ -3,11 +3,11 @@ package executor
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/autobuild/schedule"
@@ -209,13 +209,13 @@ func getNextTransition(
 	err error,
 ) {
 	if !priorJob.CompletedAt.Valid || priorJob.Error.String != "" {
-		return "", time.Time{}, xerrors.Errorf("last workspace build did not complete successfully")
+		return "", time.Time{}, fmt.Errorf("last workspace build did not complete successfully")
 	}
 
 	switch priorHistory.Transition {
 	case database.WorkspaceTransitionStart:
 		if priorHistory.Deadline.IsZero() {
-			return "", time.Time{}, xerrors.Errorf("latest workspace build has zero deadline")
+			return "", time.Time{}, fmt.Errorf("latest workspace build has zero deadline")
 		}
 		// For stopping, do not truncate. This is inconsistent with autostart, but
 		// it ensures we will not stop too early.
@@ -223,14 +223,14 @@ func getNextTransition(
 	case database.WorkspaceTransitionStop:
 		sched, err := schedule.Weekly(ws.AutostartSchedule.String)
 		if err != nil {
-			return "", time.Time{}, xerrors.Errorf("workspace has invalid autostart schedule: %w", err)
+			return "", time.Time{}, fmt.Errorf("workspace has invalid autostart schedule: %w", err)
 		}
 		// Round down to the nearest minute, as this is the finest granularity cron supports.
 		// Truncate is probably not necessary here, but doing it anyway to be sure.
 		nextTransition = sched.Next(priorHistory.CreatedAt).Truncate(time.Minute)
 		return database.WorkspaceTransitionStart, nextTransition, nil
 	default:
-		return "", time.Time{}, xerrors.Errorf("last transition not valid for autostart or autostop")
+		return "", time.Time{}, fmt.Errorf("last transition not valid for autostart or autostop")
 	}
 }
 
@@ -239,7 +239,7 @@ func getNextTransition(
 func build(ctx context.Context, store database.Store, workspace database.Workspace, trans database.WorkspaceTransition, priorHistory database.WorkspaceBuild, priorJob database.ProvisionerJob) error {
 	template, err := store.GetTemplateByID(ctx, workspace.TemplateID)
 	if err != nil {
-		return xerrors.Errorf("get workspace template: %w", err)
+		return fmt.Errorf("get workspace template: %w", err)
 	}
 
 	priorBuildNumber := priorHistory.BuildNumber
@@ -253,7 +253,7 @@ func build(ctx context.Context, store database.Store, workspace database.Workspa
 		WorkspaceBuildID: workspaceBuildID.String(),
 	})
 	if err != nil {
-		return xerrors.Errorf("marshal provision job: %w", err)
+		return fmt.Errorf("marshal provision job: %w", err)
 	}
 	provisionerJobID := uuid.New()
 	now := database.Now()
@@ -265,12 +265,12 @@ func build(ctx context.Context, store database.Store, workspace database.Workspa
 	case database.WorkspaceTransitionStop:
 		buildReason = database.BuildReasonAutostop
 	default:
-		return xerrors.Errorf("Unsupported transition: %q", trans)
+		return fmt.Errorf("Unsupported transition: %q", trans)
 	}
 
 	lastBuildParameters, err := store.GetWorkspaceBuildParameters(ctx, priorHistory.ID)
 	if err != nil {
-		return xerrors.Errorf("fetch prior workspace build parameters: %w", err)
+		return fmt.Errorf("fetch prior workspace build parameters: %w", err)
 	}
 
 	return store.InTx(func(db database.Store) error {
@@ -288,7 +288,7 @@ func build(ctx context.Context, store database.Store, workspace database.Workspa
 			Input:          input,
 		})
 		if err != nil {
-			return xerrors.Errorf("insert provisioner job: %w", err)
+			return fmt.Errorf("insert provisioner job: %w", err)
 		}
 		workspaceBuild, err := store.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
 			ID:                workspaceBuildID,
@@ -304,7 +304,7 @@ func build(ctx context.Context, store database.Store, workspace database.Workspa
 			Reason:            buildReason,
 		})
 		if err != nil {
-			return xerrors.Errorf("insert workspace build: %w", err)
+			return fmt.Errorf("insert workspace build: %w", err)
 		}
 
 		names := make([]string, 0, len(lastBuildParameters))
@@ -319,7 +319,7 @@ func build(ctx context.Context, store database.Store, workspace database.Workspa
 			Value:            values,
 		})
 		if err != nil {
-			return xerrors.Errorf("insert workspace build parameters: %w", err)
+			return fmt.Errorf("insert workspace build parameters: %w", err)
 		}
 		return nil
 	}, nil)

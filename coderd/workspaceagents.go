@@ -20,6 +20,7 @@ import (
 	"golang.org/x/mod/semver"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
+
 	"nhooyr.io/websocket"
 	"tailscale.com/tailcfg"
 
@@ -445,18 +446,18 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 		Logger:    api.Logger.Named("tailnet"),
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("create tailnet conn: %w", err)
+		return nil, fmt.Errorf("create tailnet conn: %w", err)
 	}
 
 	sendNodes, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
 		err := conn.RemoveAllPeers()
 		if err != nil {
-			return xerrors.Errorf("remove all peers: %w", err)
+			return fmt.Errorf("remove all peers: %w", err)
 		}
 
 		err = conn.UpdateNodes(node)
 		if err != nil {
-			return xerrors.Errorf("update nodes: %w", err)
+			return fmt.Errorf("update nodes: %w", err)
 		}
 		return nil
 	})
@@ -557,7 +558,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 			return err
 		}
 		if build.ID != latestBuild.ID {
-			return xerrors.New("build is outdated")
+			return fmt.Errorf("build is outdated")
 		}
 		return nil
 	}
@@ -762,7 +763,7 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 	if dbAgent.EnvironmentVariables.Valid {
 		err := json.Unmarshal(dbAgent.EnvironmentVariables.RawMessage, &envs)
 		if err != nil {
-			return codersdk.WorkspaceAgent{}, xerrors.Errorf("unmarshal env vars: %w", err)
+			return codersdk.WorkspaceAgent{}, fmt.Errorf("unmarshal env vars: %w", err)
 		}
 	}
 	troubleshootingURL := agentFallbackTroubleshootingURL
@@ -796,7 +797,7 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 			regionParts := strings.SplitN(rawRegion, "-", 2)
 			regionID, err := strconv.Atoi(regionParts[0])
 			if err != nil {
-				return codersdk.WorkspaceAgent{}, xerrors.Errorf("convert derp region id %q: %w", rawRegion, err)
+				return codersdk.WorkspaceAgent{}, fmt.Errorf("convert derp region id %q: %w", rawRegion, err)
 			}
 			region, found := derpMap.Regions[regionID]
 			if !found {
@@ -1036,7 +1037,7 @@ func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) 
 		if old == nil {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Error setting workspace app health",
-				Detail:  xerrors.Errorf("workspace app name %s not found", id).Error(),
+				Detail:  fmt.Errorf("workspace app name %s not found", id).Error(),
 			})
 			return
 		}
@@ -1044,7 +1045,7 @@ func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) 
 		if old.HealthcheckUrl == "" {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Error setting workspace app health",
-				Detail:  xerrors.Errorf("health checking is disabled for workspace app %s", id).Error(),
+				Detail:  fmt.Errorf("health checking is disabled for workspace app %s", id).Error(),
 			})
 			return
 		}
@@ -1056,7 +1057,7 @@ func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) 
 		default:
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Error setting workspace app health",
-				Detail:  xerrors.Errorf("workspace app health %s is not a valid value", newHealth).Error(),
+				Detail:  fmt.Errorf("workspace app health %s is not a valid value", newHealth).Error(),
 			})
 			return
 		}
@@ -1358,7 +1359,7 @@ func validateGitToken(ctx context.Context, validateURL, token string) (bool, err
 	}
 	if res.StatusCode != http.StatusOK {
 		data, _ := io.ReadAll(res.Body)
-		return false, xerrors.Errorf("git token validation failed: status %d: body: %s", res.StatusCode, data)
+		return false, fmt.Errorf("git token validation failed: status %d: body: %s", res.StatusCode, data)
 	}
 	return true, nil
 }

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 
@@ -46,7 +45,7 @@ func Entitlements(
 
 	activeUserCount, err := db.GetActiveUserCount(ctx)
 	if err != nil {
-		return entitlements, xerrors.Errorf("query active user count: %w", err)
+		return entitlements, fmt.Errorf("query active user count: %w", err)
 	}
 
 	allFeatures := false
@@ -210,9 +209,9 @@ const (
 var (
 	ValidMethods = []string{"EdDSA"}
 
-	ErrInvalidVersion        = xerrors.New("license must be version 3")
-	ErrMissingKeyID          = xerrors.Errorf("JOSE header must contain %s", HeaderKeyID)
-	ErrMissingLicenseExpires = xerrors.New("license missing license_expires")
+	ErrInvalidVersion        = fmt.Errorf("license must be version 3")
+	ErrMissingKeyID          = fmt.Errorf("JOSE header must contain %s", HeaderKeyID)
+	ErrMissingLicenseExpires = fmt.Errorf("license missing license_expires")
 )
 
 type Features map[codersdk.FeatureName]int64
@@ -253,7 +252,7 @@ func ParseRaw(l string, keys map[string]ed25519.PublicKey) (jwt.MapClaims, error
 		}
 		return claims, nil
 	}
-	return nil, xerrors.New("unable to parse Claims")
+	return nil, fmt.Errorf("unable to parse Claims")
 }
 
 // ParseClaims validates a database.License record, and if valid, returns the claims.  If
@@ -277,7 +276,7 @@ func ParseClaims(rawJWT string, keys map[string]ed25519.PublicKey) (*Claims, err
 		}
 		return claims, nil
 	}
-	return nil, xerrors.New("unable to parse Claims")
+	return nil, fmt.Errorf("unable to parse Claims")
 }
 
 func keyFunc(keys map[string]ed25519.PublicKey) func(*jwt.Token) (interface{}, error) {
@@ -288,7 +287,7 @@ func keyFunc(keys map[string]ed25519.PublicKey) func(*jwt.Token) (interface{}, e
 		}
 		k, ok := keys[keyID]
 		if !ok {
-			return nil, xerrors.Errorf("no key with ID %s", keyID)
+			return nil, fmt.Errorf("no key with ID %s", keyID)
 		}
 		return k, nil
 	}

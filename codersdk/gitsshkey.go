@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 )
 
 type GitSSHKey struct {
@@ -22,7 +21,7 @@ type GitSSHKey struct {
 func (c *Client) GitSSHKey(ctx context.Context, user string) (GitSSHKey, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/gitsshkey", user), nil)
 	if err != nil {
-		return GitSSHKey{}, xerrors.Errorf("execute request: %w", err)
+		return GitSSHKey{}, fmt.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
 
@@ -38,7 +37,7 @@ func (c *Client) GitSSHKey(ctx context.Context, user string) (GitSSHKey, error) 
 func (c *Client) RegenerateGitSSHKey(ctx context.Context, user string) (GitSSHKey, error) {
 	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/gitsshkey", user), nil)
 	if err != nil {
-		return GitSSHKey{}, xerrors.Errorf("execute request: %w", err)
+		return GitSSHKey{}, fmt.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
 

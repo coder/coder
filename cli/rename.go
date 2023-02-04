@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
@@ -23,7 +22,7 @@ func rename() *cobra.Command {
 			}
 			workspace, err := namedWorkspace(cmd, client, args[0])
 			if err != nil {
-				return xerrors.Errorf("get workspace: %w", err)
+				return fmt.Errorf("get workspace: %w", err)
 			}
 
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\n\n",
@@ -36,7 +35,7 @@ func rename() *cobra.Command {
 					if s == workspace.Name {
 						return nil
 					}
-					return xerrors.Errorf("Input %q does not match %q", s, workspace.Name)
+					return fmt.Errorf("Input %q does not match %q", s, workspace.Name)
 				},
 			})
 			if err != nil {
@@ -47,7 +46,7 @@ func rename() *cobra.Command {
 				Name: args[1],
 			})
 			if err != nil {
-				return xerrors.Errorf("rename workspace: %w", err)
+				return fmt.Errorf("rename workspace: %w", err)
 			}
 			return nil
 		},

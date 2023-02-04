@@ -80,7 +80,7 @@ func (s *scaletestTracingFlags) provider(ctx context.Context) (trace.TracerProvi
 		Honeycomb: s.traceHoneycombAPIKey,
 	})
 	if err != nil {
-		return nil, nil, false, xerrors.Errorf("initialize tracing: %w", err)
+		return nil, nil, false, fmt.Errorf("initialize tracing: %w", err)
 	}
 
 	var closeTracingOnce sync.Once
@@ -169,7 +169,7 @@ func (o *scaleTestOutput) write(res harness.Results, stdout io.Writer) error {
 	if o.path != "-" {
 		f, err := os.Create(o.path)
 		if err != nil {
-			return xerrors.Errorf("create output file: %w", err)
+			return fmt.Errorf("create output file: %w", err)
 		}
 		w, c = f, f
 	}
@@ -180,7 +180,7 @@ func (o *scaleTestOutput) write(res harness.Results, stdout io.Writer) error {
 	case scaleTestOutputFormatJSON:
 		err := json.NewEncoder(w).Encode(res)
 		if err != nil {
-			return xerrors.Errorf("encode JSON: %w", err)
+			return fmt.Errorf("encode JSON: %w", err)
 		}
 	}
 
@@ -190,14 +190,14 @@ func (o *scaleTestOutput) write(res harness.Results, stdout io.Writer) error {
 		// On Linux, EINVAL is returned when calling fsync on /dev/stdout. We
 		// can safely ignore this error.
 		if err != nil && !xerrors.Is(err, syscall.EINVAL) {
-			return xerrors.Errorf("flush output file: %w", err)
+			return fmt.Errorf("flush output file: %w", err)
 		}
 	}
 
 	if c != nil {
 		err := c.Close()
 		if err != nil {
-			return xerrors.Errorf("close output file: %w", err)
+			return fmt.Errorf("close output file: %w", err)
 		}
 	}
 
@@ -225,18 +225,18 @@ func (s *scaletestOutputFlags) parse() ([]scaleTestOutput, error) {
 		parts := strings.SplitN(o, ":", 2)
 		format := scaleTestOutputFormat(parts[0])
 		if _, ok := validFormats[format]; !ok {
-			return nil, xerrors.Errorf("invalid output format %q in output flag %d", parts[0], i)
+			return nil, fmt.Errorf("invalid output format %q in output flag %d", parts[0], i)
 		}
 
 		if len(parts) == 1 {
 			if stdoutFormat != "" {
-				return nil, xerrors.Errorf("multiple output flags specified for stdout")
+				return nil, fmt.Errorf("multiple output flags specified for stdout")
 			}
 			stdoutFormat = format
 			continue
 		}
 		if len(parts) != 2 {
-			return nil, xerrors.Errorf("invalid output flag %d: %q", i, o)
+			return nil, fmt.Errorf("invalid output flag %d: %q", i, o)
 		}
 
 		out = append(out, scaleTestOutput{
@@ -263,7 +263,7 @@ func (s *scaletestOutputFlags) parse() ([]scaleTestOutput, error) {
 func requireAdmin(ctx context.Context, client *codersdk.Client) (codersdk.User, error) {
 	me, err := client.User(ctx, codersdk.Me)
 	if err != nil {
-		return codersdk.User{}, xerrors.Errorf("fetch current user: %w", err)
+		return codersdk.User{}, fmt.Errorf("fetch current user: %w", err)
 	}
 
 	// Only owners can do scaletests. This isn't a very strong check but there's
@@ -278,7 +278,7 @@ func requireAdmin(ctx context.Context, client *codersdk.Client) (codersdk.User, 
 		}
 	}
 	if !ok {
-		return me, xerrors.Errorf("Not logged in as a site owner. Scale testing is only available to site owners.")
+		return me, fmt.Errorf("Not logged in as a site owner. Scale testing is only available to site owners.")
 	}
 
 	return me, nil
@@ -302,7 +302,7 @@ func (r *userCleanupRunner) Run(ctx context.Context, _ string, _ io.Writer) erro
 
 	err := r.client.DeleteUser(ctx, r.userID)
 	if err != nil {
-		return xerrors.Errorf("delete user %q: %w", r.userID, err)
+		return fmt.Errorf("delete user %q: %w", r.userID, err)
 	}
 
 	return nil
@@ -351,7 +351,7 @@ func scaletestCleanup() *cobra.Command {
 					Limit:  limit,
 				})
 				if err != nil {
-					return xerrors.Errorf("fetch scaletest workspaces page %d: %w", pageNumber, err)
+					return fmt.Errorf("fetch scaletest workspaces page %d: %w", pageNumber, err)
 				}
 
 				pageNumber++
@@ -383,7 +383,7 @@ func scaletestCleanup() *cobra.Command {
 				defer cancel()
 				err := harness.Run(ctx)
 				if err != nil {
-					return xerrors.Errorf("run test harness to delete workspaces (harness failure, not a test failure): %w", err)
+					return fmt.Errorf("run test harness to delete workspaces (harness failure, not a test failure): %w", err)
 				}
 
 				cmd.Println("Done deleting scaletest workspaces:")
@@ -391,7 +391,7 @@ func scaletestCleanup() *cobra.Command {
 				res.PrintText(cmd.ErrOrStderr())
 
 				if res.TotalFail > 0 {
-					return xerrors.Errorf("failed to delete scaletest workspaces")
+					return fmt.Errorf("failed to delete scaletest workspaces")
 				}
 			}
 
@@ -408,7 +408,7 @@ func scaletestCleanup() *cobra.Command {
 					},
 				})
 				if err != nil {
-					return xerrors.Errorf("fetch scaletest users page %d: %w", pageNumber, err)
+					return fmt.Errorf("fetch scaletest users page %d: %w", pageNumber, err)
 				}
 
 				pageNumber++
@@ -443,7 +443,7 @@ func scaletestCleanup() *cobra.Command {
 				defer cancel()
 				err := harness.Run(ctx)
 				if err != nil {
-					return xerrors.Errorf("run test harness to delete users (harness failure, not a test failure): %w", err)
+					return fmt.Errorf("run test harness to delete users (harness failure, not a test failure): %w", err)
 				}
 
 				cmd.Println("Done deleting scaletest users:")
@@ -451,7 +451,7 @@ func scaletestCleanup() *cobra.Command {
 				res.PrintText(cmd.ErrOrStderr())
 
 				if res.TotalFail > 0 {
-					return xerrors.Errorf("failed to delete scaletest users")
+					return fmt.Errorf("failed to delete scaletest users")
 				}
 			}
 
@@ -524,21 +524,21 @@ It is recommended that all rate limits are disabled on the server before running
 			}
 
 			if count <= 0 {
-				return xerrors.Errorf("--count is required and must be greater than 0")
+				return fmt.Errorf("--count is required and must be greater than 0")
 			}
 			outputs, err := output.parse()
 			if err != nil {
-				return xerrors.Errorf("could not parse --output flags")
+				return fmt.Errorf("could not parse --output flags")
 			}
 
 			var tpl codersdk.Template
 			if template == "" {
-				return xerrors.Errorf("--template is required")
+				return fmt.Errorf("--template is required")
 			}
 			if id, err := uuid.Parse(template); err == nil && id != uuid.Nil {
 				tpl, err = client.Template(ctx, id)
 				if err != nil {
-					return xerrors.Errorf("get template by ID %q: %w", template, err)
+					return fmt.Errorf("get template by ID %q: %w", template, err)
 				}
 			} else {
 				// List templates in all orgs until we find a match.
@@ -546,7 +546,7 @@ It is recommended that all rate limits are disabled on the server before running
 				for _, orgID := range me.OrganizationIDs {
 					tpls, err := client.TemplatesByOrganization(ctx, orgID)
 					if err != nil {
-						return xerrors.Errorf("list templates in org %q: %w", orgID, err)
+						return fmt.Errorf("list templates in org %q: %w", orgID, err)
 					}
 
 					for _, t := range tpls {
@@ -558,23 +558,23 @@ It is recommended that all rate limits are disabled on the server before running
 				}
 			}
 			if tpl.ID == uuid.Nil {
-				return xerrors.Errorf("could not find template %q in any organization", template)
+				return fmt.Errorf("could not find template %q in any organization", template)
 			}
 			templateVersion, err := client.TemplateVersion(ctx, tpl.ActiveVersionID)
 			if err != nil {
-				return xerrors.Errorf("get template version %q: %w", tpl.ActiveVersionID, err)
+				return fmt.Errorf("get template version %q: %w", tpl.ActiveVersionID, err)
 			}
 
 			parameterSchemas, err := client.TemplateVersionSchema(ctx, templateVersion.ID)
 			if err != nil {
-				return xerrors.Errorf("get template version schema %q: %w", templateVersion.ID, err)
+				return fmt.Errorf("get template version schema %q: %w", templateVersion.ID, err)
 			}
 
 			paramsMap := map[string]string{}
 			if parametersFile != "" {
 				fileMap, err := createParameterMapFromFile(parametersFile)
 				if err != nil {
-					return xerrors.Errorf("read parameters file %q: %w", parametersFile, err)
+					return fmt.Errorf("read parameters file %q: %w", parametersFile, err)
 				}
 
 				paramsMap = fileMap
@@ -583,7 +583,7 @@ It is recommended that all rate limits are disabled on the server before running
 			for _, p := range parameters {
 				parts := strings.SplitN(p, "=", 2)
 				if len(parts) != 2 {
-					return xerrors.Errorf("invalid parameter %q", p)
+					return fmt.Errorf("invalid parameter %q", p)
 				}
 
 				paramsMap[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
@@ -612,7 +612,7 @@ It is recommended that all rate limits are disabled on the server before running
 					ParameterValues: params,
 				})
 				if err != nil {
-					return xerrors.Errorf("start dry run workspace creation: %w", err)
+					return fmt.Errorf("start dry run workspace creation: %w", err)
 				}
 				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Planning workspace...")
 				err = cliui.ProvisionerJob(cmd.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
@@ -629,13 +629,13 @@ It is recommended that all rate limits are disabled on the server before running
 					Silent: true,
 				})
 				if err != nil {
-					return xerrors.Errorf("dry-run workspace: %w", err)
+					return fmt.Errorf("dry-run workspace: %w", err)
 				}
 			}
 
 			tracerProvider, closeTracing, tracingEnabled, err := tracingFlags.provider(ctx)
 			if err != nil {
-				return xerrors.Errorf("create tracer provider: %w", err)
+				return fmt.Errorf("create tracer provider: %w", err)
 			}
 			defer func() {
 				// Allow time for traces to flush even if command context is
@@ -653,11 +653,11 @@ It is recommended that all rate limits are disabled on the server before running
 
 				username, email, err := newScaleTestUser(id)
 				if err != nil {
-					return xerrors.Errorf("create scaletest username and email: %w", err)
+					return fmt.Errorf("create scaletest username and email: %w", err)
 				}
 				workspaceName, err := newScaleTestWorkspace(id)
 				if err != nil {
-					return xerrors.Errorf("create scaletest workspace name: %w", err)
+					return fmt.Errorf("create scaletest workspace name: %w", err)
 				}
 
 				config := createworkspaces.Config{
@@ -714,7 +714,7 @@ It is recommended that all rate limits are disabled on the server before running
 
 				err = config.Validate()
 				if err != nil {
-					return xerrors.Errorf("validate config: %w", err)
+					return fmt.Errorf("validate config: %w", err)
 				}
 
 				var runner harness.Runnable = createworkspaces.NewRunner(client, config)
@@ -735,14 +735,14 @@ It is recommended that all rate limits are disabled on the server before running
 			defer testCancel()
 			err = th.Run(testCtx)
 			if err != nil {
-				return xerrors.Errorf("run test harness (harness failure, not a test failure): %w", err)
+				return fmt.Errorf("run test harness (harness failure, not a test failure): %w", err)
 			}
 
 			res := th.Results()
 			for _, o := range outputs {
 				err = o.write(res, cmd.OutOrStdout())
 				if err != nil {
-					return xerrors.Errorf("write output %q to %q: %w", o.format, o.path, err)
+					return fmt.Errorf("write output %q to %q: %w", o.format, o.path, err)
 				}
 			}
 
@@ -751,7 +751,7 @@ It is recommended that all rate limits are disabled on the server before running
 			defer cleanupCancel()
 			err = th.Cleanup(cleanupCtx)
 			if err != nil {
-				return xerrors.Errorf("cleanup tests: %w", err)
+				return fmt.Errorf("cleanup tests: %w", err)
 			}
 
 			// Upload traces.
@@ -766,7 +766,7 @@ It is recommended that all rate limits are disabled on the server before running
 			}
 
 			if res.TotalFail > 0 {
-				return xerrors.New("load test failed, see above for more details")
+				return fmt.Errorf("load test failed, see above for more details")
 			}
 
 			return nil

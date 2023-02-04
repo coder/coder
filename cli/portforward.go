@@ -55,14 +55,14 @@ func portForward() *cobra.Command {
 
 			specs, err := parsePortForwards(tcpForwards, udpForwards)
 			if err != nil {
-				return xerrors.Errorf("parse port-forward specs: %w", err)
+				return fmt.Errorf("parse port-forward specs: %w", err)
 			}
 			if len(specs) == 0 {
 				err = cmd.Help()
 				if err != nil {
-					return xerrors.Errorf("generate help output: %w", err)
+					return fmt.Errorf("generate help output: %w", err)
 				}
-				return xerrors.New("no port-forwards requested")
+				return fmt.Errorf("no port-forwards requested")
 			}
 
 			client, err := CreateClient(cmd)
@@ -75,7 +75,7 @@ func portForward() *cobra.Command {
 				return err
 			}
 			if workspace.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
-				return xerrors.New("workspace must be in start transition to port-forward")
+				return fmt.Errorf("workspace must be in start transition to port-forward")
 			}
 			if workspace.LatestBuild.Job.CompletedAt == nil {
 				err = cliui.WorkspaceBuild(ctx, cmd.ErrOrStderr(), client, workspace.LatestBuild.ID)
@@ -91,7 +91,7 @@ func portForward() *cobra.Command {
 				},
 			})
 			if err != nil {
-				return xerrors.Errorf("await agent: %w", err)
+				return fmt.Errorf("await agent: %w", err)
 			}
 
 			conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, nil)
@@ -170,13 +170,13 @@ func listenAndPortForward(ctx context.Context, cmd *cobra.Command, conn *codersd
 		var host, port string
 		host, port, err = net.SplitHostPort(spec.listenAddress)
 		if err != nil {
-			return nil, xerrors.Errorf("split %q: %w", spec.listenAddress, err)
+			return nil, fmt.Errorf("split %q: %w", spec.listenAddress, err)
 		}
 
 		var portInt int
 		portInt, err = strconv.Atoi(port)
 		if err != nil {
-			return nil, xerrors.Errorf("parse port %v from %q as int: %w", port, spec.listenAddress, err)
+			return nil, fmt.Errorf("parse port %v from %q as int: %w", port, spec.listenAddress, err)
 		}
 
 		l, err = udp.Listen(spec.listenNetwork, &net.UDPAddr{
@@ -184,10 +184,10 @@ func listenAndPortForward(ctx context.Context, cmd *cobra.Command, conn *codersd
 			Port: portInt,
 		})
 	default:
-		return nil, xerrors.Errorf("unknown listen network %q", spec.listenNetwork)
+		return nil, fmt.Errorf("unknown listen network %q", spec.listenNetwork)
 	}
 	if err != nil {
-		return nil, xerrors.Errorf("listen '%v://%v': %w", spec.listenNetwork, spec.listenAddress, err)
+		return nil, fmt.Errorf("listen '%v://%v': %w", spec.listenNetwork, spec.listenAddress, err)
 	}
 
 	wg.Add(1)
@@ -237,7 +237,7 @@ func parsePortForwards(tcpSpecs, udpSpecs []string) ([]portForwardSpec, error) {
 		for _, spec := range strings.Split(specEntry, ",") {
 			ports, err := parseSrcDestPorts(spec)
 			if err != nil {
-				return nil, xerrors.Errorf("failed to parse TCP port-forward specification %q: %w", spec, err)
+				return nil, fmt.Errorf("failed to parse TCP port-forward specification %q: %w", spec, err)
 			}
 
 			for _, port := range ports {
@@ -255,7 +255,7 @@ func parsePortForwards(tcpSpecs, udpSpecs []string) ([]portForwardSpec, error) {
 		for _, spec := range strings.Split(specEntry, ",") {
 			ports, err := parseSrcDestPorts(spec)
 			if err != nil {
-				return nil, xerrors.Errorf("failed to parse UDP port-forward specification %q: %w", spec, err)
+				return nil, fmt.Errorf("failed to parse UDP port-forward specification %q: %w", spec, err)
 			}
 
 			for _, port := range ports {
@@ -274,7 +274,7 @@ func parsePortForwards(tcpSpecs, udpSpecs []string) ([]portForwardSpec, error) {
 	for _, spec := range specs {
 		localStr := fmt.Sprintf("%v:%v", spec.listenNetwork, spec.listenAddress)
 		if _, ok := locals[localStr]; ok {
-			return nil, xerrors.Errorf("local %v %v is specified twice", spec.listenNetwork, spec.listenAddress)
+			return nil, fmt.Errorf("local %v %v is specified twice", spec.listenNetwork, spec.listenAddress)
 		}
 		locals[localStr] = struct{}{}
 	}
@@ -285,10 +285,10 @@ func parsePortForwards(tcpSpecs, udpSpecs []string) ([]portForwardSpec, error) {
 func parsePort(in string) (uint16, error) {
 	port, err := strconv.ParseUint(strings.TrimSpace(in), 10, 16)
 	if err != nil {
-		return 0, xerrors.Errorf("parse port %q: %w", in, err)
+		return 0, fmt.Errorf("parse port %q: %w", in, err)
 	}
 	if port == 0 {
-		return 0, xerrors.New("port cannot be 0")
+		return 0, fmt.Errorf("port cannot be 0")
 	}
 
 	return uint16(port), nil
@@ -301,7 +301,7 @@ type parsedSrcDestPort struct {
 func parseSrcDestPorts(in string) ([]parsedSrcDestPort, error) {
 	parts := strings.Split(in, ":")
 	if len(parts) > 2 {
-		return nil, xerrors.Errorf("invalid port specification %q", in)
+		return nil, fmt.Errorf("invalid port specification %q", in)
 	}
 	if len(parts) == 1 {
 		// Duplicate the single part
@@ -310,11 +310,11 @@ func parseSrcDestPorts(in string) ([]parsedSrcDestPort, error) {
 	if !strings.Contains(parts[0], "-") {
 		local, err := parsePort(parts[0])
 		if err != nil {
-			return nil, xerrors.Errorf("parse local port from %q: %w", in, err)
+			return nil, fmt.Errorf("parse local port from %q: %w", in, err)
 		}
 		remote, err := parsePort(parts[1])
 		if err != nil {
-			return nil, xerrors.Errorf("parse remote port from %q: %w", in, err)
+			return nil, fmt.Errorf("parse remote port from %q: %w", in, err)
 		}
 
 		return []parsedSrcDestPort{{local: local, remote: remote}}, nil
@@ -322,14 +322,14 @@ func parseSrcDestPorts(in string) ([]parsedSrcDestPort, error) {
 
 	local, err := parsePortRange(parts[0])
 	if err != nil {
-		return nil, xerrors.Errorf("parse local port range from %q: %w", in, err)
+		return nil, fmt.Errorf("parse local port range from %q: %w", in, err)
 	}
 	remote, err := parsePortRange(parts[1])
 	if err != nil {
-		return nil, xerrors.Errorf("parse remote port range from %q: %w", in, err)
+		return nil, fmt.Errorf("parse remote port range from %q: %w", in, err)
 	}
 	if len(local) != len(remote) {
-		return nil, xerrors.Errorf("port ranges must be the same length, got %d ports forwarded to %d ports", len(local), len(remote))
+		return nil, fmt.Errorf("port ranges must be the same length, got %d ports forwarded to %d ports", len(local), len(remote))
 	}
 	var out []parsedSrcDestPort
 	for i := range local {
@@ -344,18 +344,18 @@ func parseSrcDestPorts(in string) ([]parsedSrcDestPort, error) {
 func parsePortRange(in string) ([]uint16, error) {
 	parts := strings.Split(in, "-")
 	if len(parts) != 2 {
-		return nil, xerrors.Errorf("invalid port range specification %q", in)
+		return nil, fmt.Errorf("invalid port range specification %q", in)
 	}
 	start, err := parsePort(parts[0])
 	if err != nil {
-		return nil, xerrors.Errorf("parse range start port from %q: %w", in, err)
+		return nil, fmt.Errorf("parse range start port from %q: %w", in, err)
 	}
 	end, err := parsePort(parts[1])
 	if err != nil {
-		return nil, xerrors.Errorf("parse range end port from %q: %w", in, err)
+		return nil, fmt.Errorf("parse range end port from %q: %w", in, err)
 	}
 	if end < start {
-		return nil, xerrors.Errorf("range end port %v is less than start port %v", end, start)
+		return nil, fmt.Errorf("range end port %v is less than start port %v", end, start)
 	}
 	var ports []uint16
 	for i := start; i <= end; i++ {

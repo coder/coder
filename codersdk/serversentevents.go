@@ -7,8 +7,6 @@ import (
 	"io"
 	"strings"
 
-	"golang.org/x/xerrors"
-
 	"github.com/coder/coder/coderd/tracing"
 )
 
@@ -38,7 +36,7 @@ func ServerSentEventReader(ctx context.Context, rc io.ReadCloser) func() (*Serve
 		for {
 			line, err = reader.ReadString('\n')
 			if err != nil {
-				return nil, xerrors.Errorf("reading next string: %w", err)
+				return nil, fmt.Errorf("reading next string: %w", err)
 			}
 			if strings.TrimSpace(line) != "" {
 				break
@@ -46,7 +44,7 @@ func ServerSentEventReader(ctx context.Context, rc io.ReadCloser) func() (*Serve
 		}
 
 		if !strings.HasPrefix(line, fmt.Sprintf("%s: ", prefix)) {
-			return nil, xerrors.Errorf("expecting %s prefix, got: %s", prefix, line)
+			return nil, fmt.Errorf("expecting %s prefix, got: %s", prefix, line)
 		}
 		s := strings.TrimPrefix(line, fmt.Sprintf("%s: ", prefix))
 		s = strings.TrimSpace(s)
@@ -57,7 +55,7 @@ func ServerSentEventReader(ctx context.Context, rc io.ReadCloser) func() (*Serve
 		for {
 			t, err := nextLineValue("event")
 			if err != nil {
-				return nil, xerrors.Errorf("reading next line value: %w", err)
+				return nil, fmt.Errorf("reading next line value: %w", err)
 			}
 
 			switch ServerSentEventType(t) {
@@ -68,7 +66,7 @@ func ServerSentEventReader(ctx context.Context, rc io.ReadCloser) func() (*Serve
 			case ServerSentEventTypeData:
 				d, err := nextLineValue("data")
 				if err != nil {
-					return nil, xerrors.Errorf("reading next line value: %w", err)
+					return nil, fmt.Errorf("reading next line value: %w", err)
 				}
 
 				return &ServerSentEvent{
@@ -78,7 +76,7 @@ func ServerSentEventReader(ctx context.Context, rc io.ReadCloser) func() (*Serve
 			case ServerSentEventTypeError:
 				d, err := nextLineValue("data")
 				if err != nil {
-					return nil, xerrors.Errorf("reading next line value: %w", err)
+					return nil, fmt.Errorf("reading next line value: %w", err)
 				}
 
 				return &ServerSentEvent{
@@ -86,7 +84,7 @@ func ServerSentEventReader(ctx context.Context, rc io.ReadCloser) func() (*Serve
 					Data: d,
 				}, nil
 			default:
-				return nil, xerrors.Errorf("unknown event type: %s", t)
+				return nil, fmt.Errorf("unknown event type: %s", t)
 			}
 		}
 	}

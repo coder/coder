@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 )
 
 // Me is used as a replacement for your own ID.
@@ -203,7 +202,7 @@ func (c *Client) UpdateUserStatus(ctx context.Context, user string, status UserS
 	case UserStatusSuspended:
 		path += "suspend"
 	default:
-		return User{}, xerrors.Errorf("status %q is not supported", status)
+		return User{}, fmt.Errorf("status %q is not supported", status)
 	}
 
 	res, err := c.Request(ctx, http.MethodPut, path, nil)

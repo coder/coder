@@ -15,7 +15,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli"
@@ -181,7 +180,7 @@ func TestRoot(t *testing.T) {
 						Helper: "Try this instead.",
 					}
 
-					err = xerrors.Errorf("wrap me: %w", err)
+					err = fmt.Errorf("wrap me: %w", err)
 
 					return err
 				}
@@ -200,7 +199,7 @@ func TestRoot(t *testing.T) {
 				cmd, _ := clitest.New(t)
 
 				cmd.RunE = func(cmd *cobra.Command, args []string) error {
-					return xerrors.Errorf("this is a non-codersdk error: %w", xerrors.Errorf("a wrapped error"))
+					return fmt.Errorf("this is a non-codersdk error: %w", fmt.Errorf("a wrapped error"))
 				}
 
 				cmd, err := cmd.ExecuteC()
@@ -223,7 +222,7 @@ func TestRoot(t *testing.T) {
 						Helper: "Try this instead.",
 					}
 
-					err = xerrors.Errorf("wrap me: %w", err)
+					err = fmt.Errorf("wrap me: %w", err)
 
 					return err
 				}
@@ -241,7 +240,7 @@ func TestRoot(t *testing.T) {
 				cmd, _ := clitest.New(t, "--verbose")
 
 				cmd.RunE = func(cmd *cobra.Command, args []string) error {
-					return xerrors.Errorf("this is a non-codersdk error: %w", xerrors.Errorf("a wrapped error"))
+					return fmt.Errorf("this is a non-codersdk error: %w", fmt.Errorf("a wrapped error"))
 				}
 
 				cmd, err := cmd.ExecuteC()

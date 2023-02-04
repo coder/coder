@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
@@ -56,14 +55,14 @@ func createToken() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := CreateClient(cmd)
 			if err != nil {
-				return xerrors.Errorf("create codersdk client: %w", err)
+				return fmt.Errorf("create codersdk client: %w", err)
 			}
 
 			res, err := client.CreateToken(cmd.Context(), codersdk.Me, codersdk.CreateTokenRequest{
 				Lifetime: tokenLifetime,
 			})
 			if err != nil {
-				return xerrors.Errorf("create tokens: %w", err)
+				return fmt.Errorf("create tokens: %w", err)
 			}
 
 			cmd.Println(cliui.Styles.Wrap.Render(
@@ -100,12 +99,12 @@ func listTokens() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := CreateClient(cmd)
 			if err != nil {
-				return xerrors.Errorf("create codersdk client: %w", err)
+				return fmt.Errorf("create codersdk client: %w", err)
 			}
 
 			keys, err := client.Tokens(cmd.Context(), codersdk.Me)
 			if err != nil {
-				return xerrors.Errorf("create tokens: %w", err)
+				return fmt.Errorf("create tokens: %w", err)
 			}
 
 			if len(keys) == 0 {
@@ -146,12 +145,12 @@ func removeToken() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := CreateClient(cmd)
 			if err != nil {
-				return xerrors.Errorf("create codersdk client: %w", err)
+				return fmt.Errorf("create codersdk client: %w", err)
 			}
 
 			err = client.DeleteAPIKey(cmd.Context(), codersdk.Me, args[0])
 			if err != nil {
-				return xerrors.Errorf("delete api key: %w", err)
+				return fmt.Errorf("delete api key: %w", err)
 			}
 
 			cmd.Println(cliui.Styles.Wrap.Render(

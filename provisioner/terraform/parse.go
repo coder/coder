@@ -10,7 +10,6 @@ import (
 
 	"github.com/hashicorp/terraform-config-inspect/tfconfig"
 	"github.com/mitchellh/go-wordwrap"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/provisionersdk/proto"
 )
@@ -20,7 +19,7 @@ func (*server) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_
 	// Load the module and print any parse errors.
 	module, diags := tfconfig.LoadModule(request.Directory)
 	if diags.HasErrors() {
-		return xerrors.Errorf("load module: %s", formatDiagnostics(request.Directory, diags))
+		return fmt.Errorf("load module: %s", formatDiagnostics(request.Directory, diags))
 	}
 
 	// Sort variables by (filename, line) to make the ordering consistent
@@ -36,7 +35,7 @@ func (*server) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_
 	for _, v := range variables {
 		schema, err := convertVariableToParameter(v)
 		if err != nil {
-			return xerrors.Errorf("convert variable %q: %w", v.Name, err)
+			return fmt.Errorf("convert variable %q: %w", v.Name, err)
 		}
 
 		parameters = append(parameters, schema)
@@ -69,7 +68,7 @@ func convertVariableToParameter(variable *tfconfig.Variable) (*proto.ParameterSc
 		if !valid {
 			defaultDataRaw, err := json.Marshal(variable.Default)
 			if err != nil {
-				return nil, xerrors.Errorf("parse variable %q default: %w", variable.Name, err)
+				return nil, fmt.Errorf("parse variable %q default: %w", variable.Name, err)
 			}
 			defaultData = string(defaultDataRaw)
 		}
@@ -86,7 +85,7 @@ func convertVariableToParameter(variable *tfconfig.Variable) (*proto.ParameterSc
 		validation := variable.Validations[0]
 		filedata, err := os.ReadFile(variable.Pos.Filename)
 		if err != nil {
-			return nil, xerrors.Errorf("read file %q: %w", variable.Pos.Filename, err)
+			return nil, fmt.Errorf("read file %q: %w", variable.Pos.Filename, err)
 		}
 		schema.ValidationCondition = string(filedata[validation.Condition.Range().Start.Byte:validation.Condition.Range().End.Byte])
 		schema.ValidationError = validation.ErrorMessage

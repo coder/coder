@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 )
 
 type CreateGroupRequest struct {
@@ -31,7 +30,7 @@ func (c *Client) CreateGroup(ctx context.Context, orgID uuid.UUID, req CreateGro
 		req,
 	)
 	if err != nil {
-		return Group{}, xerrors.Errorf("make request: %w", err)
+		return Group{}, fmt.Errorf("make request: %w", err)
 	}
 	defer res.Body.Close()
 
@@ -48,7 +47,7 @@ func (c *Client) GroupsByOrganization(ctx context.Context, orgID uuid.UUID) ([]G
 		nil,
 	)
 	if err != nil {
-		return nil, xerrors.Errorf("make request: %w", err)
+		return nil, fmt.Errorf("make request: %w", err)
 	}
 	defer res.Body.Close()
 
@@ -66,7 +65,7 @@ func (c *Client) GroupByOrgAndName(ctx context.Context, orgID uuid.UUID, name st
 		nil,
 	)
 	if err != nil {
-		return Group{}, xerrors.Errorf("make request: %w", err)
+		return Group{}, fmt.Errorf("make request: %w", err)
 	}
 	defer res.Body.Close()
 
@@ -83,7 +82,7 @@ func (c *Client) Group(ctx context.Context, group uuid.UUID) (Group, error) {
 		nil,
 	)
 	if err != nil {
-		return Group{}, xerrors.Errorf("make request: %w", err)
+		return Group{}, fmt.Errorf("make request: %w", err)
 	}
 	defer res.Body.Close()
 
@@ -108,7 +107,7 @@ func (c *Client) PatchGroup(ctx context.Context, group uuid.UUID, req PatchGroup
 		req,
 	)
 	if err != nil {
-		return Group{}, xerrors.Errorf("make request: %w", err)
+		return Group{}, fmt.Errorf("make request: %w", err)
 	}
 	defer res.Body.Close()
 
@@ -125,7 +124,7 @@ func (c *Client) DeleteGroup(ctx context.Context, group uuid.UUID) error {
 		nil,
 	)
 	if err != nil {
-		return xerrors.Errorf("make request: %w", err)
+		return fmt.Errorf("make request: %w", err)
 	}
 	defer res.Body.Close()
 

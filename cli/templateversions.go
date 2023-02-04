@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
@@ -43,15 +42,15 @@ func templateVersionsList() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := CreateClient(cmd)
 			if err != nil {
-				return xerrors.Errorf("create client: %w", err)
+				return fmt.Errorf("create client: %w", err)
 			}
 			organization, err := CurrentOrganization(cmd, client)
 			if err != nil {
-				return xerrors.Errorf("get current organization: %w", err)
+				return fmt.Errorf("get current organization: %w", err)
 			}
 			template, err := client.TemplateByName(cmd.Context(), organization.ID, args[0])
 			if err != nil {
-				return xerrors.Errorf("get template by name: %w", err)
+				return fmt.Errorf("get template by name: %w", err)
 			}
 			req := codersdk.TemplateVersionsByTemplateRequest{
 				TemplateID: template.ID,
@@ -59,12 +58,12 @@ func templateVersionsList() *cobra.Command {
 
 			versions, err := client.TemplateVersionsByTemplate(cmd.Context(), req)
 			if err != nil {
-				return xerrors.Errorf("get template versions by template: %w", err)
+				return fmt.Errorf("get template versions by template: %w", err)
 			}
 
 			out, err := displayTemplateVersions(template.ActiveVersionID, versions...)
 			if err != nil {
-				return xerrors.Errorf("render table: %w", err)
+				return fmt.Errorf("render table: %w", err)
 			}
 
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), out)

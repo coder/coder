@@ -6,8 +6,6 @@ import (
 	"os/exec"
 	"strings"
 	"time"
-
-	"golang.org/x/xerrors"
 )
 
 // cmdTimezone is a Powershell incantation that will return the system
@@ -27,7 +25,7 @@ func TimezoneIANA() (*time.Location, error) {
 		return loc, nil
 	}
 	if !xerrors.Is(err, errNoEnvSet) {
-		return nil, xerrors.Errorf("lookup timezone from env: %w", err)
+		return nil, fmt.Errorf("lookup timezone from env: %w", err)
 	}
 
 	// https://superuser.com/a/1584968
@@ -37,18 +35,18 @@ func TimezoneIANA() (*time.Location, error) {
 
 	outBytes, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, xerrors.Errorf("execute powershell command %q: %w", cmdTimezone, err)
+		return nil, fmt.Errorf("execute powershell command %q: %w", cmdTimezone, err)
 	}
 
 	outLines := strings.Split(string(outBytes), "\n")
 	if len(outLines) < 2 {
-		return nil, xerrors.Errorf("unexpected output from powershell command %q: %q", cmdTimezone, outLines)
+		return nil, fmt.Errorf("unexpected output from powershell command %q: %q", cmdTimezone, outLines)
 	}
 	// What we want is the second line of output
 	locStr := strings.TrimSpace(outLines[1])
 	loc, err = time.LoadLocation(locStr)
 	if err != nil {
-		return nil, xerrors.Errorf("invalid location %q from powershell: %w", locStr, err)
+		return nil, fmt.Errorf("invalid location %q from powershell: %w", locStr, err)
 	}
 
 	return loc, nil

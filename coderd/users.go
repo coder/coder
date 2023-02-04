@@ -716,12 +716,12 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 			HashedPassword: []byte(hashedPassword),
 		})
 		if err != nil {
-			return xerrors.Errorf("update user hashed password: %w", err)
+			return fmt.Errorf("update user hashed password: %w", err)
 		}
 
 		err = tx.DeleteAPIKeysByUserID(ctx, user.ID)
 		if err != nil {
-			return xerrors.Errorf("delete api keys by user ID: %w", err)
+			return fmt.Errorf("delete api keys by user ID: %w", err)
 		}
 
 		return nil
@@ -891,17 +891,17 @@ func (api *API) updateSiteUserRoles(ctx context.Context, args database.UpdateUse
 	// Enforce only site wide roles.
 	for _, r := range args.GrantedRoles {
 		if _, ok := rbac.IsOrgRole(r); ok {
-			return database.User{}, xerrors.Errorf("Must only update site wide roles")
+			return database.User{}, fmt.Errorf("Must only update site wide roles")
 		}
 
 		if _, err := rbac.RoleByName(r); err != nil {
-			return database.User{}, xerrors.Errorf("%q is not a supported role", r)
+			return database.User{}, fmt.Errorf("%q is not a supported role", r)
 		}
 	}
 
 	updatedUser, err := api.Database.UpdateUserRoles(ctx, args)
 	if err != nil {
-		return database.User{}, xerrors.Errorf("update site roles: %w", err)
+		return database.User{}, fmt.Errorf("update site roles: %w", err)
 	}
 	return updatedUser, nil
 }
@@ -1161,7 +1161,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 				UpdatedAt: database.Now(),
 			})
 			if err != nil {
-				return xerrors.Errorf("create organization: %w", err)
+				return fmt.Errorf("create organization: %w", err)
 			}
 			req.OrganizationID = organization.ID
 			// TODO: When organizations are allowed to be created, we should
@@ -1172,7 +1172,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 
 			_, err = tx.InsertAllUsersGroup(ctx, organization.ID)
 			if err != nil {
-				return xerrors.Errorf("create %q group: %w", database.AllUsersGroup, err)
+				return fmt.Errorf("create %q group: %w", database.AllUsersGroup, err)
 			}
 		}
 
@@ -1190,7 +1190,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		if req.Password != "" {
 			hashedPassword, err := userpassword.Hash(req.Password)
 			if err != nil {
-				return xerrors.Errorf("hash password: %w", err)
+				return fmt.Errorf("hash password: %w", err)
 			}
 			params.HashedPassword = []byte(hashedPassword)
 		}
@@ -1198,12 +1198,12 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		var err error
 		user, err = tx.InsertUser(ctx, params)
 		if err != nil {
-			return xerrors.Errorf("create user: %w", err)
+			return fmt.Errorf("create user: %w", err)
 		}
 
 		privateKey, publicKey, err := gitsshkey.Generate(api.SSHKeygenAlgorithm)
 		if err != nil {
-			return xerrors.Errorf("generate user gitsshkey: %w", err)
+			return fmt.Errorf("generate user gitsshkey: %w", err)
 		}
 		_, err = tx.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
 			UserID:     user.ID,
@@ -1213,7 +1213,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			PublicKey:  publicKey,
 		})
 		if err != nil {
-			return xerrors.Errorf("insert user gitsshkey: %w", err)
+			return fmt.Errorf("insert user gitsshkey: %w", err)
 		}
 		_, err = tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
 			OrganizationID: req.OrganizationID,
@@ -1224,7 +1224,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			Roles: orgRoles,
 		})
 		if err != nil {
-			return xerrors.Errorf("create organization member: %w", err)
+			return fmt.Errorf("create organization member: %w", err)
 		}
 		return nil
 	}, nil)
@@ -1329,7 +1329,7 @@ func parseUserStatus(v string) ([]database.UserStatus, error) {
 		case database.UserStatusActive, database.UserStatusSuspended:
 			statuses = append(statuses, database.UserStatus(part))
 		default:
-			return []database.UserStatus{}, xerrors.Errorf("%q is not a valid user status", part)
+			return []database.UserStatus{}, fmt.Errorf("%q is not a valid user status", part)
 		}
 	}
 	return statuses, nil

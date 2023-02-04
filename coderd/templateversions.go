@@ -950,7 +950,7 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 			UpdatedAt:       database.Now(),
 		})
 		if err != nil {
-			return xerrors.Errorf("update active version: %w", err)
+			return fmt.Errorf("update active version: %w", err)
 		}
 		return nil
 	}, nil)
@@ -1150,27 +1150,27 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		// Expand inherited params
 		if len(inherits) > 0 {
 			if req.TemplateID == uuid.Nil {
-				return xerrors.Errorf("cannot inherit parameters if template_id is not set")
+				return fmt.Errorf("cannot inherit parameters if template_id is not set")
 			}
 
 			inheritedParams, err := tx.ParameterValues(ctx, database.ParameterValuesParams{
 				IDs: inherits,
 			})
 			if err != nil {
-				return xerrors.Errorf("fetch inherited params: %w", err)
+				return fmt.Errorf("fetch inherited params: %w", err)
 			}
 			for _, copy := range inheritedParams {
 				// This is a bit inefficient, as we make a new db call for each
 				// param.
 				version, err := tx.GetTemplateVersionByJobID(ctx, copy.ScopeID)
 				if err != nil {
-					return xerrors.Errorf("fetch template version for param %q: %w", copy.Name, err)
+					return fmt.Errorf("fetch template version for param %q: %w", copy.Name, err)
 				}
 				if !version.TemplateID.Valid || version.TemplateID.UUID != req.TemplateID {
-					return xerrors.Errorf("cannot inherit parameters from other templates")
+					return fmt.Errorf("cannot inherit parameters from other templates")
 				}
 				if copy.Scope != database.ParameterScopeImportJob {
-					return xerrors.Errorf("copy parameter scope is %q, must be %q", copy.Scope, database.ParameterScopeImportJob)
+					return fmt.Errorf("copy parameter scope is %q, must be %q", copy.Scope, database.ParameterScopeImportJob)
 				}
 				// Add the copied param to the list to process
 				req.ParameterValues = append(req.ParameterValues, codersdk.CreateParameterRequest{
@@ -1199,7 +1199,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 				DestinationScheme: database.ParameterDestinationScheme(parameterValue.DestinationScheme),
 			})
 			if err != nil {
-				return xerrors.Errorf("insert parameter value: %w", err)
+				return fmt.Errorf("insert parameter value: %w", err)
 			}
 		}
 
@@ -1208,7 +1208,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			TemplateVersionID: templateVersionID,
 		})
 		if err != nil {
-			return xerrors.Errorf("marshal job input: %w", err)
+			return fmt.Errorf("marshal job input: %w", err)
 		}
 
 		provisionerJob, err = tx.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
@@ -1225,7 +1225,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			Tags:           tags,
 		})
 		if err != nil {
-			return xerrors.Errorf("insert provisioner job: %w", err)
+			return fmt.Errorf("insert provisioner job: %w", err)
 		}
 
 		var templateID uuid.NullUUID
@@ -1252,7 +1252,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			CreatedBy:      apiKey.UserID,
 		})
 		if err != nil {
-			return xerrors.Errorf("insert template version: %w", err)
+			return fmt.Errorf("insert template version: %w", err)
 		}
 		return nil
 	}, nil)

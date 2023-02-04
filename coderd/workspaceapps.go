@@ -20,6 +20,7 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
+
 	jose "gopkg.in/square/go-jose.v2"
 
 	"cdr.dev/slog"
@@ -953,7 +954,7 @@ type encryptedAPIKeyPayload struct {
 // getting accidentally logged in access logs or stored in browser history.
 func encryptAPIKey(data encryptedAPIKeyPayload) (string, error) {
 	if data.APIKey == "" {
-		return "", xerrors.New("API key is empty")
+		return "", fmt.Errorf("API key is empty")
 	}
 	if data.ExpiresAt.IsZero() {
 		// Very short expiry as these keys are only used once as part of an
@@ -963,7 +964,7 @@ func encryptAPIKey(data encryptedAPIKeyPayload) (string, error) {
 
 	payload, err := json.Marshal(data)
 	if err != nil {
-		return "", xerrors.Errorf("marshal payload: %w", err)
+		return "", fmt.Errorf("marshal payload: %w", err)
 	}
 
 	// We use the hashed key secret as the encryption key. The hashed secret is
@@ -980,7 +981,7 @@ func encryptAPIKey(data encryptedAPIKeyPayload) (string, error) {
 	//   3. These tokens are scoped only for application_connect access.
 	keyID, keySecret, err := httpmw.SplitAPIToken(data.APIKey)
 	if err != nil {
-		return "", xerrors.Errorf("split API key: %w", err)
+		return "", fmt.Errorf("split API key: %w", err)
 	}
 	// SHA256 the key secret so it matches the hashed secret in the database.
 	// The key length doesn't matter to the jose.Encrypter.
@@ -999,11 +1000,11 @@ func encryptAPIKey(data encryptedAPIKeyPayload) (string, error) {
 		},
 	)
 	if err != nil {
-		return "", xerrors.Errorf("initializer jose encrypter: %w", err)
+		return "", fmt.Errorf("initializer jose encrypter: %w", err)
 	}
 	encryptedObject, err := encrypter.Encrypt(payload)
 	if err != nil {
-		return "", xerrors.Errorf("encrypt jwe: %w", err)
+		return "", fmt.Errorf("encrypt jwe: %w", err)
 	}
 
 	encrypted := encryptedObject.FullSerialize()
@@ -1014,46 +1015,46 @@ func encryptAPIKey(data encryptedAPIKeyPayload) (string, error) {
 func decryptAPIKey(ctx context.Context, db database.Store, encryptedAPIKey string) (database.APIKey, string, error) {
 	encrypted, err := base64.RawURLEncoding.DecodeString(encryptedAPIKey)
 	if err != nil {
-		return database.APIKey{}, "", xerrors.Errorf("base64 decode encrypted API key: %w", err)
+		return database.APIKey{}, "", fmt.Errorf("base64 decode encrypted API key: %w", err)
 	}
 
 	object, err := jose.ParseEncrypted(string(encrypted))
 	if err != nil {
-		return database.APIKey{}, "", xerrors.Errorf("parse encrypted API key: %w", err)
+		return database.APIKey{}, "", fmt.Errorf("parse encrypted API key: %w", err)
 	}
 
 	// Lookup the API key so we can decrypt it.
 	keyID := object.Header.KeyID
 	key, err := db.GetAPIKeyByID(ctx, keyID)
 	if err != nil {
-		return database.APIKey{}, "", xerrors.Errorf("get API key by key ID: %w", err)
+		return database.APIKey{}, "", fmt.Errorf("get API key by key ID: %w", err)
 	}
 
 	// Decrypt using the hashed secret.
 	decrypted, err := object.Decrypt(key.HashedSecret)
 	if err != nil {
-		return database.APIKey{}, "", xerrors.Errorf("decrypt API key: %w", err)
+		return database.APIKey{}, "", fmt.Errorf("decrypt API key: %w", err)
 	}
 
 	// Unmarshal the payload.
 	var payload encryptedAPIKeyPayload
 	if err := json.Unmarshal(decrypted, &payload); err != nil {
-		return database.APIKey{}, "", xerrors.Errorf("unmarshal decrypted payload: %w", err)
+		return database.APIKey{}, "", fmt.Errorf("unmarshal decrypted payload: %w", err)
 	}
 
 	// Validate expiry.
 	if payload.ExpiresAt.Before(database.Now()) {
-		return database.APIKey{}, "", xerrors.New("encrypted API key expired")
+		return database.APIKey{}, "", fmt.Errorf("encrypted API key expired")
 	}
 
 	// Validate that the key matches the one we got from the DB.
 	gotKeyID, gotKeySecret, err := httpmw.SplitAPIToken(payload.APIKey)
 	if err != nil {
-		return database.APIKey{}, "", xerrors.Errorf("split API key: %w", err)
+		return database.APIKey{}, "", fmt.Errorf("split API key: %w", err)
 	}
 	gotHashedSecret := sha256.Sum256([]byte(gotKeySecret))
 	if gotKeyID != key.ID || !bytes.Equal(key.HashedSecret, gotHashedSecret[:]) {
-		return database.APIKey{}, "", xerrors.New("encrypted API key does not match key in database")
+		return database.APIKey{}, "", fmt.Errorf("encrypted API key does not match key in database")
 	}
 
 	return key, payload.APIKey, nil

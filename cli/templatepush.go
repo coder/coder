@@ -10,7 +10,6 @@ import (
 	"github.com/briandowns/spinner"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
@@ -53,7 +52,7 @@ func (pf *templateUploadFlags) upload(cmd *cobra.Command, client *codersdk.Clien
 		content, err = provisionersdk.Tar(pf.directory, provisionersdk.TemplateArchiveLimit)
 	}
 	if err != nil {
-		return nil, xerrors.Errorf("read tar: %w", err)
+		return nil, fmt.Errorf("read tar: %w", err)
 	}
 
 	spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
@@ -64,7 +63,7 @@ func (pf *templateUploadFlags) upload(cmd *cobra.Command, client *codersdk.Clien
 
 	resp, err := client.Upload(cmd.Context(), codersdk.ContentTypeTar, content)
 	if err != nil {
-		return nil, xerrors.Errorf("upload: %w", err)
+		return nil, fmt.Errorf("upload: %w", err)
 	}
 	return &resp, nil
 }
@@ -73,7 +72,7 @@ func (pf *templateUploadFlags) templateName(args []string) (string, error) {
 	if pf.stdin() {
 		// Can't infer name from directory if none provided.
 		if len(args) == 0 {
-			return "", xerrors.New("template name argument must be provided")
+			return "", fmt.Errorf("template name argument must be provided")
 		}
 		return args[0], nil
 	}
@@ -145,7 +144,7 @@ func templatePush() *cobra.Command {
 			}
 
 			if job.Job.Status != codersdk.ProvisionerJobSucceeded {
-				return xerrors.Errorf("job failed: %s", job.Job.Status)
+				return fmt.Errorf("job failed: %s", job.Job.Status)
 			}
 
 			err = client.UpdateActiveTemplateVersion(cmd.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{

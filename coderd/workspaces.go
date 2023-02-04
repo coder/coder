@@ -16,7 +16,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 
@@ -37,10 +36,10 @@ var (
 	ttlMin = time.Minute //nolint:revive // min here means 'minimum' not 'minutes'
 	ttlMax = 7 * 24 * time.Hour
 
-	errTTLMin              = xerrors.New("time until shutdown must be at least one minute")
-	errTTLMax              = xerrors.New("time until shutdown must be less than 7 days")
-	errDeadlineTooSoon     = xerrors.New("new deadline must be at least 30 minutes in the future")
-	errDeadlineBeforeStart = xerrors.New("new deadline must be before workspace start time")
+	errTTLMin              = fmt.Errorf("time until shutdown must be at least one minute")
+	errTTLMax              = fmt.Errorf("time until shutdown must be less than 7 days")
+	errDeadlineTooSoon     = fmt.Errorf("new deadline must be at least 30 minutes in the future")
+	errDeadlineBeforeStart = fmt.Errorf("new deadline must be before workspace start time")
 )
 
 // @Summary Get workspace metadata by ID
@@ -477,7 +476,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			Ttl:               dbTTL,
 		})
 		if err != nil {
-			return xerrors.Errorf("insert workspace: %w", err)
+			return fmt.Errorf("insert workspace: %w", err)
 		}
 		for _, parameterValue := range createWorkspace.ParameterValues {
 			// If the value is empty, we don't want to save it on database so
@@ -498,7 +497,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 				DestinationScheme: database.ParameterDestinationScheme(parameterValue.DestinationScheme),
 			})
 			if err != nil {
-				return xerrors.Errorf("insert parameter value: %w", err)
+				return fmt.Errorf("insert parameter value: %w", err)
 			}
 		}
 
@@ -506,7 +505,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			WorkspaceBuildID: workspaceBuildID,
 		})
 		if err != nil {
-			return xerrors.Errorf("marshal provision job: %w", err)
+			return fmt.Errorf("marshal provision job: %w", err)
 		}
 		provisionerJob, err = db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 			ID:             uuid.New(),
@@ -522,7 +521,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			Tags:           tags,
 		})
 		if err != nil {
-			return xerrors.Errorf("insert provisioner job: %w", err)
+			return fmt.Errorf("insert provisioner job: %w", err)
 		}
 		workspaceBuild, err = db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
 			ID:                workspaceBuildID,
@@ -538,7 +537,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			Reason:            database.BuildReasonInitiator,
 		})
 		if err != nil {
-			return xerrors.Errorf("insert workspace build: %w", err)
+			return fmt.Errorf("insert workspace build: %w", err)
 		}
 
 		names := make([]string, 0, len(createWorkspace.RichParameterValues))
@@ -553,7 +552,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			Value:            values,
 		})
 		if err != nil {
-			return xerrors.Errorf("insert workspace build parameters: %w", err)
+			return fmt.Errorf("insert workspace build parameters: %w", err)
 		}
 		return nil
 	}, nil)
@@ -805,7 +804,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 			ID:  workspace.ID,
 			Ttl: dbTTL,
 		}); err != nil {
-			return xerrors.Errorf("update workspace time until shutdown: %w", err)
+			return fmt.Errorf("update workspace time until shutdown: %w", err)
 		}
 
 		return nil
@@ -865,32 +864,32 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			code = http.StatusInternalServerError
 			resp.Message = "Error fetching workspace build."
-			return xerrors.Errorf("get latest workspace build: %w", err)
+			return fmt.Errorf("get latest workspace build: %w", err)
 		}
 
 		job, err := s.GetProvisionerJobByID(ctx, build.JobID)
 		if err != nil {
 			code = http.StatusInternalServerError
 			resp.Message = "Error fetching workspace provisioner job."
-			return xerrors.Errorf("get provisioner job: %w", err)
+			return fmt.Errorf("get provisioner job: %w", err)
 		}
 
 		if build.Transition != database.WorkspaceTransitionStart {
 			code = http.StatusConflict
 			resp.Message = "Workspace must be started, current status: " + string(build.Transition)
-			return xerrors.Errorf("workspace must be started, current status: %s", build.Transition)
+			return fmt.Errorf("workspace must be started, current status: %s", build.Transition)
 		}
 
 		if !job.CompletedAt.Valid {
 			code = http.StatusConflict
 			resp.Message = "Workspace is still building!"
-			return xerrors.Errorf("workspace is still building")
+			return fmt.Errorf("workspace is still building")
 		}
 
 		if build.Deadline.IsZero() {
 			code = http.StatusConflict
 			resp.Message = "Workspace shutdown is manual."
-			return xerrors.Errorf("workspace shutdown is manual")
+			return fmt.Errorf("workspace shutdown is manual")
 		}
 
 		newDeadline := req.Deadline.UTC()
@@ -911,7 +910,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 		}); err != nil {
 			code = http.StatusInternalServerError
 			resp.Message = "Failed to extend workspace deadline."
-			return xerrors.Errorf("update workspace build: %w", err)
+			return fmt.Errorf("update workspace build: %w", err)
 		}
 		resp.Message = "Deadline updated to " + newDeadline.Format(time.RFC3339) + "."
 
@@ -1053,17 +1052,17 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 		IDs: templateIDs,
 	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceData{}, xerrors.Errorf("get templates: %w", err)
+		return workspaceData{}, fmt.Errorf("get templates: %w", err)
 	}
 
 	builds, err := api.Database.GetLatestWorkspaceBuildsByWorkspaceIDs(ctx, workspaceIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceData{}, xerrors.Errorf("get workspace builds: %w", err)
+		return workspaceData{}, fmt.Errorf("get workspace builds: %w", err)
 	}
 
 	data, err := api.workspaceBuildsData(ctx, workspaces, builds)
 	if err != nil {
-		return workspaceData{}, xerrors.Errorf("get workspace builds data: %w", err)
+		return workspaceData{}, fmt.Errorf("get workspace builds data: %w", err)
 	}
 
 	apiBuilds, err := api.convertWorkspaceBuilds(
@@ -1078,7 +1077,7 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 		data.templateVersions,
 	)
 	if err != nil {
-		return workspaceData{}, xerrors.Errorf("convert workspace builds: %w", err)
+		return workspaceData{}, fmt.Errorf("convert workspace builds: %w", err)
 	}
 
 	return workspaceData{
@@ -1106,15 +1105,15 @@ func convertWorkspaces(workspaces []database.Workspace, data workspaceData) ([]c
 	for _, workspace := range workspaces {
 		build, exists := buildByWorkspaceID[workspace.ID]
 		if !exists {
-			return nil, xerrors.Errorf("build not found for workspace %q", workspace.Name)
+			return nil, fmt.Errorf("build not found for workspace %q", workspace.Name)
 		}
 		template, exists := templateByID[workspace.TemplateID]
 		if !exists {
-			return nil, xerrors.Errorf("template not found for workspace %q", workspace.Name)
+			return nil, fmt.Errorf("template not found for workspace %q", workspace.Name)
 		}
 		owner, exists := userByID[workspace.OwnerID]
 		if !exists {
-			return nil, xerrors.Errorf("owner not found for workspace: %q", workspace.Name)
+			return nil, fmt.Errorf("owner not found for workspace: %q", workspace.Name)
 		}
 
 		apiWorkspaces = append(apiWorkspaces, convertWorkspace(

@@ -4,11 +4,10 @@ import (
 	"context"
 	cryptorand "crypto/rand"
 	"encoding/binary"
+	"fmt"
 	"math/rand"
 	"sync"
 	"time"
-
-	"golang.org/x/xerrors"
 )
 
 // TestFn is a function that can be run by an ExecutionStrategy.
@@ -35,7 +34,7 @@ func (LinearExecutionStrategy) Run(ctx context.Context, fns []TestFn) ([]error, 
 	for i, fn := range fns {
 		err := fn(ctx)
 		if err != nil {
-			errs = append(errs, xerrors.Errorf("run %d: %w", i, err))
+			errs = append(errs, fmt.Errorf("run %d: %w", i, err))
 		}
 	}
 
@@ -62,7 +61,7 @@ func (ConcurrentExecutionStrategy) Run(ctx context.Context, fns []TestFn) ([]err
 			defer wg.Done()
 			err := fn(ctx)
 			if err != nil {
-				errs.add(xerrors.Errorf("run %d: %w", i, err))
+				errs.add(fmt.Errorf("run %d: %w", i, err))
 			}
 		}()
 	}
@@ -100,7 +99,7 @@ func (p ParallelExecutionStrategy) Run(ctx context.Context, fns []TestFn) ([]err
 			sem <- struct{}{}
 			err := fn(ctx)
 			if err != nil {
-				errs.add(xerrors.Errorf("run %d: %w", i, err))
+				errs.add(fmt.Errorf("run %d: %w", i, err))
 			}
 		}()
 	}

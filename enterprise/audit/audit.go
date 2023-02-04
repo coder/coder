@@ -2,8 +2,7 @@ package audit
 
 import (
 	"context"
-
-	"golang.org/x/xerrors"
+	"fmt"
 
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
@@ -38,7 +37,7 @@ type auditor struct {
 func (a *auditor) Export(ctx context.Context, alog database.AuditLog) error {
 	decision, err := a.filter.Check(ctx, alog)
 	if err != nil {
-		return xerrors.Errorf("filter check: %w", err)
+		return fmt.Errorf("filter check: %w", err)
 	}
 
 	for _, backend := range a.backends {
@@ -50,7 +49,7 @@ func (a *auditor) Export(ctx context.Context, alog database.AuditLog) error {
 		if err != nil {
 			// naively return the first error. should probably make this smarter
 			// by returning multiple errors.
-			return xerrors.Errorf("export audit log to backend: %w", err)
+			return fmt.Errorf("export audit log to backend: %w", err)
 		}
 	}
 

@@ -3,8 +3,7 @@ package dbtype
 import (
 	"database/sql/driver"
 	"encoding/json"
-
-	"golang.org/x/xerrors"
+	"fmt"
 )
 
 type StringMap map[string]string
@@ -20,7 +19,7 @@ func (m *StringMap) Scan(src interface{}) error {
 			return err
 		}
 	default:
-		return xerrors.Errorf("unsupported Scan, storing driver.Value type %T into type %T", src, m)
+		return fmt.Errorf("unsupported Scan, storing driver.Value type %T into type %T", src, m)
 	}
 	return nil
 }

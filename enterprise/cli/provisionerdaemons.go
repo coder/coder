@@ -54,11 +54,11 @@ func provisionerDaemonStart() *cobra.Command {
 
 			client, err := agpl.CreateClient(cmd)
 			if err != nil {
-				return xerrors.Errorf("create client: %w", err)
+				return fmt.Errorf("create client: %w", err)
 			}
 			org, err := agpl.CurrentOrganization(cmd, client)
 			if err != nil {
-				return xerrors.Errorf("get current organization: %w", err)
+				return fmt.Errorf("get current organization: %w", err)
 			}
 
 			tags, err := agpl.ParseProvisionerTags(rawTags)
@@ -68,7 +68,7 @@ func provisionerDaemonStart() *cobra.Command {
 
 			err = os.MkdirAll(cacheDir, 0o700)
 			if err != nil {
-				return xerrors.Errorf("mkdir %q: %w", cacheDir, err)
+				return fmt.Errorf("mkdir %q: %w", cacheDir, err)
 			}
 
 			terraformClient, terraformServer := provisionersdk.MemTransportPipe()
@@ -138,7 +138,7 @@ func provisionerDaemonStart() *cobra.Command {
 			defer shutdownCancel()
 			err = srv.Shutdown(shutdown)
 			if err != nil {
-				return xerrors.Errorf("shutdown: %w", err)
+				return fmt.Errorf("shutdown: %w", err)
 			}
 
 			cancel()

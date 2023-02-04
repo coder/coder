@@ -1,13 +1,14 @@
 package cliui
 
 import (
+	"fmt"
+
 	"github.com/charmbracelet/charm/ui/common"
 	"github.com/charmbracelet/lipgloss"
-	"golang.org/x/xerrors"
 )
 
 var (
-	Canceled = xerrors.New("canceled")
+	Canceled = fmt.Errorf("canceled")
 
 	defaultStyles = common.DefaultStyles()
 )
@@ -15,7 +16,7 @@ var (
 // ValidateNotEmpty is a helper function to disallow empty inputs!
 func ValidateNotEmpty(s string) error {
 	if s == "" {
-		return xerrors.New("Must be provided!")
+		return fmt.Errorf("Must be provided!")
 	}
 	return nil
 }

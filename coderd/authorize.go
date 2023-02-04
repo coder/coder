@@ -99,7 +99,7 @@ func (h *HTTPAuthorizer) AuthorizeSQLFilter(r *http.Request, action rbac.Action,
 	roles := httpmw.UserAuthorization(r)
 	prepared, err := h.Authorizer.Prepare(r.Context(), roles.Actor, action, objectType)
 	if err != nil {
-		return nil, xerrors.Errorf("prepare filter: %w", err)
+		return nil, fmt.Errorf("prepare filter: %w", err)
 	}
 
 	return prepared, nil

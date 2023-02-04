@@ -6,7 +6,6 @@ import (
 	"reflect"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
@@ -171,7 +170,7 @@ func flattenStructFields(leftV, rightV reflect.Value) ([]fieldDiff, error) {
 	}
 
 	if leftV.Kind() != reflect.Struct {
-		return nil, xerrors.Errorf("%q is not a struct, kind=%s", leftV.String(), leftV.Kind())
+		return nil, fmt.Errorf("%q is not a struct, kind=%s", leftV.String(), leftV.Kind())
 	}
 
 	var allFields []fieldDiff
@@ -192,7 +191,7 @@ func flattenStructFields(leftV, rightV reflect.Value) ([]fieldDiff, error) {
 			// Anonymous fields are recursively flattened.
 			anonFields, err := flattenStructFields(leftF, rightF)
 			if err != nil {
-				return nil, xerrors.Errorf("flatten anonymous field %q: %w", rightT.Field(i).Name, err)
+				return nil, fmt.Errorf("flatten anonymous field %q: %w", rightT.Field(i).Name, err)
 			}
 			allFields = append(allFields, anonFields...)
 			continue

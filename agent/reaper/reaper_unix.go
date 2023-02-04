@@ -3,6 +3,7 @@
 package reaper
 
 import (
+	"fmt"
 	"os"
 	"syscall"
 
@@ -34,7 +35,7 @@ func ForkReap(opt ...Option) error {
 
 	pwd, err := os.Getwd()
 	if err != nil {
-		return xerrors.Errorf("get wd: %w", err)
+		return fmt.Errorf("get wd: %w", err)
 	}
 
 	pattrs := &syscall.ProcAttr{

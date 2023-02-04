@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/codersdk"
 )
@@ -90,7 +89,7 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 		defer jobMutex.Unlock()
 		job, err = opts.Fetch()
 		if err != nil {
-			errChan <- xerrors.Errorf("fetch: %w", err)
+			errChan <- fmt.Errorf("fetch: %w", err)
 			return
 		}
 		if job.StartedAt == nil {
@@ -121,7 +120,7 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 			_, _ = fmt.Fprintf(writer, "\033[2K\r\n"+Styles.FocusedPrompt.String()+Styles.Bold.Render("Gracefully canceling...")+"\n\n")
 			err := opts.Cancel()
 			if err != nil {
-				errChan <- xerrors.Errorf("cancel: %w", err)
+				errChan <- fmt.Errorf("cancel: %w", err)
 				return
 			}
 			updateJob()
@@ -134,7 +133,7 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 
 	logs, closer, err := opts.Logs()
 	if err != nil {
-		return xerrors.Errorf("begin streaming logs: %w", err)
+		return fmt.Errorf("begin streaming logs: %w", err)
 	}
 	defer closer.Close()
 
@@ -181,7 +180,7 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 					return nil
 				case codersdk.ProvisionerJobFailed:
 				}
-				err = xerrors.New(job.Error)
+				err = fmt.Errorf(job.Error)
 				jobMutex.Unlock()
 				flushLogBuffer()
 				return err

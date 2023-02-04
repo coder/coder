@@ -41,6 +41,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
+
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
 	"tailscale.com/derp"
@@ -866,7 +867,7 @@ func (*OIDCConfig) TokenSource(context.Context, *oauth2.Token) oauth2.TokenSourc
 func (*OIDCConfig) Exchange(_ context.Context, code string, _ ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
 	token, err := base64.StdEncoding.DecodeString(code)
 	if err != nil {
-		return nil, xerrors.Errorf("decode code: %w", err)
+		return nil, fmt.Errorf("decode code: %w", err)
 	}
 	return (&oauth2.Token{
 		AccessToken: "token",

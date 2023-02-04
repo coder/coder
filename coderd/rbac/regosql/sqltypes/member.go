@@ -1,8 +1,6 @@
 package sqltypes
 
-import (
-	"golang.org/x/xerrors"
-)
+import "fmt"
 
 // SupportsContains is an interface that can be implemented by types that
 // support "me.Contains(other)". This is `internal_member2` in the rego.
@@ -52,7 +50,7 @@ func (e memberOf) SQLString(cfg *SQLGenerator) string {
 		}
 	}
 
-	cfg.AddError(xerrors.Errorf("unsupported contains: %T contains %T", e.Haystack, e.Needle))
+	cfg.AddError(fmt.Errorf("unsupported contains: %T contains %T", e.Haystack, e.Needle))
 	return "MemberOfError"
 }
 

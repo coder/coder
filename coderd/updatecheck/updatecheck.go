@@ -9,6 +9,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -114,12 +115,12 @@ func (c *Checker) init() (Result, error) {
 
 	r, err := c.lastUpdateCheck(c.ctx)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		return Result{}, xerrors.Errorf("last update check: %w", err)
+		return Result{}, fmt.Errorf("last update check: %w", err)
 	}
 	if r.Checked.IsZero() || time.Since(r.Checked) > c.opts.Interval {
 		r, err = c.update()
 		if err != nil {
-			return Result{}, xerrors.Errorf("update check failed: %w", err)
+			return Result{}, fmt.Errorf("update check failed: %w", err)
 		}
 	}
 
@@ -178,23 +179,23 @@ func (c *Checker) update() (r Result, err error) {
 	c.log.Info(c.ctx, "checking for update")
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.opts.URL, nil)
 	if err != nil {
-		return r, xerrors.Errorf("new request: %w", err)
+		return r, fmt.Errorf("new request: %w", err)
 	}
 	resp, err := c.opts.Client.Do(req)
 	if err != nil {
-		return r, xerrors.Errorf("client do: %w", err)
+		return r, fmt.Errorf("client do: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
-		return r, xerrors.Errorf("unexpected status code %d: %s", resp.StatusCode, b)
+		return r, fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, b)
 	}
 
 	var rr github.RepositoryRelease
 	err = json.NewDecoder(resp.Body).Decode(&rr)
 	if err != nil {
-		return r, xerrors.Errorf("json decode: %w", err)
+		return r, fmt.Errorf("json decode: %w", err)
 	}
 
 	r = Result{
@@ -206,7 +207,7 @@ func (c *Checker) update() (r Result, err error) {
 
 	b, err := json.Marshal(r)
 	if err != nil {
-		return r, xerrors.Errorf("json marshal result: %w", err)
+		return r, fmt.Errorf("json marshal result: %w", err)
 	}
 
 	err = c.db.InsertOrUpdateLastUpdateCheck(ctx, string(b))

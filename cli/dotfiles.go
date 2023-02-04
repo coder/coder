@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
@@ -53,14 +52,14 @@ func dotfiles() *cobra.Command {
 			_, _ = fmt.Fprint(cmd.OutOrStdout(), "Checking if dotfiles repository already exists...\n")
 			dotfilesExists, err := dirExists(dotfilesDir)
 			if err != nil {
-				return xerrors.Errorf("checking dir %s: %w", dotfilesDir, err)
+				return fmt.Errorf("checking dir %s: %w", dotfilesDir, err)
 			}
 
 			moved := false
 			if dotfilesExists {
 				du, err := cfg.DotfilesURL().Read()
 				if err != nil && !errors.Is(err, os.ErrNotExist) {
-					return xerrors.Errorf("reading dotfiles url config: %w", err)
+					return fmt.Errorf("reading dotfiles url config: %w", err)
 				}
 				// if the git url has changed we create a backup and clone fresh
 				if gitRepo != du {
@@ -75,7 +74,7 @@ func dotfiles() *cobra.Command {
 
 					err = os.Rename(dotfilesDir, backupDir)
 					if err != nil {
-						return xerrors.Errorf("renaming dir %s: %w", dotfilesDir, err)
+						return fmt.Errorf("renaming dir %s: %w", dotfilesDir, err)
 					}
 					_, _ = fmt.Fprint(cmd.OutOrStdout(), "Done backup up dotfiles.\n")
 					dotfilesExists = false
@@ -113,7 +112,7 @@ func dotfiles() *cobra.Command {
 			// ensure command dir exists
 			err = os.MkdirAll(gitCmdDir, 0750)
 			if err != nil {
-				return xerrors.Errorf("ensuring dir at %s: %w", gitCmdDir, err)
+				return fmt.Errorf("ensuring dir at %s: %w", gitCmdDir, err)
 			}
 
 			// check if git ssh command already exists so we can just wrap it
@@ -140,12 +139,12 @@ func dotfiles() *cobra.Command {
 			// save git repo url so we can detect changes next time
 			err = cfg.DotfilesURL().Write(gitRepo)
 			if err != nil {
-				return xerrors.Errorf("writing dotfiles url config: %w", err)
+				return fmt.Errorf("writing dotfiles url config: %w", err)
 			}
 
 			files, err := os.ReadDir(dotfilesDir)
 			if err != nil {
-				return xerrors.Errorf("reading files in dir %s: %w", dotfilesDir, err)
+				return fmt.Errorf("reading files in dir %s: %w", dotfilesDir, err)
 			}
 
 			var dotfiles []string
@@ -176,7 +175,7 @@ func dotfiles() *cobra.Command {
 				scriptCmd.Stderr = cmd.ErrOrStderr()
 				err = scriptCmd.Run()
 				if err != nil {
-					return xerrors.Errorf("running %s: %w", script, err)
+					return fmt.Errorf("running %s: %w", script, err)
 				}
 
 				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Dotfiles installation complete.")
@@ -199,7 +198,7 @@ func dotfiles() *cobra.Command {
 			if symlinkDir == "" {
 				symlinkDir, err = os.UserHomeDir()
 				if err != nil {
-					return xerrors.Errorf("getting user home: %w", err)
+					return fmt.Errorf("getting user home: %w", err)
 				}
 			}
 
@@ -210,7 +209,7 @@ func dotfiles() *cobra.Command {
 
 				isRegular, err := isRegular(to)
 				if err != nil {
-					return xerrors.Errorf("checking symlink for %s: %w", to, err)
+					return fmt.Errorf("checking symlink for %s: %w", to, err)
 				}
 				// move conflicting non-symlink files to file.ext.bak
 				if isRegular {
@@ -218,13 +217,13 @@ func dotfiles() *cobra.Command {
 					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Moving %s to %s...\n", to, backup)
 					err = os.Rename(to, backup)
 					if err != nil {
-						return xerrors.Errorf("renaming dir %s: %w", to, err)
+						return fmt.Errorf("renaming dir %s: %w", to, err)
 					}
 				}
 
 				err = os.Symlink(from, to)
 				if err != nil {
-					return xerrors.Errorf("symlinking %s to %s: %w", from, to, err)
+					return fmt.Errorf("symlinking %s to %s: %w", from, to, err)
 				}
 			}
 
@@ -246,10 +245,10 @@ func dirExists(name string) (bool, error) {
 			return false, nil
 		}
 
-		return false, xerrors.Errorf("stat dir: %w", err)
+		return false, fmt.Errorf("stat dir: %w", err)
 	}
 	if !fi.IsDir() {
-		return false, xerrors.New("exists but not a directory")
+		return false, fmt.Errorf("exists but not a directory")
 	}
 
 	return true, nil
@@ -275,7 +274,7 @@ func isRegular(to string) (bool, error) {
 		if errors.Is(err, os.ErrNotExist) {
 			return false, nil
 		}
-		return false, xerrors.Errorf("lstat %s: %w", to, err)
+		return false, fmt.Errorf("lstat %s: %w", to, err)
 	}
 
 	return fi.Mode().IsRegular(), nil

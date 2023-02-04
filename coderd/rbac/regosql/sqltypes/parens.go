@@ -1,8 +1,6 @@
 package sqltypes
 
-import (
-	"golang.org/x/xerrors"
-)
+import "fmt"
 
 type astParenthesis struct {
 	Value BooleanNode
@@ -34,12 +32,12 @@ func (p astParenthesis) EqualsSQLString(cfg *SQLGenerator, not bool, other Node)
 	if supp, ok := p.Value.(SupportsEquality); ok {
 		return supp.EqualsSQLString(cfg, not, other)
 	}
-	return "", xerrors.Errorf("unsupported equality: %T %s %T", p.Value, equalsOp(not), other)
+	return "", fmt.Errorf("unsupported equality: %T %s %T", p.Value, equalsOp(not), other)
 }
 
 func (p astParenthesis) ContainsSQL(cfg *SQLGenerator, other Node) (string, error) {
 	if supp, ok := p.Value.(SupportsContains); ok {
 		return supp.ContainsSQL(cfg, other)
 	}
-	return "", xerrors.Errorf("unsupported contains: %T %T", p.Value, other)
+	return "", fmt.Errorf("unsupported contains: %T %T", p.Value, other)
 }

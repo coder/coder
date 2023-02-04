@@ -12,7 +12,6 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
-	"golang.org/x/xerrors"
 )
 
 // Allocates a PTY and starts the specified command attached to it.
@@ -90,7 +89,7 @@ func startPty(cmd *exec.Cmd, opt ...StartOption) (PTY, Process, error) {
 
 	process, err := os.FindProcess(int(processInfo.ProcessId))
 	if err != nil {
-		return nil, nil, xerrors.Errorf("find process %d: %w", processInfo.ProcessId, err)
+		return nil, nil, fmt.Errorf("find process %d: %w", processInfo.ProcessId, err)
 	}
 	wp := &windowsProcess{
 		cmdDone: make(chan any),

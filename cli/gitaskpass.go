@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/gitauth"
@@ -31,12 +30,12 @@ func gitAskpass() *cobra.Command {
 
 			user, host, err := gitauth.ParseAskpass(args[0])
 			if err != nil {
-				return xerrors.Errorf("parse host: %w", err)
+				return fmt.Errorf("parse host: %w", err)
 			}
 
 			client, err := createAgentClient(cmd)
 			if err != nil {
-				return xerrors.Errorf("create agent client: %w", err)
+				return fmt.Errorf("create agent client: %w", err)
 			}
 
 			token, err := client.GitAuth(ctx, host, false)
@@ -48,7 +47,7 @@ func gitAskpass() *cobra.Command {
 					cmd.Printf("%s\n", apiError.Message)
 					return cliui.Canceled
 				}
-				return xerrors.Errorf("get git token: %w", err)
+				return fmt.Errorf("get git token: %w", err)
 			}
 			if token.URL != "" {
 				if err := openURL(cmd, token.URL); err == nil {

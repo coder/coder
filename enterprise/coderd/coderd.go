@@ -5,11 +5,10 @@ import (
 	"crypto/ed25519"
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
-
-	"golang.org/x/xerrors"
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/go-chi/chi/v5"
@@ -158,7 +157,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		for _, certificatePart := range certificate.Certificate {
 			certificate, err := x509.ParseCertificate(certificatePart)
 			if err != nil {
-				return nil, xerrors.Errorf("parse certificate %s: %w", certificate.Subject.CommonName, err)
+				return nil, fmt.Errorf("parse certificate %s: %w", certificate.Subject.CommonName, err)
 			}
 			meshRootCA.AddCert(certificate)
 		}
@@ -183,13 +182,13 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		TLSConfig:    meshTLSConfig,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("initialize replica: %w", err)
+		return nil, fmt.Errorf("initialize replica: %w", err)
 	}
 	api.derpMesh = derpmesh.New(options.Logger.Named("derpmesh"), api.DERPServer, meshTLSConfig)
 
 	err = api.updateEntitlements(ctx)
 	if err != nil {
-		return nil, xerrors.Errorf("update entitlements: %w", err)
+		return nil, fmt.Errorf("update entitlements: %w", err)
 	}
 	go api.runEntitlementsLoop(ctx)
 

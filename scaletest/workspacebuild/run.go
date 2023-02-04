@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -50,20 +49,20 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	if req.Name == "" {
 		randName, err := cryptorand.HexString(8)
 		if err != nil {
-			return xerrors.Errorf("generate random name for workspace: %w", err)
+			return fmt.Errorf("generate random name for workspace: %w", err)
 		}
 		req.Name = "test-" + randName
 	}
 
 	workspace, err := r.client.CreateWorkspace(ctx, r.cfg.OrganizationID, r.cfg.UserID, req)
 	if err != nil {
-		return xerrors.Errorf("create workspace: %w", err)
+		return fmt.Errorf("create workspace: %w", err)
 	}
 	r.workspaceID = workspace.ID
 
 	err = waitForBuild(ctx, logs, r.client, workspace.LatestBuild.ID)
 	if err != nil {
-		return xerrors.Errorf("wait for build: %w", err)
+		return fmt.Errorf("wait for build: %w", err)
 	}
 
 	if r.cfg.NoWaitForAgents {
@@ -72,7 +71,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 		_, _ = fmt.Fprintln(logs, "")
 		err = waitForAgents(ctx, logs, r.client, workspace.ID)
 		if err != nil {
-			return xerrors.Errorf("wait for agent: %w", err)
+			return fmt.Errorf("wait for agent: %w", err)
 		}
 	}
 
@@ -81,7 +80,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 
 func (r *Runner) WorkspaceID() (uuid.UUID, error) {
 	if r.workspaceID == uuid.Nil {
-		return uuid.Nil, xerrors.New("workspace ID not set")
+		return uuid.Nil, fmt.Errorf("workspace ID not set")
 	}
 
 	return r.workspaceID, nil
@@ -114,12 +113,12 @@ func (r *CleanupRunner) Run(ctx context.Context, _ string, logs io.Writer) error
 		Transition: codersdk.WorkspaceTransitionDelete,
 	})
 	if err != nil {
-		return xerrors.Errorf("delete workspace: %w", err)
+		return fmt.Errorf("delete workspace: %w", err)
 	}
 
 	err = waitForBuild(ctx, logs, r.client, build.ID)
 	if err != nil {
-		return xerrors.Errorf("wait for build: %w", err)
+		return fmt.Errorf("wait for build: %w", err)
 	}
 
 	return nil
@@ -143,7 +142,7 @@ func waitForBuild(ctx context.Context, w io.Writer, client *codersdk.Client, bui
 	for {
 		build, err := client.WorkspaceBuild(ctx, buildID)
 		if err != nil {
-			return xerrors.Errorf("fetch build: %w", err)
+			return fmt.Errorf("fetch build: %w", err)
 		}
 
 		if build.Job.Status != codersdk.ProvisionerJobPending {
@@ -158,7 +157,7 @@ func waitForBuild(ctx context.Context, w io.Writer, client *codersdk.Client, bui
 
 	logs, closer, err := client.WorkspaceBuildLogsAfter(ctx, buildID, 0)
 	if err != nil {
-		return xerrors.Errorf("start streaming build logs: %w", err)
+		return fmt.Errorf("start streaming build logs: %w", err)
 	}
 	defer closer.Close()
 
@@ -171,7 +170,7 @@ func waitForBuild(ctx context.Context, w io.Writer, client *codersdk.Client, bui
 			if !ok {
 				build, err := client.WorkspaceBuild(ctx, buildID)
 				if err != nil {
-					return xerrors.Errorf("fetch build: %w", err)
+					return fmt.Errorf("fetch build: %w", err)
 				}
 
 				_, _ = fmt.Fprintln(w, "")
@@ -181,13 +180,13 @@ func waitForBuild(ctx context.Context, w io.Writer, client *codersdk.Client, bui
 					return nil
 				case codersdk.ProvisionerJobFailed:
 					_, _ = fmt.Fprintf(w, "\nBuild failed with error %q.\nSee logs above for more details.\n", build.Job.Error)
-					return xerrors.Errorf("build failed with status %q: %s", build.Job.Status, build.Job.Error)
+					return fmt.Errorf("build failed with status %q: %s", build.Job.Status, build.Job.Error)
 				case codersdk.ProvisionerJobCanceled:
 					_, _ = fmt.Fprintln(w, "\nBuild canceled.")
-					return xerrors.New("build canceled")
+					return fmt.Errorf("build canceled")
 				default:
 					_, _ = fmt.Fprintf(w, "\nLogs disconnected with unexpected job status %q and error %q.\n", build.Job.Status, build.Job.Error)
-					return xerrors.Errorf("logs disconnected with unexpected job status %q and error %q", build.Job.Status, build.Job.Error)
+					return fmt.Errorf("logs disconnected with unexpected job status %q and error %q", build.Job.Status, build.Job.Error)
 				}
 			}
 
@@ -219,7 +218,7 @@ func waitForAgents(ctx context.Context, w io.Writer, client *codersdk.Client, wo
 
 		workspace, err := client.Workspace(ctx, workspaceID)
 		if err != nil {
-			return xerrors.Errorf("fetch workspace: %w", err)
+			return fmt.Errorf("fetch workspace: %w", err)
 		}
 
 		ok := true

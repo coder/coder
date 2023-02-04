@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"golang.org/x/tools/go/packages"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -32,12 +31,12 @@ func GenerateFromDirectory(ctx context.Context, directory string, typeNames ...s
 	g := Generator{}
 	err := g.parsePackage(ctx, directory)
 	if err != nil {
-		return "", xerrors.Errorf("parse package %q: %w", directory, err)
+		return "", fmt.Errorf("parse package %q: %w", directory, err)
 	}
 
 	str, err := g.generate(typeNames...)
 	if err != nil {
-		return "", xerrors.Errorf("parse package %q: %w", directory, err)
+		return "", fmt.Errorf("parse package %q: %w", directory, err)
 	}
 
 	return str, nil
@@ -61,13 +60,13 @@ func (g *Generator) parsePackage(ctx context.Context, patterns ...string) error 
 
 	pkgs, err := packages.Load(cfg, patterns...)
 	if err != nil {
-		return xerrors.Errorf("load package: %w", err)
+		return fmt.Errorf("load package: %w", err)
 	}
 
 	// Only support 1 package for now. We can expand it if we need later, we
 	// just need to hook up multiple packages in the generator.
 	if len(pkgs) != 1 {
-		return xerrors.Errorf("expected 1 package, found %d", len(pkgs))
+		return fmt.Errorf("expected 1 package, found %d", len(pkgs))
 	}
 
 	g.pkg = pkgs[0]
@@ -82,7 +81,7 @@ func (g *Generator) generate(typeNames ...string) (string, error) {
 	for _, typName := range typeNames {
 		obj := g.pkg.Types.Scope().Lookup(typName)
 		if obj == nil || obj.Type() == nil {
-			return "", xerrors.Errorf("type doesn't exist %q", typName)
+			return "", fmt.Errorf("type doesn't exist %q", typName)
 		}
 
 		switch obj := obj.(type) {
@@ -97,10 +96,10 @@ func (g *Generator) generate(typeNames ...string) (string, error) {
 				g.writeStruct(&sb, typ, typName)
 
 			default:
-				return "", xerrors.Errorf("invalid type %T", obj)
+				return "", fmt.Errorf("invalid type %T", obj)
 			}
 		default:
-			return "", xerrors.Errorf("invalid type %T", obj)
+			return "", fmt.Errorf("invalid type %T", obj)
 		}
 	}
 

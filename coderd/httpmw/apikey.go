@@ -16,7 +16,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/tabbed/pqtype"
 	"golang.org/x/oauth2"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -394,17 +393,17 @@ func apiTokenFromRequest(r *http.Request) string {
 func SplitAPIToken(token string) (id string, secret string, err error) {
 	parts := strings.Split(token, "-")
 	if len(parts) != 2 {
-		return "", "", xerrors.Errorf("incorrect amount of API key parts, expected 2 got %d", len(parts))
+		return "", "", fmt.Errorf("incorrect amount of API key parts, expected 2 got %d", len(parts))
 	}
 
 	// Ensure key lengths are valid.
 	keyID := parts[0]
 	keySecret := parts[1]
 	if len(keyID) != 10 {
-		return "", "", xerrors.Errorf("invalid API key ID length, expected 10 got %d", len(keyID))
+		return "", "", fmt.Errorf("invalid API key ID length, expected 10 got %d", len(keyID))
 	}
 	if len(keySecret) != 22 {
-		return "", "", xerrors.Errorf("invalid API key secret length, expected 22 got %d", len(keySecret))
+		return "", "", fmt.Errorf("invalid API key secret length, expected 22 got %d", len(keySecret))
 	}
 
 	return keyID, keySecret, nil

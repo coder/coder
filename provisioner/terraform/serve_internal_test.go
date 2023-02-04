@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 )
 
 // nolint:paralleltest
@@ -46,7 +45,7 @@ func Test_absoluteBinaryPath(t *testing.T) {
 			name:             "TestMalformedVersion",
 			args:             args{ctx: context.Background()},
 			terraformVersion: "version",
-			expectedErr:      xerrors.Errorf("Terraform binary get version failed: Malformed version: version"),
+			expectedErr:      fmt.Errorf("Terraform binary get version failed: Malformed version: version"),
 		},
 	}
 	// nolint:paralleltest

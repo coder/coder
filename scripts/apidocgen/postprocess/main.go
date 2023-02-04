@@ -5,14 +5,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"path"
 	"regexp"
 	"sort"
 	"strings"
-
-	"golang.org/x/xerrors"
 )
 
 const (
@@ -68,13 +67,13 @@ func loadMarkdownSections() ([][]byte, error) {
 	log.Printf("Read the md-file-single: %s", inMdFileSingle)
 	mdFile, err := os.ReadFile(inMdFileSingle)
 	if err != nil {
-		return nil, xerrors.Errorf("can't read the md-file-single: %w", err)
+		return nil, fmt.Errorf("can't read the md-file-single: %w", err)
 	}
 	log.Printf("Read %dB", len(mdFile))
 
 	sections := bytes.Split(mdFile, sectionSeparator)
 	if len(sections) < 2 {
-		return nil, xerrors.Errorf("At least 1 section is expected: %w", err)
+		return nil, fmt.Errorf("At least 1 section is expected: %w", err)
 	}
 	sections = sections[1:] // Skip the first element which is the empty byte array
 	log.Printf("Loaded %d sections", len(sections))
@@ -88,12 +87,12 @@ func prepareDocsDirectory() error {
 
 	err := os.RemoveAll(apiPath)
 	if err != nil {
-		return xerrors.Errorf(`os.RemoveAll failed for "%s": %w`, apiPath, err)
+		return fmt.Errorf(`os.RemoveAll failed for "%s": %w`, apiPath, err)
 	}
 
 	err = os.MkdirAll(apiPath, 0755)
 	if err != nil {
-		return xerrors.Errorf(`os.MkdirAll failed for "%s": %w`, apiPath, err)
+		return fmt.Errorf(`os.MkdirAll failed for "%s": %w`, apiPath, err)
 	}
 	return nil
 }
@@ -104,7 +103,7 @@ func writeDocs(sections [][]byte) error {
 	apiDir := path.Join(docsDirectory, apiSubdir)
 	err := os.WriteFile(path.Join(apiDir, apiIndexFile), []byte(apiIndexContent), 0644) // #nosec
 	if err != nil {
-		return xerrors.Errorf(`can't write the index file: %w`, err)
+		return fmt.Errorf(`can't write the index file: %w`, err)
 	}
 
 	type mdFile struct {
@@ -117,7 +116,7 @@ func writeDocs(sections [][]byte) error {
 	for _, section := range sections {
 		sectionName, err := extractSectionName(section)
 		if err != nil {
-			return xerrors.Errorf("can't extract section name: %w", err)
+			return fmt.Errorf("can't extract section name: %w", err)
 		}
 		log.Printf("Write section: %s", sectionName)
 
@@ -125,7 +124,7 @@ func writeDocs(sections [][]byte) error {
 		docPath := path.Join(apiDir, mdFilename)
 		err = os.WriteFile(docPath, section, 0644) // #nosec
 		if err != nil {
-			return xerrors.Errorf(`can't write doc file "%s": %w`, docPath, err)
+			return fmt.Errorf(`can't write doc file "%s": %w`, docPath, err)
 		}
 		mdFiles = append(mdFiles, mdFile{
 			title: sectionName,
@@ -163,14 +162,14 @@ func writeDocs(sections [][]byte) error {
 	manifestPath := path.Join(docsDirectory, "manifest.json")
 	manifestFile, err := os.ReadFile(manifestPath)
 	if err != nil {
-		return xerrors.Errorf("can't read manifest file: %w", err)
+		return fmt.Errorf("can't read manifest file: %w", err)
 	}
 	log.Printf("Read manifest file: %dB", len(manifestFile))
 
 	var m manifest
 	err = json.Unmarshal(manifestFile, &m)
 	if err != nil {
-		return xerrors.Errorf("json.Unmarshal failed: %w", err)
+		return fmt.Errorf("json.Unmarshal failed: %w", err)
 	}
 
 	for i, r := range m.Routes {
@@ -193,12 +192,12 @@ func writeDocs(sections [][]byte) error {
 
 	manifestFile, err = json.MarshalIndent(m, "", "  ")
 	if err != nil {
-		return xerrors.Errorf("json.Marshal failed: %w", err)
+		return fmt.Errorf("json.Marshal failed: %w", err)
 	}
 
 	err = os.WriteFile(manifestPath, manifestFile, 0644) // #nosec
 	if err != nil {
-		return xerrors.Errorf("can't write manifest file: %w", err)
+		return fmt.Errorf("can't write manifest file: %w", err)
 	}
 	log.Printf("Write manifest file: %dB", len(manifestFile))
 	return nil
@@ -207,7 +206,7 @@ func writeDocs(sections [][]byte) error {
 func extractSectionName(section []byte) (string, error) {
 	scanner := bufio.NewScanner(bytes.NewReader(section))
 	if !scanner.Scan() {
-		return "", xerrors.Errorf("section header was expected")
+		return "", fmt.Errorf("section header was expected")
 	}
 
 	header := scanner.Text()[2:] // Skip #<space>

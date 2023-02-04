@@ -2,8 +2,7 @@ package backends
 
 import (
 	"context"
-
-	"golang.org/x/xerrors"
+	"fmt"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/enterprise/audit"
@@ -33,7 +32,7 @@ func (b *postgresBackend) Decision() audit.FilterDecision {
 func (b *postgresBackend) Export(ctx context.Context, alog database.AuditLog) error {
 	_, err := b.db.InsertAuditLog(ctx, database.InsertAuditLogParams(alog))
 	if err != nil {
-		return xerrors.Errorf("insert audit log: %w", err)
+		return fmt.Errorf("insert audit log: %w", err)
 	}
 
 	return nil

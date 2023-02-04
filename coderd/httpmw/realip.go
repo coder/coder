@@ -2,11 +2,10 @@ package httpmw
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"strings"
-
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/httpapi"
 )
@@ -115,17 +114,17 @@ func FilterUntrustedOriginHeaders(config *RealIPConfig, req *http.Request) {
 func EnsureXForwardedForHeader(req *http.Request) error {
 	state := RealIP(req.Context())
 	if state == nil {
-		return xerrors.New("request does not contain realip.State; was it processed by httpmw.ExtractRealIP?")
+		return fmt.Errorf("request does not contain realip.State; was it processed by httpmw.ExtractRealIP?")
 	}
 
 	remoteAddr := getRemoteAddress(req.RemoteAddr)
 	if remoteAddr == nil {
-		return xerrors.Errorf("failed to parse remote address: %s", remoteAddr)
+		return fmt.Errorf("failed to parse remote address: %s", remoteAddr)
 	}
 
 	proxyAddr := getRemoteAddress(state.OriginalRemoteAddr)
 	if proxyAddr == nil {
-		return xerrors.Errorf("failed to parse original address: %s", proxyAddr)
+		return fmt.Errorf("failed to parse original address: %s", proxyAddr)
 	}
 
 	if remoteAddr.Equal(proxyAddr) {
@@ -212,7 +211,7 @@ func ParseRealIPConfig(headers, origins []string) (*RealIPConfig, error) {
 	for _, origin := range origins {
 		_, network, err := net.ParseCIDR(origin)
 		if err != nil {
-			return nil, xerrors.Errorf("parse proxy origin %q: %w", origin, err)
+			return nil, fmt.Errorf("parse proxy origin %q: %w", origin, err)
 		}
 		config.TrustedOrigins = append(config.TrustedOrigins, network)
 	}

@@ -18,7 +18,6 @@ import (
 	"github.com/tabbed/pqtype"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
-	"golang.org/x/xerrors"
 	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
@@ -89,7 +88,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 		return &proto.AcquiredJob{}, nil
 	}
 	if err != nil {
-		return nil, xerrors.Errorf("acquire job: %w", err)
+		return nil, fmt.Errorf("acquire job: %w", err)
 	}
 	server.Logger.Debug(ctx, "locked job from database", slog.F("id", job.ID))
 
@@ -107,9 +106,9 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 			},
 		})
 		if err != nil {
-			return xerrors.Errorf("update provisioner job: %w", err)
+			return fmt.Errorf("update provisioner job: %w", err)
 		}
-		return xerrors.Errorf("request job was invalidated: %s", errorMessage)
+		return fmt.Errorf("request job was invalidated: %s", errorMessage)
 	}
 
 	user, err := server.Database.GetUserByID(ctx, job.InitiatorID)
@@ -272,19 +271,19 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 func (server *Server) CommitQuota(ctx context.Context, request *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error) {
 	jobID, err := uuid.Parse(request.JobId)
 	if err != nil {
-		return nil, xerrors.Errorf("parse job id: %w", err)
+		return nil, fmt.Errorf("parse job id: %w", err)
 	}
 
 	job, err := server.Database.GetProvisionerJobByID(ctx, jobID)
 	if err != nil {
-		return nil, xerrors.Errorf("get job: %w", err)
+		return nil, fmt.Errorf("get job: %w", err)
 	}
 	if !job.WorkerID.Valid {
-		return nil, xerrors.New("job isn't running yet")
+		return nil, fmt.Errorf("job isn't running yet")
 	}
 
 	if job.WorkerID.UUID.String() != server.ID.String() {
-		return nil, xerrors.New("you don't own this job")
+		return nil, fmt.Errorf("you don't own this job")
 	}
 
 	q := server.QuotaCommitter.Load()
@@ -301,25 +300,25 @@ func (server *Server) CommitQuota(ctx context.Context, request *proto.CommitQuot
 func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
 	parsedID, err := uuid.Parse(request.JobId)
 	if err != nil {
-		return nil, xerrors.Errorf("parse job id: %w", err)
+		return nil, fmt.Errorf("parse job id: %w", err)
 	}
 	server.Logger.Debug(ctx, "UpdateJob starting", slog.F("job_id", parsedID))
 	job, err := server.Database.GetProvisionerJobByID(ctx, parsedID)
 	if err != nil {
-		return nil, xerrors.Errorf("get job: %w", err)
+		return nil, fmt.Errorf("get job: %w", err)
 	}
 	if !job.WorkerID.Valid {
-		return nil, xerrors.New("job isn't running yet")
+		return nil, fmt.Errorf("job isn't running yet")
 	}
 	if job.WorkerID.UUID.String() != server.ID.String() {
-		return nil, xerrors.New("you don't own this job")
+		return nil, fmt.Errorf("you don't own this job")
 	}
 	err = server.Database.UpdateProvisionerJobByID(ctx, database.UpdateProvisionerJobByIDParams{
 		ID:        parsedID,
 		UpdatedAt: database.Now(),
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("update job: %w", err)
+		return nil, fmt.Errorf("update job: %w", err)
 	}
 
 	if len(request.Logs) > 0 {
@@ -329,11 +328,11 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 		for _, log := range request.Logs {
 			logLevel, err := convertLogLevel(log.Level)
 			if err != nil {
-				return nil, xerrors.Errorf("convert log level: %w", err)
+				return nil, fmt.Errorf("convert log level: %w", err)
 			}
 			logSource, err := convertLogSource(log.Source)
 			if err != nil {
-				return nil, xerrors.Errorf("convert log source: %w", err)
+				return nil, fmt.Errorf("convert log source: %w", err)
 			}
 			insertParams.CreatedAt = append(insertParams.CreatedAt, time.UnixMilli(log.CreatedAt))
 			insertParams.Level = append(insertParams.Level, logLevel)
@@ -348,7 +347,7 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 		logs, err := server.Database.InsertProvisionerJobLogs(context.Background(), insertParams)
 		if err != nil {
 			server.Logger.Error(ctx, "failed to insert job logs", slog.F("job_id", parsedID), slog.Error(err))
-			return nil, xerrors.Errorf("insert job logs: %w", err)
+			return nil, fmt.Errorf("insert job logs: %w", err)
 		}
 		// Publish by the lowest log ID inserted so the
 		// log stream will fetch everything from that point.
@@ -358,12 +357,12 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 			CreatedAfter: lowestID - 1,
 		})
 		if err != nil {
-			return nil, xerrors.Errorf("marshal: %w", err)
+			return nil, fmt.Errorf("marshal: %w", err)
 		}
 		err = server.Pubsub.Publish(ProvisionerJobLogsNotifyChannel(parsedID), data)
 		if err != nil {
 			server.Logger.Error(ctx, "failed to publish job logs", slog.F("job_id", parsedID), slog.Error(err))
-			return nil, xerrors.Errorf("publish job log: %w", err)
+			return nil, fmt.Errorf("publish job log: %w", err)
 		}
 		server.Logger.Debug(ctx, "published job logs", slog.F("job_id", parsedID))
 	}
@@ -375,7 +374,7 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 			UpdatedAt: database.Now(),
 		})
 		if err != nil {
-			return nil, xerrors.Errorf("update template version description: %w", err)
+			return nil, fmt.Errorf("update template version description: %w", err)
 		}
 	}
 
@@ -383,7 +382,7 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 		for index, protoParameter := range request.ParameterSchemas {
 			validationTypeSystem, err := convertValidationTypeSystem(protoParameter.ValidationTypeSystem)
 			if err != nil {
-				return nil, xerrors.Errorf("convert validation type system for %q: %w", protoParameter.Name, err)
+				return nil, fmt.Errorf("convert validation type system for %q: %w", protoParameter.Name, err)
 			}
 
 			parameterSchema := database.InsertParameterSchemaParams{
@@ -411,7 +410,7 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 			if protoParameter.DefaultSource != nil {
 				parameterSourceScheme, err := convertParameterSourceScheme(protoParameter.DefaultSource.Scheme)
 				if err != nil {
-					return nil, xerrors.Errorf("convert parameter source scheme: %w", err)
+					return nil, fmt.Errorf("convert parameter source scheme: %w", err)
 				}
 				parameterSchema.DefaultSourceScheme = parameterSourceScheme
 				parameterSchema.DefaultSourceValue = protoParameter.DefaultSource.Value
@@ -421,14 +420,14 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 			if protoParameter.DefaultDestination != nil {
 				parameterDestinationScheme, err := convertParameterDestinationScheme(protoParameter.DefaultDestination.Scheme)
 				if err != nil {
-					return nil, xerrors.Errorf("convert parameter destination scheme: %w", err)
+					return nil, fmt.Errorf("convert parameter destination scheme: %w", err)
 				}
 				parameterSchema.DefaultDestinationScheme = parameterDestinationScheme
 			}
 
 			_, err = server.Database.InsertParameterSchema(ctx, parameterSchema)
 			if err != nil {
-				return nil, xerrors.Errorf("insert parameter schema: %w", err)
+				return nil, fmt.Errorf("insert parameter schema: %w", err)
 			}
 		}
 
@@ -436,7 +435,7 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 		if job.Type == database.ProvisionerJobTypeTemplateVersionImport {
 			templateVersion, err := server.Database.GetTemplateVersionByJobID(ctx, job.ID)
 			if err != nil {
-				return nil, xerrors.Errorf("get template version by job id: %w", err)
+				return nil, fmt.Errorf("get template version by job id: %w", err)
 			}
 			templateID = templateVersion.TemplateID
 		}
@@ -446,14 +445,14 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 			TemplateID:          templateID,
 		}, nil)
 		if err != nil {
-			return nil, xerrors.Errorf("compute parameters: %w", err)
+			return nil, fmt.Errorf("compute parameters: %w", err)
 		}
 		// Convert parameters to the protobuf type.
 		protoParameters := make([]*sdkproto.ParameterValue, 0, len(parameters))
 		for _, computedParameter := range parameters {
 			converted, err := convertComputedParameterValue(computedParameter)
 			if err != nil {
-				return nil, xerrors.Errorf("convert parameter: %s", err)
+				return nil, fmt.Errorf("convert parameter: %s", err)
 			}
 			protoParameters = append(protoParameters, converted)
 		}
@@ -472,18 +471,18 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.Empty, error) {
 	jobID, err := uuid.Parse(failJob.JobId)
 	if err != nil {
-		return nil, xerrors.Errorf("parse job id: %w", err)
+		return nil, fmt.Errorf("parse job id: %w", err)
 	}
 	server.Logger.Debug(ctx, "FailJob starting", slog.F("job_id", jobID))
 	job, err := server.Database.GetProvisionerJobByID(ctx, jobID)
 	if err != nil {
-		return nil, xerrors.Errorf("get provisioner job: %w", err)
+		return nil, fmt.Errorf("get provisioner job: %w", err)
 	}
 	if job.WorkerID.UUID.String() != server.ID.String() {
-		return nil, xerrors.New("you don't own this job")
+		return nil, fmt.Errorf("you don't own this job")
 	}
 	if job.CompletedAt.Valid {
-		return nil, xerrors.Errorf("job already completed")
+		return nil, fmt.Errorf("job already completed")
 	}
 	job.CompletedAt = sql.NullTime{
 		Time:  database.Now(),
@@ -501,7 +500,7 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 		Error:       job.Error,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("update provisioner job: %w", err)
+		return nil, fmt.Errorf("update provisioner job: %w", err)
 	}
 	server.Telemetry.Report(&telemetry.Snapshot{
 		ProvisionerJobs: []telemetry.ProvisionerJob{telemetry.ConvertProvisionerJob(job)},
@@ -515,7 +514,7 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 		var input WorkspaceProvisionJob
 		err = json.Unmarshal(job.Input, &input)
 		if err != nil {
-			return nil, xerrors.Errorf("unmarshal workspace provision input: %w", err)
+			return nil, fmt.Errorf("unmarshal workspace provision input: %w", err)
 		}
 		build, err := server.Database.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 			ID:               input.WorkspaceBuildID,
@@ -524,11 +523,11 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 			// We are explicitly not updating deadline here.
 		})
 		if err != nil {
-			return nil, xerrors.Errorf("update workspace build state: %w", err)
+			return nil, fmt.Errorf("update workspace build state: %w", err)
 		}
 		err = server.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(build.WorkspaceID), []byte{})
 		if err != nil {
-			return nil, xerrors.Errorf("update workspace: %w", err)
+			return nil, fmt.Errorf("update workspace: %w", err)
 		}
 	case *proto.FailedJob_TemplateImport_:
 	}
@@ -584,12 +583,12 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 
 	data, err := json.Marshal(ProvisionerJobLogsNotifyMessage{EndOfLogs: true})
 	if err != nil {
-		return nil, xerrors.Errorf("marshal job log: %w", err)
+		return nil, fmt.Errorf("marshal job log: %w", err)
 	}
 	err = server.Pubsub.Publish(ProvisionerJobLogsNotifyChannel(jobID), data)
 	if err != nil {
 		server.Logger.Error(ctx, "failed to publish end of job logs", slog.F("job_id", jobID), slog.Error(err))
-		return nil, xerrors.Errorf("publish end of job logs: %w", err)
+		return nil, fmt.Errorf("publish end of job logs: %w", err)
 	}
 	return &proto.Empty{}, nil
 }
@@ -598,15 +597,15 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 func (server *Server) CompleteJob(ctx context.Context, completed *proto.CompletedJob) (*proto.Empty, error) {
 	jobID, err := uuid.Parse(completed.JobId)
 	if err != nil {
-		return nil, xerrors.Errorf("parse job id: %w", err)
+		return nil, fmt.Errorf("parse job id: %w", err)
 	}
 	server.Logger.Debug(ctx, "CompleteJob starting", slog.F("job_id", jobID))
 	job, err := server.Database.GetProvisionerJobByID(ctx, jobID)
 	if err != nil {
-		return nil, xerrors.Errorf("get job by id: %w", err)
+		return nil, fmt.Errorf("get job by id: %w", err)
 	}
 	if job.WorkerID.UUID.String() != server.ID.String() {
-		return nil, xerrors.Errorf("you don't own this job")
+		return nil, fmt.Errorf("you don't own this job")
 	}
 
 	telemetrySnapshot := &telemetry.Snapshot{}
@@ -618,7 +617,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 		var input TemplateVersionImportJob
 		err = json.Unmarshal(job.Input, &input)
 		if err != nil {
-			return nil, xerrors.Errorf("template version ID is expected: %w", err)
+			return nil, fmt.Errorf("template version ID is expected: %w", err)
 		}
 
 		for transition, resources := range map[database.WorkspaceTransition][]*sdkproto.Resource{
@@ -634,7 +633,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 
 				err = InsertWorkspaceResource(ctx, server.Database, jobID, transition, resource, telemetrySnapshot)
 				if err != nil {
-					return nil, xerrors.Errorf("insert resource: %w", err)
+					return nil, fmt.Errorf("insert resource: %w", err)
 				}
 			}
 		}
@@ -646,7 +645,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			)
 			options, err := json.Marshal(richParameter.Options)
 			if err != nil {
-				return nil, xerrors.Errorf("marshal parameter options: %w", err)
+				return nil, fmt.Errorf("marshal parameter options: %w", err)
 			}
 			_, err = server.Database.InsertTemplateVersionParameter(ctx, database.InsertTemplateVersionParameterParams{
 				TemplateVersionID: input.TemplateVersionID,
@@ -663,7 +662,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				ValidationMax:     richParameter.ValidationMax,
 			})
 			if err != nil {
-				return nil, xerrors.Errorf("insert parameter: %w", err)
+				return nil, fmt.Errorf("insert parameter: %w", err)
 			}
 		}
 
@@ -676,22 +675,22 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			},
 		})
 		if err != nil {
-			return nil, xerrors.Errorf("update provisioner job: %w", err)
+			return nil, fmt.Errorf("update provisioner job: %w", err)
 		}
 		server.Logger.Debug(ctx, "marked import job as completed", slog.F("job_id", jobID))
 		if err != nil {
-			return nil, xerrors.Errorf("complete job: %w", err)
+			return nil, fmt.Errorf("complete job: %w", err)
 		}
 	case *proto.CompletedJob_WorkspaceBuild_:
 		var input WorkspaceProvisionJob
 		err = json.Unmarshal(job.Input, &input)
 		if err != nil {
-			return nil, xerrors.Errorf("unmarshal job data: %w", err)
+			return nil, fmt.Errorf("unmarshal job data: %w", err)
 		}
 
 		workspaceBuild, err := server.Database.GetWorkspaceBuildByID(ctx, input.WorkspaceBuildID)
 		if err != nil {
-			return nil, xerrors.Errorf("get workspace build: %w", err)
+			return nil, fmt.Errorf("get workspace build: %w", err)
 		}
 
 		var workspace database.Workspace
@@ -719,7 +718,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				},
 			})
 			if err != nil {
-				return xerrors.Errorf("update provisioner job: %w", err)
+				return fmt.Errorf("update provisioner job: %w", err)
 			}
 			_, err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 				ID:               workspaceBuild.ID,
@@ -728,7 +727,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				UpdatedAt:        now,
 			})
 			if err != nil {
-				return xerrors.Errorf("update workspace build: %w", err)
+				return fmt.Errorf("update workspace build: %w", err)
 			}
 
 			agentTimeouts := make(map[time.Duration]bool) // A set of agent timeouts.
@@ -740,7 +739,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				}
 				err = InsertWorkspaceResource(ctx, db, job.ID, workspaceBuild.Transition, protoResource, telemetrySnapshot)
 				if err != nil {
-					return xerrors.Errorf("insert provisioner job: %w", err)
+					return fmt.Errorf("insert provisioner job: %w", err)
 				}
 			}
 
@@ -792,13 +791,13 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				Deleted: true,
 			})
 			if err != nil {
-				return xerrors.Errorf("update workspace deleted: %w", err)
+				return fmt.Errorf("update workspace deleted: %w", err)
 			}
 
 			return nil
 		}, nil)
 		if err != nil {
-			return nil, xerrors.Errorf("complete job: %w", err)
+			return nil, fmt.Errorf("complete job: %w", err)
 		}
 
 		// audit the outcome of the workspace build
@@ -843,7 +842,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 
 		err = server.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(workspaceBuild.WorkspaceID), []byte{})
 		if err != nil {
-			return nil, xerrors.Errorf("update workspace: %w", err)
+			return nil, fmt.Errorf("update workspace: %w", err)
 		}
 	case *proto.CompletedJob_TemplateDryRun_:
 		for _, resource := range jobType.TemplateDryRun.Resources {
@@ -854,7 +853,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 
 			err = InsertWorkspaceResource(ctx, server.Database, jobID, database.WorkspaceTransitionStart, resource, telemetrySnapshot)
 			if err != nil {
-				return nil, xerrors.Errorf("insert resource: %w", err)
+				return nil, fmt.Errorf("insert resource: %w", err)
 			}
 		}
 
@@ -867,29 +866,29 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			},
 		})
 		if err != nil {
-			return nil, xerrors.Errorf("update provisioner job: %w", err)
+			return nil, fmt.Errorf("update provisioner job: %w", err)
 		}
 		server.Logger.Debug(ctx, "marked template dry-run job as completed", slog.F("job_id", jobID))
 		if err != nil {
-			return nil, xerrors.Errorf("complete job: %w", err)
+			return nil, fmt.Errorf("complete job: %w", err)
 		}
 
 	default:
 		if completed.Type == nil {
-			return nil, xerrors.Errorf("type payload must be provided")
+			return nil, fmt.Errorf("type payload must be provided")
 		}
-		return nil, xerrors.Errorf("unknown job type %q; ensure coderd and provisionerd versions match",
+		return nil, fmt.Errorf("unknown job type %q; ensure coderd and provisionerd versions match",
 			reflect.TypeOf(completed.Type).String())
 	}
 
 	data, err := json.Marshal(ProvisionerJobLogsNotifyMessage{EndOfLogs: true})
 	if err != nil {
-		return nil, xerrors.Errorf("marshal job log: %w", err)
+		return nil, fmt.Errorf("marshal job log: %w", err)
 	}
 	err = server.Pubsub.Publish(ProvisionerJobLogsNotifyChannel(jobID), data)
 	if err != nil {
 		server.Logger.Error(ctx, "failed to publish end of job logs", slog.F("job_id", jobID), slog.Error(err))
-		return nil, xerrors.Errorf("publish end of job logs: %w", err)
+		return nil, fmt.Errorf("publish end of job logs: %w", err)
 	}
 
 	server.Logger.Debug(ctx, "CompleteJob done", slog.F("job_id", jobID))
@@ -913,7 +912,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		},
 	})
 	if err != nil {
-		return xerrors.Errorf("insert provisioner job resource %q: %w", protoResource.Name, err)
+		return fmt.Errorf("insert provisioner job resource %q: %w", protoResource.Name, err)
 	}
 	snapshot.WorkspaceResources = append(snapshot.WorkspaceResources, telemetry.ConvertWorkspaceResource(resource))
 
@@ -923,7 +922,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 	)
 	for _, prAgent := range protoResource.Agents {
 		if _, ok := agentNames[prAgent.Name]; ok {
-			return xerrors.Errorf("duplicate agent name %q", prAgent.Name)
+			return fmt.Errorf("duplicate agent name %q", prAgent.Name)
 		}
 		agentNames[prAgent.Name] = struct{}{}
 
@@ -938,7 +937,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		if prAgent.Env != nil {
 			data, err := json.Marshal(prAgent.Env)
 			if err != nil {
-				return xerrors.Errorf("marshal env: %w", err)
+				return fmt.Errorf("marshal env: %w", err)
 			}
 			env = pqtype.NullRawMessage{
 				RawMessage: data,
@@ -949,7 +948,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		if prAgent.GetToken() != "" {
 			authToken, err = uuid.Parse(prAgent.GetToken())
 			if err != nil {
-				return xerrors.Errorf("invalid auth token format; must be uuid: %w", err)
+				return fmt.Errorf("invalid auth token format; must be uuid: %w", err)
 			}
 		}
 
@@ -977,20 +976,20 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			StartupScriptTimeoutSeconds: prAgent.GetStartupScriptTimeoutSeconds(),
 		})
 		if err != nil {
-			return xerrors.Errorf("insert agent: %w", err)
+			return fmt.Errorf("insert agent: %w", err)
 		}
 		snapshot.WorkspaceAgents = append(snapshot.WorkspaceAgents, telemetry.ConvertWorkspaceAgent(dbAgent))
 
 		for _, app := range prAgent.Apps {
 			slug := app.Slug
 			if slug == "" {
-				return xerrors.Errorf("app must have a slug or name set")
+				return fmt.Errorf("app must have a slug or name set")
 			}
 			if !provisioner.AppSlugRegex.MatchString(slug) {
-				return xerrors.Errorf("app slug %q does not match regex %q", slug, provisioner.AppSlugRegex.String())
+				return fmt.Errorf("app slug %q does not match regex %q", slug, provisioner.AppSlugRegex.String())
 			}
 			if _, exists := appSlugs[slug]; exists {
-				return xerrors.Errorf("duplicate app slug, must be unique per template: %q", slug)
+				return fmt.Errorf("duplicate app slug, must be unique per template: %q", slug)
 			}
 			appSlugs[slug] = struct{}{}
 
@@ -1034,7 +1033,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				Health:               health,
 			})
 			if err != nil {
-				return xerrors.Errorf("insert app: %w", err)
+				return fmt.Errorf("insert app: %w", err)
 			}
 			snapshot.WorkspaceApps = append(snapshot.WorkspaceApps, telemetry.ConvertWorkspaceApp(dbApp))
 		}
@@ -1056,7 +1055,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 	}
 	_, err = db.InsertWorkspaceResourceMetadata(ctx, arg)
 	if err != nil {
-		return xerrors.Errorf("insert workspace resource metadata: %w", err)
+		return fmt.Errorf("insert workspace resource metadata: %w", err)
 	}
 
 	return nil
@@ -1069,7 +1068,7 @@ func convertValidationTypeSystem(typeSystem sdkproto.ParameterSchema_TypeSystem)
 	case sdkproto.ParameterSchema_HCL:
 		return database.ParameterTypeSystemHCL, nil
 	default:
-		return database.ParameterTypeSystem(""), xerrors.Errorf("unknown type system: %d", typeSystem)
+		return database.ParameterTypeSystem(""), fmt.Errorf("unknown type system: %d", typeSystem)
 	}
 }
 
@@ -1078,7 +1077,7 @@ func convertParameterSourceScheme(sourceScheme sdkproto.ParameterSource_Scheme) 
 	case sdkproto.ParameterSource_DATA:
 		return database.ParameterSourceSchemeData, nil
 	default:
-		return database.ParameterSourceScheme(""), xerrors.Errorf("unknown parameter source scheme: %d", sourceScheme)
+		return database.ParameterSourceScheme(""), fmt.Errorf("unknown parameter source scheme: %d", sourceScheme)
 	}
 }
 
@@ -1089,7 +1088,7 @@ func convertParameterDestinationScheme(destinationScheme sdkproto.ParameterDesti
 	case sdkproto.ParameterDestination_PROVISIONER_VARIABLE:
 		return database.ParameterDestinationSchemeProvisionerVariable, nil
 	default:
-		return database.ParameterDestinationScheme(""), xerrors.Errorf("unknown parameter destination scheme: %d", destinationScheme)
+		return database.ParameterDestinationScheme(""), fmt.Errorf("unknown parameter destination scheme: %d", destinationScheme)
 	}
 }
 
@@ -1106,7 +1105,7 @@ func convertLogLevel(logLevel sdkproto.LogLevel) (database.LogLevel, error) {
 	case sdkproto.LogLevel_ERROR:
 		return database.LogLevelError, nil
 	default:
-		return database.LogLevel(""), xerrors.Errorf("unknown log level: %d", logLevel)
+		return database.LogLevel(""), fmt.Errorf("unknown log level: %d", logLevel)
 	}
 }
 
@@ -1117,7 +1116,7 @@ func convertLogSource(logSource proto.LogSource) (database.LogSource, error) {
 	case proto.LogSource_PROVISIONER:
 		return database.LogSourceProvisioner, nil
 	default:
-		return database.LogSource(""), xerrors.Errorf("unknown log source: %d", logSource)
+		return database.LogSource(""), fmt.Errorf("unknown log source: %d", logSource)
 	}
 }
 
@@ -1137,7 +1136,7 @@ func convertComputedParameterValues(parameters []parameter.ComputedValue) ([]*sd
 	for i, computedParameter := range parameters {
 		converted, err := convertComputedParameterValue(computedParameter)
 		if err != nil {
-			return nil, xerrors.Errorf("convert parameter: %w", err)
+			return nil, fmt.Errorf("convert parameter: %w", err)
 		}
 		protoParameters[i] = converted
 	}
@@ -1153,7 +1152,7 @@ func convertComputedParameterValue(param parameter.ComputedValue) (*sdkproto.Par
 	case database.ParameterDestinationSchemeProvisionerVariable:
 		scheme = sdkproto.ParameterDestination_PROVISIONER_VARIABLE
 	default:
-		return nil, xerrors.Errorf("unrecognized destination scheme: %q", param.DestinationScheme)
+		return nil, fmt.Errorf("unrecognized destination scheme: %q", param.DestinationScheme)
 	}
 
 	return &sdkproto.ParameterValue{
@@ -1172,7 +1171,7 @@ func convertWorkspaceTransition(transition database.WorkspaceTransition) (sdkpro
 	case database.WorkspaceTransitionDelete:
 		return sdkproto.WorkspaceTransition_DESTROY, nil
 	default:
-		return 0, xerrors.Errorf("unrecognized transition: %q", transition)
+		return 0, fmt.Errorf("unrecognized transition: %q", transition)
 	}
 }
 

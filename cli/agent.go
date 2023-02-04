@@ -15,6 +15,7 @@ import (
 	"cloud.google.com/go/compute/metadata"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
+
 	"gopkg.in/natefinch/lumberjack.v2"
 
 	"cdr.dev/slog"
@@ -43,11 +44,11 @@ func workspaceAgent() *cobra.Command {
 
 			rawURL, err := cmd.Flags().GetString(varAgentURL)
 			if err != nil {
-				return xerrors.Errorf("CODER_AGENT_URL must be set: %w", err)
+				return fmt.Errorf("CODER_AGENT_URL must be set: %w", err)
 			}
 			coderURL, err := url.Parse(rawURL)
 			if err != nil {
-				return xerrors.Errorf("parse %q: %w", rawURL, err)
+				return fmt.Errorf("parse %q: %w", rawURL, err)
 			}
 
 			isLinux := runtime.GOOS == "linux"
@@ -69,7 +70,7 @@ func workspaceAgent() *cobra.Command {
 				err := reaper.ForkReap(reaper.WithExecArgs(args...))
 				if err != nil {
 					logger.Error(ctx, "failed to reap", slog.Error(err))
-					return xerrors.Errorf("fork reap: %w", err)
+					return fmt.Errorf("fork reap: %w", err)
 				}
 
 				logger.Info(ctx, "reaper process exiting")
@@ -123,7 +124,7 @@ func workspaceAgent() *cobra.Command {
 			case "token":
 				token, err := cmd.Flags().GetString(varAgentToken)
 				if err != nil {
-					return xerrors.Errorf("CODER_AGENT_TOKEN must be set for token auth: %w", err)
+					return fmt.Errorf("CODER_AGENT_TOKEN must be set for token auth: %w", err)
 				}
 				client.SetSessionToken(token)
 			case "google-instance-identity":
@@ -169,11 +170,11 @@ func workspaceAgent() *cobra.Command {
 
 			executablePath, err := os.Executable()
 			if err != nil {
-				return xerrors.Errorf("getting os executable: %w", err)
+				return fmt.Errorf("getting os executable: %w", err)
 			}
 			err = os.Setenv("PATH", fmt.Sprintf("%s%c%s", os.Getenv("PATH"), filepath.ListSeparator, filepath.Dir(executablePath)))
 			if err != nil {
-				return xerrors.Errorf("add executable to $PATH: %w", err)
+				return fmt.Errorf("add executable to $PATH: %w", err)
 			}
 
 			closer := agent.New(agent.Options{

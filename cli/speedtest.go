@@ -7,7 +7,6 @@ import (
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 	tsspeedtest "tailscale.com/net/speedtest"
 
 	"cdr.dev/slog"
@@ -34,7 +33,7 @@ func speedtest() *cobra.Command {
 
 			client, err := CreateClient(cmd)
 			if err != nil {
-				return xerrors.Errorf("create codersdk client: %w", err)
+				return fmt.Errorf("create codersdk client: %w", err)
 			}
 
 			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, cmd, client, codersdk.Me, args[0], false)
@@ -49,7 +48,7 @@ func speedtest() *cobra.Command {
 				},
 			})
 			if err != nil {
-				return xerrors.Errorf("await agent: %w", err)
+				return fmt.Errorf("await agent: %w", err)
 			}
 			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
 			if cliflag.IsSetBool(cmd, varVerbose) {

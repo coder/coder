@@ -12,10 +12,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/jmoiron/sqlx"
-	"golang.org/x/xerrors"
 )
 
 // Store contains all queryable database functions.
@@ -75,14 +75,14 @@ func (q *sqlQuerier) InTx(function func(Store) error, txOpts *sql.TxOptions) err
 		// that.
 		err := function(q)
 		if err != nil {
-			return xerrors.Errorf("execute transaction: %w", err)
+			return fmt.Errorf("execute transaction: %w", err)
 		}
 		return nil
 	}
 
 	transaction, err := q.sdb.BeginTxx(context.Background(), txOpts)
 	if err != nil {
-		return xerrors.Errorf("begin transaction: %w", err)
+		return fmt.Errorf("begin transaction: %w", err)
 	}
 	defer func() {
 		rerr := transaction.Rollback()
@@ -91,15 +91,15 @@ func (q *sqlQuerier) InTx(function func(Store) error, txOpts *sql.TxOptions) err
 			return
 		}
 		// couldn't roll back for some reason, extend returned error
-		err = xerrors.Errorf("defer (%s): %w", rerr.Error(), err)
+		err = fmt.Errorf("defer (%s): %w", rerr.Error(), err)
 	}()
 	err = function(&sqlQuerier{db: transaction})
 	if err != nil {
-		return xerrors.Errorf("execute transaction: %w", err)
+		return fmt.Errorf("execute transaction: %w", err)
 	}
 	err = transaction.Commit()
 	if err != nil {
-		return xerrors.Errorf("commit transaction: %w", err)
+		return fmt.Errorf("commit transaction: %w", err)
 	}
 	return nil
 }

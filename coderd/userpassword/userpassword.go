@@ -12,7 +12,6 @@ import (
 
 	"golang.org/x/crypto/pbkdf2"
 	"golang.org/x/exp/slices"
-	"golang.org/x/xerrors"
 )
 
 var (
@@ -68,25 +67,25 @@ func Compare(hashed string, password string) (bool, error) {
 	}
 
 	if len(hashed) < hashLength {
-		return false, xerrors.Errorf("hash too short: %d", len(hashed))
+		return false, fmt.Errorf("hash too short: %d", len(hashed))
 	}
 	parts := strings.SplitN(hashed, "$", 5)
 	if len(parts) != 5 {
-		return false, xerrors.Errorf("hash has too many parts: %d", len(parts))
+		return false, fmt.Errorf("hash has too many parts: %d", len(parts))
 	}
 	if len(parts[0]) != 0 {
-		return false, xerrors.Errorf("hash prefix is invalid")
+		return false, fmt.Errorf("hash prefix is invalid")
 	}
 	if parts[1] != hashScheme {
-		return false, xerrors.Errorf("hash isn't %q scheme: %q", hashScheme, parts[1])
+		return false, fmt.Errorf("hash isn't %q scheme: %q", hashScheme, parts[1])
 	}
 	iter, err := strconv.Atoi(parts[2])
 	if err != nil {
-		return false, xerrors.Errorf("parse iter from hash: %w", err)
+		return false, fmt.Errorf("parse iter from hash: %w", err)
 	}
 	salt, err := base64Encoding.DecodeString(parts[3])
 	if err != nil {
-		return false, xerrors.Errorf("decode salt: %w", err)
+		return false, fmt.Errorf("decode salt: %w", err)
 	}
 
 	if subtle.ConstantTimeCompare([]byte(hashWithSaltAndIter(password, salt, iter)), []byte(hashed)) != 1 {
@@ -102,7 +101,7 @@ func Hash(password string) (string, error) {
 	salt := make([]byte, defaultSaltSize)
 	_, err := rand.Read(salt)
 	if err != nil {
-		return "", xerrors.Errorf("read random bytes for salt: %w", err)
+		return "", fmt.Errorf("read random bytes for salt: %w", err)
 	}
 
 	return hashWithSaltAndIter(password, salt, defaultHashIter), nil
@@ -130,10 +129,10 @@ func Validate(password string) error {
 		maxLength = 64
 	)
 	if len(password) < minLength {
-		return xerrors.Errorf("Password must be at least %d characters.", minLength)
+		return fmt.Errorf("Password must be at least %d characters.", minLength)
 	}
 	if len(password) > maxLength {
-		return xerrors.Errorf("Password must be no more than %d characters.", maxLength)
+		return fmt.Errorf("Password must be no more than %d characters.", maxLength)
 	}
 	return nil
 }

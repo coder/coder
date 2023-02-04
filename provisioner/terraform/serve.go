@@ -2,6 +2,7 @@ package terraform
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"sync"
 	"time"
@@ -42,7 +43,7 @@ type ServeOptions struct {
 func absoluteBinaryPath(ctx context.Context) (string, error) {
 	binaryPath, err := safeexec.LookPath("terraform")
 	if err != nil {
-		return "", xerrors.Errorf("Terraform binary not found: %w", err)
+		return "", fmt.Errorf("Terraform binary not found: %w", err)
 	}
 
 	// If the "coder" binary is in the same directory as
@@ -52,13 +53,13 @@ func absoluteBinaryPath(ctx context.Context) (string, error) {
 	// to execute this properly!
 	absoluteBinary, err := filepath.Abs(binaryPath)
 	if err != nil {
-		return "", xerrors.Errorf("Terraform binary absolute path not found: %w", err)
+		return "", fmt.Errorf("Terraform binary absolute path not found: %w", err)
 	}
 
 	// Checking the installed version of Terraform.
 	version, err := versionFromBinaryPath(ctx, absoluteBinary)
 	if err != nil {
-		return "", xerrors.Errorf("Terraform binary get version failed: %w", err)
+		return "", fmt.Errorf("Terraform binary get version failed: %w", err)
 	}
 
 	if version.LessThan(minTerraformVersion) || version.GreaterThan(maxTerraformVersion) {
@@ -77,12 +78,12 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 			// It generally happens in unit tests since this method is asynchronous and
 			// the unit test kills the app before this is complete.
 			if xerrors.Is(err, context.Canceled) {
-				return xerrors.Errorf("absolute binary context canceled: %w", err)
+				return fmt.Errorf("absolute binary context canceled: %w", err)
 			}
 
 			binPath, err := Install(ctx, options.Logger, options.CachePath, TerraformVersion)
 			if err != nil {
-				return xerrors.Errorf("install terraform: %w", err)
+				return fmt.Errorf("install terraform: %w", err)
 			}
 			options.BinaryPath = binPath
 		} else {

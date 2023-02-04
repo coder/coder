@@ -14,7 +14,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
-	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 
 	"github.com/coder/coder/provisionerd/proto"
@@ -123,7 +122,7 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 	}
 	jar, err := cookiejar.New(nil)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("create cookie jar: %w", err)
+		return nil, nil, fmt.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(followURL, []*http.Cookie{{
 		Name:  SessionTokenCookie,
@@ -173,7 +172,7 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 func (c *Client) ServeProvisionerDaemon(ctx context.Context, organization uuid.UUID, provisioners []ProvisionerType, tags map[string]string) (proto.DRPCProvisionerDaemonClient, error) {
 	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/organizations/%s/provisionerdaemons/serve", organization))
 	if err != nil {
-		return nil, xerrors.Errorf("parse url: %w", err)
+		return nil, fmt.Errorf("parse url: %w", err)
 	}
 	query := serverURL.Query()
 	for _, provisioner := range provisioners {
@@ -185,7 +184,7 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, organization uuid.U
 	serverURL.RawQuery = query.Encode()
 	jar, err := cookiejar.New(nil)
 	if err != nil {
-		return nil, xerrors.Errorf("create cookie jar: %w", err)
+		return nil, fmt.Errorf("create cookie jar: %w", err)
 	}
 	jar.SetCookies(serverURL, []*http.Cookie{{
 		Name:  SessionTokenCookie,
@@ -212,7 +211,7 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, organization uuid.U
 	config.LogOutput = io.Discard
 	session, err := yamux.Client(websocket.NetConn(ctx, conn, websocket.MessageBinary), config)
 	if err != nil {
-		return nil, xerrors.Errorf("multiplex client: %w", err)
+		return nil, fmt.Errorf("multiplex client: %w", err)
 	}
 	return proto.NewDRPCProvisionerDaemonClient(provisionersdk.MultiplexedConn(session)), nil
 }

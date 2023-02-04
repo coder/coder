@@ -3,13 +3,13 @@ package cliui
 import (
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"os"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/codersdk"
 )
@@ -78,7 +78,7 @@ func RichSelect(cmd *cobra.Command, richOptions RichSelectOptions) (*codersdk.Te
 			return &richOptions.Options[i], nil
 		}
 	}
-	return nil, xerrors.Errorf("unknown option selected: %s", selected)
+	return nil, fmt.Errorf("unknown option selected: %s", selected)
 }
 
 // Select displays a list of user options.

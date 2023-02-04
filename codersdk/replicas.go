@@ -3,11 +3,11 @@ package codersdk
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 )
 
 type Replica struct {
@@ -31,7 +31,7 @@ type Replica struct {
 func (c *Client) Replicas(ctx context.Context) ([]Replica, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/replicas", nil)
 	if err != nil {
-		return nil, xerrors.Errorf("execute request: %w", err)
+		return nil, fmt.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
 

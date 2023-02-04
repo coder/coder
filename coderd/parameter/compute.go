@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/google/uuid"
 	"golang.org/x/exp/slices"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 )
@@ -54,7 +54,7 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 		err = nil
 	}
 	if err != nil {
-		return nil, xerrors.Errorf("get template parameters: %w", err)
+		return nil, fmt.Errorf("get template parameters: %w", err)
 	}
 	for _, parameterSchema := range parameterSchemas {
 		compute.parameterSchemasByName[parameterSchema.Name] = parameterSchema
@@ -96,10 +96,10 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 				ScopeID:           scope.TemplateImportJobID,
 			}, true)
 			if err != nil {
-				return nil, xerrors.Errorf("insert default value: %w", err)
+				return nil, fmt.Errorf("insert default value: %w", err)
 			}
 		default:
-			return nil, xerrors.Errorf("unsupported source scheme for template version parameter %q: %q", parameterSchema.Name, string(parameterSchema.DefaultSourceScheme))
+			return nil, fmt.Errorf("unsupported source scheme for template version parameter %q: %q", parameterSchema.Name, string(parameterSchema.DefaultSourceScheme))
 		}
 	}
 
@@ -129,7 +129,7 @@ func Compute(ctx context.Context, db database.Store, scope ComputeScope, options
 	for _, v := range scope.AdditionalParameterValues {
 		err = compute.injectSingle(v, false)
 		if err != nil {
-			return nil, xerrors.Errorf("inject single parameter value: %w", err)
+			return nil, fmt.Errorf("inject single parameter value: %w", err)
 		}
 	}
 
@@ -157,13 +157,13 @@ func (c *compute) injectScope(ctx context.Context, scopeParams database.Paramete
 		err = nil
 	}
 	if err != nil {
-		return xerrors.Errorf("get %s parameters: %w", scopeParams.Scopes, err)
+		return fmt.Errorf("get %s parameters: %w", scopeParams.Scopes, err)
 	}
 
 	for _, scopedParameter := range scopedParameters {
 		err = c.injectSingle(scopedParameter, false)
 		if err != nil {
-			return xerrors.Errorf("inject single %q: %w", scopedParameter.Name, err)
+			return fmt.Errorf("inject single %q: %w", scopedParameter.Name, err)
 		}
 	}
 	return nil
@@ -198,7 +198,7 @@ func (c *compute) injectSingle(scopedParameter database.ParameterValue, defaultV
 		}
 		c.computedParameterByName[scopedParameter.Name] = value
 	default:
-		return xerrors.Errorf("unsupported source scheme: %q", string(parameterSchema.DefaultSourceScheme))
+		return fmt.Errorf("unsupported source scheme: %q", string(parameterSchema.DefaultSourceScheme))
 	}
 	return nil
 }

@@ -7,7 +7,6 @@ import (
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/autobuild/schedule"
@@ -212,12 +211,12 @@ func scheduleOverride() *cobra.Command {
 
 			client, err := CreateClient(cmd)
 			if err != nil {
-				return xerrors.Errorf("create client: %w", err)
+				return fmt.Errorf("create client: %w", err)
 			}
 
 			workspace, err := namedWorkspace(cmd, client, args[0])
 			if err != nil {
-				return xerrors.Errorf("get workspace: %w", err)
+				return fmt.Errorf("get workspace: %w", err)
 			}
 
 			loc, err := tz.TimezoneIANA()

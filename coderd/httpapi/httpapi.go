@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/codersdk"
@@ -275,7 +274,7 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (sendEvent f
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-closed:
-			return xerrors.New("server sent event sender closed")
+			return fmt.Errorf("server sent event sender closed")
 		case eventC <- event:
 			// Re-check closure signals after sending the event to allow
 			// for early exit. We don't check closed here because it

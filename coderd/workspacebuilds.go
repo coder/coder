@@ -515,7 +515,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			ScopeIds: []uuid.UUID{workspace.ID},
 		})
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-			return xerrors.Errorf("Fetch previous parameters: %w", err)
+			return fmt.Errorf("Fetch previous parameters: %w", err)
 		}
 
 		// Write/Update any new params
@@ -526,7 +526,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 				if exists.Name == param.Name {
 					err = db.DeleteParameterValueByID(ctx, exists.ID)
 					if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-						return xerrors.Errorf("Failed to delete old param %q: %w", exists.Name, err)
+						return fmt.Errorf("Failed to delete old param %q: %w", exists.Name, err)
 					}
 				}
 			}
@@ -543,7 +543,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 				DestinationScheme: database.ParameterDestinationScheme(param.DestinationScheme),
 			})
 			if err != nil {
-				return xerrors.Errorf("insert parameter value: %w", err)
+				return fmt.Errorf("insert parameter value: %w", err)
 			}
 		}
 
@@ -552,7 +552,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			WorkspaceBuildID: workspaceBuildID,
 		})
 		if err != nil {
-			return xerrors.Errorf("marshal provision job: %w", err)
+			return fmt.Errorf("marshal provision job: %w", err)
 		}
 		provisionerJob, err = db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 			ID:             uuid.New(),
@@ -568,7 +568,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Tags:           tags,
 		})
 		if err != nil {
-			return xerrors.Errorf("insert provisioner job: %w", err)
+			return fmt.Errorf("insert provisioner job: %w", err)
 		}
 
 		workspaceBuild, err = db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
@@ -585,7 +585,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Reason:            database.BuildReasonInitiator,
 		})
 		if err != nil {
-			return xerrors.Errorf("insert workspace build: %w", err)
+			return fmt.Errorf("insert workspace build: %w", err)
 		}
 
 		names := make([]string, 0, len(parameters))
@@ -600,7 +600,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			Value:            values,
 		})
 		if err != nil {
-			return xerrors.Errorf("insert workspace build parameters: %w", err)
+			return fmt.Errorf("insert workspace build parameters: %w", err)
 		}
 
 		return nil
@@ -738,7 +738,7 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 func (api *API) verifyUserCanCancelWorkspaceBuilds(ctx context.Context, userID uuid.UUID, templateID uuid.UUID) (bool, error) {
 	template, err := api.Database.GetTemplateByID(ctx, templateID)
 	if err != nil {
-		return false, xerrors.New("no template exists for this workspace")
+		return false, fmt.Errorf("no template exists for this workspace")
 	}
 
 	if template.AllowUserCancelWorkspaceJobs {
@@ -747,7 +747,7 @@ func (api *API) verifyUserCanCancelWorkspaceBuilds(ctx context.Context, userID u
 
 	user, err := api.Database.GetUserByID(ctx, userID)
 	if err != nil {
-		return false, xerrors.New("user does not exist")
+		return false, fmt.Errorf("user does not exist")
 	}
 	return slices.Contains(user.RBACRoles, rbac.RoleOwner()), nil // only user with "owner" role can cancel workspace builds
 }
@@ -910,7 +910,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 	}
 	users, err := api.Database.GetUsersByIDs(ctx, userIDs)
 	if err != nil {
-		return workspaceBuildsData{}, xerrors.Errorf("get users: %w", err)
+		return workspaceBuildsData{}, fmt.Errorf("get users: %w", err)
 	}
 
 	jobIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
@@ -919,7 +919,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 	}
 	jobs, err := api.Database.GetProvisionerJobsByIDs(ctx, jobIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("get provisioner jobs: %w", err)
+		return workspaceBuildsData{}, fmt.Errorf("get provisioner jobs: %w", err)
 	}
 
 	templateVersionIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
@@ -928,12 +928,12 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 	}
 	templateVersions, err := api.Database.GetTemplateVersionsByIDs(ctx, templateVersionIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("get template versions: %w", err)
+		return workspaceBuildsData{}, fmt.Errorf("get template versions: %w", err)
 	}
 
 	resources, err := api.Database.GetWorkspaceResourcesByJobIDs(ctx, jobIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("get workspace resources by job: %w", err)
+		return workspaceBuildsData{}, fmt.Errorf("get workspace resources by job: %w", err)
 	}
 
 	if len(resources) == 0 {
@@ -951,12 +951,12 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 
 	metadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(ctx, resourceIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("fetching resource metadata: %w", err)
+		return workspaceBuildsData{}, fmt.Errorf("fetching resource metadata: %w", err)
 	}
 
 	agents, err := api.Database.GetWorkspaceAgentsByResourceIDs(ctx, resourceIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("get workspace agents: %w", err)
+		return workspaceBuildsData{}, fmt.Errorf("get workspace agents: %w", err)
 	}
 
 	if len(resources) == 0 {
@@ -976,7 +976,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 
 	apps, err := api.Database.GetWorkspaceAppsByAgentIDs(ctx, agentIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("fetching workspace apps: %w", err)
+		return workspaceBuildsData{}, fmt.Errorf("fetching workspace apps: %w", err)
 	}
 
 	return workspaceBuildsData{
@@ -1019,15 +1019,15 @@ func (api *API) convertWorkspaceBuilds(
 	for _, build := range workspaceBuilds {
 		job, exists := jobByID[build.JobID]
 		if !exists {
-			return nil, xerrors.New("build job not found")
+			return nil, fmt.Errorf("build job not found")
 		}
 		workspace, exists := workspaceByID[build.WorkspaceID]
 		if !exists {
-			return nil, xerrors.New("workspace not found")
+			return nil, fmt.Errorf("workspace not found")
 		}
 		templateVersion, exists := templateVersionByID[build.TemplateVersionID]
 		if !exists {
-			return nil, xerrors.New("template version not found")
+			return nil, fmt.Errorf("template version not found")
 		}
 
 		apiBuild, err := api.convertWorkspaceBuild(
@@ -1042,7 +1042,7 @@ func (api *API) convertWorkspaceBuilds(
 			templateVersion,
 		)
 		if err != nil {
-			return nil, xerrors.Errorf("converting workspace build: %w", err)
+			return nil, fmt.Errorf("converting workspace build: %w", err)
 		}
 
 		apiBuilds = append(apiBuilds, apiBuild)
@@ -1085,11 +1085,11 @@ func (api *API) convertWorkspaceBuild(
 
 	owner, exists := userByID[workspace.OwnerID]
 	if !exists {
-		return codersdk.WorkspaceBuild{}, xerrors.Errorf("owner not found for workspace: %q", workspace.Name)
+		return codersdk.WorkspaceBuild{}, fmt.Errorf("owner not found for workspace: %q", workspace.Name)
 	}
 	initiator, exists := userByID[build.InitiatorID]
 	if !exists {
-		return codersdk.WorkspaceBuild{}, xerrors.Errorf("build initiator not found for workspace: %q", workspace.Name)
+		return codersdk.WorkspaceBuild{}, fmt.Errorf("build initiator not found for workspace: %q", workspace.Name)
 	}
 
 	resources := resourcesByJobID[job.ID]
@@ -1101,7 +1101,7 @@ func (api *API) convertWorkspaceBuild(
 			apps := appsByAgentID[agent.ID]
 			apiAgent, err := convertWorkspaceAgent(api.DERPMap, *api.TailnetCoordinator.Load(), agent, convertApps(apps), api.AgentInactiveDisconnectTimeout, api.DeploymentConfig.AgentFallbackTroubleshootingURL.Value)
 			if err != nil {
-				return codersdk.WorkspaceBuild{}, xerrors.Errorf("converting workspace agent: %w", err)
+				return codersdk.WorkspaceBuild{}, fmt.Errorf("converting workspace agent: %w", err)
 			}
 			apiAgents = append(apiAgents, apiAgent)
 		}

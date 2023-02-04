@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
@@ -38,18 +37,18 @@ func templateDelete() *cobra.Command {
 				for _, templateName := range templateNames {
 					template, err := client.TemplateByName(ctx, organization.ID, templateName)
 					if err != nil {
-						return xerrors.Errorf("get template by name: %w", err)
+						return fmt.Errorf("get template by name: %w", err)
 					}
 					templates = append(templates, template)
 				}
 			} else {
 				allTemplates, err := client.TemplatesByOrganization(ctx, organization.ID)
 				if err != nil {
-					return xerrors.Errorf("get templates by organization: %w", err)
+					return fmt.Errorf("get templates by organization: %w", err)
 				}
 
 				if len(allTemplates) == 0 {
-					return xerrors.Errorf("no templates exist in the current organization %q", organization.Name)
+					return fmt.Errorf("no templates exist in the current organization %q", organization.Name)
 				}
 
 				opts := make([]string, 0, len(allTemplates))
@@ -61,7 +60,7 @@ func templateDelete() *cobra.Command {
 					Options: opts,
 				})
 				if err != nil {
-					return xerrors.Errorf("select template: %w", err)
+					return fmt.Errorf("select template: %w", err)
 				}
 
 				for _, template := range allTemplates {
@@ -85,7 +84,7 @@ func templateDelete() *cobra.Command {
 			for _, template := range templates {
 				err := client.DeleteTemplate(ctx, template.ID)
 				if err != nil {
-					return xerrors.Errorf("delete template %q: %w", template.Name, err)
+					return fmt.Errorf("delete template %q: %w", template.Name, err)
 				}
 
 				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Deleted template "+cliui.Styles.Code.Render(template.Name)+" at "+cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp))+"!")

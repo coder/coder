@@ -3,10 +3,10 @@
 package agent
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/cakturk/go-netstat/netstat"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/codersdk"
 )
@@ -26,7 +26,7 @@ func (lp *listeningPortsHandler) getListeningPorts() ([]codersdk.WorkspaceAgentL
 		return s.State == netstat.Listen
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("scan listening ports: %w", err)
+		return nil, fmt.Errorf("scan listening ports: %w", err)
 	}
 
 	seen := make(map[uint16]struct{}, len(tabs))

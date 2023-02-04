@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -81,7 +82,7 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, apps []codersdk.Workspace
 						// successful healthcheck is a non-5XX status code
 						_ = res.Body.Close()
 						if res.StatusCode >= http.StatusInternalServerError {
-							return xerrors.Errorf("error status code: %d", res.StatusCode)
+							return fmt.Errorf("error status code: %d", res.StatusCode)
 						}
 
 						return nil
