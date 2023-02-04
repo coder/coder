@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database/dbfake"
@@ -587,7 +588,7 @@ func (r *RecordingAuthorizer) AllAsserted() error {
 	}
 
 	if len(missed) > 0 {
-		return xerrors.Errorf("missed calls: %+v", missed)
+		return fmt.Errorf("missed calls: %+v", missed)
 	}
 	return nil
 }

@@ -274,7 +274,7 @@ func (a *agent) run(ctx context.Context) error {
 			scriptDone <- a.runStartupScript(ctx, metadata.StartupScript)
 		})
 		if err != nil {
-			return xerrors.Errorf("track startup script: %w", err)
+			return fmt.Errorf("track startup script: %w", err)
 		}
 		go func() {
 			var timeout <-chan time.Time
@@ -532,7 +532,7 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 
 	apiListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.WorkspaceAgentHTTPAPIServerPort))
 	if err != nil {
-		return nil, xerrors.Errorf("api listener: %w", err)
+		return nil, fmt.Errorf("api listener: %w", err)
 	}
 	defer func() {
 		if err != nil {

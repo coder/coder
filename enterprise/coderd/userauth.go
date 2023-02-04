@@ -2,9 +2,9 @@ package coderd
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
@@ -22,10 +22,10 @@ func (api *API) setUserGroups(ctx context.Context, db database.Store, userID uui
 	return db.InTx(func(tx database.Store) error {
 		orgs, err := tx.GetOrganizationsByUserID(ctx, userID)
 		if err != nil {
-			return xerrors.Errorf("get user orgs: %w", err)
+			return fmt.Errorf("get user orgs: %w", err)
 		}
 		if len(orgs) != 1 {
-			return xerrors.Errorf("expected 1 org, got %d", len(orgs))
+			return fmt.Errorf("expected 1 org, got %d", len(orgs))
 		}
 
 		// Delete all groups the user belongs to.
@@ -34,7 +34,7 @@ func (api *API) setUserGroups(ctx context.Context, db database.Store, userID uui
 			OrganizationID: orgs[0].ID,
 		})
 		if err != nil {
-			return xerrors.Errorf("delete user groups: %w", err)
+			return fmt.Errorf("delete user groups: %w", err)
 		}
 
 		// Re-add the user to all groups returned by the auth provider.
@@ -44,7 +44,7 @@ func (api *API) setUserGroups(ctx context.Context, db database.Store, userID uui
 			GroupNames:     groupNames,
 		})
 		if err != nil {
-			return xerrors.Errorf("insert user groups: %w", err)
+			return fmt.Errorf("insert user groups: %w", err)
 		}
 
 		return nil

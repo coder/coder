@@ -21,7 +21,6 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.11.0"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/tracing"
@@ -730,7 +729,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(ctx context.Contex
 
 			if len(msgType.Complete.Parameters) > 0 && len(values) > 0 {
 				r.logger.Info(context.Background(), "template uses rich parameters which can't be used together with legacy parameters")
-				return nil, nil, xerrors.Errorf("invalid use of rich parameters")
+				return nil, nil, fmt.Errorf("invalid use of rich parameters")
 			}
 
 			r.logger.Info(context.Background(), "parse dry-run provision successful",

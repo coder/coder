@@ -49,7 +49,7 @@ func Tar(w io.Writer, directory string, limit int64) error {
 
 		// Show absolute path to aid in debugging. E.g. showing "." is
 		// useless.
-		return xerrors.Errorf(
+		return fmt.Errorf(
 			"%s is not a valid template since it has no %s files",
 			absPath, tfExt,
 		)

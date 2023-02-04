@@ -590,7 +590,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		if len(params.Groups) > 0 {
 			err := api.Options.SetUserGroups(ctx, tx, user.ID, params.Groups)
 			if err != nil {
-				return xerrors.Errorf("set user groups: %w", err)
+				return fmt.Errorf("set user groups: %w", err)
 			}
 		}
 

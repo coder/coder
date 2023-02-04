@@ -209,7 +209,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		for _, id := range req.AddUsers {
 			userID, err := uuid.Parse(id)
 			if err != nil {
-				return xerrors.Errorf("parse user ID %q: %w", id, err)
+				return fmt.Errorf("parse user ID %q: %w", id, err)
 			}
 			err = tx.InsertGroupMember(ctx, database.InsertGroupMemberParams{
 				GroupID: group.ID,
@@ -222,7 +222,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		for _, id := range req.RemoveUsers {
 			userID, err := uuid.Parse(id)
 			if err != nil {
-				return xerrors.Errorf("parse user ID %q: %w", id, err)
+				return fmt.Errorf("parse user ID %q: %w", id, err)
 			}
 			err = tx.DeleteGroupMemberFromGroup(ctx, database.DeleteGroupMemberFromGroupParams{
 				UserID:  userID,

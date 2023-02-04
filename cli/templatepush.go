@@ -76,7 +76,7 @@ func (pf *templateUploadFlags) upload(cmd *cobra.Command, client *codersdk.Clien
 		return nil, fmt.Errorf("upload: %w", err)
 	}
 	if err = <-pipeErrCh; err != nil {
-		return nil, xerrors.Errorf("pipe: %w", err)
+		return nil, fmt.Errorf("pipe: %w", err)
 	}
 	return &resp, nil
 }

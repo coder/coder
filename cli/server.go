@@ -1249,7 +1249,7 @@ func configureTLS(tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles
 	if len(certs) == 0 {
 		selfSignedCertificate, err := generateSelfSignedCertificate()
 		if err != nil {
-			return nil, xerrors.Errorf("generate self signed certificate: %w", err)
+			return nil, fmt.Errorf("generate self signed certificate: %w", err)
 		}
 		certs = append(certs, *selfSignedCertificate)
 	}

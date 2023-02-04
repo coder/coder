@@ -205,7 +205,7 @@ func prepWorkspaceBuild(cmd *cobra.Command, client *codersdk.Client, args prepWo
 	}
 
 	if useRichParameters && useLegacyParameters {
-		return nil, xerrors.Errorf("Rich parameters can't be used together with legacy parameters.")
+		return nil, fmt.Errorf("Rich parameters can't be used together with legacy parameters.")
 	}
 
 	templateVersion, err := client.TemplateVersion(ctx, args.Template.ActiveVersionID)
