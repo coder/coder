@@ -181,21 +181,22 @@ fatal() {
 	fi
 
 	# Space padding used after the URLs to align "==".
-	space_padding=26
-	log
-	log "===================================================================="
-	log "==                                                                =="
-	log "==            Coder is now running in development mode.           =="
-	for iface in "${interfaces[@]}"; do
-		log "$(printf "==                  API:    http://%s:3000%$((space_padding - ${#iface}))s==" "$iface" "")"
-	done
-	for iface in "${interfaces[@]}"; do
-		log "$(printf "==                  Web UI: http://%s:8080%$((space_padding - ${#iface}))s==" "$iface" "")"
-	done
-	log "==                                                                =="
-	log "==      Use ./scripts/coder-dev.sh to talk to this instance!      =="
-	log "===================================================================="
-	log
+space_padding=26
+log
+log "===================================================================="
+log "==                                                                =="
+log "==            Coder is now running in development mode.           =="
+for iface in "${interfaces[@]}"; do
+	log "$(printf "==                  API:    http://%s:3000%$((space_padding - ${#iface}))s==" "$iface" "")"
+done
+for iface in "${interfaces[@]}"; do
+	log "$(printf "==                  Web UI: http://%s:8080%$((space_padding - ${#iface}))s==" "$iface" "")"
+done
+log "==                                                                =="
+log "==      Use ./scripts/coder-dev.sh to talk to this instance!      =="
+log "$(printf "==       alias coder=%s/scripts/coder-dev.sh%$((space_padding - ${#PWD} - 2))s==" "$PWD" "")"
+log "===================================================================="
+log
 
 	# Wait for both frontend and backend to exit.
 	wait_cmds
