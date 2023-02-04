@@ -287,13 +287,18 @@ func (api *API) createAPIKey(ctx context.Context, params createAPIKeyParams) (*h
 	}
 	hashed := sha256.Sum256([]byte(keySecret))
 
-	// Default expires at to now+lifetime, or just 24hrs if not set
+	// Default expires at to now+lifetime, or use the configured value if not
+	// set.
 	if params.ExpiresAt.IsZero() {
 		if params.LifetimeSeconds != 0 {
 			params.ExpiresAt = database.Now().Add(time.Duration(params.LifetimeSeconds) * time.Second)
 		} else {
-			params.ExpiresAt = database.Now().Add(24 * time.Hour)
+			params.ExpiresAt = database.Now().Add(api.DeploymentConfig.SessionDuration.Value)
+			params.LifetimeSeconds = int64(api.DeploymentConfig.SessionDuration.Value.Seconds())
 		}
+	}
+	if params.LifetimeSeconds == 0 {
+		params.LifetimeSeconds = int64(time.Until(params.ExpiresAt).Seconds())
 	}
 
 	ip := net.ParseIP(params.RemoteAddr)

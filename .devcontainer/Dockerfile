@@ -57,7 +57,7 @@ RUN mkdir -p /etc/apt/keyrings \
 	&& echo '{"cgroup-parent":"/actions_job","storage-driver":"vfs"}' >> /etc/docker/daemon.json
 
 # install golang and language tooling
-ENV GO_VERSION=1.19
+ENV GO_VERSION=1.20
 ENV GOPATH=$HOME/go-packages
 ENV GOROOT=$HOME/go
 ENV PATH=$GOROOT/bin:$GOPATH/bin:$PATH

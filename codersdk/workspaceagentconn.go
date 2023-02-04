@@ -22,20 +22,18 @@ import (
 	"github.com/coder/coder/tailnet"
 )
 
-var (
-	// WorkspaceAgentIP is a static IPv6 address with the Tailscale prefix that is used to route
-	// connections from clients to this node. A dynamic address is not required because a Tailnet
-	// client only dials a single agent at a time.
-	WorkspaceAgentIP = netip.MustParseAddr("fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4")
-)
+// WorkspaceAgentIP is a static IPv6 address with the Tailscale prefix that is used to route
+// connections from clients to this node. A dynamic address is not required because a Tailnet
+// client only dials a single agent at a time.
+var WorkspaceAgentIP = netip.MustParseAddr("fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4")
 
 const (
 	WorkspaceAgentSSHPort             = 1
 	WorkspaceAgentReconnectingPTYPort = 2
 	WorkspaceAgentSpeedtestPort       = 3
-	// WorkspaceAgentStatisticsPort serves a HTTP server with endpoints for gathering
-	// agent statistics.
-	WorkspaceAgentStatisticsPort = 4
+	// WorkspaceAgentHTTPAPIServerPort serves a HTTP server with endpoints for e.g.
+	// gathering agent statistics.
+	WorkspaceAgentHTTPAPIServerPort = 4
 
 	// WorkspaceAgentMinimumListeningPort is the minimum port that the listening-ports
 	// endpoint will return to the client, and the minimum port that is accepted
@@ -281,7 +279,7 @@ type WorkspaceAgentListeningPort struct {
 func (c *WorkspaceAgentConn) ListeningPorts(ctx context.Context) (WorkspaceAgentListeningPortsResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	res, err := c.requestStatisticsServer(ctx, http.MethodGet, "/api/v0/listening-ports", nil)
+	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/listening-ports", nil)
 	if err != nil {
 		return WorkspaceAgentListeningPortsResponse{}, fmt.Errorf("do request: %w", err)
 	}
@@ -294,30 +292,30 @@ func (c *WorkspaceAgentConn) ListeningPorts(ctx context.Context) (WorkspaceAgent
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-// requestStatisticsServer makes a request to the workspace agent's statistics server.
-func (c *WorkspaceAgentConn) requestStatisticsServer(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
+// apiRequest makes a request to the workspace agent's HTTP API server.
+func (c *WorkspaceAgentConn) apiRequest(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	host := net.JoinHostPort(WorkspaceAgentIP.String(), strconv.Itoa(WorkspaceAgentStatisticsPort))
+	host := net.JoinHostPort(WorkspaceAgentIP.String(), strconv.Itoa(WorkspaceAgentHTTPAPIServerPort))
 	url := fmt.Sprintf("http://%s%s", host, path)
 
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
-		return nil, fmt.Errorf("new statistics server request to %q: %w", url, err)
+		return nil, xerrors.Errorf("new http api request to %q: %w", url, err)
 	}
 
-	return c.statisticsServerClient().Do(req)
+	return c.apiClient().Do(req)
 }
 
-// statisticsServerClient returns an HTTP client that can be used to make
-// requests to the workspace agent's statistics server.
-func (c *WorkspaceAgentConn) statisticsServerClient() *http.Client {
+// apiClient returns an HTTP client that can be used to make
+// requests to the workspace agent's HTTP API server.
+func (c *WorkspaceAgentConn) apiClient() *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
 			// Disable keep alives as we're usually only making a single
 			// request, and this triggers goleak in tests
 			DisableKeepAlives: true,
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			DialContext: func(_ context.Context, network, addr string) (net.Conn, error) {
 				if network != "tcp" {
 					return nil, fmt.Errorf("network must be tcp")
 				}
@@ -327,13 +325,13 @@ func (c *WorkspaceAgentConn) statisticsServerClient() *http.Client {
 				}
 				// Verify that host is TailnetIP and port is
 				// TailnetStatisticsPort.
-				if host != WorkspaceAgentIP.String() || port != strconv.Itoa(WorkspaceAgentStatisticsPort) {
-					return nil, fmt.Errorf("request %q does not appear to be for statistics server", addr)
+				if host != WorkspaceAgentIP.String() || port != strconv.Itoa(WorkspaceAgentHTTPAPIServerPort) {
+					return nil, xerrors.Errorf("request %q does not appear to be for http api", addr)
 				}
 
-				conn, err := c.DialContextTCP(context.Background(), netip.AddrPortFrom(WorkspaceAgentIP, WorkspaceAgentStatisticsPort))
+				conn, err := c.DialContextTCP(context.Background(), netip.AddrPortFrom(WorkspaceAgentIP, WorkspaceAgentHTTPAPIServerPort))
 				if err != nil {
-					return nil, fmt.Errorf("dial statistics: %w", err)
+					return nil, xerrors.Errorf("dial http api: %w", err)
 				}
 
 				return conn, nil

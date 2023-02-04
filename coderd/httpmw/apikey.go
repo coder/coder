@@ -87,9 +87,10 @@ const (
 )
 
 type ExtractAPIKeyConfig struct {
-	DB              database.Store
-	OAuth2Configs   *OAuth2Configs
-	RedirectToLogin bool
+	DB                          database.Store
+	OAuth2Configs               *OAuth2Configs
+	RedirectToLogin             bool
+	DisableSessionExpiryRefresh bool
 
 	// Optional governs whether the API key is optional. Use this if you want to
 	// allow unauthenticated requests.
@@ -265,10 +266,12 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 			}
 			// Only update the ExpiresAt once an hour to prevent database spam.
 			// We extend the ExpiresAt to reduce re-authentication.
-			apiKeyLifetime := time.Duration(key.LifetimeSeconds) * time.Second
-			if key.ExpiresAt.Sub(now) <= apiKeyLifetime-time.Hour {
-				key.ExpiresAt = now.Add(apiKeyLifetime)
-				changed = true
+			if !cfg.DisableSessionExpiryRefresh {
+				apiKeyLifetime := time.Duration(key.LifetimeSeconds) * time.Second
+				if key.ExpiresAt.Sub(now) <= apiKeyLifetime-time.Hour {
+					key.ExpiresAt = now.Add(apiKeyLifetime)
+					changed = true
+				}
 			}
 			if changed {
 				err := cfg.DB.UpdateAPIKeyByID(r.Context(), database.UpdateAPIKeyByIDParams{

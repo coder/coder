@@ -458,7 +458,7 @@ func uploadGPGKeys(ctx context.Context, sshClient *gossh.Client) error {
 	//
 	// Note: we sleep after killing the agent because it doesn't always die
 	//       immediately.
-	agentSocketBytes, err := runRemoteSSH(sshClient, nil, `
+	agentSocketBytes, err := runRemoteSSH(sshClient, nil, `sh -c '
 set -eux
 agent_socket=$(gpgconf --list-dir agent-socket)
 echo "$agent_socket"
@@ -470,7 +470,7 @@ if [ -S "$agent_socket" ]; then
 fi
 
 test ! -S "$agent_socket"
-`)
+'`)
 	agentSocket := strings.TrimSpace(string(agentSocketBytes))
 	if err != nil {
 		return fmt.Errorf("check if agent socket is running (check if %q exists): %w", agentSocket, err)

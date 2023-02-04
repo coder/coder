@@ -206,7 +206,11 @@ func configSSH() *cobra.Command {
 			// Parse the previous configuration only if config-ssh
 			// has been run previously.
 			var lastConfig *sshConfigOptions
-			if section, ok := sshConfigGetCoderSection(configRaw); ok {
+			section, ok, err := sshConfigGetCoderSection(configRaw)
+			if err != nil {
+				return err
+			}
+			if ok {
 				c := sshConfigParseLastOptions(bytes.NewReader(section))
 				lastConfig = &c
 			}
@@ -249,7 +253,10 @@ func configSSH() *cobra.Command {
 			configModified := configRaw
 
 			buf := &bytes.Buffer{}
-			before, after := sshConfigSplitOnCoderSection(configModified)
+			before, _, after, err := sshConfigSplitOnCoderSection(configModified)
+			if err != nil {
+				return err
+			}
 			// Write the first half of the users config file to buf.
 			_, _ = buf.Write(before)
 
@@ -418,22 +425,39 @@ func sshConfigParseLastOptions(r io.Reader) (o sshConfigOptions) {
 	return o
 }
 
-func sshConfigGetCoderSection(data []byte) (section []byte, ok bool) {
-	startIndex := bytes.Index(data, []byte(sshStartToken))
-	endIndex := bytes.Index(data, []byte(sshEndToken))
-	if startIndex != -1 && endIndex != -1 {
-		return data[startIndex : endIndex+len(sshEndToken)], true
+// sshConfigGetCoderSection is a helper function that only returns the coder
+// section of the SSH config and a boolean if it exists.
+func sshConfigGetCoderSection(data []byte) (section []byte, ok bool, err error) {
+	_, section, _, err = sshConfigSplitOnCoderSection(data)
+	if err != nil {
+		return nil, false, err
 	}
-	return nil, false
+
+	return section, len(section) > 0, nil
 }
 
-// sshConfigSplitOnCoderSection splits the SSH config into two sections,
-// before contains the lines before sshStartToken and after contains the
-// lines after sshEndToken.
-func sshConfigSplitOnCoderSection(data []byte) (before, after []byte) {
+// sshConfigSplitOnCoderSection splits the SSH config into 3 sections.
+// All lines before sshStartToken, the coder section, and all lines after
+// sshEndToken.
+func sshConfigSplitOnCoderSection(data []byte) (before, section []byte, after []byte, err error) {
+	startCount := bytes.Count(data, []byte(sshStartToken))
+	endCount := bytes.Count(data, []byte(sshEndToken))
+	if startCount > 1 || endCount > 1 {
+		return nil, nil, nil, xerrors.New("Malformed config: ssh config has multiple coder sections, please remove all but one")
+	}
+
 	startIndex := bytes.Index(data, []byte(sshStartToken))
 	endIndex := bytes.Index(data, []byte(sshEndToken))
+	if startIndex == -1 && endIndex != -1 {
+		return nil, nil, nil, xerrors.New("Malformed config: ssh config has end header, but missing start header")
+	}
+	if startIndex != -1 && endIndex == -1 {
+		return nil, nil, nil, xerrors.New("Malformed config: ssh config has start header, but missing end header")
+	}
 	if startIndex != -1 && endIndex != -1 {
+		if startIndex > endIndex {
+			return nil, nil, nil, xerrors.New("Malformed config: ssh config has coder section, but it is malformed and the END header is before the START header")
+		}
 		// We use -1 and +1 here to also include the preceding
 		// and trailing newline, where applicable.
 		start := startIndex
@@ -444,10 +468,10 @@ func sshConfigSplitOnCoderSection(data []byte) (before, after []byte) {
 		if end < len(data) {
 			end++
 		}
-		return data[:start], data[end:]
+		return data[:start], data[start:end], data[end:], nil
 	}
 
-	return data, nil
+	return data, nil, nil, nil
 }
 
 // writeWithTempFileAndMove writes to a temporary file in the same

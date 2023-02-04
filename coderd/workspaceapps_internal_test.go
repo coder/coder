@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/testutil"
 )
@@ -30,7 +30,7 @@ func TestAPIKeyEncryption(t *testing.T) {
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		keyID, _, hashedSecret, data := generateAPIKey(t, db)
 
 		encrypted, err := encryptAPIKey(data)
@@ -51,7 +51,7 @@ func TestAPIKeyEncryption(t *testing.T) {
 
 		t.Run("Expiry", func(t *testing.T) {
 			t.Parallel()
-			db := databasefake.New()
+			db := dbfake.New()
 			_, _, _, data := generateAPIKey(t, db)
 
 			data.ExpiresAt = database.Now().Add(-1 * time.Hour)
@@ -68,7 +68,7 @@ func TestAPIKeyEncryption(t *testing.T) {
 
 		t.Run("KeyMatches", func(t *testing.T) {
 			t.Parallel()
-			db := databasefake.New()
+			db := dbfake.New()
 
 			hashedSecret := sha256.Sum256([]byte("wrong"))
 			// Insert a token with a mismatched hashed secret.

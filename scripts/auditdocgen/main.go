@@ -109,11 +109,11 @@ func updateAuditDoc(doc []byte, auditableResourcesMap AuditableResourcesMap) ([]
 	tableEndIndex := tableStartIndex + j
 
 	var buffer bytes.Buffer
-	buffer.Write(doc[:tableStartIndex])
-	buffer.WriteByte('\n')
+	_, _ = buffer.Write(doc[:tableStartIndex])
+	_ = buffer.WriteByte('\n')
 
-	buffer.WriteString("|<b>Resource<b>||\n")
-	buffer.WriteString("|--|-----------------|\n")
+	_, _ = buffer.WriteString("|<b>Resource<b>||\n")
+	_, _ = buffer.WriteString("|--|-----------------|\n")
 
 	for _, resourceName := range sortedResourceNames {
 		readableResourceName := resourceName
@@ -130,21 +130,21 @@ func updateAuditDoc(doc []byte, auditableResourcesMap AuditableResourcesMap) ([]
 		}
 		auditActionsString := strings.Join(auditActions, ", ")
 
-		buffer.WriteString("|" + readableResourceName + "<br><i>" + auditActionsString + "</i>|<table><thead><tr><th>Field</th><th>Tracked</th></tr></thead><tbody>")
+		_, _ = buffer.WriteString("|" + readableResourceName + "<br><i>" + auditActionsString + "</i>|<table><thead><tr><th>Field</th><th>Tracked</th></tr></thead><tbody>")
 
 		// We must sort the field names to ensure sub-table ordering
 		sortedFieldNames := sortKeys(auditableResourcesMap[resourceName])
 
 		for _, fieldName := range sortedFieldNames {
 			isTracked := auditableResourcesMap[resourceName][fieldName]
-			buffer.WriteString("<tr><td>" + fieldName + "</td><td>" + strconv.FormatBool(isTracked) + "</td></tr>")
+			_, _ = buffer.WriteString("<tr><td>" + fieldName + "</td><td>" + strconv.FormatBool(isTracked) + "</td></tr>")
 		}
 
-		buffer.WriteString("</tbody></table>\n")
+		_, _ = buffer.WriteString("</tbody></table>\n")
 	}
 
-	buffer.WriteString("\n")
-	buffer.Write(doc[tableEndIndex:])
+	_, _ = buffer.WriteString("\n")
+	_, _ = buffer.Write(doc[tableEndIndex:])
 	return buffer.Bytes(), nil
 }
 

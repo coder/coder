@@ -29,10 +29,9 @@ var updateGoldenFiles = flag.Bool("update", false, "update .golden files")
 
 //nolint:tparallel,paralleltest // These test sets env vars.
 func TestCommandHelp(t *testing.T) {
-	t.Parallel()
-
 	commonEnv := map[string]string{
-		"CODER_CONFIG_DIR": "/tmp/coder-cli-test-config",
+		"HOME":             "~",
+		"CODER_CONFIG_DIR": "~/.config/coderv2",
 	}
 
 	type testCase struct {
@@ -49,7 +48,7 @@ func TestCommandHelp(t *testing.T) {
 			name: "coder server --help",
 			cmd:  []string{"server", "--help"},
 			env: map[string]string{
-				"CODER_CACHE_DIRECTORY": "/tmp/coder-cli-test-cache",
+				"CODER_CACHE_DIRECTORY": "~/.cache/coder",
 			},
 		},
 		{
@@ -105,11 +104,19 @@ ExtractCommandPathsLoop:
 
 			ctx, _ := testutil.Context(t)
 
+			tmpwd := "/"
+			if runtime.GOOS == "windows" {
+				tmpwd = "C:\\"
+			}
+			err := os.Chdir(tmpwd)
 			var buf bytes.Buffer
 			root, _ := clitest.New(t, tt.cmd...)
 			root.SetOut(&buf)
-			err := root.ExecuteContext(ctx)
+			assert.NoError(t, err)
+			err = root.ExecuteContext(ctx)
+			err2 := os.Chdir(wd)
 			require.NoError(t, err)
+			require.NoError(t, err2)
 
 			got := buf.Bytes()
 			// Remove CRLF newlines (Windows).
@@ -117,7 +124,7 @@ ExtractCommandPathsLoop:
 
 			// The `coder templates create --help` command prints the path
 			// to the working directory (--directory flag default value).
-			got = bytes.ReplaceAll(got, []byte(wd), []byte("/tmp/coder-cli-test-workdir"))
+			got = bytes.ReplaceAll(got, []byte(fmt.Sprintf("%q", tmpwd)), []byte("\"[current directory]\""))
 
 			gf := filepath.Join("testdata", strings.Replace(tt.name, " ", "_", -1)+".golden")
 			if *updateGoldenFiles {

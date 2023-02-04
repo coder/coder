@@ -68,12 +68,12 @@ func gitAskpass() *cobra.Command {
 
 			if token.Password != "" {
 				if user == "" {
-					fmt.Fprintln(cmd.OutOrStdout(), token.Username)
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), token.Username)
 				} else {
-					fmt.Fprintln(cmd.OutOrStdout(), token.Password)
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), token.Password)
 				}
 			} else {
-				fmt.Fprintln(cmd.OutOrStdout(), token.Username)
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), token.Username)
 			}
 
 			return nil

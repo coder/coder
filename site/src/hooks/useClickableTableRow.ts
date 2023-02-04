@@ -27,5 +27,10 @@ const useStyles = makeStyles((theme) => ({
       outline: `1px solid ${theme.palette.secondary.dark}`,
       outlineOffset: -1,
     },
+
+    "&:last-of-type": {
+      borderBottomLeftRadius: theme.shape.borderRadius,
+      borderBottomRightRadius: theme.shape.borderRadius,
+    },
   },
 }))

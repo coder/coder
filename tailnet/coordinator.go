@@ -456,7 +456,7 @@ func (c *coordinator) ServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
-	fmt.Fprintln(w, "<h1>in-memory wireguard coordinator debug</h1>")
+	_, _ = fmt.Fprintln(w, "<h1>in-memory wireguard coordinator debug</h1>")
 
 	CoordinatorHTTPDebug(c.agentSockets, c.agentToConnectionSockets, c.agentNameCache)(w, r)
 }
@@ -475,8 +475,8 @@ func CoordinatorHTTPDebug(
 		}
 
 		{
-			fmt.Fprintf(w, "<h2 id=agents><a href=#agents>#</a> agents: total %d</h2>\n", len(agentSocketsMap))
-			fmt.Fprintln(w, "<ul>")
+			_, _ = fmt.Fprintf(w, "<h2 id=agents><a href=#agents>#</a> agents: total %d</h2>\n", len(agentSocketsMap))
+			_, _ = fmt.Fprintln(w, "<ul>")
 			agentSockets := make([]idConn, 0, len(agentSocketsMap))
 
 			for id, conn := range agentSocketsMap {
@@ -488,7 +488,7 @@ func CoordinatorHTTPDebug(
 			})
 
 			for _, agent := range agentSockets {
-				fmt.Fprintf(w, "<li style=\"margin-top:4px\"><b>%s</b> (<code>%s</code>): created %v ago, write %v ago, overwrites %d </li>\n",
+				_, _ = fmt.Fprintf(w, "<li style=\"margin-top:4px\"><b>%s</b> (<code>%s</code>): created %v ago, write %v ago, overwrites %d </li>\n",
 					agent.conn.Name,
 					agent.id.String(),
 					now.Sub(time.Unix(agent.conn.Start, 0)).Round(time.Second),
@@ -497,7 +497,7 @@ func CoordinatorHTTPDebug(
 				)
 
 				if conns := agentToConnectionSocketsMap[agent.id]; len(conns) > 0 {
-					fmt.Fprintf(w, "<h3 style=\"margin:0px;font-size:16px;font-weight:400\">connections: total %d</h3>\n", len(conns))
+					_, _ = fmt.Fprintf(w, "<h3 style=\"margin:0px;font-size:16px;font-weight:400\">connections: total %d</h3>\n", len(conns))
 
 					connSockets := make([]idConn, 0, len(conns))
 					for id, conn := range conns {
@@ -507,20 +507,20 @@ func CoordinatorHTTPDebug(
 						return a.id.String() < b.id.String()
 					})
 
-					fmt.Fprintln(w, "<ul>")
+					_, _ = fmt.Fprintln(w, "<ul>")
 					for _, connSocket := range connSockets {
-						fmt.Fprintf(w, "<li><b>%s</b> (<code>%s</code>): created %v ago, write %v ago </li>\n",
+						_, _ = fmt.Fprintf(w, "<li><b>%s</b> (<code>%s</code>): created %v ago, write %v ago </li>\n",
 							connSocket.conn.Name,
 							connSocket.id.String(),
 							now.Sub(time.Unix(connSocket.conn.Start, 0)).Round(time.Second),
 							now.Sub(time.Unix(connSocket.conn.LastWrite, 0)).Round(time.Second),
 						)
 					}
-					fmt.Fprintln(w, "</ul>")
+					_, _ = fmt.Fprintln(w, "</ul>")
 				}
 			}
 
-			fmt.Fprintln(w, "</ul>")
+			_, _ = fmt.Fprintln(w, "</ul>")
 		}
 
 		{
@@ -551,8 +551,8 @@ func CoordinatorHTTPDebug(
 				return a.id.String() < b.id.String()
 			})
 
-			fmt.Fprintf(w, "<h2 id=missing-agents><a href=#missing-agents>#</a> missing agents: total %d</h2>\n", len(missingAgents))
-			fmt.Fprintln(w, "<ul>")
+			_, _ = fmt.Fprintf(w, "<h2 id=missing-agents><a href=#missing-agents>#</a> missing agents: total %d</h2>\n", len(missingAgents))
+			_, _ = fmt.Fprintln(w, "<ul>")
 
 			for _, agentConns := range missingAgents {
 				agentName, ok := agentNameCache.Get(agentConns.id)
@@ -560,24 +560,24 @@ func CoordinatorHTTPDebug(
 					agentName = "unknown"
 				}
 
-				fmt.Fprintf(w, "<li style=\"margin-top:4px\"><b>%s</b> (<code>%s</code>): created ? ago, write ? ago, overwrites ? </li>\n",
+				_, _ = fmt.Fprintf(w, "<li style=\"margin-top:4px\"><b>%s</b> (<code>%s</code>): created ? ago, write ? ago, overwrites ? </li>\n",
 					agentName,
 					agentConns.id.String(),
 				)
 
-				fmt.Fprintf(w, "<h3 style=\"margin:0px;font-size:16px;font-weight:400\">connections: total %d</h3>\n", len(agentConns.conns))
-				fmt.Fprintln(w, "<ul>")
+				_, _ = fmt.Fprintf(w, "<h3 style=\"margin:0px;font-size:16px;font-weight:400\">connections: total %d</h3>\n", len(agentConns.conns))
+				_, _ = fmt.Fprintln(w, "<ul>")
 				for _, agentConn := range agentConns.conns {
-					fmt.Fprintf(w, "<li><b>%s</b> (<code>%s</code>): created %v ago, write %v ago </li>\n",
+					_, _ = fmt.Fprintf(w, "<li><b>%s</b> (<code>%s</code>): created %v ago, write %v ago </li>\n",
 						agentConn.conn.Name,
 						agentConn.id.String(),
 						now.Sub(time.Unix(agentConn.conn.Start, 0)).Round(time.Second),
 						now.Sub(time.Unix(agentConn.conn.LastWrite, 0)).Round(time.Second),
 					)
 				}
-				fmt.Fprintln(w, "</ul>")
+				_, _ = fmt.Fprintln(w, "</ul>")
 			}
-			fmt.Fprintln(w, "</ul>")
+			_, _ = fmt.Fprintln(w, "</ul>")
 		}
 	}
 }

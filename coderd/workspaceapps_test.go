@@ -505,6 +505,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		require.Equal(t, user.ID, apiKeyInfo.UserID)
 		require.Equal(t, codersdk.LoginTypePassword, apiKeyInfo.LoginType)
 		require.WithinDuration(t, currentAPIKey.ExpiresAt, apiKeyInfo.ExpiresAt, 5*time.Second)
+		require.EqualValues(t, currentAPIKey.LifetimeSeconds, apiKeyInfo.LifetimeSeconds)
 
 		// Verify the API key permissions
 		appClient := codersdk.New(client.URL)

@@ -37,6 +37,8 @@ coder server [flags]
                                                      Consumes $CODER_DERP_SERVER_STUN_ADDRESSES (default [stun.l.google.com:19302])
       --disable-path-apps                            Disable workspace apps that are not served from subdomains. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. This is recommended for security purposes if a --wildcard-access-url is configured.
                                                      Consumes $CODER_DISABLE_PATH_APPS
+      --disable-session-expiry-refresh               Disable automatic session expiry bumping due to activity. This forces all sessions to become invalid after the session expiry duration has been reached.
+                                                     Consumes $CODER_DISABLE_SESSION_EXPIRY_REFRESH
       --experiments strings                          Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.
                                                      Consumes $CODER_EXPERIMENTS
   -h, --help                                         help for server
@@ -48,7 +50,7 @@ coder server [flags]
                                                      Consumes $CODER_LOGGING_JSON
       --log-stackdriver string                       Output Stackdriver compatible logs to a given file.
                                                      Consumes $CODER_LOGGING_STACKDRIVER
-      --max-token-lifetime duration                  The maximum lifetime duration for any user creating a token.
+      --max-token-lifetime duration                  The maximum lifetime duration users can specify when creating an API token.
                                                      Consumes $CODER_MAX_TOKEN_LIFETIME (default 720h0m0s)
       --oauth2-github-allow-everyone                 Allow all logins, setting this option means allowed orgs and teams must be empty.
                                                      Consumes $CODER_OAUTH2_GITHUB_ALLOW_EVERYONE
@@ -106,8 +108,12 @@ coder server [flags]
                                                      Consumes $CODER_PROXY_TRUSTED_HEADERS
       --proxy-trusted-origins strings                Origin addresses to respect "proxy-trusted-headers". e.g. 192.168.1.0/24
                                                      Consumes $CODER_PROXY_TRUSTED_ORIGINS
+      --redirect-to-access-url                       Specifies whether to redirect requests that do not match the access URL host.
+                                                     Consumes $CODER_REDIRECT_TO_ACCESS_URL
       --secure-auth-cookie                           Controls if the 'Secure' property is set on browser session cookies.
                                                      Consumes $CODER_SECURE_AUTH_COOKIE
+      --session-duration duration                    The token expiry duration for browser sessions. Sessions may last longer if they are actively making requests, but this functionality can be disabled via --disable-session-expiry-refresh.
+                                                     Consumes $CODER_MAX_SESSION_EXPIRY (default 24h0m0s)
       --ssh-keygen-algorithm string                  The algorithm to use for generating ssh keys. Accepted values are "ed25519", "ecdsa", or "rsa4096".
                                                      Consumes $CODER_SSH_KEYGEN_ALGORITHM (default "ed25519")
       --swagger-enable                               Expose the swagger endpoint via /swagger.
@@ -134,8 +140,6 @@ coder server [flags]
                                                      Consumes $CODER_TLS_KEY_FILE
       --tls-min-version string                       Minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13"
                                                      Consumes $CODER_TLS_MIN_VERSION (default "tls12")
-      --tls-redirect-http-to-https                   Whether HTTP requests will be redirected to the access URL (if it's a https URL and TLS is enabled). Requests to local IP addresses are never redirected regardless of this setting.
-                                                     Consumes $CODER_TLS_REDIRECT_HTTP (default true)
       --trace                                        Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md
                                                      Consumes $CODER_TRACE_ENABLE
       --trace-honeycomb-api-key string               Enables trace exporting to Honeycomb.io using the provided API Key.

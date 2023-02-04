@@ -12,6 +12,7 @@ const renderComponent = async (props: Partial<WorkspaceActionsProps> = {}) => {
       workspaceStatus={
         props.workspaceStatus ?? Mocks.MockWorkspace.latest_build.status
       }
+      hasTemplateParameters={props.hasTemplateParameters ?? false}
       isOutdated={props.isOutdated ?? false}
       handleStart={jest.fn()}
       handleStop={jest.fn()}
@@ -19,6 +20,7 @@ const renderComponent = async (props: Partial<WorkspaceActionsProps> = {}) => {
       handleUpdate={jest.fn()}
       handleCancel={jest.fn()}
       handleChangeVersion={jest.fn()}
+      handleBuildParameters={jest.fn()}
       isUpdating={false}
     />,
   )
@@ -30,6 +32,7 @@ const renderAndClick = async (props: Partial<WorkspaceActionsProps> = {}) => {
       workspaceStatus={
         props.workspaceStatus ?? Mocks.MockWorkspace.latest_build.status
       }
+      hasTemplateParameters={props.hasTemplateParameters ?? false}
       isOutdated={props.isOutdated ?? false}
       handleStart={jest.fn()}
       handleStop={jest.fn()}
@@ -37,6 +40,7 @@ const renderAndClick = async (props: Partial<WorkspaceActionsProps> = {}) => {
       handleUpdate={jest.fn()}
       handleCancel={jest.fn()}
       handleChangeVersion={jest.fn()}
+      handleBuildParameters={jest.fn()}
       isUpdating={false}
     />,
   )
@@ -71,6 +75,33 @@ describe("WorkspaceActions", () => {
       )
       expect(screen.getByTestId("secondary-ctas")).toHaveTextContent(
         t("actionButton.delete", { ns: "workspacePage" }),
+      )
+    })
+  })
+  describe("when the workspace is started", () => {
+    it("primary is stop; secondary is delete", async () => {
+      await renderAndClick({
+        workspaceStatus: Mocks.MockWorkspace.latest_build.status,
+      })
+      expect(screen.getByTestId("primary-cta")).toHaveTextContent(
+        t("actionButton.stop", { ns: "workspacePage" }),
+      )
+      expect(screen.getByTestId("secondary-ctas")).toHaveTextContent(
+        t("actionButton.delete", { ns: "workspacePage" }),
+      )
+    })
+  })
+  describe("when the workspace with rich parameters is started", () => {
+    it("primary is stop; secondary is build parameters", async () => {
+      await renderAndClick({
+        workspaceStatus: Mocks.MockWorkspace.latest_build.status,
+        hasTemplateParameters: true,
+      })
+      expect(screen.getByTestId("primary-cta")).toHaveTextContent(
+        t("actionButton.stop", { ns: "workspacePage" }),
+      )
+      expect(screen.getByTestId("secondary-ctas")).toHaveTextContent(
+        t("actionButton.buildParameters", { ns: "workspacePage" }),
       )
     })
   })

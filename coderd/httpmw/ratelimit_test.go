@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
@@ -24,7 +24,7 @@ import (
 func randRemoteAddr() string {
 	var b [4]byte
 	// nolint:gosec
-	rand.Read(b[:])
+	_, _ = rand.Read(b[:])
 	// nolint:gosec
 	return fmt.Sprintf("%s:%v", net.IP(b[:]).String(), rand.Int31()%(1<<16))
 }
@@ -71,7 +71,7 @@ func TestRateLimit(t *testing.T) {
 	t.Run("RegularUser", func(t *testing.T) {
 		t.Parallel()
 
-		db := databasefake.New()
+		db := dbfake.New()
 		u := dbgen.User(t, db, database.User{})
 		_, key := dbgen.APIKey(t, db, database.APIKey{UserID: u.ID})
 
@@ -114,7 +114,7 @@ func TestRateLimit(t *testing.T) {
 	t.Run("OwnerBypass", func(t *testing.T) {
 		t.Parallel()
 
-		db := databasefake.New()
+		db := dbfake.New()
 
 		u := dbgen.User(t, db, database.User{
 			RBACRoles: []string{rbac.RoleOwner()},

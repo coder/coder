@@ -104,21 +104,21 @@ func updatePrometheusDoc(doc []byte, metricFamilies []dto.MetricFamily) ([]byte,
 	tableEndIndex := tableStartIndex + j
 
 	var buffer bytes.Buffer
-	buffer.Write(doc[:tableStartIndex])
-	buffer.WriteByte('\n')
+	_, _ = buffer.Write(doc[:tableStartIndex])
+	_ = buffer.WriteByte('\n')
 
-	buffer.WriteString("| Name | Type | Description | Labels |\n")
-	buffer.WriteString("| - | - | - | - |\n")
+	_, _ = buffer.WriteString("| Name | Type | Description | Labels |\n")
+	_, _ = buffer.WriteString("| - | - | - | - |\n")
 	for _, mf := range metricFamilies {
-		buffer.WriteString("| ")
-		buffer.Write([]byte("`" + *mf.Name + "`"))
-		buffer.WriteString(" | ")
-		buffer.Write([]byte(strings.ToLower(mf.Type.String())))
-		buffer.WriteString(" | ")
+		_, _ = buffer.WriteString("| ")
+		_, _ = buffer.Write([]byte("`" + *mf.Name + "`"))
+		_, _ = buffer.WriteString(" | ")
+		_, _ = buffer.Write([]byte(strings.ToLower(mf.Type.String())))
+		_, _ = buffer.WriteString(" | ")
 		if mf.Help != nil {
-			buffer.Write([]byte(*mf.Help))
+			_, _ = buffer.Write([]byte(*mf.Help))
 		}
-		buffer.WriteString(" | ")
+		_, _ = buffer.WriteString(" | ")
 
 		labels := map[string]struct{}{}
 		metrics := mf.GetMetric()
@@ -129,14 +129,14 @@ func updatePrometheusDoc(doc []byte, metricFamilies []dto.MetricFamily) ([]byte,
 		}
 
 		if len(labels) > 0 {
-			buffer.WriteString(strings.Join(sortedKeys(labels), " "))
+			_, _ = buffer.WriteString(strings.Join(sortedKeys(labels), " "))
 		}
 
-		buffer.WriteString(" |\n")
+		_, _ = buffer.WriteString(" |\n")
 	}
 
-	buffer.WriteByte('\n')
-	buffer.Write(doc[tableEndIndex:])
+	_ = buffer.WriteByte('\n')
+	_, _ = buffer.Write(doc[tableEndIndex:])
 	return buffer.Bytes(), nil
 }
 

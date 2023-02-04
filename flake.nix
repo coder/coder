@@ -24,7 +24,7 @@
             getopt
             git
             go-migrate
-            go_1_19
+            go_1_20
             golangci-lint
             gopls
             gotestsum
