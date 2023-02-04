@@ -1,0 +1,27 @@
+# This is the base image used for Coder images. It's a multi-arch image that is
+# built in depot.dev for all supported architectures. Since it's built on real
+# hardware and not cross-compiled, it can have "RUN" commands.
+FROM alpine:latest
+
+# We use a single RUN command to reduce the number of layers in the image.
+RUN apk add --no-cache \
+		curl \
+		wget \
+		bash \
+		git \
+		openssh-client && \
+	addgroup \
+		-g 1000 \
+		coder && \
+	adduser \
+		-D \
+		-s /bin/bash \
+		-h /home/coder \
+		-u 1000 \
+		-G coder \
+		coder
+
+USER 1000:1000
+ENV HOME=/home/coder
+ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt
+WORKDIR /home/coder

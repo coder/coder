@@ -160,6 +160,37 @@ jobs:
       - name: Delete Apple Developer certificate and API key
         run: rm -f /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
 
+      - name: Determine base image tag
+        id: image-base-tag
+        run: |
+          set -euo pipefail
+          if [[ "${CODER_RELEASE:-}" != *t* ]] || [[ "${CODER_DRY_RUN:-}" == *t* ]]; then
+            # Empty value means use the default and avoid building a fresh one.
+            echo "tag=" >> $GITHUB_OUTPUT
+          else
+            echo "tag=ghcr.io/coder/coder-base:${{ steps.version.outputs.version }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create empty base-build-context directory
+        if: steps.image-base-tag.outputs.tag != ""
+        run: mkdir base-build-context
+
+      - name: Install depot.dev CLI
+        if: steps.image-base-tag.outputs.tag != ""
+        uses: depot/setup-action@v1
+
+      # This uses OIDC authentication, so no auth variables are required.
+      - name: Build base Docker image via depot.dev
+        if: steps.image-base-tag.outputs.tag != ""
+        uses: depot/build-push-action@v1
+        with:
+          project: wl5hnrrkns
+          context: base-build-context
+          file: Dockerfile.base
+          push: true
+          tags: |
+            ${{ steps.image-base-tag.outputs.tag }}
+
       - name: Build Linux Docker images
         run: |
           set -euxo pipefail
@@ -188,6 +219,8 @@ jobs:
               --target "$(./scripts/image_tag.sh --version latest)" \
               $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
           fi
+        env:
+          CODER_IMAGE_BUILD_BASE_TAG: ${{ steps.image-base-tag.outputs.tag }}
 
       - name: ls build
         run: ls -lh build
