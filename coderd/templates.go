@@ -250,7 +250,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
 		})
 		if err != nil {
-			return fmt.Errorf("insert template: %s", err)
+			return fmt.Errorf("insert template: %w", err)
 		}
 
 		templateAudit.New = dbTemplate
@@ -264,7 +264,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			UpdatedAt: database.Now(),
 		})
 		if err != nil {
-			return fmt.Errorf("insert template version: %s", err)
+			return fmt.Errorf("insert template version: %w", err)
 		}
 		newTemplateVersion := templateVersion
 		newTemplateVersion.TemplateID = uuid.NullUUID{

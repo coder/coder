@@ -445,7 +445,7 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck, skipRoutes map[string]string) {
 	// Always fail auth from this point forward
 	a.authorizer.Wrapped = &FakeAuthorizer{
-		AlwaysReturn: rbac.ForbiddenWithInternal(xerrors.New("fake implementation"), nil, nil),
+		AlwaysReturn: rbac.ForbiddenWithInternal(fmt.Errorf("fake implementation"), nil, nil),
 	}
 
 	routeMissing := make(map[string]bool)

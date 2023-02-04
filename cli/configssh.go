@@ -20,7 +20,6 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
@@ -443,20 +442,20 @@ func sshConfigSplitOnCoderSection(data []byte) (before, section []byte, after []
 	startCount := bytes.Count(data, []byte(sshStartToken))
 	endCount := bytes.Count(data, []byte(sshEndToken))
 	if startCount > 1 || endCount > 1 {
-		return nil, nil, nil, xerrors.New("Malformed config: ssh config has multiple coder sections, please remove all but one")
+		return nil, nil, nil, fmt.Errorf("malformed config: ssh config has multiple coder sections, please remove all but one")
 	}
 
 	startIndex := bytes.Index(data, []byte(sshStartToken))
 	endIndex := bytes.Index(data, []byte(sshEndToken))
 	if startIndex == -1 && endIndex != -1 {
-		return nil, nil, nil, xerrors.New("Malformed config: ssh config has end header, but missing start header")
+		return nil, nil, nil, fmt.Errorf("malformed config: ssh config has end header, but missing start header")
 	}
 	if startIndex != -1 && endIndex == -1 {
-		return nil, nil, nil, xerrors.New("Malformed config: ssh config has start header, but missing end header")
+		return nil, nil, nil, fmt.Errorf("malformed config: ssh config has start header, but missing end header")
 	}
 	if startIndex != -1 && endIndex != -1 {
 		if startIndex > endIndex {
-			return nil, nil, nil, xerrors.New("Malformed config: ssh config has coder section, but it is malformed and the END header is before the START header")
+			return nil, nil, nil, fmt.Errorf("malformed config: ssh config has coder section, but it is malformed and the END header is before the START header")
 		}
 		// We use -1 and +1 here to also include the preceding
 		// and trailing newline, where applicable.

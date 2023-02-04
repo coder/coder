@@ -452,7 +452,7 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 		for _, computedParameter := range parameters {
 			converted, err := convertComputedParameterValue(computedParameter)
 			if err != nil {
-				return nil, fmt.Errorf("convert parameter: %s", err)
+				return nil, fmt.Errorf("convert parameter: %w", err)
 			}
 			protoParameters = append(protoParameters, converted)
 		}

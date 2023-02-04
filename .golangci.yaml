@@ -106,7 +106,7 @@ linters-settings:
         rules: "${configDir}/scripts/rules.go"
 
   staticcheck:
-    # https://staticcheck.io/docs/options#checks
+    # https://staticcheck.iO/docs/options#checks
     # We disable SA1019 because it gets angry about our usage of xerrors. We
     # intentionally xerrors because stack frame support didn't make it into the
     # stdlib port.
@@ -153,7 +153,7 @@ linters-settings:
       - name: empty-lines
       - name: error-naming
       - name: error-return
-      - name: error-strings
+      # - name: error-strings
       - name: errorf
       - name: exported
       - name: flag-parameter

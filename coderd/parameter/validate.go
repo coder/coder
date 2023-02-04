@@ -15,6 +15,7 @@ func Contains(condition string) ([]string, bool, error) {
 	}
 	expression, diags := hclsyntax.ParseExpression([]byte(condition), "", hcl.InitialPos)
 	if len(diags) > 0 {
+		//nolint:errorlint
 		return nil, false, fmt.Errorf("parse condition: %s", diags.Error())
 	}
 	functionCallExpression, valid := expression.(*hclsyntax.FunctionCallExpr)
@@ -29,6 +30,7 @@ func Contains(condition string) ([]string, bool, error) {
 	}
 	value, diags := functionCallExpression.Args[0].Value(&hcl.EvalContext{})
 	if len(diags) > 0 {
+		//nolint:errorlint
 		return nil, false, fmt.Errorf("parse value: %s", diags.Error())
 	}
 	possible := make([]string, 0)

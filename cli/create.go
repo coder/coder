@@ -48,7 +48,7 @@ func create() *cobra.Command {
 					Validate: func(workspaceName string) error {
 						_, err = client.WorkspaceByOwnerAndName(cmd.Context(), codersdk.Me, workspaceName, codersdk.WorkspaceOptions{})
 						if err == nil {
-							return fmt.Errorf("A workspace already exists named %q!", workspaceName)
+							return fmt.Errorf("a workspace already exists named %q!", workspaceName)
 						}
 						return nil
 					},
@@ -60,7 +60,7 @@ func create() *cobra.Command {
 
 			_, err = client.WorkspaceByOwnerAndName(cmd.Context(), codersdk.Me, workspaceName, codersdk.WorkspaceOptions{})
 			if err == nil {
-				return fmt.Errorf("A workspace already exists named %q!", workspaceName)
+				return fmt.Errorf("a workspace already exists named %q!", workspaceName)
 			}
 
 			var template codersdk.Template
@@ -205,7 +205,7 @@ func prepWorkspaceBuild(cmd *cobra.Command, client *codersdk.Client, args prepWo
 	}
 
 	if useRichParameters && useLegacyParameters {
-		return nil, fmt.Errorf("Rich parameters can't be used together with legacy parameters.")
+		return nil, fmt.Errorf("rich parameters can't be used together with legacy parameters.")
 	}
 
 	templateVersion, err := client.TemplateVersion(ctx, args.Template.ActiveVersionID)
