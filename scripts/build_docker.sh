@@ -14,6 +14,8 @@
 # value is the tag to use for the built image (not pushed). This also consumes
 # $CODER_IMAGE_BUILD_BASE_TAG for easily forcing a fresh build in CI.
 #
+# The default base image can be controlled via $CODER_BASE_IMAGE_TAG.
+#
 # The image will be built and tagged against the image tag returned by
 # ./image_tag.sh unless a --target parameter is supplied.
 #
@@ -27,7 +29,7 @@ set -euxo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-DEFAULT_BASE="ghcr.io/coder/coder-base:latest"
+DEFAULT_BASE="${CODER_BASE_IMAGE_TAG:-ghcr.io/coder/coder-base:latest}"
 
 arch=""
 image_tag=""

@@ -222,7 +222,7 @@ jobs:
               $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
           fi
         env:
-          CODER_IMAGE_BUILD_BASE_TAG: ${{ steps.image-base-tag.outputs.tag }}
+          CODER_BASE_IMAGE_TAG: ${{ steps.image-base-tag.outputs.tag }}
 
       - name: ls build
         run: ls -lh build
