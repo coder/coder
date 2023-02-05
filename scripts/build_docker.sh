@@ -37,7 +37,7 @@ build_base="${CODER_IMAGE_BUILD_BASE_TAG:-}"
 version=""
 push=0
 
-args="$(getopt -o "" -l arch:,target:,build_base:,version:,push -- "$@")"
+args="$(getopt -o "" -l arch:,target:,build-base:,version:,push -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -142,6 +142,7 @@ docker build \
 	--build-arg "CODER_VERSION=$version" \
 	--no-cache \
 	--tag "$image_tag" \
+	-f Dockerfile \
 	. 1>&2
 
 cdroot
