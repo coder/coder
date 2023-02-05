@@ -122,10 +122,12 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
       templateVersion.job.status === "succeeded"
     ) {
       setSelectedTab(1)
+      setDirty(false)
     }
     previousVersion.current = templateVersion
   }, [templateVersion])
 
+  const [dirty, setDirty] = useState(false)
   const hasIcon = template.icon && template.icon !== ""
   const templateVersionSucceeded = templateVersion.job.status === "succeeded"
   const styles = useStyles({
@@ -168,20 +170,23 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
           <Tooltip
             title={
+              dirty ? "You have edited files! Run another build before updating." :
               templateVersion.job.status !== "succeeded" ? "Something" : ""
             }
           >
+            <span>
             <Button
               size="small"
               variant="contained"
               color="primary"
-              disabled={disableUpdate}
+              disabled={dirty || disableUpdate}
               onClick={() => {
                 onUpdate()
               }}
             >
-              Update
+              Publish New Version
             </Button>
+            </span>
           </Tooltip>
         </div>
       </div>
@@ -220,6 +225,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   children: {},
                 })
                 setCreateFileOpen(false)
+                setDirty(true)
               }}
             />
             <DeleteFileDialog
@@ -234,6 +240,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 if (activeFile?.path === deleteFileOpen.path) {
                   setActiveFile(undefined)
                 }
+                setDirty(true)
               }}
               open={Boolean(deleteFileOpen)}
               onClose={() => setDeleteFileOpen(undefined)}
@@ -257,6 +264,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 renameFileOpen.path = newPath
                 setActiveFile(renameFileOpen)
                 setRenameFileOpen(undefined)
+                setDirty(true)
               }}
             />
           </div>
@@ -283,6 +291,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                     ...files,
                     [activeFile.path]: value,
                   })
+                  setDirty(true)
                 }}
               />
             ) : (
@@ -441,7 +450,7 @@ const useStyles = makeStyles<
   },
   tab: {
     cursor: "pointer",
-    padding: "12px 24px",
+    padding: "8px 12px",
     fontSize: 14,
     background: "transparent",
     fontFamily: "inherit",
