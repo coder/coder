@@ -107,7 +107,7 @@ jobs:
           # This environment variables forces scripts/build_docker.sh to build
           # the base image tag locally instead of using the cached version from
           # the registry.
-          export CODER_IMAGE_BUILD_BASE_TAG="coder-base:$version"
+          export CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")"
 
           make -j "$image_job"
           echo "image=$(cat "$image_job")" >> $GITHUB_OUTPUT
