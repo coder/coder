@@ -201,6 +201,7 @@ message Provision {
         string workspace_id = 5;
         string workspace_owner_id = 6;
         string workspace_owner_email = 7;
+		string workspace_owner_oidc_access_token = 8;
     }
 
     // Config represents execution configuration shared by both Plan and
