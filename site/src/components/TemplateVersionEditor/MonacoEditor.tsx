@@ -56,6 +56,10 @@ export const MonacoEditor: FC<{
         fontFamily: MONOSPACE_FONT_FAMILY,
         fontSize: 16,
         wordWrap: "on",
+        padding: {
+          top: 16,
+          bottom: 16,
+        },
       }}
       path={path}
       onChange={(newValue) => {
