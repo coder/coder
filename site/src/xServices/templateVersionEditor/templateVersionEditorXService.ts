@@ -162,6 +162,22 @@ export const templateVersionEditorMachine = createMachine(
           const previousLogs = context.buildLogs ?? []
           return [...previousLogs, event.log]
         },
+        // Instead of periodically fetching the version,
+        // we just assume the state is running after the first log.
+        //
+        // The machine fetches the version after the log stream ends anyways!
+        version: (context) => {
+          if (!context.version || context.buildLogs?.length !== 0) {
+            return context.version
+          }
+          return {
+            ...context.version,
+            job: {
+              ...context.version.job,
+              status: "running",
+            },
+          }
+        }
       }),
     },
     services: {

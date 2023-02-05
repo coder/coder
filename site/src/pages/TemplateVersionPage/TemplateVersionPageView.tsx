@@ -4,6 +4,7 @@ import { MarkdownIcon } from "components/Icons/MarkdownIcon"
 import { TerraformIcon } from "components/Icons/TerraformIcon"
 import { Loader } from "components/Loader/Loader"
 import { Margins } from "components/Margins/Margins"
+import EditIcon from "@material-ui/icons/Edit"
 import {
   PageHeader,
   PageHeaderCaption,
@@ -13,14 +14,16 @@ import { Stack } from "components/Stack/Stack"
 import { Stats, StatsItem } from "components/Stats/Stats"
 import { UseTabResult } from "hooks/useTab"
 import { FC } from "react"
+import { Link as RouterLink } from "react-router-dom"
 import { useTranslation } from "react-i18next"
-import { Link } from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
 import { createDayString } from "util/createDayString"
 import { TemplateVersionMachineContext } from "xServices/templateVersion/templateVersionXService"
 import { TemplateVersionFiles } from "util/templateVersion"
 import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter"
 import { DockerIcon } from "components/Icons/DockerIcon"
+import Button from "@material-ui/core/Button"
+import Link from "@material-ui/core/Link"
 
 const iconByExtension: Record<string, JSX.Element> = {
   tf: <TerraformIcon />,
@@ -116,7 +119,17 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
 
   return (
     <Margins>
-      <PageHeader>
+      <PageHeader
+        actions={
+          <Link
+            underline="none"
+            component={RouterLink}
+            to={`/templates/${templateName}/versions/${versionName}/edit`}
+          >
+            <Button startIcon={<EditIcon />}>Edit</Button>
+          </Link>
+        }
+      >
         <PageHeaderCaption>{t("header.caption")}</PageHeaderCaption>
         <PageHeaderTitle>{versionName}</PageHeaderTitle>
       </PageHeader>
@@ -131,7 +144,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
               <StatsItem
                 label={t("stats.template")}
                 value={
-                  <Link to={`/templates/${templateName}`}>{templateName}</Link>
+                  <RouterLink to={`/templates/${templateName}`}>{templateName}</RouterLink>
                 }
               />
               <StatsItem

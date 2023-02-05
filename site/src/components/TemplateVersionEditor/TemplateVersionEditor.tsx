@@ -5,6 +5,8 @@ import Tab from "@material-ui/core/Tab"
 import Tabs from "@material-ui/core/Tabs"
 import Tooltip from "@material-ui/core/Tooltip"
 import CreateIcon from "@material-ui/icons/AddBox"
+import BuildIcon from "@material-ui/icons/BuildOutlined"
+import PreviewIcon from "@material-ui/icons/Visibility"
 import {
   ProvisionerJobLog,
   Template,
@@ -15,7 +17,7 @@ import { Avatar } from "components/Avatar/Avatar"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { TemplateResourcesTable } from "components/TemplateResourcesTable/TemplateResourcesTable"
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
-import { FC, useCallback, useEffect, useState } from "react"
+import { FC, useCallback, useEffect, useRef, useState } from "react"
 import { navHeight } from "theme/constants"
 import { TemplateVersionFiles } from "util/templateVersion"
 import {
@@ -25,6 +27,10 @@ import {
 } from "./FileDialog"
 import { FileTree } from "./FileTree"
 import { MonacoEditor } from "./MonacoEditor"
+import {
+  getStatus,
+  TemplateVersionStatusBadge,
+} from "./TemplateVersionStatusBadge"
 
 interface File {
   path: string
@@ -103,6 +109,23 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
       document.removeEventListener("keydown", keyListener)
     }
   }, [files, triggerPreview])
+
+  // Automatically switch to the template preview tab when the build succeeds.
+  const previousVersion = useRef<TemplateVersion>()
+  useEffect(() => {
+    if (!previousVersion.current) {
+      previousVersion.current = templateVersion
+      return
+    }
+    if (
+      previousVersion.current.job.status === "running" &&
+      templateVersion.job.status === "succeeded"
+    ) {
+      setSelectedTab(1)
+    }
+    previousVersion.current = templateVersion
+  }, [templateVersion])
+
   const hasIcon = template.icon && template.icon !== ""
   const templateVersionSucceeded = templateVersion.job.status === "succeeded"
   const styles = useStyles({
@@ -126,6 +149,11 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
         </div>
 
         <div className={styles.topbarSides}>
+          <div>
+            Build Status:
+            <TemplateVersionStatusBadge version={templateVersion} />
+          </div>
+
           <Button
             size="small"
             variant="outlined"
@@ -263,21 +291,35 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
           </div>
 
           <div className={styles.panelWrapper}>
-            <Tabs
-              value={selectedTab}
-              onChange={(_, value) => {
-                setSelectedTab(value)
-              }}
-              className={styles.tabs}
-            >
-              <Tab
-                style={{ minWidth: 120 }}
-                label={<div>Build Log {templateVersion.job.status}</div>}
-              />
+            <div className={styles.tabs}>
+              <button
+                className={`${styles.tab} ${selectedTab === 0 ? "active" : ""}`}
+                onClick={() => {
+                  setSelectedTab(0)
+                }}
+              >
+                {templateVersion.job.status !== "succeeded" ? (
+                  getStatus(templateVersion).icon
+                ) : (
+                  <BuildIcon />
+                )}
+                Build Log
+              </button>
+
               {!disableUpdate && (
-                <Tab style={{ minWidth: 120 }} label="Preview" />
+                <button
+                  className={`${styles.tab} ${
+                    selectedTab === 1 ? "active" : ""
+                  }`}
+                  onClick={() => {
+                    setSelectedTab(1)
+                  }}
+                >
+                  <PreviewIcon />
+                  Workspace Preview
+                </button>
               )}
-            </Tabs>
+            </div>
 
             <div
               className={`${styles.panel} ${styles.buildLogs} ${
@@ -285,7 +327,11 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               }`}
             >
               {buildLogs && (
-                <WorkspaceBuildLogs hideTimestamps logs={buildLogs} />
+                <WorkspaceBuildLogs
+                  templateEditorPane
+                  hideTimestamps
+                  logs={buildLogs}
+                />
               )}
               {templateVersion.job.error && (
                 <div className={styles.buildLogError}>
@@ -360,9 +406,9 @@ const useStyles = makeStyles<
     color: theme.palette.text.hint,
   },
   editorPane: {
-    display: "flex",
-    flexDirection: "row",
-    flex: 1,
+    display: "grid",
+    width: "100%",
+    gridTemplateColumns: "0.6fr 0.4fr",
     height: `calc(100vh - ${navHeight + topbarHeight}px)`,
     overflow: "hidden",
   },
@@ -383,12 +429,38 @@ const useStyles = makeStyles<
   },
   tabs: {
     borderBottom: `1px solid ${theme.palette.divider}`,
+    display: "flex",
+    boxShadow: "#000000 0 6px 6px -6px inset",
 
     "& .MuiTab-root": {
       padding: 0,
       fontSize: 14,
       textTransform: "none",
       letterSpacing: "unset",
+    },
+  },
+  tab: {
+    cursor: "pointer",
+    padding: "12px 24px",
+    fontSize: 14,
+    background: "transparent",
+    fontFamily: "inherit",
+    border: 0,
+    color: theme.palette.text.hint,
+    transition: "150ms ease all",
+    display: "flex",
+    gap: 8,
+    alignItems: "center",
+    justifyContent: "center",
+
+    "& svg": {
+      maxWidth: 16,
+      maxHeight: 16,
+    },
+
+    "&.active": {
+      color: "white",
+      background: theme.palette.background.paperLight,
     },
   },
   tabBar: {
@@ -408,7 +480,6 @@ const useStyles = makeStyles<
   buildLogs: {
     display: "flex",
     flexDirection: "column-reverse",
-    padding: 16,
     overflowY: "auto",
   },
   buildLogError: {
