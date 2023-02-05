@@ -18,7 +18,11 @@ import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuild
 import { FC, useCallback, useEffect, useState } from "react"
 import { navHeight } from "theme/constants"
 import { TemplateVersionFiles } from "util/templateVersion"
-import { CreateFileDialog } from "./FileDialog"
+import {
+  CreateFileDialog,
+  DeleteFileDialog,
+  RenameFileDialog,
+} from "./FileDialog"
 import { FileTree } from "./FileTree"
 import { MonacoEditor } from "./MonacoEditor"
 
@@ -59,6 +63,8 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   const [selectedTab, setSelectedTab] = useState(0)
   const [files, setFiles] = useState(initialFiles)
   const [createFileOpen, setCreateFileOpen] = useState(false)
+  const [deleteFileOpen, setDeleteFileOpen] = useState<File>()
+  const [renameFileOpen, setRenameFileOpen] = useState<File>()
   const [activeFile, setActiveFile] = useState<File | undefined>(() => {
     const fileKeys = Object.keys(initialFiles)
     for (let i = 0; i < fileKeys.length; i++) {
@@ -188,29 +194,72 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 setCreateFileOpen(false)
               }}
             />
+            <DeleteFileDialog
+              onConfirm={() => {
+                if (!deleteFileOpen) {
+                  throw new Error("delete file must be set")
+                }
+                const deleted = { ...files }
+                delete deleted[deleteFileOpen.path]
+                setFiles(deleted)
+                setDeleteFileOpen(undefined)
+                if (activeFile?.path === deleteFileOpen.path) {
+                  setActiveFile(undefined)
+                }
+              }}
+              open={Boolean(deleteFileOpen)}
+              onClose={() => setDeleteFileOpen(undefined)}
+              filename={deleteFileOpen?.path || ""}
+            />
+            <RenameFileDialog
+              open={Boolean(renameFileOpen)}
+              onClose={() => {
+                setRenameFileOpen(undefined)
+              }}
+              filename={renameFileOpen?.path || ""}
+              checkExists={(path) => Boolean(files[path])}
+              onConfirm={(newPath) => {
+                if (!renameFileOpen) {
+                  return
+                }
+                const renamed = { ...files }
+                renamed[newPath] = renamed[renameFileOpen.path]
+                delete renamed[renameFileOpen.path]
+                setFiles(renamed)
+                renameFileOpen.path = newPath
+                setActiveFile(renameFileOpen)
+                setRenameFileOpen(undefined)
+              }}
+            />
           </div>
           <FileTree
             files={files}
+            onDelete={(file) => setDeleteFileOpen(file)}
             onSelect={(file) => setActiveFile(file)}
+            onRename={(file) => setRenameFileOpen(file)}
             activeFile={activeFile}
           />
         </div>
 
         <div className={styles.editorPane}>
           <div className={styles.editor}>
-            <MonacoEditor
-              value={activeFile?.content}
-              path={activeFile?.path}
-              onChange={(value) => {
-                if (!activeFile) {
-                  return
-                }
-                setFiles({
-                  ...files,
-                  [activeFile.path]: value,
-                })
-              }}
-            />
+            {activeFile ? (
+              <MonacoEditor
+                value={activeFile?.content}
+                path={activeFile?.path}
+                onChange={(value) => {
+                  if (!activeFile) {
+                    return
+                  }
+                  setFiles({
+                    ...files,
+                    [activeFile.path]: value,
+                  })
+                }}
+              />
+            ) : (
+              <div>No file opened</div>
+            )}
           </div>
 
           <div className={styles.panelWrapper}>

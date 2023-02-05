@@ -3,8 +3,9 @@ import ChevronRightIcon from "@material-ui/icons/ChevronRight"
 import ExpandMoreIcon from "@material-ui/icons/ExpandMore"
 import TreeView from "@material-ui/lab/TreeView"
 import TreeItem from "@material-ui/lab/TreeItem"
-
-import { FC, useMemo } from "react"
+import Menu from "@material-ui/core/Menu"
+import MenuItem from "@material-ui/core/MenuItem"
+import { FC, useMemo, useState } from "react"
 import { TemplateVersionFiles } from "util/templateVersion"
 
 export interface File {
@@ -15,9 +16,11 @@ export interface File {
 
 export const FileTree: FC<{
   onSelect: (file: File) => void
+  onDelete: (file: File) => void
+  onRename: (file: File) => void
   files: TemplateVersionFiles
   activeFile?: File
-}> = ({ activeFile, files, onSelect }) => {
+}> = ({ activeFile, files, onDelete, onRename, onSelect }) => {
   const styles = useStyles()
   const fileTree = useMemo<Record<string, File>>(() => {
     const paths = Object.keys(files)
@@ -55,6 +58,14 @@ export const FileTree: FC<{
     })
     return roots
   }, [files])
+  const [contextMenu, setContextMenu] = useState<
+    | {
+        file: File
+        clientX: number
+        clientY: number
+      }
+    | undefined
+  >()
 
   const buildTreeItems = (name: string, file: File): JSX.Element => {
     let icon: JSX.Element | null = null
@@ -81,6 +92,21 @@ export const FileTree: FC<{
             onSelect(file)
           }
         }}
+        onContextMenu={(event) => {
+          event.preventDefault()
+          if (!file.content) {
+            return
+          }
+          setContextMenu(
+            contextMenu
+              ? undefined
+              : {
+                  file: file,
+                  clientY: event.clientY,
+                  clientX: event.clientX,
+                },
+          )
+        }}
         icon={icon}
       >
         {Object.entries(file.children || {}).map(([name, file]) => {
@@ -100,6 +126,47 @@ export const FileTree: FC<{
       {Object.entries(fileTree).map(([name, file]) => {
         return buildTreeItems(name, file)
       })}
+
+      <Menu
+        onClose={() => setContextMenu(undefined)}
+        open={Boolean(contextMenu)}
+        anchorReference="anchorPosition"
+        anchorPosition={contextMenu ? {
+          top: contextMenu.clientY,
+          left: contextMenu.clientX,
+        } : undefined}
+        anchorOrigin={{
+          vertical: 'top',
+          horizontal: 'left',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'left',
+        }}
+      >
+        <MenuItem
+          onClick={() => {
+            if (!contextMenu) {
+              return
+            }
+            onRename(contextMenu.file)
+            setContextMenu(undefined)
+          }}
+        >
+          Rename...
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            if (!contextMenu) {
+              return
+            }
+            onDelete(contextMenu.file)
+            setContextMenu(undefined)
+          }}
+        >
+          Delete Permanently
+        </MenuItem>
+      </Menu>
     </TreeView>
   )
 }
