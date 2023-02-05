@@ -25,7 +25,7 @@
 #
 # Prints the image tag on success.
 
-set -euxo pipefail
+set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 

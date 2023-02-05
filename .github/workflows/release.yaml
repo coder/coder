@@ -189,6 +189,8 @@ jobs:
           project: wl5hnrrkns
           context: base-build-context
           file: Dockerfile.base
+          pull: true
+          no-cache: true
           push: true
           tags: |
             ${{ steps.image-base-tag.outputs.tag }}
