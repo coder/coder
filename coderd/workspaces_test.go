@@ -1817,6 +1817,8 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 								Name:                secondParameterName,
 								Type:                secondParameterType,
 								Description:         secondParameterDescription,
+								ValidationMin:       1,
+								ValidationMax:       3,
 								ValidationMonotonic: string(secondParameterValidationMonotonic),
 							},
 						},
