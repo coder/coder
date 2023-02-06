@@ -462,13 +462,13 @@ WHERE
 	END
 	-- Filter by date_from
 	AND CASE
-		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00' THEN
+		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z'::timestamptz THEN
 			"time" >= $9
 		ELSE true
 	END
 	-- Filter by date_to
 	AND CASE
-		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00' THEN
+		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z'::timestamptz THEN
 			"time" <= $10
 		ELSE true
 	END
