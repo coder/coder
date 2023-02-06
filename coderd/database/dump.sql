@@ -148,7 +148,7 @@ COMMENT ON COLUMN api_keys.hashed_secret IS 'hashed_secret contains a SHA256 has
 
 CREATE TABLE app_usage (
     user_id uuid NOT NULL,
-    app_id uuid NOT NULL,
+    app_slug text NOT NULL,
     template_id uuid NOT NULL,
     created_at date NOT NULL
 );
@@ -587,7 +587,7 @@ ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY app_usage
-    ADD CONSTRAINT app_usage_user_id_app_id_template_id_created_at_key UNIQUE (user_id, app_id, template_id, created_at);
+    ADD CONSTRAINT app_usage_user_id_app_slug_template_id_created_at_key UNIQUE (user_id, app_slug, template_id, created_at);
 
 ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
@@ -709,7 +709,7 @@ CREATE INDEX idx_agent_stats_user_id ON agent_stats USING btree (user_id);
 
 CREATE INDEX idx_api_keys_user ON api_keys USING btree (user_id);
 
-CREATE INDEX idx_app_usage_app_id ON app_usage USING btree (app_id);
+CREATE INDEX idx_app_usage_app_slug ON app_usage USING btree (app_slug);
 
 CREATE INDEX idx_app_usage_created_at ON app_usage USING btree (created_at);
 
@@ -753,9 +753,6 @@ CREATE UNIQUE INDEX workspaces_owner_id_lower_idx ON workspaces USING btree (own
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY app_usage
-    ADD CONSTRAINT app_usage_app_id_fkey FOREIGN KEY (app_id) REFERENCES workspace_apps(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY app_usage
     ADD CONSTRAINT app_usage_template_id_fkey FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE CASCADE;

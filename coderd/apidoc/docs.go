@@ -7418,9 +7418,8 @@ const docTemplate = `{
                 "app_icon": {
                     "type": "string"
                 },
-                "app_id": {
-                    "type": "string",
-                    "format": "uuid"
+                "app_slug": {
+                    "type": "string"
                 },
                 "count": {
                     "type": "integer"

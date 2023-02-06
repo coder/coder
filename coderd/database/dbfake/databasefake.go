@@ -4264,7 +4264,7 @@ func (q *fakeQuerier) InsertAppUsage(_ context.Context, p database.InsertAppUsag
 	defer q.mutex.Unlock()
 
 	usageIdx := slices.IndexFunc(q.appUsage, func(usage database.AppUsage) bool {
-		return usage.AppID == p.AppID &&
+		return usage.AppSlug == p.AppSlug &&
 			usage.CreatedAt == p.CreatedAt &&
 			usage.TemplateID == p.TemplateID &&
 			usage.UserID == p.UserID
@@ -4273,7 +4273,7 @@ func (q *fakeQuerier) InsertAppUsage(_ context.Context, p database.InsertAppUsag
 	if usageIdx == -1 {
 		q.appUsage = append(q.appUsage, database.AppUsage{
 			CreatedAt:  p.CreatedAt,
-			AppID:      p.AppID,
+			AppSlug:    p.AppSlug,
 			UserID:     p.UserID,
 			TemplateID: p.TemplateID,
 		})
@@ -4290,7 +4290,7 @@ func (q *fakeQuerier) GetAppUsageByDate(_ context.Context, arg database.GetAppUs
 		if !usage.CreatedAt.Equal(arg.CreatedAt) {
 			continue
 		}
-		if usage.AppID != arg.AppID {
+		if usage.AppSlug != arg.AppSlug {
 			continue
 		}
 		if usage.TemplateID != arg.TemplateID {
@@ -4312,9 +4312,9 @@ func (q *fakeQuerier) GetAppUsageByTemplateID(_ context.Context, arg database.Ge
 		return []database.GetAppUsageByTemplateIDRow{}, sql.ErrNoRows
 	}
 
-	// usageMap is indexed by Date to a map of App IDs to the number of unique
+	// usageMap is indexed by Date to a map of App slugs to the number of unique
 	// users that have used that application.
-	usageMap := make(map[time.Time]map[uuid.UUID]int64)
+	usageMap := make(map[time.Time]map[string]int64)
 	for _, usage := range q.appUsage {
 		if usage.TemplateID != arg.TemplateID {
 			continue
@@ -4323,9 +4323,9 @@ func (q *fakeQuerier) GetAppUsageByTemplateID(_ context.Context, arg database.Ge
 			date := usage.CreatedAt.Truncate(time.Hour * 24)
 			appEntry := usageMap[date]
 			if appEntry == nil {
-				appEntry = make(map[uuid.UUID]int64)
+				appEntry = make(map[string]int64)
 			}
-			appEntry[usage.AppID] = appEntry[usage.AppID] + 1
+			appEntry[usage.AppSlug] = appEntry[usage.AppSlug] + 1
 			usageMap[date] = appEntry
 		}
 	}
@@ -4336,18 +4336,18 @@ func (q *fakeQuerier) GetAppUsageByTemplateID(_ context.Context, arg database.Ge
 		return dates[i].Before(dates[j])
 	})
 	for _, date := range dates {
-		appIDs := maps.Keys(usageMap[date])
-		for _, appID := range appIDs {
+		appSlugs := maps.Keys(usageMap[date])
+		for _, appSlug := range appSlugs {
 			appIdx := slices.IndexFunc(q.workspaceApps, func(app database.WorkspaceApp) bool {
-				return app.ID == appID
+				return app.Slug == appSlug
 			})
 			app := q.workspaceApps[appIdx]
 			rows = append(rows, database.GetAppUsageByTemplateIDRow{
 				CreatedAt:      date,
-				AppID:          appID,
+				AppSlug:        appSlug,
 				AppDisplayName: app.DisplayName,
 				AppIcon:        app.Icon,
-				Count:          usageMap[date][appID],
+				Count:          usageMap[date][appSlug],
 			})
 		}
 	}

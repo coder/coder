@@ -388,17 +388,17 @@ func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDP
 
 const getAppUsageByDate = `-- name: GetAppUsageByDate :one
 SELECT
-	user_id, app_id, template_id, created_at
+	user_id, app_slug, template_id, created_at
 FROM
 	app_usage
 WHERE
-	user_id = $1 AND template_id = $2 AND app_id = $3 AND created_at = $4
+	user_id = $1 AND template_id = $2 AND app_slug = $3 AND created_at = $4
 `
 
 type GetAppUsageByDateParams struct {
 	UserID     uuid.UUID `db:"user_id" json:"user_id"`
 	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
-	AppID      uuid.UUID `db:"app_id" json:"app_id"`
+	AppSlug    string    `db:"app_slug" json:"app_slug"`
 	CreatedAt  time.Time `db:"created_at" json:"created_at"`
 }
 
@@ -406,13 +406,13 @@ func (q *sqlQuerier) GetAppUsageByDate(ctx context.Context, arg GetAppUsageByDat
 	row := q.db.QueryRowContext(ctx, getAppUsageByDate,
 		arg.UserID,
 		arg.TemplateID,
-		arg.AppID,
+		arg.AppSlug,
 		arg.CreatedAt,
 	)
 	var i AppUsage
 	err := row.Scan(
 		&i.UserID,
-		&i.AppID,
+		&i.AppSlug,
 		&i.TemplateID,
 		&i.CreatedAt,
 	)
@@ -422,7 +422,7 @@ func (q *sqlQuerier) GetAppUsageByDate(ctx context.Context, arg GetAppUsageByDat
 const getAppUsageByTemplateID = `-- name: GetAppUsageByTemplateID :many
 SELECT
 	app_usage.created_at,
-	app_usage.app_id,
+	app_usage.app_slug,
 	workspace_apps.display_name as app_display_name,
 	workspace_apps.icon as app_icon,
   COUNT(*)
@@ -431,12 +431,12 @@ FROM
 JOIN
 	workspace_apps
 ON
-  app_usage.app_id = workspace_apps.id
+  app_usage.app_slug = workspace_apps.slug
 WHERE
   app_usage.template_id = $1 AND app_usage.created_at BETWEEN $2 :: date AND $3 :: date
 GROUP BY
   app_usage.created_at,
-  app_usage.app_id,
+  app_usage.app_slug,
   workspace_apps.display_name,
   workspace_apps.icon
 ORDER BY
@@ -451,7 +451,7 @@ type GetAppUsageByTemplateIDParams struct {
 
 type GetAppUsageByTemplateIDRow struct {
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
-	AppID          uuid.UUID `db:"app_id" json:"app_id"`
+	AppSlug        string    `db:"app_slug" json:"app_slug"`
 	AppDisplayName string    `db:"app_display_name" json:"app_display_name"`
 	AppIcon        string    `db:"app_icon" json:"app_icon"`
 	Count          int64     `db:"count" json:"count"`
@@ -468,7 +468,7 @@ func (q *sqlQuerier) GetAppUsageByTemplateID(ctx context.Context, arg GetAppUsag
 		var i GetAppUsageByTemplateIDRow
 		if err := rows.Scan(
 			&i.CreatedAt,
-			&i.AppID,
+			&i.AppSlug,
 			&i.AppDisplayName,
 			&i.AppIcon,
 			&i.Count,
@@ -491,18 +491,18 @@ INSERT INTO
 	app_usage (
 		user_id,
 		template_id,
-		app_id,
+		app_slug,
 		created_at
 	)
 VALUES
 	($1, $2, $3, $4)
-ON CONFLICT (user_id, app_id, template_id, created_at) DO NOTHING
+ON CONFLICT (user_id, app_slug, template_id, created_at) DO NOTHING
 `
 
 type InsertAppUsageParams struct {
 	UserID     uuid.UUID `db:"user_id" json:"user_id"`
 	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
-	AppID      uuid.UUID `db:"app_id" json:"app_id"`
+	AppSlug    string    `db:"app_slug" json:"app_slug"`
 	CreatedAt  time.Time `db:"created_at" json:"created_at"`
 }
 
@@ -510,7 +510,7 @@ func (q *sqlQuerier) InsertAppUsage(ctx context.Context, arg InsertAppUsageParam
 	_, err := q.db.ExecContext(ctx, insertAppUsage,
 		arg.UserID,
 		arg.TemplateID,
-		arg.AppID,
+		arg.AppSlug,
 		arg.CreatedAt,
 	)
 	return err

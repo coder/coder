@@ -4277,7 +4277,7 @@ Parameter represents a set value for the scope.
 {
   "app_display_name": "string",
   "app_icon": "string",
-  "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+  "app_slug": "string",
   "count": 0,
   "created_at": "2019-08-24T14:15:22Z"
 }
@@ -4289,7 +4289,7 @@ Parameter represents a set value for the scope.
 | ------------------ | ------- | -------- | ------------ | ----------- |
 | `app_display_name` | string  | false    |              |             |
 | `app_icon`         | string  | false    |              |             |
-| `app_id`           | string  | false    |              |             |
+| `app_slug`         | string  | false    |              |             |
 | `count`            | integer | false    |              |             |
 | `created_at`       | string  | false    |              |             |
 
@@ -4301,7 +4301,7 @@ Parameter represents a set value for the scope.
     {
       "app_display_name": "string",
       "app_icon": "string",
-      "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+      "app_slug": "string",
       "count": 0,
       "created_at": "2019-08-24T14:15:22Z"
     }

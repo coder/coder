@@ -621,7 +621,7 @@ func (api *API) appUsage(rw http.ResponseWriter, r *http.Request) {
 	for _, usageRow := range usage {
 		entries = append(entries, codersdk.TemplateAppUsageEntry{
 			Count:          int(usageRow.Count),
-			AppID:          usageRow.AppID,
+			AppSlug:        usageRow.AppSlug,
 			AppIcon:        usageRow.AppIcon,
 			AppDisplayName: usageRow.AppDisplayName,
 			CreatedAt:      usageRow.CreatedAt,

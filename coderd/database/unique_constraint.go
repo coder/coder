@@ -6,7 +6,7 @@ type UniqueConstraint string
 
 // UniqueConstraint enums.
 const (
-	UniqueAppUsageUserIDAppIDTemplateIDCreatedAtKey         UniqueConstraint = "app_usage_user_id_app_id_template_id_created_at_key"      // ALTER TABLE ONLY app_usage ADD CONSTRAINT app_usage_user_id_app_id_template_id_created_at_key UNIQUE (user_id, app_id, template_id, created_at);
+	UniqueAppUsageUserIDAppSlugTemplateIDCreatedAtKey       UniqueConstraint = "app_usage_user_id_app_slug_template_id_created_at_key"    // ALTER TABLE ONLY app_usage ADD CONSTRAINT app_usage_user_id_app_slug_template_id_created_at_key UNIQUE (user_id, app_slug, template_id, created_at);
 	UniqueFilesHashCreatedByKey                             UniqueConstraint = "files_hash_created_by_key"                                // ALTER TABLE ONLY files ADD CONSTRAINT files_hash_created_by_key UNIQUE (hash, created_by);
 	UniqueGitAuthLinksProviderIDUserIDKey                   UniqueConstraint = "git_auth_links_provider_id_user_id_key"                   // ALTER TABLE ONLY git_auth_links ADD CONSTRAINT git_auth_links_provider_id_user_id_key UNIQUE (provider_id, user_id);
 	UniqueGroupMembersUserIDGroupIDKey                      UniqueConstraint = "group_members_user_id_group_id_key"                       // ALTER TABLE ONLY group_members ADD CONSTRAINT group_members_user_id_group_id_key UNIQUE (user_id, group_id);

@@ -1221,7 +1221,7 @@ type AgentStat struct {
 
 type AppUsage struct {
 	UserID     uuid.UUID `db:"user_id" json:"user_id"`
-	AppID      uuid.UUID `db:"app_id" json:"app_id"`
+	AppSlug    string    `db:"app_slug" json:"app_slug"`
 	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
 	CreatedAt  time.Time `db:"created_at" json:"created_at"`
 }
