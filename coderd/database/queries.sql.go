@@ -386,42 +386,6 @@ func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDP
 	return err
 }
 
-const getAppDetailsBySlug = `-- name: GetAppDetailsBySlug :many
-SELECT DISTINCT ON (slug) display_name, icon, slug
-FROM workspace_apps
-WHERE slug = ANY($1 :: text [ ])
-ORDER BY slug, created_at DESC
-`
-
-type GetAppDetailsBySlugRow struct {
-	DisplayName string `db:"display_name" json:"display_name"`
-	Icon        string `db:"icon" json:"icon"`
-	Slug        string `db:"slug" json:"slug"`
-}
-
-func (q *sqlQuerier) GetAppDetailsBySlug(ctx context.Context, slugs []string) ([]GetAppDetailsBySlugRow, error) {
-	rows, err := q.db.QueryContext(ctx, getAppDetailsBySlug, pq.Array(slugs))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetAppDetailsBySlugRow
-	for rows.Next() {
-		var i GetAppDetailsBySlugRow
-		if err := rows.Scan(&i.DisplayName, &i.Icon, &i.Slug); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getAppUsageByDate = `-- name: GetAppUsageByDate :one
 SELECT
 	user_id, app_slug, template_id, created_at
@@ -5380,6 +5344,47 @@ type UpdateWorkspaceAgentVersionByIDParams struct {
 func (q *sqlQuerier) UpdateWorkspaceAgentVersionByID(ctx context.Context, arg UpdateWorkspaceAgentVersionByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentVersionByID, arg.ID, arg.Version)
 	return err
+}
+
+const getAppDetailsBySlug = `-- name: GetAppDetailsBySlug :many
+SELECT DISTINCT ON
+	(slug) display_name, icon, slug
+FROM
+	workspace_apps
+WHERE
+	slug = ANY($1 :: text [ ])
+ORDER BY
+	slug, created_at
+DESC
+`
+
+type GetAppDetailsBySlugRow struct {
+	DisplayName string `db:"display_name" json:"display_name"`
+	Icon        string `db:"icon" json:"icon"`
+	Slug        string `db:"slug" json:"slug"`
+}
+
+func (q *sqlQuerier) GetAppDetailsBySlug(ctx context.Context, slugs []string) ([]GetAppDetailsBySlugRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAppDetailsBySlug, pq.Array(slugs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAppDetailsBySlugRow
+	for rows.Next() {
+		var i GetAppDetailsBySlugRow
+		if err := rows.Scan(&i.DisplayName, &i.Icon, &i.Slug); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getWorkspaceAppByAgentIDAndSlug = `-- name: GetWorkspaceAppByAgentIDAndSlug :one

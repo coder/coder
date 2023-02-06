@@ -4271,6 +4271,24 @@ Parameter represents a set value for the scope.
 | ------------- | ----------- |
 | `provisioner` | `terraform` |
 
+## codersdk.TemplateAppUsageAppEntry
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "slug": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `display_name` | string | false    |              |             |
+| `icon`         | string | false    |              |             |
+| `slug`         | string | false    |              |             |
+
 ## codersdk.TemplateAppUsageEntry
 
 ```json
@@ -4293,6 +4311,13 @@ Parameter represents a set value for the scope.
 
 ```json
 {
+  "apps": [
+    {
+      "display_name": "string",
+      "icon": "string",
+      "slug": "string"
+    }
+  ],
   "entries": [
     {
       "app_slug": "string",
@@ -4305,9 +4330,10 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name      | Type                                                                      | Required | Restrictions | Description |
-| --------- | ------------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `entries` | array of [codersdk.TemplateAppUsageEntry](#codersdktemplateappusageentry) | false    |              |             |
+| Name      | Type                                                                            | Required | Restrictions | Description |
+| --------- | ------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `apps`    | array of [codersdk.TemplateAppUsageAppEntry](#codersdktemplateappusageappentry) | false    |              |             |
+| `entries` | array of [codersdk.TemplateAppUsageEntry](#codersdktemplateappusageentry)       | false    |              |             |
 
 ## codersdk.TemplateBuildTimeStats
 

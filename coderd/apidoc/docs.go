@@ -7409,6 +7409,20 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.TemplateAppUsageAppEntry": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "slug": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.TemplateAppUsageEntry": {
             "type": "object",
             "properties": {
@@ -7427,6 +7441,12 @@ const docTemplate = `{
         "codersdk.TemplateAppUsageResponse": {
             "type": "object",
             "properties": {
+                "apps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateAppUsageAppEntry"
+                    }
+                },
                 "entries": {
                     "type": "array",
                     "items": {

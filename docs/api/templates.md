@@ -819,6 +819,13 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/app-usage \
 
 ```json
 {
+  "apps": [
+    {
+      "display_name": "string",
+      "icon": "string",
+      "slug": "string"
+    }
+  ],
   "entries": [
     {
       "app_slug": "string",
