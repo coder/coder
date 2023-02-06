@@ -5,8 +5,8 @@ on:
     branches:
       - main
     paths:
-      - Dockerfile.base
-      - Dockerfile
+      - scripts/Dockerfile.base
+      - scripts/Dockerfile
 
   schedule:
     # Run every week at 09:43 on Monday, Wednesday and Friday. We build this
@@ -52,7 +52,7 @@ jobs:
         with:
           project: wl5hnrrkns
           context: base-build-context
-          file: Dockerfile.base
+          file: scripts/Dockerfile.base
           pull: true
           no-cache: true
           push: true
