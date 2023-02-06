@@ -639,11 +639,6 @@ export const MockTemplateVersionParameter1: TypesGen.TemplateVersionParameter =
     mutable: true,
     icon: "/icon/folder.svg",
     options: [],
-    validation_error: "",
-    validation_regex: "",
-    validation_min: 0,
-    validation_max: 0,
-    validation_monotonic: "",
   }
 
 export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
@@ -655,11 +650,9 @@ export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
     mutable: true,
     icon: "/icon/folder.svg",
     options: [],
-    validation_error: "",
-    validation_regex: "",
     validation_min: 1,
     validation_max: 3,
-    validation_monotonic: "",
+    validation_monotonic: "increasing",
   }
 
 export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
@@ -673,9 +666,6 @@ export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
     options: [],
     validation_error: "No way!",
     validation_regex: "^[a-z]{3}$",
-    validation_min: 0,
-    validation_max: 0,
-    validation_monotonic: "",
   }
 
 export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
@@ -687,11 +677,6 @@ export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
     mutable: false,
     icon: "/icon/database.svg",
     options: [],
-    validation_error: "",
-    validation_regex: "",
-    validation_min: 0,
-    validation_max: 0,
-    validation_monotonic: "",
   }
 
 // requests the MockWorkspace

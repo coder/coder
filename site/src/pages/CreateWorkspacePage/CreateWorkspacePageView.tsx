@@ -515,8 +515,7 @@ export const ValidationSchemaForRichParameters = (
               switch (templateParameter.type) {
                 case "number":
                   if (
-                    templateParameter.validation_min === 0 &&
-                    templateParameter.validation_max === 0
+                    !templateParameter.validation_min || !templateParameter.validation_max
                   ) {
                     return true
                   }
@@ -536,7 +535,7 @@ export const ValidationSchemaForRichParameters = (
                   break
                 case "string":
                   {
-                    if (templateParameter.validation_regex.length === 0) {
+                    if (!templateParameter.validation_regex || templateParameter.validation_regex.length === 0) {
                       return true
                     }
 

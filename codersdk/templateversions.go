@@ -40,11 +40,11 @@ type TemplateVersionParameter struct {
 	DefaultValue        string                           `json:"default_value"`
 	Icon                string                           `json:"icon"`
 	Options             []TemplateVersionParameterOption `json:"options"`
-	ValidationError     string                           `json:"validation_error"`
-	ValidationRegex     string                           `json:"validation_regex"`
-	ValidationMin       int32                            `json:"validation_min"`
-	ValidationMax       int32                            `json:"validation_max"`
-	ValidationMonotonic ValidationMonotonicOrder         `json:"validation_monotonic" enums:"increasing,decreasing"`
+	ValidationError     string                           `json:"validation_error,omitempty"`
+	ValidationRegex     string                           `json:"validation_regex,omitempty"`
+	ValidationMin       int32                            `json:"validation_min,omitempty"`
+	ValidationMax       int32                            `json:"validation_max,omitempty"`
+	ValidationMonotonic ValidationMonotonicOrder         `json:"validation_monotonic,omitempty" enums:"increasing,decreasing"`
 }
 
 // TemplateVersionParameterOption represents a selectable option for a template parameter.
