@@ -5,6 +5,7 @@ import {
   MockWorkspace,
   MockWorkspaceBuildParameter1,
   MockWorkspaceBuildParameter2,
+  MockWorkspaceBuildParameter3,
   renderWithAuth,
 } from "testHelpers/renderHelpers"
 import * as API from "api/api"
@@ -18,6 +19,10 @@ const validationNumberNotInRangeText = t("validationNumberNotInRange", {
   ns: "workspaceBuildParametersPage",
   min: "1",
   max: "3",
+})
+const validationNumberNotIncreasing = t("validationNumberNotIncreasing", {
+  ns: "workspaceBuildParametersPage",
+  last: "2",
 })
 
 const renderWorkspaceBuildParametersPage = () => {
@@ -113,6 +118,44 @@ describe("WorkspaceBuildParametersPage", () => {
 
     const validationError = await screen.findByText(
       validationNumberNotInRangeText,
+    )
+    expect(validationError).toBeDefined()
+  })
+
+  it("rich parameter: number is not monotonically increasing", async () => {
+    jest
+      .spyOn(API, "getTemplateVersionRichParameters")
+      .mockResolvedValueOnce([
+        MockTemplateVersionParameter1,
+        MockTemplateVersionParameter2,
+      ])
+    jest
+      .spyOn(API, "getWorkspaceBuildParameters")
+      .mockResolvedValueOnce([
+        MockWorkspaceBuildParameter1,
+        MockWorkspaceBuildParameter3,
+      ])
+    renderWorkspaceBuildParametersPage()
+
+    const element = await screen.findByText(pageTitleText)
+    expect(element).toBeDefined()
+    const secondParameter = await screen.findByText(
+      MockTemplateVersionParameter2.description,
+    )
+    expect(secondParameter).toBeDefined()
+
+    const secondParameterField = await screen.findByLabelText(
+      MockTemplateVersionParameter2.name,
+    )
+    expect(secondParameterField).toBeDefined()
+
+    fireEvent.change(secondParameterField, {
+      target: { value: "1" },
+    })
+    fireEvent.submit(secondParameter)
+
+    const validationError = await screen.findByText(
+      validationNumberNotIncreasing,
     )
     expect(validationError).toBeDefined()
   })

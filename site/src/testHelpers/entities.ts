@@ -1249,6 +1249,11 @@ export const MockWorkspaceBuildParameter2: TypesGen.WorkspaceBuildParameter = {
   value: "3",
 }
 
+export const MockWorkspaceBuildParameter3: TypesGen.WorkspaceBuildParameter = {
+  name: MockTemplateVersionParameter2.name,
+  value: "2",
+}
+
 export const mockParameterSchema = (
   partial: Partial<TypesGen.ParameterSchema>,
 ): TypesGen.ParameterSchema => {
