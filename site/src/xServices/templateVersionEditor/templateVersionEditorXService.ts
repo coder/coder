@@ -32,13 +32,13 @@ export const templateVersionEditorMachine = createMachine(
       context: {} as TemplateVersionEditorMachineContext,
       events: {} as
         | {
-            type: "CREATE_BUILD"
+            type: "CREATE_VERSION"
             files: TemplateVersionFiles
             templateId: string
           }
-        | { type: "CANCEL_BUILD" }
+        | { type: "CANCEL_VERSION" }
         | { type: "ADD_BUILD_LOG"; log: ProvisionerJobLog }
-        | { type: "UPDATE_ACTIVE" },
+        | { type: "UPDATE_ACTIVE_VERSION" },
       services: {} as {
         createBuild: {
           data: TemplateVersion
@@ -52,11 +52,11 @@ export const templateVersionEditorMachine = createMachine(
     states: {
       idle: {
         on: {
-          CREATE_BUILD: {
+          CREATE_VERSION: {
             actions: ["assignCreateBuild"],
             target: "uploadTar",
           },
-          UPDATE_ACTIVE: {
+          UPDATE_ACTIVE_VERSION: {
             target: "updatingActiveVersion",
           },
         },
@@ -106,11 +106,11 @@ export const templateVersionEditorMachine = createMachine(
           ADD_BUILD_LOG: {
             actions: ["addBuildLog"],
           },
-          CANCEL_BUILD: {
+          CANCEL_VERSION: {
             actions: ["cancelBuild"],
             target: "idle",
           },
-          CREATE_BUILD: {
+          CREATE_VERSION: {
             actions: ["cancelBuild", "assignCreateBuild"],
             target: "uploadTar",
           },
@@ -177,7 +177,7 @@ export const templateVersionEditorMachine = createMachine(
               status: "running",
             },
           }
-        }
+        },
       }),
     },
     services: {

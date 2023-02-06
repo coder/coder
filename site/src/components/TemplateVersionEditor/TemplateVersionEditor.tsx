@@ -1,8 +1,6 @@
 import Button from "@material-ui/core/Button"
 import IconButton from "@material-ui/core/IconButton"
 import { makeStyles, Theme } from "@material-ui/core/styles"
-import Tab from "@material-ui/core/Tab"
-import Tabs from "@material-ui/core/Tabs"
 import Tooltip from "@material-ui/core/Tooltip"
 import CreateIcon from "@material-ui/icons/AddBox"
 import BuildIcon from "@material-ui/icons/BuildOutlined"
@@ -130,8 +128,13 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   const [dirty, setDirty] = useState(false)
   const hasIcon = template.icon && template.icon !== ""
   const templateVersionSucceeded = templateVersion.job.status === "succeeded"
+  const showBuildLogs = Boolean(buildLogs)
+  useEffect(() => {
+    window.dispatchEvent(new Event("resize"))
+  }, [showBuildLogs])
   const styles = useStyles({
     templateVersionSucceeded,
+    showBuildLogs,
   })
 
   return (
@@ -151,7 +154,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
         </div>
 
         <div className={styles.topbarSides}>
-          <div>
+          <div className={styles.buildStatus}>
             Build Status:
             <TemplateVersionStatusBadge version={templateVersion} />
           </div>
@@ -170,22 +173,25 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
           <Tooltip
             title={
-              dirty ? "You have edited files! Run another build before updating." :
-              templateVersion.job.status !== "succeeded" ? "Something" : ""
+              dirty
+                ? "You have edited files! Run another build before updating."
+                : templateVersion.job.status !== "succeeded"
+                ? "Something"
+                : ""
             }
           >
             <span>
-            <Button
-              size="small"
-              variant="contained"
-              color="primary"
-              disabled={dirty || disableUpdate}
-              onClick={() => {
-                onUpdate()
-              }}
-            >
-              Publish New Version
-            </Button>
+              <Button
+                size="small"
+                variant="contained"
+                color="primary"
+                disabled={dirty || disableUpdate}
+                onClick={() => {
+                  onUpdate()
+                }}
+              >
+                Publish New Version
+              </Button>
             </span>
           </Tooltip>
         </div>
@@ -195,19 +201,20 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
         <div className={styles.sidebar}>
           <div className={styles.sidebarTitle}>
             Template Editor
-            <Tooltip title="Create File" placement="top">
-              <IconButton
-                size="small"
-                color="secondary"
-                aria-label="Create File"
-                onClick={(event) => {
-                  setCreateFileOpen(true)
-                  event.currentTarget.blur()
-                }}
-              >
-                <CreateIcon />
-              </IconButton>
-            </Tooltip>
+            <div className={styles.sidebarActions}>
+              <Tooltip title="Create File" placement="top">
+                <IconButton
+                  size="small"
+                  aria-label="Create File"
+                  onClick={(event) => {
+                    setCreateFileOpen(true)
+                    event.currentTarget.blur()
+                  }}
+                >
+                  <CreateIcon />
+                </IconButton>
+              </Tooltip>
+            </div>
             <CreateFileDialog
               open={createFileOpen}
               onClose={() => {
@@ -379,6 +386,7 @@ const useStyles = makeStyles<
   Theme,
   {
     templateVersionSucceeded: boolean
+    showBuildLogs: boolean
   }
 >((theme) => ({
   root: {
@@ -401,6 +409,11 @@ const useStyles = makeStyles<
     alignItems: "center",
     gap: 16,
   },
+  buildStatus: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  },
   sidebarAndEditor: {
     display: "flex",
     flex: 1,
@@ -413,11 +426,20 @@ const useStyles = makeStyles<
     textTransform: "uppercase",
     padding: "8px 16px",
     color: theme.palette.text.hint,
+    display: "flex",
+    alignItems: "center",
+  },
+  sidebarActions: {
+    marginLeft: "auto",
+    "& svg": {
+      fill: theme.palette.text.hint,
+    },
   },
   editorPane: {
     display: "grid",
     width: "100%",
-    gridTemplateColumns: "0.6fr 0.4fr",
+    gridTemplateColumns: (props) =>
+      props.showBuildLogs ? "0.6fr 0.4fr" : "1fr 0fr",
     height: `calc(100vh - ${navHeight + topbarHeight}px)`,
     overflow: "hidden",
   },
@@ -495,6 +517,6 @@ const useStyles = makeStyles<
     whiteSpace: "pre-wrap",
   },
   resources: {
-    padding: 16,
+    // padding: 16,
   },
 }))

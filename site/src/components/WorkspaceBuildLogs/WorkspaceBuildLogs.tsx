@@ -86,12 +86,16 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
   )
 }
 
-const useStyles = makeStyles<Theme, {
-  templateEditorPane: boolean
-}>((theme) => ({
+const useStyles = makeStyles<
+  Theme,
+  {
+    templateEditorPane: boolean
+  }
+>((theme) => ({
   logs: {
     border: `1px solid ${theme.palette.divider}`,
-    borderRadius: (props) => props.templateEditorPane ? "0px" : theme.shape.borderRadius,
+    borderRadius: (props) =>
+      props.templateEditorPane ? "0px" : theme.shape.borderRadius,
     fontFamily: MONOSPACE_FONT_FAMILY,
   },
 

@@ -144,7 +144,9 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
               <StatsItem
                 label={t("stats.template")}
                 value={
-                  <RouterLink to={`/templates/${templateName}`}>{templateName}</RouterLink>
+                  <RouterLink to={`/templates/${templateName}`}>
+                    {templateName}
+                  </RouterLink>
                 }
               />
               <StatsItem

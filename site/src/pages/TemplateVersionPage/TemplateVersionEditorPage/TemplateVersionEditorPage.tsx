@@ -42,15 +42,19 @@ export const TemplateVersionEditorPage: FC = () => {
               if (!versionState.context.template) {
                 throw new Error("no template")
               }
+              // Send a cancel just in case a version is already being created!
               sendEvent({
-                type: "CREATE_BUILD",
+                type: "CANCEL_VERSION",
+              })
+              sendEvent({
+                type: "CREATE_VERSION",
                 files: files,
                 templateId: versionState.context.template.id,
               })
             }}
             onUpdate={() => {
               sendEvent({
-                type: "UPDATE_ACTIVE",
+                type: "UPDATE_ACTIVE_VERSION",
               })
             }}
             disablePreview={editorState.hasTag("loading")}

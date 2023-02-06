@@ -7,6 +7,7 @@ import Menu from "@material-ui/core/Menu"
 import MenuItem from "@material-ui/core/MenuItem"
 import { FC, useMemo, useState } from "react"
 import { TemplateVersionFiles } from "util/templateVersion"
+import { DockerIcon } from "components/Icons/DockerIcon"
 
 export interface File {
   path: string
@@ -131,17 +132,21 @@ export const FileTree: FC<{
         onClose={() => setContextMenu(undefined)}
         open={Boolean(contextMenu)}
         anchorReference="anchorPosition"
-        anchorPosition={contextMenu ? {
-          top: contextMenu.clientY,
-          left: contextMenu.clientX,
-        } : undefined}
+        anchorPosition={
+          contextMenu
+            ? {
+                top: contextMenu.clientY,
+                left: contextMenu.clientX,
+              }
+            : undefined
+        }
         anchorOrigin={{
-          vertical: 'top',
-          horizontal: 'left',
+          vertical: "top",
+          horizontal: "left",
         }}
         transformOrigin={{
-          vertical: 'top',
-          horizontal: 'left',
+          vertical: "top",
+          horizontal: "left",
         }}
       >
         <MenuItem
@@ -244,10 +249,4 @@ const FileTypeMarkdown = () => (
   </svg>
 )
 
-const FileTypeDockerfile = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="#0db7ed">
-    <path d="M16,2A14,14,0,1,0,30,16,14,14,0,0,0,16,2Zm0,26A12,12,0,1,1,28,16,12,12,0,0,1,16,28Z" />
-    <path d="M16,6a10,10,0,0,0-9.9,9.1H6.1A8,8,0,0,1,16,8a8,8,0,0,1,8,8,8,8,0,0,1-8,8,8,8,0,0,1-7.9-6.1H6.1A10,10,0,0,0,16,26a10,10,0,0,0,0-20Z" />
-    <path d="M16,10a6,6,0,0,0-6,6,6,6,0,0,0,6,6,6,6,0,0,0,6-6A6,6,0,0,0,16,10Zm0,10a4,4,0,0,1-4-4,4,4,0,0,1,4-4,4,4,0,0,1,4,4A4,4,0,0,1,16,20Z" />
-  </svg>
-)
+const FileTypeDockerfile = () => <DockerIcon />
