@@ -563,62 +563,13 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				options.Database = dbfake.New()
 				options.Pubsub = database.NewPubsubInMemory()
 			} else {
-				logger.Debug(ctx, "connecting to postgresql")
-				sqlDB, err := sql.Open(sqlDriver, cfg.PostgresURL.Value)
+				sqlDB, err := connectToPostgres(ctx, logger, sqlDriver, cfg.PostgresURL.Value)
 				if err != nil {
-					return xerrors.Errorf("dial postgres: %w", err)
+					return xerrors.Errorf("connect to postgres: %w", err)
 				}
-				defer sqlDB.Close()
-
-				pingCtx, pingCancel := context.WithTimeout(ctx, 15*time.Second)
-				defer pingCancel()
-
-				err = sqlDB.PingContext(pingCtx)
-				if err != nil {
-					return xerrors.Errorf("ping postgres: %w", err)
-				}
-
-				// Ensure the PostgreSQL version is >=13.0.0!
-				version, err := sqlDB.QueryContext(ctx, "SHOW server_version;")
-				if err != nil {
-					return xerrors.Errorf("get postgres version: %w", err)
-				}
-				if !version.Next() {
-					return xerrors.Errorf("no rows returned for version select")
-				}
-				var versionStr string
-				err = version.Scan(&versionStr)
-				if err != nil {
-					return xerrors.Errorf("scan version: %w", err)
-				}
-				_ = version.Close()
-				versionStr = strings.Split(versionStr, " ")[0]
-				if semver.Compare("v"+versionStr, "v13") < 0 {
-					return xerrors.New("PostgreSQL version must be v13.0.0 or higher!")
-				}
-				logger.Debug(ctx, "connected to postgresql", slog.F("version", versionStr))
-
-				err = migrations.Up(sqlDB)
-				if err != nil {
-					return xerrors.Errorf("migrate up: %w", err)
-				}
-				// The default is 0 but the request will fail with a 500 if the DB
-				// cannot accept new connections, so we try to limit that here.
-				// Requests will wait for a new connection instead of a hard error
-				// if a limit is set.
-				sqlDB.SetMaxOpenConns(10)
-				// Allow a max of 3 idle connections at a time. Lower values end up
-				// creating a lot of connection churn. Since each connection uses about
-				// 10MB of memory, we're allocating 30MB to Postgres connections per
-				// replica, but is better than causing Postgres to spawn a thread 15-20
-				// times/sec. PGBouncer's transaction pooling is not the greatest so
-				// it's not optimal for us to deploy.
-				//
-				// This was set to 10 before we started doing HA deployments, but 3 was
-				// later determined to be a better middle ground as to not use up all
-				// of PGs default connection limit while simultaneously avoiding a lot
-				// of connection churn.
-				sqlDB.SetMaxIdleConns(3)
+				defer func() {
+					_ = sqlDB.Close()
+				}()
 
 				options.Database = database.New(sqlDB)
 				options.Pubsub, err = database.NewPubsub(ctx, sqlDB, cfg.PostgresURL.Value)
@@ -1007,7 +958,8 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 	postgresBuiltinURLCmd.Flags().BoolVar(&pgRawURL, "raw-url", false, "Output the raw connection URL instead of a psql command.")
 	postgresBuiltinServeCmd.Flags().BoolVar(&pgRawURL, "raw-url", false, "Output the raw connection URL instead of a psql command.")
 
-	root.AddCommand(postgresBuiltinURLCmd, postgresBuiltinServeCmd)
+	createAdminUserCommand := newCreateAdminUserCommand()
+	root.AddCommand(postgresBuiltinURLCmd, postgresBuiltinServeCmd, createAdminUserCommand)
 
 	deployment.AttachFlags(root.Flags(), vip, false)
 
@@ -1606,4 +1558,72 @@ func buildLogger(cmd *cobra.Command, cfg *codersdk.DeploymentConfig) (slog.Logge
 			_ = closer()
 		}
 	}, nil
+}
+
+func connectToPostgres(ctx context.Context, logger slog.Logger, driver string, dbURL string) (*sql.DB, error) {
+	logger.Debug(ctx, "connecting to postgresql")
+	sqlDB, err := sql.Open(driver, dbURL)
+	if err != nil {
+		return nil, xerrors.Errorf("dial postgres: %w", err)
+	}
+
+	ok := false
+	defer func() {
+		if !ok {
+			_ = sqlDB.Close()
+		}
+	}()
+
+	pingCtx, pingCancel := context.WithTimeout(ctx, 15*time.Second)
+	defer pingCancel()
+
+	err = sqlDB.PingContext(pingCtx)
+	if err != nil {
+		return nil, xerrors.Errorf("ping postgres: %w", err)
+	}
+
+	// Ensure the PostgreSQL version is >=13.0.0!
+	version, err := sqlDB.QueryContext(ctx, "SHOW server_version;")
+	if err != nil {
+		return nil, xerrors.Errorf("get postgres version: %w", err)
+	}
+	if !version.Next() {
+		return nil, xerrors.Errorf("no rows returned for version select")
+	}
+	var versionStr string
+	err = version.Scan(&versionStr)
+	if err != nil {
+		return nil, xerrors.Errorf("scan version: %w", err)
+	}
+	_ = version.Close()
+	versionStr = strings.Split(versionStr, " ")[0]
+	if semver.Compare("v"+versionStr, "v13") < 0 {
+		return nil, xerrors.New("PostgreSQL version must be v13.0.0 or higher!")
+	}
+	logger.Debug(ctx, "connected to postgresql", slog.F("version", versionStr))
+
+	err = migrations.Up(sqlDB)
+	if err != nil {
+		return nil, xerrors.Errorf("migrate up: %w", err)
+	}
+	// The default is 0 but the request will fail with a 500 if the DB
+	// cannot accept new connections, so we try to limit that here.
+	// Requests will wait for a new connection instead of a hard error
+	// if a limit is set.
+	sqlDB.SetMaxOpenConns(10)
+	// Allow a max of 3 idle connections at a time. Lower values end up
+	// creating a lot of connection churn. Since each connection uses about
+	// 10MB of memory, we're allocating 30MB to Postgres connections per
+	// replica, but is better than causing Postgres to spawn a thread 15-20
+	// times/sec. PGBouncer's transaction pooling is not the greatest so
+	// it's not optimal for us to deploy.
+	//
+	// This was set to 10 before we started doing HA deployments, but 3 was
+	// later determined to be a better middle ground as to not use up all
+	// of PGs default connection limit while simultaneously avoiding a lot
+	// of connection churn.
+	sqlDB.SetMaxIdleConns(3)
+
+	ok = true
+	return sqlDB, nil
 }

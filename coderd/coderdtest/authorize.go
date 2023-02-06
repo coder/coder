@@ -1,6 +1,7 @@
 package coderdtest
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -378,7 +379,7 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 	template := CreateTemplate(t, client, admin.OrganizationID, version.ID)
 	workspace := CreateWorkspace(t, client, admin.OrganizationID, template.ID)
 	AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-	file, err := client.Upload(ctx, codersdk.ContentTypeTar, make([]byte, 1024))
+	file, err := client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader(make([]byte, 1024)))
 	require.NoError(t, err, "upload file")
 	workspace, err = client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err, "workspace resources")

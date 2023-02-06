@@ -17,13 +17,225 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/authzquery"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/userpassword"
 	"github.com/coder/coder/codersdk"
 )
+
+// Authenticates the user with an email and password.
+//
+// @Summary Log in user
+// @ID log-in-user
+// @Accept json
+// @Produce json
+// @Tags Authorization
+// @Param request body codersdk.LoginWithPasswordRequest true "Login request"
+// @Success 201 {object} codersdk.LoginWithPasswordResponse
+// @Router /users/login [post]
+func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx               = r.Context()
+		systemCtx         = authzquery.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionLogin,
+		})
+	)
+	aReq.Old = database.APIKey{}
+	defer commitAudit()
+
+	var loginWithPassword codersdk.LoginWithPasswordRequest
+	if !httpapi.Read(ctx, rw, r, &loginWithPassword) {
+		return
+	}
+
+	user, err := api.Database.GetUserByEmailOrUsername(systemCtx, database.GetUserByEmailOrUsernameParams{
+		Email: loginWithPassword.Email,
+	})
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error.",
+		})
+		return
+	}
+
+	aReq.UserID = user.ID
+
+	// If the user doesn't exist, it will be a default struct.
+	equal, err := userpassword.Compare(string(user.HashedPassword), loginWithPassword.Password)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error.",
+		})
+		return
+	}
+	if !equal {
+		// This message is the same as above to remove ease in detecting whether
+		// users are registered or not. Attackers still could with a timing attack.
+		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
+			Message: "Incorrect email or password.",
+		})
+		return
+	}
+
+	// If password authentication is disabled and the user does not have the
+	// owner role, block the request.
+	if api.DeploymentConfig.DisablePasswordAuth.Value {
+		permitted := false
+		for _, role := range user.RBACRoles {
+			if role == rbac.RoleOwner() {
+				permitted = true
+				break
+			}
+		}
+		if !permitted {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: "Password authentication is disabled. Only administrators can sign in with password authentication.",
+			})
+			return
+		}
+	}
+
+	if user.LoginType != database.LoginTypePassword {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q", database.LoginTypePassword, user.LoginType),
+		})
+		return
+	}
+
+	// If the user logged into a suspended account, reject the login request.
+	if user.Status != database.UserStatusActive {
+		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
+			Message: "Your account is suspended. Contact an admin to reactivate your account.",
+		})
+		return
+	}
+
+	cookie, key, err := api.createAPIKey(systemCtx, createAPIKeyParams{
+		UserID:     user.ID,
+		LoginType:  database.LoginTypePassword,
+		RemoteAddr: r.RemoteAddr,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to create API key.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	aReq.New = *key
+
+	http.SetCookie(rw, cookie)
+
+	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.LoginWithPasswordResponse{
+		SessionToken: cookie.Value,
+	})
+}
+
+// Clear the user's session cookie.
+//
+// @Summary Log out user
+// @ID log-out-user
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Success 200 {object} codersdk.Response
+// @Router /users/logout [post]
+func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx               = r.Context()
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionLogout,
+		})
+	)
+	defer commitAudit()
+
+	// Get a blank token cookie.
+	cookie := &http.Cookie{
+		// MaxAge < 0 means to delete the cookie now.
+		MaxAge: -1,
+		Name:   codersdk.SessionTokenCookie,
+		Path:   "/",
+	}
+	http.SetCookie(rw, cookie)
+
+	// Delete the session token from database.
+	apiKey := httpmw.APIKey(r)
+	aReq.Old = apiKey
+
+	err := api.Database.DeleteAPIKeyByID(ctx, apiKey.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error deleting API key.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Deployments should not host app tokens on the same domain as the
+	// primary deployment. But in the case they are, we should also delete this
+	// token.
+	if appCookie, _ := r.Cookie(httpmw.DevURLSessionTokenCookie); appCookie != nil {
+		appCookieRemove := &http.Cookie{
+			// MaxAge < 0 means to delete the cookie now.
+			MaxAge: -1,
+			Name:   httpmw.DevURLSessionTokenCookie,
+			Path:   "/",
+			Domain: "." + api.AccessURL.Hostname(),
+		}
+		http.SetCookie(rw, appCookieRemove)
+
+		id, _, err := httpmw.SplitAPIToken(appCookie.Value)
+		if err == nil {
+			err = api.Database.DeleteAPIKeyByID(ctx, id)
+			if err != nil {
+				// Don't block logout, just log any errors.
+				api.Logger.Warn(r.Context(), "failed to delete devurl token on logout",
+					slog.Error(err),
+					slog.F("id", id),
+				)
+			}
+		}
+	}
+
+	// This code should be removed after Jan 1 2023.
+	// This code logs out of the old session cookie before we renamed it
+	// if it is a valid coder token. Otherwise, this old cookie hangs around
+	// and we never log out of the user.
+	oldCookie, err := r.Cookie("session_token")
+	if err == nil && oldCookie != nil {
+		_, _, err := httpmw.SplitAPIToken(oldCookie.Value)
+		if err == nil {
+			cookie := &http.Cookie{
+				// MaxAge < 0 means to delete the cookie now.
+				MaxAge: -1,
+				Name:   "session_token",
+				Path:   "/",
+			}
+			http.SetCookie(rw, cookie)
+		}
+	}
+
+	aReq.New = database.APIKey{}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
+		Message: "Logged out!",
+	})
+}
 
 // GithubOAuth2Team represents a team scoped to an organization.
 type GithubOAuth2Team struct {
@@ -64,8 +276,10 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AuthMethods{
-		Password: codersdk.AuthMethod{Enabled: true},
-		Github:   codersdk.AuthMethod{Enabled: api.GithubOAuth2Config != nil},
+		Password: codersdk.AuthMethod{
+			Enabled: !api.DeploymentConfig.DisablePasswordAuth.Value,
+		},
+		Github: codersdk.AuthMethod{Enabled: api.GithubOAuth2Config != nil},
 		OIDC: codersdk.OIDCAuthMethod{
 			AuthMethod: codersdk.AuthMethod{Enabled: api.OIDCConfig != nil},
 			SignInText: signInText,
@@ -82,9 +296,18 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 // @Router /users/oauth2/github/callback [get]
 func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx   = r.Context()
-		state = httpmw.OAuth2(r)
+		ctx               = r.Context()
+		state             = httpmw.OAuth2(r)
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionLogin,
+		})
 	)
+	aReq.Old = database.APIKey{}
+	defer commitAudit()
 
 	oauthClient := oauth2.NewClient(ctx, oauth2.StaticTokenSource(state.Token))
 
@@ -183,7 +406,19 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cookie, err := api.oauthLogin(r, oauthLoginParams{
+	user, link, err := findLinkedUser(ctx, api.Database, githubLinkedID(ghUser), verifiedEmail.GetEmail())
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to find linked user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	aReq.UserID = user.ID
+
+	cookie, key, err := api.oauthLogin(r, oauthLoginParams{
+		User:         user,
+		Link:         link,
 		State:        state,
 		LinkedID:     githubLinkedID(ghUser),
 		LoginType:    database.LoginTypeGithub,
@@ -207,6 +442,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	aReq.New = key
 
 	http.SetCookie(rw, cookie)
 
@@ -245,9 +481,18 @@ type OIDCConfig struct {
 // @Router /users/oidc/callback [get]
 func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx   = r.Context()
-		state = httpmw.OAuth2(r)
+		ctx               = r.Context()
+		state             = httpmw.OAuth2(r)
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionLogin,
+		})
 	)
+	aReq.Old = database.APIKey{}
+	defer commitAudit()
 
 	// See the example here: https://github.com/coreos/go-oidc
 	rawIDToken, ok := state.Token.Extra("id_token").(string)
@@ -407,7 +652,19 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		picture, _ = pictureRaw.(string)
 	}
 
-	cookie, err := api.oauthLogin(r, oauthLoginParams{
+	user, link, err := findLinkedUser(ctx, api.Database, oidcLinkedID(idToken), email)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to find linked user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	aReq.UserID = user.ID
+
+	cookie, key, err := api.oauthLogin(r, oauthLoginParams{
+		User:         user,
+		Link:         link,
 		State:        state,
 		LinkedID:     oidcLinkedID(idToken),
 		LoginType:    database.LoginTypeOIDC,
@@ -432,6 +689,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	aReq.New = key
 
 	http.SetCookie(rw, cookie)
 
@@ -443,6 +701,8 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 }
 
 type oauthLoginParams struct {
+	User      database.User
+	Link      database.UserLink
 	State     httpmw.OAuth2State
 	LinkedID  string
 	LoginType database.LoginType
@@ -470,7 +730,7 @@ func (e httpError) Error() string {
 	return e.msg
 }
 
-func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cookie, error) {
+func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cookie, database.APIKey, error) {
 	var (
 		ctx       = r.Context()
 		systemCtx = authzquery.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
@@ -483,10 +743,8 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 			err  error
 		)
 
-		user, link, err = findLinkedUser(systemCtx, tx, params.LinkedID, params.Email)
-		if err != nil {
-			return xerrors.Errorf("find linked user: %w", err)
-		}
+		user = params.User
+		link = params.Link
 
 		if user.ID == uuid.Nil && !params.AllowSignups {
 			return httpError{
@@ -591,7 +849,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 
 		// Ensure groups are correct.
 		if len(params.Groups) > 0 {
-			err := api.Options.SetUserGroups(systemCtx, tx, user.ID, params.Groups)
+			err := api.Options.SetUserGroups(ctx, tx, user.ID, params.Groups)
 			if err != nil {
 				return xerrors.Errorf("set user groups: %w", err)
 			}
@@ -639,19 +897,19 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		return nil
 	}, nil)
 	if err != nil {
-		return nil, xerrors.Errorf("in tx: %w", err)
+		return nil, database.APIKey{}, xerrors.Errorf("in tx: %w", err)
 	}
 
-	cookie, err := api.createAPIKey(systemCtx, createAPIKeyParams{
+	cookie, key, err := api.createAPIKey(systemCtx, createAPIKeyParams{
 		UserID:     user.ID,
 		LoginType:  params.LoginType,
 		RemoteAddr: r.RemoteAddr,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("create API key: %w", err)
+		return nil, database.APIKey{}, xerrors.Errorf("create API key: %w", err)
 	}
 
-	return cookie, nil
+	return cookie, *key, nil
 }
 
 // githubLinkedID returns the unique ID for a GitHub user.

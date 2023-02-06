@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"testing"
@@ -300,7 +301,7 @@ func TestTemplateACL(t *testing.T) {
 
 		data, err := echo.Tar(nil)
 		require.NoError(t, err)
-		file, err := client1.Upload(context.Background(), codersdk.ContentTypeTar, data)
+		file, err := client1.Upload(context.Background(), codersdk.ContentTypeTar, bytes.NewReader(data))
 		require.NoError(t, err)
 
 		_, err = client1.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{

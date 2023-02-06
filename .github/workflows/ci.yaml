@@ -121,7 +121,8 @@ jobs:
               - 'site/**'
             k8s:
               - 'helm/**'
-              - Dockerfile
+              - scripts/Dockerfile
+              - scripts/Dockerfile.base
               - scripts/helm.sh
       - id: debug
         run: |

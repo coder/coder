@@ -532,7 +532,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 		{
 			name:    "Start/End out of order",
 			matches: []match{
-				//{match: "Continue?", write: "yes"},
+				// {match: "Continue?", write: "yes"},
 			},
 			writeConfig: writeConfig{
 				ssh: strings.Join([]string{
@@ -547,7 +547,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 		{
 			name:    "Multiple sections",
 			matches: []match{
-				//{match: "Continue?", write: "yes"},
+				// {match: "Continue?", write: "yes"},
 			},
 			writeConfig: writeConfig{
 				ssh: strings.Join([]string{

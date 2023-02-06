@@ -742,7 +742,7 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 		exp = database.Now().Add(api.DeploymentConfig.SessionDuration.Value)
 		lifetimeSeconds = int64(api.DeploymentConfig.SessionDuration.Value.Seconds())
 	}
-	cookie, err := api.createAPIKey(ctx, createAPIKeyParams{
+	cookie, _, err := api.createAPIKey(ctx, createAPIKeyParams{
 		UserID:          apiKey.UserID,
 		LoginType:       database.LoginTypePassword,
 		ExpiresAt:       exp,

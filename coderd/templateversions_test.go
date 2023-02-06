@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"testing"
@@ -108,7 +109,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		file, err := client.Upload(ctx, codersdk.ContentTypeTar, data)
+		file, err := client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader(data))
 		require.NoError(t, err)
 		version, err := client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 			Name:          "bananas",
@@ -126,8 +127,8 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		require.Equal(t, "bananas", version.Name)
 		require.Equal(t, provisionerdserver.ScopeOrganization, version.Job.Tags[provisionerdserver.TagScope])
 
-		require.Len(t, auditor.AuditLogs, 1)
-		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[0].Action)
+		require.Len(t, auditor.AuditLogs, 2)
+		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[1].Action)
 	})
 	t.Run("Example", func(t *testing.T) {
 		t.Parallel()
@@ -645,8 +646,8 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.Len(t, auditor.AuditLogs, 4)
-		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[3].Action)
+		require.Len(t, auditor.AuditLogs, 5)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[4].Action)
 	})
 }
 
@@ -895,7 +896,7 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 	templateVersionIDs := make([]uuid.UUID, total)
 	data, err := echo.Tar(nil)
 	require.NoError(t, err)
-	file, err := client.Upload(egCtx, codersdk.ContentTypeTar, data)
+	file, err := client.Upload(egCtx, codersdk.ContentTypeTar, bytes.NewReader(data))
 	require.NoError(t, err)
 	for i := 0; i < total; i++ {
 		i := i

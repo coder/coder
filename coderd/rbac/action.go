@@ -4,8 +4,8 @@ package rbac
 type Action string
 
 const (
-	ActionCreate = "create"
-	ActionRead   = "read"
-	ActionUpdate = "update"
-	ActionDelete = "delete"
+	ActionCreate Action = "create"
+	ActionRead   Action = "read"
+	ActionUpdate Action = "update"
+	ActionDelete Action = "delete"
 )
