@@ -22,21 +22,13 @@ WHERE
 SELECT
 	app_usage.created_at,
 	app_usage.app_slug,
-	workspace_apps.display_name as app_display_name,
-	workspace_apps.icon as app_icon,
   COUNT(*)
 FROM
   app_usage
-JOIN
-	workspace_apps
-ON
-  app_usage.app_slug = workspace_apps.slug
 WHERE
   app_usage.template_id = $1 AND app_usage.created_at BETWEEN @since_date :: date AND @to_date :: date
 GROUP BY
   app_usage.created_at,
-  app_usage.app_slug,
-  workspace_apps.display_name,
-  workspace_apps.icon
+  app_usage.app_slug
 ORDER BY
   app_usage.created_at ASC;

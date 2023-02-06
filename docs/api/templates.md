@@ -821,8 +821,6 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/app-usage \
 {
   "entries": [
     {
-      "app_display_name": "string",
-      "app_icon": "string",
       "app_slug": "string",
       "count": 0,
       "created_at": "2019-08-24T14:15:22Z"

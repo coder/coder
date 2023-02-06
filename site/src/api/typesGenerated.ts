@@ -705,8 +705,6 @@ export interface TemplateACL {
 export interface TemplateAppUsageEntry {
   readonly count: number
   readonly app_slug: string
-  readonly app_icon: string
-  readonly app_display_name: string
   readonly created_at: string
 }
 

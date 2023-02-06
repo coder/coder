@@ -4275,8 +4275,6 @@ Parameter represents a set value for the scope.
 
 ```json
 {
-  "app_display_name": "string",
-  "app_icon": "string",
   "app_slug": "string",
   "count": 0,
   "created_at": "2019-08-24T14:15:22Z"
@@ -4285,13 +4283,11 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name               | Type    | Required | Restrictions | Description |
-| ------------------ | ------- | -------- | ------------ | ----------- |
-| `app_display_name` | string  | false    |              |             |
-| `app_icon`         | string  | false    |              |             |
-| `app_slug`         | string  | false    |              |             |
-| `count`            | integer | false    |              |             |
-| `created_at`       | string  | false    |              |             |
+| Name         | Type    | Required | Restrictions | Description |
+| ------------ | ------- | -------- | ------------ | ----------- |
+| `app_slug`   | string  | false    |              |             |
+| `count`      | integer | false    |              |             |
+| `created_at` | string  | false    |              |             |
 
 ## codersdk.TemplateAppUsageResponse
 
@@ -4299,8 +4295,6 @@ Parameter represents a set value for the scope.
 {
   "entries": [
     {
-      "app_display_name": "string",
-      "app_icon": "string",
       "app_slug": "string",
       "count": 0,
       "created_at": "2019-08-24T14:15:22Z"

@@ -620,11 +620,9 @@ func (api *API) appUsage(rw http.ResponseWriter, r *http.Request) {
 	entries := make([]codersdk.TemplateAppUsageEntry, 0, len(usage))
 	for _, usageRow := range usage {
 		entries = append(entries, codersdk.TemplateAppUsageEntry{
-			Count:          int(usageRow.Count),
-			AppSlug:        usageRow.AppSlug,
-			AppIcon:        usageRow.AppIcon,
-			AppDisplayName: usageRow.AppDisplayName,
-			CreatedAt:      usageRow.CreatedAt,
+			Count:     int(usageRow.Count),
+			AppSlug:   usageRow.AppSlug,
+			CreatedAt: usageRow.CreatedAt,
 		})
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.TemplateAppUsageResponse{
