@@ -96,8 +96,20 @@ jobs:
         id: build
         run: |
           set -euo pipefail
-          image_job="build/coder_$(./scripts/version.sh)_linux_amd64.tag"
-          DOCKER_IMAGE_NO_PREREQUISITES=true make -j "$image_job"
+
+          version="$(./scripts/version.sh)"
+          image_job="build/coder_${version}_linux_amd64.tag"
+
+          # This environment variable force make to not build packages and
+          # archives (which the Docker image depends on due to technical reasons
+          # related to concurrent FS writes).
+          export DOCKER_IMAGE_NO_PREREQUISITES=true
+          # This environment variables forces scripts/build_docker.sh to build
+          # the base image tag locally instead of using the cached version from
+          # the registry.
+          export CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")"
+
+          make -j "$image_job"
           echo "image=$(cat "$image_job")" >> $GITHUB_OUTPUT
 
       - name: Run Trivy vulnerability scanner
