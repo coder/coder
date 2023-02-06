@@ -4482,6 +4482,79 @@ Parameter represents a set value for the scope.
 | `template_id`     | string                                             | false    |              |             |
 | `updated_at`      | string                                             | false    |              |             |
 
+## codersdk.TemplateVersionParameter
+
+```json
+{
+  "default_value": "string",
+  "description": "string",
+  "icon": "string",
+  "mutable": true,
+  "name": "string",
+  "options": [
+    {
+      "description": "string",
+      "icon": "string",
+      "name": "string",
+      "value": "string"
+    }
+  ],
+  "type": "string",
+  "validation_error": "string",
+  "validation_max": 0,
+  "validation_min": 0,
+  "validation_monotonic": "increasing",
+  "validation_regex": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type                                                                                        | Required | Restrictions | Description |
+| ---------------------- | ------------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `default_value`        | string                                                                                      | false    |              |             |
+| `description`          | string                                                                                      | false    |              |             |
+| `icon`                 | string                                                                                      | false    |              |             |
+| `mutable`              | boolean                                                                                     | false    |              |             |
+| `name`                 | string                                                                                      | false    |              |             |
+| `options`              | array of [codersdk.TemplateVersionParameterOption](#codersdktemplateversionparameteroption) | false    |              |             |
+| `type`                 | string                                                                                      | false    |              |             |
+| `validation_error`     | string                                                                                      | false    |              |             |
+| `validation_max`       | integer                                                                                     | false    |              |             |
+| `validation_min`       | integer                                                                                     | false    |              |             |
+| `validation_monotonic` | [codersdk.ValidationMonotonicOrder](#codersdkvalidationmonotonicorder)                      | false    |              |             |
+| `validation_regex`     | string                                                                                      | false    |              |             |
+
+#### Enumerated Values
+
+| Property               | Value        |
+| ---------------------- | ------------ |
+| `type`                 | `string`     |
+| `type`                 | `number`     |
+| `type`                 | `bool`       |
+| `validation_monotonic` | `increasing` |
+| `validation_monotonic` | `decreasing` |
+
+## codersdk.TemplateVersionParameterOption
+
+```json
+{
+  "description": "string",
+  "icon": "string",
+  "name": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+| ------------- | ------ | -------- | ------------ | ----------- |
+| `description` | string | false    |              |             |
+| `icon`        | string | false    |              |             |
+| `name`        | string | false    |              |             |
+| `value`       | string | false    |              |             |
+
 ## codersdk.TraceConfig
 
 ```json
@@ -4774,6 +4847,21 @@ Parameter represents a set value for the scope.
 | -------- | ------ | -------- | ------------ | ----------- |
 | `detail` | string | true     |              |             |
 | `field`  | string | true     |              |             |
+
+## codersdk.ValidationMonotonicOrder
+
+```json
+"increasing"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value        |
+| ------------ |
+| `increasing` |
+| `decreasing` |
 
 ## codersdk.Workspace
 

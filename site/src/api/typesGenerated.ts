@@ -761,7 +761,7 @@ export interface TemplateVersionParameter {
   readonly validation_regex: string
   readonly validation_min: number
   readonly validation_max: number
-  readonly validation_monotonic: string
+  readonly validation_monotonic: ValidationMonotonicOrder
 }
 
 // From codersdk/templateversions.go
@@ -1199,6 +1199,13 @@ export const TemplateRoles: TemplateRole[] = ["", "admin", "use"]
 // From codersdk/users.go
 export type UserStatus = "active" | "suspended"
 export const UserStatuses: UserStatus[] = ["active", "suspended"]
+
+// From codersdk/templateversions.go
+export type ValidationMonotonicOrder = "decreasing" | "increasing"
+export const ValidationMonotonicOrders: ValidationMonotonicOrder[] = [
+  "decreasing",
+  "increasing",
+]
 
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentLifecycle =

@@ -24,11 +24,18 @@ type TemplateVersion struct {
 	CreatedBy      User           `json:"created_by"`
 }
 
+type ValidationMonotonicOrder string
+
+const (
+	MonotonicOrderIncreasing ValidationMonotonicOrder = "increasing"
+	MonotonicOrderDecreasing ValidationMonotonicOrder = "decreasing"
+)
+
 // TemplateVersionParameter represents a parameter for a template version.
 type TemplateVersionParameter struct {
 	Name                string                           `json:"name"`
 	Description         string                           `json:"description"`
-	Type                string                           `json:"type"`
+	Type                string                           `json:"type" enums:"string,number,bool"`
 	Mutable             bool                             `json:"mutable"`
 	DefaultValue        string                           `json:"default_value"`
 	Icon                string                           `json:"icon"`
@@ -37,7 +44,7 @@ type TemplateVersionParameter struct {
 	ValidationRegex     string                           `json:"validation_regex"`
 	ValidationMin       int32                            `json:"validation_min"`
 	ValidationMax       int32                            `json:"validation_max"`
-	ValidationMonotonic string                           `json:"validation_monotonic"`
+	ValidationMonotonic ValidationMonotonicOrder         `json:"validation_monotonic" enums:"increasing,decreasing"`
 }
 
 // TemplateVersionParameterOption represents a selectable option for a template parameter.
