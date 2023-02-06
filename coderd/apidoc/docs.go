@@ -6016,6 +6016,9 @@ const docTemplate = `{
                 "derp": {
                     "$ref": "#/definitions/codersdk.DERP"
                 },
+                "disable_password_auth": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
                 "disable_path_apps": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
                 },

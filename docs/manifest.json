@@ -510,6 +510,10 @@
           "path": "./cli/coder_server.md"
         },
         {
+          "title": "server create-admin-user",
+          "path": "./cli/coder_server_create-admin-user.md"
+        },
+        {
           "title": "server postgres-builtin-serve",
           "path": "./cli/coder_server_postgres-builtin-serve.md"
         },

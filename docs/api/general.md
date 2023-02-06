@@ -289,6 +289,17 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
       }
     }
   },
+  "disable_password_auth": {
+    "default": true,
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": true
+  },
   "disable_path_apps": {
     "default": true,
     "enterprise": true,
