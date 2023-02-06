@@ -141,7 +141,16 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 
 		// If no resources were provided, there's nothing we can audit.
 		if ResourceID(req.Old) == uuid.Nil && ResourceID(req.New) == uuid.Nil {
-			return
+			if req.params.Action == database.AuditActionLogin ||
+				req.params.Action == database.AuditActionLogout {
+				// If the request action is a login or logout, we always want to audit it even if
+				// there is no diff. This is so we can capture events where an API Key is never created
+				// because an unknown user fails to login.
+				// TODO: introduce the concept of an anonymous user so we always have a userID even
+				// when dealing with a mystery user. https://github.com/coder/coder/issues/6054
+			} else {
+				return
+			}
 		}
 
 		var diffRaw = []byte("{}")
@@ -176,9 +185,9 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			UserID:           userID,
 			Ip:               ip,
 			UserAgent:        sql.NullString{String: p.Request.UserAgent(), Valid: true},
-			ResourceType:     either(req.Old, req.New, ResourceType[T]),
-			ResourceID:       either(req.Old, req.New, ResourceID[T]),
-			ResourceTarget:   either(req.Old, req.New, ResourceTarget[T]),
+			ResourceType:     either(req.Old, req.New, ResourceType[T], req.params.Action),
+			ResourceID:       either(req.Old, req.New, ResourceID[T], req.params.Action),
+			ResourceTarget:   either(req.Old, req.New, ResourceTarget[T], req.params.Action),
 			Action:           p.Action,
 			Diff:             diffRaw,
 			StatusCode:       int32(sw.Status),
@@ -221,9 +230,9 @@ func BuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T]) {
 		UserID:           p.UserID,
 		Ip:               ip,
 		UserAgent:        sql.NullString{},
-		ResourceType:     either(p.Old, p.New, ResourceType[T]),
-		ResourceID:       either(p.Old, p.New, ResourceID[T]),
-		ResourceTarget:   either(p.Old, p.New, ResourceTarget[T]),
+		ResourceType:     either(p.Old, p.New, ResourceType[T], p.Action),
+		ResourceID:       either(p.Old, p.New, ResourceID[T], p.Action),
+		ResourceTarget:   either(p.Old, p.New, ResourceTarget[T], p.Action),
 		Action:           p.Action,
 		Diff:             diffRaw,
 		StatusCode:       int32(p.Status),
@@ -240,10 +249,14 @@ func BuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T]) {
 	}
 }
 
-func either[T Auditable, R any](old, new T, fn func(T) R) R {
+func either[T Auditable, R any](old, new T, fn func(T) R, auditAction database.AuditAction) R {
 	if ResourceID(new) != uuid.Nil {
 		return fn(new)
 	} else if ResourceID(old) != uuid.Nil {
+		return fn(old)
+	} else if auditAction == database.AuditActionLogin || auditAction == database.AuditActionLogout {
+		// If the request action is a login or logout, we always want to audit it even if
+		// there is no diff. See the comment in audit.InitRequest for more detail.
 		return fn(old)
 	} else {
 		panic("both old and new are nil")

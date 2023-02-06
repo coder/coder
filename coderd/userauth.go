@@ -51,7 +51,6 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	)
 	aReq.Old = database.APIKey{}
 	defer commitAudit()
-	setAnonUser(aReq)
 
 	var loginWithPassword codersdk.LoginWithPasswordRequest
 	if !httpapi.Read(ctx, rw, r, &loginWithPassword) {
@@ -308,7 +307,6 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	)
 	aReq.Old = database.APIKey{}
 	defer commitAudit()
-	defer setAnonUser(aReq)
 
 	oauthClient := oauth2.NewClient(ctx, oauth2.StaticTokenSource(state.Token))
 
@@ -494,7 +492,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	)
 	aReq.Old = database.APIKey{}
 	defer commitAudit()
-	defer setAnonUser(aReq)
 
 	// See the example here: https://github.com/coreos/go-oidc
 	rawIDToken, ok := state.Token.Extra("id_token").(string)
@@ -911,17 +908,6 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 	}
 
 	return cookie, *key, nil
-}
-
-// setAnonUser should only be used on unauthenticated routes where the user
-// making the request is unknown. To force audit logs to show an unknown user
-// made the request, a disposable user ID is used.
-// This user id has no relation to any actual user and indicates
-// a failed attempt (eg failed login) of an anonymous user.
-func setAnonUser(request *audit.Request[database.APIKey]) {
-	if request.New.UserID == uuid.Nil {
-		request.New = database.APIKey{UserID: uuid.New()}
-	}
 }
 
 // githubLinkedID returns the unique ID for a GitHub user.
