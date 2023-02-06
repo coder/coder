@@ -5249,6 +5249,63 @@ Parameter represents a set value for the scope.
 | ------- | ------------------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `ports` | array of [codersdk.WorkspaceAgentListeningPort](#codersdkworkspaceagentlisteningport) | false    |              | If there are no ports in the list, nothing should be displayed in the UI. There must not be a "no ports available" message or anything similar, as there will always be no ports displayed on platforms where our port detection logic is unsupported. |
 
+## codersdk.WorkspaceAgentLog
+
+```json
+"coder-agent.log"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value                      |
+| -------------------------- |
+| `coder-agent.log`          |
+| `coder-startup-script.log` |
+
+## codersdk.WorkspaceAgentLogInfo
+
+```json
+{
+  "exists": true,
+  "lines": 100,
+  "modified": "2019-08-24T14:15:22Z",
+  "name": "coder-agent.log",
+  "path": "/tmp/coder-agent.log",
+  "size": 2048
+}
+```
+
+### Properties
+
+| Name       | Type                                                     | Required | Restrictions | Description |
+| ---------- | -------------------------------------------------------- | -------- | ------------ | ----------- |
+| `exists`   | boolean                                                  | false    |              |             |
+| `lines`    | integer                                                  | false    |              |             |
+| `modified` | string                                                   | false    |              |             |
+| `name`     | [codersdk.WorkspaceAgentLog](#codersdkworkspaceagentlog) | false    |              |             |
+| `path`     | string                                                   | false    |              |             |
+| `size`     | integer                                                  | false    |              |             |
+
+## codersdk.WorkspaceAgentLogTailResponse
+
+```json
+{
+  "content": ["string"],
+  "count": 0,
+  "start": 0
+}
+```
+
+### Properties
+
+| Name      | Type            | Required | Restrictions | Description               |
+| --------- | --------------- | -------- | ------------ | ------------------------- |
+| `content` | array of string | false    |              |                           |
+| `count`   | integer         | false    |              | Number of lines returned. |
+| `start`   | integer         | false    |              | Line offset, 0-based.     |
+
 ## codersdk.WorkspaceAgentStatus
 
 ```json

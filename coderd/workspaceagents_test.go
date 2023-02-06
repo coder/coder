@@ -8,6 +8,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -707,6 +709,161 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 		res, err := client.WorkspaceAgentListeningPorts(ctx, agentID)
 		require.NoError(t, err)
 		require.Len(t, res.Ports, 0)
+	})
+}
+
+func TestWorkspaceAgentLogs(t *testing.T) {
+	t.Parallel()
+
+	setup := func(t *testing.T, logDir string, startupScript string) (*codersdk.Client, uuid.UUID) {
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		authToken := uuid.NewString()
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:         echo.ParseComplete,
+			ProvisionPlan: echo.ProvisionComplete,
+			ProvisionApply: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.Resource{{
+							Name: "example",
+							Type: "aws_instance",
+							Agents: []*proto.Agent{{
+								Id: uuid.NewString(),
+								Auth: &proto.Agent_Token{
+									Token: authToken,
+								},
+								LoginBeforeReady: false,
+								StartupScript:    startupScript,
+							}},
+						}},
+					},
+				},
+			}},
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(authToken)
+		agentCloser := agent.New(agent.Options{
+			Client: agentClient,
+			LogDir: logDir,
+			Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelInfo),
+		})
+		t.Cleanup(func() {
+			_ = agentCloser.Close()
+		})
+		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+		return client, resources[0].Agents[0].ID
+	}
+
+	t.Run("coder-agent.log info", func(t *testing.T) {
+		t.Parallel()
+
+		logDir := t.TempDir()
+		client, agentID := setup(t, logDir, "")
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		f, err := os.Create(filepath.Join(logDir, "coder-agent.log"))
+		require.NoError(t, err)
+		defer f.Close()
+
+		// Part 1, test that the log file is created and has the correct info.
+		missing := "end-no-newline"
+		content := "hello world\n\ntest\n\n" + missing
+		_, err = f.WriteString(content)
+		require.NoError(t, err)
+		err = f.Sync()
+		require.NoError(t, err)
+
+		info, err := client.WorkspaceAgentLogInfo(ctx, agentID, codersdk.WorkspaceAgentLogAgent)
+		require.NoError(t, err)
+
+		assert.Equal(t, true, info.Exists)
+		assert.Equal(t, int64(len(content)-len(missing)), info.Size)
+		assert.Equal(t, 4, info.Lines)
+		assert.Contains(t, info.Path, logDir)
+
+		// Part 2, test that the log file is updated and has the correct info.
+		content2 := "\nmore\nlines\n"
+		_, err = f.WriteString(content2)
+		require.NoError(t, err)
+		err = f.Sync()
+		require.NoError(t, err)
+
+		info, err = client.WorkspaceAgentLogInfo(ctx, agentID, codersdk.WorkspaceAgentLogAgent)
+		require.NoError(t, err)
+
+		assert.Equal(t, int64(len(content)+len(content2)), info.Size)
+		assert.Equal(t, 7, info.Lines)
+	})
+
+	t.Run("coder-startup-script.log tail", func(t *testing.T) {
+		t.Parallel()
+
+		logDir := t.TempDir()
+		client, agentID := setup(t, logDir, "echo skip first line\necho hello world\necho test\n")
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
+			workspaceAgent, err := client.WorkspaceAgent(ctx, agentID)
+			if !assert.NoError(t, err) {
+				return false
+			}
+			return workspaceAgent.LifecycleState == codersdk.WorkspaceAgentLifecycleReady
+		}, testutil.IntervalMedium, "agent status timeout")
+
+		info, err := client.WorkspaceAgentLogInfo(ctx, agentID, codersdk.WorkspaceAgentLogStartupScript)
+		require.NoError(t, err)
+
+		assert.Equal(t, true, info.Exists)
+		assert.Equal(t, 3, info.Lines)
+
+		tail, err := client.WorkspaceAgentLogTail(ctx, agentID, codersdk.WorkspaceAgentLogStartupScript, codersdk.WorkspaceAgentLogTailRequest{
+			Offset: info.Lines - 2,
+		})
+		require.NoError(t, err)
+
+		assert.Equal(t, 2, tail.Count)
+		assert.Equal(t, []string{"hello world", "test"}, tail.Lines)
+	})
+
+	t.Run("coder-startup-script.log not exists", func(t *testing.T) {
+		t.Parallel()
+
+		logDir := t.TempDir()
+		client, agentID := setup(t, logDir, "")
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
+			workspaceAgent, err := client.WorkspaceAgent(ctx, agentID)
+			if !assert.NoError(t, err) {
+				return false
+			}
+			return workspaceAgent.LifecycleState == codersdk.WorkspaceAgentLifecycleReady
+		}, testutil.IntervalMedium, "agent status timeout")
+
+		info, err := client.WorkspaceAgentLogInfo(ctx, agentID, codersdk.WorkspaceAgentLogStartupScript)
+		require.NoError(t, err)
+
+		require.Equal(t, false, info.Exists)
+
+		_, err = client.WorkspaceAgentLogTail(ctx, agentID, codersdk.WorkspaceAgentLogStartupScript, codersdk.WorkspaceAgentLogTailRequest{
+			Offset: info.Lines - 2,
+		})
+		require.Error(t, err)
 	})
 }
 

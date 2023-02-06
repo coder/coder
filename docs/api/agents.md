@@ -683,6 +683,170 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/lis
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get workspace agent logs
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/logs \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaceagents/{workspaceagent}/logs`
+
+### Parameters
+
+| Name             | In   | Type         | Required | Description        |
+| ---------------- | ---- | ------------ | -------- | ------------------ |
+| `workspaceagent` | path | string(uuid) | true     | Workspace agent ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "exists": true,
+    "lines": 100,
+    "modified": "2019-08-24T14:15:22Z",
+    "name": "coder-agent.log",
+    "path": "/tmp/coder-agent.log",
+    "size": 2048
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                              |
+| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.WorkspaceAgentLogInfo](schemas.md#codersdkworkspaceagentloginfo) |
+
+<h3 id="get-workspace-agent-logs-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name           | Type                                                               | Required | Restrictions | Description |
+| -------------- | ------------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `[array item]` | array                                                              | false    |              |             |
+| `» exists`     | boolean                                                            | false    |              |             |
+| `» lines`      | integer                                                            | false    |              |             |
+| `» modified`   | string(date-time)                                                  | false    |              |             |
+| `» name`       | [codersdk.WorkspaceAgentLog](schemas.md#codersdkworkspaceagentlog) | false    |              |             |
+| `» path`       | string                                                             | false    |              |             |
+| `» size`       | integer                                                            | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value                      |
+| -------- | -------------------------- |
+| `name`   | `coder-agent.log`          |
+| `name`   | `coder-startup-script.log` |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get workspace agent log file information.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/logs/{log} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaceagents/{workspaceagent}/logs/{log}`
+
+### Parameters
+
+| Name             | In   | Type         | Required | Description             |
+| ---------------- | ---- | ------------ | -------- | ----------------------- |
+| `workspaceagent` | path | string(uuid) | true     | Workspace agent ID      |
+| `log`            | path | string       | true     | Workspace log file name |
+
+#### Enumerated Values
+
+| Parameter | Value                      |
+| --------- | -------------------------- |
+| `log`     | `coder-agent.log`          |
+| `log`     | `coder-startup-script.log` |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "exists": true,
+  "lines": 100,
+  "modified": "2019-08-24T14:15:22Z",
+  "name": "coder-agent.log",
+  "path": "/tmp/coder-agent.log",
+  "size": 2048
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                     |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentLogInfo](schemas.md#codersdkworkspaceagentloginfo) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get workspace agent log contents.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/logs/{log}/tail \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaceagents/{workspaceagent}/logs/{log}/tail`
+
+### Parameters
+
+| Name             | In    | Type         | Required | Description                       |
+| ---------------- | ----- | ------------ | -------- | --------------------------------- |
+| `workspaceagent` | path  | string(uuid) | true     | Workspace agent ID                |
+| `log`            | path  | string       | true     | Workspace log file name           |
+| `offset`         | query | integer      | false    | Line offset to start reading from |
+| `limit`          | query | integer      | false    | Maximum number of lines to return |
+
+#### Enumerated Values
+
+| Parameter | Value                      |
+| --------- | -------------------------- |
+| `log`     | `coder-agent.log`          |
+| `log`     | `coder-startup-script.log` |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "content": ["string"],
+  "count": 0,
+  "start": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                     |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentLogTailResponse](schemas.md#codersdkworkspaceagentlogtailresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Open PTY to workspace agent
 
 ### Code samples

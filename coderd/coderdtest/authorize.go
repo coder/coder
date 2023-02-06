@@ -146,6 +146,18 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertAction: rbac.ActionCreate,
 			AssertObject: workspaceExecObj,
 		},
+		"GET:/api/v2/workspaceagents/{workspaceagent}/logs": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: workspaceRBACObj,
+		},
+		"GET:/api/v2/workspaceagents/{workspaceagent}/logs/{log}": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: workspaceRBACObj,
+		},
+		"GET:/api/v2/workspaceagents/{workspaceagent}/logs/{log}/tail": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: workspaceRBACObj,
+		},
 		"POST:/api/v2/organizations/{organization}/templates": {
 			AssertAction: rbac.ActionCreate,
 			AssertObject: rbac.ResourceTemplate.InOrg(a.Organization.ID),
@@ -695,6 +707,7 @@ func (s *PreparedRecorder) Authorize(ctx context.Context, object rbac.Object) er
 	}
 	return s.prepped.Authorize(ctx, object)
 }
+
 func (s *PreparedRecorder) CompileToSQL(ctx context.Context, cfg regosql.ConvertConfig) (string, error) {
 	s.rw.Lock()
 	defer s.rw.Unlock()

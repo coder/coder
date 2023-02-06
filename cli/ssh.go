@@ -98,6 +98,9 @@ func ssh() *cobra.Command {
 					return cliui.Canceled
 				}
 				if xerrors.Is(err, cliui.AgentStartError) {
+					// Best-effort show log tail.
+					_ = showStartupScriptLogTail(ctx, cmd.ErrOrStderr(), client, workspaceAgent.ID, nil)
+
 					return xerrors.New("Agent startup script exited with non-zero status, use --no-wait to login anyway.")
 				}
 				return xerrors.Errorf("await agent: %w", err)
@@ -108,7 +111,16 @@ func ssh() *cobra.Command {
 				return err
 			}
 			defer conn.Close()
-			conn.AwaitReachable(ctx)
+
+			if !conn.AwaitReachable(ctx) {
+				return ctx.Err()
+			}
+
+			err = showStartupScriptLogTail(ctx, cmd.ErrOrStderr(), client, workspaceAgent.ID, conn)
+			if err != nil {
+				return err
+			}
+
 			stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
 			defer stopPolling()
 
@@ -335,6 +347,64 @@ func getWorkspaceAndAgent(ctx context.Context, cmd *cobra.Command, client *coder
 	}
 
 	return workspace, workspaceAgent, nil
+}
+
+// showStartupScriptLogTail shows the tail of the starutp script log, if no conn
+// is provided a new connection to the agent will be established and closed
+// after done.
+func showStartupScriptLogTail(ctx context.Context, dest io.Writer, client *codersdk.Client, workspaceAgentID uuid.UUID, conn *codersdk.WorkspaceAgentConn) (err error) {
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	if conn == nil {
+		conn, err = client.DialWorkspaceAgent(ctx, workspaceAgentID, &codersdk.DialWorkspaceAgentOptions{})
+		if err != nil {
+			return err
+		}
+		defer conn.Close()
+
+		if !conn.AwaitReachable(ctx) {
+			return ctx.Err()
+		}
+	}
+
+	info, err := conn.LogInfo(ctx, codersdk.WorkspaceAgentLogStartupScript)
+	if err != nil {
+		return err
+	}
+
+	if !info.Exists {
+		return nil
+	}
+
+	curLine := info.Lines
+	if curLine < 10 {
+		curLine = 0
+	} else {
+		curLine -= 10
+	}
+
+	tail, err := conn.LogTail(ctx, codersdk.WorkspaceAgentLogStartupScript, codersdk.WorkspaceAgentLogTailRequest{
+		Offset: curLine,
+	})
+	if err != nil {
+		return err
+	}
+	lines := tail.Lines
+	if len(lines) > 0 {
+		// More than 10 lines could've been returned if there were
+		// new lines after info.
+		if len(lines) > 10 {
+			lines = lines[len(lines)-10:]
+		}
+
+		_, _ = fmt.Fprintf(dest, "Showing up to the last 10 lines from startup_script:\n\n")
+		for _, line := range lines {
+			_, _ = fmt.Fprintf(dest, "[startup_script] %s\n", line)
+		}
+		_, _ = fmt.Fprintf(dest, "\n")
+	}
+	return nil
 }
 
 // Attempt to poll workspace autostop. We write a per-workspace lockfile to

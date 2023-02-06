@@ -4277,6 +4277,148 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/{workspaceagent}/logs": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get workspace agent logs",
+                "operationId": "get-workspace-agent-logs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.WorkspaceAgentLogInfo"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaceagents/{workspaceagent}/logs/{log}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get workspace agent log file information.",
+                "operationId": "get-workspace-agent-log-file-information",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "coder-agent.log",
+                            "coder-startup-script.log"
+                        ],
+                        "type": "string",
+                        "description": "Workspace log file name",
+                        "name": "log",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentLogInfo"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaceagents/{workspaceagent}/logs/{log}/tail": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get workspace agent log contents.",
+                "operationId": "get-workspace-agent-log-contents",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "coder-agent.log",
+                            "coder-startup-script.log"
+                        ],
+                        "type": "string",
+                        "description": "Workspace log file name",
+                        "name": "log",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Line offset to start reading from",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Maximum number of lines to return",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentLogTailResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaceagents/{workspaceagent}/pty": {
             "get": {
                 "security": [
@@ -8065,6 +8207,63 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.WorkspaceAgentListeningPort"
                     }
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentLog": {
+            "type": "string",
+            "enum": [
+                "coder-agent.log",
+                "coder-startup-script.log"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAgentLogAgent",
+                "WorkspaceAgentLogStartupScript"
+            ]
+        },
+        "codersdk.WorkspaceAgentLogInfo": {
+            "type": "object",
+            "properties": {
+                "exists": {
+                    "type": "boolean"
+                },
+                "lines": {
+                    "type": "integer",
+                    "example": 100
+                },
+                "modified": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "name": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentLog"
+                },
+                "path": {
+                    "type": "string",
+                    "example": "/tmp/coder-agent.log"
+                },
+                "size": {
+                    "type": "integer",
+                    "example": 2048
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentLogTailResponse": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "count": {
+                    "description": "Number of lines returned.",
+                    "type": "integer"
+                },
+                "start": {
+                    "description": "Line offset, 0-based.",
+                    "type": "integer"
                 }
             }
         },

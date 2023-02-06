@@ -293,6 +293,91 @@ func (c *WorkspaceAgentConn) ListeningPorts(ctx context.Context) (WorkspaceAgent
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
+type WorkspaceAgentLogInfo struct {
+	Name     WorkspaceAgentLog `json:"name"`
+	Path     string            `json:"path" example:"/tmp/coder-agent.log"`
+	Size     int64             `json:"size" example:"2048"`
+	Lines    int               `json:"lines" example:"100"`
+	Exists   bool              `json:"exists"`
+	Modified time.Time         `json:"modified" format:"date-time"`
+}
+
+// Logs returns a list of logs that are available on the agent.
+func (c *WorkspaceAgentConn) Logs(ctx context.Context) ([]WorkspaceAgentLogInfo, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/logs", nil)
+	if err != nil {
+		return nil, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+
+	var resp []WorkspaceAgentLogInfo
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// LogInfo returns information about the log file.
+func (c *WorkspaceAgentConn) LogInfo(ctx context.Context, name WorkspaceAgentLog) (WorkspaceAgentLogInfo, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodGet, fmt.Sprintf("/api/v0/logs/%s", name), nil)
+	if err != nil {
+		return WorkspaceAgentLogInfo{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return WorkspaceAgentLogInfo{}, ReadBodyAsError(res)
+	}
+
+	var resp WorkspaceAgentLogInfo
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// @typescript-ignore WorkspaceAgentLogTailRequest
+type WorkspaceAgentLogTailRequest struct {
+	Offset int `json:"offset"` // Line offset, 0-based.
+	Limit  int `json:"limit"`  // Number of lines to return.
+}
+
+type WorkspaceAgentLogTailResponse struct {
+	Offset int      `json:"start"` // Line offset, 0-based.
+	Count  int      `json:"count"` // Number of lines returned.
+	Lines  []string `json:"content"`
+}
+
+// LogTail issues a log tail request to the workspace agent.
+func (c *WorkspaceAgentConn) LogTail(ctx context.Context, name WorkspaceAgentLog, req WorkspaceAgentLogTailRequest) (WorkspaceAgentLogTailResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	url := fmt.Sprintf("/api/v0/logs/%s/tail", name)
+	var params []string
+	if req.Offset > 0 {
+		params = append(params, fmt.Sprintf("offset=%d", req.Offset))
+	}
+	if req.Limit > 0 {
+		params = append(params, fmt.Sprintf("limit=%d", req.Limit))
+	}
+	if len(params) > 0 {
+		url += "?" + strings.Join(params, "&")
+	}
+
+	res, err := c.apiRequest(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return WorkspaceAgentLogTailResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return WorkspaceAgentLogTailResponse{}, ReadBodyAsError(res)
+	}
+
+	var resp WorkspaceAgentLogTailResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
 // apiRequest makes a request to the workspace agent's HTTP API server.
 func (c *WorkspaceAgentConn) apiRequest(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
 	ctx, span := tracing.StartSpan(ctx)

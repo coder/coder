@@ -946,6 +946,23 @@ export interface WorkspaceAgentListeningPortsResponse {
   readonly ports: WorkspaceAgentListeningPort[]
 }
 
+// From codersdk/workspaceagentconn.go
+export interface WorkspaceAgentLogInfo {
+  readonly name: WorkspaceAgentLog
+  readonly path: string
+  readonly size: number
+  readonly lines: number
+  readonly exists: boolean
+  readonly modified: string
+}
+
+// From codersdk/workspaceagentconn.go
+export interface WorkspaceAgentLogTailResponse {
+  readonly start: number
+  readonly count: number
+  readonly content: string[]
+}
+
 // From codersdk/workspaceapps.go
 export interface WorkspaceApp {
   readonly id: string
@@ -1232,6 +1249,13 @@ export const WorkspaceAgentLifecycles: WorkspaceAgentLifecycle[] = [
   "start_error",
   "start_timeout",
   "starting",
+]
+
+// From codersdk/workspaceagents.go
+export type WorkspaceAgentLog = "coder-agent.log" | "coder-startup-script.log"
+export const WorkspaceAgentLogs: WorkspaceAgentLog[] = [
+  "coder-agent.log",
+  "coder-startup-script.log",
 ]
 
 // From codersdk/workspaceagents.go

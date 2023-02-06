@@ -572,6 +572,13 @@ func New(options *Options) *API {
 				r.Get("/listening-ports", api.workspaceAgentListeningPorts)
 				r.Get("/connection", api.workspaceAgentConnection)
 				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
+				r.Route("/logs", func(r chi.Router) {
+					r.Get("/", api.workspaceAgentLogs)
+					r.Route("/{log}", func(r chi.Router) {
+						r.Get("/", api.workspaceAgentLogInfo)
+						r.Get("/tail", api.workspaceAgentLogTail)
+					})
+				})
 			})
 		})
 		r.Route("/workspaces", func(r chi.Router) {
