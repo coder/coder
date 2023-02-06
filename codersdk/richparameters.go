@@ -38,11 +38,11 @@ func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, bui
 		switch richParameter.ValidationMonotonic {
 		case MonotonicOrderIncreasing:
 			if lastBuildParameter.Value > buildParameter.Value {
-				return xerrors.Errorf("parameter value must be equal or lower than previous value: %s", lastBuildParameter.Value)
+				return xerrors.Errorf("parameter value must be equal or greater than previous value: %s", lastBuildParameter.Value)
 			}
 		case MonotonicOrderDecreasing:
 			if lastBuildParameter.Value < buildParameter.Value {
-				return xerrors.Errorf("parameter value must be equal or greater than previous value: %s", lastBuildParameter.Value)
+				return xerrors.Errorf("parameter value must be equal or lower than previous value: %s", lastBuildParameter.Value)
 			}
 		}
 	}
