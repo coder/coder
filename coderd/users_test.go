@@ -86,35 +86,6 @@ func TestFirstUser(t *testing.T) {
 		require.NoError(t, err)
 		<-called
 	})
-
-	t.Run("LastSeenAt", func(t *testing.T) {
-		t.Parallel()
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		client := coderdtest.New(t, nil)
-		firstUserResp := coderdtest.CreateFirstUser(t, client)
-
-		firstUser, err := client.User(ctx, firstUserResp.UserID.String())
-		require.NoError(t, err)
-
-		_ = coderdtest.CreateAnotherUser(t, client, firstUserResp.OrganizationID)
-
-		allUsersRes, err := client.Users(ctx, codersdk.UsersRequest{})
-		require.NoError(t, err)
-
-		require.Len(t, allUsersRes.Users, 2)
-
-		// We sent the "GET Users" request with the first user, but the second user
-		// should be Never since they haven't performed a request.
-		for _, user := range allUsersRes.Users {
-			if user.ID == firstUser.ID {
-				require.WithinDuration(t, firstUser.LastSeenAt, database.Now(), testutil.WaitShort)
-			} else {
-				require.Zero(t, user.LastSeenAt)
-			}
-		}
-	})
 }
 
 func TestPostLogin(t *testing.T) {
@@ -189,6 +160,56 @@ func TestPostLogin(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 		require.Contains(t, apiErr.Message, "suspended")
+	})
+
+	t.Run("DisabledPasswordAuth", func(t *testing.T) {
+		t.Parallel()
+
+		dc := coderdtest.DeploymentConfig(t)
+		dc.DisablePasswordAuth.Value = true
+		client := coderdtest.New(t, &coderdtest.Options{
+			DeploymentConfig: dc,
+		})
+
+		first := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// With a user account.
+		const password = "testpass"
+		user, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+			Email:          "test+user-@coder.com",
+			Username:       "user",
+			Password:       password,
+			OrganizationID: first.OrganizationID,
+		})
+		require.NoError(t, err)
+
+		userClient := codersdk.New(client.URL)
+		_, err = userClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    user.Email,
+			Password: password,
+		})
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Password authentication is disabled")
+
+		// Promote the user account to an owner.
+		_, err = client.UpdateUserRoles(ctx, user.ID.String(), codersdk.UpdateRoles{
+			Roles: []string{rbac.RoleOwner(), rbac.RoleMember()},
+		})
+		require.NoError(t, err)
+
+		// Login with the user account.
+		res, err := userClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    user.Email,
+			Password: password,
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, res.SessionToken)
 	})
 
 	t.Run("Success", func(t *testing.T) {
@@ -436,6 +457,35 @@ func TestPostUsers(t *testing.T) {
 
 		require.Len(t, auditor.AuditLogs, 1)
 		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[0].Action)
+	})
+
+	t.Run("LastSeenAt", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		client := coderdtest.New(t, nil)
+		firstUserResp := coderdtest.CreateFirstUser(t, client)
+
+		firstUser, err := client.User(ctx, firstUserResp.UserID.String())
+		require.NoError(t, err)
+
+		_ = coderdtest.CreateAnotherUser(t, client, firstUserResp.OrganizationID)
+
+		allUsersRes, err := client.Users(ctx, codersdk.UsersRequest{})
+		require.NoError(t, err)
+
+		require.Len(t, allUsersRes.Users, 2)
+
+		// We sent the "GET Users" request with the first user, but the second user
+		// should be Never since they haven't performed a request.
+		for _, user := range allUsersRes.Users {
+			if user.ID == firstUser.ID {
+				require.WithinDuration(t, firstUser.LastSeenAt, database.Now(), testutil.WaitShort)
+			} else {
+				require.Zero(t, user.LastSeenAt)
+			}
+		}
 	})
 }
 

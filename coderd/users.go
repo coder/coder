@@ -1028,6 +1028,24 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If password authentication is disabled and the user does not have the
+	// owner role, block the request.
+	if api.DeploymentConfig.DisablePasswordAuth.Value {
+		permitted := false
+		for _, role := range user.RBACRoles {
+			if role == rbac.RoleOwner() {
+				permitted = true
+				break
+			}
+		}
+		if !permitted {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: "Password authentication is disabled. Only administrators can sign in with password authentication.",
+			})
+			return
+		}
+	}
+
 	if user.LoginType != database.LoginTypePassword {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q", database.LoginTypePassword, user.LoginType),

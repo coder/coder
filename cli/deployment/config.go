@@ -550,6 +550,12 @@ func newConfig() *codersdk.DeploymentConfig {
 			Flag:    "disable-session-expiry-refresh",
 			Default: false,
 		},
+		DisablePasswordAuth: &codersdk.DeploymentConfigField[bool]{
+			Name:    "Disable Password Authentication",
+			Usage:   "Disable password authentication. This is recommended for security purposes in production deployments that rely on an identity provider. Any user with the owner role will be able to sign in with their password regardless of this setting to avoid potential lock out. If you are locked out of your account, you can use the `coder server create-admin` command to create a new admin user directly in the database.",
+			Flag:    "disable-password-auth",
+			Default: false,
+		},
 	}
 }
 
