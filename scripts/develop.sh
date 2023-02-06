@@ -194,7 +194,7 @@ fatal() {
 	done
 	log "==                                                                =="
 	log "==      Use ./scripts/coder-dev.sh to talk to this instance!      =="
-	log "$(printf "==       alias coder=%s/scripts/coder-dev.sh%$((space_padding - ${#PWD} - 2))s==" "$PWD" "")"
+	log "$(printf "==       alias cdr=%s/scripts/coder-dev.sh%$((space_padding - ${#PWD}))s==" "$PWD" "")"
 	log "===================================================================="
 	log
 
