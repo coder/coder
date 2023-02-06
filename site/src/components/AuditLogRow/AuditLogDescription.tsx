@@ -12,7 +12,9 @@ export const AuditLogDescription: FC<{ auditLog: AuditLog }> = ({
   const { t } = i18next
 
   let target = auditLog.resource_target.trim()
-  let user = auditLog.user?.username.trim()
+  let user = auditLog.user
+    ? auditLog.user.username.trim()
+    : t("auditLog:table.logRow.unknownUser")
 
   if (auditLog.resource_type === "workspace_build") {
     // audit logs with a resource_type of workspace build use workspace name as a target
@@ -22,7 +24,7 @@ export const AuditLogDescription: FC<{ auditLog: AuditLog }> = ({
       auditLog.additional_fields?.build_reason &&
       auditLog.additional_fields?.build_reason !== "initiator"
         ? t("auditLog:table.logRow.buildReason")
-        : auditLog.user?.username.trim()
+        : user
   }
 
   // SSH key entries have no links

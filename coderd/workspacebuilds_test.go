@@ -578,6 +578,7 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	numLogs := len(auditor.AuditLogs)
 	client, closeDaemon, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 	user := coderdtest.CreateFirstUser(t, client)
+	numLogs++ // add an audit log for login
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 	numLogs++ // add an audit log for template version creation
 	numLogs++ // add an audit log for template version update
