@@ -35,14 +35,10 @@ func (pf *templateUploadFlags) stdin() bool {
 
 func (pf *templateUploadFlags) upload(cmd *cobra.Command, client *codersdk.Client) (*codersdk.UploadResponse, error) {
 	var (
-		content   io.Reader
-		pipeErrCh = make(chan error, 1)
+		content io.Reader
 	)
 	if pf.stdin() {
 		content = cmd.InOrStdin()
-		// No piping if reading from stdin.
-		pipeErrCh <- nil
-		close(pipeErrCh)
 	} else {
 		prettyDir := prettyDirectoryPath(pf.directory)
 		_, err := cliui.Prompt(cmd, cliui.PromptOptions{
@@ -56,11 +52,8 @@ func (pf *templateUploadFlags) upload(cmd *cobra.Command, client *codersdk.Clien
 
 		pipeReader, pipeWriter := io.Pipe()
 		go func() {
-			defer pipeWriter.Close()
-			defer close(pipeErrCh)
-			bufWr := bufio.NewWriter(pipeWriter)
-			defer bufWr.Flush()
-			pipeErrCh <- provisionersdk.Tar(bufWr, pf.directory, provisionersdk.TemplateArchiveLimit)
+			err := provisionersdk.Tar(pipeWriter, pf.directory, provisionersdk.TemplateArchiveLimit)
+			_ = pipeWriter.CloseWithError(err)
 		}()
 		defer pipeReader.Close()
 		content = pipeReader
@@ -72,12 +65,9 @@ func (pf *templateUploadFlags) upload(cmd *cobra.Command, client *codersdk.Clien
 	spin.Start()
 	defer spin.Stop()
 
-	resp, err := client.Upload(cmd.Context(), codersdk.ContentTypeTar, content)
+	resp, err := client.Upload(cmd.Context(), codersdk.ContentTypeTar, bufio.NewReader(content))
 	if err != nil {
 		return nil, xerrors.Errorf("upload: %w", err)
-	}
-	if err = <-pipeErrCh; err != nil {
-		return nil, xerrors.Errorf("pipe: %w", err)
 	}
 	return &resp, nil
 }
