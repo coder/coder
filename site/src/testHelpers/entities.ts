@@ -643,6 +643,7 @@ export const MockTemplateVersionParameter1: TypesGen.TemplateVersionParameter =
     validation_regex: "",
     validation_min: 0,
     validation_max: 0,
+    validation_monotonic: "",
   }
 
 export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
@@ -658,6 +659,7 @@ export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
     validation_regex: "",
     validation_min: 1,
     validation_max: 3,
+    validation_monotonic: "",
   }
 
 export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
@@ -673,6 +675,7 @@ export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
     validation_regex: "^[a-z]{3}$",
     validation_min: 0,
     validation_max: 0,
+    validation_monotonic: "",
   }
 
 export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
@@ -688,6 +691,7 @@ export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
     validation_regex: "",
     validation_min: 0,
     validation_max: 0,
+    validation_monotonic: "",
   }
 
 // requests the MockWorkspace

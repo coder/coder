@@ -761,6 +761,7 @@ export interface TemplateVersionParameter {
   readonly validation_regex: string
   readonly validation_min: number
   readonly validation_max: number
+  readonly validation_monotonic: string
 }
 
 // From codersdk/templateversions.go

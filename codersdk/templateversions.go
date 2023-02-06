@@ -26,17 +26,18 @@ type TemplateVersion struct {
 
 // TemplateVersionParameter represents a parameter for a template version.
 type TemplateVersionParameter struct {
-	Name            string                           `json:"name"`
-	Description     string                           `json:"description"`
-	Type            string                           `json:"type"`
-	Mutable         bool                             `json:"mutable"`
-	DefaultValue    string                           `json:"default_value"`
-	Icon            string                           `json:"icon"`
-	Options         []TemplateVersionParameterOption `json:"options"`
-	ValidationError string                           `json:"validation_error"`
-	ValidationRegex string                           `json:"validation_regex"`
-	ValidationMin   int32                            `json:"validation_min"`
-	ValidationMax   int32                            `json:"validation_max"`
+	Name                string                           `json:"name"`
+	Description         string                           `json:"description"`
+	Type                string                           `json:"type"`
+	Mutable             bool                             `json:"mutable"`
+	DefaultValue        string                           `json:"default_value"`
+	Icon                string                           `json:"icon"`
+	Options             []TemplateVersionParameterOption `json:"options"`
+	ValidationError     string                           `json:"validation_error"`
+	ValidationRegex     string                           `json:"validation_regex"`
+	ValidationMin       int32                            `json:"validation_min"`
+	ValidationMax       int32                            `json:"validation_max"`
+	ValidationMonotonic string                           `json:"validation_monotonic"`
 }
 
 // TemplateVersionParameterOption represents a selectable option for a template parameter.
