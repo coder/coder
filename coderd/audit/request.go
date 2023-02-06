@@ -141,14 +141,12 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 
 		// If no resources were provided, there's nothing we can audit.
 		if ResourceID(req.Old) == uuid.Nil && ResourceID(req.New) == uuid.Nil {
-			if req.params.Action == database.AuditActionLogin ||
-				req.params.Action == database.AuditActionLogout {
-				// If the request action is a login or logout, we always want to audit it even if
-				// there is no diff. This is so we can capture events where an API Key is never created
-				// because an unknown user fails to login.
-				// TODO: introduce the concept of an anonymous user so we always have a userID even
-				// when dealing with a mystery user. https://github.com/coder/coder/issues/6054
-			} else {
+			// If the request action is a login or logout, we always want to audit it even if
+			// there is no diff. This is so we can capture events where an API Key is never created
+			// because an unknown user fails to login.
+			// TODO: introduce the concept of an anonymous user so we always have a userID even
+			// when dealing with a mystery user. https://github.com/coder/coder/issues/6054
+			if req.params.Action != database.AuditActionLogin && req.params.Action != database.AuditActionLogout {
 				return
 			}
 		}
