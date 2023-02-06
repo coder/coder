@@ -15,6 +15,13 @@ on:
 
   workflow_dispatch:
 
+permissions:
+  contents: read
+  # Necessary to push docker images to ghcr.io.
+  packages: write
+  # Necessary for depot.dev authentication.
+  id-token: write
+
 # Avoid running multiple jobs for the same commit.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-docker-base
