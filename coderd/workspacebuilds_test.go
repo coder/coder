@@ -871,6 +871,18 @@ func TestWorkspaceBuildValidateRichParameters(t *testing.T) {
 			{Name: boolParameterName, Type: "bool", Mutable: true},
 		}
 
+		monotonicIncreasingNumberRichParameters := []*proto.RichParameter{
+			{Name: stringParameterName, Type: "string", Mutable: true},
+			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: 3, ValidationMax: 10, ValidationMonotonic: "increasing"},
+			{Name: boolParameterName, Type: "bool", Mutable: true},
+		}
+
+		monotonicDecreasingNumberRichParameters := []*proto.RichParameter{
+			{Name: stringParameterName, Type: "string", Mutable: true},
+			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: 3, ValidationMax: 10, ValidationMonotonic: "decreasing"},
+			{Name: boolParameterName, Type: "bool", Mutable: true},
+		}
+
 		stringRichParameters := []*proto.RichParameter{
 			{Name: stringParameterName, Type: "string", Mutable: true},
 			{Name: numberParameterName, Type: "number", Mutable: true},
@@ -899,6 +911,14 @@ func TestWorkspaceBuildValidateRichParameters(t *testing.T) {
 			{numberParameterName, "3", true, numberRichParameters},
 			{numberParameterName, "10", true, numberRichParameters},
 			{numberParameterName, "11", false, numberRichParameters},
+
+			{numberParameterName, "6", false, monotonicIncreasingNumberRichParameters},
+			{numberParameterName, "7", true, monotonicIncreasingNumberRichParameters},
+			{numberParameterName, "8", true, monotonicIncreasingNumberRichParameters},
+
+			{numberParameterName, "6", true, monotonicDecreasingNumberRichParameters},
+			{numberParameterName, "7", true, monotonicDecreasingNumberRichParameters},
+			{numberParameterName, "8", false, monotonicDecreasingNumberRichParameters},
 
 			{stringParameterName, "", true, stringRichParameters},
 			{stringParameterName, "foobar", true, stringRichParameters},
