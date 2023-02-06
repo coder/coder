@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/userpassword"
 	"github.com/coder/coder/codersdk"
 )
@@ -84,6 +85,24 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 			Message: "Incorrect email or password.",
 		})
 		return
+	}
+
+	// If password authentication is disabled and the user does not have the
+	// owner role, block the request.
+	if api.DeploymentConfig.DisablePasswordAuth.Value {
+		permitted := false
+		for _, role := range user.RBACRoles {
+			if role == rbac.RoleOwner() {
+				permitted = true
+				break
+			}
+		}
+		if !permitted {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: "Password authentication is disabled. Only administrators can sign in with password authentication.",
+			})
+			return
+		}
 	}
 
 	if user.LoginType != database.LoginTypePassword {

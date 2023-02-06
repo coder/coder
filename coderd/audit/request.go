@@ -29,8 +29,11 @@ type RequestParams struct {
 type Request[T Auditable] struct {
 	params *RequestParams
 
-	Old    T
-	New    T
+	Old T
+	New T
+
+	// This optional field can be passed in when the userID cannot be determined from the API Key
+	// such as in the case of login, when the audit log is created prior the API Key's existence.
 	UserID uuid.UUID
 }
 
