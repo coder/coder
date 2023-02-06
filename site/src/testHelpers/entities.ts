@@ -247,7 +247,6 @@ export const MockTemplate: TypesGen.Template = {
   display_name: "Test Template",
   provisioner: MockProvisioner.provisioners[0],
   active_version_id: MockTemplateVersion.id,
-  workspace_owner_count: 2,
   active_user_count: 1,
   build_time_stats: {
     start: {
@@ -631,11 +630,77 @@ export const MockWorkspacesResponse: TypesGen.WorkspacesResponse = {
   count: 26,
 }
 
+export const MockTemplateVersionParameter1: TypesGen.TemplateVersionParameter =
+  {
+    name: "first_parameter",
+    type: "string",
+    description: "This is first parameter",
+    default_value: "abc",
+    mutable: true,
+    icon: "/icon/folder.svg",
+    options: [],
+    validation_error: "",
+    validation_regex: "",
+    validation_min: 0,
+    validation_max: 0,
+  }
+
+export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
+  {
+    name: "second_parameter",
+    type: "number",
+    description: "This is second parameter",
+    default_value: "2",
+    mutable: true,
+    icon: "/icon/folder.svg",
+    options: [],
+    validation_error: "",
+    validation_regex: "",
+    validation_min: 1,
+    validation_max: 3,
+  }
+
+export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
+  {
+    name: "third_parameter",
+    type: "string",
+    description: "This is third parameter",
+    default_value: "aaa",
+    mutable: true,
+    icon: "/icon/database.svg",
+    options: [],
+    validation_error: "No way!",
+    validation_regex: "^[a-z]{3}$",
+    validation_min: 0,
+    validation_max: 0,
+  }
+
+export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
+  {
+    name: "fourth_parameter",
+    type: "string",
+    description: "This is fourth parameter",
+    default_value: "def",
+    mutable: false,
+    icon: "/icon/database.svg",
+    options: [],
+    validation_error: "",
+    validation_regex: "",
+    validation_min: 0,
+    validation_max: 0,
+  }
+
 // requests the MockWorkspace
 export const MockWorkspaceRequest: TypesGen.CreateWorkspaceRequest = {
   name: "test",
   parameter_values: [],
   template_id: "test-template",
+  rich_parameter_values: [
+    {
+      name: MockTemplateVersionParameter1.name,
+      value: MockTemplateVersionParameter1.default_value,
+    },
+  ],
 }
 
 export const MockUserAgent: Types.UserAgent = {
@@ -1183,6 +1248,16 @@ export const MockAppearance: TypesGen.AppearanceConfig = {
   service_banner: {
     enabled: false,
   },
+}
+
+export const MockWorkspaceBuildParameter1: TypesGen.WorkspaceBuildParameter = {
+  name: MockTemplateVersionParameter1.name,
+  value: "mock-abc",
+}
+
+export const MockWorkspaceBuildParameter2: TypesGen.WorkspaceBuildParameter = {
+  name: MockTemplateVersionParameter2.name,
+  value: "3",
 }
 
 export const mockParameterSchema = (

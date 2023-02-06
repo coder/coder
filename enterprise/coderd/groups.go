@@ -207,16 +207,27 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		for _, id := range req.AddUsers {
-			err := tx.InsertGroupMember(ctx, database.InsertGroupMemberParams{
+			userID, err := uuid.Parse(id)
+			if err != nil {
+				return xerrors.Errorf("parse user ID %q: %w", id, err)
+			}
+			err = tx.InsertGroupMember(ctx, database.InsertGroupMemberParams{
 				GroupID: group.ID,
-				UserID:  uuid.MustParse(id),
+				UserID:  userID,
 			})
 			if err != nil {
 				return xerrors.Errorf("insert group member %q: %w", id, err)
 			}
 		}
 		for _, id := range req.RemoveUsers {
-			err := tx.DeleteGroupMember(ctx, uuid.MustParse(id))
+			userID, err := uuid.Parse(id)
+			if err != nil {
+				return xerrors.Errorf("parse user ID %q: %w", id, err)
+			}
+			err = tx.DeleteGroupMemberFromGroup(ctx, database.DeleteGroupMemberFromGroupParams{
+				UserID:  userID,
+				GroupID: group.ID,
+			})
 			if err != nil {
 				return xerrors.Errorf("insert group member %q: %w", id, err)
 			}

@@ -32,6 +32,11 @@ func newConfig() *codersdk.DeploymentConfig {
 			Usage: "Specifies the wildcard hostname to use for workspace applications in the form \"*.example.com\".",
 			Flag:  "wildcard-access-url",
 		},
+		RedirectToAccessURL: &codersdk.DeploymentConfigField[bool]{
+			Name:  "Redirect to Access URL",
+			Usage: "Specifies whether to redirect requests that do not match the access URL host.",
+			Flag:  "redirect-to-access-url",
+		},
 		// DEPRECATED: Use HTTPAddress or TLS.Address instead.
 		Address: &codersdk.DeploymentConfigField[string]{
 			Name:      "Address",
@@ -300,11 +305,13 @@ func newConfig() *codersdk.DeploymentConfig {
 				Flag:    "tls-address",
 				Default: "127.0.0.1:3443",
 			},
+			// DEPRECATED: Use RedirectToAccessURL instead.
 			RedirectHTTP: &codersdk.DeploymentConfigField[bool]{
 				Name:    "Redirect HTTP to HTTPS",
 				Usage:   "Whether HTTP requests will be redirected to the access URL (if it's a https URL and TLS is enabled). Requests to local IP addresses are never redirected regardless of this setting.",
 				Flag:    "tls-redirect-http-to-https",
 				Default: true,
+				Hidden:  true,
 			},
 			CertFiles: &codersdk.DeploymentConfigField[[]string]{
 				Name:  "TLS Certificate Files",
@@ -479,7 +486,7 @@ func newConfig() *codersdk.DeploymentConfig {
 		},
 		MaxTokenLifetime: &codersdk.DeploymentConfigField[time.Duration]{
 			Name:    "Max Token Lifetime",
-			Usage:   "The maximum lifetime duration for any user creating a token.",
+			Usage:   "The maximum lifetime duration users can specify when creating an API token.",
 			Flag:    "max-token-lifetime",
 			Default: 24 * 30 * time.Hour,
 		},
@@ -529,6 +536,18 @@ func newConfig() *codersdk.DeploymentConfig {
 			Name:    "Disable Path Apps",
 			Usage:   "Disable workspace apps that are not served from subdomains. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. This is recommended for security purposes if a --wildcard-access-url is configured.",
 			Flag:    "disable-path-apps",
+			Default: false,
+		},
+		SessionDuration: &codersdk.DeploymentConfigField[time.Duration]{
+			Name:    "Session Duration",
+			Usage:   "The token expiry duration for browser sessions. Sessions may last longer if they are actively making requests, but this functionality can be disabled via --disable-session-expiry-refresh.",
+			Flag:    "session-duration",
+			Default: 24 * time.Hour,
+		},
+		DisableSessionExpiryRefresh: &codersdk.DeploymentConfigField[bool]{
+			Name:    "Disable Session Expiry Refresh",
+			Usage:   "Disable automatic session expiry bumping due to activity. This forces all sessions to become invalid after the session expiry duration has been reached.",
+			Flag:    "disable-session-expiry-refresh",
 			Default: false,
 		},
 	}

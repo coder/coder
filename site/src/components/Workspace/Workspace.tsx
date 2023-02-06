@@ -30,6 +30,7 @@ export enum WorkspaceErrors {
   GET_BUILDS_ERROR = "getBuildsError",
   BUILD_ERROR = "buildError",
   CANCELLATION_ERROR = "cancellationError",
+  WORKSPACE_REFRESH_WARNING = "refreshWorkspaceWarning",
 }
 
 export interface WorkspaceProps {
@@ -45,6 +46,7 @@ export interface WorkspaceProps {
   handleUpdate: () => void
   handleCancel: () => void
   handleChangeVersion: () => void
+  handleBuildParameters: () => void
   isUpdating: boolean
   workspace: TypesGen.Workspace
   resources?: TypesGen.WorkspaceResource[]
@@ -56,6 +58,7 @@ export interface WorkspaceProps {
   buildInfo?: TypesGen.BuildInfoResponse
   applicationsHost?: string
   template?: TypesGen.Template
+  templateParameters?: TypesGen.TemplateVersionParameter[]
   quota_budget?: number
 }
 
@@ -70,6 +73,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   handleUpdate,
   handleCancel,
   handleChangeVersion,
+  handleBuildParameters,
   workspace,
   isUpdating,
   resources,
@@ -81,14 +85,13 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   buildInfo,
   applicationsHost,
   template,
+  templateParameters,
   quota_budget,
 }) => {
   const { t } = useTranslation("workspacePage")
   const styles = useStyles()
   const navigate = useNavigate()
   const serverVersion = buildInfo?.version || ""
-  const hasTemplateIcon =
-    workspace.template_icon && workspace.template_icon !== ""
 
   const buildError = Boolean(workspaceErrors[WorkspaceErrors.BUILD_ERROR]) && (
     <AlertBanner
@@ -109,7 +112,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   )
 
   const workspaceRefreshWarning = Boolean(
-    workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR],
+    workspaceErrors[WorkspaceErrors.WORKSPACE_REFRESH_WARNING],
   ) && (
     <AlertBanner
       severity="warning"
@@ -122,7 +125,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   if (template !== undefined) {
     transitionStats = ActiveTransition(template, workspace)
   }
-
   return (
     <Margins>
       <PageHeader
@@ -138,6 +140,9 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             />
             <WorkspaceActions
               workspaceStatus={workspace.latest_build.status}
+              hasTemplateParameters={
+                templateParameters ? templateParameters.length > 0 : false
+              }
               isOutdated={workspace.outdated}
               handleStart={handleStart}
               handleStop={handleStop}
@@ -145,20 +150,21 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               handleUpdate={handleUpdate}
               handleCancel={handleCancel}
               handleChangeVersion={handleChangeVersion}
+              handleBuildParameters={handleBuildParameters}
               isUpdating={isUpdating}
             />
           </Stack>
         }
       >
         <Stack direction="row" spacing={3} alignItems="center">
-          {hasTemplateIcon && (
-            <Avatar
-              size="xl"
-              src={workspace.template_icon}
-              variant="square"
-              fitImage
-            />
-          )}
+          <Avatar
+            size="xl"
+            src={workspace.template_icon}
+            variant={workspace.template_icon ? "square" : undefined}
+            fitImage={Boolean(workspace.template_icon)}
+          >
+            {workspace.name}
+          </Avatar>
           <div>
             <PageHeaderTitle>
               {workspace.name}
@@ -221,6 +227,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
                 hideSSHButton={hideSSHButton}
                 hideVSCodeDesktopButton={hideVSCodeDesktopButton}
                 serverVersion={serverVersion}
+                onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
               />
             )}
           />

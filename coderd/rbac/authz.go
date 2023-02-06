@@ -15,6 +15,7 @@ import (
 
 	"github.com/coder/coder/coderd/rbac/regosql"
 	"github.com/coder/coder/coderd/tracing"
+	"github.com/coder/coder/coderd/util/slice"
 )
 
 // Subject is a struct that contains all the elements of a subject in an rbac
@@ -24,6 +25,25 @@ type Subject struct {
 	Roles  ExpandableRoles
 	Groups []string
 	Scope  ExpandableScope
+}
+
+func (s Subject) Equal(b Subject) bool {
+	if s.ID != b.ID {
+		return false
+	}
+
+	if !slice.SameElements(s.Groups, b.Groups) {
+		return false
+	}
+
+	if !slice.SameElements(s.SafeRoleNames(), b.SafeRoleNames()) {
+		return false
+	}
+
+	if s.SafeScopeName() != b.SafeScopeName() {
+		return false
+	}
+	return true
 }
 
 // SafeScopeName prevent nil pointer dereference.

@@ -56,6 +56,8 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		cancelEntitlementsLoop: cancelFunc,
 	}
 
+	api.AGPL.Options.SetUserGroups = api.setUserGroups
+
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
 		OIDC:   options.OIDCConfig,
