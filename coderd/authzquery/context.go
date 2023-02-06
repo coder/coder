@@ -44,11 +44,29 @@ func WithWorkspaceAgentTokenContext(ctx context.Context, workspaceID uuid.UUID, 
 	return context.WithValue(ctx, authContextKey{}, rbac.Subject{
 		ID:    actorID.String(),
 		Roles: roles,
-		// TODO: @emyrk This scope is INCORRECT. The correct scope is a readonly
-		// scope for the specified workspaceID. Limit the permissions as much as
-		// possible. This is a temporary scope until the scope allow_list
-		// functionality exists.
-		Scope:  rbac.ScopeAll,
+		Scope: rbac.Scope{
+			Role: rbac.Role{
+				Name:        "workspace-agent-scope",
+				DisplayName: "Workspace Agent Scope",
+				// TODO: More permissions are needed for the agent to work.
+				Site: []rbac.Permission{
+					{
+						ResourceType: rbac.ResourceWorkspace.Type,
+						Action:       rbac.ActionRead,
+					},
+					{
+						ResourceType: rbac.ResourceWorkspace.Type,
+						Action:       rbac.ActionRead,
+					},
+					// TODO: Read the workspace owner user.
+				},
+				Org:  map[string][]rbac.Permission{},
+				User: []rbac.Permission{},
+			},
+			// TODO: We need to whitelist more resources such as the workspace
+			// owner.
+			AllowIDList: []string{workspaceID.String()},
+		},
 		Groups: groups,
 	})
 }
