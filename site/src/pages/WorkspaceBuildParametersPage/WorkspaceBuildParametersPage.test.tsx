@@ -2,10 +2,11 @@ import { fireEvent, screen } from "@testing-library/react"
 import {
   MockTemplateVersionParameter1,
   MockTemplateVersionParameter2,
+  MockTemplateVersionParameter5,
   MockWorkspace,
   MockWorkspaceBuildParameter1,
   MockWorkspaceBuildParameter2,
-  MockWorkspaceBuildParameter3,
+  MockWorkspaceBuildParameter5,
   renderWithAuth,
 } from "testHelpers/renderHelpers"
 import * as API from "api/api"
@@ -22,7 +23,11 @@ const validationNumberNotInRangeText = t("validationNumberNotInRange", {
 })
 const validationNumberNotIncreasing = t("validationNumberNotIncreasing", {
   ns: "workspaceBuildParametersPage",
-  last: "2",
+  last: "3",
+})
+const validationNumberNotDecreasing = t("validationNumberNotDecreasing", {
+  ns: "workspaceBuildParametersPage",
+  last: "5",
 })
 
 const renderWorkspaceBuildParametersPage = () => {
@@ -133,7 +138,7 @@ describe("WorkspaceBuildParametersPage", () => {
       .spyOn(API, "getWorkspaceBuildParameters")
       .mockResolvedValueOnce([
         MockWorkspaceBuildParameter1,
-        MockWorkspaceBuildParameter3,
+        MockWorkspaceBuildParameter2,
       ])
     renderWorkspaceBuildParametersPage()
 
@@ -156,6 +161,44 @@ describe("WorkspaceBuildParametersPage", () => {
 
     const validationError = await screen.findByText(
       validationNumberNotIncreasing,
+    )
+    expect(validationError).toBeDefined()
+  })
+
+  it("rich parameter: number is not monotonically decreasing", async () => {
+    jest
+      .spyOn(API, "getTemplateVersionRichParameters")
+      .mockResolvedValueOnce([
+        MockTemplateVersionParameter1,
+        MockTemplateVersionParameter5,
+      ])
+    jest
+      .spyOn(API, "getWorkspaceBuildParameters")
+      .mockResolvedValueOnce([
+        MockWorkspaceBuildParameter1,
+        MockWorkspaceBuildParameter5,
+      ])
+    renderWorkspaceBuildParametersPage()
+
+    const element = await screen.findByText(pageTitleText)
+    expect(element).toBeDefined()
+    const secondParameter = await screen.findByText(
+      MockTemplateVersionParameter5.description,
+    )
+    expect(secondParameter).toBeDefined()
+
+    const secondParameterField = await screen.findByLabelText(
+      MockTemplateVersionParameter5.name,
+    )
+    expect(secondParameterField).toBeDefined()
+
+    fireEvent.change(secondParameterField, {
+      target: { value: "6" },
+    })
+    fireEvent.submit(secondParameter)
+
+    const validationError = await screen.findByText(
+      validationNumberNotDecreasing,
     )
     expect(validationError).toBeDefined()
   })

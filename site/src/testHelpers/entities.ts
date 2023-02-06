@@ -679,6 +679,20 @@ export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
     options: [],
   }
 
+export const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter =
+  {
+    name: "fifth_parameter",
+    type: "number",
+    description: "This is fifth parameter",
+    default_value: "5",
+    mutable: true,
+    icon: "/icon/folder.svg",
+    options: [],
+    validation_min: 1,
+    validation_max: 10,
+    validation_monotonic: "decreasing",
+  }
+
 // requests the MockWorkspace
 export const MockWorkspaceRequest: TypesGen.CreateWorkspaceRequest = {
   name: "test",
@@ -1249,9 +1263,9 @@ export const MockWorkspaceBuildParameter2: TypesGen.WorkspaceBuildParameter = {
   value: "3",
 }
 
-export const MockWorkspaceBuildParameter3: TypesGen.WorkspaceBuildParameter = {
-  name: MockTemplateVersionParameter2.name,
-  value: "2",
+export const MockWorkspaceBuildParameter5: TypesGen.WorkspaceBuildParameter = {
+  name: MockTemplateVersionParameter5.name,
+  value: "5",
 }
 
 export const mockParameterSchema = (
