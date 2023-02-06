@@ -21,8 +21,8 @@ type UploadResponse struct {
 
 // Upload uploads an arbitrary file with the content type provided.
 // This is used to upload a source-code archive.
-func (c *Client) Upload(ctx context.Context, contentType string, content []byte) (UploadResponse, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/files", content, func(r *http.Request) {
+func (c *Client) Upload(ctx context.Context, contentType string, rd io.Reader) (UploadResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/files", rd, func(r *http.Request) {
 		r.Header.Set("Content-Type", contentType)
 	})
 	if err != nil {
