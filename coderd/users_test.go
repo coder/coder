@@ -149,7 +149,7 @@ func TestPostLogin(t *testing.T) {
 		numLogs++ // add an audit log for create user
 		numLogs++ // add an audit log for login
 
-		member := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+		member, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
 		numLogs++ // add an audit log for create user
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -302,7 +302,7 @@ func TestDeleteUser(t *testing.T) {
 		t.Parallel()
 		api := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, api)
-		_, another := coderdtest.CreateAnotherUserWithUser(t, api, user.OrganizationID)
+		_, another := coderdtest.CreateAnotherUser(t, api, user.OrganizationID)
 		err := api.DeleteUser(context.Background(), another.ID)
 		require.NoError(t, err)
 		// Attempt to create a user with the same email and username, and delete them again.
@@ -320,7 +320,7 @@ func TestDeleteUser(t *testing.T) {
 		t.Parallel()
 		api := coderdtest.New(t, nil)
 		firstUser := coderdtest.CreateFirstUser(t, api)
-		client, _ := coderdtest.CreateAnotherUserWithUser(t, api, firstUser.OrganizationID)
+		client, _ := coderdtest.CreateAnotherUser(t, api, firstUser.OrganizationID)
 		err := client.DeleteUser(context.Background(), firstUser.UserID)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -330,7 +330,7 @@ func TestDeleteUser(t *testing.T) {
 		t.Parallel()
 		client, _ := coderdtest.NewWithProvisionerCloser(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		anotherClient, another := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+		anotherClient, another := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -452,8 +452,8 @@ func TestPostUsers(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
-		notInOrg := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleOwner(), rbac.RoleMember())
+		notInOrg, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+		other, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleOwner(), rbac.RoleMember())
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -511,7 +511,7 @@ func TestPostUsers(t *testing.T) {
 		firstUser, err := client.User(ctx, firstUserResp.UserID.String())
 		require.NoError(t, err)
 
-		_ = coderdtest.CreateAnotherUser(t, client, firstUserResp.OrganizationID)
+		_, _ = coderdtest.CreateAnotherUser(t, client, firstUserResp.OrganizationID)
 
 		allUsersRes, err := client.Users(ctx, codersdk.UsersRequest{})
 		require.NoError(t, err)
@@ -605,7 +605,7 @@ func TestUpdateUserPassword(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		admin := coderdtest.CreateFirstUser(t, client)
-		member := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		member, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -652,7 +652,7 @@ func TestUpdateUserPassword(t *testing.T) {
 		numLogs++ // add an audit log for user create
 		numLogs++ // add an audit log for login
 
-		member := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		member, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		numLogs++ // add an audit log for user create
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -673,7 +673,7 @@ func TestUpdateUserPassword(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		admin := coderdtest.CreateFirstUser(t, client)
-		member := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		member, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -784,14 +784,14 @@ func TestGrantSiteRoles(t *testing.T) {
 
 	admin := coderdtest.New(t, nil)
 	first := coderdtest.CreateFirstUser(t, admin)
-	member := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
-	orgAdmin := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID, rbac.RoleOrgAdmin(first.OrganizationID))
+	member, _ := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
+	orgAdmin, _ := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID, rbac.RoleOrgAdmin(first.OrganizationID))
 	randOrg, err := admin.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
 		Name: "random",
 	})
 	require.NoError(t, err)
-	_, randOrgUser := coderdtest.CreateAnotherUserWithUser(t, admin, randOrg.ID, rbac.RoleOrgAdmin(randOrg.ID))
-	userAdmin := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID, rbac.RoleUserAdmin())
+	_, randOrgUser := coderdtest.CreateAnotherUser(t, admin, randOrg.ID, rbac.RoleOrgAdmin(randOrg.ID))
+	userAdmin, _ := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID, rbac.RoleUserAdmin())
 
 	const newUser = "newUser"
 
@@ -901,7 +901,7 @@ func TestGrantSiteRoles(t *testing.T) {
 				if c.OrgID != uuid.Nil {
 					orgID = c.OrgID
 				}
-				_, newUser := coderdtest.CreateAnotherUserWithUser(t, admin, orgID)
+				_, newUser := coderdtest.CreateAnotherUser(t, admin, orgID)
 				c.AssignToUser = newUser.ID.String()
 			}
 
@@ -962,7 +962,7 @@ func TestPutUserSuspend(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		me := coderdtest.CreateFirstUser(t, client)
-		_, user := coderdtest.CreateAnotherUserWithUser(t, client, me.OrganizationID, rbac.RoleOwner())
+		_, user := coderdtest.CreateAnotherUser(t, client, me.OrganizationID, rbac.RoleOwner())
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -981,7 +981,7 @@ func TestPutUserSuspend(t *testing.T) {
 		numLogs++ // add an audit log for user create
 		numLogs++ // add an audit log for login
 
-		_, user := coderdtest.CreateAnotherUserWithUser(t, client, me.OrganizationID)
+		_, user := coderdtest.CreateAnotherUser(t, client, me.OrganizationID)
 		numLogs++ // add an audit log for user create
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -1085,7 +1085,7 @@ func TestUsersFilter(t *testing.T) {
 		if i%3 == 0 {
 			roles = append(roles, "auditor")
 		}
-		userClient := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, roles...)
+		userClient, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, roles...)
 		user, err := userClient.User(ctx, codersdk.Me)
 		require.NoError(t, err, "fetch me")
 

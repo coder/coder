@@ -175,7 +175,7 @@ func TestAdminViewAllWorkspaces(t *testing.T) {
 
 	// This other user is not in the first user's org. Since other is an admin, they can
 	// still see the "first" user's workspace.
-	otherOwner := coderdtest.CreateAnotherUser(t, client, otherOrg.ID, rbac.RoleOwner())
+	otherOwner, _ := coderdtest.CreateAnotherUser(t, client, otherOrg.ID, rbac.RoleOwner())
 	otherWorkspaces, err := otherOwner.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err, "(other) fetch workspaces")
 
@@ -185,7 +185,7 @@ func TestAdminViewAllWorkspaces(t *testing.T) {
 	require.ElementsMatch(t, otherWorkspaces.Workspaces, firstWorkspaces.Workspaces)
 	require.Equal(t, len(firstWorkspaces.Workspaces), 1, "should be 1 workspace present")
 
-	memberView := coderdtest.CreateAnotherUser(t, client, otherOrg.ID)
+	memberView, _ := coderdtest.CreateAnotherUser(t, client, otherOrg.ID)
 	memberViewWorkspaces, err := memberView.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err, "(member) fetch workspaces")
 	require.Equal(t, 0, len(memberViewWorkspaces.Workspaces), "member in other org should see 0 workspaces")
@@ -216,7 +216,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
 
-		other := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleMember(), rbac.RoleOwner())
+		other, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleMember(), rbac.RoleOwner())
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -510,11 +510,10 @@ func TestWorkspaceFilter(t *testing.T) {
 
 	users := make([]coderUser, 0)
 	for i := 0; i < 10; i++ {
-		userClient := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleOwner())
-		user, err := userClient.User(ctx, codersdk.Me)
-		require.NoError(t, err, "fetch me")
+		userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleOwner())
 
 		if i%3 == 0 {
+			var err error
 			user, err = client.UpdateUserProfile(ctx, user.ID.String(), codersdk.UpdateUserProfileRequest{
 				Username: strings.ToUpper(user.Username),
 			})

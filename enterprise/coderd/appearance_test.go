@@ -41,7 +41,7 @@ func TestServiceBanners(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, sb.ServiceBanner.Enabled)
 
-	basicUserClient := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
+	basicUserClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
 
 	// Regular user should be unable to set the banner
 	sb.ServiceBanner.Enabled = true

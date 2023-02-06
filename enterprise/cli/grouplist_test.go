@@ -31,8 +31,8 @@ func TestGroupList(t *testing.T) {
 		})
 
 		ctx, _ := testutil.Context(t)
-		_, user1 := coderdtest.CreateAnotherUserWithUser(t, client, admin.OrganizationID)
-		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, admin.OrganizationID)
+		_, user1 := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		_, user2 := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 
 		// We intentionally create the first group as beta so that we
 		// can assert that things are being sorted by name intentionally
