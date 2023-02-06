@@ -892,8 +892,11 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 	return cookie, *key, nil
 }
 
-// setAnonUser passes a disposable user ID to force an audit diff
-// and generate a log for a failed login
+// setAnonUser should only be used on unauthenticated routes where the user
+// making the request is unknown. To force audit logs to show an unknown user
+// made the request, a disposable user ID is used.
+// This user id has no relation to any actual user and indicates
+// a failed attempt (eg failed login) of an anonymous user.
 func setAnonUser(request *audit.Request[database.APIKey]) {
 	if request.New.UserID == uuid.Nil {
 		request.New = database.APIKey{UserID: uuid.New()}
