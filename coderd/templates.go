@@ -618,15 +618,37 @@ func (api *API) appUsage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	entries := make([]codersdk.TemplateAppUsageEntry, 0, len(usage))
+	slugs := make([]string, 0, len(usage))
 	for _, usageRow := range usage {
 		entries = append(entries, codersdk.TemplateAppUsageEntry{
 			Count:     int(usageRow.Count),
 			AppSlug:   usageRow.AppSlug,
 			CreatedAt: usageRow.CreatedAt,
 		})
+		slugs = append(slugs, usageRow.AppSlug)
 	}
+
+	// App details to show in the chart
+	appDetails, err := api.Database.GetAppDetailsBySlug(ctx, slugs)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching app details.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	appEntries := make([]codersdk.TemplateAppUsageAppEntry, 0, len(appDetails))
+	for _, appDetailRow := range appDetails {
+		appEntries = append(appEntries, codersdk.TemplateAppUsageAppEntry{
+			DisplayName: appDetailRow.DisplayName,
+			Icon:        appDetailRow.Icon,
+			Slug:        appDetailRow.Slug,
+		})
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.TemplateAppUsageResponse{
 		Entries: entries,
+		Apps:    appEntries,
 	})
 }
 

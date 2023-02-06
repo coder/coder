@@ -4359,6 +4359,7 @@ func (q *fakeQuerier) GetAppDetailsBySlug(_ context.Context, slugs []string) ([]
 		rows = append(rows, database.GetAppDetailsBySlugRow{
 			DisplayName: app.DisplayName,
 			Icon:        app.Icon,
+			Slug:        app.Slug,
 		})
 	}
 	if len(rows) == 0 {

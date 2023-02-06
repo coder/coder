@@ -702,6 +702,12 @@ export interface TemplateACL {
 }
 
 // From codersdk/templates.go
+export interface TemplateAppUsageAppEntry {
+  readonly display_name: string
+  readonly icon: string
+}
+
+// From codersdk/templates.go
 export interface TemplateAppUsageEntry {
   readonly count: number
   readonly app_slug: string
@@ -711,6 +717,7 @@ export interface TemplateAppUsageEntry {
 // From codersdk/templates.go
 export interface TemplateAppUsageResponse {
   readonly entries: TemplateAppUsageEntry[]
+  readonly apps: TemplateAppUsageAppEntry[]
 }
 
 // From codersdk/templates.go

@@ -269,9 +269,16 @@ type TemplateAppUsageEntry struct {
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
 }
 
+type TemplateAppUsageAppEntry struct {
+	DisplayName string `json:"display_name"`
+	Icon        string `json:"icon"`
+	Slug        string `json:"slug"`
+}
+
 // TemplateDAUsResponse contains statistics of daily active users of the template.
 type TemplateAppUsageResponse struct {
-	Entries []TemplateAppUsageEntry `json:"entries"`
+	Entries []TemplateAppUsageEntry    `json:"entries"`
+	Apps    []TemplateAppUsageAppEntry `json:"apps"`
 }
 
 func (c *Client) TemplateAppUsage(ctx context.Context, templateID uuid.UUID) ([]TemplateAppUsageResponse, error) {

@@ -387,7 +387,7 @@ func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDP
 }
 
 const getAppDetailsBySlug = `-- name: GetAppDetailsBySlug :many
-SELECT DISTINCT ON (slug) display_name, icon
+SELECT DISTINCT ON (slug) display_name, icon, slug
 FROM workspace_apps
 WHERE slug = ANY($1 :: text [ ])
 ORDER BY slug, created_at DESC
@@ -396,6 +396,7 @@ ORDER BY slug, created_at DESC
 type GetAppDetailsBySlugRow struct {
 	DisplayName string `db:"display_name" json:"display_name"`
 	Icon        string `db:"icon" json:"icon"`
+	Slug        string `db:"slug" json:"slug"`
 }
 
 func (q *sqlQuerier) GetAppDetailsBySlug(ctx context.Context, slugs []string) ([]GetAppDetailsBySlugRow, error) {
@@ -407,7 +408,7 @@ func (q *sqlQuerier) GetAppDetailsBySlug(ctx context.Context, slugs []string) ([
 	var items []GetAppDetailsBySlugRow
 	for rows.Next() {
 		var i GetAppDetailsBySlugRow
-		if err := rows.Scan(&i.DisplayName, &i.Icon); err != nil {
+		if err := rows.Scan(&i.DisplayName, &i.Icon, &i.Slug); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
