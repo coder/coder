@@ -4348,3 +4348,21 @@ func (q *fakeQuerier) GetAppUsageByTemplateID(_ context.Context, arg database.Ge
 
 	return rows, nil
 }
+
+func (q *fakeQuerier) GetAppDetailsBySlug(_ context.Context, slugs []string) ([]database.GetAppDetailsBySlugRow, error) {
+	slugMap := make(map[string]database.WorkspaceApp)
+	for _, app := range q.workspaceApps {
+		slugMap[app.Slug] = app
+	}
+	var rows []database.GetAppDetailsBySlugRow
+	for _, app := range maps.Values(slugMap) {
+		rows = append(rows, database.GetAppDetailsBySlugRow{
+			DisplayName: app.DisplayName,
+			Icon:        app.Icon,
+		})
+	}
+	if len(rows) == 0 {
+		return []database.GetAppDetailsBySlugRow{}, sql.ErrNoRows
+	}
+	return rows, nil
+}
