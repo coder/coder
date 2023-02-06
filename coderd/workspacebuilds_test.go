@@ -185,13 +185,11 @@ func TestWorkspaceBuilds(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		first := coderdtest.CreateFirstUser(t, client)
-		second := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, "owner")
+		second, secondUser := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, "owner")
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		secondUser, err := second.User(ctx, codersdk.Me)
-		require.NoError(t, err, "fetch me")
 		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -307,7 +305,7 @@ func TestWorkspaceBuildsProvisionerState(t *testing.T) {
 
 		// A regular user on the very same template must not be able to modify the
 		// state.
-		regularUser := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+		regularUser, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
 
 		workspace = coderdtest.CreateWorkspace(t, regularUser, first.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, regularUser, workspace.LatestBuild.ID)
@@ -425,7 +423,7 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
-		userClient := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		userClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 		workspace := coderdtest.CreateWorkspace(t, userClient, owner.OrganizationID, template.ID)
 		var build codersdk.WorkspaceBuild
 

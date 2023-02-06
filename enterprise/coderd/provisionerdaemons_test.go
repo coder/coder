@@ -58,7 +58,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 				codersdk.FeatureExternalProvisionerDaemons: 1,
 			},
 		})
-		another := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		another, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, err := another.ServeProvisionerDaemon(context.Background(), user.OrganizationID, []codersdk.ProvisionerType{
 			codersdk.ProvisionerTypeEcho,
 		}, map[string]string{
@@ -135,7 +135,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		require.NoError(t, err)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		another := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		another, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_ = closer.Close()
 		closer = coderdtest.NewExternalProvisionerDaemon(t, another, user.OrganizationID, map[string]string{
 			provisionerdserver.TagScope: provisionerdserver.ScopeUser,

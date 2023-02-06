@@ -87,7 +87,7 @@ func TestCreate(t *testing.T) {
 		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		cmd, root := clitest.New(t, "create", "my-workspace", "-y")
 
-		member := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		member, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		clitest.SetupConfig(t, member, root)
 		cmdCtx, done := context.WithTimeout(context.Background(), testutil.WaitLong)
 		go func() {
