@@ -2770,9 +2770,10 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 #### Enumerated Values
 
-| Value           |
-| --------------- |
-| `authz_querier` |
+| Value             |
+| ----------------- |
+| `authz_querier`   |
+| `template_editor` |
 
 ## codersdk.Feature
 

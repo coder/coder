@@ -31,6 +31,7 @@ import { Avatar } from "components/Avatar/Avatar"
 
 const Language = {
   settingsButton: "Settings",
+  editButton: "Edit",
   createButton: "Create workspace",
   noDescription: "",
 }

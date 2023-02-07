@@ -1,5 +1,9 @@
+import Button from "@material-ui/core/Button"
+import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
+import EditIcon from "@material-ui/icons/Edit"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import { DockerIcon } from "components/Icons/DockerIcon"
 import { MarkdownIcon } from "components/Icons/MarkdownIcon"
 import { TerraformIcon } from "components/Icons/TerraformIcon"
 import { Loader } from "components/Loader/Loader"
@@ -11,16 +15,15 @@ import {
 } from "components/PageHeader/PageHeader"
 import { Stack } from "components/Stack/Stack"
 import { Stats, StatsItem } from "components/Stats/Stats"
+import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter"
 import { UseTabResult } from "hooks/useTab"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
-import { Link } from "react-router-dom"
+import { Link as RouterLink } from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
 import { createDayString } from "util/createDayString"
-import { TemplateVersionMachineContext } from "xServices/templateVersion/templateVersionXService"
 import { TemplateVersionFiles } from "util/templateVersion"
-import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter"
-import { DockerIcon } from "components/Icons/DockerIcon"
+import { TemplateVersionMachineContext } from "xServices/templateVersion/templateVersionXService"
 
 const iconByExtension: Record<string, JSX.Element> = {
   tf: <TerraformIcon />,
@@ -101,6 +104,7 @@ export interface TemplateVersionPageViewProps {
    */
   versionName: string
   templateName: string
+  canEdit: boolean
   tab: UseTabResult
   context: TemplateVersionMachineContext
 }
@@ -110,13 +114,26 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
   tab,
   versionName,
   templateName,
+  canEdit,
 }) => {
   const { currentFiles, error, currentVersion, previousFiles } = context
   const { t } = useTranslation("templateVersionPage")
 
   return (
     <Margins>
-      <PageHeader>
+      <PageHeader
+        actions={
+          canEdit ? (
+            <Link
+              underline="none"
+              component={RouterLink}
+              to={`/templates/${templateName}/versions/${versionName}/edit`}
+            >
+              <Button startIcon={<EditIcon />}>Edit</Button>
+            </Link>
+          ) : undefined
+        }
+      >
         <PageHeaderCaption>{t("header.caption")}</PageHeaderCaption>
         <PageHeaderTitle>{versionName}</PageHeaderTitle>
       </PageHeader>
@@ -131,7 +148,9 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
               <StatsItem
                 label={t("stats.template")}
                 value={
-                  <Link to={`/templates/${templateName}`}>{templateName}</Link>
+                  <RouterLink to={`/templates/${templateName}`}>
+                    {templateName}
+                  </RouterLink>
                 }
               />
               <StatsItem
