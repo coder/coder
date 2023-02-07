@@ -43,6 +43,9 @@ func (s Scope) Name() string {
 	return s.Role.Name
 }
 
+// WorkspaceAgentScope returns a scope that is the same as ScopeAll but can only
+// affect resources in the allow list. Only a scope is returned as the roles
+// should come from the workspace owner.
 func WorkspaceAgentScope(workspaceID, ownerID uuid.UUID) Scope {
 	allScope, err := ScopeAll.Expand()
 	if err != nil {
@@ -58,6 +61,7 @@ func WorkspaceAgentScope(workspaceID, ownerID uuid.UUID) Scope {
 		AllowIDList: []string{
 			workspaceID.String(),
 			ownerID.String(),
+			// TODO: Might want to include the template the workspace uses too?
 		},
 	}
 }

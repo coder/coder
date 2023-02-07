@@ -897,7 +897,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		slog.F("payload", req),
 	)
 
-	activityBumpWorkspace(api.Logger.Named("activity_bump"), api.Database, workspace.ID)
+	activityBumpWorkspace(ctx, api.Logger.Named("activity_bump"), api.Database, workspace.ID)
 
 	payload, err := json.Marshal(req)
 	if err != nil {
