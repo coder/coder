@@ -86,6 +86,10 @@ func (s *MethodTestSuite) TearDownSuite() {
 	})
 }
 
+// Subtest is a helper function that returns a function that can be passed to
+// s.Run(). This function will run the test case for the method that is being
+// tested. The check parameter is used to assert the results of the method.
+// If the caller does not use the `check` parameter, the test will fail.
 func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *MethodCase)) func() {
 	return func() {
 		t := s.T()
@@ -112,6 +116,9 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *Metho
 
 		var testCase MethodCase
 		testCaseF(db, &testCase)
+		// Check the developer added assertions. If there are no assertions,
+		// an empty list should be passed.
+		s.Require().False(testCase.assertions == nil, "rbac assertions not set, use the 'check' parameter")
 
 		// Find the method with the name of the test.
 		var callMethod func(ctx context.Context) ([]reflect.Value, error)
@@ -121,6 +128,7 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *Metho
 			method := azt.Method(i)
 			if method.Name == methodName {
 				methodF := reflect.ValueOf(az).Method(i)
+
 				callMethod = func(ctx context.Context) ([]reflect.Value, error) {
 					resp := methodF.Call(append([]reflect.Value{reflect.ValueOf(ctx)}, testCase.inputs...))
 					return splitResp(t, resp)
@@ -249,11 +257,17 @@ type MethodCase struct {
 	expectedOutputs []reflect.Value
 }
 
+// Asserts is required. Asserts the RBAC authorize calls that should be made.
+// If no RBAC calls are expected, pass an empty list: 'm.Asserts()'
 func (m *MethodCase) Asserts(pairs ...any) *MethodCase {
 	m.assertions = asserts(pairs...)
 	return m
 }
 
+// Args is required. The arguments to be provided to the method.
+// If there are no arguments, pass an empty list: 'm.Args()'
+// The first context argument should not be included, as the test suite
+// will provide it.
 func (m *MethodCase) Args(args ...any) *MethodCase {
 	m.inputs = values(args...)
 	return m
