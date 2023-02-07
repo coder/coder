@@ -50,6 +50,18 @@ type MethodTestSuite struct {
 	suite.Suite
 	// methodAccounting counts all methods called by a 'RunMethodTest'
 	methodAccounting map[string]int
+
+	// Individual state for each unit test.
+	// State used by developer
+	DB database.Store
+	// State set by setup
+	ctx   context.Context
+	az    *authzquery.AuthzQuerier
+	rec   *coderdtest.RecordingAuthorizer
+	authz *coderdtest.FakeAuthorizer
+	actor rbac.Subject
+	// State set by developer
+	testCase MethodCase
 }
 
 // SetupSuite sets up the suite by creating a map of all methods on AuthzQuerier
@@ -86,8 +98,139 @@ func (s *MethodTestSuite) TearDownSuite() {
 	})
 }
 
+func (s *MethodTestSuite) clear() {
+	s.DB = nil
+	s.ctx = nil
+	s.az = nil
+	s.rec = nil
+	s.actor = rbac.Subject{}
+	s.testCase = MethodCase{}
+	s.authz = nil
+}
+
+func (s *MethodTestSuite) SetupTest() {
+	s.clear()
+
+	s.DB = dbfake.New()
+	s.authz = &coderdtest.FakeAuthorizer{
+		AlwaysReturn: nil,
+	}
+	s.rec = &coderdtest.RecordingAuthorizer{
+		Wrapped: s.authz,
+	}
+	s.az = authzquery.New(s.DB, s.rec, slog.Make())
+	s.actor = rbac.Subject{
+		ID:     uuid.NewString(),
+		Roles:  rbac.RoleNames{rbac.RoleOwner()},
+		Groups: []string{},
+		Scope:  rbac.ScopeAll,
+	}
+	s.ctx = authzquery.WithAuthorizeContext(context.Background(), s.actor)
+}
+
+func (s *MethodTestSuite) TearDownTest() {
+	var (
+		t              = s.T()
+		az             = s.az
+		testCase       = s.testCase
+		fakeAuthorizer = s.authz
+		ctx            = s.ctx
+		rec            = s.rec
+	)
+
+	require.NotEqualf(t, "", testCase.MethodName, "Method name must be set")
+
+	methodName := testCase.MethodName
+	s.methodAccounting[methodName]++
+
+	// Find the method with the name of the test.
+	found := false
+	azt := reflect.TypeOf(az)
+MethodLoop:
+	for i := 0; i < azt.NumMethod(); i++ {
+		method := azt.Method(i)
+		if method.Name == methodName {
+			if len(testCase.Assertions) > 0 {
+				fakeAuthorizer.AlwaysReturn = xerrors.New("Always fail authz")
+				// If we have assertions, that means the method should FAIL
+				// if RBAC will disallow the request. The returned error should
+				// be expected to be a NotAuthorizedError.
+				erroredResp := reflect.ValueOf(az).Method(i).Call(append([]reflect.Value{reflect.ValueOf(ctx)}, testCase.Inputs...))
+				_, err := splitResp(t, erroredResp)
+				// This is unfortunate, but if we are using `Filter` the error returned will be nil. So filter out
+				// any case where the error is nil and the response is an empty slice.
+				if err != nil || !hasEmptySliceResponse(erroredResp) {
+					require.Errorf(t, err, "method %q should an error with disallow authz", methodName)
+					require.ErrorIsf(t, err, sql.ErrNoRows, "error should match sql.ErrNoRows")
+					require.ErrorAs(t, err, &authzquery.NotAuthorizedError{}, "error should be NotAuthorizedError")
+				}
+				// Set things back to normal.
+				fakeAuthorizer.AlwaysReturn = nil
+				rec.Reset()
+			}
+
+			resp := reflect.ValueOf(az).Method(i).Call(append([]reflect.Value{reflect.ValueOf(ctx)}, testCase.Inputs...))
+
+			outputs, err := splitResp(t, resp)
+			require.NoError(t, err, "method %q returned an error", t.Name())
+
+			// Some tests may not care about the outputs, so we only assert if
+			// they are provided.
+			if testCase.ExpectedOutputs != nil {
+				// Assert the required outputs
+				require.Equal(t, len(testCase.ExpectedOutputs), len(outputs), "method %q returned unexpected number of outputs", methodName)
+				for i := range outputs {
+					a, b := testCase.ExpectedOutputs[i].Interface(), outputs[i].Interface()
+					if reflect.TypeOf(a).Kind() == reflect.Slice || reflect.TypeOf(a).Kind() == reflect.Array {
+						// Order does not matter
+						require.ElementsMatch(t, a, b, "method %q returned unexpected output %d", methodName, i)
+					} else {
+						require.Equal(t, a, b, "method %q returned unexpected output %d", methodName, i)
+					}
+				}
+			}
+
+			found = true
+			break MethodLoop
+		}
+	}
+
+	require.True(t, found, "method %q does not exist", methodName)
+
+	var pairs []coderdtest.ActionObjectPair
+	for _, assrt := range testCase.Assertions {
+		for _, action := range assrt.Actions {
+			pairs = append(pairs, coderdtest.ActionObjectPair{
+				Action: action,
+				Object: assrt.Object,
+			})
+		}
+	}
+
+	rec.AssertActor(t, s.actor, pairs...)
+	require.NoError(t, rec.AllAsserted(), "all rbac calls must be asserted")
+	s.clear()
+}
+
+func (s *MethodTestSuite) Asserts(v ...any) *MethodTestSuite {
+	s.testCase.MethodName = methodName(s.T())
+	s.testCase = s.testCase.Asserts(v...)
+	return s
+}
+
+func (s *MethodTestSuite) Args(v ...any) *MethodTestSuite {
+	s.testCase = s.testCase.Args(v...)
+	return s
+}
+
+func (s *MethodTestSuite) Returns(v ...any) *MethodTestSuite {
+	s.testCase = s.testCase.Returns(v...)
+	return s
+}
+
 // RunMethodTest runs a method test case.
 // The method to be tested is inferred from the name of the test case.
+// Deprecated
 func (s *MethodTestSuite) RunMethodTest(testCaseF func(t *testing.T, db database.Store) MethodCase) {
 	t := s.T()
 	testName := s.T().Name()
@@ -215,10 +358,27 @@ func splitResp(t *testing.T, values []reflect.Value) ([]reflect.Value, error) {
 // A MethodCase contains the inputs to be provided to a single method call,
 // and the assertions to be made on the RBAC checks.
 type MethodCase struct {
+	// MethodName is the name of the method to be called on the AuthzQuerier.
+	MethodName string
 	Inputs     []reflect.Value
 	Assertions []AssertRBAC
 	// Output is optional. Can assert non-error return values.
 	ExpectedOutputs []reflect.Value
+}
+
+func (m MethodCase) Asserts(pairs ...any) MethodCase {
+	m.Assertions = asserts(pairs...)
+	return m
+}
+
+func (m MethodCase) Args(args ...any) MethodCase {
+	m.Inputs = values(args...)
+	return m
+}
+
+func (m MethodCase) Returns(rets ...any) MethodCase {
+	m.ExpectedOutputs = values(rets...)
+	return m
 }
 
 // AssertRBAC contains the object and actions to be asserted.
@@ -317,6 +477,13 @@ func asserts(inputs ...any) []AssertRBAC {
 		})
 	}
 	return out
+}
+
+func methodName(t *testing.T) string {
+	testName := t.Name()
+	names := strings.Split(testName, "/")
+	methodName := names[len(names)-1]
+	return methodName
 }
 
 func (s *MethodTestSuite) TestExtraMethods() {
