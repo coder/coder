@@ -28,8 +28,7 @@ func (q *AuthzQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorksp
 }
 
 func (q *AuthzQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
-	_, err := q.GetWorkspaceByID(ctx, workspaceID)
-	if err != nil {
+	if _, err := q.GetWorkspaceByID(ctx, workspaceID); err != nil {
 		return database.WorkspaceBuild{}, nil
 	}
 	return q.db.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspaceID)
@@ -50,8 +49,7 @@ func (q *AuthzQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Contex
 }
 
 func (q *AuthzQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
-	_, err := q.GetWorkspaceByAgentID(ctx, id)
-	if err != nil {
+	if _, err := q.GetWorkspaceByAgentID(ctx, id); err != nil {
 		return database.WorkspaceAgent{}, err
 	}
 	return q.db.GetWorkspaceAgentByID(ctx, id)
@@ -62,10 +60,15 @@ func (q *AuthzQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) 
 // is essentially an auth token. But the caller using this function is not
 // an authenticated user. So this authz check will fail.
 func (q *AuthzQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanceID string) (database.WorkspaceAgent, error) {
-	fetch := func(agent database.WorkspaceAgent, _ string) (database.Workspace, error) {
-		return q.db.GetWorkspaceByAgentID(ctx, agent.ID)
+	agent, err := q.db.GetWorkspaceAgentByInstanceID(ctx, authInstanceID)
+	if err != nil {
+		return database.WorkspaceAgent{}, err
 	}
-	return queryWithRelated(q.log, q.auth, rbac.ActionRead, fetch, q.db.GetWorkspaceAgentByInstanceID)(ctx, authInstanceID)
+	_, err = q.GetWorkspaceByAgentID(ctx, agent.ID)
+	if err != nil {
+		return database.WorkspaceAgent{}, err
+	}
+	return agent, nil
 }
 
 // GetWorkspaceAgentsByResourceIDs is an all or nothing call. If the user cannot read
@@ -116,8 +119,7 @@ func (q *AuthzQuerier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Contex
 
 func (q *AuthzQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg database.GetWorkspaceAppByAgentIDAndSlugParams) (database.WorkspaceApp, error) {
 	// If we can fetch the workspace, we can fetch the apps. Use the authorized call.
-	_, err := q.GetWorkspaceByAgentID(ctx, arg.AgentID)
-	if err != nil {
+	if _, err := q.GetWorkspaceByAgentID(ctx, arg.AgentID); err != nil {
 		return database.WorkspaceApp{}, err
 	}
 
@@ -125,11 +127,10 @@ func (q *AuthzQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg 
 }
 
 func (q *AuthzQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceApp, error) {
-	fetch := func(_ []database.WorkspaceApp, agentID uuid.UUID) (database.Workspace, error) {
-		return q.db.GetWorkspaceByAgentID(ctx, agentID)
+	if _, err := q.GetWorkspaceByAgentID(ctx, agentID); err != nil {
+		return nil, err
 	}
-
-	return queryWithRelated(q.log, q.auth, rbac.ActionRead, fetch, q.db.GetWorkspaceAppsByAgentID)(ctx, agentID)
+	return q.db.GetWorkspaceAppsByAgentID(ctx, agentID)
 }
 
 // GetWorkspaceAppsByAgentIDs is an all or nothing call. If the user cannot read a single app, the entire call will fail.
@@ -146,16 +147,15 @@ func (q *AuthzQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uui
 	return q.db.GetWorkspaceAppsByAgentIDs(ctx, ids)
 }
 
-func (q *AuthzQuerier) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (database.WorkspaceBuild, error) {
-	fetch := func(build database.WorkspaceBuild, _ uuid.UUID) (database.Workspace, error) {
-		return q.db.GetWorkspaceByID(ctx, build.WorkspaceID)
+func (q *AuthzQuerier) GetWorkspaceBuildByID(ctx context.Context, buildID uuid.UUID) (database.WorkspaceBuild, error) {
+	build, err := q.db.GetWorkspaceBuildByID(ctx, buildID)
+	if err != nil {
+		return database.WorkspaceBuild{}, err
 	}
-	return queryWithRelated(
-		q.log,
-		q.auth,
-		rbac.ActionRead,
-		fetch,
-		q.db.GetWorkspaceBuildByID)(ctx, id)
+	if _, err := q.GetWorkspaceByID(ctx, build.WorkspaceID); err != nil {
+		return database.WorkspaceBuild{}, err
+	}
+	return build, nil
 }
 
 func (q *AuthzQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UUID) (database.WorkspaceBuild, error) {
@@ -172,10 +172,10 @@ func (q *AuthzQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.
 }
 
 func (q *AuthzQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Context, arg database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (database.WorkspaceBuild, error) {
-	fetch := func(_ database.WorkspaceBuild, arg database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (database.Workspace, error) {
-		return q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	if _, err := q.GetWorkspaceByID(ctx, arg.WorkspaceID); err != nil {
+		return database.WorkspaceBuild{}, err
 	}
-	return queryWithRelated(q.log, q.auth, rbac.ActionRead, fetch, q.db.GetWorkspaceBuildByWorkspaceIDAndBuildNumber)(ctx, arg)
+	return q.db.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
@@ -190,10 +190,10 @@ func (q *AuthzQuerier) GetWorkspaceBuildParameters(ctx context.Context, workspac
 }
 
 func (q *AuthzQuerier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg database.GetWorkspaceBuildsByWorkspaceIDParams) ([]database.WorkspaceBuild, error) {
-	fetch := func(_ []database.WorkspaceBuild, arg database.GetWorkspaceBuildsByWorkspaceIDParams) (database.Workspace, error) {
-		return q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	if _, err := q.GetWorkspaceByID(ctx, arg.WorkspaceID); err != nil {
+		return nil, err
 	}
-	return queryWithRelated(q.log, q.auth, rbac.ActionRead, fetch, q.db.GetWorkspaceBuildsByWorkspaceID)(ctx, arg)
+	return q.db.GetWorkspaceBuildsByWorkspaceID(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (database.Workspace, error) {
@@ -304,15 +304,21 @@ func (q *AuthzQuerier) InsertWorkspace(ctx context.Context, arg database.InsertW
 }
 
 func (q *AuthzQuerier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertWorkspaceBuildParams) (database.WorkspaceBuild, error) {
-	fetch := func(build database.WorkspaceBuild, arg database.InsertWorkspaceBuildParams) (database.Workspace, error) {
-		return q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	w, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	if err != nil {
+		return database.WorkspaceBuild{}, err
 	}
 
 	var action rbac.Action = rbac.ActionUpdate
 	if arg.Transition == database.WorkspaceTransitionDelete {
 		action = rbac.ActionDelete
 	}
-	return queryWithRelated(q.log, q.auth, action, fetch, q.db.InsertWorkspaceBuild)(ctx, arg)
+
+	if err = q.authorizeContext(ctx, action, w); err != nil {
+		return database.WorkspaceBuild{}, err
+	}
+
+	return q.db.InsertWorkspaceBuild(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertWorkspaceBuildParameters(ctx context.Context, arg database.InsertWorkspaceBuildParametersParams) error {
