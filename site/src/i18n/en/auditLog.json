@@ -13,11 +13,9 @@
       "os": "OS: ",
       "browser": "Browser: ",
       "onBehalfOf": " on behalf of {{owner}}",
-      "buildReason": "Coder automatically",
       "unknownUser": "an unknown user",
-      "started": "started",
-      "stopped": "stopped",
-      "workspace": " workspace "
+      "workspaceBuild": "{{user}} <1>{{action}}</1> workspace <strong>{{workspaceName}}</strong>",
+      "auditDescription": "{{truncatedDescription}} <1>{{target}}</1>"
     }
   },
   "paywall": {
