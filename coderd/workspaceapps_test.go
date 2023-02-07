@@ -1605,27 +1605,31 @@ func TestWorkspaceAppUsage(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
+		user, err := client.User(ctx, firstUser.UserID.String())
+		require.NoError(t, err, "get first user data")
+		appUrl := fmt.Sprintf("/@%s/%s/apps/%s/?%s", user.Username, workspace.Name, proxyTestAppNamePublic, proxyTestAppQuery)
+
 		// Verify if there is no usage
 		usage, _ := client.TemplateAppUsage(ctx, workspace.TemplateID)
 		require.Equal(t, len(usage.Entries), 0, "has no usage")
 
 		// Access app for the first time
-		accessApp(t, ctx, client, workspace.Name, proxyTestAppNamePublic)
+		accessApp(t, ctx, client, appUrl)
 
 		// Verify if usage was added
 		usage, _ = client.TemplateAppUsage(ctx, workspace.TemplateID)
 		require.Equal(t, len(usage.Entries), 1, "added usage")
 
 		// Access app for the second time with the same user
-		accessApp(t, ctx, client, workspace.Name, proxyTestAppNamePublic)
+		accessApp(t, ctx, client, appUrl)
 
 		// Verify if usage was not added avoiding duplication
 		usage, _ = client.TemplateAppUsage(ctx, workspace.TemplateID)
 		require.Equal(t, len(usage.Entries), 1, "did not add usage for the same user")
 
 		// Access app as a different user
-		secondUserClient := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
-		accessApp(t, ctx, secondUserClient, workspace.Name, proxyTestAppNamePublic)
+		secondUserClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleOwner())
+		accessApp(t, ctx, secondUserClient, appUrl)
 
 		// Verify if usage for a diff user was added
 		usage, _ = client.TemplateAppUsage(ctx, workspace.TemplateID)
@@ -1648,8 +1652,8 @@ func forceURLTransport(t *testing.T, client *codersdk.Client) {
 	})
 }
 
-func accessApp(t *testing.T, ctx context.Context, client *codersdk.Client, workspaceName string, appName string) {
-	resp, err := requestWithRetries(ctx, t, client, http.MethodGet, fmt.Sprintf("/@me/%s/apps/%s/?%s", workspaceName, appName, proxyTestAppQuery), nil)
+func accessApp(t *testing.T, ctx context.Context, client *codersdk.Client, appUrl string) {
+	resp, err := requestWithRetries(ctx, t, client, http.MethodGet, appUrl, nil)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
