@@ -114,7 +114,7 @@ sudo systemctl restart coder
 ## Configuring Coder behind a proxy
 
 To configure Coder behind a corporate proxy, set the environment variables `HTTP_PROXY` and
-`HTTPS_PROXY` to use Coder behind a proxy. Lowercase values (e.g. `http_proxy`) are also
+`HTTPS_PROXY`. Be sure to restart the server. Lowercase values (e.g. `http_proxy`) are also
 respected in this case.
 
 ## Up Next
