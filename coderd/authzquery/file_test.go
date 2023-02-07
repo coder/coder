@@ -8,9 +8,9 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 )
 
-func (suite *MethodTestSuite) TestFile() {
-	suite.Run("GetFileByHashAndCreator", func() {
-		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+func (s *MethodTestSuite) TestFile() {
+	s.Run("GetFileByHashAndCreator", func() {
+		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			f := dbgen.File(t, db, database.File{})
 			return methodCase(values(database.GetFileByHashAndCreatorParams{
 				Hash:      f.Hash,
@@ -18,14 +18,14 @@ func (suite *MethodTestSuite) TestFile() {
 			}), asserts(f, rbac.ActionRead), values(f))
 		})
 	})
-	suite.Run("GetFileByID", func() {
-		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+	s.Run("GetFileByID", func() {
+		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			f := dbgen.File(t, db, database.File{})
 			return methodCase(values(f.ID), asserts(f, rbac.ActionRead), values(f))
 		})
 	})
-	suite.Run("InsertFile", func() {
-		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+	s.Run("InsertFile", func() {
+		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			u := dbgen.User(t, db, database.User{})
 			return methodCase(values(database.InsertFileParams{
 				CreatedBy: u.ID,

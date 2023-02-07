@@ -10,21 +10,21 @@ import (
 	"github.com/coder/coder/coderd/util/slice"
 )
 
-func (suite *MethodTestSuite) TestAPIKey() {
-	suite.Run("DeleteAPIKeyByID", func() {
-		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+func (s *MethodTestSuite) TestAPIKey() {
+	s.Run("DeleteAPIKeyByID", func() {
+		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			key, _ := dbgen.APIKey(t, db, database.APIKey{})
 			return methodCase(values(key.ID), asserts(key, rbac.ActionDelete), values())
 		})
 	})
-	suite.Run("GetAPIKeyByID", func() {
-		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+	s.Run("GetAPIKeyByID", func() {
+		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			key, _ := dbgen.APIKey(t, db, database.APIKey{})
 			return methodCase(values(key.ID), asserts(key, rbac.ActionRead), values(key))
 		})
 	})
-	suite.Run("GetAPIKeysByLoginType", func() {
-		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+	s.Run("GetAPIKeysByLoginType", func() {
+		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			a, _ := dbgen.APIKey(t, db, database.APIKey{LoginType: database.LoginTypePassword})
 			b, _ := dbgen.APIKey(t, db, database.APIKey{LoginType: database.LoginTypePassword})
 			_, _ = dbgen.APIKey(t, db, database.APIKey{LoginType: database.LoginTypeGithub})
@@ -33,8 +33,8 @@ func (suite *MethodTestSuite) TestAPIKey() {
 				values(slice.New(a, b)))
 		})
 	})
-	suite.Run("GetAPIKeysLastUsedAfter", func() {
-		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+	s.Run("GetAPIKeysLastUsedAfter", func() {
+		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			a, _ := dbgen.APIKey(t, db, database.APIKey{LastUsed: time.Now().Add(time.Hour)})
 			b, _ := dbgen.APIKey(t, db, database.APIKey{LastUsed: time.Now().Add(time.Hour)})
 			_, _ = dbgen.APIKey(t, db, database.APIKey{LastUsed: time.Now().Add(-time.Hour)})
@@ -43,8 +43,8 @@ func (suite *MethodTestSuite) TestAPIKey() {
 				values(slice.New(a, b)))
 		})
 	})
-	suite.Run("InsertAPIKey", func() {
-		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+	s.Run("InsertAPIKey", func() {
+		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			u := dbgen.User(t, db, database.User{})
 			return methodCase(values(database.InsertAPIKeyParams{
 				UserID:    u.ID,
@@ -54,8 +54,8 @@ func (suite *MethodTestSuite) TestAPIKey() {
 				nil)
 		})
 	})
-	suite.Run("UpdateAPIKeyByID", func() {
-		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+	s.Run("UpdateAPIKeyByID", func() {
+		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			a, _ := dbgen.APIKey(t, db, database.APIKey{})
 			return methodCase(values(database.UpdateAPIKeyByIDParams{
 				ID: a.ID,

@@ -11,9 +11,9 @@ import (
 	"github.com/coder/coder/coderd/util/slice"
 )
 
-func (suite *MethodTestSuite) TestOrganization() {
-	suite.Run("GetGroupsByOrganizationID", func() {
-		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+func (s *MethodTestSuite) TestOrganization() {
+	s.Run("GetGroupsByOrganizationID", func() {
+		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			o := dbgen.Organization(t, db, database.Organization{})
 			a := dbgen.Group(t, db, database.Group{OrganizationID: o.ID})
 			b := dbgen.Group(t, db, database.Group{OrganizationID: o.ID})
@@ -21,20 +21,20 @@ func (suite *MethodTestSuite) TestOrganization() {
 				values([]database.Group{a, b}))
 		})
 	})
-	suite.Run("GetOrganizationByID", func() {
-		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+	s.Run("GetOrganizationByID", func() {
+		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			o := dbgen.Organization(t, db, database.Organization{})
 			return methodCase(values(o.ID), asserts(o, rbac.ActionRead), values(o))
 		})
 	})
-	suite.Run("GetOrganizationByName", func() {
-		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+	s.Run("GetOrganizationByName", func() {
+		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			o := dbgen.Organization(t, db, database.Organization{})
 			return methodCase(values(o.Name), asserts(o, rbac.ActionRead), values(o))
 		})
 	})
-	suite.Run("GetOrganizationIDsByMemberIDs", func() {
-		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+	s.Run("GetOrganizationIDsByMemberIDs", func() {
+		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			oa := dbgen.Organization(t, db, database.Organization{})
 			ob := dbgen.Organization(t, db, database.Organization{})
 			ma := dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: oa.ID})
@@ -44,8 +44,8 @@ func (suite *MethodTestSuite) TestOrganization() {
 				nil)
 		})
 	})
-	suite.Run("GetOrganizationMemberByUserID", func() {
-		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+	s.Run("GetOrganizationMemberByUserID", func() {
+		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			mem := dbgen.OrganizationMember(t, db, database.OrganizationMember{})
 			return methodCase(values(database.GetOrganizationMemberByUserIDParams{
 				OrganizationID: mem.OrganizationID,
@@ -54,8 +54,8 @@ func (suite *MethodTestSuite) TestOrganization() {
 				values(mem))
 		})
 	})
-	suite.Run("GetOrganizationMembershipsByUserID", func() {
-		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+	s.Run("GetOrganizationMembershipsByUserID", func() {
+		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			u := dbgen.User(t, db, database.User{})
 			a := dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: u.ID})
 			b := dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: u.ID})
@@ -63,16 +63,16 @@ func (suite *MethodTestSuite) TestOrganization() {
 				values(slice.New(a, b)))
 		})
 	})
-	suite.Run("GetOrganizations", func() {
-		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+	s.Run("GetOrganizations", func() {
+		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			a := dbgen.Organization(t, db, database.Organization{})
 			b := dbgen.Organization(t, db, database.Organization{})
 			return methodCase(values(), asserts(a, rbac.ActionRead, b, rbac.ActionRead),
 				values(slice.New(a, b)))
 		})
 	})
-	suite.Run("GetOrganizationsByUserID", func() {
-		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+	s.Run("GetOrganizationsByUserID", func() {
+		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			u := dbgen.User(t, db, database.User{})
 			a := dbgen.Organization(t, db, database.Organization{})
 			_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: u.ID, OrganizationID: a.ID})
@@ -82,16 +82,16 @@ func (suite *MethodTestSuite) TestOrganization() {
 				values(slice.New(a, b)))
 		})
 	})
-	suite.Run("InsertOrganization", func() {
-		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+	s.Run("InsertOrganization", func() {
+		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			return methodCase(values(database.InsertOrganizationParams{
 				ID:   uuid.New(),
 				Name: "random",
 			}), asserts(rbac.ResourceOrganization, rbac.ActionCreate), nil)
 		})
 	})
-	suite.Run("InsertOrganizationMember", func() {
-		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+	s.Run("InsertOrganizationMember", func() {
+		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			o := dbgen.Organization(t, db, database.Organization{})
 			u := dbgen.User(t, db, database.User{})
 
@@ -105,8 +105,8 @@ func (suite *MethodTestSuite) TestOrganization() {
 				nil)
 		})
 	})
-	suite.Run("UpdateMemberRoles", func() {
-		suite.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
+	s.Run("UpdateMemberRoles", func() {
+		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
 			o := dbgen.Organization(t, db, database.Organization{})
 			u := dbgen.User(t, db, database.User{})
 			mem := dbgen.OrganizationMember(t, db, database.OrganizationMember{
