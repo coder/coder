@@ -132,5 +132,8 @@ func Validate(password string) error {
 	if err != nil {
 		return err
 	}
+	if len(password) > 64 {
+		return xerrors.Errorf("password must be no more than %d characters", 64)
+	}
 	return nil
 }

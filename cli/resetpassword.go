@@ -50,9 +50,11 @@ func resetPassword() *cobra.Command {
 			}
 
 			password, err := cliui.Prompt(cmd, cliui.PromptOptions{
-				Text:     "Enter new " + cliui.Styles.Field.Render("password") + ":",
-				Secret:   true,
-				Validate: cliui.ValidateNotEmpty,
+				Text:   "Enter new " + cliui.Styles.Field.Render("password") + ":",
+				Secret: true,
+				Validate: func(s string) error {
+					return userpassword.Validate(s)
+				},
 			})
 			if err != nil {
 				return xerrors.Errorf("password prompt: %w", err)

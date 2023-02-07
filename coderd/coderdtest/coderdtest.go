@@ -455,7 +455,7 @@ func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationI
 	req := codersdk.CreateUserRequest{
 		Email:          namesgenerator.GetRandomName(10) + "@coder.com",
 		Username:       randomUsername(),
-		Password:       "testpass",
+		Password:       "SomeSecurePassword!",
 		OrganizationID: organizationID,
 	}
 

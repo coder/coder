@@ -32,6 +32,7 @@ import (
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/cli/config"
+	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database/postgres"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
@@ -70,11 +71,7 @@ func TestServer(t *testing.T) {
 		accessURL := waitAccessURL(t, cfg)
 		client := codersdk.New(accessURL)
 
-		_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
-			Email:    "some@one.com",
-			Username: "example",
-			Password: "password",
-		})
+		_, err = client.CreateFirstUser(ctx, coderdtest.FirstUserParams)
 		require.NoError(t, err)
 		cancelFunc()
 		require.NoError(t, <-errC)
