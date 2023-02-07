@@ -42,10 +42,6 @@ export const TemplateVersionEditorPage: FC = () => {
               if (!versionState.context.template) {
                 throw new Error("no template")
               }
-              // Send a cancel just in case a version is already being created!
-              sendEvent({
-                type: "CANCEL_VERSION",
-              })
               sendEvent({
                 type: "CREATE_VERSION",
                 files: files,

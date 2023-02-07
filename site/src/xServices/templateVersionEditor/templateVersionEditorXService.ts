@@ -1,5 +1,6 @@
 import {
   ProvisionerJobLog,
+  ProvisionerJobStatus,
   TemplateVersion,
   UploadResponse,
   WorkspaceResource,
@@ -7,7 +8,7 @@ import {
 import { assign, createMachine } from "xstate"
 import * as API from "api/api"
 import { TemplateVersionFiles } from "util/templateVersion"
-import * as Tar from "tar-js"
+import Tar from "tar-js"
 
 export interface CreateVersionData {
   file: File
@@ -40,21 +41,34 @@ export const templateVersionEditorMachine = createMachine(
         | { type: "ADD_BUILD_LOG"; log: ProvisionerJobLog }
         | { type: "UPDATE_ACTIVE_VERSION" },
       services: {} as {
+        uploadTar: {
+          data: UploadResponse
+        }
         createBuild: {
           data: TemplateVersion
         }
         cancelBuild: {
+          data: void
+        }
+        fetchVersion: {
           data: TemplateVersion
+        }
+        getResources: {
+          data: WorkspaceResource[]
+        }
+        updateActiveVersion: {
+          data: void
         }
       },
     },
+    tsTypes: {} as import("./templateVersionEditorXService.typegen").Typegen0,
     initial: "idle",
     states: {
       idle: {
         on: {
           CREATE_VERSION: {
             actions: ["assignCreateBuild"],
-            target: "uploadTar",
+            target: "cancelingBuild",
           },
           UPDATE_ACTIVE_VERSION: {
             target: "updatingActiveVersion",
@@ -71,6 +85,16 @@ export const templateVersionEditorMachine = createMachine(
           },
         },
       },
+      cancelingBuild: {
+        tags: "loading",
+        invoke: {
+          id: "cancelBuild",
+          src: "cancelBuild",
+          onDone: {
+            target: "uploadTar",
+          },
+        },
+      },
       uploadTar: {
         tags: "loading",
         invoke: {
@@ -78,7 +102,7 @@ export const templateVersionEditorMachine = createMachine(
           src: "uploadTar",
           onDone: {
             target: "creatingBuild",
-            actions: ["assignUploadResponse"],
+            actions: "assignUploadResponse",
           },
         },
       },
@@ -88,7 +112,7 @@ export const templateVersionEditorMachine = createMachine(
           id: "createBuild",
           src: "createBuild",
           onDone: {
-            actions: ["assignBuild"],
+            actions: "assignBuild",
             target: "watchingBuildLogs",
           },
         },
@@ -104,14 +128,14 @@ export const templateVersionEditorMachine = createMachine(
         },
         on: {
           ADD_BUILD_LOG: {
-            actions: ["addBuildLog"],
+            actions: "addBuildLog",
           },
           CANCEL_VERSION: {
-            actions: ["cancelBuild"],
+            actions: "cancelBuild",
             target: "idle",
           },
           CREATE_VERSION: {
-            actions: ["cancelBuild", "assignCreateBuild"],
+            actions: ["assignCreateBuild"],
             target: "uploadTar",
           },
         },
@@ -145,8 +169,8 @@ export const templateVersionEditorMachine = createMachine(
       assignCreateBuild: assign({
         files: (_, event) => event.files,
         templateId: (_, event) => event.templateId,
-        buildLogs: [],
-        resources: [],
+        buildLogs: (_, _1) => [],
+        resources: (_, _1) => [],
       }),
       assignResources: assign({
         resources: (_, event) => event.data,
@@ -174,7 +198,7 @@ export const templateVersionEditorMachine = createMachine(
             ...context.version,
             job: {
               ...context.version.job,
-              status: "running",
+              status: "running" as ProvisionerJobStatus,
             },
           }
         },
@@ -238,20 +262,22 @@ export const templateVersionEditorMachine = createMachine(
         }
         return API.getTemplateVersionResources(ctx.version.id)
       },
-      cancelBuild: (ctx) => {
+      cancelBuild: async (ctx) => {
         if (!ctx.version) {
-          throw new Error("template version must be set")
+          return
         }
-        return API.cancelTemplateVersionBuild(ctx.version.id)
+        if (ctx.version.job.status === "running") {
+          await API.cancelTemplateVersionBuild(ctx.version.id)
+        }
       },
-      updateActiveVersion: (ctx) => {
+      updateActiveVersion: async (ctx) => {
         if (!ctx.templateId) {
           throw new Error("template must be set")
         }
         if (!ctx.version) {
           throw new Error("template version must be set")
         }
-        return API.updateActiveTemplateVersion(ctx.templateId, {
+        await API.updateActiveTemplateVersion(ctx.templateId, {
           id: ctx.version.id,
         })
       },
