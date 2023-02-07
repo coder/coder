@@ -25,7 +25,6 @@ export const getStatus = (
   text: string
   icon: ReactNode
 } => {
-  console.log("Getting status", version.job.status)
   switch (version.job.status) {
     case "running":
       return {

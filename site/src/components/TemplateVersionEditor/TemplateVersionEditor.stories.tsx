@@ -21,7 +21,7 @@ export default {
   },
 }
 
-const Template: Story<TemplateVersionEditorProps> = (args: any) => (
+const Template: Story<TemplateVersionEditorProps> = (args: TemplateVersionEditorProps) => (
   <TemplateVersionEditor {...args} />
 )
 
