@@ -1070,8 +1070,8 @@ export const Entitlements: Entitlement[] = [
 ]
 
 // From codersdk/deployment.go
-export type Experiment = "authz_querier"
-export const Experiments: Experiment[] = ["authz_querier"]
+export type Experiment = "authz_querier" | "template_editor"
+export const Experiments: Experiment[] = ["authz_querier", "template_editor"]
 
 // From codersdk/deployment.go
 export type FeatureName =

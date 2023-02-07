@@ -418,6 +418,10 @@ const (
 	// interface for all RBAC operations. NOT READY FOR PRODUCTION USE.
 	ExperimentAuthzQuerier Experiment = "authz_querier"
 
+	// ExperimentTemplateEditor is an internal experiment that enables the template editor
+	// for all users.
+	ExperimentTemplateEditor Experiment = "template_editor"
+
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
 )
@@ -427,7 +431,7 @@ var (
 	// users to opt-in to via --experimental='*'.
 	// Experiments that are not ready for consumption by all users should
 	// not be included here and will be essentially hidden.
-	ExperimentsAll = Experiments{}
+	ExperimentsAll = Experiments{ExperimentTemplateEditor}
 )
 
 // Experiments is a list of experiments that are enabled for the deployment.

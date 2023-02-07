@@ -41,6 +41,7 @@ const defaultArgs = {
   tab,
   templateName: MockTemplate.name,
   versionName: MockTemplateVersion.name,
+  canEdit: true,
   context: {
     orgId: MockOrganization.id,
     versionName: MockTemplateVersion.name,

@@ -76,6 +76,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   const [activeFile, setActiveFile] = useState<File | undefined>(() => {
     const fileKeys = Object.keys(initialFiles)
     for (let i = 0; i < fileKeys.length; i++) {
+      // Open a Terraform file by default!
       if (fileKeys[i].endsWith(".tf")) {
         return {
           path: fileKeys[i],
@@ -85,11 +86,14 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
       }
     }
   })
+
   const triggerPreview = useCallback(() => {
     onPreview(files)
     // Switch to the build log!
     setSelectedTab(0)
   }, [files, onPreview])
+
+  // Stop ctrl+s from saving files and make ctrl+enter trigger a preview.
   useEffect(() => {
     const keyListener = (event: KeyboardEvent) => {
       if (!(navigator.platform.match("Mac") ? event.metaKey : event.ctrlKey)) {

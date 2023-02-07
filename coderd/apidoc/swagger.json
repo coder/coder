@@ -5693,8 +5693,8 @@
     },
     "codersdk.Experiment": {
       "type": "string",
-      "enum": ["authz_querier"],
-      "x-enum-varnames": ["ExperimentAuthzQuerier"]
+      "enum": ["authz_querier", "template_editor"],
+      "x-enum-varnames": ["ExperimentAuthzQuerier", "ExperimentTemplateEditor"]
     },
     "codersdk.Feature": {
       "type": "object",
