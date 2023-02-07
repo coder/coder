@@ -803,7 +803,11 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 
 	cmd := exec.CommandContext(ctx, shell, args...)
 	cmd.Dir = metadata.Directory
-	if cmd.Dir == "" {
+
+	// If the metadata directory doesn't exist, we run the command
+	// in the users home directory.
+	_, err = os.Stat(cmd.Dir)
+	if cmd.Dir == "" || err != nil {
 		// Default to user home if a directory is not set.
 		homedir, err := userHomeDir()
 		if err != nil {
