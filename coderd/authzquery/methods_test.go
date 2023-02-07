@@ -285,26 +285,6 @@ type AssertRBAC struct {
 	Actions []rbac.Action
 }
 
-// methodCase is a convenience method for creating MethodCases.
-//
-//	methodCase(values(workspace, template, ...).Asserts(workspace, rbac.ActionRead, template, rbac.ActionRead, ...))
-//
-// is equivalent to
-//
-//	MethodCase{
-//	  inputs: values(workspace, template, ...),
-//	  assertions: asserts(workspace, rbac.ActionRead, template, rbac.ActionRead, ...),
-//	}
-//
-// Deprecated: use MethodCase instead.
-func methodCase(ins []reflect.Value, assertions []AssertRBAC, outs []reflect.Value) MethodCase {
-	return MethodCase{
-		inputs:          ins,
-		assertions:      assertions,
-		expectedOutputs: outs,
-	}
-}
-
 // values is a convenience method for creating []reflect.Value.
 //
 // values(workspace, template, ...)
