@@ -29,7 +29,7 @@ func (q *AuthzQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorksp
 
 func (q *AuthzQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
 	if _, err := q.GetWorkspaceByID(ctx, workspaceID); err != nil {
-		return database.WorkspaceBuild{}, nil
+		return database.WorkspaceBuild{}, err
 	}
 	return q.db.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspaceID)
 }

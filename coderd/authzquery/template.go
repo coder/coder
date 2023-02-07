@@ -176,7 +176,7 @@ func (q *AuthzQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg 
 
 func (q *AuthzQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.TemplateVersion, error) {
 	// An actor can read execute this query if they can read all templates.
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplate); err != nil {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplate.All()); err != nil {
 		return nil, err
 	}
 	return q.db.GetTemplateVersionsCreatedAfter(ctx, createdAt)
