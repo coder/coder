@@ -12,10 +12,6 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 )
 
-// TODO:
-// - We need to handle authorizing the CRUD of objects with RBAC being related
-//   to some other object. Eg: workspace builds, group members, etc.
-
 var (
 	// NoActorError wraps ErrNoRows for the api to return a 404. This is the correct
 	// response when the user is not authorized.
