@@ -122,7 +122,7 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *Metho
 			if method.Name == methodName {
 				methodF := reflect.ValueOf(az).Method(i)
 				callMethod = func(ctx context.Context) ([]reflect.Value, error) {
-					resp := methodF.Call(append([]reflect.Value{reflect.ValueOf(ctx)}, testCase.Inputs...))
+					resp := methodF.Call(append([]reflect.Value{reflect.ValueOf(ctx)}, testCase.inputs...))
 					return splitResp(t, resp)
 				}
 				break MethodLoop
@@ -133,7 +133,7 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *Metho
 
 		// Run tests that are only run if the method makes rbac assertions.
 		// These tests assert the error conditions of the method.
-		if len(testCase.Assertions) > 0 {
+		if len(testCase.assertions) > 0 {
 			// Only run these tests if we know the underlying call makes
 			// rbac assertions.
 			s.NotAuthorizedErrorTest(ctx, fakeAuthorizer, callMethod)
@@ -150,11 +150,11 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *Metho
 
 			// Some tests may not care about the outputs, so we only assert if
 			// they are provided.
-			if testCase.ExpectedOutputs != nil {
+			if testCase.expectedOutputs != nil {
 				// Assert the required outputs
-				s.Equal(len(testCase.ExpectedOutputs), len(outputs), "method %q returned unexpected number of outputs", methodName)
+				s.Equal(len(testCase.expectedOutputs), len(outputs), "method %q returned unexpected number of outputs", methodName)
 				for i := range outputs {
-					a, b := testCase.ExpectedOutputs[i].Interface(), outputs[i].Interface()
+					a, b := testCase.expectedOutputs[i].Interface(), outputs[i].Interface()
 					if reflect.TypeOf(a).Kind() == reflect.Slice || reflect.TypeOf(a).Kind() == reflect.Array {
 						// Order does not matter
 						s.ElementsMatch(a, b, "method %q returned unexpected output %d", methodName, i)
@@ -165,7 +165,7 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *Metho
 			}
 
 			var pairs []coderdtest.ActionObjectPair
-			for _, assrt := range testCase.Assertions {
+			for _, assrt := range testCase.assertions {
 				for _, action := range assrt.Actions {
 					pairs = append(pairs, coderdtest.ActionObjectPair{
 						Action: action,
@@ -246,17 +246,17 @@ MethodLoop:
 		if method.Name == methodName {
 			methodF := reflect.ValueOf(az).Method(i)
 			callMethod = func(ctx context.Context) ([]reflect.Value, error) {
-				resp := methodF.Call(append([]reflect.Value{reflect.ValueOf(ctx)}, testCase.Inputs...))
+				resp := methodF.Call(append([]reflect.Value{reflect.ValueOf(ctx)}, testCase.inputs...))
 				return splitResp(t, resp)
 			}
 			break MethodLoop
 
-			//if len(testCase.Assertions) > 0 {
+			//if len(testCase.assertions) > 0 {
 			//	fakeAuthorizer.AlwaysReturn = xerrors.New("Always fail authz")
 			//	// If we have assertions, that means the method should FAIL
 			//	// if RBAC will disallow the request. The returned error should
 			//	// be expected to be a NotAuthorizedError.
-			//	erroredResp := reflect.ValueOf(az).Method(i).Call(append([]reflect.Value{reflect.ValueOf(ctx)}, testCase.Inputs...))
+			//	erroredResp := reflect.ValueOf(az).Method(i).Call(append([]reflect.Value{reflect.ValueOf(ctx)}, testCase.inputs...))
 			//	_, err := splitResp(t, erroredResp)
 			//	// This is unfortunate, but if we are using `Filter` the error returned will be nil. So filter out
 			//	// any case where the error is nil and the response is an empty slice.
@@ -270,7 +270,7 @@ MethodLoop:
 			//	rec.Reset()
 			//}
 
-			//resp := reflect.ValueOf(az).Method(i).Call(append([]reflect.Value{reflect.ValueOf(ctx)}, testCase.Inputs...))
+			//resp := reflect.ValueOf(az).Method(i).Call(append([]reflect.Value{reflect.ValueOf(ctx)}, testCase.inputs...))
 			//
 			//outputs, err := splitResp(t, resp)
 			//require.NoError(t, err, "method %q returned an error", testName)
@@ -299,7 +299,7 @@ MethodLoop:
 
 	// Run tests that are only run if the method makes rbac assertions.
 	// These tests assert the error conditions of the method.
-	if len(testCase.Assertions) > 0 {
+	if len(testCase.assertions) > 0 {
 		// Only run these tests if we know the underlying call makes
 		// rbac assertions.
 		s.NotAuthorizedErrorTest(ctx, fakeAuthorizer, callMethod)
@@ -315,11 +315,11 @@ MethodLoop:
 
 	// Some tests may not care about the outputs, so we only assert if
 	// they are provided.
-	if testCase.ExpectedOutputs != nil {
+	if testCase.expectedOutputs != nil {
 		// Assert the required outputs
-		s.Equal(len(testCase.ExpectedOutputs), len(outputs), "method %q returned unexpected number of outputs", methodName)
+		s.Equal(len(testCase.expectedOutputs), len(outputs), "method %q returned unexpected number of outputs", methodName)
 		for i := range outputs {
-			a, b := testCase.ExpectedOutputs[i].Interface(), outputs[i].Interface()
+			a, b := testCase.expectedOutputs[i].Interface(), outputs[i].Interface()
 			if reflect.TypeOf(a).Kind() == reflect.Slice || reflect.TypeOf(a).Kind() == reflect.Array {
 				// Order does not matter
 				s.ElementsMatch(a, b, "method %q returned unexpected output %d", methodName, i)
@@ -330,7 +330,7 @@ MethodLoop:
 	}
 
 	var pairs []coderdtest.ActionObjectPair
-	for _, assrt := range testCase.Assertions {
+	for _, assrt := range testCase.assertions {
 		for _, action := range assrt.Actions {
 			pairs = append(pairs, coderdtest.ActionObjectPair{
 				Action: action,
@@ -377,25 +377,25 @@ func splitResp(t *testing.T, values []reflect.Value) ([]reflect.Value, error) {
 // A MethodCase contains the inputs to be provided to a single method call,
 // and the assertions to be made on the RBAC checks.
 type MethodCase struct {
-	Inputs     []reflect.Value
-	Assertions []AssertRBAC
-	// Output is optional. Can assert non-error return values.
-	ExpectedOutputs []reflect.Value
+	inputs     []reflect.Value
+	assertions []AssertRBAC
+	// expectedOutputs is optional. Can assert non-error return values.
+	expectedOutputs []reflect.Value
 }
 
 func (m *MethodCase) Asserts(pairs ...any) *MethodCase {
-	m.Assertions = asserts(pairs...)
+	m.assertions = asserts(pairs...)
 	return m
 }
 
 func (m *MethodCase) Args(args ...any) *MethodCase {
-	m.Inputs = values(args...)
+	m.inputs = values(args...)
 	return m
 }
 
 // Returns is optional. If it is never called, it will not be asserted.
 func (m *MethodCase) Returns(rets ...any) *MethodCase {
-	m.ExpectedOutputs = values(rets...)
+	m.expectedOutputs = values(rets...)
 	return m
 }
 
@@ -412,16 +412,16 @@ type AssertRBAC struct {
 // is equivalent to
 //
 //	MethodCase{
-//	  Inputs: values(workspace, template, ...),
-//	  Assertions: asserts(workspace, rbac.ActionRead, template, rbac.ActionRead, ...),
+//	  inputs: values(workspace, template, ...),
+//	  assertions: asserts(workspace, rbac.ActionRead, template, rbac.ActionRead, ...),
 //	}
 //
 // Deprecated: use MethodCase instead.
 func methodCase(ins []reflect.Value, assertions []AssertRBAC, outs []reflect.Value) MethodCase {
 	return MethodCase{
-		Inputs:          ins,
-		Assertions:      assertions,
-		ExpectedOutputs: outs,
+		inputs:          ins,
+		assertions:      assertions,
+		expectedOutputs: outs,
 	}
 }
 
@@ -500,20 +500,16 @@ func asserts(inputs ...any) []AssertRBAC {
 }
 
 func (s *MethodTestSuite) TestExtraMethods() {
-	s.Run("GetProvisionerDaemons", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			d, err := db.InsertProvisionerDaemon(context.Background(), database.InsertProvisionerDaemonParams{
-				ID: uuid.New(),
-			})
-			require.NoError(t, err, "insert provisioner daemon")
-			return methodCase(values(), asserts(d, rbac.ActionRead), nil)
+	s.Run("GetProvisionerDaemons", s.Subtest(func(db database.Store, check *MethodCase) {
+		d, err := db.InsertProvisionerDaemon(context.Background(), database.InsertProvisionerDaemonParams{
+			ID: uuid.New(),
 		})
-	})
-	s.Run("GetDeploymentDAUs", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			return methodCase(values(), asserts(rbac.ResourceUser.All(), rbac.ActionRead), nil)
-		})
-	})
+		s.NoError(err, "insert provisioner daemon")
+		check.Args().Asserts(d, rbac.ActionRead)
+	}))
+	s.Run("GetDeploymentDAUs", s.Subtest(func(db database.Store, check *MethodCase) {
+		check.Args().Asserts(rbac.ResourceUser.All(), rbac.ActionRead)
+	}))
 }
 
 type emptyPreparedAuthorized struct{}

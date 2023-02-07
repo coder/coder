@@ -1,7 +1,6 @@
 package authzquery_test
 
 import (
-	"testing"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,269 +12,219 @@ import (
 )
 
 func (s *MethodTestSuite) TestTemplate() {
-	s.Run("GetPreviousTemplateVersion", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			tvid := uuid.New()
-			now := time.Now()
-			o1 := dbgen.Organization(t, db, database.Organization{})
-			t1 := dbgen.Template(t, db, database.Template{
-				OrganizationID:  o1.ID,
-				ActiveVersionID: tvid,
-			})
-			_ = dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				CreatedAt:      now.Add(-time.Hour),
-				ID:             tvid,
-				Name:           t1.Name,
-				OrganizationID: o1.ID,
-				TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true}})
-			b := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				CreatedAt:      now.Add(-2 * time.Hour),
-				Name:           t1.Name,
-				OrganizationID: o1.ID,
-				TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true}})
-			return methodCase(values(database.GetPreviousTemplateVersionParams{
-				Name:           t1.Name,
-				OrganizationID: o1.ID,
-				TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true},
-			}), asserts(t1, rbac.ActionRead), values(b))
+	s.Run("GetPreviousTemplateVersion", s.Subtest(func(db database.Store, check *MethodCase) {
+		tvid := uuid.New()
+		now := time.Now()
+		o1 := dbgen.Organization(s.T(), db, database.Organization{})
+		t1 := dbgen.Template(s.T(), db, database.Template{
+			OrganizationID:  o1.ID,
+			ActiveVersionID: tvid,
 		})
-	})
-	s.Run("GetTemplateAverageBuildTime", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			t1 := dbgen.Template(t, db, database.Template{})
-			return methodCase(values(database.GetTemplateAverageBuildTimeParams{
-				TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-			}), asserts(t1, rbac.ActionRead), nil)
+		_ = dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			CreatedAt:      now.Add(-time.Hour),
+			ID:             tvid,
+			Name:           t1.Name,
+			OrganizationID: o1.ID,
+			TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true}})
+		b := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			CreatedAt:      now.Add(-2 * time.Hour),
+			Name:           t1.Name,
+			OrganizationID: o1.ID,
+			TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true}})
+		check.Args(database.GetPreviousTemplateVersionParams{
+			Name:           t1.Name,
+			OrganizationID: o1.ID,
+			TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true},
+		}).Asserts(t1, rbac.ActionRead).Returns(b)
+	}))
+	s.Run("GetTemplateAverageBuildTime", s.Subtest(func(db database.Store, check *MethodCase) {
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		check.Args(database.GetTemplateAverageBuildTimeParams{
+			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
+		}).Asserts(t1, rbac.ActionRead)
+	}))
+	s.Run("GetTemplateByID", s.Subtest(func(db database.Store, check *MethodCase) {
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		check.Args(t1.ID).Asserts(t1, rbac.ActionRead).Returns(t1)
+	}))
+	s.Run("GetTemplateByOrganizationAndName", s.Subtest(func(db database.Store, check *MethodCase) {
+		o1 := dbgen.Organization(s.T(), db, database.Organization{})
+		t1 := dbgen.Template(s.T(), db, database.Template{
+			OrganizationID: o1.ID,
 		})
-	})
-	s.Run("GetTemplateByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			t1 := dbgen.Template(t, db, database.Template{})
-			return methodCase(values(t1.ID), asserts(t1, rbac.ActionRead), values(t1))
+		check.Args(database.GetTemplateByOrganizationAndNameParams{
+			Name:           t1.Name,
+			OrganizationID: o1.ID,
+		}).Asserts(t1, rbac.ActionRead).Returns(t1)
+	}))
+	s.Run("GetTemplateDAUs", s.Subtest(func(db database.Store, check *MethodCase) {
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		check.Args(t1.ID).Asserts(t1, rbac.ActionRead)
+	}))
+	s.Run("GetTemplateVersionByJobID", s.Subtest(func(db database.Store, check *MethodCase) {
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
 		})
-	})
-	s.Run("GetTemplateByOrganizationAndName", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			o1 := dbgen.Organization(t, db, database.Organization{})
-			t1 := dbgen.Template(t, db, database.Template{
-				OrganizationID: o1.ID,
-			})
-			return methodCase(values(database.GetTemplateByOrganizationAndNameParams{
-				Name:           t1.Name,
-				OrganizationID: o1.ID,
-			}), asserts(t1, rbac.ActionRead), values(t1))
+		check.Args(tv.JobID).Asserts(t1, rbac.ActionRead).Returns(tv)
+	}))
+	s.Run("GetTemplateVersionByTemplateIDAndName", s.Subtest(func(db database.Store, check *MethodCase) {
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
 		})
-	})
-	s.Run("GetTemplateDAUs", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			t1 := dbgen.Template(t, db, database.Template{})
-			return methodCase(values(t1.ID), asserts(t1, rbac.ActionRead), nil)
+		check.Args(database.GetTemplateVersionByTemplateIDAndNameParams{
+			Name:       tv.Name,
+			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
+		}).Asserts(t1, rbac.ActionRead).Returns(tv)
+	}))
+	s.Run("GetTemplateVersionParameters", s.Subtest(func(db database.Store, check *MethodCase) {
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
 		})
-	})
-	s.Run("GetTemplateVersionByJobID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			t1 := dbgen.Template(t, db, database.Template{})
-			tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-			})
-			return methodCase(values(tv.JobID), asserts(t1, rbac.ActionRead), values(tv))
+		check.Args(tv.ID).Asserts(t1, rbac.ActionRead).Returns([]database.TemplateVersionParameter{})
+	}))
+	s.Run("GetTemplateGroupRoles", s.Subtest(func(db database.Store, check *MethodCase) {
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		check.Args(t1.ID).Asserts(t1, rbac.ActionRead)
+	}))
+	s.Run("GetTemplateUserRoles", s.Subtest(func(db database.Store, check *MethodCase) {
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		check.Args(t1.ID).Asserts(t1, rbac.ActionRead)
+	}))
+	s.Run("GetTemplateVersionByID", s.Subtest(func(db database.Store, check *MethodCase) {
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
 		})
-	})
-	s.Run("GetTemplateVersionByTemplateIDAndName", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			t1 := dbgen.Template(t, db, database.Template{})
-			tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-			})
-			return methodCase(values(database.GetTemplateVersionByTemplateIDAndNameParams{
-				Name:       tv.Name,
-				TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-			}), asserts(t1, rbac.ActionRead), values(tv))
+		check.Args(tv.ID).Asserts(t1, rbac.ActionRead).Returns(tv)
+	}))
+	s.Run("GetTemplateVersionsByIDs", s.Subtest(func(db database.Store, check *MethodCase) {
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		t2 := dbgen.Template(s.T(), db, database.Template{})
+		tv1 := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
 		})
-	})
-	s.Run("GetTemplateVersionParameters", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			t1 := dbgen.Template(t, db, database.Template{})
-			tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-			})
-			return methodCase(values(tv.ID), asserts(t1, rbac.ActionRead), values([]database.TemplateVersionParameter{}))
+		tv2 := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: t2.ID, Valid: true},
 		})
-	})
-	s.Run("GetTemplateGroupRoles", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			t1 := dbgen.Template(t, db, database.Template{})
-			return methodCase(values(t1.ID), asserts(t1, rbac.ActionRead), nil)
+		tv3 := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: t2.ID, Valid: true},
 		})
-	})
-	s.Run("GetTemplateUserRoles", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			t1 := dbgen.Template(t, db, database.Template{})
-			return methodCase(values(t1.ID), asserts(t1, rbac.ActionRead), nil)
+		check.Args([]uuid.UUID{tv1.ID, tv2.ID, tv3.ID}).
+			Asserts(t1, rbac.ActionRead, t2, rbac.ActionRead).
+			Returns(slice.New(tv1, tv2, tv3))
+	}))
+	s.Run("GetTemplateVersionsByTemplateID", s.Subtest(func(db database.Store, check *MethodCase) {
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		a := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
 		})
-	})
-	s.Run("GetTemplateVersionByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			t1 := dbgen.Template(t, db, database.Template{})
-			tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-			})
-			return methodCase(values(tv.ID), asserts(t1, rbac.ActionRead), values(tv))
+		b := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
 		})
-	})
-	s.Run("GetTemplateVersionsByIDs", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			t1 := dbgen.Template(t, db, database.Template{})
-			t2 := dbgen.Template(t, db, database.Template{})
-			tv1 := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-			})
-			tv2 := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				TemplateID: uuid.NullUUID{UUID: t2.ID, Valid: true},
-			})
-			tv3 := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				TemplateID: uuid.NullUUID{UUID: t2.ID, Valid: true},
-			})
-			return methodCase(values([]uuid.UUID{tv1.ID, tv2.ID, tv3.ID}),
-				asserts(t1, rbac.ActionRead, t2, rbac.ActionRead),
-				values(slice.New(tv1, tv2, tv3)))
+		check.Args(database.GetTemplateVersionsByTemplateIDParams{
+			TemplateID: t1.ID,
+		}).Asserts(t1, rbac.ActionRead).
+			Returns(slice.New(a, b))
+	}))
+	s.Run("GetTemplateVersionsCreatedAfter", s.Subtest(func(db database.Store, check *MethodCase) {
+		now := time.Now()
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		_ = dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
+			CreatedAt:  now.Add(-time.Hour),
 		})
-	})
-	s.Run("GetTemplateVersionsByTemplateID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			t1 := dbgen.Template(t, db, database.Template{})
-			a := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-			})
-			b := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-			})
-			return methodCase(values(database.GetTemplateVersionsByTemplateIDParams{
-				TemplateID: t1.ID,
-			}), asserts(t1, rbac.ActionRead),
-				values(slice.New(a, b)))
+		_ = dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
+			CreatedAt:  now.Add(-2 * time.Hour),
 		})
-	})
-	s.Run("GetTemplateVersionsCreatedAfter", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			now := time.Now()
-			t1 := dbgen.Template(t, db, database.Template{})
-			_ = dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-				CreatedAt:  now.Add(-time.Hour),
-			})
-			_ = dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-				CreatedAt:  now.Add(-2 * time.Hour),
-			})
-			return methodCase(values(now.Add(-time.Hour)), asserts(rbac.ResourceTemplate.All(), rbac.ActionRead), nil)
+		check.Args(now.Add(-time.Hour)).Asserts(rbac.ResourceTemplate.All(), rbac.ActionRead)
+	}))
+	s.Run("GetTemplatesWithFilter", s.Subtest(func(db database.Store, check *MethodCase) {
+		a := dbgen.Template(s.T(), db, database.Template{})
+		// No asserts because SQLFilter.
+		check.Args(database.GetTemplatesWithFilterParams{}).
+			Asserts().Returns(slice.New(a))
+	}))
+	s.Run("GetAuthorizedTemplates", s.Subtest(func(db database.Store, check *MethodCase) {
+		a := dbgen.Template(s.T(), db, database.Template{})
+		// No asserts because SQLFilter.
+		check.Args(database.GetTemplatesWithFilterParams{}, emptyPreparedAuthorized{}).
+			Asserts().
+			Returns(slice.New(a))
+	}))
+	s.Run("InsertTemplate", s.Subtest(func(db database.Store, check *MethodCase) {
+		orgID := uuid.New()
+		check.Args(database.InsertTemplateParams{
+			Provisioner:    "echo",
+			OrganizationID: orgID,
+		}).Asserts(rbac.ResourceTemplate.InOrg(orgID), rbac.ActionCreate)
+	}))
+	s.Run("InsertTemplateVersion", s.Subtest(func(db database.Store, check *MethodCase) {
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		check.Args(database.InsertTemplateVersionParams{
+			TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true},
+			OrganizationID: t1.OrganizationID,
+		}).Asserts(t1, rbac.ActionRead, t1, rbac.ActionCreate)
+	}))
+	s.Run("SoftDeleteTemplateByID", s.Subtest(func(db database.Store, check *MethodCase) {
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		check.Args(t1.ID).Asserts(t1, rbac.ActionDelete)
+	}))
+	s.Run("UpdateTemplateACLByID", s.Subtest(func(db database.Store, check *MethodCase) {
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		check.Args(database.UpdateTemplateACLByIDParams{
+			ID: t1.ID,
+		}).Asserts(t1, rbac.ActionCreate).Returns(t1)
+	}))
+	s.Run("UpdateTemplateActiveVersionByID", s.Subtest(func(db database.Store, check *MethodCase) {
+		t1 := dbgen.Template(s.T(), db, database.Template{
+			ActiveVersionID: uuid.New(),
 		})
-	})
-	s.Run("GetTemplatesWithFilter", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			a := dbgen.Template(t, db, database.Template{})
-			// No asserts because SQLFilter.
-			return methodCase(values(database.GetTemplatesWithFilterParams{}),
-				asserts(), values(slice.New(a)))
+		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			ID:         t1.ActiveVersionID,
+			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
 		})
-	})
-	s.Run("GetAuthorizedTemplates", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			a := dbgen.Template(t, db, database.Template{})
-			// No asserts because SQLFilter.
-			return methodCase(values(database.GetTemplatesWithFilterParams{}, emptyPreparedAuthorized{}),
-				asserts(),
-				values(slice.New(a)))
+		check.Args(database.UpdateTemplateActiveVersionByIDParams{
+			ID:              t1.ID,
+			ActiveVersionID: tv.ID,
+		}).Asserts(t1, rbac.ActionUpdate).Returns()
+	}))
+	s.Run("UpdateTemplateDeletedByID", s.Subtest(func(db database.Store, check *MethodCase) {
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		check.Args(database.UpdateTemplateDeletedByIDParams{
+			ID:      t1.ID,
+			Deleted: true,
+		}).Asserts(t1, rbac.ActionDelete).Returns()
+	}))
+	s.Run("UpdateTemplateMetaByID", s.Subtest(func(db database.Store, check *MethodCase) {
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		check.Args(database.UpdateTemplateMetaByIDParams{
+			ID: t1.ID,
+		}).Asserts(t1, rbac.ActionUpdate)
+	}))
+	s.Run("UpdateTemplateVersionByID", s.Subtest(func(db database.Store, check *MethodCase) {
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
 		})
-	})
-	s.Run("InsertTemplate", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			orgID := uuid.New()
-			return methodCase(values(database.InsertTemplateParams{
-				Provisioner:    "echo",
-				OrganizationID: orgID,
-			}), asserts(rbac.ResourceTemplate.InOrg(orgID), rbac.ActionCreate), nil)
+		check.Args(database.UpdateTemplateVersionByIDParams{
+			ID:         tv.ID,
+			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
+		}).Asserts(t1, rbac.ActionUpdate).Returns()
+	}))
+	s.Run("UpdateTemplateVersionDescriptionByJobID", s.Subtest(func(db database.Store, check *MethodCase) {
+		jobID := uuid.New()
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		_ = dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
+			JobID:      jobID,
 		})
-	})
-	s.Run("InsertTemplateVersion", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			t1 := dbgen.Template(t, db, database.Template{})
-			return methodCase(values(database.InsertTemplateVersionParams{
-				TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true},
-				OrganizationID: t1.OrganizationID,
-			}), asserts(t1, rbac.ActionRead, t1, rbac.ActionCreate), nil)
-		})
-	})
-	s.Run("SoftDeleteTemplateByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			t1 := dbgen.Template(t, db, database.Template{})
-			return methodCase(values(t1.ID), asserts(t1, rbac.ActionDelete), nil)
-		})
-	})
-	s.Run("UpdateTemplateACLByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			t1 := dbgen.Template(t, db, database.Template{})
-			return methodCase(values(database.UpdateTemplateACLByIDParams{
-				ID: t1.ID,
-			}), asserts(t1, rbac.ActionCreate), values(t1))
-		})
-	})
-	s.Run("UpdateTemplateActiveVersionByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			t1 := dbgen.Template(t, db, database.Template{
-				ActiveVersionID: uuid.New(),
-			})
-			tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				ID:         t1.ActiveVersionID,
-				TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-			})
-			return methodCase(values(database.UpdateTemplateActiveVersionByIDParams{
-				ID:              t1.ID,
-				ActiveVersionID: tv.ID,
-			}), asserts(t1, rbac.ActionUpdate), values())
-		})
-	})
-	s.Run("UpdateTemplateDeletedByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			t1 := dbgen.Template(t, db, database.Template{})
-			return methodCase(values(database.UpdateTemplateDeletedByIDParams{
-				ID:      t1.ID,
-				Deleted: true,
-			}), asserts(t1, rbac.ActionDelete), values())
-		})
-	})
-	s.Run("UpdateTemplateMetaByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			t1 := dbgen.Template(t, db, database.Template{})
-			return methodCase(values(database.UpdateTemplateMetaByIDParams{
-				ID: t1.ID,
-			}), asserts(t1, rbac.ActionUpdate), nil)
-		})
-	})
-	s.Run("UpdateTemplateVersionByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			t1 := dbgen.Template(t, db, database.Template{})
-			tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-			})
-			return methodCase(values(database.UpdateTemplateVersionByIDParams{
-				ID:         tv.ID,
-				TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-			}), asserts(t1, rbac.ActionUpdate), values())
-		})
-	})
-	s.Run("UpdateTemplateVersionDescriptionByJobID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			jobID := uuid.New()
-			t1 := dbgen.Template(t, db, database.Template{})
-			_ = dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-				JobID:      jobID,
-			})
-			return methodCase(values(database.UpdateTemplateVersionDescriptionByJobIDParams{
-				JobID:  jobID,
-				Readme: "foo",
-			}), asserts(t1, rbac.ActionUpdate), values())
-		})
-	})
+		check.Args(database.UpdateTemplateVersionDescriptionByJobIDParams{
+			JobID:  jobID,
+			Readme: "foo",
+		}).Asserts(t1, rbac.ActionUpdate).Returns()
+	}))
 }
