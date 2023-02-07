@@ -114,5 +114,5 @@ func validateRichPrompt(value string, p codersdk.TemplateVersionParameter) error
 	return codersdk.ValidateWorkspaceBuildParameter(p, codersdk.WorkspaceBuildParameter{
 		Name:  p.Name,
 		Value: value,
-	})
+	}, nil)
 }

@@ -1456,6 +1456,8 @@ type TemplateVersionParameter struct {
 	ValidationMax int32 `db:"validation_max" json:"validation_max"`
 	// Validation: error displayed when the regex does not match.
 	ValidationError string `db:"validation_error" json:"validation_error"`
+	// Validation: consecutive values preserve the monotonic order
+	ValidationMonotonic string `db:"validation_monotonic" json:"validation_monotonic"`
 }
 
 type User struct {
@@ -1529,6 +1531,8 @@ type WorkspaceAgent struct {
 	LoginBeforeReady bool `db:"login_before_ready" json:"login_before_ready"`
 	// The number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.
 	StartupScriptTimeoutSeconds int32 `db:"startup_script_timeout_seconds" json:"startup_script_timeout_seconds"`
+	// The resolved path of a user-specified directory. e.g. ~/coder -> /home/coder/coder
+	ExpandedDirectory string `db:"expanded_directory" json:"expanded_directory"`
 }
 
 type WorkspaceApp struct {

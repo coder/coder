@@ -467,15 +467,6 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = codersdk.ValidateWorkspaceBuildParameters(templateVersionParameters, createBuild.RichParameterValues)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Error validating workspace build parameters.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
 	lastBuildParameters, err := api.Database.GetWorkspaceBuildParameters(ctx, priorHistory.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -485,6 +476,15 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	apiLastBuildParameters := convertWorkspaceBuildParameters(lastBuildParameters)
+
+	err = codersdk.ValidateWorkspaceBuildParameters(templateVersionParameters, createBuild.RichParameterValues, apiLastBuildParameters)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Error validating workspace build parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
 	var parameters []codersdk.WorkspaceBuildParameter
 	for _, templateVersionParameter := range templateVersionParameters {

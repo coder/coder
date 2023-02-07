@@ -29,6 +29,7 @@ const createTemplateVersionParameter = (
     validation_regex: "",
     validation_min: 0,
     validation_max: 0,
+    validation_monotonic: "",
 
     ...partial,
   }

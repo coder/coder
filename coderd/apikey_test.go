@@ -137,7 +137,7 @@ func TestSessionExpiry(t *testing.T) {
 	// this test it works because we don't copy the value (and we use pointers).
 	dc.SessionDuration.Value = time.Second
 
-	userClient := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
+	userClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
 
 	// Find the session cookie, and ensure it has the correct expiry.
 	token := userClient.SessionToken()

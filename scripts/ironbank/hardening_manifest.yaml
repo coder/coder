@@ -1,0 +1,65 @@
+apiVersion: v1
+
+# The repository name in registry1, excluding /ironbank/
+name: "coder/coder-enterprise/coder-service-2"
+
+# List of tags to push for the repository in registry1
+# The most specific version should be the first tag and will be shown
+# on ironbank.dso.mil
+tags:
+  - "0.15.3"
+  - "latest"
+
+# Build args passed to Dockerfile ARGs
+args:
+  # Needs to be kept in sync with the resource below.
+  TERRAFORM_CODER_PROVIDER_VERSION: "0.6.10"
+
+# Docker image labels
+labels:
+  org.opencontainers.image.title: "coder-service-v2"
+  # Human-readable description of the software packaged in the image
+  org.opencontainers.image.description: "Coder server binary, includes REST API, Terraform, and dashboard"
+  # License(s) under which contained software is distributed
+  org.opencontainers.image.licenses: "AGPL"
+  # URL to find more information on the image
+  org.opencontainers.image.url: "https://coder.com/docs"
+  # Name of the distributing entity, organization or individual
+  org.opencontainers.image.vendor: "Coder Technologies"
+  org.opencontainers.image.version: "0.15.3"
+  # Keywords to help with search (ex. "cicd,gitops,golang")
+  mil.dso.ironbank.image.keywords: "remote, workspaces"
+
+# List of resources to make available to the offline build context
+resources:
+  # Coder binary
+  - url: "https://github.com/coder/coder/releases/download/v0.15.3/coder_0.15.3_linux_amd64.tar.gz"
+    filename: "coder.tar.gz"
+    validation:
+      type: sha256
+      value: 2c88555777f1d9cc77a8f049093f4002472dc43d52b026e6784ef477bdced4a2
+  # Terraform binary, bundled inside of Coder to support air-gapped installs.
+  - url: https://releases.hashicorp.com/terraform/1.3.7/terraform_1.3.7_linux_amd64.zip
+    filename: "terraform.zip"
+    validation:
+      type: sha256
+      value: b8cf184dee15dfa89713fe56085313ab23db22e17284a9a27c0999c67ce3021e
+  # Coder Terraform provider, bundled inside of Coder to support air-gapped
+  # installs.
+  #
+  # The version of this provider needs to be kept in sync with the
+  # TERRAFORM_CODER_PROVIDER_VERSION build arg.
+  - url: https://github.com/coder/terraform-provider-coder/releases/download/v0.6.10/terraform-provider-coder_0.6.10_linux_amd64.zip
+    filename: "terraform-provider-coder.zip"
+    validation:
+      type: sha256
+      value: 4c2a16010621e146251f6fb5e27105dde9213d85ca8f3c8866c3f5a4159b81b0
+
+# List of project maintainers
+maintainers:
+  - email: "eric@coder.com"
+    name: "Eric Paulsen"
+    username: "ericpaulsen"
+  - email: "dean@coder.com"
+    name: "Dean Sheather"
+    username: "cdrdean"

@@ -37,12 +37,12 @@ const presetFilters = [
   { query: "resource_type:template action:create", name: "Added templates" },
   { query: "resource_type:user action:delete", name: "Deleted users" },
   {
-    query: "resource_type:workspace_build action:start",
-    name: "Started builds",
-  },
-  {
     query: "resource_type:workspace_build action:start build_reason:initiator",
     name: "Builds started by a user",
+  },
+  {
+    query: "resource_type:api_key action:login",
+    name: "User logins",
   },
 ]
 

@@ -19,8 +19,8 @@ func TestListRoles(t *testing.T) {
 	client := coderdtest.New(t, nil)
 	// Create admin, member, and org admin
 	admin := coderdtest.CreateFirstUser(t, client)
-	member := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
-	orgAdmin := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleOrgAdmin(admin.OrganizationID))
+	member, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+	orgAdmin, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleOrgAdmin(admin.OrganizationID))
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	t.Cleanup(cancel)

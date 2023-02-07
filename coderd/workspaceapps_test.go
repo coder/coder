@@ -337,7 +337,7 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 	t.Run("NoAccessShould404", func(t *testing.T) {
 		t.Parallel()
 
-		userClient := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleMember())
+		userClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleMember())
 		userClient.HTTPClient.CheckRedirect = client.HTTPClient.CheckRedirect
 		userClient.HTTPClient.Transport = client.HTTPClient.Transport
 
@@ -765,7 +765,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 	t.Run("NoAccessShould401", func(t *testing.T) {
 		t.Parallel()
 
-		userClient := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleMember())
+		userClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleMember())
 		userClient.HTTPClient.CheckRedirect = client.HTTPClient.CheckRedirect
 		userClient.HTTPClient.Transport = client.HTTPClient.Transport
 

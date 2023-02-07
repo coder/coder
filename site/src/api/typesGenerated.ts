@@ -758,10 +758,11 @@ export interface TemplateVersionParameter {
   readonly default_value: string
   readonly icon: string
   readonly options: TemplateVersionParameterOption[]
-  readonly validation_error: string
-  readonly validation_regex: string
-  readonly validation_min: number
-  readonly validation_max: number
+  readonly validation_error?: string
+  readonly validation_regex?: string
+  readonly validation_min?: number
+  readonly validation_max?: number
+  readonly validation_monotonic?: ValidationMonotonicOrder
 }
 
 // From codersdk/templateversions.go
@@ -922,6 +923,7 @@ export interface WorkspaceAgent {
   readonly operating_system: string
   readonly startup_script?: string
   readonly directory?: string
+  readonly expanded_directory?: string
   readonly version: string
   readonly apps: WorkspaceApp[]
   readonly latency?: Record<string, DERPRegion>
@@ -1082,8 +1084,8 @@ export const Entitlements: Entitlement[] = [
 ]
 
 // From codersdk/deployment.go
-export type Experiment = "authz_querier"
-export const Experiments: Experiment[] = ["authz_querier"]
+export type Experiment = "authz_querier" | "template_editor"
+export const Experiments: Experiment[] = ["authz_querier", "template_editor"]
 
 // From codersdk/deployment.go
 export type FeatureName =
@@ -1208,6 +1210,13 @@ export const TemplateRoles: TemplateRole[] = ["", "admin", "use"]
 // From codersdk/users.go
 export type UserStatus = "active" | "suspended"
 export const UserStatuses: UserStatus[] = ["active", "suspended"]
+
+// From codersdk/templateversions.go
+export type ValidationMonotonicOrder = "decreasing" | "increasing"
+export const ValidationMonotonicOrders: ValidationMonotonicOrder[] = [
+  "decreasing",
+  "increasing",
+]
 
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentLifecycle =

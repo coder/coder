@@ -2614,18 +2614,19 @@ func (q *fakeQuerier) InsertTemplateVersionParameter(_ context.Context, arg data
 
 	//nolint:gosimple
 	param := database.TemplateVersionParameter{
-		TemplateVersionID: arg.TemplateVersionID,
-		Name:              arg.Name,
-		Description:       arg.Description,
-		Type:              arg.Type,
-		Mutable:           arg.Mutable,
-		DefaultValue:      arg.DefaultValue,
-		Icon:              arg.Icon,
-		Options:           arg.Options,
-		ValidationError:   arg.ValidationError,
-		ValidationRegex:   arg.ValidationRegex,
-		ValidationMin:     arg.ValidationMin,
-		ValidationMax:     arg.ValidationMax,
+		TemplateVersionID:   arg.TemplateVersionID,
+		Name:                arg.Name,
+		Description:         arg.Description,
+		Type:                arg.Type,
+		Mutable:             arg.Mutable,
+		DefaultValue:        arg.DefaultValue,
+		Icon:                arg.Icon,
+		Options:             arg.Options,
+		ValidationError:     arg.ValidationError,
+		ValidationRegex:     arg.ValidationRegex,
+		ValidationMin:       arg.ValidationMin,
+		ValidationMax:       arg.ValidationMax,
+		ValidationMonotonic: arg.ValidationMonotonic,
 	}
 	q.templateVersionParameters = append(q.templateVersionParameters, param)
 	return param, nil
@@ -3232,7 +3233,7 @@ func (q *fakeQuerier) UpdateWorkspaceAgentConnectionByID(_ context.Context, arg 
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceAgentVersionByID(_ context.Context, arg database.UpdateWorkspaceAgentVersionByIDParams) error {
+func (q *fakeQuerier) UpdateWorkspaceAgentStartupByID(_ context.Context, arg database.UpdateWorkspaceAgentStartupByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
 	}
@@ -3246,6 +3247,7 @@ func (q *fakeQuerier) UpdateWorkspaceAgentVersionByID(_ context.Context, arg dat
 		}
 
 		agent.Version = arg.Version
+		agent.ExpandedDirectory = arg.ExpandedDirectory
 		q.workspaceAgents[index] = agent
 		return nil
 	}

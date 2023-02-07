@@ -2636,7 +2636,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/parameter.ComputedValue"
+                                "$ref": "#/definitions/codersdk.TemplateVersionParameter"
                             }
                         }
                     }
@@ -4104,7 +4104,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaceagents/me/version": {
+        "/workspaceagents/me/startup": {
             "post": {
                 "security": [
                     {
@@ -4120,16 +4120,16 @@ const docTemplate = `{
                 "tags": [
                     "Agents"
                 ],
-                "summary": "Submit workspace agent version",
-                "operationId": "submit-workspace-agent-version",
+                "summary": "Submit workspace agent startup",
+                "operationId": "submit-workspace-agent-startup",
                 "parameters": [
                     {
-                        "description": "Version request",
+                        "description": "Startup request",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/agentsdk.PostVersionRequest"
+                            "$ref": "#/definitions/agentsdk.PostStartupRequest"
                         }
                     }
                 ],
@@ -5099,9 +5099,12 @@ const docTemplate = `{
                 }
             }
         },
-        "agentsdk.PostVersionRequest": {
+        "agentsdk.PostStartupRequest": {
             "type": "object",
             "properties": {
+                "expanded_directory": {
+                    "type": "string"
+                },
                 "version": {
                     "type": "string"
                 }
@@ -6380,10 +6383,12 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
-                "authz_querier"
+                "authz_querier",
+                "template_editor"
             ],
             "x-enum-varnames": [
-                "ExperimentAuthzQuerier"
+                "ExperimentAuthzQuerier",
+                "ExperimentTemplateEditor"
             ]
         },
         "codersdk.Feature": {
@@ -7541,6 +7546,80 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.TemplateVersionParameter": {
+            "type": "object",
+            "properties": {
+                "default_value": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "mutable": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "options": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateVersionParameterOption"
+                    }
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "string",
+                        "number",
+                        "bool"
+                    ]
+                },
+                "validation_error": {
+                    "type": "string"
+                },
+                "validation_max": {
+                    "type": "integer"
+                },
+                "validation_min": {
+                    "type": "integer"
+                },
+                "validation_monotonic": {
+                    "enum": [
+                        "increasing",
+                        "decreasing"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ValidationMonotonicOrder"
+                        }
+                    ]
+                },
+                "validation_regex": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.TemplateVersionParameterOption": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.TraceConfig": {
             "type": "object",
             "properties": {
@@ -7767,6 +7846,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ValidationMonotonicOrder": {
+            "type": "string",
+            "enum": [
+                "increasing",
+                "decreasing"
+            ],
+            "x-enum-varnames": [
+                "MonotonicOrderIncreasing",
+                "MonotonicOrderDecreasing"
+            ]
+        },
         "codersdk.Workspace": {
             "type": "object",
             "properties": {
@@ -7857,6 +7947,9 @@ const docTemplate = `{
                     "additionalProperties": {
                         "type": "string"
                     }
+                },
+                "expanded_directory": {
+                    "type": "string"
                 },
                 "first_connected_at": {
                     "type": "string",

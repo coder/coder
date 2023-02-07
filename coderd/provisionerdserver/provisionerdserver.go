@@ -659,18 +659,19 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				return nil, xerrors.Errorf("marshal parameter options: %w", err)
 			}
 			_, err = server.Database.InsertTemplateVersionParameter(ctx, database.InsertTemplateVersionParameterParams{
-				TemplateVersionID: input.TemplateVersionID,
-				Name:              richParameter.Name,
-				Description:       richParameter.Description,
-				Type:              richParameter.Type,
-				Mutable:           richParameter.Mutable,
-				DefaultValue:      richParameter.DefaultValue,
-				Icon:              richParameter.Icon,
-				Options:           options,
-				ValidationRegex:   richParameter.ValidationRegex,
-				ValidationError:   richParameter.ValidationError,
-				ValidationMin:     richParameter.ValidationMin,
-				ValidationMax:     richParameter.ValidationMax,
+				TemplateVersionID:   input.TemplateVersionID,
+				Name:                richParameter.Name,
+				Description:         richParameter.Description,
+				Type:                richParameter.Type,
+				Mutable:             richParameter.Mutable,
+				DefaultValue:        richParameter.DefaultValue,
+				Icon:                richParameter.Icon,
+				Options:             options,
+				ValidationRegex:     richParameter.ValidationRegex,
+				ValidationError:     richParameter.ValidationError,
+				ValidationMin:       richParameter.ValidationMin,
+				ValidationMax:       richParameter.ValidationMax,
+				ValidationMonotonic: richParameter.ValidationMonotonic,
 			})
 			if err != nil {
 				return nil, xerrors.Errorf("insert parameter: %w", err)
