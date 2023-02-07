@@ -54,6 +54,7 @@ func LogNotAuthorizedError(ctx context.Context, logger slog.Logger, err error) e
 	}
 }
 
+// insert is the same as insertWithReturn, but does not return the inserted object.
 func insert[ArgumentType any,
 	Insert func(ctx context.Context, arg ArgumentType) error](
 	// Arguments
@@ -69,6 +70,9 @@ func insert[ArgumentType any,
 	}
 }
 
+// insertWithReturn runs an rbac.ActionCreate on the rbac object argument before
+// running the insertFunc. The insertFunc is expected to return the object that
+// was inserted.
 func insertWithReturn[ObjectType any, ArgumentType any,
 	Insert func(ctx context.Context, arg ArgumentType) (ObjectType, error)](
 	// Arguments
@@ -130,60 +134,6 @@ func update[ObjectType rbac.Objecter,
 	return fetchAndExec(logger, authorizer, rbac.ActionUpdate, fetchFunc, updateExec)
 }
 
-// authorizedFetchAndExecWithConverter uses authorizedFetchAndQueryWithConverter but
-// only cares about the error return type. SQL execs only return an error.
-// See authorizedFetchAndQueryWithConverter for more details.
-func fetchAndExec[ObjectType rbac.Objecter,
-	ArgumentType any,
-	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
-	Exec func(ctx context.Context, arg ArgumentType) error](
-	// Arguments
-	logger slog.Logger,
-	authorizer rbac.Authorizer,
-	action rbac.Action,
-	fetchFunc Fetch,
-	execFunc Exec) Exec {
-	f := fetchAndQuery(logger, authorizer, action, fetchFunc, func(ctx context.Context, arg ArgumentType) (empty ObjectType, err error) {
-		return empty, execFunc(ctx, arg)
-	})
-	return func(ctx context.Context, arg ArgumentType) error {
-		_, err := f(ctx, arg)
-		return err
-	}
-}
-
-func fetchAndQuery[ObjectType rbac.Objecter, ArgumentType any,
-	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
-	Query func(ctx context.Context, arg ArgumentType) (ObjectType, error)](
-	// Arguments
-	logger slog.Logger,
-	authorizer rbac.Authorizer,
-	action rbac.Action,
-	fetchFunc Fetch,
-	queryFunc Query) Query {
-	return func(ctx context.Context, arg ArgumentType) (empty ObjectType, err error) {
-		// Fetch the rbac subject
-		act, ok := ActorFromContext(ctx)
-		if !ok {
-			return empty, NoActorError
-		}
-
-		// Fetch the database object
-		object, err := fetchFunc(ctx, arg)
-		if err != nil {
-			return empty, xerrors.Errorf("fetch object: %w", err)
-		}
-
-		// Authorize the action
-		err = authorizer.Authorize(ctx, act, action, object.RBACObject())
-		if err != nil {
-			return empty, LogNotAuthorizedError(ctx, logger, err)
-		}
-
-		return queryFunc(ctx, arg)
-	}
-}
-
 // fetch is a generic function that wraps a database
 // query function (returns an object and an error) with authorization. The
 // returned function has the same arguments as the database function.
@@ -217,6 +167,64 @@ func fetch[ArgumentType any, ObjectType rbac.Objecter,
 		}
 
 		return object, nil
+	}
+}
+
+// fetchAndExec uses fetchAndQuery but only returns the error. The naming comes
+// from SQL 'exec' functions which only return an error.
+// See fetchAndQuery for more information.
+func fetchAndExec[ObjectType rbac.Objecter,
+	ArgumentType any,
+	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+	Exec func(ctx context.Context, arg ArgumentType) error](
+	// Arguments
+	logger slog.Logger,
+	authorizer rbac.Authorizer,
+	action rbac.Action,
+	fetchFunc Fetch,
+	execFunc Exec) Exec {
+	f := fetchAndQuery(logger, authorizer, action, fetchFunc, func(ctx context.Context, arg ArgumentType) (empty ObjectType, err error) {
+		return empty, execFunc(ctx, arg)
+	})
+	return func(ctx context.Context, arg ArgumentType) error {
+		_, err := f(ctx, arg)
+		return err
+	}
+}
+
+// fetchAndQuery is a generic function that wraps a database fetch and query.
+// The fetch is used to know which rbac object the action should be asserted on
+// **before** the query runs. The returns from the fetch are only used to
+// assert rbac. The final return of this function comes from the Query function.
+func fetchAndQuery[ObjectType rbac.Objecter, ArgumentType any,
+	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+	Query func(ctx context.Context, arg ArgumentType) (ObjectType, error)](
+	// Arguments
+	logger slog.Logger,
+	authorizer rbac.Authorizer,
+	action rbac.Action,
+	fetchFunc Fetch,
+	queryFunc Query) Query {
+	return func(ctx context.Context, arg ArgumentType) (empty ObjectType, err error) {
+		// Fetch the rbac subject
+		act, ok := ActorFromContext(ctx)
+		if !ok {
+			return empty, NoActorError
+		}
+
+		// Fetch the database object
+		object, err := fetchFunc(ctx, arg)
+		if err != nil {
+			return empty, xerrors.Errorf("fetch object: %w", err)
+		}
+
+		// Authorize the action
+		err = authorizer.Authorize(ctx, act, action, object.RBACObject())
+		if err != nil {
+			return empty, LogNotAuthorizedError(ctx, logger, err)
+		}
+
+		return queryFunc(ctx, arg)
 	}
 }
 
