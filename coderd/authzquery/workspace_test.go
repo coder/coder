@@ -1,13 +1,12 @@
 package authzquery_test
 
 import (
-	"github.com/coder/coder/coderd/util/slice"
-
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/util/slice"
 )
 
 func (s *MethodTestSuite) TestWorkspace() {
