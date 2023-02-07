@@ -30,8 +30,9 @@ export const AuditLogDescription: FC<{ auditLog: AuditLog }> = ({
   const onBehalfOf =
     auditLog.additional_fields.workspace_owner &&
     auditLog.additional_fields.workspace_owner !== "unknown" &&
-    auditLog.additional_fields.workspace_owner !== auditLog.user?.username &&
-    `on behalf of ${auditLog.additional_fields.workspace_owner}`
+    auditLog.additional_fields.workspace_owner !== auditLog.user?.username
+      ? `on behalf of ${auditLog.additional_fields.workspace_owner}`
+      : ""
 
   if (auditLog.resource_link) {
     return (
