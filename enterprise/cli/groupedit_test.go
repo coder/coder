@@ -33,9 +33,9 @@ func TestGroupEdit(t *testing.T) {
 		})
 
 		ctx, _ := testutil.Context(t)
-		_, user1 := coderdtest.CreateAnotherUserWithUser(t, client, admin.OrganizationID)
-		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, admin.OrganizationID)
-		_, user3 := coderdtest.CreateAnotherUserWithUser(t, client, admin.OrganizationID)
+		_, user1 := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		_, user2 := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		_, user3 := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 
 		group, err := client.CreateGroup(ctx, admin.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "alpha",

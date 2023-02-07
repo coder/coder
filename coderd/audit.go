@@ -57,19 +57,10 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	filter.Offset = int32(page.Offset)
+	filter.Limit = int32(page.Limit)
 
-	dblogs, err := api.Database.GetAuditLogsOffset(ctx, database.GetAuditLogsOffsetParams{
-		Offset:       int32(page.Offset),
-		Limit:        int32(page.Limit),
-		ResourceType: filter.ResourceType,
-		ResourceID:   filter.ResourceID,
-		Action:       filter.Action,
-		Username:     filter.Username,
-		Email:        filter.Email,
-		DateFrom:     filter.DateFrom,
-		DateTo:       filter.DateTo,
-		BuildReason:  filter.BuildReason,
-	})
+	dblogs, err := api.Database.GetAuditLogsOffset(ctx, filter)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -263,6 +254,12 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow, additionalFields a
 	str := fmt.Sprintf("{user} %s",
 		codersdk.AuditAction(alog.Action).Friendly(),
 	)
+
+	// API Key resources do not have targets and follow the below format:
+	// "User {logged in | logged out}"
+	if alog.ResourceType == database.ResourceTypeApiKey {
+		return str
+	}
 
 	// Strings for starting/stopping workspace builds follow the below format:
 	// "{user | 'Coder automatically'} started build #{build_number} for workspace {target}"
@@ -487,6 +484,10 @@ func actionFromString(actionString string) string {
 	case codersdk.AuditActionStart:
 		return actionString
 	case codersdk.AuditActionStop:
+		return actionString
+	case codersdk.AuditActionLogin:
+		return actionString
+	case codersdk.AuditActionLogout:
 		return actionString
 	default:
 	}

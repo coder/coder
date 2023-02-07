@@ -6,14 +6,8 @@ import Tooltip from "@material-ui/core/Tooltip"
 import ErrorOutlineIcon from "@material-ui/icons/ErrorOutline"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
-import { generateRandomString } from "../../util/random"
 import { BaseIcon } from "./BaseIcon"
 import { ShareIcon } from "./ShareIcon"
-
-const Language = {
-  appTitle: (appName: string, identifier: string): string =>
-    `${appName} - ${identifier}`,
-}
 
 export interface AppLinkProps {
   appsHost?: string
@@ -98,18 +92,6 @@ export const AppLink: FC<AppLinkProps> = ({
           href={href}
           target="_blank"
           className={canClick ? styles.link : styles.disabledLink}
-          onClick={
-            canClick
-              ? (event) => {
-                  event.preventDefault()
-                  window.open(
-                    href,
-                    Language.appTitle(appDisplayName, generateRandomString(12)),
-                    "width=900,height=600",
-                  )
-                }
-              : undefined
-          }
         >
           {button}
         </Link>

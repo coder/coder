@@ -1215,6 +1215,26 @@ export const MockAuditLogGitSSH: TypesGen.AuditLog = {
   },
 }
 
+export const MockAuditLogSuccessfulLogin: TypesGen.AuditLog = {
+  ...MockAuditLog,
+  resource_type: "api_key",
+  resource_target: "",
+  action: "login",
+  status_code: 201,
+  description: "{user} logged in",
+}
+
+export const MockAuditLogUnsuccessfulLoginKnownUser: TypesGen.AuditLog = {
+  ...MockAuditLogSuccessfulLogin,
+  status_code: 401,
+}
+
+export const MockAuditLogUnsuccessfulLoginUnknownUser: TypesGen.AuditLog = {
+  ...MockAuditLogSuccessfulLogin,
+  status_code: 401,
+  user: undefined,
+}
+
 export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
   credits_consumed: 0,
   budget: 100,

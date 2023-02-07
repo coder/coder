@@ -2,7 +2,6 @@ package provisionersdk
 
 import (
 	"archive/tar"
-	"bytes"
 	"io"
 	"os"
 	"path/filepath"
@@ -32,25 +31,24 @@ func dirHasExt(dir string, ext string) (bool, error) {
 }
 
 // Tar archives a Terraform directory.
-func Tar(directory string, limit int64) ([]byte, error) {
-	var buffer bytes.Buffer
-	tarWriter := tar.NewWriter(&buffer)
+func Tar(w io.Writer, directory string, limit int64) error {
+	tarWriter := tar.NewWriter(w)
 	totalSize := int64(0)
 
 	const tfExt = ".tf"
 	hasTf, err := dirHasExt(directory, tfExt)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if !hasTf {
 		absPath, err := filepath.Abs(directory)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		// Show absolute path to aid in debugging. E.g. showing "." is
 		// useless.
-		return nil, xerrors.Errorf(
+		return xerrors.Errorf(
 			"%s is not a valid template since it has no %s files",
 			absPath, tfExt,
 		)
@@ -111,20 +109,20 @@ func Tar(directory string, limit int64) ([]byte, error) {
 		return data.Close()
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 	err = tarWriter.Flush()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return buffer.Bytes(), nil
+	return nil
 }
 
 // Untar extracts the archive to a provided directory.
-func Untar(directory string, archive []byte) error {
-	reader := tar.NewReader(bytes.NewReader(archive))
+func Untar(directory string, r io.Reader) error {
+	tarReader := tar.NewReader(r)
 	for {
-		header, err := reader.Next()
+		header, err := tarReader.Next()
 		if xerrors.Is(err, io.EOF) {
 			return nil
 		}
@@ -149,7 +147,7 @@ func Untar(directory string, archive []byte) error {
 				return err
 			}
 			// Max file size of 10MB.
-			_, err = io.CopyN(file, reader, (1<<20)*10)
+			_, err = io.CopyN(file, tarReader, (1<<20)*10)
 			if xerrors.Is(err, io.EOF) {
 				err = nil
 			}

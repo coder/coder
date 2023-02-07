@@ -337,7 +337,7 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 	t.Run("NoAccessShould404", func(t *testing.T) {
 		t.Parallel()
 
-		userClient := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleMember())
+		userClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleMember())
 		userClient.HTTPClient.CheckRedirect = client.HTTPClient.CheckRedirect
 		userClient.HTTPClient.Transport = client.HTTPClient.Transport
 
@@ -505,6 +505,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		require.Equal(t, user.ID, apiKeyInfo.UserID)
 		require.Equal(t, codersdk.LoginTypePassword, apiKeyInfo.LoginType)
 		require.WithinDuration(t, currentAPIKey.ExpiresAt, apiKeyInfo.ExpiresAt, 5*time.Second)
+		require.EqualValues(t, currentAPIKey.LifetimeSeconds, apiKeyInfo.LifetimeSeconds)
 
 		// Verify the API key permissions
 		appClient := codersdk.New(client.URL)
@@ -764,7 +765,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 	t.Run("NoAccessShould401", func(t *testing.T) {
 		t.Parallel()
 
-		userClient := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleMember())
+		userClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleMember())
 		userClient.HTTPClient.CheckRedirect = client.HTTPClient.CheckRedirect
 		userClient.HTTPClient.Transport = client.HTTPClient.Transport
 

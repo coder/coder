@@ -22,6 +22,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"Workspace":          {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"WorkspaceBuild":     {codersdk.AuditActionStart, codersdk.AuditActionStop},
 	"Group":              {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"APIKey":             {codersdk.AuditActionWrite},
 }
 
 type Action string
@@ -109,7 +110,6 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"ttl":                ActionTrack,
 		"last_used_at":       ActionIgnore,
 	},
-	// We don't show any diff for the WorkspaceBuild resource
 	&database.WorkspaceBuild{}: {
 		"id":                  ActionIgnore,
 		"created_at":          ActionIgnore,
@@ -132,6 +132,20 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"avatar_url":      ActionTrack,
 		"quota_allowance": ActionTrack,
 		"members":         ActionTrack,
+	},
+	// We don't show any diff for the APIKey resource
+	&database.APIKey{}: {
+		"id":               ActionIgnore,
+		"hashed_secret":    ActionIgnore,
+		"user_id":          ActionIgnore,
+		"last_used":        ActionIgnore,
+		"expires_at":       ActionIgnore,
+		"created_at":       ActionIgnore,
+		"updated_at":       ActionIgnore,
+		"login_type":       ActionIgnore,
+		"lifetime_seconds": ActionIgnore,
+		"ip_address":       ActionIgnore,
+		"scope":            ActionIgnore,
 	},
 })
 

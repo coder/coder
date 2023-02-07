@@ -5350,14 +5350,18 @@ const docTemplate = `{
                 "write",
                 "delete",
                 "start",
-                "stop"
+                "stop",
+                "login",
+                "logout"
             ],
             "x-enum-varnames": [
                 "AuditActionCreate",
                 "AuditActionWrite",
                 "AuditActionDelete",
                 "AuditActionStart",
-                "AuditActionStop"
+                "AuditActionStop",
+                "AuditActionLogin",
+                "AuditActionLogout"
             ]
         },
         "codersdk.AuditDiff": {
@@ -6012,7 +6016,13 @@ const docTemplate = `{
                 "derp": {
                     "$ref": "#/definitions/codersdk.DERP"
                 },
+                "disable_password_auth": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
                 "disable_path_apps": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
+                "disable_session_expiry_refresh": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
                 },
                 "experimental": {
@@ -6037,6 +6047,9 @@ const docTemplate = `{
                 },
                 "logging": {
                     "$ref": "#/definitions/codersdk.LoggingConfig"
+                },
+                "max_session_expiry": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-time_Duration"
                 },
                 "max_token_lifetime": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-time_Duration"
