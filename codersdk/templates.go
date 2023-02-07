@@ -281,17 +281,17 @@ type TemplateAppUsageResponse struct {
 	Apps    []TemplateAppUsageAppEntry `json:"apps"`
 }
 
-func (c *Client) TemplateAppUsage(ctx context.Context, templateID uuid.UUID) ([]TemplateAppUsageResponse, error) {
+func (c *Client) TemplateAppUsage(ctx context.Context, templateID uuid.UUID) (TemplateAppUsageResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/app-usage", templateID), nil)
 	if err != nil {
-		return nil, xerrors.Errorf("execute request: %w", err)
+		return TemplateAppUsageResponse{}, xerrors.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
+		return TemplateAppUsageResponse{}, ReadBodyAsError(res)
 	}
 
-	var resp []TemplateAppUsageResponse
+	var resp TemplateAppUsageResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }

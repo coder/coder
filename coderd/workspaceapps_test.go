@@ -1594,6 +1594,44 @@ func TestWorkspaceAppsNonCanonicalHeaders(t *testing.T) {
 	})
 }
 
+func TestWorkspaceAppUsage(t *testing.T) {
+	t.Parallel()
+	client, firstUser, workspace, _ := setupProxyTest(t, nil)
+
+	t.Run("InsertUsageData", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Verify if there is no usage
+		usage, _ := client.TemplateAppUsage(ctx, workspace.TemplateID)
+		require.Equal(t, len(usage.Entries), 0, "has no usage")
+
+		// Access app for the first time
+		accessApp(t, ctx, client, workspace.Name, proxyTestAppNamePublic)
+
+		// Verify if usage was added
+		usage, _ = client.TemplateAppUsage(ctx, workspace.TemplateID)
+		require.Equal(t, len(usage.Entries), 1, "added usage")
+
+		// Access app for the second time with the same user
+		accessApp(t, ctx, client, workspace.Name, proxyTestAppNamePublic)
+
+		// Verify if usage was not added avoiding duplication
+		usage, _ = client.TemplateAppUsage(ctx, workspace.TemplateID)
+		require.Equal(t, len(usage.Entries), 1, "did not add usage for the same user")
+
+		// Access app as a different user
+		secondUserClient := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		accessApp(t, ctx, secondUserClient, workspace.Name, proxyTestAppNamePublic)
+
+		// Verify if usage for a diff user was added
+		usage, _ = client.TemplateAppUsage(ctx, workspace.TemplateID)
+		require.Equal(t, len(usage.Entries), 2, "added usage for a different user")
+	})
+}
+
 // forceURLTransport forces the client to route all requests to the client's
 // configured URL host regardless of hostname.
 func forceURLTransport(t *testing.T, client *codersdk.Client) {
@@ -1607,4 +1645,14 @@ func forceURLTransport(t *testing.T, client *codersdk.Client) {
 	t.Cleanup(func() {
 		transport.CloseIdleConnections()
 	})
+}
+
+func accessApp(t *testing.T, ctx context.Context, client *codersdk.Client, workspaceName string, appName string) {
+	resp, err := requestWithRetries(ctx, t, client, http.MethodGet, fmt.Sprintf("/@me/%s/apps/%s/?%s", workspaceName, appName, proxyTestAppQuery), nil)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, proxyTestAppBody, string(body))
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
