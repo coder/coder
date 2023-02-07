@@ -1,8 +1,6 @@
 package authzquery_test
 
 import (
-	"testing"
-
 	"github.com/coder/coder/coderd/util/slice"
 
 	"github.com/google/uuid"
@@ -14,117 +12,99 @@ import (
 )
 
 func (s *MethodTestSuite) TestParameters() {
-	s.Run("Workspace/InsertParameterValue", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			w := dbgen.Workspace(t, db, database.Workspace{})
-			return methodCase(values(database.InsertParameterValueParams{
-				ScopeID:           w.ID,
-				Scope:             database.ParameterScopeWorkspace,
-				SourceScheme:      database.ParameterSourceSchemeNone,
-				DestinationScheme: database.ParameterDestinationSchemeNone,
-			}), asserts(w, rbac.ActionUpdate), nil)
+	s.Run("Workspace/InsertParameterValue", s.Subtest(func(db database.Store, check *MethodCase) {
+		w := dbgen.Workspace(s.T(), db, database.Workspace{})
+		check.Args(database.InsertParameterValueParams{
+			ScopeID:           w.ID,
+			Scope:             database.ParameterScopeWorkspace,
+			SourceScheme:      database.ParameterSourceSchemeNone,
+			DestinationScheme: database.ParameterDestinationSchemeNone,
+		}).Asserts(w, rbac.ActionUpdate)
+	}))
+	s.Run("TemplateVersionNoTemplate/InsertParameterValue", s.Subtest(func(db database.Store, check *MethodCase) {
+		j := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{})
+		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{JobID: j.ID, TemplateID: uuid.NullUUID{Valid: false}})
+		check.Args(database.InsertParameterValueParams{
+			ScopeID:           j.ID,
+			Scope:             database.ParameterScopeImportJob,
+			SourceScheme:      database.ParameterSourceSchemeNone,
+			DestinationScheme: database.ParameterDestinationSchemeNone,
+		}).Asserts(v.RBACObjectNoTemplate(), rbac.ActionUpdate)
+	}))
+	s.Run("TemplateVersionTemplate/InsertParameterValue", s.Subtest(func(db database.Store, check *MethodCase) {
+		j := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{})
+		tpl := dbgen.Template(s.T(), db, database.Template{})
+		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{JobID: j.ID,
+			TemplateID: uuid.NullUUID{
+				UUID:  tpl.ID,
+				Valid: true,
+			}},
+		)
+		check.Args(database.InsertParameterValueParams{
+			ScopeID:           j.ID,
+			Scope:             database.ParameterScopeImportJob,
+			SourceScheme:      database.ParameterSourceSchemeNone,
+			DestinationScheme: database.ParameterDestinationSchemeNone,
+		}).Asserts(v.RBACObject(tpl), rbac.ActionUpdate)
+	}))
+	s.Run("Template/InsertParameterValue", s.Subtest(func(db database.Store, check *MethodCase) {
+		tpl := dbgen.Template(s.T(), db, database.Template{})
+		check.Args(database.InsertParameterValueParams{
+			ScopeID:           tpl.ID,
+			Scope:             database.ParameterScopeTemplate,
+			SourceScheme:      database.ParameterSourceSchemeNone,
+			DestinationScheme: database.ParameterDestinationSchemeNone,
+		}).Asserts(tpl, rbac.ActionUpdate)
+	}))
+	s.Run("Template/ParameterValue", s.Subtest(func(db database.Store, check *MethodCase) {
+		tpl := dbgen.Template(s.T(), db, database.Template{})
+		pv := dbgen.ParameterValue(s.T(), db, database.ParameterValue{
+			ScopeID: tpl.ID,
+			Scope:   database.ParameterScopeTemplate,
 		})
-	})
-	s.Run("TemplateVersionNoTemplate/InsertParameterValue", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			j := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{})
-			v := dbgen.TemplateVersion(t, db, database.TemplateVersion{JobID: j.ID, TemplateID: uuid.NullUUID{Valid: false}})
-			return methodCase(values(database.InsertParameterValueParams{
-				ScopeID:           j.ID,
-				Scope:             database.ParameterScopeImportJob,
-				SourceScheme:      database.ParameterSourceSchemeNone,
-				DestinationScheme: database.ParameterDestinationSchemeNone,
-			}), asserts(v.RBACObjectNoTemplate(), rbac.ActionUpdate), nil)
+		check.Args(pv.ID).Asserts(tpl, rbac.ActionRead).Returns(pv)
+	}))
+	s.Run("ParameterValues", s.Subtest(func(db database.Store, check *MethodCase) {
+		tpl := dbgen.Template(s.T(), db, database.Template{})
+		a := dbgen.ParameterValue(s.T(), db, database.ParameterValue{
+			ScopeID: tpl.ID,
+			Scope:   database.ParameterScopeTemplate,
 		})
-	})
-	s.Run("TemplateVersionTemplate/InsertParameterValue", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			j := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{})
-			tpl := dbgen.Template(t, db, database.Template{})
-			v := dbgen.TemplateVersion(t, db, database.TemplateVersion{JobID: j.ID,
-				TemplateID: uuid.NullUUID{
-					UUID:  tpl.ID,
-					Valid: true,
-				}},
-			)
-			return methodCase(values(database.InsertParameterValueParams{
-				ScopeID:           j.ID,
-				Scope:             database.ParameterScopeImportJob,
-				SourceScheme:      database.ParameterSourceSchemeNone,
-				DestinationScheme: database.ParameterDestinationSchemeNone,
-			}), asserts(v.RBACObject(tpl), rbac.ActionUpdate), nil)
+		w := dbgen.Workspace(s.T(), db, database.Workspace{})
+		b := dbgen.ParameterValue(s.T(), db, database.ParameterValue{
+			ScopeID: w.ID,
+			Scope:   database.ParameterScopeWorkspace,
 		})
-	})
-	s.Run("Template/InsertParameterValue", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			tpl := dbgen.Template(t, db, database.Template{})
-			return methodCase(values(database.InsertParameterValueParams{
-				ScopeID:           tpl.ID,
-				Scope:             database.ParameterScopeTemplate,
-				SourceScheme:      database.ParameterSourceSchemeNone,
-				DestinationScheme: database.ParameterDestinationSchemeNone,
-			}), asserts(tpl, rbac.ActionUpdate), nil)
+		check.Args(database.ParameterValuesParams{
+			IDs: []uuid.UUID{a.ID, b.ID},
+		}).Asserts(tpl, rbac.ActionRead, w, rbac.ActionRead).Returns(slice.New(a, b))
+	}))
+	s.Run("GetParameterSchemasByJobID", s.Subtest(func(db database.Store, check *MethodCase) {
+		j := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{})
+		tpl := dbgen.Template(s.T(), db, database.Template{})
+		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{JobID: j.ID, TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}})
+		a := dbgen.ParameterSchema(s.T(), db, database.ParameterSchema{JobID: j.ID})
+		check.Args(j.ID).Asserts(tv.RBACObject(tpl), rbac.ActionRead).
+			Returns([]database.ParameterSchema{a})
+	}))
+	s.Run("Workspace/GetParameterValueByScopeAndName", s.Subtest(func(db database.Store, check *MethodCase) {
+		w := dbgen.Workspace(s.T(), db, database.Workspace{})
+		v := dbgen.ParameterValue(s.T(), db, database.ParameterValue{
+			Scope:   database.ParameterScopeWorkspace,
+			ScopeID: w.ID,
 		})
-	})
-	s.Run("Template/ParameterValue", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			tpl := dbgen.Template(t, db, database.Template{})
-			pv := dbgen.ParameterValue(t, db, database.ParameterValue{
-				ScopeID: tpl.ID,
-				Scope:   database.ParameterScopeTemplate,
-			})
-			return methodCase(values(pv.ID), asserts(tpl, rbac.ActionRead), values(pv))
+		check.Args(database.GetParameterValueByScopeAndNameParams{
+			Scope:   v.Scope,
+			ScopeID: v.ScopeID,
+			Name:    v.Name,
+		}).Asserts(w, rbac.ActionRead).Returns(v)
+	}))
+	s.Run("Workspace/DeleteParameterValueByID", s.Subtest(func(db database.Store, check *MethodCase) {
+		w := dbgen.Workspace(s.T(), db, database.Workspace{})
+		v := dbgen.ParameterValue(s.T(), db, database.ParameterValue{
+			Scope:   database.ParameterScopeWorkspace,
+			ScopeID: w.ID,
 		})
-	})
-	s.Run("ParameterValues", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			tpl := dbgen.Template(t, db, database.Template{})
-			a := dbgen.ParameterValue(t, db, database.ParameterValue{
-				ScopeID: tpl.ID,
-				Scope:   database.ParameterScopeTemplate,
-			})
-			w := dbgen.Workspace(t, db, database.Workspace{})
-			b := dbgen.ParameterValue(t, db, database.ParameterValue{
-				ScopeID: w.ID,
-				Scope:   database.ParameterScopeWorkspace,
-			})
-			return methodCase(values(database.ParameterValuesParams{
-				IDs: []uuid.UUID{a.ID, b.ID},
-			}), asserts(tpl, rbac.ActionRead, w, rbac.ActionRead), values(slice.New(a, b)))
-		})
-	})
-	s.Run("GetParameterSchemasByJobID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			j := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{})
-			tpl := dbgen.Template(t, db, database.Template{})
-			tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{JobID: j.ID, TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}})
-			a := dbgen.ParameterSchema(t, db, database.ParameterSchema{JobID: j.ID})
-			return methodCase(values(j.ID), asserts(tv.RBACObject(tpl), rbac.ActionRead),
-				values([]database.ParameterSchema{a}))
-		})
-	})
-	s.Run("Workspace/GetParameterValueByScopeAndName", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			w := dbgen.Workspace(t, db, database.Workspace{})
-			v := dbgen.ParameterValue(t, db, database.ParameterValue{
-				Scope:   database.ParameterScopeWorkspace,
-				ScopeID: w.ID,
-			})
-			return methodCase(values(database.GetParameterValueByScopeAndNameParams{
-				Scope:   v.Scope,
-				ScopeID: v.ScopeID,
-				Name:    v.Name,
-			}), asserts(w, rbac.ActionRead), values(v))
-		})
-	})
-	s.Run("Workspace/DeleteParameterValueByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			w := dbgen.Workspace(t, db, database.Workspace{})
-			v := dbgen.ParameterValue(t, db, database.ParameterValue{
-				Scope:   database.ParameterScopeWorkspace,
-				ScopeID: w.ID,
-			})
-			return methodCase(values(v.ID), asserts(w, rbac.ActionUpdate), values())
-		})
-	})
+		check.Args(v.ID).Asserts(w, rbac.ActionUpdate).Returns()
+	}))
 }

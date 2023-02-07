@@ -1,36 +1,27 @@
 package authzquery_test
 
 import (
-	"testing"
-
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/rbac"
 )
 
 func (s *MethodTestSuite) TestFile() {
-	s.Run("GetFileByHashAndCreator", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			f := dbgen.File(t, db, database.File{})
-			return methodCase(values(database.GetFileByHashAndCreatorParams{
-				Hash:      f.Hash,
-				CreatedBy: f.CreatedBy,
-			}), asserts(f, rbac.ActionRead), values(f))
-		})
-	})
-	s.Run("GetFileByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			f := dbgen.File(t, db, database.File{})
-			return methodCase(values(f.ID), asserts(f, rbac.ActionRead), values(f))
-		})
-	})
-	s.Run("InsertFile", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			u := dbgen.User(t, db, database.User{})
-			return methodCase(values(database.InsertFileParams{
-				CreatedBy: u.ID,
-			}), asserts(rbac.ResourceFile.WithOwner(u.ID.String()), rbac.ActionCreate),
-				nil)
-		})
-	})
+	s.Run("GetFileByHashAndCreator", s.Subtest(func(db database.Store, check *MethodCase) {
+		f := dbgen.File(s.T(), db, database.File{})
+		check.Args(database.GetFileByHashAndCreatorParams{
+			Hash:      f.Hash,
+			CreatedBy: f.CreatedBy,
+		}).Asserts(f, rbac.ActionRead).Returns(f)
+	}))
+	s.Run("GetFileByID", s.Subtest(func(db database.Store, check *MethodCase) {
+		f := dbgen.File(s.T(), db, database.File{})
+		check.Args(f.ID).Asserts(f, rbac.ActionRead).Returns(f)
+	}))
+	s.Run("InsertFile", s.Subtest(func(db database.Store, check *MethodCase) {
+		u := dbgen.User(s.T(), db, database.User{})
+		check.Args(database.InsertFileParams{
+			CreatedBy: u.ID,
+		}).Asserts(rbac.ResourceFile.WithOwner(u.ID.String()), rbac.ActionCreate)
+	}))
 }

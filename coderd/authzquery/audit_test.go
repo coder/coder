@@ -1,8 +1,6 @@
 package authzquery_test
 
 import (
-	"testing"
-
 	"github.com/coder/coder/coderd/database/dbgen"
 
 	"github.com/coder/coder/coderd/database"
@@ -10,25 +8,17 @@ import (
 )
 
 func (s *MethodTestSuite) TestAuditLogs() {
-	s.Run("InsertAuditLog", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			return methodCase(values(database.InsertAuditLogParams{
-				ResourceType: database.ResourceTypeOrganization,
-				Action:       database.AuditActionCreate,
-			}),
-				asserts(rbac.ResourceAuditLog, rbac.ActionCreate),
-				nil)
-		})
-	})
-	s.Run("GetAuditLogsOffset", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			_ = dbgen.AuditLog(t, db, database.AuditLog{})
-			_ = dbgen.AuditLog(t, db, database.AuditLog{})
-			return methodCase(values(database.GetAuditLogsOffsetParams{
-				Limit: 10,
-			}),
-				asserts(rbac.ResourceAuditLog, rbac.ActionRead),
-				nil)
-		})
-	})
+	s.Run("InsertAuditLog", s.Subtest(func(db database.Store, check *MethodCase) {
+		check.Args(database.InsertAuditLogParams{
+			ResourceType: database.ResourceTypeOrganization,
+			Action:       database.AuditActionCreate,
+		}).Asserts(rbac.ResourceAuditLog, rbac.ActionCreate)
+	}))
+	s.Run("GetAuditLogsOffset", s.Subtest(func(db database.Store, check *MethodCase) {
+		_ = dbgen.AuditLog(s.T(), db, database.AuditLog{})
+		_ = dbgen.AuditLog(s.T(), db, database.AuditLog{})
+		check.Args(database.GetAuditLogsOffsetParams{
+			Limit: 10,
+		}).Asserts(rbac.ResourceAuditLog, rbac.ActionRead)
+	}))
 }

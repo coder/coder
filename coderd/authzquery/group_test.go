@@ -1,8 +1,6 @@
 package authzquery_test
 
 import (
-	"testing"
-
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/coderd/database"
@@ -12,107 +10,82 @@ import (
 )
 
 func (s *MethodTestSuite) TestGroup() {
-	s.Run("DeleteGroupByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			g := dbgen.Group(t, db, database.Group{})
-			return methodCase(values(g.ID), asserts(g, rbac.ActionDelete), values())
+	s.Run("DeleteGroupByID", s.Subtest(func(db database.Store, check *MethodCase) {
+		g := dbgen.Group(s.T(), db, database.Group{})
+		check.Args(g.ID).Asserts(g, rbac.ActionDelete).Returns()
+	}))
+	s.Run("DeleteGroupMemberFromGroup", s.Subtest(func(db database.Store, check *MethodCase) {
+		g := dbgen.Group(s.T(), db, database.Group{})
+		m := dbgen.GroupMember(s.T(), db, database.GroupMember{
+			GroupID: g.ID,
 		})
-	})
-	s.Run("DeleteGroupMemberFromGroup", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			g := dbgen.Group(t, db, database.Group{})
-			m := dbgen.GroupMember(t, db, database.GroupMember{
-				GroupID: g.ID,
-			})
-			return methodCase(values(database.DeleteGroupMemberFromGroupParams{
-				UserID:  m.UserID,
-				GroupID: g.ID,
-			}), asserts(g, rbac.ActionUpdate), values())
-		})
-	})
-	s.Run("GetGroupByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			g := dbgen.Group(t, db, database.Group{})
-			return methodCase(values(g.ID), asserts(g, rbac.ActionRead), values(g))
-		})
-	})
-	s.Run("GetGroupByOrgAndName", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			g := dbgen.Group(t, db, database.Group{})
-			return methodCase(values(database.GetGroupByOrgAndNameParams{
-				OrganizationID: g.OrganizationID,
-				Name:           g.Name,
-			}), asserts(g, rbac.ActionRead), values(g))
-		})
-	})
-	s.Run("GetGroupMembers", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			g := dbgen.Group(t, db, database.Group{})
-			_ = dbgen.GroupMember(t, db, database.GroupMember{})
-			return methodCase(values(g.ID), asserts(g, rbac.ActionRead), nil)
-		})
-	})
-	s.Run("InsertAllUsersGroup", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			o := dbgen.Organization(t, db, database.Organization{})
-			return methodCase(values(o.ID), asserts(rbac.ResourceGroup.InOrg(o.ID), rbac.ActionCreate),
-				nil)
-		})
-	})
-	s.Run("InsertGroup", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			o := dbgen.Organization(t, db, database.Organization{})
-			return methodCase(values(database.InsertGroupParams{
-				OrganizationID: o.ID,
-				Name:           "test",
-			}), asserts(rbac.ResourceGroup.InOrg(o.ID), rbac.ActionCreate),
-				nil)
-		})
-	})
-	s.Run("InsertGroupMember", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			g := dbgen.Group(t, db, database.Group{})
-			return methodCase(values(database.InsertGroupMemberParams{
-				UserID:  uuid.New(),
-				GroupID: g.ID,
-			}), asserts(g, rbac.ActionUpdate),
-				values())
-		})
-	})
-	s.Run("InsertUserGroupsByName", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			o := dbgen.Organization(t, db, database.Organization{})
-			u1 := dbgen.User(t, db, database.User{})
-			g1 := dbgen.Group(t, db, database.Group{OrganizationID: o.ID})
-			g2 := dbgen.Group(t, db, database.Group{OrganizationID: o.ID})
-			_ = dbgen.GroupMember(t, db, database.GroupMember{GroupID: g1.ID, UserID: u1.ID})
-			return methodCase(values(database.InsertUserGroupsByNameParams{
-				OrganizationID: o.ID,
-				UserID:         u1.ID,
-				GroupNames:     slice.New(g1.Name, g2.Name),
-			}), asserts(rbac.ResourceGroup.InOrg(o.ID), rbac.ActionUpdate), values())
-		})
-	})
-	s.Run("DeleteGroupMembersByOrgAndUser", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			o := dbgen.Organization(t, db, database.Organization{})
-			u1 := dbgen.User(t, db, database.User{})
-			g1 := dbgen.Group(t, db, database.Group{OrganizationID: o.ID})
-			g2 := dbgen.Group(t, db, database.Group{OrganizationID: o.ID})
-			_ = dbgen.GroupMember(t, db, database.GroupMember{GroupID: g1.ID, UserID: u1.ID})
-			_ = dbgen.GroupMember(t, db, database.GroupMember{GroupID: g2.ID, UserID: u1.ID})
-			return methodCase(values(database.DeleteGroupMembersByOrgAndUserParams{
-				OrganizationID: o.ID,
-				UserID:         u1.ID,
-			}), asserts(rbac.ResourceGroup.InOrg(o.ID), rbac.ActionUpdate), values())
-		})
-	})
-	s.Run("UpdateGroupByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			g := dbgen.Group(t, db, database.Group{})
-			return methodCase(values(database.UpdateGroupByIDParams{
-				ID: g.ID,
-			}), asserts(g, rbac.ActionUpdate), nil)
-		})
-	})
+		check.Args(database.DeleteGroupMemberFromGroupParams{
+			UserID:  m.UserID,
+			GroupID: g.ID,
+		}).Asserts(g, rbac.ActionUpdate).Returns()
+	}))
+	s.Run("GetGroupByID", s.Subtest(func(db database.Store, check *MethodCase) {
+		g := dbgen.Group(s.T(), db, database.Group{})
+		check.Args(g.ID).Asserts(g, rbac.ActionRead).Returns(g)
+	}))
+	s.Run("GetGroupByOrgAndName", s.Subtest(func(db database.Store, check *MethodCase) {
+		g := dbgen.Group(s.T(), db, database.Group{})
+		check.Args(database.GetGroupByOrgAndNameParams{
+			OrganizationID: g.OrganizationID,
+			Name:           g.Name,
+		}).Asserts(g, rbac.ActionRead).Returns(g)
+	}))
+	s.Run("GetGroupMembers", s.Subtest(func(db database.Store, check *MethodCase) {
+		g := dbgen.Group(s.T(), db, database.Group{})
+		_ = dbgen.GroupMember(s.T(), db, database.GroupMember{})
+		check.Args(g.ID).Asserts(g, rbac.ActionRead)
+	}))
+	s.Run("InsertAllUsersGroup", s.Subtest(func(db database.Store, check *MethodCase) {
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		check.Args(o.ID).Asserts(rbac.ResourceGroup.InOrg(o.ID), rbac.ActionCreate)
+	}))
+	s.Run("InsertGroup", s.Subtest(func(db database.Store, check *MethodCase) {
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		check.Args(database.InsertGroupParams{
+			OrganizationID: o.ID,
+			Name:           "test",
+		}).Asserts(rbac.ResourceGroup.InOrg(o.ID), rbac.ActionCreate)
+	}))
+	s.Run("InsertGroupMember", s.Subtest(func(db database.Store, check *MethodCase) {
+		g := dbgen.Group(s.T(), db, database.Group{})
+		check.Args(database.InsertGroupMemberParams{
+			UserID:  uuid.New(),
+			GroupID: g.ID,
+		}).Asserts(g, rbac.ActionUpdate).Returns()
+	}))
+	s.Run("InsertUserGroupsByName", s.Subtest(func(db database.Store, check *MethodCase) {
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		u1 := dbgen.User(s.T(), db, database.User{})
+		g1 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
+		g2 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
+		_ = dbgen.GroupMember(s.T(), db, database.GroupMember{GroupID: g1.ID, UserID: u1.ID})
+		check.Args(database.InsertUserGroupsByNameParams{
+			OrganizationID: o.ID,
+			UserID:         u1.ID,
+			GroupNames:     slice.New(g1.Name, g2.Name),
+		}).Asserts(rbac.ResourceGroup.InOrg(o.ID), rbac.ActionUpdate).Returns()
+	}))
+	s.Run("DeleteGroupMembersByOrgAndUser", s.Subtest(func(db database.Store, check *MethodCase) {
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		u1 := dbgen.User(s.T(), db, database.User{})
+		g1 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
+		g2 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
+		_ = dbgen.GroupMember(s.T(), db, database.GroupMember{GroupID: g1.ID, UserID: u1.ID})
+		_ = dbgen.GroupMember(s.T(), db, database.GroupMember{GroupID: g2.ID, UserID: u1.ID})
+		check.Args(database.DeleteGroupMembersByOrgAndUserParams{
+			OrganizationID: o.ID,
+			UserID:         u1.ID,
+		}).Asserts(rbac.ResourceGroup.InOrg(o.ID), rbac.ActionUpdate).Returns()
+	}))
+	s.Run("UpdateGroupByID", s.Subtest(func(db database.Store, check *MethodCase) {
+		g := dbgen.Group(s.T(), db, database.Group{})
+		check.Args(database.UpdateGroupByIDParams{
+			ID: g.ID,
+		}).Asserts(g, rbac.ActionUpdate)
+	}))
 }

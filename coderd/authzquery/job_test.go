@@ -2,7 +2,6 @@ package authzquery_test
 
 import (
 	"encoding/json"
-	"testing"
 
 	"github.com/google/uuid"
 
@@ -13,102 +12,86 @@ import (
 )
 
 func (s *MethodTestSuite) TestProvsionerJob() {
-	s.Run("Build/GetProvisionerJobByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			w := dbgen.Workspace(t, db, database.Workspace{})
-			j := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
-				Type: database.ProvisionerJobTypeWorkspaceBuild,
-			})
-			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: w.ID})
-			return methodCase(values(j.ID), asserts(w, rbac.ActionRead), values(j))
+	s.Run("Build/GetProvisionerJobByID", s.Subtest(func(db database.Store, check *MethodCase) {
+		w := dbgen.Workspace(s.T(), db, database.Workspace{})
+		j := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{
+			Type: database.ProvisionerJobTypeWorkspaceBuild,
 		})
-	})
-	s.Run("TemplateVersion/GetProvisionerJobByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			j := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
-				Type: database.ProvisionerJobTypeTemplateVersionImport,
-			})
-			tpl := dbgen.Template(t, db, database.Template{})
-			v := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
-				JobID:      j.ID,
-			})
-			return methodCase(values(j.ID), asserts(v.RBACObject(tpl), rbac.ActionRead), values(j))
+		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: w.ID})
+		check.Args(j.ID).Asserts(w, rbac.ActionRead).Returns(j)
+	}))
+	s.Run("TemplateVersion/GetProvisionerJobByID", s.Subtest(func(db database.Store, check *MethodCase) {
+		j := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{
+			Type: database.ProvisionerJobTypeTemplateVersionImport,
 		})
-	})
-	s.Run("TemplateVersionDryRun/GetProvisionerJobByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			tpl := dbgen.Template(t, db, database.Template{})
-			v := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
-			})
-			j := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
-				Type: database.ProvisionerJobTypeTemplateVersionDryRun,
-				Input: must(json.Marshal(struct {
-					TemplateVersionID uuid.UUID `json:"template_version_id"`
-				}{TemplateVersionID: v.ID})),
-			})
-			return methodCase(values(j.ID), asserts(v.RBACObject(tpl), rbac.ActionRead), values(j))
+		tpl := dbgen.Template(s.T(), db, database.Template{})
+		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
+			JobID:      j.ID,
 		})
-	})
-	s.Run("Build/UpdateProvisionerJobWithCancelByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			tpl := dbgen.Template(t, db, database.Template{AllowUserCancelWorkspaceJobs: true})
-			w := dbgen.Workspace(t, db, database.Workspace{TemplateID: tpl.ID})
-			j := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
-				Type: database.ProvisionerJobTypeWorkspaceBuild,
-			})
-			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: w.ID})
-			return methodCase(values(database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}), asserts(w, rbac.ActionUpdate), values())
+		check.Args(j.ID).Asserts(v.RBACObject(tpl), rbac.ActionRead).Returns(j)
+	}))
+	s.Run("TemplateVersionDryRun/GetProvisionerJobByID", s.Subtest(func(db database.Store, check *MethodCase) {
+		tpl := dbgen.Template(s.T(), db, database.Template{})
+		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
 		})
-	})
-	s.Run("TemplateVersion/UpdateProvisionerJobWithCancelByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			j := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
-				Type: database.ProvisionerJobTypeTemplateVersionImport,
-			})
-			tpl := dbgen.Template(t, db, database.Template{})
-			v := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
-				JobID:      j.ID,
-			})
-			return methodCase(values(database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}),
-				asserts(v.RBACObject(tpl), []rbac.Action{rbac.ActionRead, rbac.ActionUpdate}), values())
+		j := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{
+			Type: database.ProvisionerJobTypeTemplateVersionDryRun,
+			Input: must(json.Marshal(struct {
+				TemplateVersionID uuid.UUID `json:"template_version_id"`
+			}{TemplateVersionID: v.ID})),
 		})
-	})
-	s.Run("TemplateVersionDryRun/UpdateProvisionerJobWithCancelByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			tpl := dbgen.Template(t, db, database.Template{})
-			v := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
-			})
-			j := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
-				Type: database.ProvisionerJobTypeTemplateVersionDryRun,
-				Input: must(json.Marshal(struct {
-					TemplateVersionID uuid.UUID `json:"template_version_id"`
-				}{TemplateVersionID: v.ID})),
-			})
-			return methodCase(values(database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}),
-				asserts(v.RBACObject(tpl), []rbac.Action{rbac.ActionRead, rbac.ActionUpdate}), values())
+		check.Args(j.ID).Asserts(v.RBACObject(tpl), rbac.ActionRead).Returns(j)
+	}))
+	s.Run("Build/UpdateProvisionerJobWithCancelByID", s.Subtest(func(db database.Store, check *MethodCase) {
+		tpl := dbgen.Template(s.T(), db, database.Template{AllowUserCancelWorkspaceJobs: true})
+		w := dbgen.Workspace(s.T(), db, database.Workspace{TemplateID: tpl.ID})
+		j := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{
+			Type: database.ProvisionerJobTypeWorkspaceBuild,
 		})
-	})
-	s.Run("GetProvisionerJobsByIDs", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			a := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{})
-			b := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{})
-			return methodCase(values([]uuid.UUID{a.ID, b.ID}), asserts(), values(slice.New(a, b)))
+		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: w.ID})
+		check.Args(database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}).Asserts(w, rbac.ActionUpdate).Returns()
+	}))
+	s.Run("TemplateVersion/UpdateProvisionerJobWithCancelByID", s.Subtest(func(db database.Store, check *MethodCase) {
+		j := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{
+			Type: database.ProvisionerJobTypeTemplateVersionImport,
 		})
-	})
-	s.Run("GetProvisionerLogsByIDBetween", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			w := dbgen.Workspace(t, db, database.Workspace{})
-			j := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
-				Type: database.ProvisionerJobTypeWorkspaceBuild,
-			})
-			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: w.ID})
-			return methodCase(values(database.GetProvisionerLogsByIDBetweenParams{
-				JobID: j.ID,
-			}), asserts(w, rbac.ActionRead), values([]database.ProvisionerJobLog{}))
+		tpl := dbgen.Template(s.T(), db, database.Template{})
+		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
+			JobID:      j.ID,
 		})
-	})
+		check.Args(database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}).
+			Asserts(v.RBACObject(tpl), []rbac.Action{rbac.ActionRead, rbac.ActionUpdate}).Returns()
+	}))
+	s.Run("TemplateVersionDryRun/UpdateProvisionerJobWithCancelByID", s.Subtest(func(db database.Store, check *MethodCase) {
+		tpl := dbgen.Template(s.T(), db, database.Template{})
+		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
+		})
+		j := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{
+			Type: database.ProvisionerJobTypeTemplateVersionDryRun,
+			Input: must(json.Marshal(struct {
+				TemplateVersionID uuid.UUID `json:"template_version_id"`
+			}{TemplateVersionID: v.ID})),
+		})
+		check.Args(database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}).
+			Asserts(v.RBACObject(tpl), []rbac.Action{rbac.ActionRead, rbac.ActionUpdate}).Returns()
+	}))
+	s.Run("GetProvisionerJobsByIDs", s.Subtest(func(db database.Store, check *MethodCase) {
+		a := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{})
+		b := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{})
+		check.Args([]uuid.UUID{a.ID, b.ID}).Asserts().Returns(slice.New(a, b))
+	}))
+	s.Run("GetProvisionerLogsByIDBetween", s.Subtest(func(db database.Store, check *MethodCase) {
+		w := dbgen.Workspace(s.T(), db, database.Workspace{})
+		j := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{
+			Type: database.ProvisionerJobTypeWorkspaceBuild,
+		})
+		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: w.ID})
+		check.Args(database.GetProvisionerLogsByIDBetweenParams{
+			JobID: j.ID,
+		}).Asserts(w, rbac.ActionRead).Returns([]database.ProvisionerJobLog{})
+	}))
 }
