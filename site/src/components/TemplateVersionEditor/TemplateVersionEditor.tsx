@@ -64,7 +64,11 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   buildLogs,
   resources,
 }) => {
-  const [selectedTab, setSelectedTab] = useState(0)
+  const [selectedTab, setSelectedTab] = useState(() => {
+    // If resources are provided, show them by default!
+    // This is for Storybook!
+    return resources ? 1 : 0
+  })
   const [files, setFiles] = useState(initialFiles)
   const [createFileOpen, setCreateFileOpen] = useState(false)
   const [deleteFileOpen, setDeleteFileOpen] = useState<File>()
