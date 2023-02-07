@@ -707,7 +707,7 @@ export interface TemplateACL {
 // From codersdk/templates.go
 export interface TemplateAppUsageAppEntry {
   readonly display_name: string
-  readonly icon: string
+  readonly icon?: string
   readonly slug: string
 }
 

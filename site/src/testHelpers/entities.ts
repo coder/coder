@@ -1345,3 +1345,19 @@ export const mockParameterSchema = (
     ...partial,
   }
 }
+export const MockTemplateAppUsage: TypesGen.TemplateAppUsageResponse = {
+  entries: [
+    {
+      app_slug: MockWorkspaceApp.slug,
+      count: 5,
+      created_at: new Date().toISOString(),
+    },
+  ],
+  apps: [
+    {
+      display_name: MockWorkspaceApp.display_name,
+      icon: MockWorkspaceApp.icon,
+      slug: MockWorkspaceApp.slug,
+    },
+  ],
+}

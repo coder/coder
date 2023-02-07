@@ -18,7 +18,7 @@ SELECT
 FROM
   app_usage
 WHERE
-  app_usage.template_id = $1 AND app_usage.created_at BETWEEN @since_date :: date AND @to_date :: date
+  app_usage.template_id = $1 AND app_usage.created_at BETWEEN @since_date :: date AND @until_date :: date
 GROUP BY
   app_usage.created_at,
   app_usage.app_slug

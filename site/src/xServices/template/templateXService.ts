@@ -239,8 +239,11 @@ export const templateMachine =
           if (!ctx.template) {
             throw new Error("Template not loaded")
           }
-          await getTemplateAppUsage(ctx.template.id)
-          return getTemplateDAUs(ctx.template.id)
+          const [_, templateDAUs] = await Promise.all([
+            getTemplateAppUsage(ctx.template.id),
+            getTemplateDAUs(ctx.template.id),
+          ])
+          return templateDAUs
         },
         getTemplatePermissions: (ctx) => {
           if (!ctx.template) {

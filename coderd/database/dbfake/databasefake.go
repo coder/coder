@@ -4294,7 +4294,7 @@ func (q *fakeQuerier) GetAppUsageByTemplateID(_ context.Context, arg database.Ge
 	// usageMap is indexed by Date to a map of App slugs to the number of unique
 	// users that have used that application.
 	since := arg.SinceDate.Truncate(time.Hour * 24)
-	to := arg.ToDate.Truncate(time.Hour * 24)
+	until := arg.UntilDate.Truncate(time.Hour * 24)
 
 	usageMap := make(map[time.Time]map[string]int64)
 	for _, usage := range q.appUsage {
@@ -4302,8 +4302,8 @@ func (q *fakeQuerier) GetAppUsageByTemplateID(_ context.Context, arg database.Ge
 			continue
 		}
 		if usage.CreatedAt.Equal(since) ||
-			usage.CreatedAt.Equal(to) ||
-			(usage.CreatedAt.After(since) && usage.CreatedAt.Before(to)) {
+			usage.CreatedAt.Equal(until) ||
+			(usage.CreatedAt.After(since) && usage.CreatedAt.Before(until)) {
 			date := usage.CreatedAt
 			appEntry := usageMap[date]
 			if appEntry == nil {

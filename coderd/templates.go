@@ -558,8 +558,8 @@ func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Templates
 // @Param template path string true "Template ID" format(uuid)
-// @Param from query string false "Filter by app usage starting from this date"
-// @Param to query string false "Filter by app usage until this date"
+// @Param since query string false "Filter by app usage starting since this date"
+// @Param until query string false "Filter by app usage until this date"
 // @Success 200 {object} codersdk.TemplateAppUsageResponse
 // @Router /templates/{template}/app-usage [get]
 func (api *API) appUsage(rw http.ResponseWriter, r *http.Request) {
@@ -573,7 +573,7 @@ func (api *API) appUsage(rw http.ResponseWriter, r *http.Request) {
 
 	// Default date filter values
 	since := time.Now().Truncate(24 * time.Hour).Add(-24 * 7 * time.Hour) // Default is last 7 days
-	to := time.Now().Truncate(24 * time.Hour)
+	until := time.Now().Truncate(24 * time.Hour)
 
 	// Assign date filter values
 	queryParamsValidation := []codersdk.ValidationError{}
@@ -587,12 +587,12 @@ func (api *API) appUsage(rw http.ResponseWriter, r *http.Request) {
 			})
 		}
 	}
-	toQueryStr := q.Get("to")
-	if toQueryStr != "" {
-		to, err = time.Parse(time.RFC3339, toQueryStr)
+	untilQueryStr := q.Get("until")
+	if untilQueryStr != "" {
+		until, err = time.Parse(time.RFC3339, untilQueryStr)
 		if err != nil {
 			queryParamsValidation = append(queryParamsValidation, codersdk.ValidationError{
-				Field: "to", Detail: "Is not a valid date",
+				Field: "until", Detail: "Is not a valid date",
 			})
 		}
 	}
@@ -608,7 +608,7 @@ func (api *API) appUsage(rw http.ResponseWriter, r *http.Request) {
 	usage, err = api.Database.GetAppUsageByTemplateID(ctx, database.GetAppUsageByTemplateIDParams{
 		TemplateID: template.ID,
 		SinceDate:  since,
-		ToDate:     to,
+		UntilDate:  until,
 	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

@@ -271,7 +271,7 @@ type TemplateAppUsageEntry struct {
 
 type TemplateAppUsageAppEntry struct {
 	DisplayName string `json:"display_name"`
-	Icon        string `json:"icon"`
+	Icon        string `json:"icon,omitempty"`
 	Slug        string `json:"slug"`
 }
 

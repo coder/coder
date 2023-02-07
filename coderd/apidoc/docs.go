@@ -2004,14 +2004,14 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Filter by app usage starting from this date",
-                        "name": "from",
+                        "description": "Filter by app usage starting since this date",
+                        "name": "since",
                         "in": "query"
                     },
                     {
                         "type": "string",
                         "description": "Filter by app usage until this date",
-                        "name": "to",
+                        "name": "until",
                         "in": "query"
                     }
                 ],

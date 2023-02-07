@@ -405,7 +405,7 @@ ORDER BY
 type GetAppUsageByTemplateIDParams struct {
 	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
 	SinceDate  time.Time `db:"since_date" json:"since_date"`
-	ToDate     time.Time `db:"to_date" json:"to_date"`
+	UntilDate  time.Time `db:"until_date" json:"until_date"`
 }
 
 type GetAppUsageByTemplateIDRow struct {
@@ -415,7 +415,7 @@ type GetAppUsageByTemplateIDRow struct {
 }
 
 func (q *sqlQuerier) GetAppUsageByTemplateID(ctx context.Context, arg GetAppUsageByTemplateIDParams) ([]GetAppUsageByTemplateIDRow, error) {
-	rows, err := q.db.QueryContext(ctx, getAppUsageByTemplateID, arg.TemplateID, arg.SinceDate, arg.ToDate)
+	rows, err := q.db.QueryContext(ctx, getAppUsageByTemplateID, arg.TemplateID, arg.SinceDate, arg.UntilDate)
 	if err != nil {
 		return nil, err
 	}

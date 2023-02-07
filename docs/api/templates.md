@@ -807,11 +807,11 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/app-usage \
 
 ### Parameters
 
-| Name       | In    | Type         | Required | Description                                 |
-| ---------- | ----- | ------------ | -------- | ------------------------------------------- |
-| `template` | path  | string(uuid) | true     | Template ID                                 |
-| `from`     | query | string       | false    | Filter by app usage starting from this date |
-| `to`       | query | string       | false    | Filter by app usage until this date         |
+| Name       | In    | Type         | Required | Description                                  |
+| ---------- | ----- | ------------ | -------- | -------------------------------------------- |
+| `template` | path  | string(uuid) | true     | Template ID                                  |
+| `since`    | query | string       | false    | Filter by app usage starting since this date |
+| `until`    | query | string       | false    | Filter by app usage until this date          |
 
 ### Example responses
 
