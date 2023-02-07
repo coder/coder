@@ -200,7 +200,6 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 	rows, err := q.db.QueryContext(ctx, query,
 		arg.Deleted,
 		arg.Status,
-		pq.Array(arg.WorkspaceIds),
 		arg.OwnerID,
 		arg.OwnerUsername,
 		arg.TemplateName,
