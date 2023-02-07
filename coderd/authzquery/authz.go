@@ -245,48 +245,6 @@ func fetchWithPostFilter[ArgumentType any, ObjectType rbac.Objecter,
 	}
 }
 
-// queryWithRelated performs the same function as authorizedQuery, except that
-// RBAC checks are performed on the result of relatedFunc() instead of the result of fetch().
-// This is useful for cases where ObjectType does not implement RBACObjecter.
-// For example, a TemplateVersion object does not implement RBACObjecter, but it is
-// related to a Template object, which does. Thus, any operations on a TemplateVersion
-// are predicated on the RBAC permissions of the related Template object.
-func queryWithRelated[ObjectType any, ArgumentType any, Related rbac.Objecter](
-	// Arguments
-	logger slog.Logger,
-	authorizer rbac.Authorizer,
-	action rbac.Action,
-	relatedFunc func(ObjectType, ArgumentType) (Related, error),
-	fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error)) func(ctx context.Context, arg ArgumentType) (ObjectType, error) {
-	return func(ctx context.Context, arg ArgumentType) (empty ObjectType, err error) {
-		// Fetch the rbac subject
-		act, ok := ActorFromContext(ctx)
-		if !ok {
-			return empty, NoActorError
-		}
-
-		// Fetch the rbac object
-		obj, err := fetch(ctx, arg)
-		if err != nil {
-			return empty, xerrors.Errorf("fetch object: %w", err)
-		}
-
-		// Fetch the related object on which we actually do RBAC
-		rel, err := relatedFunc(obj, arg)
-		if err != nil {
-			return empty, xerrors.Errorf("fetch related object: %w", err)
-		}
-
-		// Authorize the action
-		err = authorizer.Authorize(ctx, act, action, rel.RBACObject())
-		if err != nil {
-			return empty, LogNotAuthorizedError(ctx, logger, err)
-		}
-
-		return obj, nil
-	}
-}
-
 // prepareSQLFilter is a helper function that prepares a SQL filter using the
 // given authorization context.
 func prepareSQLFilter(ctx context.Context, authorizer rbac.Authorizer, action rbac.Action, resourceType string) (rbac.PreparedAuthorized, error) {

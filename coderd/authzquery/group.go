@@ -50,10 +50,10 @@ func (q *AuthzQuerier) GetGroupByOrgAndName(ctx context.Context, arg database.Ge
 }
 
 func (q *AuthzQuerier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]database.User, error) {
-	relatedFunc := func(_ []database.User, groupID uuid.UUID) (database.Group, error) {
-		return q.db.GetGroupByID(ctx, groupID)
+	if _, err := q.GetGroupByID(ctx, groupID); err != nil { // AuthZ check
+		return nil, err
 	}
-	return queryWithRelated(q.log, q.auth, rbac.ActionRead, relatedFunc, q.db.GetGroupMembers)(ctx, groupID)
+	return q.db.GetGroupMembers(ctx, groupID)
 }
 
 func (q *AuthzQuerier) InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (database.Group, error) {

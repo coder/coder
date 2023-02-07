@@ -17,27 +17,26 @@ import (
 
 func (q *AuthzQuerier) GetPreviousTemplateVersion(ctx context.Context, arg database.GetPreviousTemplateVersionParams) (database.TemplateVersion, error) {
 	// An actor can read the previous template version if they can read the related template.
-	fetchRelated := func(_ database.TemplateVersion, _ database.GetPreviousTemplateVersionParams) (rbac.Objecter, error) {
-		if !arg.TemplateID.Valid {
-			// If no linked template exists, check if the actor can read the template in the organization.
-			return rbac.ResourceTemplate.InOrg(arg.OrganizationID), nil
+	// If no linked template exists, we check if the actor can read *a* template.
+	if !arg.TemplateID.Valid {
+		if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplate.InOrg(arg.OrganizationID)); err != nil {
+			return database.TemplateVersion{}, err
 		}
-		return q.db.GetTemplateByID(ctx, arg.TemplateID.UUID)
 	}
-	return queryWithRelated(q.log, q.auth, rbac.ActionRead, fetchRelated, q.db.GetPreviousTemplateVersion)(ctx, arg)
+	if _, err := q.GetTemplateByID(ctx, arg.TemplateID.UUID); err != nil {
+		return database.TemplateVersion{}, err
+	}
+	return q.db.GetPreviousTemplateVersion(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
 	// An actor can read the average build time if they can read the related template.
-	fetchRelated := func(database.GetTemplateAverageBuildTimeRow, database.GetTemplateAverageBuildTimeParams) (rbac.Objecter, error) {
-		if !arg.TemplateID.Valid {
-			// If no linked template exists, check if the actor can read *a* template.
-			// We don't know the organization ID.
-			return rbac.ResourceTemplate, nil
-		}
-		return q.db.GetTemplateByID(ctx, arg.TemplateID.UUID)
+	// It doesn't make any sense to get the average build time for a template that doesn't
+	// exist, so omitting this check here.
+	if _, err := q.GetTemplateByID(ctx, arg.TemplateID.UUID); err != nil {
+		return database.GetTemplateAverageBuildTimeRow{}, err
 	}
-	return queryWithRelated(q.log, q.auth, rbac.ActionRead, fetchRelated, q.db.GetTemplateAverageBuildTime)(ctx, arg)
+	return q.db.GetTemplateAverageBuildTime(ctx, arg)
 }
 
 func (q *AuthzQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (database.Template, error) {
@@ -50,68 +49,62 @@ func (q *AuthzQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg
 
 func (q *AuthzQuerier) GetTemplateDAUs(ctx context.Context, templateID uuid.UUID) ([]database.GetTemplateDAUsRow, error) {
 	// An actor can read the DAUs if they can read the related template.
-	fetchRelated := func(_ []database.GetTemplateDAUsRow, _ uuid.UUID) (rbac.Objecter, error) {
-		return q.db.GetTemplateByID(ctx, templateID)
+	// Again, it doesn't make sense to get DAUs for a template that doesn't exist.
+	if _, err := q.GetTemplateByID(ctx, templateID); err != nil {
+		return nil, err
 	}
-	return queryWithRelated(q.log, q.auth, rbac.ActionRead, fetchRelated, q.db.GetTemplateDAUs)(ctx, templateID)
+	return q.db.GetTemplateDAUs(ctx, templateID)
 }
 
 func (q *AuthzQuerier) GetTemplateVersionByID(ctx context.Context, tvid uuid.UUID) (database.TemplateVersion, error) {
-	// An actor can read the template version if they can read the related template.
-	fetchRelated := func(tv database.TemplateVersion, _ uuid.UUID) (rbac.Objecter, error) {
-		if !tv.TemplateID.Valid {
-			// If no linked template exists, check if the actor can read a template
-			// in the organization.
-			return rbac.ResourceTemplate.InOrg(tv.OrganizationID), nil
-		}
-		return q.db.GetTemplateByID(ctx, tv.TemplateID.UUID)
+	tv, err := q.db.GetTemplateVersionByID(ctx, tvid)
+	if err != nil {
+		return database.TemplateVersion{}, err
 	}
-	return queryWithRelated(
-		q.log,
-		q.auth,
-		rbac.ActionRead,
-		fetchRelated,
-		q.db.GetTemplateVersionByID,
-	)(ctx, tvid)
+	if !tv.TemplateID.Valid {
+		// If no linked template exists, check if the actor can read a template in the organization.
+		if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplate.InOrg(tv.OrganizationID)); err != nil {
+			return database.TemplateVersion{}, err
+		}
+	} else if _, err := q.GetTemplateByID(ctx, tv.TemplateID.UUID); err != nil {
+		// An actor can read the template version if they can read the related template.
+		return database.TemplateVersion{}, err
+	}
+	return tv, nil
 }
 
 func (q *AuthzQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.UUID) (database.TemplateVersion, error) {
-	// An actor can read the template version if they can read the related template.
-	fetchRelated := func(tv database.TemplateVersion, _ uuid.UUID) (rbac.Objecter, error) {
-		if !tv.TemplateID.Valid {
-			// If no linked template exists, check if the actor can read a
-			// template in the organization.
-			return rbac.ResourceTemplate.InOrg(tv.OrganizationID), nil
-		}
-		return q.db.GetTemplateByID(ctx, tv.TemplateID.UUID)
+	tv, err := q.db.GetTemplateVersionByJobID(ctx, jobID)
+	if err != nil {
+		return database.TemplateVersion{}, err
 	}
-	return queryWithRelated(
-		q.log,
-		q.auth,
-		rbac.ActionRead,
-		fetchRelated,
-		q.db.GetTemplateVersionByJobID,
-	)(ctx, jobID)
+	if !tv.TemplateID.Valid {
+		// If no linked template exists, check if the actor can read a template in the organization.
+		if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplate.InOrg(tv.OrganizationID)); err != nil {
+			return database.TemplateVersion{}, err
+		}
+	} else if _, err := q.GetTemplateByID(ctx, tv.TemplateID.UUID); err != nil {
+		// An actor can read the template version if they can read the related template.
+		return database.TemplateVersion{}, err
+	}
+	return tv, nil
 }
 
 func (q *AuthzQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, arg database.GetTemplateVersionByTemplateIDAndNameParams) (database.TemplateVersion, error) {
-	// An actor can read the template version if they can read the related template.
-	fetchRelated := func(tv database.TemplateVersion, p database.GetTemplateVersionByTemplateIDAndNameParams) (rbac.Objecter, error) {
-		if !tv.TemplateID.Valid {
-			// If no linked template exists, check if the actor can read *a* template.
-			// We don't know the organization ID.
-			return rbac.ResourceTemplate, nil
-		}
-		return q.db.GetTemplateByID(ctx, tv.TemplateID.UUID)
+	tv, err := q.db.GetTemplateVersionByTemplateIDAndName(ctx, arg)
+	if err != nil {
+		return database.TemplateVersion{}, err
 	}
-
-	return queryWithRelated(
-		q.log,
-		q.auth,
-		rbac.ActionRead,
-		fetchRelated,
-		q.db.GetTemplateVersionByTemplateIDAndName,
-	)(ctx, arg)
+	if !tv.TemplateID.Valid {
+		// If no linked template exists, check if the actor can read a template in the organization.
+		if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplate.InOrg(tv.OrganizationID)); err != nil {
+			return database.TemplateVersion{}, err
+		}
+	} else if _, err := q.GetTemplateByID(ctx, tv.TemplateID.UUID); err != nil {
+		// An actor can read the template version if they can read the related template.
+		return database.TemplateVersion{}, err
+	}
+	return tv, nil
 }
 
 func (q *AuthzQuerier) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionParameter, error) {
@@ -183,16 +176,10 @@ func (q *AuthzQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg 
 
 func (q *AuthzQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.TemplateVersion, error) {
 	// An actor can read execute this query if they can read all templates.
-	fetchRelated := func(tvs []database.TemplateVersion, _ time.Time) (rbac.Objecter, error) {
-		return rbac.ResourceTemplate.All(), nil
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplate); err != nil {
+		return nil, err
 	}
-	return queryWithRelated(
-		q.log,
-		q.auth,
-		rbac.ActionRead,
-		fetchRelated,
-		q.db.GetTemplateVersionsCreatedAfter,
-	)(ctx, createdAt)
+	return q.db.GetTemplateVersionsCreatedAfter(ctx, createdAt)
 }
 
 func (q *AuthzQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, _ rbac.PreparedAuthorized) ([]database.Template, error) {
