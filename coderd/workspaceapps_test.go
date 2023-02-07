@@ -1597,7 +1597,10 @@ func TestWorkspaceAppsNonCanonicalHeaders(t *testing.T) {
 
 func TestWorkspaceAppUsage(t *testing.T) {
 	t.Parallel()
-	client, firstUser, workspace, _ := setupProxyTest(t, nil)
+	client, firstUser, workspace, _ := setupProxyTest(t, &setupProxyTestOpts{
+		DangerousAllowPathAppSharing:         true,
+		DangerousAllowPathAppSiteOwnerAccess: true,
+	})
 
 	t.Run("InsertUsageData", func(t *testing.T) {
 		t.Parallel()
