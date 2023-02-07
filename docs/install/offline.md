@@ -55,11 +55,11 @@ ADD filesystem-mirror-example.tfrc /opt/terraform/config.tfrc
 # volume or network mirror:
 RUN mkdir -p /opt/terraform/plugins/registry.terraform.io
 WORKDIR /opt/terraform/plugins/registry.terraform.io
-ARG CODER_PROVIDER_VERSION=0.5.3
+ARG CODER_PROVIDER_VERSION=0.6.10
 RUN echo "Adding coder/coder v${CODER_PROVIDER_VERSION}" \
     && mkdir -p coder/coder && cd coder/coder \
     && curl -LOs https://github.com/coder/terraform-provider-coder/releases/download/v${CODER_PROVIDER_VERSION}/terraform-provider-coder_${CODER_PROVIDER_VERSION}_linux_amd64.zip
-ARG DOCKER_PROVIDER_VERSION=2.22.0
+ARG DOCKER_PROVIDER_VERSION=3.0.1
 RUN echo "Adding kreuzwerker/docker v${DOCKER_PROVIDER_VERSION}" \
     && mkdir -p kreuzwerker/docker && cd kreuzwerker/docker \
     && curl -LOs https://github.com/kreuzwerker/terraform-provider-docker/releases/download/v${DOCKER_PROVIDER_VERSION}/terraform-provider-docker_${DOCKER_PROVIDER_VERSION}_linux_amd64.zip
@@ -80,6 +80,9 @@ USER coder
 # Use the tfrc file to inform
 ENV TF_CLI_CONFIG_FILE=/opt/terraform/config.tfrc
 ```
+
+> If you are bundling Terraform providers into your Coder image, be sure the
+> provider version matches any templates or [example templates](https://github.com/coder/coder/tree/main/examples/templates) you intend to use.
 
 ```hcl
 # filesystem-mirror-example.tfrc
@@ -133,7 +136,7 @@ services:
 
 ## Run offline via Kubernetes
 
-We publish the Helm chart for download on [GitHub Releases](https://github.com/coder/coder/releases). Follow our [Kubernetes](./kubernetes.md) documentation and modify the Helm values to specify your custom Coder image.
+We publish the Helm chart for download on [GitHub Releases](https://github.com/coder/coder/releases/latest). Follow our [Kubernetes](./kubernetes.md) documentation and modify the Helm values to specify your custom Coder image.
 
 ```yaml
 # values.yaml

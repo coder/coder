@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"testing"
@@ -46,7 +47,7 @@ func TestTemplateVersion(t *testing.T) {
 
 		ctx, _ := testutil.Context(t)
 
-		client1, _ := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+		client1, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
 		_, err := client1.TemplateVersion(ctx, version.ID)
 		require.NoError(t, err)
@@ -108,7 +109,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		file, err := client.Upload(ctx, codersdk.ContentTypeTar, data)
+		file, err := client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader(data))
 		require.NoError(t, err)
 		version, err := client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 			Name:          "bananas",
@@ -126,8 +127,8 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		require.Equal(t, "bananas", version.Name)
 		require.Equal(t, provisionerdserver.ScopeOrganization, version.Job.Tags[provisionerdserver.TagScope])
 
-		require.Len(t, auditor.AuditLogs, 1)
-		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[0].Action)
+		require.Len(t, auditor.AuditLogs, 2)
+		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[1].Action)
 	})
 	t.Run("Example", func(t *testing.T) {
 		t.Parallel()
@@ -645,8 +646,8 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.Len(t, auditor.AuditLogs, 4)
-		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[3].Action)
+		require.Len(t, auditor.AuditLogs, 5)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[4].Action)
 	})
 }
 
@@ -895,7 +896,7 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 	templateVersionIDs := make([]uuid.UUID, total)
 	data, err := echo.Tar(nil)
 	require.NoError(t, err)
-	file, err := client.Upload(egCtx, codersdk.ContentTypeTar, data)
+	file, err := client.Upload(egCtx, codersdk.ContentTypeTar, bytes.NewReader(data))
 	require.NoError(t, err)
 	for i := 0; i < total; i++ {
 		i := i
@@ -992,19 +993,19 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 	}
 }
 
-func TestTemplateVersionByOrganizationAndName(t *testing.T) {
+func TestTemplateVersionByOrganizationTemplateAndName(t *testing.T) {
 	t.Parallel()
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.TemplateVersionByOrganizationAndName(ctx, user.OrganizationID, "nothing")
+		_, err := client.TemplateVersionByOrganizationAndName(ctx, user.OrganizationID, template.Name, "nothing")
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
@@ -1015,12 +1016,12 @@ func TestTemplateVersionByOrganizationAndName(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.TemplateVersionByOrganizationAndName(ctx, user.OrganizationID, version.Name)
+		_, err := client.TemplateVersionByOrganizationAndName(ctx, user.OrganizationID, template.Name, version.Name)
 		require.NoError(t, err)
 	})
 }
@@ -1048,7 +1049,7 @@ func TestPreviousTemplateVersion(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.PreviousTemplateVersion(ctx, user.OrganizationID, templateBVersion1.Name)
+		_, err := client.PreviousTemplateVersion(ctx, user.OrganizationID, templateB.Name, templateBVersion1.Name)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
@@ -1075,7 +1076,7 @@ func TestPreviousTemplateVersion(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		result, err := client.PreviousTemplateVersion(ctx, user.OrganizationID, templateBVersion2.Name)
+		result, err := client.PreviousTemplateVersion(ctx, user.OrganizationID, templateB.Name, templateBVersion2.Name)
 		require.NoError(t, err)
 		require.Equal(t, templateBVersion1.ID, result.ID)
 	})

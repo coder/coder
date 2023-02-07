@@ -24,19 +24,27 @@ type TemplateVersion struct {
 	CreatedBy      User           `json:"created_by"`
 }
 
+type ValidationMonotonicOrder string
+
+const (
+	MonotonicOrderIncreasing ValidationMonotonicOrder = "increasing"
+	MonotonicOrderDecreasing ValidationMonotonicOrder = "decreasing"
+)
+
 // TemplateVersionParameter represents a parameter for a template version.
 type TemplateVersionParameter struct {
-	Name            string                           `json:"name"`
-	Description     string                           `json:"description"`
-	Type            string                           `json:"type"`
-	Mutable         bool                             `json:"mutable"`
-	DefaultValue    string                           `json:"default_value"`
-	Icon            string                           `json:"icon"`
-	Options         []TemplateVersionParameterOption `json:"options"`
-	ValidationError string                           `json:"validation_error"`
-	ValidationRegex string                           `json:"validation_regex"`
-	ValidationMin   int32                            `json:"validation_min"`
-	ValidationMax   int32                            `json:"validation_max"`
+	Name                string                           `json:"name"`
+	Description         string                           `json:"description"`
+	Type                string                           `json:"type" enums:"string,number,bool"`
+	Mutable             bool                             `json:"mutable"`
+	DefaultValue        string                           `json:"default_value"`
+	Icon                string                           `json:"icon"`
+	Options             []TemplateVersionParameterOption `json:"options"`
+	ValidationError     string                           `json:"validation_error,omitempty"`
+	ValidationRegex     string                           `json:"validation_regex,omitempty"`
+	ValidationMin       int32                            `json:"validation_min,omitempty"`
+	ValidationMax       int32                            `json:"validation_max,omitempty"`
+	ValidationMonotonic ValidationMonotonicOrder         `json:"validation_monotonic,omitempty" enums:"increasing,decreasing"`
 }
 
 // TemplateVersionParameterOption represents a selectable option for a template parameter.
@@ -221,8 +229,8 @@ func (c *Client) CancelTemplateVersionDryRun(ctx context.Context, version, job u
 	return nil
 }
 
-func (c *Client) PreviousTemplateVersion(ctx context.Context, organization uuid.UUID, versionName string) (TemplateVersion, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/templateversions/%s/previous", organization, versionName), nil)
+func (c *Client) PreviousTemplateVersion(ctx context.Context, organization uuid.UUID, templateName, versionName string) (TemplateVersion, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/templates/%s/versions/%s/previous", organization, templateName, versionName), nil)
 	if err != nil {
 		return TemplateVersion{}, err
 	}

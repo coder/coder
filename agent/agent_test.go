@@ -305,7 +305,7 @@ func TestAgent_TCPLocalForwarding(t *testing.T) {
 		}
 	}()
 
-	cmd := setupSSHCommand(t, []string{"-L", fmt.Sprintf("%d:127.0.0.1:%d", randomPort, remotePort)}, []string{"sleep", "10"})
+	cmd := setupSSHCommand(t, []string{"-L", fmt.Sprintf("%d:127.0.0.1:%d", randomPort, remotePort)}, []string{"sleep", "5"})
 	err = cmd.Start()
 	require.NoError(t, err)
 
@@ -372,7 +372,7 @@ func TestAgent_TCPRemoteForwarding(t *testing.T) {
 		}
 	}()
 
-	cmd := setupSSHCommand(t, []string{"-R", fmt.Sprintf("127.0.0.1:%d:127.0.0.1:%d", randomPort, localPort)}, []string{"sleep", "10"})
+	cmd := setupSSHCommand(t, []string{"-R", fmt.Sprintf("127.0.0.1:%d:127.0.0.1:%d", randomPort, localPort)}, []string{"sleep", "5"})
 	err = cmd.Start()
 	require.NoError(t, err)
 
@@ -437,7 +437,7 @@ func TestAgent_UnixLocalForwarding(t *testing.T) {
 		}
 	}()
 
-	cmd := setupSSHCommand(t, []string{"-L", fmt.Sprintf("%s:%s", localSocketPath, remoteSocketPath)}, []string{"sleep", "10"})
+	cmd := setupSSHCommand(t, []string{"-L", fmt.Sprintf("%s:%s", localSocketPath, remoteSocketPath)}, []string{"sleep", "5"})
 	err = cmd.Start()
 	require.NoError(t, err)
 
@@ -495,7 +495,7 @@ func TestAgent_UnixRemoteForwarding(t *testing.T) {
 		}
 	}()
 
-	cmd := setupSSHCommand(t, []string{"-R", fmt.Sprintf("%s:%s", remoteSocketPath, localSocketPath)}, []string{"sleep", "10"})
+	cmd := setupSSHCommand(t, []string{"-R", fmt.Sprintf("%s:%s", remoteSocketPath, localSocketPath)}, []string{"sleep", "5"})
 	err = cmd.Start()
 	require.NoError(t, err)
 
@@ -703,7 +703,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 		t.Parallel()
 
 		_, client, _, _ := setupAgent(t, agentsdk.Metadata{
-			StartupScript:        "sleep 10",
+			StartupScript:        "sleep 5",
 			StartupScriptTimeout: time.Nanosecond,
 		}, 0)
 
@@ -784,6 +784,56 @@ func TestAgent_Lifecycle(t *testing.T) {
 			// This is the expected case.
 			require.Equal(t, want, got)
 		}
+	})
+}
+
+func TestAgent_Startup(t *testing.T) {
+	t.Parallel()
+
+	t.Run("EmptyDirectory", func(t *testing.T) {
+		t.Parallel()
+
+		_, client, _, _ := setupAgent(t, agentsdk.Metadata{
+			StartupScript:        "true",
+			StartupScriptTimeout: 30 * time.Second,
+			Directory:            "",
+		}, 0)
+		assert.Eventually(t, func() bool {
+			return client.getStartup().Version != ""
+		}, testutil.WaitShort, testutil.IntervalFast)
+		require.Equal(t, "", client.getStartup().ExpandedDirectory)
+	})
+
+	t.Run("HomeDirectory", func(t *testing.T) {
+		t.Parallel()
+
+		_, client, _, _ := setupAgent(t, agentsdk.Metadata{
+			StartupScript:        "true",
+			StartupScriptTimeout: 30 * time.Second,
+			Directory:            "~",
+		}, 0)
+		assert.Eventually(t, func() bool {
+			return client.getStartup().Version != ""
+		}, testutil.WaitShort, testutil.IntervalFast)
+		homeDir, err := os.UserHomeDir()
+		require.NoError(t, err)
+		require.Equal(t, homeDir, client.getStartup().ExpandedDirectory)
+	})
+
+	t.Run("HomeEnvironmentVariable", func(t *testing.T) {
+		t.Parallel()
+
+		_, client, _, _ := setupAgent(t, agentsdk.Metadata{
+			StartupScript:        "true",
+			StartupScriptTimeout: 30 * time.Second,
+			Directory:            "$HOME",
+		}, 0)
+		assert.Eventually(t, func() bool {
+			return client.getStartup().Version != ""
+		}, testutil.WaitShort, testutil.IntervalFast)
+		homeDir, err := os.UserHomeDir()
+		require.NoError(t, err)
+		require.Equal(t, homeDir, client.getStartup().ExpandedDirectory)
 	})
 }
 
@@ -1178,6 +1228,7 @@ type client struct {
 
 	mu              sync.Mutex // Protects following.
 	lifecycleStates []codersdk.WorkspaceAgentLifecycle
+	startup         agentsdk.PostStartupRequest
 }
 
 func (c *client) Metadata(_ context.Context) (agentsdk.Metadata, error) {
@@ -1250,7 +1301,16 @@ func (*client) PostAppHealth(_ context.Context, _ agentsdk.PostAppHealthsRequest
 	return nil
 }
 
-func (*client) PostVersion(_ context.Context, _ string) error {
+func (c *client) getStartup() agentsdk.PostStartupRequest {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.startup
+}
+
+func (c *client) PostStartup(_ context.Context, startup agentsdk.PostStartupRequest) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.startup = startup
 	return nil
 }
 

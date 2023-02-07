@@ -93,7 +93,7 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
               className={styles.fullWidth}
             >
               <UserAvatar
-                username={auditLog.user?.username ?? ""}
+                username={auditLog.user?.username ?? "?"}
                 avatarURL={auditLog.user?.avatar_url}
               />
 
@@ -117,14 +117,12 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
 
                 <Stack direction="row" alignItems="center">
                   <Stack direction="row" spacing={1} alignItems="baseline">
-                    <span className={styles.auditLogInfo}>
-                      <>{t("auditLog:table.logRow.ip")}</>
-                      <strong>
-                        {auditLog.ip
-                          ? auditLog.ip
-                          : t("auditLog:table.logRow.notAvailable")}
-                      </strong>
-                    </span>
+                    {auditLog.ip && (
+                      <span className={styles.auditLogInfo}>
+                        <>{t("auditLog:table.logRow.ip")}</>
+                        <strong>{auditLog.ip}</strong>
+                      </span>
+                    )}
 
                     <span className={styles.auditLogInfo}>
                       <>{t("auditLog:table.logRow.os")}</>

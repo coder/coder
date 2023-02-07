@@ -46,9 +46,9 @@ func ConvertRegoAst(cfg ConvertConfig, partial *rego.PartialQueries) (sqltypes.B
 		}
 
 		if i != 0 {
-			builder.WriteString("\n")
+			_, _ = builder.WriteString("\n")
 		}
-		builder.WriteString(q.String())
+		_, _ = builder.WriteString(q.String())
 		queries = append(queries, converted)
 	}
 

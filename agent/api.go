@@ -11,7 +11,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func (*agent) statisticsHandler() http.Handler {
+func (*agent) apiHandler() http.Handler {
 	r := chi.NewRouter()
 	r.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{

@@ -1,7 +1,6 @@
 import axios, { AxiosRequestHeaders } from "axios"
 import dayjs from "dayjs"
 import * as Types from "./types"
-import { WorkspaceBuildTransition } from "./types"
 import * as TypesGen from "./typesGenerated"
 
 export const hardCodedCSRFCookie = (): string => {
@@ -232,10 +231,11 @@ export const getTemplateVersions = async (
 
 export const getTemplateVersionByName = async (
   organizationId: string,
+  templateName: string,
   versionName: string,
 ): Promise<TypesGen.TemplateVersion> => {
   const response = await axios.get<TypesGen.TemplateVersion>(
-    `/api/v2/organizations/${organizationId}/templateversions/${versionName}`,
+    `/api/v2/organizations/${organizationId}/templates/${templateName}/versions/${versionName}`,
   )
   return response.data
 }
@@ -246,11 +246,12 @@ export type GetPreviousTemplateVersionByNameResponse =
 
 export const getPreviousTemplateVersionByName = async (
   organizationId: string,
+  templateName: string,
   versionName: string,
 ): Promise<GetPreviousTemplateVersionByNameResponse> => {
   try {
     const response = await axios.get<TypesGen.TemplateVersion>(
-      `/api/v2/organizations/${organizationId}/templateversions/${versionName}/previous`,
+      `/api/v2/organizations/${organizationId}/templates/${templateName}/versions/${versionName}/previous`,
     )
     return response.data
   } catch (error) {
@@ -288,12 +289,32 @@ export const getTemplateVersionParameters = async (
   return response.data
 }
 
+export const getTemplateVersionRichParameters = async (
+  versionId: string,
+): Promise<TypesGen.TemplateVersionParameter[]> => {
+  const response = await axios.get(
+    `/api/v2/templateversions/${versionId}/rich-parameters`,
+  )
+  return response.data
+}
+
 export const createTemplate = async (
   organizationId: string,
   data: TypesGen.CreateTemplateRequest,
 ): Promise<TypesGen.Template> => {
   const response = await axios.post(
     `/api/v2/organizations/${organizationId}/templates`,
+    data,
+  )
+  return response.data
+}
+
+export const updateActiveTemplateVersion = async (
+  templateId: string,
+  data: TypesGen.UpdateActiveTemplateVersion,
+): Promise<Types.Message> => {
+  const response = await axios.patch<Types.Message>(
+    `/api/v2/templates/${templateId}/versions`,
     data,
   )
   return response.data
@@ -390,32 +411,44 @@ export const getWorkspaceByOwnerAndName = async (
   return response.data
 }
 
-const postWorkspaceBuild =
-  (transition: WorkspaceBuildTransition) =>
-  async (
-    workspaceId: string,
-    template_version_id?: string,
-  ): Promise<TypesGen.WorkspaceBuild> => {
-    const payload = {
-      transition,
-      template_version_id,
-    }
-    const response = await axios.post(
-      `/api/v2/workspaces/${workspaceId}/builds`,
-      payload,
-    )
-    return response.data
-  }
+export const postWorkspaceBuild = async (
+  workspaceId: string,
+  data: TypesGen.CreateWorkspaceBuildRequest,
+): Promise<TypesGen.WorkspaceBuild> => {
+  const response = await axios.post(
+    `/api/v2/workspaces/${workspaceId}/builds`,
+    data,
+  )
+  return response.data
+}
 
-export const startWorkspace = postWorkspaceBuild("start")
-export const stopWorkspace = postWorkspaceBuild("stop")
-export const deleteWorkspace = postWorkspaceBuild("delete")
+export const startWorkspace = (
+  workspaceId: string,
+  templateVersionID: string,
+) =>
+  postWorkspaceBuild(workspaceId, {
+    transition: "start",
+    template_version_id: templateVersionID,
+  })
+export const stopWorkspace = (workspaceId: string) =>
+  postWorkspaceBuild(workspaceId, { transition: "stop" })
+export const deleteWorkspace = (workspaceId: string) =>
+  postWorkspaceBuild(workspaceId, { transition: "delete" })
 
 export const cancelWorkspaceBuild = async (
   workspaceBuildId: TypesGen.WorkspaceBuild["id"],
 ): Promise<Types.Message> => {
   const response = await axios.patch(
     `/api/v2/workspacebuilds/${workspaceBuildId}/cancel`,
+  )
+  return response.data
+}
+
+export const cancelTemplateVersionBuild = async (
+  templateVersionId: TypesGen.TemplateVersion["id"],
+): Promise<Types.Message> => {
+  const response = await axios.patch(
+    `/api/v2/templateversions/${templateVersionId}/cancel`,
   )
   return response.data
 }
@@ -789,4 +822,13 @@ export const updateWorkspaceVersion = async (
 ): Promise<TypesGen.WorkspaceBuild> => {
   const template = await getTemplate(workspace.template_id)
   return startWorkspace(workspace.id, template.active_version_id)
+}
+
+export const getWorkspaceBuildParameters = async (
+  workspaceBuildId: TypesGen.WorkspaceBuild["id"],
+): Promise<TypesGen.WorkspaceBuildParameter[]> => {
+  const response = await axios.get<TypesGen.WorkspaceBuildParameter[]>(
+    `/api/v2/workspacebuilds/${workspaceBuildId}/parameters`,
+  )
+  return response.data
 }

@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"testing"
@@ -23,7 +24,7 @@ func TestPostFiles(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.Upload(ctx, "bad", []byte{'a'})
+		_, err := client.Upload(ctx, "bad", bytes.NewReader([]byte{'a'}))
 		require.Error(t, err)
 	})
 
@@ -35,7 +36,7 @@ func TestPostFiles(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.Upload(ctx, codersdk.ContentTypeTar, make([]byte, 1024))
+		_, err := client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader(make([]byte, 1024)))
 		require.NoError(t, err)
 	})
 
@@ -48,9 +49,9 @@ func TestPostFiles(t *testing.T) {
 		defer cancel()
 
 		data := make([]byte, 1024)
-		_, err := client.Upload(ctx, codersdk.ContentTypeTar, data)
+		_, err := client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader(data))
 		require.NoError(t, err)
-		_, err = client.Upload(ctx, codersdk.ContentTypeTar, data)
+		_, err = client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader(data))
 		require.NoError(t, err)
 	})
 }
@@ -79,7 +80,7 @@ func TestDownload(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resp, err := client.Upload(ctx, codersdk.ContentTypeTar, make([]byte, 1024))
+		resp, err := client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader(make([]byte, 1024)))
 		require.NoError(t, err)
 		data, contentType, err := client.Download(ctx, resp.ID)
 		require.NoError(t, err)

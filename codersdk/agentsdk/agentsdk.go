@@ -469,13 +469,13 @@ func (c *Client) PostLifecycle(ctx context.Context, req PostLifecycleRequest) er
 	return nil
 }
 
-type PostVersionRequest struct {
-	Version string `json:"version"`
+type PostStartupRequest struct {
+	Version           string `json:"version"`
+	ExpandedDirectory string `json:"expanded_directory"`
 }
 
-func (c *Client) PostVersion(ctx context.Context, version string) error {
-	versionReq := PostVersionRequest{Version: version}
-	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/version", versionReq)
+func (c *Client) PostStartup(ctx context.Context, req PostStartupRequest) error {
+	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/startup", req)
 	if err != nil {
 		return err
 	}

@@ -1,16 +1,16 @@
 package coderdtest
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
-
-	"github.com/coder/coder/coderd/database/databasefake"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -18,6 +18,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/rbac/regosql"
 	"github.com/coder/coder/codersdk"
@@ -30,7 +31,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 	// in memory fake. This is because the in memory fake does not use SQL, and
 	// still uses rego. So this boolean indicates how to assert the expected
 	// behavior.
-	_, isMemoryDB := a.api.Database.(databasefake.FakeDatabase)
+	_, isMemoryDB := a.api.Database.(dbfake.FakeDatabase)
 
 	// Some quick reused objects
 	workspaceRBACObj := rbac.ResourceWorkspace.WithID(a.Workspace.ID).InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
@@ -72,7 +73,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"GET:/api/v2/workspaceagents/me/gitsshkey":              {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/metadata":               {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/coordinate":             {NoAuthorize: true},
-		"POST:/api/v2/workspaceagents/me/version":               {NoAuthorize: true},
+		"POST:/api/v2/workspaceagents/me/startup":               {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/me/app-health":            {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/me/report-stats":          {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/me/report-lifecycle":      {NoAuthorize: true},
@@ -239,6 +240,14 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertAction: rbac.ActionRead,
 			AssertObject: templateObj,
 		},
+		"GET:/api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname}": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: templateObj,
+		},
+		"GET:/api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname}/previous": {
+			AssertAction: rbac.ActionRead,
+			AssertObject: templateObj,
+		},
 		"POST:/api/v2/organizations/{organization}/members/{user}/workspaces": {
 			AssertAction: rbac.ActionCreate,
 			// No ID when creating
@@ -252,12 +261,10 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"GET:/api/v2/applications/auth-redirect": {AssertAction: rbac.ActionCreate, AssertObject: rbac.ResourceAPIKey},
 
 		// These endpoints need payloads to get to the auth part. Payloads will be required
-		"PUT:/api/v2/users/{user}/roles":                                                           {StatusCode: http.StatusBadRequest, NoAuthorize: true},
-		"PUT:/api/v2/organizations/{organization}/members/{user}/roles":                            {NoAuthorize: true},
-		"POST:/api/v2/workspaces/{workspace}/builds":                                               {StatusCode: http.StatusBadRequest, NoAuthorize: true},
-		"POST:/api/v2/organizations/{organization}/templateversions":                               {StatusCode: http.StatusBadRequest, NoAuthorize: true},
-		"GET:/api/v2/organizations/{organization}/templateversions/{templateversionname}":          {StatusCode: http.StatusBadRequest, NoAuthorize: true},
-		"GET:/api/v2/organizations/{organization}/templateversions/{templateversionname}/previous": {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+		"PUT:/api/v2/users/{user}/roles":                                {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+		"PUT:/api/v2/organizations/{organization}/members/{user}/roles": {NoAuthorize: true},
+		"POST:/api/v2/workspaces/{workspace}/builds":                    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
+		"POST:/api/v2/organizations/{organization}/templateversions":    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 
 		// Endpoints that use the SQLQuery filter.
 		"GET:/api/v2/workspaces/": {
@@ -378,7 +385,7 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 	template := CreateTemplate(t, client, admin.OrganizationID, version.ID)
 	workspace := CreateWorkspace(t, client, admin.OrganizationID, template.ID)
 	AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-	file, err := client.Upload(ctx, codersdk.ContentTypeTar, make([]byte, 1024))
+	file, err := client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader(make([]byte, 1024)))
 	require.NoError(t, err, "upload file")
 	workspace, err = client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err, "workspace resources")
@@ -437,7 +444,9 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 
 func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck, skipRoutes map[string]string) {
 	// Always fail auth from this point forward
-	a.authorizer.AlwaysReturn = rbac.ForbiddenWithInternal(xerrors.New("fake implementation"), nil, nil)
+	a.authorizer.Wrapped = &FakeAuthorizer{
+		AlwaysReturn: rbac.ForbiddenWithInternal(xerrors.New("fake implementation"), nil, nil),
+	}
 
 	routeMissing := make(map[string]bool)
 	for k, v := range assertRoute {
@@ -477,7 +486,7 @@ func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck
 				return nil
 			}
 			a.t.Run(name, func(t *testing.T) {
-				a.authorizer.reset()
+				a.authorizer.Reset()
 				routeKey := strings.TrimRight(name, "/")
 
 				routeAssertions, ok := assertRoute[routeKey]
@@ -508,18 +517,19 @@ func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck
 							assert.Equal(t, http.StatusForbidden, resp.StatusCode, "expect unauthorized")
 						}
 					}
-					if a.authorizer.Called != nil {
+					if a.authorizer.lastCall() != nil {
+						last := a.authorizer.lastCall()
 						if routeAssertions.AssertAction != "" {
-							assert.Equal(t, routeAssertions.AssertAction, a.authorizer.Called.Action, "resource action")
+							assert.Equal(t, routeAssertions.AssertAction, last.Action, "resource action")
 						}
 						if routeAssertions.AssertObject.Type != "" {
-							assert.Equal(t, routeAssertions.AssertObject.Type, a.authorizer.Called.Object.Type, "resource type")
+							assert.Equal(t, routeAssertions.AssertObject.Type, last.Object.Type, "resource type")
 						}
 						if routeAssertions.AssertObject.Owner != "" {
-							assert.Equal(t, routeAssertions.AssertObject.Owner, a.authorizer.Called.Object.Owner, "resource owner")
+							assert.Equal(t, routeAssertions.AssertObject.Owner, last.Object.Owner, "resource owner")
 						}
 						if routeAssertions.AssertObject.OrgID != "" {
-							assert.Equal(t, routeAssertions.AssertObject.OrgID, a.authorizer.Called.Object.OrgID, "resource org")
+							assert.Equal(t, routeAssertions.AssertObject.OrgID, last.Object.OrgID, "resource org")
 						}
 					}
 				} else {
@@ -533,52 +543,195 @@ func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck
 }
 
 type authCall struct {
-	Subject rbac.Subject
-	Action  rbac.Action
-	Object  rbac.Object
-}
+	Actor  rbac.Subject
+	Action rbac.Action
+	Object rbac.Object
 
-type RecordingAuthorizer struct {
-	Called       *authCall
-	AlwaysReturn error
+	asserted bool
 }
 
 var _ rbac.Authorizer = (*RecordingAuthorizer)(nil)
 
-// AuthorizeSQL does not record the call. This matches the postgres behavior
-// of not calling Authorize()
-func (r *RecordingAuthorizer) AuthorizeSQL(_ context.Context, _ rbac.Subject, _ rbac.Action, _ rbac.Object) error {
-	return r.AlwaysReturn
+// RecordingAuthorizer wraps any rbac.Authorizer and records all Authorize()
+// calls made. This is useful for testing as these calls can later be asserted.
+type RecordingAuthorizer struct {
+	sync.RWMutex
+	Called  []authCall
+	Wrapped rbac.Authorizer
 }
 
-func (r *RecordingAuthorizer) Authorize(_ context.Context, subject rbac.Subject, action rbac.Action, object rbac.Object) error {
-	r.Called = &authCall{
-		Subject: subject,
-		Action:  action,
-		Object:  object,
+type ActionObjectPair struct {
+	Action rbac.Action
+	Object rbac.Object
+}
+
+// Pair is on the RecordingAuthorizer to be easy to find and keep the pkg
+// interface smaller.
+func (*RecordingAuthorizer) Pair(action rbac.Action, object rbac.Objecter) ActionObjectPair {
+	return ActionObjectPair{
+		Action: action,
+		Object: object.RBACObject(),
 	}
-	return r.AlwaysReturn
 }
 
-func (r *RecordingAuthorizer) Prepare(_ context.Context, subject rbac.Subject, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
-	return &fakePreparedAuthorizer{
-		Original:           r,
-		Subject:            subject,
-		Action:             action,
-		HardCodedSQLString: "true",
+// AllAsserted returns an error if all calls to Authorize() have not been
+// asserted and checked. This is useful for testing to ensure that all
+// Authorize() calls are checked in the unit test.
+func (r *RecordingAuthorizer) AllAsserted() error {
+	r.RLock()
+	defer r.RUnlock()
+	missed := []authCall{}
+	for _, c := range r.Called {
+		if !c.asserted {
+			missed = append(missed, c)
+		}
+	}
+
+	if len(missed) > 0 {
+		return xerrors.Errorf("missed calls: %+v", missed)
+	}
+	return nil
+}
+
+// AssertActor asserts in order. If the order of authz calls does not match,
+// this will fail.
+func (r *RecordingAuthorizer) AssertActor(t *testing.T, actor rbac.Subject, did ...ActionObjectPair) {
+	r.RLock()
+	defer r.RUnlock()
+	ptr := 0
+	for i, call := range r.Called {
+		if ptr == len(did) {
+			// Finished all assertions
+			return
+		}
+		if call.Actor.ID == actor.ID {
+			action, object := did[ptr].Action, did[ptr].Object
+			assert.Equalf(t, action, call.Action, "assert action %d", ptr)
+			assert.Equalf(t, object, call.Object, "assert object %d", ptr)
+			r.Called[i].asserted = true
+			ptr++
+		}
+	}
+
+	assert.Equalf(t, len(did), ptr, "assert actor: didn't find all actions, %d missing actions", len(did)-ptr)
+}
+
+// recordAuthorize is the internal method that records the Authorize() call.
+func (r *RecordingAuthorizer) recordAuthorize(subject rbac.Subject, action rbac.Action, object rbac.Object) {
+	r.Lock()
+	defer r.Unlock()
+	r.Called = append(r.Called, authCall{
+		Actor:  subject,
+		Action: action,
+		Object: object,
+	})
+}
+
+func (r *RecordingAuthorizer) Authorize(ctx context.Context, subject rbac.Subject, action rbac.Action, object rbac.Object) error {
+	r.recordAuthorize(subject, action, object)
+	if r.Wrapped == nil {
+		panic("Developer error: RecordingAuthorizer.Wrapped is nil")
+	}
+	return r.Wrapped.Authorize(ctx, subject, action, object)
+}
+
+func (r *RecordingAuthorizer) Prepare(ctx context.Context, subject rbac.Subject, action rbac.Action, objectType string) (rbac.PreparedAuthorized, error) {
+	r.RLock()
+	defer r.RUnlock()
+	if r.Wrapped == nil {
+		panic("Developer error: RecordingAuthorizer.Wrapped is nil")
+	}
+
+	prep, err := r.Wrapped.Prepare(ctx, subject, action, objectType)
+	if err != nil {
+		return nil, err
+	}
+	return &PreparedRecorder{
+		rec:     r,
+		prepped: prep,
+		subject: subject,
+		action:  action,
 	}, nil
 }
 
-func (r *RecordingAuthorizer) reset() {
+// Reset clears the recorded Authorize() calls.
+func (r *RecordingAuthorizer) Reset() {
+	r.Lock()
+	defer r.Unlock()
 	r.Called = nil
 }
 
+// lastCall is implemented to support legacy tests.
+// Deprecated
+func (r *RecordingAuthorizer) lastCall() *authCall {
+	r.RLock()
+	defer r.RUnlock()
+	if len(r.Called) == 0 {
+		return nil
+	}
+	return &r.Called[len(r.Called)-1]
+}
+
+// PreparedRecorder is the prepared version of the RecordingAuthorizer.
+// It records the Authorize() calls to the original recorder. If the caller
+// uses CompileToSQL, all recording stops. This is to support parity between
+// memory and SQL backed dbs.
+type PreparedRecorder struct {
+	rec     *RecordingAuthorizer
+	prepped rbac.PreparedAuthorized
+	subject rbac.Subject
+	action  rbac.Action
+
+	rw       sync.Mutex
+	usingSQL bool
+}
+
+func (s *PreparedRecorder) Authorize(ctx context.Context, object rbac.Object) error {
+	s.rw.Lock()
+	defer s.rw.Unlock()
+
+	if !s.usingSQL {
+		s.rec.recordAuthorize(s.subject, s.action, object)
+	}
+	return s.prepped.Authorize(ctx, object)
+}
+func (s *PreparedRecorder) CompileToSQL(ctx context.Context, cfg regosql.ConvertConfig) (string, error) {
+	s.rw.Lock()
+	defer s.rw.Unlock()
+
+	s.usingSQL = true
+	return s.prepped.CompileToSQL(ctx, cfg)
+}
+
+// FakeAuthorizer is an Authorizer that always returns the same error.
+type FakeAuthorizer struct {
+	// AlwaysReturn is the error that will be returned by Authorize.
+	AlwaysReturn error
+}
+
+var _ rbac.Authorizer = (*FakeAuthorizer)(nil)
+
+func (d *FakeAuthorizer) Authorize(_ context.Context, _ rbac.Subject, _ rbac.Action, _ rbac.Object) error {
+	return d.AlwaysReturn
+}
+
+func (d *FakeAuthorizer) Prepare(_ context.Context, subject rbac.Subject, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
+	return &fakePreparedAuthorizer{
+		Original: d,
+		Subject:  subject,
+		Action:   action,
+	}, nil
+}
+
+var _ rbac.PreparedAuthorized = (*fakePreparedAuthorizer)(nil)
+
+// fakePreparedAuthorizer is the prepared version of a FakeAuthorizer. It will
+// return the same error as the original FakeAuthorizer.
 type fakePreparedAuthorizer struct {
-	Original            *RecordingAuthorizer
-	Subject             rbac.Subject
-	Action              rbac.Action
-	HardCodedSQLString  string
-	HardCodedRegoString string
+	sync.RWMutex
+	Original *FakeAuthorizer
+	Subject  rbac.Subject
+	Action   rbac.Action
 }
 
 func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Object) error {
@@ -587,17 +740,6 @@ func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Obje
 
 // CompileToSQL returns a compiled version of the authorizer that will work for
 // in memory databases. This fake version will not work against a SQL database.
-func (fakePreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
-	return "", xerrors.New("not implemented")
-}
-
-func (f *fakePreparedAuthorizer) Eval(object rbac.Object) bool {
-	return f.Original.AuthorizeSQL(context.Background(), f.Subject, f.Action, object) == nil
-}
-
-func (f fakePreparedAuthorizer) RegoString() string {
-	if f.HardCodedRegoString != "" {
-		return f.HardCodedRegoString
-	}
-	panic("not implemented")
+func (*fakePreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
+	return "not a valid sql string", nil
 }

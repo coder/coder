@@ -29,7 +29,7 @@ concurrency:
 
 jobs:
   lint:
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -37,7 +37,7 @@ jobs:
       # Install Go!
       - uses: actions/setup-go@v3
         with:
-          go-version: "~1.19"
+          go-version: "~1.20"
 
       # Check for any typos!
       - name: Check for typos
@@ -55,10 +55,10 @@ jobs:
       - name: Lint Go
         uses: golangci/golangci-lint-action@v3.3.1
         with:
-          version: v1.48.0
+          version: v1.51.0
 
       - name: Lint shell scripts
-        uses: ludeeus/action-shellcheck@1.1.0
+        uses: ludeeus/action-shellcheck@2.0.0
         env:
           SHELLCHECK_OPTS: --external-sources
         with:
@@ -121,7 +121,8 @@ jobs:
               - 'site/**'
             k8s:
               - 'helm/**'
-              - Dockerfile
+              - scripts/Dockerfile
+              - scripts/Dockerfile.base
               - scripts/helm.sh
       - id: debug
         run: |
@@ -129,7 +130,7 @@ jobs:
 
   gen:
     timeout-minutes: 8
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
     needs: changes
     if: needs.changes.outputs.docs-only == 'false'
     steps:
@@ -151,7 +152,7 @@ jobs:
 
       - uses: actions/setup-go@v3
         with:
-          go-version: "~1.19"
+          go-version: "~1.20"
 
       - name: Echo Go Cache Paths
         id: go-cache-paths
@@ -237,7 +238,7 @@ jobs:
         run: ./scripts/check_unstaged.sh
 
   test-go:
-    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' ||  matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'windows-latest-8-cores'|| matrix.os }}
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' ||  matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'windows-latest-8-cores'|| matrix.os }}
     timeout-minutes: 20
     strategy:
       matrix:
@@ -250,7 +251,7 @@ jobs:
 
       - uses: actions/setup-go@v3
         with:
-          go-version: "~1.19"
+          go-version: "~1.20"
 
       # Sadly the new "set output" syntax (of writing env vars to
       # $GITHUB_OUTPUT) does not work on both powershell and bash so we use the
@@ -322,7 +323,7 @@ jobs:
           flags: unittest-go-${{ matrix.os }}
 
   test-go-psql:
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
     # This timeout must be greater than the timeout set by `go test` in
     # `make test-postgres` to ensure we receive a trace of running
     # goroutines. Setting this to the timeout +5m should work quite well
@@ -333,7 +334,7 @@ jobs:
 
       - uses: actions/setup-go@v3
         with:
-          go-version: "~1.19"
+          go-version: "~1.20"
 
       - name: Echo Go Cache Paths
         id: go-cache-paths
@@ -391,7 +392,7 @@ jobs:
 
   deploy:
     name: "deploy"
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
     timeout-minutes: 30
     needs: changes
     if: |
@@ -416,7 +417,7 @@ jobs:
 
       - uses: actions/setup-go@v3
         with:
-          go-version: "~1.19"
+          go-version: "~1.20"
 
       - name: Echo Go Cache Paths
         id: go-cache-paths
@@ -487,7 +488,7 @@ jobs:
           retention-days: 7
 
   test-js:
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v3
@@ -529,7 +530,7 @@ jobs:
     needs:
       - changes
     if: needs.changes.outputs.docs-only == 'false'
-    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v3
@@ -545,7 +546,7 @@ jobs:
 
       - uses: actions/setup-go@v3
         with:
-          go-version: "~1.19"
+          go-version: "~1.20"
 
       - uses: hashicorp/setup-terraform@v2
         with:

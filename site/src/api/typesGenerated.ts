@@ -291,6 +291,7 @@ export interface DangerousConfig {
 export interface DeploymentConfig {
   readonly access_url: DeploymentConfigField<string>
   readonly wildcard_access_url: DeploymentConfigField<string>
+  readonly redirect_to_access_url: DeploymentConfigField<boolean>
   readonly http_address: DeploymentConfigField<string>
   readonly autobuild_poll_interval: DeploymentConfigField<number>
   readonly derp: DERP
@@ -324,6 +325,9 @@ export interface DeploymentConfig {
   readonly logging: LoggingConfig
   readonly dangerous: DangerousConfig
   readonly disable_path_apps: DeploymentConfigField<boolean>
+  readonly max_session_expiry: DeploymentConfigField<number>
+  readonly disable_session_expiry_refresh: DeploymentConfigField<boolean>
+  readonly disable_password_auth: DeploymentConfigField<boolean>
   readonly address: DeploymentConfigField<string>
   readonly experimental: DeploymentConfigField<boolean>
 }
@@ -684,7 +688,6 @@ export interface Template {
   readonly display_name: string
   readonly provisioner: ProvisionerType
   readonly active_version_id: string
-  readonly workspace_owner_count: number
   readonly active_user_count: number
   readonly build_time_stats: TemplateBuildTimeStats
   readonly description: string
@@ -755,10 +758,11 @@ export interface TemplateVersionParameter {
   readonly default_value: string
   readonly icon: string
   readonly options: TemplateVersionParameterOption[]
-  readonly validation_error: string
-  readonly validation_regex: string
-  readonly validation_min: number
-  readonly validation_max: number
+  readonly validation_error?: string
+  readonly validation_regex?: string
+  readonly validation_min?: number
+  readonly validation_max?: number
+  readonly validation_monotonic?: ValidationMonotonicOrder
 }
 
 // From codersdk/templateversions.go
@@ -919,6 +923,7 @@ export interface WorkspaceAgent {
   readonly operating_system: string
   readonly startup_script?: string
   readonly directory?: string
+  readonly expanded_directory?: string
   readonly version: string
   readonly apps: WorkspaceApp[]
   readonly latency?: Record<string, DERPRegion>
@@ -1044,10 +1049,19 @@ export type APIKeyScope = "all" | "application_connect"
 export const APIKeyScopes: APIKeyScope[] = ["all", "application_connect"]
 
 // From codersdk/audit.go
-export type AuditAction = "create" | "delete" | "start" | "stop" | "write"
+export type AuditAction =
+  | "create"
+  | "delete"
+  | "login"
+  | "logout"
+  | "start"
+  | "stop"
+  | "write"
 export const AuditActions: AuditAction[] = [
   "create",
   "delete",
+  "login",
+  "logout",
   "start",
   "stop",
   "write",
@@ -1070,8 +1084,8 @@ export const Entitlements: Entitlement[] = [
 ]
 
 // From codersdk/deployment.go
-export type Experiment = "authz_querier"
-export const Experiments: Experiment[] = ["authz_querier"]
+export type Experiment = "authz_querier" | "template_editor"
+export const Experiments: Experiment[] = ["authz_querier", "template_editor"]
 
 // From codersdk/deployment.go
 export type FeatureName =
@@ -1196,6 +1210,13 @@ export const TemplateRoles: TemplateRole[] = ["", "admin", "use"]
 // From codersdk/users.go
 export type UserStatus = "active" | "suspended"
 export const UserStatuses: UserStatus[] = ["active", "suspended"]
+
+// From codersdk/templateversions.go
+export type ValidationMonotonicOrder = "decreasing" | "increasing"
+export const ValidationMonotonicOrders: ValidationMonotonicOrder[] = [
+  "decreasing",
+  "increasing",
+]
 
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentLifecycle =

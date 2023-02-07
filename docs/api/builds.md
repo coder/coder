@@ -82,6 +82,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
             "property1": "string",
             "property2": "string"
           },
+          "expanded_directory": "string",
           "first_connected_at": "2019-08-24T14:15:22Z",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "instance_id": "string",
@@ -227,6 +228,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
             "property1": "string",
             "property2": "string"
           },
+          "expanded_directory": "string",
           "first_connected_at": "2019-08-24T14:15:22Z",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "instance_id": "string",
@@ -515,6 +517,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
           "property1": "string",
           "property2": "string"
         },
+        "expanded_directory": "string",
         "first_connected_at": "2019-08-24T14:15:22Z",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "instance_id": "string",
@@ -598,6 +601,7 @@ Status Code **200**
 | `»» disconnected_at`                | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» environment_variables`          | object                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» [any property]`                | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» expanded_directory`             | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» first_connected_at`             | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» id`                             | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
 | `»» instance_id`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
@@ -737,6 +741,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
             "property1": "string",
             "property2": "string"
           },
+          "expanded_directory": "string",
           "first_connected_at": "2019-08-24T14:15:22Z",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "instance_id": "string",
@@ -887,6 +892,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
               "property1": "string",
               "property2": "string"
             },
+            "expanded_directory": "string",
             "first_connected_at": "2019-08-24T14:15:22Z",
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "instance_id": "string",
@@ -1002,6 +1008,7 @@ Status Code **200**
 | `»»» disconnected_at`                | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» environment_variables`          | object                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» [any property]`                | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» expanded_directory`             | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» first_connected_at`             | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» id`                             | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
 | `»»» instance_id`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
@@ -1201,6 +1208,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
             "property1": "string",
             "property2": "string"
           },
+          "expanded_directory": "string",
           "first_connected_at": "2019-08-24T14:15:22Z",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "instance_id": "string",

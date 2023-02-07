@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -34,14 +35,13 @@ func (pf *templateUploadFlags) stdin() bool {
 
 func (pf *templateUploadFlags) upload(cmd *cobra.Command, client *codersdk.Client) (*codersdk.UploadResponse, error) {
 	var (
-		content []byte
-		err     error
+		content io.Reader
 	)
 	if pf.stdin() {
-		content, err = io.ReadAll(cmd.InOrStdin())
+		content = cmd.InOrStdin()
 	} else {
 		prettyDir := prettyDirectoryPath(pf.directory)
-		_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+		_, err := cliui.Prompt(cmd, cliui.PromptOptions{
 			Text:      fmt.Sprintf("Upload %q?", prettyDir),
 			IsConfirm: true,
 			Default:   cliui.ConfirmYes,
@@ -50,10 +50,13 @@ func (pf *templateUploadFlags) upload(cmd *cobra.Command, client *codersdk.Clien
 			return nil, err
 		}
 
-		content, err = provisionersdk.Tar(pf.directory, provisionersdk.TemplateArchiveLimit)
-	}
-	if err != nil {
-		return nil, xerrors.Errorf("read tar: %w", err)
+		pipeReader, pipeWriter := io.Pipe()
+		go func() {
+			err := provisionersdk.Tar(pipeWriter, pf.directory, provisionersdk.TemplateArchiveLimit)
+			_ = pipeWriter.CloseWithError(err)
+		}()
+		defer pipeReader.Close()
+		content = pipeReader
 	}
 
 	spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
@@ -62,7 +65,7 @@ func (pf *templateUploadFlags) upload(cmd *cobra.Command, client *codersdk.Clien
 	spin.Start()
 	defer spin.Stop()
 
-	resp, err := client.Upload(cmd.Context(), codersdk.ContentTypeTar, content)
+	resp, err := client.Upload(cmd.Context(), codersdk.ContentTypeTar, bufio.NewReader(content))
 	if err != nil {
 		return nil, xerrors.Errorf("upload: %w", err)
 	}

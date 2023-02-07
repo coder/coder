@@ -297,6 +297,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 // @Param request body codersdk.CreateWorkspaceBuildRequest true "Create workspace build request"
 // @Success 200 {object} codersdk.WorkspaceBuild
 // @Router /workspaces/{workspace}/builds [post]
+// nolint:gocyclo
 func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -466,15 +467,6 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = codersdk.ValidateWorkspaceBuildParameters(templateVersionParameters, createBuild.RichParameterValues)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Error validating workspace build parameters.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
 	lastBuildParameters, err := api.Database.GetWorkspaceBuildParameters(ctx, priorHistory.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -484,6 +476,15 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	apiLastBuildParameters := convertWorkspaceBuildParameters(lastBuildParameters)
+
+	err = codersdk.ValidateWorkspaceBuildParameters(templateVersionParameters, createBuild.RichParameterValues, apiLastBuildParameters)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Error validating workspace build parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
 	var parameters []codersdk.WorkspaceBuildParameter
 	for _, templateVersionParameter := range templateVersionParameters {
@@ -505,23 +506,34 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	legacyParameters, err := api.Database.ParameterValues(ctx, database.ParameterValuesParams{
+		Scopes:   []database.ParameterScope{database.ParameterScopeWorkspace},
+		ScopeIds: []uuid.UUID{workspace.ID},
+	})
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error fetching previous legacy parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if len(legacyParameters) > 0 && len(parameters) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Rich parameters can't be used together with legacy parameters.",
+		})
+		return
+	}
+
 	var workspaceBuild database.WorkspaceBuild
 	var provisionerJob database.ProvisionerJob
 	// This must happen in a transaction to ensure history can be inserted, and
 	// the prior history can update it's "after" column to point at the new.
 	err = api.Database.InTx(func(db database.Store) error {
-		existing, err := db.ParameterValues(ctx, database.ParameterValuesParams{
-			Scopes:   []database.ParameterScope{database.ParameterScopeWorkspace},
-			ScopeIds: []uuid.UUID{workspace.ID},
-		})
-		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-			return xerrors.Errorf("Fetch previous parameters: %w", err)
-		}
-
 		// Write/Update any new params
 		now := database.Now()
 		for _, param := range createBuild.ParameterValues {
-			for _, exists := range existing {
+			for _, exists := range legacyParameters {
 				// If the param exists, delete the old param before inserting the new one
 				if exists.Name == param.Name {
 					err = db.DeleteParameterValueByID(ctx, exists.ID)

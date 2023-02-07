@@ -115,6 +115,7 @@ type Options struct {
 	DERPServer         *derp.Server
 	DERPMap            *tailcfg.DERPMap
 	SwaggerEndpoint    bool
+	SetUserGroups      func(ctx context.Context, tx database.Store, userID uuid.UUID, groupNames []string) error
 
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
 	// Setting a rate limit <0 will disable the rate limiter across the entire
@@ -202,6 +203,9 @@ func New(options *Options) *API {
 	if options.Auditor == nil {
 		options.Auditor = audit.NewNop()
 	}
+	if options.SetUserGroups == nil {
+		options.SetUserGroups = func(context.Context, database.Store, uuid.UUID, []string) error { return nil }
+	}
 
 	siteCacheDir := options.CacheDir
 	if siteCacheDir != "" {
@@ -248,17 +252,19 @@ func New(options *Options) *API {
 	}
 
 	apiKeyMiddleware := httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
-		DB:              options.Database,
-		OAuth2Configs:   oauthConfigs,
-		RedirectToLogin: false,
-		Optional:        false,
+		DB:                          options.Database,
+		OAuth2Configs:               oauthConfigs,
+		RedirectToLogin:             false,
+		DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value,
+		Optional:                    false,
 	})
 	// Same as above but it redirects to the login page.
 	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
-		DB:              options.Database,
-		OAuth2Configs:   oauthConfigs,
-		RedirectToLogin: true,
-		Optional:        false,
+		DB:                          options.Database,
+		OAuth2Configs:               oauthConfigs,
+		RedirectToLogin:             true,
+		DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value,
+		Optional:                    false,
 	})
 
 	// API rate limit middleware. The counter is local and not shared between
@@ -283,8 +289,9 @@ func New(options *Options) *API {
 				OAuth2Configs: oauthConfigs,
 				// The code handles the the case where the user is not
 				// authenticated automatically.
-				RedirectToLogin: false,
-				Optional:        true,
+				RedirectToLogin:             false,
+				DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value,
+				Optional:                    true,
 			}),
 			httpmw.ExtractUserParam(api.Database, false),
 			httpmw.ExtractWorkspaceAndAgentParam(api.Database),
@@ -310,8 +317,9 @@ func New(options *Options) *API {
 				// Optional is true to allow for public apps. If an
 				// authorization check fails and the user is not authenticated,
 				// they will be redirected to the login page by the app handler.
-				RedirectToLogin: false,
-				Optional:        true,
+				RedirectToLogin:             false,
+				DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value,
+				Optional:                    true,
 			}),
 			// Redirect to the login page if the user tries to open an app with
 			// "me" as the username and they are not logged in.
@@ -394,16 +402,18 @@ func New(options *Options) *API {
 					httpmw.ExtractOrganizationParam(options.Database),
 				)
 				r.Get("/", api.organization)
-				r.Route("/templateversions", func(r chi.Router) {
-					r.Post("/", api.postTemplateVersionsByOrganization)
-					r.Get("/{templateversionname}", api.templateVersionByOrganizationAndName)
-					r.Get("/{templateversionname}/previous", api.previousTemplateVersionByOrganizationAndName)
-				})
+				r.Post("/templateversions", api.postTemplateVersionsByOrganization)
 				r.Route("/templates", func(r chi.Router) {
 					r.Post("/", api.postTemplateByOrganization)
 					r.Get("/", api.templatesByOrganization)
-					r.Get("/{templatename}", api.templateByOrganizationAndName)
 					r.Get("/examples", api.templateExamples)
+					r.Route("/{templatename}", func(r chi.Router) {
+						r.Get("/", api.templateByOrganizationAndName)
+						r.Route("/versions/{templateversionname}", func(r chi.Router) {
+							r.Get("/", api.templateVersionByOrganizationTemplateAndName)
+							r.Get("/previous", api.previousTemplateVersionByOrganizationTemplateAndName)
+						})
+					})
 				})
 				r.Route("/members", func(r chi.Router) {
 					r.Get("/roles", api.assignableOrgRoles)
@@ -543,7 +553,7 @@ func New(options *Options) *API {
 			r.Route("/me", func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
 				r.Get("/metadata", api.workspaceAgentMetadata)
-				r.Post("/version", api.postWorkspaceAgentVersion)
+				r.Post("/startup", api.postWorkspaceAgentStartup)
 				r.Post("/app-health", api.postWorkspaceAppHealth)
 				r.Get("/gitauth", api.workspaceAgentsGitAuth)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
@@ -669,7 +679,8 @@ type API struct {
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
 	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
 	QuotaCommitter                    atomic.Pointer[proto.QuotaCommitter]
-	HTTPAuth                          *HTTPAuthorizer
+
+	HTTPAuth *HTTPAuthorizer
 
 	// APIHandler serves "/api/v2"
 	APIHandler chi.Router

@@ -529,6 +529,36 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				"--yes",
 			},
 		},
+		{
+			name:    "Start/End out of order",
+			matches: []match{
+				// {match: "Continue?", write: "yes"},
+			},
+			writeConfig: writeConfig{
+				ssh: strings.Join([]string{
+					"# Content before coder block",
+					headerEnd,
+					headerStart,
+					"# Content after coder block",
+				}, "\n"),
+			},
+			wantErr: true,
+		},
+		{
+			name:    "Multiple sections",
+			matches: []match{
+				// {match: "Continue?", write: "yes"},
+			},
+			writeConfig: writeConfig{
+				ssh: strings.Join([]string{
+					headerStart,
+					headerEnd,
+					headerStart,
+					headerEnd,
+				}, "\n"),
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		tt := tt

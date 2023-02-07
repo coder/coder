@@ -1,9 +1,10 @@
 import {
   getPreviousTemplateVersionByName,
   GetPreviousTemplateVersionByNameResponse,
+  getTemplateByName,
   getTemplateVersionByName,
 } from "api/api"
-import { TemplateVersion } from "api/typesGenerated"
+import { Template, TemplateVersion } from "api/typesGenerated"
 import {
   getTemplateVersionFiles,
   TemplateVersionFiles,
@@ -12,7 +13,9 @@ import { assign, createMachine } from "xstate"
 
 export interface TemplateVersionMachineContext {
   orgId: string
+  templateName: string
   versionName: string
+  template?: Template
   currentVersion?: TemplateVersion
   currentFiles?: TemplateVersionFiles
   error?: Error | unknown
@@ -34,6 +37,11 @@ export const templateVersionMachine = createMachine(
             previousVersion: GetPreviousTemplateVersionByNameResponse
           }
         }
+        loadTemplate: {
+          data: {
+            template: Template
+          }
+        }
         loadFiles: {
           data: {
             currentFiles: TemplateVersionFiles
@@ -43,19 +51,52 @@ export const templateVersionMachine = createMachine(
       },
     },
     tsTypes: {} as import("./templateVersionXService.typegen").Typegen0,
-    initial: "loadingVersions",
+    initial: "initialInfo",
     states: {
-      loadingVersions: {
-        invoke: {
-          src: "loadVersions",
-          onDone: {
-            target: "loadingFiles",
-            actions: ["assignVersions"],
+      initialInfo: {
+        type: "parallel",
+        states: {
+          versions: {
+            initial: "loadingVersions",
+            states: {
+              loadingVersions: {
+                invoke: {
+                  src: "loadVersions",
+                  onDone: [
+                    {
+                      actions: "assignVersions",
+                      target: "success",
+                    },
+                  ],
+                },
+              },
+              success: {
+                type: "final",
+              },
+            },
           },
-          onError: {
-            target: "done.error",
-            actions: ["assignError"],
+          template: {
+            initial: "loadingTemplate",
+            states: {
+              loadingTemplate: {
+                invoke: {
+                  src: "loadTemplate",
+                  onDone: [
+                    {
+                      actions: "assignTemplate",
+                      target: "success",
+                    },
+                  ],
+                },
+              },
+              success: {
+                type: "final",
+              },
+            },
           },
+        },
+        onDone: {
+          target: "loadingFiles",
         },
       },
       loadingFiles: {
@@ -84,6 +125,9 @@ export const templateVersionMachine = createMachine(
       assignError: assign({
         error: (_, { data }) => data,
       }),
+      assignTemplate: assign({
+        template: (_, { data }) => data.template,
+      }),
       assignVersions: assign({
         currentVersion: (_, { data }) => data.currentVersion,
         previousVersion: (_, { data }) => data.previousVersion,
@@ -94,15 +138,22 @@ export const templateVersionMachine = createMachine(
       }),
     },
     services: {
-      loadVersions: async ({ orgId, versionName }) => {
+      loadVersions: async ({ orgId, templateName, versionName }) => {
         const [currentVersion, previousVersion] = await Promise.all([
-          getTemplateVersionByName(orgId, versionName),
-          getPreviousTemplateVersionByName(orgId, versionName),
+          getTemplateVersionByName(orgId, templateName, versionName),
+          getPreviousTemplateVersionByName(orgId, templateName, versionName),
         ])
 
         return {
           currentVersion,
           previousVersion,
+        }
+      },
+      loadTemplate: async ({ orgId, templateName }) => {
+        const template = await getTemplateByName(orgId, templateName)
+
+        return {
+          template,
         }
       },
       loadFiles: async ({ currentVersion, previousVersion }) => {

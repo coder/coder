@@ -4,11 +4,11 @@ FROM rust:slim AS rust-utils
 ENV CARGO_INSTALL_ROOT=/tmp/
 RUN cargo install exa bat ripgrep typos-cli watchexec-cli
 
-FROM ubuntu AS go
+FROM ubuntu:jammy AS go
 
 RUN apt-get update && apt-get install --yes curl gcc
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.19
+ARG GO_VERSION=1.20
 RUN mkdir --parents /usr/local/go
 
 # Boring Go is needed to build FIPS-compliant binaries.
@@ -80,8 +80,7 @@ RUN apk add curl unzip
 RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v21.5/protoc-21.5-linux-x86_64.zip
 RUN unzip protoc.zip
 
-# Ubuntu 20.04 LTS (Focal Fossa)
-FROM ubuntu:focal
+FROM ubuntu:jammy
 
 SHELL ["/bin/bash", "-c"]
 
@@ -165,6 +164,12 @@ RUN apt-get update --quiet && apt-get install --yes \
 	# Configure FIPS-compliant policies
 	update-crypto-policies --set FIPS
 
+# Install the docker buildx component.
+RUN DOCKER_BUILDX_VERSION=$(curl -s "https://api.github.com/repos/docker/buildx/releases/latest" | grep '"tag_name":' |  sed -E 's/.*"(v[^"]+)".*/\1/') && \
+	mkdir -p /usr/local/lib/docker/cli-plugins && \
+	curl -Lo /usr/local/lib/docker/cli-plugins/docker-buildx "https://github.com/docker/buildx/releases/download/${DOCKER_BUILDX_VERSION}/buildx-${DOCKER_BUILDX_VERSION}.linux-amd64" && \
+	chmod a+x /usr/local/lib/docker/cli-plugins/docker-buildx
+
 # See https://github.com/cli/cli/issues/6175#issuecomment-1235984381 for proof
 # the apt repository is unreliable
 RUN curl -L https://github.com/cli/cli/releases/download/v2.14.7/gh_2.14.7_linux_amd64.deb -o gh.deb && \
@@ -210,7 +215,7 @@ RUN systemctl enable \
 ARG CLOUD_SQL_PROXY_VERSION=1.26.0 \
 	DIVE_VERSION=0.10.0 \
 	DOCKER_GCR_VERSION=2.1.0 \
-	GOLANGCI_LINT_VERSION=1.48.0 \
+	GOLANGCI_LINT_VERSION=1.51.0 \
 	GRYPE_VERSION=0.24.0 \
 	HELM_VERSION=3.8.0 \
 	KUBE_LINTER_VERSION=0.2.5 \

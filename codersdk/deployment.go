@@ -108,6 +108,7 @@ func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
 type DeploymentConfig struct {
 	AccessURL                       *DeploymentConfigField[string]          `json:"access_url" typescript:",notnull"`
 	WildcardAccessURL               *DeploymentConfigField[string]          `json:"wildcard_access_url" typescript:",notnull"`
+	RedirectToAccessURL             *DeploymentConfigField[bool]            `json:"redirect_to_access_url" typescript:",notnull"`
 	HTTPAddress                     *DeploymentConfigField[string]          `json:"http_address" typescript:",notnull"`
 	AutobuildPollInterval           *DeploymentConfigField[time.Duration]   `json:"autobuild_poll_interval" typescript:",notnull"`
 	DERP                            *DERP                                   `json:"derp" typescript:",notnull"`
@@ -141,6 +142,9 @@ type DeploymentConfig struct {
 	Logging                         *LoggingConfig                          `json:"logging" typescript:",notnull"`
 	Dangerous                       *DangerousConfig                        `json:"dangerous" typescript:",notnull"`
 	DisablePathApps                 *DeploymentConfigField[bool]            `json:"disable_path_apps" typescript:",notnull"`
+	SessionDuration                 *DeploymentConfigField[time.Duration]   `json:"max_session_expiry" typescript:",notnull"`
+	DisableSessionExpiryRefresh     *DeploymentConfigField[bool]            `json:"disable_session_expiry_refresh" typescript:",notnull"`
+	DisablePasswordAuth             *DeploymentConfigField[bool]            `json:"disable_password_auth" typescript:",notnull"`
 
 	// DEPRECATED: Use HTTPAddress or TLS.Address instead.
 	Address *DeploymentConfigField[string] `json:"address" typescript:",notnull"`
@@ -417,6 +421,10 @@ const (
 	// interface for all RBAC operations. NOT READY FOR PRODUCTION USE.
 	ExperimentAuthzQuerier Experiment = "authz_querier"
 
+	// ExperimentTemplateEditor is an internal experiment that enables the template editor
+	// for all users.
+	ExperimentTemplateEditor Experiment = "template_editor"
+
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
 )
@@ -426,7 +434,7 @@ var (
 	// users to opt-in to via --experimental='*'.
 	// Experiments that are not ready for consumption by all users should
 	// not be included here and will be essentially hidden.
-	ExperimentsAll = Experiments{}
+	ExperimentsAll = Experiments{ExperimentTemplateEditor}
 )
 
 // Experiments is a list of experiments that are enabled for the deployment.

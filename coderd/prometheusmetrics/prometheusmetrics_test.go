@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/prometheusmetrics"
 	"github.com/coder/coder/codersdk"
@@ -29,13 +29,13 @@ func TestActiveUsers(t *testing.T) {
 	}{{
 		Name: "None",
 		Database: func(t *testing.T) database.Store {
-			return databasefake.New()
+			return dbfake.New()
 		},
 		Count: 0,
 	}, {
 		Name: "One",
 		Database: func(t *testing.T) database.Store {
-			db := databasefake.New()
+			db := dbfake.New()
 			dbgen.APIKey(t, db, database.APIKey{
 				LastUsed: database.Now(),
 			})
@@ -45,7 +45,7 @@ func TestActiveUsers(t *testing.T) {
 	}, {
 		Name: "OneWithExpired",
 		Database: func(t *testing.T) database.Store {
-			db := databasefake.New()
+			db := dbfake.New()
 
 			dbgen.APIKey(t, db, database.APIKey{
 				LastUsed: database.Now(),
@@ -62,7 +62,7 @@ func TestActiveUsers(t *testing.T) {
 	}, {
 		Name: "Multiple",
 		Database: func(t *testing.T) database.Store {
-			db := databasefake.New()
+			db := dbfake.New()
 			dbgen.APIKey(t, db, database.APIKey{
 				LastUsed: database.Now(),
 			})
@@ -181,13 +181,13 @@ func TestWorkspaces(t *testing.T) {
 	}{{
 		Name: "None",
 		Database: func() database.Store {
-			return databasefake.New()
+			return dbfake.New()
 		},
 		Total: 0,
 	}, {
 		Name: "Multiple",
 		Database: func() database.Store {
-			db := databasefake.New()
+			db := dbfake.New()
 			insertCanceled(db)
 			insertFailed(db)
 			insertFailed(db)

@@ -4,7 +4,7 @@ import { Stack } from "components/Stack/Stack"
 import { makeStyles } from "@material-ui/core/styles"
 
 export interface AvatarDataProps {
-  title: string
+  title: string | JSX.Element
   subtitle?: string
   src?: string
   avatar?: React.ReactNode

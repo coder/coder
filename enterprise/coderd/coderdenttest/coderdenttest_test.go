@@ -27,7 +27,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 		Options: &coderdtest.Options{
 			// Required for any subdomain-based proxy tests to pass.
 			AppHostname:              "*.test.coder.com",
-			Authorizer:               &coderdtest.RecordingAuthorizer{},
+			Authorizer:               &coderdtest.RecordingAuthorizer{Wrapped: &coderdtest.FakeAuthorizer{}},
 			IncludeProvisionerDaemon: true,
 		},
 	})

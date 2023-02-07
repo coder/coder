@@ -36,7 +36,7 @@ interface FormHelpers {
 export const getFormHelpers =
   <T>(form: FormikContextType<T>, error?: Error | unknown) =>
   (
-    name: keyof T,
+    name: string,
     HelperText: ReactNode = "",
     backendErrorName?: string,
   ): FormHelpers => {

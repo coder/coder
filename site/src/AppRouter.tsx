@@ -7,6 +7,7 @@ import GroupsPage from "pages/GroupsPage/GroupsPage"
 import LoginPage from "pages/LoginPage/LoginPage"
 import { SetupPage } from "pages/SetupPage/SetupPage"
 import { TemplateSettingsPage } from "pages/TemplateSettingsPage/TemplateSettingsPage"
+import { WorkspaceBuildParametersPage } from "pages/WorkspaceBuildParametersPage/WorkspaceBuildParametersPage"
 import TemplatesPage from "pages/TemplatesPage/TemplatesPage"
 import UsersPage from "pages/UsersPage/UsersPage"
 import WorkspacesPage from "pages/WorkspacesPage/WorkspacesPage"
@@ -107,6 +108,12 @@ const GitAuthPage = lazy(() => import("./pages/GitAuthPage/GitAuthPage"))
 const TemplateVersionPage = lazy(
   () => import("./pages/TemplateVersionPage/TemplateVersionPage"),
 )
+const TemplateVersionEditorPage = lazy(
+  () =>
+    import(
+      "./pages/TemplateVersionPage/TemplateVersionEditorPage/TemplateVersionEditorPage"
+    ),
+)
 const StarterTemplatesPage = lazy(
   () => import("./pages/StarterTemplatesPage/StarterTemplatesPage"),
 )
@@ -154,7 +161,13 @@ export const AppRouter: FC = () => {
                   <Route path="workspace" element={<CreateWorkspacePage />} />
                   <Route path="settings" element={<TemplateSettingsPage />} />
                   <Route path="versions">
-                    <Route path=":version" element={<TemplateVersionPage />} />
+                    <Route path=":version">
+                      <Route index element={<TemplateVersionPage />} />
+                      <Route
+                        path="edit"
+                        element={<TemplateVersionEditorPage />}
+                      />
+                    </Route>
                   </Route>
                 </Route>
               </Route>
@@ -212,6 +225,10 @@ export const AppRouter: FC = () => {
                   <Route
                     path="change-version"
                     element={<WorkspaceChangeVersionPage />}
+                  />
+                  <Route
+                    path="build-parameters"
+                    element={<WorkspaceBuildParametersPage />}
                   />
                 </Route>
               </Route>

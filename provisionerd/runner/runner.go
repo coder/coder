@@ -728,6 +728,11 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(ctx context.Contex
 				return nil, nil, xerrors.New(msgType.Complete.Error)
 			}
 
+			if len(msgType.Complete.Parameters) > 0 && len(values) > 0 {
+				r.logger.Info(context.Background(), "template uses rich parameters which can't be used together with legacy parameters")
+				return nil, nil, xerrors.Errorf("invalid use of rich parameters")
+			}
+
 			r.logger.Info(context.Background(), "parse dry-run provision successful",
 				slog.F("resource_count", len(msgType.Complete.Resources)),
 				slog.F("resources", msgType.Complete.Resources),
