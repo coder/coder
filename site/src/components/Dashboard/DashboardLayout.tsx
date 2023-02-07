@@ -71,5 +71,6 @@ const useStyles = makeStyles((theme) => ({
   },
   siteContent: {
     flex: 1,
+    paddingBottom: theme.spacing(6), // Add bottom space since we don't use a footer
   },
 }))
