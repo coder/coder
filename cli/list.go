@@ -131,10 +131,8 @@ func list() *cobra.Command {
 		},
 	}
 
-	availColumns, err := cliui.TableHeaders(displayWorkspaces)
-	if err != nil {
-		panic(err)
-	}
+	// TODO: fix this
+	availColumns := []string{"name"}
 	columnString := strings.Join(availColumns[:], ", ")
 
 	cmd.Flags().BoolVarP(&all, "all", "a", false,
