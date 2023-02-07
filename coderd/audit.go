@@ -253,13 +253,13 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 		StatusCode:       dblog.StatusCode,
 		AdditionalFields: dblog.AdditionalFields,
 		User:             user,
-		Description:      auditLogDescription(dblog, additionalFields),
+		Description:      auditLogDescription(dblog),
 		ResourceLink:     resourceLink,
 		IsDeleted:        isDeleted,
 	}
 }
 
-func auditLogDescription(alog database.GetAuditLogsOffsetRow, additionalFields audit.AdditionalFields) string {
+func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 	str := fmt.Sprintf("{user} %s",
 		codersdk.AuditAction(alog.Action).Friendly(),
 	)
