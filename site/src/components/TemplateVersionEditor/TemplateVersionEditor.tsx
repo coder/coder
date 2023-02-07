@@ -293,7 +293,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
         </div>
 
         <div className={styles.editorPane}>
-          <div className={styles.editor}>
+          <div className={styles.editor} data-chromatic="ignore">
             {activeFile ? (
               <MonacoEditor
                 value={activeFile?.content}

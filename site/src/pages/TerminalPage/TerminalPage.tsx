@@ -1,7 +1,8 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { useMachine } from "@xstate/react"
+import { portForwardURL } from "components/PortForwardButton/PortForwardButton"
 import { Stack } from "components/Stack/Stack"
-import { FC, useEffect, useRef, useState } from "react"
+import { FC, useCallback, useEffect, useRef, useState } from "react"
 import { Helmet } from "react-helmet-async"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { colors } from "theme/colors"
@@ -95,8 +96,54 @@ const TerminalPage: FC<
     workspaceAgentError,
     workspaceAgent,
     websocketError,
+    applicationsHost,
   } = terminalState.context
   const reloading = useReloading(isDisconnected)
+
+  // handleWebLink handles opening of URLs in the terminal!
+  const handleWebLink = useCallback(
+    (uri: string) => {
+      if (!workspaceAgent || !workspace || !username || !applicationsHost) {
+        return
+      }
+
+      const open = (uri: string) => {
+        // Copied from: https://github.com/xtermjs/xterm.js/blob/master/addons/xterm-addon-web-links/src/WebLinksAddon.ts#L23
+        const newWindow = window.open()
+        if (newWindow) {
+          try {
+            newWindow.opener = null
+          } catch {
+            // no-op, Electron can throw
+          }
+          newWindow.location.href = uri
+        } else {
+          console.warn("Opening link blocked as opener could not be cleared")
+        }
+      }
+
+      try {
+        const url = new URL(uri)
+        const localHosts = ["0.0.0.0", "127.0.0.1", "localhost"]
+        if (!localHosts.includes(url.hostname)) {
+          open(uri)
+          return
+        }
+        open(
+          portForwardURL(
+            applicationsHost,
+            parseInt(url.port),
+            workspaceAgent.name,
+            workspace,
+            username,
+          ),
+        )
+      } catch (ex) {
+        open(uri)
+      }
+    },
+    [workspaceAgent, workspace, username, applicationsHost],
+  )
 
   // Create the terminal!
   useEffect(() => {
@@ -116,7 +163,11 @@ const TerminalPage: FC<
     const fitAddon = new FitAddon()
     setFitAddon(fitAddon)
     terminal.loadAddon(fitAddon)
-    terminal.loadAddon(new WebLinksAddon())
+    terminal.loadAddon(
+      new WebLinksAddon((_, uri) => {
+        handleWebLink(uri)
+      }),
+    )
     terminal.onData((data) => {
       sendEvent({
         type: "WRITE",
@@ -145,7 +196,7 @@ const TerminalPage: FC<
       window.removeEventListener("resize", listener)
       terminal.dispose()
     }
-  }, [renderer, sendEvent, xtermRef])
+  }, [renderer, sendEvent, xtermRef, handleWebLink])
 
   // Triggers the initial terminal connection using
   // the reconnection token and workspace name found
