@@ -5,6 +5,7 @@ import * as Types from "../api/types"
 import * as TypesGen from "../api/typesGenerated"
 import range from "lodash/range"
 import { Permissions } from "xServices/auth/authXService"
+import { TemplateVersionFiles } from "util/templateVersion"
 
 export const MockTemplateDAUResponse: TypesGen.TemplateDAUsResponse = {
   entries: [
@@ -268,6 +269,38 @@ export const MockTemplate: TypesGen.Template = {
   created_by_name: "test_creator",
   icon: "/icon/code.svg",
   allow_user_cancel_workspace_jobs: true,
+}
+
+export const MockTemplateVersionFiles: TemplateVersionFiles = {
+  "README.md": "# Example\n\nThis is an example template.",
+  "main.tf": `// Provides info about the workspace.
+data "coder_workspace" "me" {}
+
+// Provides the startup script used to download
+// the agent and communicate with Coder.
+resource "coder_agent" "dev" {
+os = "linux"
+arch = "amd64"
+}
+
+resource "kubernetes_pod" "main" {
+// Ensures that the Pod dies when the workspace shuts down!
+count = data.coder_workspace.me.start_count
+metadata {
+  name      = "dev-\${data.coder_workspace.me.id}"
+}
+spec {
+  container {
+    image   = "ubuntu"
+    command = ["sh", "-c", coder_agent.main.init_script]
+    env {
+      name  = "CODER_AGENT_TOKEN"
+      value = coder_agent.main.token
+    }
+  }
+}
+}
+`,
 }
 
 export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
@@ -639,10 +672,6 @@ export const MockTemplateVersionParameter1: TypesGen.TemplateVersionParameter =
     mutable: true,
     icon: "/icon/folder.svg",
     options: [],
-    validation_error: "",
-    validation_regex: "",
-    validation_min: 0,
-    validation_max: 0,
   }
 
 export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
@@ -654,10 +683,9 @@ export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
     mutable: true,
     icon: "/icon/folder.svg",
     options: [],
-    validation_error: "",
-    validation_regex: "",
     validation_min: 1,
     validation_max: 3,
+    validation_monotonic: "increasing",
   }
 
 export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
@@ -671,8 +699,6 @@ export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
     options: [],
     validation_error: "No way!",
     validation_regex: "^[a-z]{3}$",
-    validation_min: 0,
-    validation_max: 0,
   }
 
 export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
@@ -684,10 +710,20 @@ export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
     mutable: false,
     icon: "/icon/database.svg",
     options: [],
-    validation_error: "",
-    validation_regex: "",
-    validation_min: 0,
-    validation_max: 0,
+  }
+
+export const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter =
+  {
+    name: "fifth_parameter",
+    type: "number",
+    description: "This is fifth parameter",
+    default_value: "5",
+    mutable: true,
+    icon: "/icon/folder.svg",
+    options: [],
+    validation_min: 1,
+    validation_max: 10,
+    validation_monotonic: "decreasing",
   }
 
 // requests the MockWorkspace
@@ -1278,6 +1314,11 @@ export const MockWorkspaceBuildParameter1: TypesGen.WorkspaceBuildParameter = {
 export const MockWorkspaceBuildParameter2: TypesGen.WorkspaceBuildParameter = {
   name: MockTemplateVersionParameter2.name,
   value: "3",
+}
+
+export const MockWorkspaceBuildParameter5: TypesGen.WorkspaceBuildParameter = {
+  name: MockTemplateVersionParameter5.name,
+  value: "5",
 }
 
 export const mockParameterSchema = (

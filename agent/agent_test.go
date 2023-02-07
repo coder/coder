@@ -787,6 +787,56 @@ func TestAgent_Lifecycle(t *testing.T) {
 	})
 }
 
+func TestAgent_Startup(t *testing.T) {
+	t.Parallel()
+
+	t.Run("EmptyDirectory", func(t *testing.T) {
+		t.Parallel()
+
+		_, client, _, _ := setupAgent(t, agentsdk.Metadata{
+			StartupScript:        "true",
+			StartupScriptTimeout: 30 * time.Second,
+			Directory:            "",
+		}, 0)
+		assert.Eventually(t, func() bool {
+			return client.getStartup().Version != ""
+		}, testutil.WaitShort, testutil.IntervalFast)
+		require.Equal(t, "", client.getStartup().ExpandedDirectory)
+	})
+
+	t.Run("HomeDirectory", func(t *testing.T) {
+		t.Parallel()
+
+		_, client, _, _ := setupAgent(t, agentsdk.Metadata{
+			StartupScript:        "true",
+			StartupScriptTimeout: 30 * time.Second,
+			Directory:            "~",
+		}, 0)
+		assert.Eventually(t, func() bool {
+			return client.getStartup().Version != ""
+		}, testutil.WaitShort, testutil.IntervalFast)
+		homeDir, err := os.UserHomeDir()
+		require.NoError(t, err)
+		require.Equal(t, homeDir, client.getStartup().ExpandedDirectory)
+	})
+
+	t.Run("HomeEnvironmentVariable", func(t *testing.T) {
+		t.Parallel()
+
+		_, client, _, _ := setupAgent(t, agentsdk.Metadata{
+			StartupScript:        "true",
+			StartupScriptTimeout: 30 * time.Second,
+			Directory:            "$HOME",
+		}, 0)
+		assert.Eventually(t, func() bool {
+			return client.getStartup().Version != ""
+		}, testutil.WaitShort, testutil.IntervalFast)
+		homeDir, err := os.UserHomeDir()
+		require.NoError(t, err)
+		require.Equal(t, homeDir, client.getStartup().ExpandedDirectory)
+	})
+}
+
 func TestAgent_ReconnectingPTY(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {
@@ -1178,6 +1228,7 @@ type client struct {
 
 	mu              sync.Mutex // Protects following.
 	lifecycleStates []codersdk.WorkspaceAgentLifecycle
+	startup         agentsdk.PostStartupRequest
 }
 
 func (c *client) Metadata(_ context.Context) (agentsdk.Metadata, error) {
@@ -1250,7 +1301,16 @@ func (*client) PostAppHealth(_ context.Context, _ agentsdk.PostAppHealthsRequest
 	return nil
 }
 
-func (*client) PostVersion(_ context.Context, _ string) error {
+func (c *client) getStartup() agentsdk.PostStartupRequest {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.startup
+}
+
+func (c *client) PostStartup(_ context.Context, startup agentsdk.PostStartupRequest) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.startup = startup
 	return nil
 }
 

@@ -5,5 +5,7 @@
   "validationRequiredParameter": "Parameter is required.",
   "validationNumberNotInRange": "Value must be between {{min}} and {{max}}.",
   "validationPatternNotMatched": "{{error}} (value does not match the pattern {{pattern}}).",
-  "updateWorkspace": "Update workspace"
+  "updateWorkspace": "Update workspace",
+  "validationNumberNotIncreasing": "The value must be equal or greater than the previous one {{last}}.",
+  "validationNumberNotDecreasing": "The value must be equal or lower than the previous one {{last}}."
 }

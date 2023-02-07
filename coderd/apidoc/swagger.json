@@ -2320,7 +2320,7 @@
             "schema": {
               "type": "array",
               "items": {
-                "$ref": "#/definitions/parameter.ComputedValue"
+                "$ref": "#/definitions/codersdk.TemplateVersionParameter"
               }
             }
           }
@@ -3606,7 +3606,7 @@
         }
       }
     },
-    "/workspaceagents/me/version": {
+    "/workspaceagents/me/startup": {
       "post": {
         "security": [
           {
@@ -3616,16 +3616,16 @@
         "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Agents"],
-        "summary": "Submit workspace agent version",
-        "operationId": "submit-workspace-agent-version",
+        "summary": "Submit workspace agent startup",
+        "operationId": "submit-workspace-agent-startup",
         "parameters": [
           {
-            "description": "Version request",
+            "description": "Startup request",
             "name": "request",
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/agentsdk.PostVersionRequest"
+              "$ref": "#/definitions/agentsdk.PostStartupRequest"
             }
           }
         ],
@@ -4502,9 +4502,12 @@
         }
       }
     },
-    "agentsdk.PostVersionRequest": {
+    "agentsdk.PostStartupRequest": {
       "type": "object",
       "properties": {
+        "expanded_directory": {
+          "type": "string"
+        },
         "version": {
           "type": "string"
         }
@@ -5704,8 +5707,8 @@
     },
     "codersdk.Experiment": {
       "type": "string",
-      "enum": ["authz_querier"],
-      "x-enum-varnames": ["ExperimentAuthzQuerier"]
+      "enum": ["authz_querier", "template_editor"],
+      "x-enum-varnames": ["ExperimentAuthzQuerier", "ExperimentTemplateEditor"]
     },
     "codersdk.Feature": {
       "type": "object",
@@ -6781,6 +6784,73 @@
         }
       }
     },
+    "codersdk.TemplateVersionParameter": {
+      "type": "object",
+      "properties": {
+        "default_value": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "mutable": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/codersdk.TemplateVersionParameterOption"
+          }
+        },
+        "type": {
+          "type": "string",
+          "enum": ["string", "number", "bool"]
+        },
+        "validation_error": {
+          "type": "string"
+        },
+        "validation_max": {
+          "type": "integer"
+        },
+        "validation_min": {
+          "type": "integer"
+        },
+        "validation_monotonic": {
+          "enum": ["increasing", "decreasing"],
+          "allOf": [
+            {
+              "$ref": "#/definitions/codersdk.ValidationMonotonicOrder"
+            }
+          ]
+        },
+        "validation_regex": {
+          "type": "string"
+        }
+      }
+    },
+    "codersdk.TemplateVersionParameterOption": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      }
+    },
     "codersdk.TraceConfig": {
       "type": "object",
       "properties": {
@@ -6984,6 +7054,14 @@
         }
       }
     },
+    "codersdk.ValidationMonotonicOrder": {
+      "type": "string",
+      "enum": ["increasing", "decreasing"],
+      "x-enum-varnames": [
+        "MonotonicOrderIncreasing",
+        "MonotonicOrderDecreasing"
+      ]
+    },
     "codersdk.Workspace": {
       "type": "object",
       "properties": {
@@ -7074,6 +7152,9 @@
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "expanded_directory": {
+          "type": "string"
         },
         "first_connected_at": {
           "type": "string",

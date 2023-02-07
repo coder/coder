@@ -76,13 +76,13 @@ WHERE
 	END
 	-- Filter by date_from
 	AND CASE
-		WHEN @date_from :: timestamp with time zone != '0001-01-01 00:00:00' THEN
+		WHEN @date_from :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
 			"time" >= @date_from
 		ELSE true
 	END
 	-- Filter by date_to
 	AND CASE
-		WHEN @date_to :: timestamp with time zone != '0001-01-01 00:00:00' THEN
+		WHEN @date_to :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
 			"time" <= @date_to
 		ELSE true
 	END
