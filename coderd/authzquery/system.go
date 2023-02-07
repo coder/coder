@@ -9,10 +9,10 @@ import (
 	"github.com/coder/coder/coderd/database"
 )
 
-// TODO: @emyrk should we name system functions differently to indicate a user
-// cannot call them? Maybe we should have a separate interface for system functions?
-// So you'd do `authzQ.System().GetDERPMeshKey(ctx)` or something like that?
-// Cian: yes. Let's do it.
+// TODO: All these system functions should have rbac objects created to allow
+// only system roles to call them. No user roles should ever have the permission
+// to these objects. Might need a negative permission on the `Owner` role to
+// prevent owners.
 
 func (q *AuthzQuerier) UpdateUserLinkedID(ctx context.Context, arg database.UpdateUserLinkedIDParams) (database.UserLink, error) {
 	return q.db.UpdateUserLinkedID(ctx, arg)
