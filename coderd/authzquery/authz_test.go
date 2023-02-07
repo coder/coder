@@ -38,7 +38,7 @@ func TestNotAuthorizedError(t *testing.T) {
 
 	t.Run("MissingActor", func(t *testing.T) {
 		t.Parallel()
-		q := authzquery.NewAuthzQuerier(dbfake.New(), &coderdtest.RecordingAuthorizer{
+		q := authzquery.New(dbfake.New(), &coderdtest.RecordingAuthorizer{
 			Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
 		}, slog.Make())
 		// This should fail because the actor is missing.
@@ -52,7 +52,7 @@ func TestNotAuthorizedError(t *testing.T) {
 // as only the first db call will be made. But it is better than nothing.
 func TestAuthzQueryRecursive(t *testing.T) {
 	t.Parallel()
-	q := authzquery.NewAuthzQuerier(dbfake.New(), &coderdtest.RecordingAuthorizer{
+	q := authzquery.New(dbfake.New(), &coderdtest.RecordingAuthorizer{
 		Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
 	}, slog.Make())
 	actor := rbac.Subject{
@@ -84,7 +84,7 @@ func TestAuthzQueryRecursive(t *testing.T) {
 func TestPing(t *testing.T) {
 	t.Parallel()
 
-	q := authzquery.NewAuthzQuerier(dbfake.New(), &coderdtest.RecordingAuthorizer{}, slog.Make())
+	q := authzquery.New(dbfake.New(), &coderdtest.RecordingAuthorizer{}, slog.Make())
 	_, err := q.Ping(context.Background())
 	require.NoError(t, err, "must not error")
 }
@@ -94,7 +94,7 @@ func TestInTX(t *testing.T) {
 	t.Parallel()
 
 	db := dbfake.New()
-	q := authzquery.NewAuthzQuerier(db, &coderdtest.RecordingAuthorizer{
+	q := authzquery.New(db, &coderdtest.RecordingAuthorizer{
 		Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: xerrors.New("custom error")},
 	}, slog.Make())
 	actor := rbac.Subject{

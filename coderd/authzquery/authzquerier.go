@@ -26,7 +26,7 @@ type AuthzQuerier struct {
 	log  slog.Logger
 }
 
-func NewAuthzQuerier(db database.Store, authorizer rbac.Authorizer, logger slog.Logger) *AuthzQuerier {
+func New(db database.Store, authorizer rbac.Authorizer, logger slog.Logger) *AuthzQuerier {
 	return &AuthzQuerier{
 		db:   db,
 		auth: authorizer,
@@ -47,7 +47,7 @@ func (q *AuthzQuerier) InTx(function func(querier database.Store) error, txOpts 
 	// TODO: @emyrk verify this works.
 	return q.db.InTx(func(tx database.Store) error {
 		// Wrap the transaction store in an AuthzQuerier.
-		wrapped := NewAuthzQuerier(tx, q.auth, q.log)
+		wrapped := New(tx, q.auth, q.log)
 		return function(wrapped)
 	}, txOpts)
 }

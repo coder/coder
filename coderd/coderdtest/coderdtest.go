@@ -187,7 +187,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 				Wrapped: rbac.NewAuthorizer(prometheus.NewRegistry()),
 			}
 		}
-		options.Database = authzquery.NewAuthzQuerier(options.Database, options.Authorizer, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
+		options.Database = authzquery.New(options.Database, options.Authorizer, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
 	}
 	if options.DeploymentConfig == nil {
 		options.DeploymentConfig = DeploymentConfig(t)

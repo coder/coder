@@ -102,7 +102,7 @@ func (s *MethodTestSuite) RunMethodTest(testCaseF func(t *testing.T, db database
 	rec := &coderdtest.RecordingAuthorizer{
 		Wrapped: fakeAuthorizer,
 	}
-	az := authzquery.NewAuthzQuerier(db, rec, slog.Make())
+	az := authzquery.New(db, rec, slog.Make())
 	actor := rbac.Subject{
 		ID:     uuid.NewString(),
 		Roles:  rbac.RoleNames{rbac.RoleOwner()},

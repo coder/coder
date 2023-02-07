@@ -207,7 +207,7 @@ func New(options *Options) *API {
 	// TODO: remove this once we promote authz_querier out of experiments.
 	if experiments.Enabled(codersdk.ExperimentAuthzQuerier) {
 		if _, ok := (options.Database).(*authzquery.AuthzQuerier); !ok {
-			options.Database = authzquery.NewAuthzQuerier(options.Database, options.Authorizer, options.Logger.Named("authz_querier"))
+			options.Database = authzquery.New(options.Database, options.Authorizer, options.Logger.Named("authz_querier"))
 		}
 	}
 	if options.SetUserGroups == nil {
