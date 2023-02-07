@@ -50,24 +50,6 @@ func LogNotAuthorizedError(ctx context.Context, logger slog.Logger, err error) e
 	}
 }
 
-// insert is the same as insertWithReturn, but does not return the inserted object.
-func insert[
-	ArgumentType any,
-	Insert func(ctx context.Context, arg ArgumentType) error,
-](
-	logger slog.Logger,
-	authorizer rbac.Authorizer,
-	object rbac.Objecter,
-	insertFunc Insert,
-) Insert {
-	return func(ctx context.Context, arg ArgumentType) error {
-		_, err := insertWithReturn(logger, authorizer, object, func(ctx context.Context, arg ArgumentType) (rbac.Objecter, error) {
-			return rbac.Object{}, insertFunc(ctx, arg)
-		})(ctx, arg)
-		return err
-	}
-}
-
 // insertWithReturn runs an rbac.ActionCreate on the rbac object argument before
 // running the insertFunc. The insertFunc is expected to return the object that
 // was inserted.
