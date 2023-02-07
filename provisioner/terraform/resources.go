@@ -434,6 +434,7 @@ func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph strin
 			protoParam.ValidationError = param.Validation[0].Error
 			protoParam.ValidationMax = int32(param.Validation[0].Max)
 			protoParam.ValidationMin = int32(param.Validation[0].Min)
+			protoParam.ValidationMonotonic = param.Validation[0].Monotonic
 		}
 		if len(param.Option) > 0 {
 			protoParam.Options = make([]*proto.RichParameterOption, 0, len(param.Option))

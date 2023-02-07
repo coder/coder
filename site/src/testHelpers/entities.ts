@@ -672,10 +672,6 @@ export const MockTemplateVersionParameter1: TypesGen.TemplateVersionParameter =
     mutable: true,
     icon: "/icon/folder.svg",
     options: [],
-    validation_error: "",
-    validation_regex: "",
-    validation_min: 0,
-    validation_max: 0,
   }
 
 export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
@@ -687,10 +683,9 @@ export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
     mutable: true,
     icon: "/icon/folder.svg",
     options: [],
-    validation_error: "",
-    validation_regex: "",
     validation_min: 1,
     validation_max: 3,
+    validation_monotonic: "increasing",
   }
 
 export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
@@ -704,8 +699,6 @@ export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
     options: [],
     validation_error: "No way!",
     validation_regex: "^[a-z]{3}$",
-    validation_min: 0,
-    validation_max: 0,
   }
 
 export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
@@ -717,10 +710,20 @@ export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
     mutable: false,
     icon: "/icon/database.svg",
     options: [],
-    validation_error: "",
-    validation_regex: "",
-    validation_min: 0,
-    validation_max: 0,
+  }
+
+export const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter =
+  {
+    name: "fifth_parameter",
+    type: "number",
+    description: "This is fifth parameter",
+    default_value: "5",
+    mutable: true,
+    icon: "/icon/folder.svg",
+    options: [],
+    validation_min: 1,
+    validation_max: 10,
+    validation_monotonic: "decreasing",
   }
 
 // requests the MockWorkspace
@@ -1311,6 +1314,11 @@ export const MockWorkspaceBuildParameter1: TypesGen.WorkspaceBuildParameter = {
 export const MockWorkspaceBuildParameter2: TypesGen.WorkspaceBuildParameter = {
   name: MockTemplateVersionParameter2.name,
   value: "3",
+}
+
+export const MockWorkspaceBuildParameter5: TypesGen.WorkspaceBuildParameter = {
+  name: MockTemplateVersionParameter5.name,
+  value: "5",
 }
 
 export const mockParameterSchema = (

@@ -64,6 +64,7 @@ export const WorkspaceBuildParametersPageView: FC<
         rich_parameter_values: ValidationSchemaForRichParameters(
           "workspaceBuildParametersPage",
           props.templateParameters,
+          initialRichParameterValues,
         ),
       }),
       enableReinitialize: true,

@@ -2636,7 +2636,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/parameter.ComputedValue"
+                                "$ref": "#/definitions/codersdk.TemplateVersionParameter"
                             }
                         }
                     }
@@ -7543,6 +7543,80 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.TemplateVersionParameter": {
+            "type": "object",
+            "properties": {
+                "default_value": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "mutable": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "options": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateVersionParameterOption"
+                    }
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "string",
+                        "number",
+                        "bool"
+                    ]
+                },
+                "validation_error": {
+                    "type": "string"
+                },
+                "validation_max": {
+                    "type": "integer"
+                },
+                "validation_min": {
+                    "type": "integer"
+                },
+                "validation_monotonic": {
+                    "enum": [
+                        "increasing",
+                        "decreasing"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ValidationMonotonicOrder"
+                        }
+                    ]
+                },
+                "validation_regex": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.TemplateVersionParameterOption": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.TraceConfig": {
             "type": "object",
             "properties": {
@@ -7768,6 +7842,17 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.ValidationMonotonicOrder": {
+            "type": "string",
+            "enum": [
+                "increasing",
+                "decreasing"
+            ],
+            "x-enum-varnames": [
+                "MonotonicOrderIncreasing",
+                "MonotonicOrderDecreasing"
+            ]
         },
         "codersdk.Workspace": {
             "type": "object",
