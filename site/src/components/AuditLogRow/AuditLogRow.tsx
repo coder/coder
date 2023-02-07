@@ -45,9 +45,6 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
   const diffs = Object.entries(auditLog.diff)
   const shouldDisplayDiff = diffs.length > 0
   const { os, browser } = userAgentParser(auditLog.user_agent)
-  const displayBrowserInfo = browser.name
-    ? `${browser.name} ${browser.version}`
-    : t("table.logRow.notAvailable")
 
   let auditDiff = auditLog.diff
 
@@ -127,21 +124,20 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
                         <strong>{auditLog.ip}</strong>
                       </span>
                     )}
-
-                    <span className={styles.auditLogInfo}>
-                      <>{t("table.logRow.os")}</>
-                      <strong>
-                        {os.name
-                          ? os.name
-                          : // https://github.com/i18next/next-i18next/issues/1795
-                            t<string>("table.logRow.notAvailable")}
-                      </strong>
-                    </span>
-
-                    <span className={styles.auditLogInfo}>
-                      <>{t("table.logRow.browser")}</>
-                      <strong>{displayBrowserInfo}</strong>
-                    </span>
+                    {os.name && (
+                      <span className={styles.auditLogInfo}>
+                        <>{t("table.logRow.os")}</>
+                        <strong>{os.name}</strong>
+                      </span>
+                    )}
+                    {browser.name && (
+                      <span className={styles.auditLogInfo}>
+                        <>{t("table.logRow.browser")}</>
+                        <strong>
+                          {browser.name} {browser.version}
+                        </strong>
+                      </span>
+                    )}
                   </Stack>
 
                   <Pill
