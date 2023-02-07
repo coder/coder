@@ -136,8 +136,8 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *Metho
 		if len(testCase.Assertions) > 0 {
 			// Only run these tests if we know the underlying call makes
 			// rbac assertions.
-			s.TestNotAuthorized(ctx, fakeAuthorizer, callMethod)
-			s.TestNoActor(callMethod)
+			s.NotAuthorizedErrorTest(ctx, fakeAuthorizer, callMethod)
+			s.NoActorErrorTest(callMethod)
 		}
 
 		// Always run
@@ -180,7 +180,7 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *Metho
 	}
 }
 
-func (s *MethodTestSuite) TestNoActor(callMethod func(ctx context.Context) ([]reflect.Value, error)) {
+func (s *MethodTestSuite) NoActorErrorTest(callMethod func(ctx context.Context) ([]reflect.Value, error)) {
 	s.Run("NoActor", func() {
 		// Call without any actor
 		_, err := callMethod(context.Background())
@@ -188,9 +188,9 @@ func (s *MethodTestSuite) TestNoActor(callMethod func(ctx context.Context) ([]re
 	})
 }
 
-// TestNotAuthorized runs the given method with an authorizer that will fail authz.
+// NotAuthorizedErrorTest runs the given method with an authorizer that will fail authz.
 // Asserts that the error returned is a NotAuthorizedError.
-func (s *MethodTestSuite) TestNotAuthorized(ctx context.Context, az *coderdtest.FakeAuthorizer, callMethod func(ctx context.Context) ([]reflect.Value, error)) {
+func (s *MethodTestSuite) NotAuthorizedErrorTest(ctx context.Context, az *coderdtest.FakeAuthorizer, callMethod func(ctx context.Context) ([]reflect.Value, error)) {
 	s.Run("NotAuthorized", func() {
 		az.AlwaysReturn = xerrors.New("Always fail authz")
 
@@ -302,8 +302,8 @@ MethodLoop:
 	if len(testCase.Assertions) > 0 {
 		// Only run these tests if we know the underlying call makes
 		// rbac assertions.
-		s.TestNotAuthorized(ctx, fakeAuthorizer, callMethod)
-		s.TestNoActor(callMethod)
+		s.NotAuthorizedErrorTest(ctx, fakeAuthorizer, callMethod)
+		s.NoActorErrorTest(callMethod)
 	}
 
 	// Always run

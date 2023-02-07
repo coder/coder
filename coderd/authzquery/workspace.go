@@ -74,6 +74,9 @@ func (q *AuthzQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authIn
 // GetWorkspaceAgentsByResourceIDs is an all or nothing call. If the user cannot read
 // a single agent, the entire call will fail.
 func (q *AuthzQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgent, error) {
+	if _, ok := ActorFromContext(ctx); !ok {
+		return nil, NoActorError
+	}
 	// TODO: Make this more efficient. This is annoying because all these resources should be owned by the same workspace.
 	// So the authz check should just be 1 check, but we cannot do that easily here. We should see if all callers can
 	// instead do something like GetWorkspaceAgentsByWorkspaceID.
