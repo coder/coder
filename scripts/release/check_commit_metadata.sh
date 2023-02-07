@@ -70,7 +70,7 @@ main() {
 	#   d9f2aaf3b430d8b6f3d5f24032ed6357adaab1f1 author:world
 	#   fd54512858c906e66f04b0744d8715c2e0de97e6 author:bye labels:label:stale label:enhancement
 	from_commit_date=2023-01-18
-	mapfile -t pr_labels_raw < <(
+	pr_list="$(
 		gh pr list \
 			--base main \
 			--state merged \
@@ -78,7 +78,8 @@ main() {
 			--search "merged:>=$from_commit_date" \
 			--json mergeCommit,labels,author \
 			--jq '.[] | "\( .mergeCommit.oid ) author:\( .author.login ) labels:\(["label:\( .labels[].name )"] | join(" "))"'
-	)
+	)"
+	mapfile -t pr_labels_raw <<<"$pr_list"
 	declare -A authors labels
 	for entry in "${pr_labels_raw[@]}"; do
 		commit_sha_long=${entry%% *}
