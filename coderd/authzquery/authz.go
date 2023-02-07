@@ -50,10 +50,10 @@ func LogNotAuthorizedError(ctx context.Context, logger slog.Logger, err error) e
 	}
 }
 
-// insertWithReturn runs an rbac.ActionCreate on the rbac object argument before
+// insert runs an rbac.ActionCreate on the rbac object argument before
 // running the insertFunc. The insertFunc is expected to return the object that
 // was inserted.
-func insertWithReturn[
+func insert[
 	ObjectType any,
 	ArgumentType any,
 	Insert func(ctx context.Context, arg ArgumentType) (ObjectType, error),

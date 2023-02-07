@@ -300,7 +300,7 @@ func (q *AuthzQuerier) GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []
 
 func (q *AuthzQuerier) InsertWorkspace(ctx context.Context, arg database.InsertWorkspaceParams) (database.Workspace, error) {
 	obj := rbac.ResourceWorkspace.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID)
-	return insertWithReturn(q.log, q.auth, obj, q.db.InsertWorkspace)(ctx, arg)
+	return insert(q.log, q.auth, obj, q.db.InsertWorkspace)(ctx, arg)
 }
 
 func (q *AuthzQuerier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertWorkspaceBuildParams) (database.WorkspaceBuild, error) {
