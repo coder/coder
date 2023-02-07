@@ -33,9 +33,7 @@ describe("AuditLogDescription", () => {
   it("renders the correct string for a workspace_build stop audit log", async () => {
     render(<AuditLogDescription auditLog={MockAuditLogWithWorkspaceBuild} />)
 
-    expect(
-      getByTextContent("TestUser stopped build for workspace test2"),
-    ).toBeDefined()
+    expect(getByTextContent("TestUser stopped workspace test2")).toBeDefined()
   })
 
   it("renders the correct string for a workspace_build audit log with a duplicate word", async () => {
@@ -48,7 +46,7 @@ describe("AuditLogDescription", () => {
     render(<AuditLogDescription auditLog={AuditLogWithRepeat} />)
 
     expect(
-      getByTextContent("TestUser stopped build for workspace workspace"),
+      getByTextContent("TestUser stopped workspace workspace"),
     ).toBeDefined()
   })
   it("renders the correct string for a workspace created for a different owner", async () => {
