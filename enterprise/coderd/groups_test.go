@@ -196,8 +196,8 @@ func TestPatchGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
-		_, user3 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		_, user3 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
 		ctx, _ := testutil.Context(t)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
@@ -224,9 +224,9 @@ func TestPatchGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
-		_, user3 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
-		_, user4 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		_, user3 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		_, user4 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
 		ctx, _ := testutil.Context(t)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
@@ -385,7 +385,7 @@ func TestPatchGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		ctx, _ := testutil.Context(t)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
@@ -488,8 +488,8 @@ func TestGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
-		_, user3 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		_, user3 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
 		ctx, _ := testutil.Context(t)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
@@ -520,7 +520,7 @@ func TestGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		client1, _ := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+		client1, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
 		ctx, _ := testutil.Context(t)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
@@ -544,8 +544,8 @@ func TestGroup(t *testing.T) {
 			},
 		})
 
-		_, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
-		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+		_, user1 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
 		ctx, _ := testutil.Context(t)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
@@ -579,8 +579,8 @@ func TestGroup(t *testing.T) {
 			},
 		})
 
-		_, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
-		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+		_, user1 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
 		ctx, _ := testutil.Context(t)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
@@ -641,10 +641,10 @@ func TestGroups(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
-		_, user3 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
-		_, user4 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
-		_, user5 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		_, user3 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		_, user4 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		_, user5 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
 		ctx, _ := testutil.Context(t)
 		group1, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{

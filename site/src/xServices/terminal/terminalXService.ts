@@ -10,6 +10,7 @@ export interface TerminalContext {
   workspaceAgentError?: Error | unknown
   websocket?: WebSocket
   websocketError?: Error | unknown
+  applicationsHost?: string
 
   // Assigned by connecting!
   // The workspace agent is entirely optional.  If the agent is omitted the
@@ -47,6 +48,9 @@ export const terminalMachine =
           getWorkspace: {
             data: TypesGen.Workspace
           }
+          getApplicationsHost: {
+            data: TypesGen.AppHostResponse
+          }
           getWorkspaceAgent: {
             data: TypesGen.WorkspaceAgent
           }
@@ -55,24 +59,61 @@ export const terminalMachine =
           }
         },
       },
-      initial: "gettingWorkspace",
+      initial: "setup",
       states: {
-        gettingWorkspace: {
-          invoke: {
-            src: "getWorkspace",
-            id: "getWorkspace",
-            onDone: [
-              {
-                actions: ["assignWorkspace", "clearWorkspaceError"],
-                target: "gettingWorkspaceAgent",
+        setup: {
+          type: "parallel",
+          states: {
+            getApplicationsHost: {
+              initial: "gettingApplicationsHost",
+              states: {
+                gettingApplicationsHost: {
+                  invoke: {
+                    src: "getApplicationsHost",
+                    id: "getApplicationsHost",
+                    onDone: {
+                      actions: [
+                        "assignApplicationsHost",
+                        "clearApplicationsHostError",
+                      ],
+                      target: "success",
+                    },
+                  },
+                },
+                success: {
+                  type: "final",
+                },
               },
-            ],
-            onError: [
-              {
-                actions: "assignWorkspaceError",
-                target: "disconnected",
+            },
+            getWorkspace: {
+              initial: "gettingWorkspace",
+              states: {
+                gettingWorkspace: {
+                  invoke: {
+                    src: "getWorkspace",
+                    id: "getWorkspace",
+                    onDone: [
+                      {
+                        actions: ["assignWorkspace", "clearWorkspaceError"],
+                        target: "success",
+                      },
+                    ],
+                    onError: [
+                      {
+                        actions: "assignWorkspaceError",
+                        target: "success",
+                      },
+                    ],
+                  },
+                },
+                success: {
+                  type: "final",
+                },
               },
-            ],
+            },
+          },
+          onDone: {
+            target: "gettingWorkspaceAgent",
           },
         },
         gettingWorkspaceAgent: {
@@ -129,7 +170,7 @@ export const terminalMachine =
           on: {
             CONNECT: {
               actions: "assignConnection",
-              target: "gettingWorkspace",
+              target: "gettingWorkspaceAgent",
             },
           },
         },
@@ -145,6 +186,9 @@ export const terminalMachine =
             context.username,
             context.workspaceName,
           )
+        },
+        getApplicationsHost: async () => {
+          return API.getApplicationsHost()
         },
         getWorkspaceAgent: async (context) => {
           if (!context.workspace || !context.workspaceName) {
@@ -217,6 +261,13 @@ export const terminalMachine =
         clearWorkspaceError: assign((context) => ({
           ...context,
           workspaceError: undefined,
+        })),
+        assignApplicationsHost: assign({
+          applicationsHost: (_, { data }) => data.host,
+        }),
+        clearApplicationsHostError: assign((context) => ({
+          ...context,
+          applicationsHostError: undefined,
         })),
         assignWorkspaceAgent: assign({
           workspaceAgent: (_, event) => event.data,

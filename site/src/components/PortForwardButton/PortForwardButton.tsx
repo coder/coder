@@ -26,7 +26,7 @@ export interface PortForwardButtonProps {
   agentId: string
 }
 
-const portForwardURL = (
+export const portForwardURL = (
   host: string,
   port: number,
   agentName: string,

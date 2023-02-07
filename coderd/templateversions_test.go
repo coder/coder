@@ -47,7 +47,7 @@ func TestTemplateVersion(t *testing.T) {
 
 		ctx, _ := testutil.Context(t)
 
-		client1, _ := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+		client1, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
 		_, err := client1.TemplateVersion(ctx, version.ID)
 		require.NoError(t, err)

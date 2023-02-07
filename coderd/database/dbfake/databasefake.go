@@ -2573,18 +2573,19 @@ func (q *fakeQuerier) InsertTemplateVersionParameter(_ context.Context, arg data
 
 	//nolint:gosimple
 	param := database.TemplateVersionParameter{
-		TemplateVersionID: arg.TemplateVersionID,
-		Name:              arg.Name,
-		Description:       arg.Description,
-		Type:              arg.Type,
-		Mutable:           arg.Mutable,
-		DefaultValue:      arg.DefaultValue,
-		Icon:              arg.Icon,
-		Options:           arg.Options,
-		ValidationError:   arg.ValidationError,
-		ValidationRegex:   arg.ValidationRegex,
-		ValidationMin:     arg.ValidationMin,
-		ValidationMax:     arg.ValidationMax,
+		TemplateVersionID:   arg.TemplateVersionID,
+		Name:                arg.Name,
+		Description:         arg.Description,
+		Type:                arg.Type,
+		Mutable:             arg.Mutable,
+		DefaultValue:        arg.DefaultValue,
+		Icon:                arg.Icon,
+		Options:             arg.Options,
+		ValidationError:     arg.ValidationError,
+		ValidationRegex:     arg.ValidationRegex,
+		ValidationMin:       arg.ValidationMin,
+		ValidationMax:       arg.ValidationMax,
+		ValidationMonotonic: arg.ValidationMonotonic,
 	}
 	q.templateVersionParameters = append(q.templateVersionParameters, param)
 	return param, nil

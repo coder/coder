@@ -111,7 +111,7 @@ const assignPendingStatus = (
         } as Workspace
       }
 
-      return workspace
+      return workspaceItem
     }),
   }
 }

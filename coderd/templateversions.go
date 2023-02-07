@@ -199,7 +199,7 @@ func (api *API) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
-// @Success 200 {array} parameter.ComputedValue
+// @Success 200 {array} codersdk.TemplateVersionParameter
 // @Router /templateversions/{templateversion}/rich-parameters [get]
 func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -1459,17 +1459,18 @@ func convertTemplateVersionParameter(param database.TemplateVersionParameter) (c
 		})
 	}
 	return codersdk.TemplateVersionParameter{
-		Name:            param.Name,
-		Description:     param.Description,
-		Type:            param.Type,
-		Mutable:         param.Mutable,
-		DefaultValue:    param.DefaultValue,
-		Icon:            param.Icon,
-		Options:         options,
-		ValidationRegex: param.ValidationRegex,
-		ValidationMin:   param.ValidationMin,
-		ValidationMax:   param.ValidationMax,
-		ValidationError: param.ValidationError,
+		Name:                param.Name,
+		Description:         param.Description,
+		Type:                param.Type,
+		Mutable:             param.Mutable,
+		DefaultValue:        param.DefaultValue,
+		Icon:                param.Icon,
+		Options:             options,
+		ValidationRegex:     param.ValidationRegex,
+		ValidationMin:       param.ValidationMin,
+		ValidationMax:       param.ValidationMax,
+		ValidationError:     param.ValidationError,
+		ValidationMonotonic: codersdk.ValidationMonotonicOrder(param.ValidationMonotonic),
 	}, nil
 }
 

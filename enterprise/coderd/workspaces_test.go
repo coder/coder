@@ -51,7 +51,7 @@ func TestCreateWorkspace(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		client1, user1 := coderdtest.CreateAnotherUserWithUser(t, client, user.OrganizationID)
+		client1, user1 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
 		_, err = client1.Template(ctx, template.ID)
 		require.Error(t, err)

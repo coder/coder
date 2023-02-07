@@ -2086,58 +2086,68 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
 ```json
 [
   {
-    "created_at": "string",
-    "default_source_value": true,
-    "destination_scheme": "none",
-    "id": "string",
+    "default_value": "string",
+    "description": "string",
+    "icon": "string",
+    "mutable": true,
     "name": "string",
-    "schema_id": "string",
-    "scope": "template",
-    "scope_id": "string",
-    "source_scheme": "none",
-    "source_value": "string",
-    "updated_at": "string"
+    "options": [
+      {
+        "description": "string",
+        "icon": "string",
+        "name": "string",
+        "value": "string"
+      }
+    ],
+    "type": "string",
+    "validation_error": "string",
+    "validation_max": 0,
+    "validation_min": 0,
+    "validation_monotonic": "increasing",
+    "validation_regex": "string"
   }
 ]
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                |
-| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [parameter.ComputedValue](schemas.md#parametercomputedvalue) |
+| Status | Meaning                                                 | Description | Schema                                                                                    |
+| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.TemplateVersionParameter](schemas.md#codersdktemplateversionparameter) |
 
 <h3 id="get-rich-parameters-by-template-version-responseschema">Response Schema</h3>
 
 Status Code **200**
 
-| Name                     | Type                                                                                 | Required | Restrictions | Description |
-| ------------------------ | ------------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `[array item]`           | array                                                                                | false    |              |             |
-| `» created_at`           | string                                                                               | false    |              |             |
-| `» default_source_value` | boolean                                                                              | false    |              |             |
-| `» destination_scheme`   | [database.ParameterDestinationScheme](schemas.md#databaseparameterdestinationscheme) | false    |              |             |
-| `» id`                   | string                                                                               | false    |              |             |
-| `» name`                 | string                                                                               | false    |              |             |
-| `» schema_id`            | string                                                                               | false    |              |             |
-| `» scope`                | [database.ParameterScope](schemas.md#databaseparameterscope)                         | false    |              |             |
-| `» scope_id`             | string                                                                               | false    |              |             |
-| `» source_scheme`        | [database.ParameterSourceScheme](schemas.md#databaseparametersourcescheme)           | false    |              |             |
-| `» source_value`         | string                                                                               | false    |              |             |
-| `» updated_at`           | string                                                                               | false    |              |             |
+| Name                     | Type                                                                             | Required | Restrictions | Description |
+| ------------------------ | -------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `[array item]`           | array                                                                            | false    |              |             |
+| `» default_value`        | string                                                                           | false    |              |             |
+| `» description`          | string                                                                           | false    |              |             |
+| `» icon`                 | string                                                                           | false    |              |             |
+| `» mutable`              | boolean                                                                          | false    |              |             |
+| `» name`                 | string                                                                           | false    |              |             |
+| `» options`              | array                                                                            | false    |              |             |
+| `»» description`         | string                                                                           | false    |              |             |
+| `»» icon`                | string                                                                           | false    |              |             |
+| `»» name`                | string                                                                           | false    |              |             |
+| `»» value`               | string                                                                           | false    |              |             |
+| `» type`                 | string                                                                           | false    |              |             |
+| `» validation_error`     | string                                                                           | false    |              |             |
+| `» validation_max`       | integer                                                                          | false    |              |             |
+| `» validation_min`       | integer                                                                          | false    |              |             |
+| `» validation_monotonic` | [codersdk.ValidationMonotonicOrder](schemas.md#codersdkvalidationmonotonicorder) | false    |              |             |
+| `» validation_regex`     | string                                                                           | false    |              |             |
 
 #### Enumerated Values
 
-| Property             | Value                  |
-| -------------------- | ---------------------- |
-| `destination_scheme` | `none`                 |
-| `destination_scheme` | `environment_variable` |
-| `destination_scheme` | `provisioner_variable` |
-| `scope`              | `template`             |
-| `scope`              | `import_job`           |
-| `scope`              | `workspace`            |
-| `source_scheme`      | `none`                 |
-| `source_scheme`      | `data`                 |
+| Property               | Value        |
+| ---------------------- | ------------ |
+| `type`                 | `string`     |
+| `type`                 | `number`     |
+| `type`                 | `bool`       |
+| `validation_monotonic` | `increasing` |
+| `validation_monotonic` | `decreasing` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

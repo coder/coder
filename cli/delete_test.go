@@ -77,7 +77,7 @@ func TestDelete(t *testing.T) {
 		adminClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		adminUser := coderdtest.CreateFirstUser(t, adminClient)
 		orgID := adminUser.OrganizationID
-		client := coderdtest.CreateAnotherUser(t, adminClient, orgID)
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, orgID)
 		user, err := client.User(context.Background(), codersdk.Me)
 		require.NoError(t, err)
 
