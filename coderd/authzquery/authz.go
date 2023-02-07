@@ -211,6 +211,7 @@ func fetchAndExec[
 }
 
 // fetchAndQuery is a generic function that wraps a database fetch and query.
+// A query has potential side effects in the database (update, delete, etc).
 // The fetch is used to know which rbac object the action should be asserted on
 // **before** the query runs. The returns from the fetch are only used to
 // assert rbac. The final return of this function comes from the Query function.
