@@ -28,15 +28,11 @@ func (q *AuthzQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorksp
 }
 
 func (q *AuthzQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
-	fetch := func(_ database.WorkspaceBuild, workspaceID uuid.UUID) (database.Workspace, error) {
-		return q.db.GetWorkspaceByID(ctx, workspaceID)
+	_, err := q.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return database.WorkspaceBuild{}, nil
 	}
-	return queryWithRelated(
-		q.log,
-		q.auth,
-		rbac.ActionRead,
-		fetch,
-		q.db.GetLatestWorkspaceBuildByWorkspaceID)(ctx, workspaceID)
+	return q.db.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspaceID)
 }
 
 func (q *AuthzQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
@@ -54,11 +50,11 @@ func (q *AuthzQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Contex
 }
 
 func (q *AuthzQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
-	fetch := func(agent database.WorkspaceAgent, _ uuid.UUID) (database.Workspace, error) {
-		return q.db.GetWorkspaceByAgentID(ctx, agent.ID)
+	_, err := q.GetWorkspaceByAgentID(ctx, id)
+	if err != nil {
+		return database.WorkspaceAgent{}, err
 	}
-	// Currently agent resource is just the related workspace resource.
-	return queryWithRelated(q.log, q.auth, rbac.ActionRead, fetch, q.db.GetWorkspaceAgentByID)(ctx, id)
+	return q.db.GetWorkspaceAgentByID(ctx, id)
 }
 
 // GetWorkspaceAgentByInstanceID might want to be a system call? Unsure exactly,
