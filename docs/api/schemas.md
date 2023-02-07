@@ -228,19 +228,21 @@
 | ------- | -------------------------------------------------------------------- | -------- | ------------ | ----------- |
 | `state` | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |             |
 
-## agentsdk.PostVersionRequest
+## agentsdk.PostStartupRequest
 
 ```json
 {
+  "expanded_directory": "string",
   "version": "string"
 }
 ```
 
 ### Properties
 
-| Name      | Type   | Required | Restrictions | Description |
-| --------- | ------ | -------- | ------------ | ----------- |
-| `version` | string | false    |              |             |
+| Name                 | Type   | Required | Restrictions | Description |
+| -------------------- | ------ | -------- | ------------ | ----------- |
+| `expanded_directory` | string | false    |              |             |
+| `version`            | string | false    |              |             |
 
 ## agentsdk.Stats
 
@@ -4942,6 +4944,7 @@ Parameter represents a set value for the scope.
               "property1": "string",
               "property2": "string"
             },
+            "expanded_directory": "string",
             "first_connected_at": "2019-08-24T14:15:22Z",
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "instance_id": "string",
@@ -5064,6 +5067,7 @@ Parameter represents a set value for the scope.
     "property1": "string",
     "property2": "string"
   },
+  "expanded_directory": "string",
   "first_connected_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "instance_id": "string",
@@ -5104,6 +5108,7 @@ Parameter represents a set value for the scope.
 | `disconnected_at`                | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `environment_variables`          | object                                                               | false    |              |                                                                                                                                                                                                            |
 | » `[any property]`               | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `expanded_directory`             | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `first_connected_at`             | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `id`                             | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `instance_id`                    | string                                                               | false    |              |                                                                                                                                                                                                            |
@@ -5397,6 +5402,7 @@ Parameter represents a set value for the scope.
             "property1": "string",
             "property2": "string"
           },
+          "expanded_directory": "string",
           "first_connected_at": "2019-08-24T14:15:22Z",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "instance_id": "string",
@@ -5565,6 +5571,7 @@ Parameter represents a set value for the scope.
         "property1": "string",
         "property2": "string"
       },
+      "expanded_directory": "string",
       "first_connected_at": "2019-08-24T14:15:22Z",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "instance_id": "string",
@@ -5755,6 +5762,7 @@ Parameter represents a set value for the scope.
                   "property1": "string",
                   "property2": "string"
                 },
+                "expanded_directory": "string",
                 "first_connected_at": "2019-08-24T14:15:22Z",
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "instance_id": "string",

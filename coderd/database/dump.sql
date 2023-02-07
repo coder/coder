@@ -468,7 +468,8 @@ CREATE TABLE workspace_agents (
     motd_file text DEFAULT ''::text NOT NULL,
     lifecycle_state workspace_agent_lifecycle_state DEFAULT 'created'::workspace_agent_lifecycle_state NOT NULL,
     login_before_ready boolean DEFAULT true NOT NULL,
-    startup_script_timeout_seconds integer DEFAULT 0 NOT NULL
+    startup_script_timeout_seconds integer DEFAULT 0 NOT NULL,
+    expanded_directory character varying(4096) DEFAULT ''::character varying NOT NULL
 );
 
 COMMENT ON COLUMN workspace_agents.version IS 'Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.';
@@ -484,6 +485,8 @@ COMMENT ON COLUMN workspace_agents.lifecycle_state IS 'The current lifecycle sta
 COMMENT ON COLUMN workspace_agents.login_before_ready IS 'If true, the agent will not prevent login before it is ready (e.g. startup script is still executing).';
 
 COMMENT ON COLUMN workspace_agents.startup_script_timeout_seconds IS 'The number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.';
+
+COMMENT ON COLUMN workspace_agents.expanded_directory IS 'The resolved path of a user-specified directory. e.g. ~/coder -> /home/coder/coder';
 
 CREATE TABLE workspace_apps (
     id uuid NOT NULL,
