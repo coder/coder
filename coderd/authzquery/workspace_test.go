@@ -1,8 +1,6 @@
 package authzquery_test
 
 import (
-	"testing"
-
 	"github.com/coder/coder/coderd/util/slice"
 
 	"github.com/google/uuid"
@@ -14,393 +12,307 @@ import (
 
 func (s *MethodTestSuite) TestWorkspace() {
 	s.Run("GetWorkspaceByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			return methodCase(values(ws.ID), asserts(ws, rbac.ActionRead), nil) // GetWorkspacesRow
-		})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		s.Args(ws.ID).Asserts(ws, rbac.ActionRead).Returns(ws)
 	})
 	s.Run("GetWorkspaces", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			_ = dbgen.Workspace(t, db, database.Workspace{})
-			_ = dbgen.Workspace(t, db, database.Workspace{})
-			// No asserts here because SQLFilter.
-			return methodCase(values(database.GetWorkspacesParams{}), asserts(),
-				nil) // GetWorkspacesRow
-		})
+		_ = dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		_ = dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		// No asserts here because SQLFilter.
+		s.Args(database.GetWorkspacesParams{}).Asserts().Returns(nil)
 	})
 	s.Run("GetAuthorizedWorkspaces", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			_ = dbgen.Workspace(t, db, database.Workspace{})
-			_ = dbgen.Workspace(t, db, database.Workspace{})
-			// No asserts here because SQLFilter.
-			return methodCase(values(database.GetWorkspacesParams{}, emptyPreparedAuthorized{}), asserts(),
-				nil) // GetWorkspacesRow
-		})
+		_ = dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		_ = dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		// No asserts here because SQLFilter.
+		s.Args(database.GetWorkspacesParams{}, emptyPreparedAuthorized{}).Asserts().Returns(nil)
 	})
 	s.Run("GetLatestWorkspaceBuildByWorkspaceID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			b := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID})
-			return methodCase(values(ws.ID), asserts(ws, rbac.ActionRead), values(b))
-		})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		b := dbgen.WorkspaceBuild(s.T(), s.DB, database.WorkspaceBuild{WorkspaceID: ws.ID})
+		s.Args(ws.ID).Asserts(ws, rbac.ActionRead).Returns(b)
 	})
 	s.Run("GetLatestWorkspaceBuildsByWorkspaceIDs", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			b := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID})
-			return methodCase(
-				values([]uuid.UUID{ws.ID}),
-				asserts(ws, rbac.ActionRead), values(slice.New(b)))
-		})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		b := dbgen.WorkspaceBuild(s.T(), s.DB, database.WorkspaceBuild{WorkspaceID: ws.ID})
+		s.Args([]uuid.UUID{ws.ID}).Asserts(ws, rbac.ActionRead).Returns(slice.New(b))
 	})
 	s.Run("GetWorkspaceAgentByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
-			res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
-			agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
-			return methodCase(values(agt.ID), asserts(ws, rbac.ActionRead), values(agt))
-		})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		build := dbgen.WorkspaceBuild(s.T(), s.DB, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		res := dbgen.WorkspaceResource(s.T(), s.DB, database.WorkspaceResource{JobID: build.JobID})
+		agt := dbgen.WorkspaceAgent(s.T(), s.DB, database.WorkspaceAgent{ResourceID: res.ID})
+		s.Args(agt.ID).Asserts(ws, rbac.ActionRead).Returns(agt)
 	})
 	s.Run("GetWorkspaceAgentByInstanceID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
-			res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
-			agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
-			return methodCase(values(agt.AuthInstanceID.String), asserts(ws, rbac.ActionRead), values(agt))
-		})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		build := dbgen.WorkspaceBuild(s.T(), s.DB, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		res := dbgen.WorkspaceResource(s.T(), s.DB, database.WorkspaceResource{JobID: build.JobID})
+		agt := dbgen.WorkspaceAgent(s.T(), s.DB, database.WorkspaceAgent{ResourceID: res.ID})
+		s.Args(agt.AuthInstanceID.String).Asserts(ws, rbac.ActionRead).Returns(agt)
 	})
 	s.Run("GetWorkspaceAgentsByResourceIDs", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
-			res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
-			agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
-			return methodCase(values([]uuid.UUID{res.ID}), asserts(ws, rbac.ActionRead),
-				values([]database.WorkspaceAgent{agt}))
-		})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		build := dbgen.WorkspaceBuild(s.T(), s.DB, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		res := dbgen.WorkspaceResource(s.T(), s.DB, database.WorkspaceResource{JobID: build.JobID})
+		agt := dbgen.WorkspaceAgent(s.T(), s.DB, database.WorkspaceAgent{ResourceID: res.ID})
+		s.Args([]uuid.UUID{res.ID}).Asserts(ws, rbac.ActionRead).Returns(slice.New(agt))
 	})
 	s.Run("UpdateWorkspaceAgentLifecycleStateByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
-			res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
-			agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
-			return methodCase(values(database.UpdateWorkspaceAgentLifecycleStateByIDParams{
-				ID:             agt.ID,
-				LifecycleState: database.WorkspaceAgentLifecycleStateCreated,
-			}), asserts(ws, rbac.ActionUpdate), values())
-		})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		build := dbgen.WorkspaceBuild(s.T(), s.DB, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		res := dbgen.WorkspaceResource(s.T(), s.DB, database.WorkspaceResource{JobID: build.JobID})
+		agt := dbgen.WorkspaceAgent(s.T(), s.DB, database.WorkspaceAgent{ResourceID: res.ID})
+		s.Args(database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+			ID:             agt.ID,
+			LifecycleState: database.WorkspaceAgentLifecycleStateCreated,
+		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	})
 	s.Run("GetWorkspaceAppByAgentIDAndSlug", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
-			res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
-			agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
-			app := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{AgentID: agt.ID})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		build := dbgen.WorkspaceBuild(s.T(), s.DB, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		res := dbgen.WorkspaceResource(s.T(), s.DB, database.WorkspaceResource{JobID: build.JobID})
+		agt := dbgen.WorkspaceAgent(s.T(), s.DB, database.WorkspaceAgent{ResourceID: res.ID})
+		app := dbgen.WorkspaceApp(s.T(), s.DB, database.WorkspaceApp{AgentID: agt.ID})
 
-			return methodCase(values(database.GetWorkspaceAppByAgentIDAndSlugParams{
-				AgentID: agt.ID,
-				Slug:    app.Slug,
-			}), asserts(ws, rbac.ActionRead), values(app))
-		})
+		s.Args(database.GetWorkspaceAppByAgentIDAndSlugParams{
+			AgentID: agt.ID,
+			Slug:    app.Slug,
+		}).Asserts(ws, rbac.ActionRead).Returns(app)
 	})
 	s.Run("GetWorkspaceAppsByAgentID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
-			res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
-			agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
-			a := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{AgentID: agt.ID})
-			b := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{AgentID: agt.ID})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		build := dbgen.WorkspaceBuild(s.T(), s.DB, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		res := dbgen.WorkspaceResource(s.T(), s.DB, database.WorkspaceResource{JobID: build.JobID})
+		agt := dbgen.WorkspaceAgent(s.T(), s.DB, database.WorkspaceAgent{ResourceID: res.ID})
+		a := dbgen.WorkspaceApp(s.T(), s.DB, database.WorkspaceApp{AgentID: agt.ID})
+		b := dbgen.WorkspaceApp(s.T(), s.DB, database.WorkspaceApp{AgentID: agt.ID})
 
-			return methodCase(values(agt.ID), asserts(ws, rbac.ActionRead), values(slice.New(a, b)))
-		})
+		s.Args(agt.ID).Asserts(ws, rbac.ActionRead).Returns(slice.New(a, b))
 	})
 	s.Run("GetWorkspaceAppsByAgentIDs", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			aWs := dbgen.Workspace(t, db, database.Workspace{})
-			aBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: aWs.ID, JobID: uuid.New()})
-			aRes := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: aBuild.JobID})
-			aAgt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: aRes.ID})
-			a := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{AgentID: aAgt.ID})
+		aWs := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		aBuild := dbgen.WorkspaceBuild(s.T(), s.DB, database.WorkspaceBuild{WorkspaceID: aWs.ID, JobID: uuid.New()})
+		aRes := dbgen.WorkspaceResource(s.T(), s.DB, database.WorkspaceResource{JobID: aBuild.JobID})
+		aAgt := dbgen.WorkspaceAgent(s.T(), s.DB, database.WorkspaceAgent{ResourceID: aRes.ID})
+		a := dbgen.WorkspaceApp(s.T(), s.DB, database.WorkspaceApp{AgentID: aAgt.ID})
 
-			bWs := dbgen.Workspace(t, db, database.Workspace{})
-			bBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: bWs.ID, JobID: uuid.New()})
-			bRes := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: bBuild.JobID})
-			bAgt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: bRes.ID})
-			b := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{AgentID: bAgt.ID})
+		bWs := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		bBuild := dbgen.WorkspaceBuild(s.T(), s.DB, database.WorkspaceBuild{WorkspaceID: bWs.ID, JobID: uuid.New()})
+		bRes := dbgen.WorkspaceResource(s.T(), s.DB, database.WorkspaceResource{JobID: bBuild.JobID})
+		bAgt := dbgen.WorkspaceAgent(s.T(), s.DB, database.WorkspaceAgent{ResourceID: bRes.ID})
+		b := dbgen.WorkspaceApp(s.T(), s.DB, database.WorkspaceApp{AgentID: bAgt.ID})
 
-			return methodCase(values([]uuid.UUID{a.AgentID, b.AgentID}),
-				asserts(aWs, rbac.ActionRead, bWs, rbac.ActionRead),
-				values([]database.WorkspaceApp{a, b}))
-		})
+		s.Args([]uuid.UUID{aAgt.ID, bAgt.ID}).
+			Asserts(aWs, rbac.ActionRead, bWs, rbac.ActionRead).
+			Returns(slice.New(a, b))
 	})
 	s.Run("GetWorkspaceBuildByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID})
-			return methodCase(values(build.ID), asserts(ws, rbac.ActionRead), values(build))
-		})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		build := dbgen.WorkspaceBuild(s.T(), s.DB, database.WorkspaceBuild{WorkspaceID: ws.ID})
+		s.Args(build.ID).Asserts(ws, rbac.ActionRead).Returns(build)
 	})
 	s.Run("GetWorkspaceBuildByJobID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID})
-			return methodCase(values(build.JobID), asserts(ws, rbac.ActionRead), values(build))
-		})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		build := dbgen.WorkspaceBuild(s.T(), s.DB, database.WorkspaceBuild{WorkspaceID: ws.ID})
+		s.Args(build.JobID).Asserts(ws, rbac.ActionRead).Returns(build)
 	})
 	s.Run("GetWorkspaceBuildByWorkspaceIDAndBuildNumber", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, BuildNumber: 10})
-			return methodCase(values(database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams{
-				WorkspaceID: ws.ID,
-				BuildNumber: build.BuildNumber,
-			}), asserts(ws, rbac.ActionRead), values(build))
-		})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		build := dbgen.WorkspaceBuild(s.T(), s.DB, database.WorkspaceBuild{WorkspaceID: ws.ID, BuildNumber: 10})
+		s.Args(database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams{
+			WorkspaceID: ws.ID,
+			BuildNumber: build.BuildNumber,
+		}).Asserts(ws, rbac.ActionRead).Returns(build)
 	})
 	s.Run("GetWorkspaceBuildParameters", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID})
-			return methodCase(values(build.ID), asserts(ws, rbac.ActionRead),
-				values([]database.WorkspaceBuildParameter{}))
-		})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		build := dbgen.WorkspaceBuild(s.T(), s.DB, database.WorkspaceBuild{WorkspaceID: ws.ID})
+		s.Args(build.ID).Asserts(ws, rbac.ActionRead).Returns([]database.WorkspaceBuildParameter{})
 	})
 	s.Run("GetWorkspaceBuildsByWorkspaceID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, BuildNumber: 1})
-			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, BuildNumber: 2})
-			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, BuildNumber: 3})
-			return methodCase(values(database.GetWorkspaceBuildsByWorkspaceIDParams{WorkspaceID: ws.ID}), asserts(ws, rbac.ActionRead), nil) // ordering
-		})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		_ = dbgen.WorkspaceBuild(s.T(), s.DB, database.WorkspaceBuild{WorkspaceID: ws.ID, BuildNumber: 1})
+		_ = dbgen.WorkspaceBuild(s.T(), s.DB, database.WorkspaceBuild{WorkspaceID: ws.ID, BuildNumber: 2})
+		_ = dbgen.WorkspaceBuild(s.T(), s.DB, database.WorkspaceBuild{WorkspaceID: ws.ID, BuildNumber: 3})
+		s.Args(database.GetWorkspaceBuildsByWorkspaceIDParams{WorkspaceID: ws.ID}).Asserts(ws, rbac.ActionRead).Returns(nil) // ordering)
 	})
 	s.Run("GetWorkspaceByAgentID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
-			res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
-			agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
-			return methodCase(values(agt.ID), asserts(ws, rbac.ActionRead), values(ws))
-		})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		build := dbgen.WorkspaceBuild(s.T(), s.DB, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		res := dbgen.WorkspaceResource(s.T(), s.DB, database.WorkspaceResource{JobID: build.JobID})
+		agt := dbgen.WorkspaceAgent(s.T(), s.DB, database.WorkspaceAgent{ResourceID: res.ID})
+		s.Args(agt.ID).Asserts(ws, rbac.ActionRead).Returns(ws)
 	})
 	s.Run("GetWorkspaceByOwnerIDAndName", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			return methodCase(values(database.GetWorkspaceByOwnerIDAndNameParams{
-				OwnerID: ws.OwnerID,
-				Deleted: ws.Deleted,
-				Name:    ws.Name,
-			}), asserts(ws, rbac.ActionRead), values(ws))
-		})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		s.Args(database.GetWorkspaceByOwnerIDAndNameParams{
+			OwnerID: ws.OwnerID,
+			Deleted: ws.Deleted,
+			Name:    ws.Name,
+		}).Asserts(ws, rbac.ActionRead).Returns(ws)
 	})
 	s.Run("GetWorkspaceResourceByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
-			_ = dbgen.ProvisionerJob(t, db, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
-			res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
-			return methodCase(values(res.ID), asserts(ws, rbac.ActionRead), values(res))
-		})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		build := dbgen.WorkspaceBuild(s.T(), s.DB, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		_ = dbgen.ProvisionerJob(s.T(), s.DB, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
+		res := dbgen.WorkspaceResource(s.T(), s.DB, database.WorkspaceResource{JobID: build.JobID})
+		s.Args(res.ID).Asserts(ws, rbac.ActionRead).Returns(res)
 	})
 	s.Run("GetWorkspaceResourceMetadataByResourceIDs", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
-			_ = dbgen.ProvisionerJob(t, db, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
-			a := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
-			b := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
-			return methodCase(values([]uuid.UUID{a.ID, b.ID}),
-				asserts(ws, []rbac.Action{rbac.ActionRead, rbac.ActionRead}),
-				nil)
-		})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		build := dbgen.WorkspaceBuild(s.T(), s.DB, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		_ = dbgen.ProvisionerJob(s.T(), s.DB, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
+		a := dbgen.WorkspaceResource(s.T(), s.DB, database.WorkspaceResource{JobID: build.JobID})
+		b := dbgen.WorkspaceResource(s.T(), s.DB, database.WorkspaceResource{JobID: build.JobID})
+		s.Args([]uuid.UUID{a.ID, b.ID}).Asserts(ws, rbac.ActionRead).Returns(nil)
 	})
 	s.Run("Build/GetWorkspaceResourcesByJobID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
-			job := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
-			return methodCase(values(job.ID), asserts(ws, rbac.ActionRead), values([]database.WorkspaceResource{}))
-		})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		build := dbgen.WorkspaceBuild(s.T(), s.DB, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		job := dbgen.ProvisionerJob(s.T(), s.DB, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
+		s.Args(job.ID).Asserts(ws, rbac.ActionRead).Returns([]database.WorkspaceResource{})
 	})
 	s.Run("Template/GetWorkspaceResourcesByJobID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			tpl := dbgen.Template(t, db, database.Template{})
-			v := dbgen.TemplateVersion(t, db, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}, JobID: uuid.New()})
-			job := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{ID: v.JobID, Type: database.ProvisionerJobTypeTemplateVersionImport})
-			return methodCase(values(job.ID), asserts(v.RBACObject(tpl), []rbac.Action{rbac.ActionRead, rbac.ActionRead}), values([]database.WorkspaceResource{}))
-		})
+		tpl := dbgen.Template(s.T(), s.DB, database.Template{})
+		v := dbgen.TemplateVersion(s.T(), s.DB, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}, JobID: uuid.New()})
+		job := dbgen.ProvisionerJob(s.T(), s.DB, database.ProvisionerJob{ID: v.JobID, Type: database.ProvisionerJobTypeTemplateVersionImport})
+		s.Args(job.ID).Asserts(v.RBACObject(tpl), []rbac.Action{rbac.ActionRead, rbac.ActionRead}).Returns([]database.WorkspaceResource{})
 	})
 	s.Run("GetWorkspaceResourcesByJobIDs", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			tpl := dbgen.Template(t, db, database.Template{})
-			v := dbgen.TemplateVersion(t, db, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}, JobID: uuid.New()})
-			tJob := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{ID: v.JobID, Type: database.ProvisionerJobTypeTemplateVersionImport})
+		tpl := dbgen.Template(s.T(), s.DB, database.Template{})
+		v := dbgen.TemplateVersion(s.T(), s.DB, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}, JobID: uuid.New()})
+		tJob := dbgen.ProvisionerJob(s.T(), s.DB, database.ProvisionerJob{ID: v.JobID, Type: database.ProvisionerJobTypeTemplateVersionImport})
 
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
-			wJob := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
-			return methodCase(values([]uuid.UUID{tJob.ID, wJob.ID}), asserts(v.RBACObject(tpl), rbac.ActionRead, ws, rbac.ActionRead), values([]database.WorkspaceResource{}))
-		})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		build := dbgen.WorkspaceBuild(s.T(), s.DB, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		wJob := dbgen.ProvisionerJob(s.T(), s.DB, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
+		s.Args([]uuid.UUID{tJob.ID, wJob.ID}).Asserts(v.RBACObject(tpl), rbac.ActionRead, ws, rbac.ActionRead).Returns([]database.WorkspaceResource{})
 	})
 	s.Run("InsertWorkspace", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			u := dbgen.User(t, db, database.User{})
-			o := dbgen.Organization(t, db, database.Organization{})
-			return methodCase(values(database.InsertWorkspaceParams{
-				ID:             uuid.New(),
-				OwnerID:        u.ID,
-				OrganizationID: o.ID,
-			}), asserts(rbac.ResourceWorkspace.WithOwner(u.ID.String()).InOrg(o.ID), rbac.ActionCreate), nil)
-		})
+		u := dbgen.User(s.T(), s.DB, database.User{})
+		o := dbgen.Organization(s.T(), s.DB, database.Organization{})
+		s.Args(database.InsertWorkspaceParams{
+			ID:             uuid.New(),
+			OwnerID:        u.ID,
+			OrganizationID: o.ID,
+		}).
+			Asserts(rbac.ResourceWorkspace.WithOwner(u.ID.String()).InOrg(o.ID), rbac.ActionCreate).
+			Returns(nil)
 	})
 	s.Run("Start/InsertWorkspaceBuild", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			w := dbgen.Workspace(t, db, database.Workspace{})
-			return methodCase(values(database.InsertWorkspaceBuildParams{
-				WorkspaceID: w.ID,
-				Transition:  database.WorkspaceTransitionStart,
-				Reason:      database.BuildReasonInitiator,
-			}), asserts(w, rbac.ActionUpdate), nil)
-		})
+		w := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		s.Args(database.InsertWorkspaceBuildParams{
+			WorkspaceID: w.ID,
+			Transition:  database.WorkspaceTransitionStart,
+			Reason:      database.BuildReasonInitiator,
+		}).Asserts(w, rbac.ActionUpdate).Returns(nil)
 	})
 	s.Run("Delete/InsertWorkspaceBuild", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			w := dbgen.Workspace(t, db, database.Workspace{})
-			return methodCase(values(database.InsertWorkspaceBuildParams{
-				WorkspaceID: w.ID,
-				Transition:  database.WorkspaceTransitionDelete,
-				Reason:      database.BuildReasonInitiator,
-			}), asserts(w, rbac.ActionDelete), nil)
-		})
+		w := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		s.Args(database.InsertWorkspaceBuildParams{
+			WorkspaceID: w.ID,
+			Transition:  database.WorkspaceTransitionDelete,
+			Reason:      database.BuildReasonInitiator,
+		}).Asserts(w, rbac.ActionDelete).Returns(nil)
 	})
 	s.Run("InsertWorkspaceBuildParameters", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			w := dbgen.Workspace(t, db, database.Workspace{})
-			b := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w.ID})
-			return methodCase(values(database.InsertWorkspaceBuildParametersParams{
-				WorkspaceBuildID: b.ID,
-				Name:             []string{"foo", "bar"},
-				Value:            []string{"baz", "qux"},
-			}), asserts(w, rbac.ActionUpdate), nil)
-		})
+		w := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		b := dbgen.WorkspaceBuild(s.T(), s.DB, database.WorkspaceBuild{WorkspaceID: w.ID})
+		s.Args(database.InsertWorkspaceBuildParametersParams{
+			WorkspaceBuildID: b.ID,
+			Name:             []string{"foo", "bar"},
+			Value:            []string{"baz", "qux"},
+		}).Asserts(w, rbac.ActionUpdate).Returns(nil)
 	})
 	s.Run("UpdateWorkspace", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			w := dbgen.Workspace(t, db, database.Workspace{})
-			expected := w
-			expected.Name = ""
-			return methodCase(values(database.UpdateWorkspaceParams{
-				ID: w.ID,
-			}), asserts(w, rbac.ActionUpdate), values(expected))
-		})
+		w := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		expected := w
+		expected.Name = ""
+		s.Args(database.UpdateWorkspaceParams{
+			ID: w.ID,
+		}).Asserts(w, rbac.ActionUpdate).Returns(expected)
 	})
 	s.Run("UpdateWorkspaceAgentConnectionByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
-			res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
-			agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
-			return methodCase(values(database.UpdateWorkspaceAgentConnectionByIDParams{
-				ID: agt.ID,
-			}), asserts(ws, rbac.ActionUpdate), values())
-		})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		build := dbgen.WorkspaceBuild(s.T(), s.DB, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		res := dbgen.WorkspaceResource(s.T(), s.DB, database.WorkspaceResource{JobID: build.JobID})
+		agt := dbgen.WorkspaceAgent(s.T(), s.DB, database.WorkspaceAgent{ResourceID: res.ID})
+		s.Args(database.UpdateWorkspaceAgentConnectionByIDParams{
+			ID: agt.ID,
+		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	})
 	s.Run("InsertAgentStat", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			return methodCase(values(database.InsertAgentStatParams{
-				WorkspaceID: ws.ID,
-			}), asserts(ws, rbac.ActionUpdate), nil)
-		})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		s.Args(database.InsertAgentStatParams{
+			WorkspaceID: ws.ID,
+		}).Asserts(ws, rbac.ActionUpdate).Returns(nil)
 	})
 	s.Run("UpdateWorkspaceAgentVersionByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
-			res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
-			agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
-			return methodCase(values(database.UpdateWorkspaceAgentVersionByIDParams{
-				ID: agt.ID,
-			}), asserts(ws, rbac.ActionUpdate), values())
-		})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		build := dbgen.WorkspaceBuild(s.T(), s.DB, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		res := dbgen.WorkspaceResource(s.T(), s.DB, database.WorkspaceResource{JobID: build.JobID})
+		agt := dbgen.WorkspaceAgent(s.T(), s.DB, database.WorkspaceAgent{ResourceID: res.ID})
+		s.Args(database.UpdateWorkspaceAgentVersionByIDParams{
+			ID: agt.ID,
+		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	})
 	s.Run("UpdateWorkspaceAppHealthByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
-			res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
-			agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
-			app := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{AgentID: agt.ID})
-			return methodCase(values(database.UpdateWorkspaceAppHealthByIDParams{
-				ID:     app.ID,
-				Health: database.WorkspaceAppHealthDisabled,
-			}), asserts(ws, rbac.ActionUpdate), values())
-		})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		build := dbgen.WorkspaceBuild(s.T(), s.DB, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		res := dbgen.WorkspaceResource(s.T(), s.DB, database.WorkspaceResource{JobID: build.JobID})
+		agt := dbgen.WorkspaceAgent(s.T(), s.DB, database.WorkspaceAgent{ResourceID: res.ID})
+		app := dbgen.WorkspaceApp(s.T(), s.DB, database.WorkspaceApp{AgentID: agt.ID})
+		s.Args(database.UpdateWorkspaceAppHealthByIDParams{
+			ID:     app.ID,
+			Health: database.WorkspaceAppHealthDisabled,
+		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	})
 	s.Run("UpdateWorkspaceAutostart", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			return methodCase(values(database.UpdateWorkspaceAutostartParams{
-				ID: ws.ID,
-			}), asserts(ws, rbac.ActionUpdate), values())
-		})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		s.Args(database.UpdateWorkspaceAutostartParams{
+			ID: ws.ID,
+		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	})
 	s.Run("UpdateWorkspaceBuildByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
-			return methodCase(values(database.UpdateWorkspaceBuildByIDParams{
-				ID:        build.ID,
-				UpdatedAt: build.UpdatedAt,
-				Deadline:  build.Deadline,
-			}), asserts(ws, rbac.ActionUpdate), values(build))
-		})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		build := dbgen.WorkspaceBuild(s.T(), s.DB, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		s.Args(database.UpdateWorkspaceBuildByIDParams{
+			ID:        build.ID,
+			UpdatedAt: build.UpdatedAt,
+			Deadline:  build.Deadline,
+		}).Asserts(ws, rbac.ActionUpdate).Returns(build)
 	})
 	s.Run("SoftDeleteWorkspaceByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			ws.Deleted = true
-			return methodCase(values(ws.ID), asserts(ws, rbac.ActionDelete), values())
-		})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		ws.Deleted = true
+		s.Args(ws.ID).Asserts(ws, rbac.ActionDelete).Returns()
 	})
 	s.Run("UpdateWorkspaceDeletedByID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{Deleted: true})
-			return methodCase(values(database.UpdateWorkspaceDeletedByIDParams{
-				ID:      ws.ID,
-				Deleted: true,
-			}), asserts(ws, rbac.ActionDelete), values())
-		})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{Deleted: true})
+		s.Args(database.UpdateWorkspaceDeletedByIDParams{
+			ID:      ws.ID,
+			Deleted: true,
+		}).Asserts(ws, rbac.ActionDelete).Returns()
 	})
 	s.Run("UpdateWorkspaceLastUsedAt", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			return methodCase(values(database.UpdateWorkspaceLastUsedAtParams{
-				ID: ws.ID,
-			}), asserts(ws, rbac.ActionUpdate), values())
-		})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		s.Args(database.UpdateWorkspaceLastUsedAtParams{
+			ID: ws.ID,
+		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	})
 	s.Run("UpdateWorkspaceTTL", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			return methodCase(values(database.UpdateWorkspaceTTLParams{
-				ID: ws.ID,
-			}), asserts(ws, rbac.ActionUpdate), values())
-		})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		s.Args(database.UpdateWorkspaceTTLParams{
+			ID: ws.ID,
+		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	})
 	s.Run("GetWorkspaceByWorkspaceAppID", func() {
-		s.RunMethodTest(func(t *testing.T, db database.Store) MethodCase {
-			ws := dbgen.Workspace(t, db, database.Workspace{})
-			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
-			res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
-			agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
-			app := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{AgentID: agt.ID})
-			return methodCase(values(app.ID), asserts(ws, rbac.ActionRead), values(ws))
-		})
+		ws := dbgen.Workspace(s.T(), s.DB, database.Workspace{})
+		build := dbgen.WorkspaceBuild(s.T(), s.DB, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		res := dbgen.WorkspaceResource(s.T(), s.DB, database.WorkspaceResource{JobID: build.JobID})
+		agt := dbgen.WorkspaceAgent(s.T(), s.DB, database.WorkspaceAgent{ResourceID: res.ID})
+		app := dbgen.WorkspaceApp(s.T(), s.DB, database.WorkspaceApp{AgentID: agt.ID})
+		s.Args(app.ID).Asserts(ws, rbac.ActionRead).Returns(ws)
 	})
 }
