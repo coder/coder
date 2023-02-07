@@ -50,30 +50,6 @@ type MethodTestSuite struct {
 	suite.Suite
 	// methodAccounting counts all methods called by a 'RunMethodTest'
 	methodAccounting map[string]int
-
-	// Individual state for each unit test.
-	// State used by developer
-	DB database.Store
-	// State set by setup
-	ctx   context.Context
-	az    *authzquery.AuthzQuerier
-	rec   *coderdtest.RecordingAuthorizer
-	authz *coderdtest.FakeAuthorizer
-	actor rbac.Subject
-	// State set by developer
-	testCase MethodCase
-}
-
-type testCaseState struct {
-	DB database.Store
-	// State set by setup
-	ctx   context.Context
-	az    *authzquery.AuthzQuerier
-	rec   *coderdtest.RecordingAuthorizer
-	authz *coderdtest.FakeAuthorizer
-	actor rbac.Subject
-	// State set by developer
-	testCase MethodCase
 }
 
 // SetupSuite sets up the suite by creating a map of all methods on AuthzQuerier
@@ -110,150 +86,7 @@ func (s *MethodTestSuite) TearDownSuite() {
 	})
 }
 
-func (s *MethodTestSuite) clear() {
-	s.DB = nil
-	s.ctx = nil
-	s.az = nil
-	s.rec = nil
-	s.actor = rbac.Subject{}
-	s.testCase = MethodCase{}
-	s.authz = nil
-}
-
-//func (s *MethodTestSuite) BeforeSubTest(_ string) {
-//	s.clear()
-//
-//	s.DB = dbfake.New()
-//	s.authz = &coderdtest.FakeAuthorizer{
-//		AlwaysReturn: nil,
-//	}
-//	s.rec = &coderdtest.RecordingAuthorizer{
-//		Wrapped: s.authz,
-//	}
-//	s.az = authzquery.New(s.DB, s.rec, slog.Make())
-//	s.actor = rbac.Subject{
-//		ID:     uuid.NewString(),
-//		Roles:  rbac.RoleNames{rbac.RoleOwner()},
-//		Groups: []string{},
-//		Scope:  rbac.ScopeAll,
-//	}
-//	s.ctx = authzquery.WithAuthorizeContext(context.Background(), s.actor)
-//}
-
-//func (s *MethodTestSuite) AfterSubTest(testName string) {
-//	var (
-//		t          = s.T()
-//		az         = s.az
-//		testCase   = s.testCase
-//		methodName = parseMethodName(testName)
-//	)
-//
-//	// This ensures the test case has assertion data. If it is missing this,
-//	// the test is incomplete
-//	s.NotEqualf("", methodName, "Method name not")
-//
-//	s.methodAccounting[methodName]++
-//
-//	// Find the method with the name of the test.
-//	var callMethod func(ctx context.Context) ([]reflect.Value, error)
-//	azt := reflect.TypeOf(az)
-//MethodLoop:
-//	for i := 0; i < azt.NumMethod(); i++ {
-//		method := azt.Method(i)
-//		if method.Name == methodName {
-//			methodF := reflect.ValueOf(az).Method(i)
-//			callMethod = func(ctx context.Context) ([]reflect.Value, error) {
-//				resp := methodF.Call(append([]reflect.Value{reflect.ValueOf(ctx)}, testCase.Inputs...))
-//				return splitResp(t, resp)
-//			}
-//			break MethodLoop
-//		}
-//	}
-//
-//	s.NotNil(callMethod, "method %q does not exist", methodName)
-//
-//	// Run tests that are only run if the method makes rbac assertions.
-//	// These tests assert the error conditions of the method.
-//	if len(testCase.Assertions) > 0 {
-//		// Only run these tests if we know the underlying call makes
-//		// rbac assertions.
-//		s.TestNotAuthorized(callMethod)
-//		s.TestNoActor(callMethod)
-//	}
-//
-//	// Always run
-//	s.TestMethodCall(methodName, callMethod)
-//}
-
-// TestMethodCall runs the given method and asserts:
-//   - The method does not return an error
-//   - The method makes the expected number of rbac calls
-//   - The method returns the expected outputs
-func (s *MethodTestSuite) TestMethodCall(ctx context.Context, methodName string, rec *coderdtest.RecordingAuthorizer, callMethod func(ctx context.Context) ([]reflect.Value, error)) {
-	// Reset any recordings and set the authz to always succeed in authorizing.
-	s.rec.Reset()
-	s.authz.AlwaysReturn = nil
-	testCase := s.testCase
-
-	outputs, err := callMethod(ctx)
-	s.NoError(err, "method %q returned an error", methodName)
-
-	// Some tests may not care about the outputs, so we only assert if
-	// they are provided.
-	if testCase.ExpectedOutputs != nil {
-		// Assert the required outputs
-		s.Equal(len(testCase.ExpectedOutputs), len(outputs), "method %q returned unexpected number of outputs", methodName)
-		for i := range outputs {
-			a, b := testCase.ExpectedOutputs[i].Interface(), outputs[i].Interface()
-			if reflect.TypeOf(a).Kind() == reflect.Slice || reflect.TypeOf(a).Kind() == reflect.Array {
-				// Order does not matter
-				s.ElementsMatch(a, b, "method %q returned unexpected output %d", methodName, i)
-			} else {
-				s.Equal(a, b, "method %q returned unexpected output %d", methodName, i)
-			}
-		}
-	}
-
-	var pairs []coderdtest.ActionObjectPair
-	for _, assrt := range testCase.Assertions {
-		for _, action := range assrt.Actions {
-			pairs = append(pairs, coderdtest.ActionObjectPair{
-				Action: action,
-				Object: assrt.Object,
-			})
-		}
-	}
-
-	s.rec.AssertActor(s.T(), s.actor, pairs...)
-	s.NoError(s.rec.AllAsserted(), "all rbac calls must be asserted")
-}
-
-func (s *MethodTestSuite) TestNoActor(callMethod func(ctx context.Context) ([]reflect.Value, error)) {
-	// Call without any actor
-	_, err := callMethod(context.Background())
-	s.ErrorIs(err, authzquery.NoActorError, "method should return NoActorError error when no actor is provided")
-}
-
-// TestNotAuthorized runs the given method with an authorizer that will fail authz.
-// Asserts that the error returned is a NotAuthorizedError.
-func (s *MethodTestSuite) TestNotAuthorized(ctx context.Context, az *coderdtest.FakeAuthorizer, callMethod func(ctx context.Context) ([]reflect.Value, error)) {
-	az.AlwaysReturn = xerrors.New("Always fail authz")
-
-	// If we have assertions, that means the method should FAIL
-	// if RBAC will disallow the request. The returned error should
-	// be expected to be a NotAuthorizedError.
-	resp, err := callMethod(ctx)
-
-	// This is unfortunate, but if we are using `Filter` the error returned will be nil. So filter out
-	// any case where the error is nil and the response is an empty slice.
-	if err != nil || !hasEmptySliceResponse(resp) {
-		s.Errorf(err, "method should an error with disallow authz")
-		s.ErrorIsf(err, sql.ErrNoRows, "error should match sql.ErrNoRows")
-		s.ErrorAs(err, &authzquery.NotAuthorizedError{}, "error should be NotAuthorizedError")
-	}
-}
-
-func (s *MethodTestSuite) Subtest(testCaseF func(t *testing.T, db database.Store, check *MethodCase)) func() {
+func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *MethodCase)) func() {
 	return func() {
 		t := s.T()
 		testName := s.T().Name()
@@ -278,7 +111,7 @@ func (s *MethodTestSuite) Subtest(testCaseF func(t *testing.T, db database.Store
 		ctx := authzquery.WithAuthorizeContext(context.Background(), actor)
 
 		var testCase MethodCase
-		testCaseF(t, db, &testCase)
+		testCaseF(db, &testCase)
 
 		// Find the method with the name of the test.
 		var callMethod func(ctx context.Context) ([]reflect.Value, error)
@@ -293,48 +126,6 @@ func (s *MethodTestSuite) Subtest(testCaseF func(t *testing.T, db database.Store
 					return splitResp(t, resp)
 				}
 				break MethodLoop
-
-				//if len(testCase.Assertions) > 0 {
-				//	fakeAuthorizer.AlwaysReturn = xerrors.New("Always fail authz")
-				//	// If we have assertions, that means the method should FAIL
-				//	// if RBAC will disallow the request. The returned error should
-				//	// be expected to be a NotAuthorizedError.
-				//	erroredResp := reflect.ValueOf(az).Method(i).Call(append([]reflect.Value{reflect.ValueOf(ctx)}, testCase.Inputs...))
-				//	_, err := splitResp(t, erroredResp)
-				//	// This is unfortunate, but if we are using `Filter` the error returned will be nil. So filter out
-				//	// any case where the error is nil and the response is an empty slice.
-				//	if err != nil || !hasEmptySliceResponse(erroredResp) {
-				//		require.Errorf(t, err, "method %q should an error with disallow authz", testName)
-				//		require.ErrorIsf(t, err, sql.ErrNoRows, "error should match sql.ErrNoRows")
-				//		require.ErrorAs(t, err, &authzquery.NotAuthorizedError{}, "error should be NotAuthorizedError")
-				//	}
-				//	// Set things back to normal.
-				//	fakeAuthorizer.AlwaysReturn = nil
-				//	rec.Reset()
-				//}
-
-				//resp := reflect.ValueOf(az).Method(i).Call(append([]reflect.Value{reflect.ValueOf(ctx)}, testCase.Inputs...))
-				//
-				//outputs, err := splitResp(t, resp)
-				//require.NoError(t, err, "method %q returned an error", testName)
-				//
-				//// Some tests may not care about the outputs, so we only assert if
-				//// they are provided.
-				//if testCase.ExpectedOutputs != nil {
-				//	// Assert the required outputs
-				//	require.Equal(t, len(testCase.ExpectedOutputs), len(outputs), "method %q returned unexpected number of outputs", testName)
-				//	for i := range outputs {
-				//		a, b := testCase.ExpectedOutputs[i].Interface(), outputs[i].Interface()
-				//		if reflect.TypeOf(a).Kind() == reflect.Slice || reflect.TypeOf(a).Kind() == reflect.Array {
-				//			// Order does not matter
-				//			require.ElementsMatch(t, a, b, "method %q returned unexpected output %d", testName, i)
-				//		} else {
-				//			require.Equal(t, a, b, "method %q returned unexpected output %d", testName, i)
-				//		}
-				//	}
-				//}
-				//
-				//break MethodLoop
 			}
 		}
 
@@ -350,45 +141,77 @@ func (s *MethodTestSuite) Subtest(testCaseF func(t *testing.T, db database.Store
 		}
 
 		// Always run
-		rec.Reset()
-		fakeAuthorizer.AlwaysReturn = nil
+		s.Run("Success", func() {
+			rec.Reset()
+			fakeAuthorizer.AlwaysReturn = nil
 
-		outputs, err := callMethod(ctx)
-		s.NoError(err, "method %q returned an error", methodName)
+			outputs, err := callMethod(ctx)
+			s.NoError(err, "method %q returned an error", methodName)
 
-		// Some tests may not care about the outputs, so we only assert if
-		// they are provided.
-		if testCase.ExpectedOutputs != nil {
-			// Assert the required outputs
-			s.Equal(len(testCase.ExpectedOutputs), len(outputs), "method %q returned unexpected number of outputs", methodName)
-			for i := range outputs {
-				a, b := testCase.ExpectedOutputs[i].Interface(), outputs[i].Interface()
-				if reflect.TypeOf(a).Kind() == reflect.Slice || reflect.TypeOf(a).Kind() == reflect.Array {
-					// Order does not matter
-					s.ElementsMatch(a, b, "method %q returned unexpected output %d", methodName, i)
-				} else {
-					s.Equal(a, b, "method %q returned unexpected output %d", methodName, i)
+			// Some tests may not care about the outputs, so we only assert if
+			// they are provided.
+			if testCase.ExpectedOutputs != nil {
+				// Assert the required outputs
+				s.Equal(len(testCase.ExpectedOutputs), len(outputs), "method %q returned unexpected number of outputs", methodName)
+				for i := range outputs {
+					a, b := testCase.ExpectedOutputs[i].Interface(), outputs[i].Interface()
+					if reflect.TypeOf(a).Kind() == reflect.Slice || reflect.TypeOf(a).Kind() == reflect.Array {
+						// Order does not matter
+						s.ElementsMatch(a, b, "method %q returned unexpected output %d", methodName, i)
+					} else {
+						s.Equal(a, b, "method %q returned unexpected output %d", methodName, i)
+					}
 				}
 			}
-		}
 
-		var pairs []coderdtest.ActionObjectPair
-		for _, assrt := range testCase.Assertions {
-			for _, action := range assrt.Actions {
-				pairs = append(pairs, coderdtest.ActionObjectPair{
-					Action: action,
-					Object: assrt.Object,
-				})
+			var pairs []coderdtest.ActionObjectPair
+			for _, assrt := range testCase.Assertions {
+				for _, action := range assrt.Actions {
+					pairs = append(pairs, coderdtest.ActionObjectPair{
+						Action: action,
+						Object: assrt.Object,
+					})
+				}
 			}
-		}
 
-		rec.AssertActor(s.T(), s.actor, pairs...)
-		s.NoError(rec.AllAsserted(), "all rbac calls must be asserted")
+			rec.AssertActor(s.T(), actor, pairs...)
+			s.NoError(rec.AllAsserted(), "all rbac calls must be asserted")
+		})
 	}
+}
+
+func (s *MethodTestSuite) TestNoActor(callMethod func(ctx context.Context) ([]reflect.Value, error)) {
+	s.Run("NoActor", func() {
+		// Call without any actor
+		_, err := callMethod(context.Background())
+		s.ErrorIs(err, authzquery.NoActorError, "method should return NoActorError error when no actor is provided")
+	})
+}
+
+// TestNotAuthorized runs the given method with an authorizer that will fail authz.
+// Asserts that the error returned is a NotAuthorizedError.
+func (s *MethodTestSuite) TestNotAuthorized(ctx context.Context, az *coderdtest.FakeAuthorizer, callMethod func(ctx context.Context) ([]reflect.Value, error)) {
+	s.Run("NotAuthorized", func() {
+		az.AlwaysReturn = xerrors.New("Always fail authz")
+
+		// If we have assertions, that means the method should FAIL
+		// if RBAC will disallow the request. The returned error should
+		// be expected to be a NotAuthorizedError.
+		resp, err := callMethod(ctx)
+
+		// This is unfortunate, but if we are using `Filter` the error returned will be nil. So filter out
+		// any case where the error is nil and the response is an empty slice.
+		if err != nil || !hasEmptySliceResponse(resp) {
+			s.Errorf(err, "method should an error with disallow authz")
+			s.ErrorIsf(err, sql.ErrNoRows, "error should match sql.ErrNoRows")
+			s.ErrorAs(err, &authzquery.NotAuthorizedError{}, "error should be NotAuthorizedError")
+		}
+	})
 }
 
 // RunMethodTest runs a method test case.
 // The method to be tested is inferred from the name of the test case.
+// Deprecated: Use Subtest instead. Remove this function!
 func (s *MethodTestSuite) RunMethodTest(testCaseF func(t *testing.T, db database.Store) MethodCase) {
 	t := s.T()
 	testName := s.T().Name()
@@ -516,7 +339,7 @@ MethodLoop:
 		}
 	}
 
-	rec.AssertActor(s.T(), s.actor, pairs...)
+	rec.AssertActor(s.T(), actor, pairs...)
 	s.NoError(rec.AllAsserted(), "all rbac calls must be asserted")
 }
 
@@ -570,6 +393,7 @@ func (m *MethodCase) Args(args ...any) *MethodCase {
 	return m
 }
 
+// Returns is optional. If it is never called, it will not be asserted.
 func (m *MethodCase) Returns(rets ...any) *MethodCase {
 	m.ExpectedOutputs = values(rets...)
 	return m
@@ -591,6 +415,8 @@ type AssertRBAC struct {
 //	  Inputs: values(workspace, template, ...),
 //	  Assertions: asserts(workspace, rbac.ActionRead, template, rbac.ActionRead, ...),
 //	}
+//
+// Deprecated: use MethodCase instead.
 func methodCase(ins []reflect.Value, assertions []AssertRBAC, outs []reflect.Value) MethodCase {
 	return MethodCase{
 		Inputs:          ins,
@@ -671,12 +497,6 @@ func asserts(inputs ...any) []AssertRBAC {
 		})
 	}
 	return out
-}
-
-func parseMethodName(testName string) string {
-	names := strings.Split(testName, "/")
-	methodName := names[len(names)-1]
-	return methodName
 }
 
 func (s *MethodTestSuite) TestExtraMethods() {

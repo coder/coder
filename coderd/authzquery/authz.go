@@ -241,7 +241,7 @@ func fetchWithPostFilter[
 		// Fetch the rbac subject
 		act, ok := ActorFromContext(ctx)
 		if !ok {
-			return empty, xerrors.Errorf("no authorization actor in context")
+			return empty, NoActorError
 		}
 
 		// Fetch the database object

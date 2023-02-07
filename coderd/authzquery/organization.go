@@ -87,7 +87,7 @@ func (q *AuthzQuerier) UpdateMemberRoles(ctx context.Context, arg database.Updat
 func (q *AuthzQuerier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, removed []string) error {
 	actor, ok := ActorFromContext(ctx)
 	if !ok {
-		return xerrors.Errorf("no authorization actor in context")
+		return NoActorError
 	}
 
 	roleAssign := rbac.ResourceRoleAssignment

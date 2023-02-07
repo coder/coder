@@ -79,7 +79,7 @@ func (q *AuthzQuerier) GetUsersWithCount(ctx context.Context, arg database.GetUs
 
 	act, ok := ActorFromContext(ctx)
 	if !ok {
-		return nil, -1, xerrors.Errorf("no authorization actor in context")
+		return nil, -1, NoActorError
 	}
 
 	// TODO: Is this correct? Should we return a restricted user?
