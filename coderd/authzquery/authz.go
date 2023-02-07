@@ -87,7 +87,6 @@ func deleteQ[
 	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 	Delete func(ctx context.Context, arg ArgumentType) error,
 ](
-	// Arguments
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
 	fetchFunc Fetch,
@@ -103,7 +102,6 @@ func updateWithReturn[
 	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 	UpdateQuery func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 ](
-	// Arguments
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
 	fetchFunc Fetch,
@@ -118,7 +116,6 @@ func update[
 	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 	Exec func(ctx context.Context, arg ArgumentType) error,
 ](
-	// Arguments
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
 	fetchFunc Fetch,
@@ -139,7 +136,6 @@ func fetch[
 	ObjectType rbac.Objecter,
 	DatabaseFunc func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 ](
-	// Arguments
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
 	f DatabaseFunc,
@@ -176,7 +172,6 @@ func fetchAndExec[
 	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 	Exec func(ctx context.Context, arg ArgumentType) error,
 ](
-	// Arguments
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
 	action rbac.Action,
@@ -203,7 +198,6 @@ func fetchAndQuery[
 	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 	Query func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 ](
-	// Arguments
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
 	action rbac.Action,
@@ -240,7 +234,6 @@ func fetchWithPostFilter[
 	ObjectType rbac.Objecter,
 	DatabaseFunc func(ctx context.Context, arg ArgumentType) ([]ObjectType, error),
 ](
-	// Arguments
 	authorizer rbac.Authorizer,
 	f DatabaseFunc,
 ) DatabaseFunc {
