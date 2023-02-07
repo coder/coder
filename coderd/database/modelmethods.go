@@ -131,7 +131,7 @@ func (u User) RBACObject() rbac.Object {
 }
 
 func (u User) UserDataRBACObject() rbac.Object {
-	return rbac.ResourceUser.WithID(u.ID).WithOwner(u.ID.String())
+	return rbac.ResourceUserData.WithID(u.ID).WithOwner(u.ID.String())
 }
 
 func (u GetUsersRow) RBACObject() rbac.Object {
