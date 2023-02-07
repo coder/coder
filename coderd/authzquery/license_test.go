@@ -11,7 +11,7 @@ import (
 )
 
 func (s *MethodTestSuite) TestLicense() {
-	s.Run("GetLicenses", s.Subtest(func(db database.Store, check *MethodCase) {
+	s.Run("GetLicenses", s.Subtest(func(db database.Store, check *expects) {
 		l, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			Uuid: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		})
@@ -19,39 +19,39 @@ func (s *MethodTestSuite) TestLicense() {
 		check.Args().Asserts(l, rbac.ActionRead).
 			Returns([]database.License{l})
 	}))
-	s.Run("InsertLicense", s.Subtest(func(db database.Store, check *MethodCase) {
+	s.Run("InsertLicense", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertLicenseParams{}).
 			Asserts(rbac.ResourceLicense, rbac.ActionCreate)
 	}))
-	s.Run("InsertOrUpdateLogoURL", s.Subtest(func(db database.Store, check *MethodCase) {
+	s.Run("InsertOrUpdateLogoURL", s.Subtest(func(db database.Store, check *expects) {
 		check.Args("value").Asserts(rbac.ResourceDeploymentConfig, rbac.ActionCreate)
 	}))
-	s.Run("InsertOrUpdateServiceBanner", s.Subtest(func(db database.Store, check *MethodCase) {
+	s.Run("InsertOrUpdateServiceBanner", s.Subtest(func(db database.Store, check *expects) {
 		check.Args("value").Asserts(rbac.ResourceDeploymentConfig, rbac.ActionCreate)
 	}))
-	s.Run("GetLicenseByID", s.Subtest(func(db database.Store, check *MethodCase) {
+	s.Run("GetLicenseByID", s.Subtest(func(db database.Store, check *expects) {
 		l, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			Uuid: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		})
 		require.NoError(s.T(), err)
 		check.Args(l.ID).Asserts(l, rbac.ActionRead).Returns(l)
 	}))
-	s.Run("DeleteLicense", s.Subtest(func(db database.Store, check *MethodCase) {
+	s.Run("DeleteLicense", s.Subtest(func(db database.Store, check *expects) {
 		l, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			Uuid: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		})
 		require.NoError(s.T(), err)
 		check.Args(l.ID).Asserts(l, rbac.ActionDelete)
 	}))
-	s.Run("GetDeploymentID", s.Subtest(func(db database.Store, check *MethodCase) {
+	s.Run("GetDeploymentID", s.Subtest(func(db database.Store, check *expects) {
 		check.Args().Asserts().Returns("")
 	}))
-	s.Run("GetLogoURL", s.Subtest(func(db database.Store, check *MethodCase) {
+	s.Run("GetLogoURL", s.Subtest(func(db database.Store, check *expects) {
 		err := db.InsertOrUpdateLogoURL(context.Background(), "value")
 		require.NoError(s.T(), err)
 		check.Args().Asserts().Returns("value")
 	}))
-	s.Run("GetServiceBanner", s.Subtest(func(db database.Store, check *MethodCase) {
+	s.Run("GetServiceBanner", s.Subtest(func(db database.Store, check *expects) {
 		err := db.InsertOrUpdateServiceBanner(context.Background(), "value")
 		require.NoError(s.T(), err)
 		check.Args().Asserts().Returns("value")

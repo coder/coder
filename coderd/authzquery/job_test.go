@@ -12,7 +12,7 @@ import (
 )
 
 func (s *MethodTestSuite) TestProvsionerJob() {
-	s.Run("Build/GetProvisionerJobByID", s.Subtest(func(db database.Store, check *MethodCase) {
+	s.Run("Build/GetProvisionerJobByID", s.Subtest(func(db database.Store, check *expects) {
 		w := dbgen.Workspace(s.T(), db, database.Workspace{})
 		j := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{
 			Type: database.ProvisionerJobTypeWorkspaceBuild,
@@ -20,7 +20,7 @@ func (s *MethodTestSuite) TestProvsionerJob() {
 		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: w.ID})
 		check.Args(j.ID).Asserts(w, rbac.ActionRead).Returns(j)
 	}))
-	s.Run("TemplateVersion/GetProvisionerJobByID", s.Subtest(func(db database.Store, check *MethodCase) {
+	s.Run("TemplateVersion/GetProvisionerJobByID", s.Subtest(func(db database.Store, check *expects) {
 		j := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{
 			Type: database.ProvisionerJobTypeTemplateVersionImport,
 		})
@@ -31,7 +31,7 @@ func (s *MethodTestSuite) TestProvsionerJob() {
 		})
 		check.Args(j.ID).Asserts(v.RBACObject(tpl), rbac.ActionRead).Returns(j)
 	}))
-	s.Run("TemplateVersionDryRun/GetProvisionerJobByID", s.Subtest(func(db database.Store, check *MethodCase) {
+	s.Run("TemplateVersionDryRun/GetProvisionerJobByID", s.Subtest(func(db database.Store, check *expects) {
 		tpl := dbgen.Template(s.T(), db, database.Template{})
 		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
 			TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
@@ -44,7 +44,7 @@ func (s *MethodTestSuite) TestProvsionerJob() {
 		})
 		check.Args(j.ID).Asserts(v.RBACObject(tpl), rbac.ActionRead).Returns(j)
 	}))
-	s.Run("Build/UpdateProvisionerJobWithCancelByID", s.Subtest(func(db database.Store, check *MethodCase) {
+	s.Run("Build/UpdateProvisionerJobWithCancelByID", s.Subtest(func(db database.Store, check *expects) {
 		tpl := dbgen.Template(s.T(), db, database.Template{AllowUserCancelWorkspaceJobs: true})
 		w := dbgen.Workspace(s.T(), db, database.Workspace{TemplateID: tpl.ID})
 		j := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{
@@ -53,7 +53,7 @@ func (s *MethodTestSuite) TestProvsionerJob() {
 		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: w.ID})
 		check.Args(database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}).Asserts(w, rbac.ActionUpdate).Returns()
 	}))
-	s.Run("TemplateVersion/UpdateProvisionerJobWithCancelByID", s.Subtest(func(db database.Store, check *MethodCase) {
+	s.Run("TemplateVersion/UpdateProvisionerJobWithCancelByID", s.Subtest(func(db database.Store, check *expects) {
 		j := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{
 			Type: database.ProvisionerJobTypeTemplateVersionImport,
 		})
@@ -65,7 +65,7 @@ func (s *MethodTestSuite) TestProvsionerJob() {
 		check.Args(database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}).
 			Asserts(v.RBACObject(tpl), []rbac.Action{rbac.ActionRead, rbac.ActionUpdate}).Returns()
 	}))
-	s.Run("TemplateVersionDryRun/UpdateProvisionerJobWithCancelByID", s.Subtest(func(db database.Store, check *MethodCase) {
+	s.Run("TemplateVersionDryRun/UpdateProvisionerJobWithCancelByID", s.Subtest(func(db database.Store, check *expects) {
 		tpl := dbgen.Template(s.T(), db, database.Template{})
 		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
 			TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
@@ -79,12 +79,12 @@ func (s *MethodTestSuite) TestProvsionerJob() {
 		check.Args(database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}).
 			Asserts(v.RBACObject(tpl), []rbac.Action{rbac.ActionRead, rbac.ActionUpdate}).Returns()
 	}))
-	s.Run("GetProvisionerJobsByIDs", s.Subtest(func(db database.Store, check *MethodCase) {
+	s.Run("GetProvisionerJobsByIDs", s.Subtest(func(db database.Store, check *expects) {
 		a := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{})
 		b := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{})
 		check.Args([]uuid.UUID{a.ID, b.ID}).Asserts().Returns(slice.New(a, b))
 	}))
-	s.Run("GetProvisionerLogsByIDBetween", s.Subtest(func(db database.Store, check *MethodCase) {
+	s.Run("GetProvisionerLogsByIDBetween", s.Subtest(func(db database.Store, check *expects) {
 		w := dbgen.Workspace(s.T(), db, database.Workspace{})
 		j := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{
 			Type: database.ProvisionerJobTypeWorkspaceBuild,

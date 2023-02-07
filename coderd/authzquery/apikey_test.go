@@ -10,15 +10,15 @@ import (
 )
 
 func (s *MethodTestSuite) TestAPIKey() {
-	s.Run("DeleteAPIKeyByID", s.Subtest(func(db database.Store, check *MethodCase) {
+	s.Run("DeleteAPIKeyByID", s.Subtest(func(db database.Store, check *expects) {
 		key, _ := dbgen.APIKey(s.T(), db, database.APIKey{})
 		check.Args(key.ID).Asserts(key, rbac.ActionDelete).Returns()
 	}))
-	s.Run("GetAPIKeyByID", s.Subtest(func(db database.Store, check *MethodCase) {
+	s.Run("GetAPIKeyByID", s.Subtest(func(db database.Store, check *expects) {
 		key, _ := dbgen.APIKey(s.T(), db, database.APIKey{})
 		check.Args(key.ID).Asserts(key, rbac.ActionRead).Returns(key)
 	}))
-	s.Run("GetAPIKeysByLoginType", s.Subtest(func(db database.Store, check *MethodCase) {
+	s.Run("GetAPIKeysByLoginType", s.Subtest(func(db database.Store, check *expects) {
 		a, _ := dbgen.APIKey(s.T(), db, database.APIKey{LoginType: database.LoginTypePassword})
 		b, _ := dbgen.APIKey(s.T(), db, database.APIKey{LoginType: database.LoginTypePassword})
 		_, _ = dbgen.APIKey(s.T(), db, database.APIKey{LoginType: database.LoginTypeGithub})
@@ -26,7 +26,7 @@ func (s *MethodTestSuite) TestAPIKey() {
 			Asserts(a, rbac.ActionRead, b, rbac.ActionRead).
 			Returns(slice.New(a, b))
 	}))
-	s.Run("GetAPIKeysLastUsedAfter", s.Subtest(func(db database.Store, check *MethodCase) {
+	s.Run("GetAPIKeysLastUsedAfter", s.Subtest(func(db database.Store, check *expects) {
 		a, _ := dbgen.APIKey(s.T(), db, database.APIKey{LastUsed: time.Now().Add(time.Hour)})
 		b, _ := dbgen.APIKey(s.T(), db, database.APIKey{LastUsed: time.Now().Add(time.Hour)})
 		_, _ = dbgen.APIKey(s.T(), db, database.APIKey{LastUsed: time.Now().Add(-time.Hour)})
@@ -34,7 +34,7 @@ func (s *MethodTestSuite) TestAPIKey() {
 			Asserts(a, rbac.ActionRead, b, rbac.ActionRead).
 			Returns(slice.New(a, b))
 	}))
-	s.Run("InsertAPIKey", s.Subtest(func(db database.Store, check *MethodCase) {
+	s.Run("InsertAPIKey", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		check.Args(database.InsertAPIKeyParams{
 			UserID:    u.ID,
@@ -42,7 +42,7 @@ func (s *MethodTestSuite) TestAPIKey() {
 			Scope:     database.APIKeyScopeAll,
 		}).Asserts(rbac.ResourceAPIKey.WithOwner(u.ID.String()), rbac.ActionCreate)
 	}))
-	s.Run("UpdateAPIKeyByID", s.Subtest(func(db database.Store, check *MethodCase) {
+	s.Run("UpdateAPIKeyByID", s.Subtest(func(db database.Store, check *expects) {
 		a, _ := dbgen.APIKey(s.T(), db, database.APIKey{})
 		check.Args(database.UpdateAPIKeyByIDParams{
 			ID: a.ID,

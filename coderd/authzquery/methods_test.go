@@ -90,7 +90,7 @@ func (s *MethodTestSuite) TearDownSuite() {
 // s.Run(). This function will run the test case for the method that is being
 // tested. The check parameter is used to assert the results of the method.
 // If the caller does not use the `check` parameter, the test will fail.
-func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *MethodCase)) func() {
+func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expects)) func() {
 	return func() {
 		t := s.T()
 		testName := s.T().Name()
@@ -114,7 +114,7 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *Metho
 		}
 		ctx := authzquery.WithAuthorizeContext(context.Background(), actor)
 
-		var testCase MethodCase
+		var testCase expects
 		testCaseF(db, &testCase)
 		// Check the developer added assertions. If there are no assertions,
 		// an empty list should be passed.
@@ -158,11 +158,11 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *Metho
 
 			// Some tests may not care about the outputs, so we only assert if
 			// they are provided.
-			if testCase.expectedOutputs != nil {
+			if testCase.outputs != nil {
 				// Assert the required outputs
-				s.Equal(len(testCase.expectedOutputs), len(outputs), "method %q returned unexpected number of outputs", methodName)
+				s.Equal(len(testCase.outputs), len(outputs), "method %q returned unexpected number of outputs", methodName)
 				for i := range outputs {
-					a, b := testCase.expectedOutputs[i].Interface(), outputs[i].Interface()
+					a, b := testCase.outputs[i].Interface(), outputs[i].Interface()
 					if reflect.TypeOf(a).Kind() == reflect.Slice || reflect.TypeOf(a).Kind() == reflect.Array {
 						// Order does not matter
 						s.ElementsMatch(a, b, "method %q returned unexpected output %d", methodName, i)
@@ -248,18 +248,18 @@ func splitResp(t *testing.T, values []reflect.Value) ([]reflect.Value, error) {
 	return nil, nil // unreachable, required to compile
 }
 
-// A MethodCase contains the inputs to be provided to a single method call,
-// and the assertions to be made on the RBAC checks.
-type MethodCase struct {
+// expects is used to build a test case for a method.
+// It includes the expected inputs, rbac assertions, and expected outputs.
+type expects struct {
 	inputs     []reflect.Value
 	assertions []AssertRBAC
-	// expectedOutputs is optional. Can assert non-error return values.
-	expectedOutputs []reflect.Value
+	// outputs is optional. Can assert non-error return values.
+	outputs []reflect.Value
 }
 
 // Asserts is required. Asserts the RBAC authorize calls that should be made.
 // If no RBAC calls are expected, pass an empty list: 'm.Asserts()'
-func (m *MethodCase) Asserts(pairs ...any) *MethodCase {
+func (m *expects) Asserts(pairs ...any) *expects {
 	m.assertions = asserts(pairs...)
 	return m
 }
@@ -268,14 +268,14 @@ func (m *MethodCase) Asserts(pairs ...any) *MethodCase {
 // If there are no arguments, pass an empty list: 'm.Args()'
 // The first context argument should not be included, as the test suite
 // will provide it.
-func (m *MethodCase) Args(args ...any) *MethodCase {
+func (m *expects) Args(args ...any) *expects {
 	m.inputs = values(args...)
 	return m
 }
 
 // Returns is optional. If it is never called, it will not be asserted.
-func (m *MethodCase) Returns(rets ...any) *MethodCase {
-	m.expectedOutputs = values(rets...)
+func (m *expects) Returns(rets ...any) *expects {
+	m.outputs = values(rets...)
 	return m
 }
 
@@ -360,14 +360,14 @@ func asserts(inputs ...any) []AssertRBAC {
 }
 
 func (s *MethodTestSuite) TestExtraMethods() {
-	s.Run("GetProvisionerDaemons", s.Subtest(func(db database.Store, check *MethodCase) {
+	s.Run("GetProvisionerDaemons", s.Subtest(func(db database.Store, check *expects) {
 		d, err := db.InsertProvisionerDaemon(context.Background(), database.InsertProvisionerDaemonParams{
 			ID: uuid.New(),
 		})
 		s.NoError(err, "insert provisioner daemon")
 		check.Args().Asserts(d, rbac.ActionRead)
 	}))
-	s.Run("GetDeploymentDAUs", s.Subtest(func(db database.Store, check *MethodCase) {
+	s.Run("GetDeploymentDAUs", s.Subtest(func(db database.Store, check *expects) {
 		check.Args().Asserts(rbac.ResourceUser.All(), rbac.ActionRead)
 	}))
 }
