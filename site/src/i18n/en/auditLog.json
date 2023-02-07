@@ -13,7 +13,8 @@
       "os": "OS: ",
       "browser": "Browser: ",
       "onBehalfOf": " on behalf of {{owner}}",
-      "buildReason": "Coder automatically"
+      "buildReason": "Coder automatically",
+      "unknownUser": "an unknown user"
     }
   },
   "paywall": {

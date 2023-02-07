@@ -2683,7 +2683,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/parameter.ComputedValue"
+                                "$ref": "#/definitions/codersdk.TemplateVersionParameter"
                             }
                         }
                     }
@@ -5397,14 +5397,18 @@ const docTemplate = `{
                 "write",
                 "delete",
                 "start",
-                "stop"
+                "stop",
+                "login",
+                "logout"
             ],
             "x-enum-varnames": [
                 "AuditActionCreate",
                 "AuditActionWrite",
                 "AuditActionDelete",
                 "AuditActionStart",
-                "AuditActionStop"
+                "AuditActionStop",
+                "AuditActionLogin",
+                "AuditActionLogout"
             ]
         },
         "codersdk.AuditDiff": {
@@ -6059,7 +6063,13 @@ const docTemplate = `{
                 "derp": {
                     "$ref": "#/definitions/codersdk.DERP"
                 },
+                "disable_password_auth": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
                 "disable_path_apps": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                },
+                "disable_session_expiry_refresh": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
                 },
                 "experimental": {
@@ -6084,6 +6094,9 @@ const docTemplate = `{
                 },
                 "logging": {
                     "$ref": "#/definitions/codersdk.LoggingConfig"
+                },
+                "max_session_expiry": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-time_Duration"
                 },
                 "max_token_lifetime": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-time_Duration"
@@ -6414,10 +6427,12 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
-                "authz_querier"
+                "authz_querier",
+                "template_editor"
             ],
             "x-enum-varnames": [
-                "ExperimentAuthzQuerier"
+                "ExperimentAuthzQuerier",
+                "ExperimentTemplateEditor"
             ]
         },
         "codersdk.Feature": {
@@ -7621,6 +7636,80 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.TemplateVersionParameter": {
+            "type": "object",
+            "properties": {
+                "default_value": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "mutable": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "options": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateVersionParameterOption"
+                    }
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "string",
+                        "number",
+                        "bool"
+                    ]
+                },
+                "validation_error": {
+                    "type": "string"
+                },
+                "validation_max": {
+                    "type": "integer"
+                },
+                "validation_min": {
+                    "type": "integer"
+                },
+                "validation_monotonic": {
+                    "enum": [
+                        "increasing",
+                        "decreasing"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ValidationMonotonicOrder"
+                        }
+                    ]
+                },
+                "validation_regex": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.TemplateVersionParameterOption": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.TraceConfig": {
             "type": "object",
             "properties": {
@@ -7846,6 +7935,17 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.ValidationMonotonicOrder": {
+            "type": "string",
+            "enum": [
+                "increasing",
+                "decreasing"
+            ],
+            "x-enum-varnames": [
+                "MonotonicOrderIncreasing",
+                "MonotonicOrderDecreasing"
+            ]
         },
         "codersdk.Workspace": {
             "type": "object",

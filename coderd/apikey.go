@@ -70,7 +70,7 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cookie, err := api.createAPIKey(ctx, createAPIKeyParams{
+	cookie, _, err := api.createAPIKey(ctx, createAPIKeyParams{
 		UserID:          user.ID,
 		LoginType:       database.LoginTypeToken,
 		ExpiresAt:       database.Now().Add(lifeTime),
@@ -108,7 +108,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	lifeTime := time.Hour * 24 * 7
-	cookie, err := api.createAPIKey(ctx, createAPIKeyParams{
+	cookie, _, err := api.createAPIKey(ctx, createAPIKeyParams{
 		UserID:     user.ID,
 		LoginType:  database.LoginTypePassword,
 		RemoteAddr: r.RemoteAddr,
@@ -281,20 +281,25 @@ func (api *API) validateAPIKeyLifetime(lifetime time.Duration) error {
 	return nil
 }
 
-func (api *API) createAPIKey(ctx context.Context, params createAPIKeyParams) (*http.Cookie, error) {
+func (api *API) createAPIKey(ctx context.Context, params createAPIKeyParams) (*http.Cookie, *database.APIKey, error) {
 	keyID, keySecret, err := GenerateAPIKeyIDSecret()
 	if err != nil {
-		return nil, xerrors.Errorf("generate API key: %w", err)
+		return nil, nil, xerrors.Errorf("generate API key: %w", err)
 	}
 	hashed := sha256.Sum256([]byte(keySecret))
 
-	// Default expires at to now+lifetime, or just 24hrs if not set
+	// Default expires at to now+lifetime, or use the configured value if not
+	// set.
 	if params.ExpiresAt.IsZero() {
 		if params.LifetimeSeconds != 0 {
 			params.ExpiresAt = database.Now().Add(time.Duration(params.LifetimeSeconds) * time.Second)
 		} else {
-			params.ExpiresAt = database.Now().Add(24 * time.Hour)
+			params.ExpiresAt = database.Now().Add(api.DeploymentConfig.SessionDuration.Value)
+			params.LifetimeSeconds = int64(api.DeploymentConfig.SessionDuration.Value.Seconds())
 		}
+	}
+	if params.LifetimeSeconds == 0 {
+		params.LifetimeSeconds = int64(time.Until(params.ExpiresAt).Seconds())
 	}
 
 	ip := net.ParseIP(params.RemoteAddr)
@@ -310,7 +315,7 @@ func (api *API) createAPIKey(ctx context.Context, params createAPIKeyParams) (*h
 	switch scope {
 	case database.APIKeyScopeAll, database.APIKeyScopeApplicationConnect:
 	default:
-		return nil, xerrors.Errorf("invalid API key scope: %q", scope)
+		return nil, nil, xerrors.Errorf("invalid API key scope: %q", scope)
 	}
 
 	key, err := api.Database.InsertAPIKey(ctx, database.InsertAPIKeyParams{
@@ -333,7 +338,7 @@ func (api *API) createAPIKey(ctx context.Context, params createAPIKeyParams) (*h
 		Scope:        scope,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("insert API key: %w", err)
+		return nil, nil, xerrors.Errorf("insert API key: %w", err)
 	}
 
 	api.Telemetry.Report(&telemetry.Snapshot{
@@ -349,5 +354,5 @@ func (api *API) createAPIKey(ctx context.Context, params createAPIKeyParams) (*h
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   api.SecureAuthCookie,
-	}, nil
+	}, &key, nil
 }

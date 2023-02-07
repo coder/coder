@@ -1,0 +1,60 @@
+name: docker-base
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - scripts/Dockerfile.base
+      - scripts/Dockerfile
+
+  schedule:
+    # Run every week at 09:43 on Monday, Wednesday and Friday. We build this
+    # frequently to ensure that packages are up-to-date.
+    - cron: "43 9 * * 1,3,5"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # Necessary to push docker images to ghcr.io.
+  packages: write
+  # Necessary for depot.dev authentication.
+  id-token: write
+
+# Avoid running multiple jobs for the same commit.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-docker-base
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    if: github.repository_owner == 'coder'
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Docker login
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create empty base-build-context directory
+        run: mkdir base-build-context
+
+      - name: Install depot.dev CLI
+        uses: depot/setup-action@v1
+
+      # This uses OIDC authentication, so no auth variables are required.
+      - name: Build base Docker image via depot.dev
+        uses: depot/build-push-action@v1
+        with:
+          project: wl5hnrrkns
+          context: base-build-context
+          file: scripts/Dockerfile.base
+          pull: true
+          no-cache: true
+          push: true
+          tags: |
+            ghcr.io/coder/coder-base:latest

@@ -2,10 +2,11 @@ import { Theme, useTheme } from "@material-ui/core/styles"
 import { useMonaco } from "@monaco-editor/react"
 import { useEffect, useState } from "react"
 import { hslToHex } from "util/colors"
+import { editor } from "monaco-editor"
 
 // Theme based on https://github.com/brijeshb42/monaco-themes/blob/master/themes/Dracula.json
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- The theme is not typed
-export const coderTheme = (theme: Theme): Record<string, any> => ({
+export const coderTheme = (theme: Theme): editor.IStandaloneThemeData => ({
   base: "vs-dark",
   inherit: true,
   rules: [

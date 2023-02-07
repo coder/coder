@@ -309,6 +309,17 @@ export const createTemplate = async (
   return response.data
 }
 
+export const updateActiveTemplateVersion = async (
+  templateId: string,
+  data: TypesGen.UpdateActiveTemplateVersion,
+): Promise<Types.Message> => {
+  const response = await axios.patch<Types.Message>(
+    `/api/v2/templates/${templateId}/versions`,
+    data,
+  )
+  return response.data
+}
+
 export const updateTemplateMeta = async (
   templateId: string,
   data: TypesGen.UpdateTemplateMeta,
@@ -429,6 +440,15 @@ export const cancelWorkspaceBuild = async (
 ): Promise<Types.Message> => {
   const response = await axios.patch(
     `/api/v2/workspacebuilds/${workspaceBuildId}/cancel`,
+  )
+  return response.data
+}
+
+export const cancelTemplateVersionBuild = async (
+  templateVersionId: TypesGen.TemplateVersion["id"],
+): Promise<Types.Message> => {
+  const response = await axios.patch(
+    `/api/v2/templateversions/${templateVersionId}/cancel`,
   )
   return response.data
 }

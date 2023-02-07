@@ -99,14 +99,14 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 		close(tickCh)
 	}()
 
-	// Then: the workspace should be started using the previous template version, and not the updated version.
+	// Then: the workspace is started using the new template version, not the old one.
 	stats := <-statsCh
 	assert.NoError(t, stats.Error)
 	assert.Len(t, stats.Transitions, 1)
 	assert.Contains(t, stats.Transitions, workspace.ID)
 	assert.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[workspace.ID])
 	ws := coderdtest.MustWorkspace(t, client, workspace.ID)
-	assert.Equal(t, workspace.LatestBuild.TemplateVersionID, ws.LatestBuild.TemplateVersionID, "expected workspace build to be using the old template version")
+	assert.Equal(t, newVersion.ID, ws.LatestBuild.TemplateVersionID, "expected workspace build to be using the new template version")
 }
 
 func TestExecutorAutostartAlreadyRunning(t *testing.T) {

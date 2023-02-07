@@ -13,10 +13,12 @@ interface Line {
 
 export interface LogsProps {
   lines: Line[]
+  hideTimestamps?: boolean
   className?: string
 }
 
 export const Logs: FC<React.PropsWithChildren<LogsProps>> = ({
+  hideTimestamps,
   lines,
   className = "",
 }) => {
@@ -27,10 +29,14 @@ export const Logs: FC<React.PropsWithChildren<LogsProps>> = ({
       <div className={styles.scrollWrapper}>
         {lines.map((line, idx) => (
           <div className={combineClasses([styles.line, line.level])} key={idx}>
-            <span className={styles.time}>
-              {dayjs(line.time).format(`HH:mm:ss.SSS`)}
-            </span>
-            <span className={styles.space}>&nbsp;&nbsp;&nbsp;&nbsp;</span>
+            {!hideTimestamps && (
+              <>
+                <span className={styles.time}>
+                  {dayjs(line.time).format(`HH:mm:ss.SSS`)}
+                </span>
+                <span className={styles.space}>&nbsp;&nbsp;&nbsp;&nbsp;</span>
+              </>
+            )}
             <span>{line.output}</span>
           </div>
         ))}

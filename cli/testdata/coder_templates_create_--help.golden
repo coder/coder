@@ -7,7 +7,7 @@ Flags:
       --default-ttl duration          Specify a default TTL for workspaces created from this
                                       template. (default 24h0m0s)
   -d, --directory string              Specify the directory to create from, use '-' to read
-                                      tar from stdin (default "/tmp/coder-cli-test-workdir")
+                                      tar from stdin (default "[current directory]")
   -h, --help                          help for create
       --parameter-file string         Specify a file path with parameter values.
       --provisioner-tag stringArray   Specify a set of tags to target provisioner daemons.
@@ -15,7 +15,7 @@ Flags:
 
 Global Flags:
       --global-config coder   Path to the global coder config directory.
-                              Consumes $CODER_CONFIG_DIR (default "/tmp/coder-cli-test-config")
+                              Consumes $CODER_CONFIG_DIR (default "~/.config/coderv2")
       --header stringArray    HTTP headers added to all requests. Provide as "Key=Value".
                               Consumes $CODER_HEADER
       --no-feature-warning    Suppress warnings about unlicensed features.

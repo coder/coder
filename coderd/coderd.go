@@ -252,17 +252,19 @@ func New(options *Options) *API {
 	}
 
 	apiKeyMiddleware := httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
-		DB:              options.Database,
-		OAuth2Configs:   oauthConfigs,
-		RedirectToLogin: false,
-		Optional:        false,
+		DB:                          options.Database,
+		OAuth2Configs:               oauthConfigs,
+		RedirectToLogin:             false,
+		DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value,
+		Optional:                    false,
 	})
 	// Same as above but it redirects to the login page.
 	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
-		DB:              options.Database,
-		OAuth2Configs:   oauthConfigs,
-		RedirectToLogin: true,
-		Optional:        false,
+		DB:                          options.Database,
+		OAuth2Configs:               oauthConfigs,
+		RedirectToLogin:             true,
+		DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value,
+		Optional:                    false,
 	})
 
 	// API rate limit middleware. The counter is local and not shared between
@@ -287,8 +289,9 @@ func New(options *Options) *API {
 				OAuth2Configs: oauthConfigs,
 				// The code handles the the case where the user is not
 				// authenticated automatically.
-				RedirectToLogin: false,
-				Optional:        true,
+				RedirectToLogin:             false,
+				DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value,
+				Optional:                    true,
 			}),
 			httpmw.ExtractUserParam(api.Database, false),
 			httpmw.ExtractWorkspaceAndAgentParam(api.Database),
@@ -314,8 +317,9 @@ func New(options *Options) *API {
 				// Optional is true to allow for public apps. If an
 				// authorization check fails and the user is not authenticated,
 				// they will be redirected to the login page by the app handler.
-				RedirectToLogin: false,
-				Optional:        true,
+				RedirectToLogin:             false,
+				DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value,
+				Optional:                    true,
 			}),
 			// Redirect to the login page if the user tries to open an app with
 			// "me" as the username and they are not logged in.
@@ -676,7 +680,8 @@ type API struct {
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
 	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
 	QuotaCommitter                    atomic.Pointer[proto.QuotaCommitter]
-	HTTPAuth                          *HTTPAuthorizer
+
+	HTTPAuth *HTTPAuthorizer
 
 	// APIHandler serves "/api/v2"
 	APIHandler chi.Router

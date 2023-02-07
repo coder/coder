@@ -18,15 +18,15 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-var validate *validator.Validate
+var Validate *validator.Validate
 
 // This init is used to create a validator and register validation-specific
 // functionality for the HTTP API.
 //
 // A single validator instance is used, because it caches struct parsing.
 func init() {
-	validate = validator.New()
-	validate.RegisterTagNameFunc(func(fld reflect.StructField) string {
+	Validate = validator.New()
+	Validate.RegisterTagNameFunc(func(fld reflect.StructField) string {
 		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
 		if name == "-" {
 			return ""
@@ -44,7 +44,7 @@ func init() {
 		return valid == nil
 	}
 	for _, tag := range []string{"username", "template_name", "workspace_name"} {
-		err := validate.RegisterValidation(tag, nameValidator)
+		err := Validate.RegisterValidation(tag, nameValidator)
 		if err != nil {
 			panic(err)
 		}
@@ -59,7 +59,7 @@ func init() {
 		valid := TemplateDisplayNameValid(str)
 		return valid == nil
 	}
-	err := validate.RegisterValidation("template_display_name", templateDisplayNameValidator)
+	err := Validate.RegisterValidation("template_display_name", templateDisplayNameValidator)
 	if err != nil {
 		panic(err)
 	}
@@ -144,7 +144,7 @@ func Read(ctx context.Context, rw http.ResponseWriter, r *http.Request, value in
 		})
 		return false
 	}
-	err = validate.Struct(value)
+	err = Validate.Struct(value)
 	var validationErrors validator.ValidationErrors
 	if errors.As(err, &validationErrors) {
 		apiErrors := make([]codersdk.ValidationError, 0, len(validationErrors))

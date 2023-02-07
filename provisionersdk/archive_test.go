@@ -1,6 +1,8 @@
 package provisionersdk_test
 
 import (
+	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -18,7 +20,7 @@ func TestTar(t *testing.T) {
 		file, err := os.CreateTemp(dir, "")
 		require.NoError(t, err)
 		_ = file.Close()
-		_, err = provisionersdk.Tar(dir, 1024)
+		err = provisionersdk.Tar(io.Discard, dir, 1024)
 		require.Error(t, err)
 	})
 	t.Run("Valid", func(t *testing.T) {
@@ -27,7 +29,7 @@ func TestTar(t *testing.T) {
 		file, err := os.CreateTemp(dir, "*.tf")
 		require.NoError(t, err)
 		_ = file.Close()
-		_, err = provisionersdk.Tar(dir, 1024)
+		err = provisionersdk.Tar(io.Discard, dir, 1024)
 		require.NoError(t, err)
 	})
 	t.Run("HiddenFiles", func(t *testing.T) {
@@ -71,10 +73,11 @@ func TestTar(t *testing.T) {
 			file.Name, err = filepath.Rel(dir, tmpFile.Name())
 			require.NoError(t, err)
 		}
-		content, err := provisionersdk.Tar(dir, 1024)
+		archive := new(bytes.Buffer)
+		err := provisionersdk.Tar(archive, dir, 1024)
 		require.NoError(t, err)
 		dir = t.TempDir()
-		err = provisionersdk.Untar(dir, content)
+		err = provisionersdk.Untar(dir, archive)
 		require.NoError(t, err)
 		for _, file := range files {
 			_, err = os.Stat(filepath.Join(dir, file.Name))
@@ -94,7 +97,8 @@ func TestUntar(t *testing.T) {
 	file, err := os.CreateTemp(dir, "*.tf")
 	require.NoError(t, err)
 	_ = file.Close()
-	archive, err := provisionersdk.Tar(dir, 1024)
+	archive := new(bytes.Buffer)
+	err = provisionersdk.Tar(archive, dir, 1024)
 	require.NoError(t, err)
 	dir = t.TempDir()
 	err = provisionersdk.Untar(dir, archive)
