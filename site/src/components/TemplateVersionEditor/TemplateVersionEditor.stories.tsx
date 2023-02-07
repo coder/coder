@@ -21,9 +21,9 @@ export default {
   },
 }
 
-const Template: Story<TemplateVersionEditorProps> = (args: TemplateVersionEditorProps) => (
-  <TemplateVersionEditor {...args} />
-)
+const Template: Story<TemplateVersionEditorProps> = (
+  args: TemplateVersionEditorProps,
+) => <TemplateVersionEditor {...args} />
 
 export const Example = Template.bind({})
 Example.args = {

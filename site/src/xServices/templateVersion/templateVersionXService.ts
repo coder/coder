@@ -15,7 +15,6 @@ export interface TemplateVersionMachineContext {
   orgId: string
   templateName: string
   versionName: string
-  templateName: string
   template?: Template
   currentVersion?: TemplateVersion
   currentFiles?: TemplateVersionFiles

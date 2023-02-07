@@ -53,7 +53,7 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 }) => {
   const groupedLogsByStage = groupLogsByStage(logs)
   const stages = Object.keys(groupedLogsByStage)
-  const styles = useStyles({ templateEditorPane })
+  const styles = useStyles({ templateEditorPane: Boolean(templateEditorPane) })
 
   return (
     <div className={styles.logs}>
