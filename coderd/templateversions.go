@@ -1459,10 +1459,14 @@ func convertTemplateVersionParameter(param database.TemplateVersionParameter) (c
 		})
 	}
 
+	descriptionPlaintext, err := parameter.Plaintext(param.Description)
+	if err != nil {
+		return codersdk.TemplateVersionParameter{}, err
+	}
 	return codersdk.TemplateVersionParameter{
 		Name:                 param.Name,
 		Description:          param.Description,
-		DescriptionPlaintext: parameter.Plaintext(param.Description),
+		DescriptionPlaintext: descriptionPlaintext,
 		Type:                 param.Type,
 		Mutable:              param.Mutable,
 		DefaultValue:         param.DefaultValue,
