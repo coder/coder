@@ -7,8 +7,8 @@ import {
   MockAuditLogUnsuccessfulLoginUnknownUser,
 } from "testHelpers/entities"
 import { AuditLogDescription } from "./AuditLogDescription"
-import { AuditLogRow } from "./AuditLogRow"
-import { render } from "../../testHelpers/renderHelpers"
+import { AuditLogRow } from "../AuditLogRow"
+import { render } from "../../../testHelpers/renderHelpers"
 import { screen } from "@testing-library/react"
 
 const getByTextContent = (text: string) => {

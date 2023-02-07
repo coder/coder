@@ -9,7 +9,6 @@ export const BuildAuditDescription: FC<{ auditLog: AuditLog }> = ({
 }): JSX.Element => {
   const { t } = useTranslation("auditLog")
 
-  // audit logs with a resource_type of workspace build use workspace name as a target
   const workspaceName = auditLog.additional_fields?.workspace_name?.trim()
   // workspaces can be started/stopped by a user, or kicked off automatically by Coder
   const user =
@@ -20,18 +19,33 @@ export const BuildAuditDescription: FC<{ auditLog: AuditLog }> = ({
 
   const action = auditLog.action === "start" ? "started" : "stopped"
 
+  if (auditLog.resource_link) {
+    return (
+      <span>
+        <Trans
+          t={t}
+          i18nKey="table.logRow.description.linkedWorkspaceBuild"
+          values={{ user, action, workspaceName }}
+        >
+          {"{{user}}"}
+          <Link component={RouterLink} to={auditLog.resource_link}>
+            {"{{action}}"}
+          </Link>
+          workspace{"{{workspaceName}}"}
+        </Trans>
+      </span>
+    )
+  }
+
   return (
     <span>
       <Trans
         t={t}
-        i18nKey="table.logRow.workspaceBuild"
+        i18nKey="table.logRow.description.unlinkedWorkspaceBuild"
         values={{ user, action, workspaceName }}
       >
         {"{{user}}"}
-        <Link component={RouterLink} to={auditLog.resource_link}>
-          {"{{action}}"}
-        </Link>
-        workspace{"{{workspaceName}}"}
+        {"{{action}}"}workspace{"{{workspaceName}}"}
       </Trans>
     </span>
   )
