@@ -18,6 +18,7 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"tailscale.com/hostinfo"
 	"tailscale.com/ipn/ipnstate"
+	"tailscale.com/net/connstats"
 	"tailscale.com/net/dns"
 	"tailscale.com/net/netns"
 	"tailscale.com/net/tsdial"
@@ -151,7 +152,11 @@ func NewConn(options *Options) (*Conn, error) {
 	if !ok {
 		return nil, xerrors.New("get wireguard internals")
 	}
-	tunDevice.SetStatisticsEnabled(options.EnableTrafficStats)
+
+	connStats := connstats.NewStatistics(0, 0, nil)
+	// stats.TestExtract()
+
+	tunDevice.SetStatistics(connStats)
 
 	// Update the keys for the magic connection!
 	err = magicConn.SetPrivateKey(nodePrivateKey)
@@ -169,7 +174,7 @@ func NewConn(options *Options) (*Conn, error) {
 		return netStack.DialContextTCP(ctx, dst)
 	}
 	netStack.ProcessLocalIPs = true
-	err = netStack.Start()
+	err = netStack.Start(nil)
 	if err != nil {
 		return nil, xerrors.Errorf("start netstack: %w", err)
 	}
@@ -205,6 +210,7 @@ func NewConn(options *Options) (*Conn, error) {
 			LocalAddrs: netMap.Addresses,
 		},
 		wireguardEngine: wireguardEngine,
+		trafficStats:    connStats,
 	}
 	wireguardEngine.SetStatusCallback(func(s *wgengine.Status, err error) {
 		server.logger.Debug(context.Background(), "wireguard status", slog.F("status", s), slog.F("err", err))
@@ -295,6 +301,8 @@ type Conn struct {
 	lastPreferredDERP int
 	lastDERPLatency   map[string]float64
 	nodeCallback      func(node *Node)
+
+	trafficStats *connstats.Statistics
 }
 
 // SetForwardTCPCallback is called every time a TCP connection is initiated inbound.
@@ -538,6 +546,9 @@ func (c *Conn) Close() error {
 	_ = c.wireguardMonitor.Close()
 	_ = c.tunDevice.Close()
 	c.wireguardEngine.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = c.trafficStats.Shutdown(ctx)
 	return nil
 }
 
@@ -704,8 +715,27 @@ func (c *Conn) forwardTCPToLocal(conn net.Conn, port uint16) {
 // ExtractTrafficStats extracts and resets the counters for all active
 // connections. It must be called periodically otherwise the memory used is
 // unbounded. EnableTrafficStats must be true when calling NewConn.
-func (c *Conn) ExtractTrafficStats() map[netlogtype.Connection]netlogtype.Counts {
-	return c.tunDevice.ExtractStatistics()
+// func (c *Conn) ExtractTrafficStats() map[netlogtype.Connection]netlogtype.Counts {
+// 	virt, _ := c.trafficStats.TestExtract()
+// 	return virt
+// }
+
+func (c *Conn) SetConnStatsCallback(maxPeriod time.Duration, maxConns int, dump func(start, end time.Time, virtual, physical map[netlogtype.Connection]netlogtype.Counts)) {
+	connStats := connstats.NewStatistics(maxPeriod, maxConns, dump)
+
+	c.mutex.Lock()
+	old := c.trafficStats
+	c.trafficStats = connStats
+	c.mutex.Lock()
+
+	// Make sure to shutdown the old callback.
+	if old != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = old.Shutdown(ctx)
+	}
+
+	c.tunDevice.SetStatistics(connStats)
 }
 
 type listenKey struct {

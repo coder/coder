@@ -368,39 +368,46 @@ func (c *Client) AuthAzureInstanceIdentity(ctx context.Context) (AuthenticateRes
 
 // ReportStats begins a stat streaming connection with the Coder server.
 // It is resilient to network failures and intermittent coderd issues.
-func (c *Client) ReportStats(
-	ctx context.Context,
-	log slog.Logger,
-	getStats func() *Stats,
-) (io.Closer, error) {
+func (c *Client) ReportStats(ctx context.Context, log slog.Logger, statsChan <-chan *Stats, setInterval func(time.Duration)) (io.Closer, error) {
+	var interval time.Duration
 	ctx, cancel := context.WithCancel(ctx)
 
-	go func() {
-		// Immediately trigger a stats push to get the correct interval.
-		timer := time.NewTimer(time.Nanosecond)
-		defer timer.Stop()
+	postStat := func(stat *Stats) {
+		var nextInterval time.Duration
+		for r := retry.New(100*time.Millisecond, time.Minute); r.Wait(ctx); {
+			resp, err := c.PostStats(ctx, stat)
+			if err != nil {
+				if !xerrors.Is(err, context.Canceled) {
+					log.Error(ctx, "report stats", slog.Error(err))
+				}
+				continue
+			}
 
+			nextInterval = resp.ReportInterval
+			break
+		}
+
+		if interval != nextInterval {
+			setInterval(nextInterval)
+		}
+		interval = nextInterval
+	}
+
+	// Send an empty stat to get the interval.
+	postStat(&Stats{ConnsByProto: map[string]int64{}})
+
+	go func() {
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-timer.C:
-			}
-
-			var nextInterval time.Duration
-			for r := retry.New(100*time.Millisecond, time.Minute); r.Wait(ctx); {
-				resp, err := c.PostStats(ctx, getStats())
-				if err != nil {
-					if !xerrors.Is(err, context.Canceled) {
-						log.Error(ctx, "report stats", slog.Error(err))
-					}
-					continue
+			case stat, ok := <-statsChan:
+				if !ok {
+					return
 				}
 
-				nextInterval = resp.ReportInterval
-				break
+				postStat(stat)
 			}
-			timer.Reset(nextInterval)
 		}
 	}()
 

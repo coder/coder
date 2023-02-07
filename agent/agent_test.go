@@ -1200,28 +1200,27 @@ func (c *client) Listen(_ context.Context) (net.Conn, error) {
 	return clientConn, nil
 }
 
-func (c *client) ReportStats(ctx context.Context, _ slog.Logger, stats func() *agentsdk.Stats) (io.Closer, error) {
+func (c *client) ReportStats(ctx context.Context, _ slog.Logger, statsChan <-chan *agentsdk.Stats, setInterval func(time.Duration)) (io.Closer, error) {
 	doneCh := make(chan struct{})
 	ctx, cancel := context.WithCancel(ctx)
 
 	go func() {
 		defer close(doneCh)
 
-		t := time.NewTicker(500 * time.Millisecond)
-		defer t.Stop()
+		setInterval(500 * time.Millisecond)
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-t.C:
-			}
-			select {
-			case c.statsChan <- stats():
-			case <-ctx.Done():
-				return
-			default:
-				// We don't want to send old stats.
-				continue
+			case stat := <-statsChan:
+				select {
+				case c.statsChan <- stat:
+				case <-ctx.Done():
+					return
+				default:
+					// We don't want to send old stats.
+					continue
+				}
 			}
 		}
 	}()

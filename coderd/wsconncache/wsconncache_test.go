@@ -214,7 +214,7 @@ func (c *client) Listen(_ context.Context) (net.Conn, error) {
 	return clientConn, nil
 }
 
-func (*client) ReportStats(_ context.Context, _ slog.Logger, _ func() *agentsdk.Stats) (io.Closer, error) {
+func (*client) ReportStats(_ context.Context, _ slog.Logger, _ <-chan *agentsdk.Stats, _ func(time.Duration)) (io.Closer, error) {
 	return io.NopCloser(strings.NewReader("")), nil
 }
 
