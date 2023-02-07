@@ -75,7 +75,10 @@ describe("AuditLogDescription", () => {
           truncatedDescription: `${MockAuditLogSuccessfulLogin.user?.username} logged in`,
           target: "",
           onBehalfOf: undefined,
-        }).trim(),
+        })
+          .replace(/<[^>]*>/g, " ")
+          .replace(/\s{2,}/g, " ")
+          .trim(),
       ),
     ).toBeInTheDocument()
 
@@ -91,7 +94,10 @@ describe("AuditLogDescription", () => {
           truncatedDescription: `${MockAuditLogUnsuccessfulLoginKnownUser.user?.username} logged in`,
           target: "",
           onBehalfOf: undefined,
-        }).trim(),
+        })
+          .replace(/<[^>]*>/g, " ")
+          .replace(/\s{2,}/g, " ")
+          .trim(),
       ),
     ).toBeInTheDocument()
 
@@ -107,7 +113,10 @@ describe("AuditLogDescription", () => {
           truncatedDescription: "an unknown user logged in",
           target: "",
           onBehalfOf: undefined,
-        }).trim(),
+        })
+          .replace(/<[^>]*>/g, " ")
+          .replace(/\s{2,}/g, " ")
+          .trim(),
       ),
     ).toBeInTheDocument()
 
