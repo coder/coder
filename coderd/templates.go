@@ -572,8 +572,8 @@ func (api *API) appUsage(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Default date filter values
-	since := time.Now().Add(-24 * 7 * time.Hour) // Default is last 7 days
-	to := time.Now()
+	since := time.Now().Truncate(24 * time.Hour).Add(-24 * 7 * time.Hour) // Default is last 7 days
+	to := time.Now().Truncate(24 * time.Hour)
 
 	// Assign date filter values
 	queryParamsValidation := []codersdk.ValidationError{}

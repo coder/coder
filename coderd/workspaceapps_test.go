@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/sloggers/slogtest"
@@ -1614,29 +1615,26 @@ func TestWorkspaceAppUsage(t *testing.T) {
 
 		// Verify if there is no usage
 		usage, _ := client.TemplateAppUsage(ctx, workspace.TemplateID)
-		require.Equal(t, len(usage.Entries), 0, "has no usage")
+		require.Equal(t, 0, len(usage.Entries), "has no usage")
 
-		// Access app for the first time
+		// Verify if first usage was added
 		accessApp(t, ctx, client, appUrl)
-
-		// Verify if usage was added
 		usage, _ = client.TemplateAppUsage(ctx, workspace.TemplateID)
-		require.Equal(t, len(usage.Entries), 1, "added usage")
-
-		// Access app for the second time with the same user
-		accessApp(t, ctx, client, appUrl)
+		appUsage := findAppUsage(usage, proxyTestAppNamePublic)
+		require.Equal(t, 1, appUsage.Count, "added first usage")
 
 		// Verify if usage was not added avoiding duplication
+		accessApp(t, ctx, client, appUrl)
 		usage, _ = client.TemplateAppUsage(ctx, workspace.TemplateID)
-		require.Equal(t, len(usage.Entries), 1, "did not add usage for the same user")
-
-		// Access app as a different user
-		secondUserClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleOwner())
-		accessApp(t, ctx, secondUserClient, appUrl)
+		appUsage = findAppUsage(usage, proxyTestAppNamePublic)
+		require.Equal(t, 1, appUsage.Count, "did not add usage for the same user")
 
 		// Verify if usage for a diff user was added
+		secondUserClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleOwner())
+		accessApp(t, ctx, secondUserClient, appUrl)
 		usage, _ = client.TemplateAppUsage(ctx, workspace.TemplateID)
-		require.Equal(t, len(usage.Entries), 2, "added usage for a different user")
+		appUsage = findAppUsage(usage, proxyTestAppNamePublic)
+		require.Equal(t, 2, appUsage.Count, "added usage for a different user")
 	})
 }
 
@@ -1663,4 +1661,11 @@ func accessApp(t *testing.T, ctx context.Context, client *codersdk.Client, appUr
 	require.NoError(t, err)
 	require.Equal(t, proxyTestAppBody, string(body))
 	require.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func findAppUsage(res codersdk.TemplateAppUsageResponse, slug string) codersdk.TemplateAppUsageEntry {
+	entryIdx := slices.IndexFunc(res.Entries, func(entry codersdk.TemplateAppUsageEntry) bool {
+		return entry.AppSlug == slug
+	})
+	return res.Entries[entryIdx]
 }

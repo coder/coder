@@ -4266,14 +4266,14 @@ func (q *fakeQuerier) InsertAppUsage(_ context.Context, p database.InsertAppUsag
 
 	usageIdx := slices.IndexFunc(q.appUsage, func(usage database.AppUsage) bool {
 		return usage.AppSlug == p.AppSlug &&
-			usage.CreatedAt == p.CreatedAt &&
+			usage.CreatedAt == p.CreatedAt.Truncate(time.Hour*24) &&
 			usage.TemplateID == p.TemplateID &&
 			usage.UserID == p.UserID
 	})
 
 	if usageIdx == -1 {
 		q.appUsage = append(q.appUsage, database.AppUsage{
-			CreatedAt:  p.CreatedAt,
+			CreatedAt:  p.CreatedAt.Truncate(time.Hour * 24),
 			AppSlug:    p.AppSlug,
 			UserID:     p.UserID,
 			TemplateID: p.TemplateID,
@@ -4281,28 +4281,6 @@ func (q *fakeQuerier) InsertAppUsage(_ context.Context, p database.InsertAppUsag
 	}
 
 	return nil
-}
-
-func (q *fakeQuerier) GetAppUsageByDate(_ context.Context, arg database.GetAppUsageByDateParams) (database.AppUsage, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for _, usage := range q.appUsage {
-		if !usage.CreatedAt.Equal(arg.CreatedAt) {
-			continue
-		}
-		if usage.AppSlug != arg.AppSlug {
-			continue
-		}
-		if usage.TemplateID != arg.TemplateID {
-			continue
-		}
-		if usage.UserID != arg.UserID {
-			continue
-		}
-		return usage, nil
-	}
-	return database.AppUsage{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) GetAppUsageByTemplateID(_ context.Context, arg database.GetAppUsageByTemplateIDParams) ([]database.GetAppUsageByTemplateIDRow, error) {
@@ -4315,13 +4293,18 @@ func (q *fakeQuerier) GetAppUsageByTemplateID(_ context.Context, arg database.Ge
 
 	// usageMap is indexed by Date to a map of App slugs to the number of unique
 	// users that have used that application.
+	since := arg.SinceDate.Truncate(time.Hour * 24)
+	to := arg.ToDate.Truncate(time.Hour * 24)
+
 	usageMap := make(map[time.Time]map[string]int64)
 	for _, usage := range q.appUsage {
 		if usage.TemplateID != arg.TemplateID {
 			continue
 		}
-		if usage.CreatedAt.Equal(arg.SinceDate) || (usage.CreatedAt.After(arg.SinceDate) && usage.CreatedAt.Before(arg.ToDate)) {
-			date := usage.CreatedAt.Truncate(time.Hour * 24)
+		if usage.CreatedAt.Equal(since) ||
+			usage.CreatedAt.Equal(to) ||
+			(usage.CreatedAt.After(since) && usage.CreatedAt.Before(to)) {
+			date := usage.CreatedAt
 			appEntry := usageMap[date]
 			if appEntry == nil {
 				appEntry = make(map[string]int64)

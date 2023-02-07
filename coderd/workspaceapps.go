@@ -95,7 +95,7 @@ func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
 func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 	agent := httpmw.WorkspaceAgentParam(r)
-	user := httpmw.UserParam(r)
+	apiKey := httpmw.APIKey(r)
 
 	if api.DeploymentConfig.DisablePathApps.Value {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
@@ -148,7 +148,7 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 	// Add app usage
 	ctx := r.Context()
 	err := api.Database.InsertAppUsage(ctx, database.InsertAppUsageParams{
-		UserID:     user.ID,
+		UserID:     apiKey.UserID,
 		TemplateID: workspace.TemplateID,
 		AppSlug:    app.Slug,
 		CreatedAt:  database.Now(),

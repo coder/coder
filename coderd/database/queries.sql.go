@@ -386,39 +386,6 @@ func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDP
 	return err
 }
 
-const getAppUsageByDate = `-- name: GetAppUsageByDate :one
-SELECT
-	user_id, app_slug, template_id, created_at
-FROM
-	app_usage
-WHERE
-	user_id = $1 AND template_id = $2 AND app_slug = $3 AND created_at = $4
-`
-
-type GetAppUsageByDateParams struct {
-	UserID     uuid.UUID `db:"user_id" json:"user_id"`
-	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
-	AppSlug    string    `db:"app_slug" json:"app_slug"`
-	CreatedAt  time.Time `db:"created_at" json:"created_at"`
-}
-
-func (q *sqlQuerier) GetAppUsageByDate(ctx context.Context, arg GetAppUsageByDateParams) (AppUsage, error) {
-	row := q.db.QueryRowContext(ctx, getAppUsageByDate,
-		arg.UserID,
-		arg.TemplateID,
-		arg.AppSlug,
-		arg.CreatedAt,
-	)
-	var i AppUsage
-	err := row.Scan(
-		&i.UserID,
-		&i.AppSlug,
-		&i.TemplateID,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const getAppUsageByTemplateID = `-- name: GetAppUsageByTemplateID :many
 SELECT
 	app_usage.created_at,
