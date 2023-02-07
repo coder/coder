@@ -130,12 +130,11 @@ func (s *MethodTestSuite) SetupTest() {
 
 func (s *MethodTestSuite) TearDownTest() {
 	var (
-		t              = s.T()
-		az             = s.az
-		testCase       = s.testCase
-		fakeAuthorizer = s.authz
-		ctx            = s.ctx
-		rec            = s.rec
+		t        = s.T()
+		az       = s.az
+		testCase = s.testCase
+		ctx      = s.ctx
+		rec      = s.rec
 	)
 
 	require.NotEqualf(t, "", testCase.MethodName, "Method name must be set")
@@ -149,43 +148,33 @@ func (s *MethodTestSuite) TearDownTest() {
 MethodLoop:
 	for i := 0; i < azt.NumMethod(); i++ {
 		method := azt.Method(i)
+		callMethod := func() ([]reflect.Value, error) {
+			resp := reflect.ValueOf(az).Method(i).Call(append([]reflect.Value{reflect.ValueOf(ctx)}, testCase.Inputs...))
+			return splitResp(t, resp)
+		}
+
 		if method.Name == methodName {
 			if len(testCase.Assertions) > 0 {
-				fakeAuthorizer.AlwaysReturn = xerrors.New("Always fail authz")
-				// If we have assertions, that means the method should FAIL
-				// if RBAC will disallow the request. The returned error should
-				// be expected to be a NotAuthorizedError.
-				erroredResp := reflect.ValueOf(az).Method(i).Call(append([]reflect.Value{reflect.ValueOf(ctx)}, testCase.Inputs...))
-				_, err := splitResp(t, erroredResp)
-				// This is unfortunate, but if we are using `Filter` the error returned will be nil. So filter out
-				// any case where the error is nil and the response is an empty slice.
-				if err != nil || !hasEmptySliceResponse(erroredResp) {
-					require.Errorf(t, err, "method %q should an error with disallow authz", methodName)
-					require.ErrorIsf(t, err, sql.ErrNoRows, "error should match sql.ErrNoRows")
-					require.ErrorAs(t, err, &authzquery.NotAuthorizedError{}, "error should be NotAuthorizedError")
-				}
-				// Set things back to normal.
-				fakeAuthorizer.AlwaysReturn = nil
-				rec.Reset()
+				// Run testing on expected errors
+				s.TestNotAuthorized(callMethod)
+				s.TestNoActor(callMethod)
 			}
 
-			resp := reflect.ValueOf(az).Method(i).Call(append([]reflect.Value{reflect.ValueOf(ctx)}, testCase.Inputs...))
-
-			outputs, err := splitResp(t, resp)
-			require.NoError(t, err, "method %q returned an error", t.Name())
+			outputs, err := callMethod()
+			s.NoError(err, "method %q returned an error", t.Name())
 
 			// Some tests may not care about the outputs, so we only assert if
 			// they are provided.
 			if testCase.ExpectedOutputs != nil {
 				// Assert the required outputs
-				require.Equal(t, len(testCase.ExpectedOutputs), len(outputs), "method %q returned unexpected number of outputs", methodName)
+				s.Equal(len(testCase.ExpectedOutputs), len(outputs), "method %q returned unexpected number of outputs", methodName)
 				for i := range outputs {
 					a, b := testCase.ExpectedOutputs[i].Interface(), outputs[i].Interface()
 					if reflect.TypeOf(a).Kind() == reflect.Slice || reflect.TypeOf(a).Kind() == reflect.Array {
 						// Order does not matter
-						require.ElementsMatch(t, a, b, "method %q returned unexpected output %d", methodName, i)
+						s.ElementsMatch(a, b, "method %q returned unexpected output %d", methodName, i)
 					} else {
-						require.Equal(t, a, b, "method %q returned unexpected output %d", methodName, i)
+						s.Equal(a, b, "method %q returned unexpected output %d", methodName, i)
 					}
 				}
 			}
@@ -195,7 +184,7 @@ MethodLoop:
 		}
 	}
 
-	require.True(t, found, "method %q does not exist", methodName)
+	s.True(found, "method %q does not exist", methodName)
 
 	var pairs []coderdtest.ActionObjectPair
 	for _, assrt := range testCase.Assertions {
@@ -208,8 +197,38 @@ MethodLoop:
 	}
 
 	rec.AssertActor(t, s.actor, pairs...)
-	require.NoError(t, rec.AllAsserted(), "all rbac calls must be asserted")
+	s.NoError(rec.AllAsserted(), "all rbac calls must be asserted")
 	s.clear()
+}
+
+func (s *MethodTestSuite) TestNoActor(callMethod func() ([]reflect.Value, error)) {
+	// TODO:
+}
+
+// TestNotAuthorized runs the given method with an authorizer that will fail authz.
+// Asserts that the error returned is a NotAuthorizedError.
+func (s *MethodTestSuite) TestNotAuthorized(callMethod func() ([]reflect.Value, error)) {
+	tmp := s.authz.AlwaysReturn
+	defer func() {
+		// Set things back to the way they were
+		s.rec.Reset()
+		s.authz.AlwaysReturn = tmp
+	}()
+
+	s.authz.AlwaysReturn = xerrors.New("Always fail authz")
+
+	// If we have assertions, that means the method should FAIL
+	// if RBAC will disallow the request. The returned error should
+	// be expected to be a NotAuthorizedError.
+	resp, err := callMethod()
+
+	// This is unfortunate, but if we are using `Filter` the error returned will be nil. So filter out
+	// any case where the error is nil and the response is an empty slice.
+	if err != nil || !hasEmptySliceResponse(resp) {
+		s.Errorf(err, "method should an error with disallow authz")
+		s.ErrorIsf(err, sql.ErrNoRows, "error should match sql.ErrNoRows")
+		s.ErrorAs(err, &authzquery.NotAuthorizedError{}, "error should be NotAuthorizedError")
+	}
 }
 
 func (s *MethodTestSuite) Asserts(v ...any) *MethodTestSuite {
@@ -226,6 +245,10 @@ func (s *MethodTestSuite) Args(v ...any) *MethodTestSuite {
 func (s *MethodTestSuite) Returns(v ...any) *MethodTestSuite {
 	s.testCase = s.testCase.Returns(v...)
 	return s
+}
+
+func (s *MethodTestSuite) f() {
+
 }
 
 // RunMethodTest runs a method test case.
