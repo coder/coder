@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"regexp"
 	"testing"
 
@@ -9,6 +10,7 @@ import (
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/codersdk"
 )
 
 func TestTokens(t *testing.T) {
@@ -53,6 +55,18 @@ func TestTokens(t *testing.T) {
 	require.Contains(t, res, "CREATED AT")
 	require.Contains(t, res, "LAST USED")
 	require.Contains(t, res, id)
+
+	cmd, root = clitest.New(t, "tokens", "ls", "--output=json")
+	clitest.SetupConfig(t, client, root)
+	buf = new(bytes.Buffer)
+	cmd.SetOut(buf)
+	err = cmd.Execute()
+	require.NoError(t, err)
+
+	var tokens []codersdk.APIKey
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &tokens))
+	require.Len(t, tokens, 1)
+	require.Equal(t, id, tokens[0].ID)
 
 	cmd, root = clitest.New(t, "tokens", "rm", id)
 	clitest.SetupConfig(t, client, root)

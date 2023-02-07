@@ -7,7 +7,10 @@ Aliases:
   list, ls
 
 Flags:
-  -h, --help   help for list
+  -c, --column strings   Columns to display in table output. Available columns: id, last used,
+                         expires at, created at (default [id,last used,expires at,created at])
+  -h, --help             help for list
+  -o, --output string    Output format. Available formats: table, json (default "table")
 
 Global Flags:
       --global-config coder   Path to the global coder config directory.

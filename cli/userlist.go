@@ -86,6 +86,9 @@ func userSingle() *cobra.Command {
 				User:              user,
 				OrganizationNames: orgNames,
 			})
+			if err != nil {
+				return err
+			}
 
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), out)
 			return err
@@ -98,7 +101,7 @@ func userSingle() *cobra.Command {
 
 type userWithOrgNames struct {
 	codersdk.User
-	OrganizationNames []string `json:"organization_names" table:"organization_names"`
+	OrganizationNames []string `json:"organization_names"`
 }
 
 type userShowFormat struct{}

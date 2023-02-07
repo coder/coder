@@ -107,7 +107,7 @@ func DisplayTable(out any, sort string, filterColumns []string) (string, error) 
 			column := strings.ToLower(strings.ReplaceAll(column, "_", " "))
 			h, ok := headersMap[column]
 			if !ok {
-				return "", xerrors.Errorf(`specified filter column %q not found in table headers, available columns are "%v"`, sort, strings.Join(headersRaw, `", "`))
+				return "", xerrors.Errorf(`specified filter column %q not found in table headers, available columns are "%v"`, column, strings.Join(headersRaw, `", "`))
 			}
 
 			// Autocorrect

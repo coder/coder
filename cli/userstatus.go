@@ -58,7 +58,9 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *cobra.Command {
 				return xerrors.Errorf("fetch user: %w", err)
 			}
 
-			// Display the user
+			// Display the user. This uses cliui.DisplayTable directly instead
+			// of cliui.NewOutputFormatter because we prompt immediately
+			// afterwards.
 			table, err := cliui.DisplayTable([]codersdk.User{user}, "", columns)
 			if err != nil {
 				return xerrors.Errorf("render user table: %w", err)

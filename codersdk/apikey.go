@@ -12,11 +12,11 @@ import (
 
 // APIKey: do not ever return the HashedSecret
 type APIKey struct {
-	ID              string      `json:"id" validate:"required"`
+	ID              string      `json:"id" table:"id,default_sort" validate:"required"`
 	UserID          uuid.UUID   `json:"user_id" validate:"required" format:"uuid"`
-	LastUsed        time.Time   `json:"last_used" validate:"required" format:"date-time"`
-	ExpiresAt       time.Time   `json:"expires_at" validate:"required" format:"date-time"`
-	CreatedAt       time.Time   `json:"created_at" validate:"required" format:"date-time"`
+	LastUsed        time.Time   `json:"last_used" table:"last used" validate:"required" format:"date-time"`
+	ExpiresAt       time.Time   `json:"expires_at" table:"expires at" validate:"required" format:"date-time"`
+	CreatedAt       time.Time   `json:"created_at" table:"created at" validate:"required" format:"date-time"`
 	UpdatedAt       time.Time   `json:"updated_at" validate:"required" format:"date-time"`
 	LoginType       LoginType   `json:"login_type" validate:"required" enums:"password,github,oidc,token"`
 	Scope           APIKeyScope `json:"scope" validate:"required" enums:"all,application_connect"`
