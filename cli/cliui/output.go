@@ -30,6 +30,9 @@ func NewOutputFormatter(formats ...OutputFormat) *OutputFormatter {
 
 	formatIDs := make(map[string]struct{}, len(formats))
 	for _, format := range formats {
+		if format.ID() == "" {
+			panic("output format ID must not be empty")
+		}
 		if _, ok := formatIDs[format.ID()]; ok {
 			panic("duplicate format ID: " + format.ID())
 		}
