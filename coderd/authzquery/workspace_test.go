@@ -68,6 +68,15 @@ func (s *MethodTestSuite) TestWorkspace() {
 			LifecycleState: database.WorkspaceAgentLifecycleStateCreated,
 		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	}))
+	s.Run("UpdateWorkspaceAgentStartupByID", s.Subtest(func(db database.Store, check *expects) {
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
+		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
+		check.Args(database.UpdateWorkspaceAgentStartupByIDParams{
+			ID: agt.ID,
+		}).Asserts(ws, rbac.ActionUpdate).Returns()
+	}))
 	s.Run("GetWorkspaceAppByAgentIDAndSlug", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
@@ -247,15 +256,6 @@ func (s *MethodTestSuite) TestWorkspace() {
 		check.Args(database.InsertAgentStatParams{
 			WorkspaceID: ws.ID,
 		}).Asserts(ws, rbac.ActionUpdate)
-	}))
-	s.Run("UpdateWorkspaceAgentVersionByID", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
-		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
-		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
-		check.Args(database.UpdateWorkspaceAgentVersionByIDParams{
-			ID: agt.ID,
-		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	}))
 	s.Run("UpdateWorkspaceAppHealthByID", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})

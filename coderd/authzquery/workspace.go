@@ -120,6 +120,24 @@ func (q *AuthzQuerier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Contex
 	return q.db.UpdateWorkspaceAgentLifecycleStateByID(ctx, arg)
 }
 
+func (q *AuthzQuerier) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg database.UpdateWorkspaceAgentStartupByIDParams) error {
+	agent, err := q.db.GetWorkspaceAgentByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, agent.ID)
+	if err != nil {
+		return err
+	}
+
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, workspace); err != nil {
+		return err
+	}
+
+	return q.db.UpdateWorkspaceAgentStartupByID(ctx, arg)
+}
+
 func (q *AuthzQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg database.GetWorkspaceAppByAgentIDAndSlugParams) (database.WorkspaceApp, error) {
 	// If we can fetch the workspace, we can fetch the apps. Use the authorized call.
 	if _, err := q.GetWorkspaceByAgentID(ctx, arg.AgentID); err != nil {
@@ -371,14 +389,6 @@ func (q *AuthzQuerier) InsertAgentStat(ctx context.Context, arg database.InsertA
 		return database.AgentStat{}, err
 	}
 	return q.db.InsertAgentStat(ctx, arg)
-}
-
-func (q *AuthzQuerier) UpdateWorkspaceAgentVersionByID(ctx context.Context, arg database.UpdateWorkspaceAgentVersionByIDParams) error {
-	// TODO: This is a workspace agent operation. Should users be able to query this?
-	fetch := func(ctx context.Context, arg database.UpdateWorkspaceAgentVersionByIDParams) (database.Workspace, error) {
-		return q.db.GetWorkspaceByAgentID(ctx, arg.ID)
-	}
-	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceAgentVersionByID)(ctx, arg)
 }
 
 func (q *AuthzQuerier) UpdateWorkspaceAppHealthByID(ctx context.Context, arg database.UpdateWorkspaceAppHealthByIDParams) error {
