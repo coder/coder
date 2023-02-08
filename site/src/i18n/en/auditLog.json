@@ -8,13 +8,16 @@
     "emptyPage": "No audit logs available on this page",
     "noLogs": "No audit logs available",
     "logRow": {
+      "description": {
+        "linkedWorkspaceBuild": "{{user}} <1>{{action}}</1> workspace <strong>{{workspaceName}}</strong>",
+        "unlinkedWorkspaceBuild": "{{user}} {{action}} workspace <strong>{{workspaceName}}</strong>",
+        "linkedAuditDescription": "{{truncatedDescription}} <1><strong>{{target}}</strong></1> {{onBehalfOf}}",
+        "unlinkedAuditDescription": "{{truncatedDescription}} <strong>{{target}}</strong> {{onBehalfOf}}"
+      },
       "deletedLabel": " (deleted)",
       "ip": "IP: ",
       "os": "OS: ",
-      "browser": "Browser: ",
-      "onBehalfOf": " on behalf of {{owner}}",
-      "buildReason": "Coder automatically",
-      "unknownUser": "an unknown user"
+      "browser": "Browser: "
     }
   },
   "paywall": {
