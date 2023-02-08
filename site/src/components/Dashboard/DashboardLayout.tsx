@@ -12,6 +12,7 @@ import { updateCheckMachine } from "xServices/updateCheck/updateCheckXService"
 import { usePermissions } from "hooks/usePermissions"
 import { UpdateCheckResponse } from "api/typesGenerated"
 import { DashboardProvider } from "./DashboardProvider"
+import { dashboardContentBottomPadding } from "theme/constants"
 
 export const DashboardLayout: FC = () => {
   const styles = useStyles()
@@ -71,6 +72,6 @@ const useStyles = makeStyles((theme) => ({
   },
   siteContent: {
     flex: 1,
-    paddingBottom: theme.spacing(6), // Add bottom space since we don't use a footer
+    paddingBottom: dashboardContentBottomPadding, // Add bottom space since we don't use a footer
   },
 }))
