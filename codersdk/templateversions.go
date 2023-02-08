@@ -35,7 +35,7 @@ const (
 type TemplateVersionParameter struct {
 	Name                 string                           `json:"name"`
 	Description          string                           `json:"description"`
-	DescriptionPlaintext string                           `json:"description_plaintext,omitempty"`
+	DescriptionPlaintext string                           `json:"description_plaintext"`
 	Type                 string                           `json:"type" enums:"string,number,bool"`
 	Mutable              bool                             `json:"mutable"`
 	DefaultValue         string                           `json:"default_value"`

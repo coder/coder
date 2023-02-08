@@ -753,7 +753,7 @@ export interface TemplateVersion {
 export interface TemplateVersionParameter {
   readonly name: string
   readonly description: string
-  readonly description_plaintext?: string
+  readonly description_plaintext: string
   readonly type: string
   readonly mutable: boolean
   readonly default_value: string
