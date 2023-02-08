@@ -431,7 +431,7 @@ func NewExternalProvisionerDaemon(t *testing.T, client *codersdk.Client, org uui
 var FirstUserParams = codersdk.CreateFirstUserRequest{
 	Email:    "testuser@coder.com",
 	Username: "testuser",
-	Password: "testpass",
+	Password: "SomeSecurePassword!",
 }
 
 // CreateFirstUser creates a user with preset credentials and authenticates
@@ -458,7 +458,7 @@ func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationI
 	req := codersdk.CreateUserRequest{
 		Email:          namesgenerator.GetRandomName(10) + "@coder.com",
 		Username:       randomUsername(),
-		Password:       "testpass",
+		Password:       "SomeSecurePassword!",
 		OrganizationID: organizationID,
 	}
 

@@ -13,12 +13,16 @@ import { UserAvatar } from "components/UserAvatar/UserAvatar"
 import { useState } from "react"
 import { PaletteIndex } from "theme/palettes"
 import userAgentParser from "ua-parser-js"
-import { AuditLogDiff } from "./AuditLogDiff"
-import i18next from "i18next"
+import { AuditLogDiff, determineGroupDiff } from "./AuditLogDiff"
+import { useTranslation } from "react-i18next"
 import { AuditLogDescription } from "./AuditLogDescription"
-import { determineGroupDiff } from "./auditUtils"
 
 const httpStatusColor = (httpStatus: number): PaletteIndex => {
+  // redirects are successful
+  if (httpStatus === 307) {
+    return "success"
+  }
+
   if (httpStatus >= 300 && httpStatus < 500) {
     return "warning"
   }
@@ -41,14 +45,11 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
   defaultIsDiffOpen = false,
 }) => {
   const styles = useStyles()
-  const { t } = i18next
+  const { t } = useTranslation("auditLog")
   const [isDiffOpen, setIsDiffOpen] = useState(defaultIsDiffOpen)
   const diffs = Object.entries(auditLog.diff)
   const shouldDisplayDiff = diffs.length > 0
   const { os, browser } = userAgentParser(auditLog.user_agent)
-  const displayBrowserInfo = browser.name
-    ? `${browser.name} ${browser.version}`
-    : t("auditLog:table.logRow.notAvailable")
 
   let auditDiff = auditLog.diff
 
@@ -110,6 +111,11 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
                   spacing={1}
                 >
                   <AuditLogDescription auditLog={auditLog} />
+                  {auditLog.is_deleted && (
+                    <span className={styles.deletedLabel}>
+                      <>{t("table.logRow.deletedLabel")}</>
+                    </span>
+                  )}
                   <span className={styles.auditLogTime}>
                     {new Date(auditLog.time).toLocaleTimeString()}
                   </span>
@@ -119,25 +125,24 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
                   <Stack direction="row" spacing={1} alignItems="baseline">
                     {auditLog.ip && (
                       <span className={styles.auditLogInfo}>
-                        <>{t("auditLog:table.logRow.ip")}</>
+                        <>{t("table.logRow.ip")}</>
                         <strong>{auditLog.ip}</strong>
                       </span>
                     )}
-
-                    <span className={styles.auditLogInfo}>
-                      <>{t("auditLog:table.logRow.os")}</>
-                      <strong>
-                        {os.name
-                          ? os.name
-                          : // https://github.com/i18next/next-i18next/issues/1795
-                            t<string>("auditLog:table.logRow.notAvailable")}
-                      </strong>
-                    </span>
-
-                    <span className={styles.auditLogInfo}>
-                      <>{t("auditLog:table.logRow.browser")}</>
-                      <strong>{displayBrowserInfo}</strong>
-                    </span>
+                    {os.name && (
+                      <span className={styles.auditLogInfo}>
+                        <>{t("table.logRow.os")}</>
+                        <strong>{os.name}</strong>
+                      </span>
+                    )}
+                    {browser.name && (
+                      <span className={styles.auditLogInfo}>
+                        <>{t("table.logRow.browser")}</>
+                        <strong>
+                          {browser.name} {browser.version}
+                        </strong>
+                      </span>
+                    )}
                   </Stack>
 
                   <Pill
@@ -214,5 +219,10 @@ const useStyles = makeStyles((theme) => ({
     paddingLeft: 10,
     paddingRight: 10,
     fontWeight: 600,
+  },
+
+  deletedLabel: {
+    ...theme.typography.caption,
+    color: theme.palette.text.secondary,
   },
 }))

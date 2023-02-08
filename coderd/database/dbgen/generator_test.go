@@ -71,7 +71,7 @@ func TestGenerator(t *testing.T) {
 	t.Run("WorkspaceResourceMetadata", func(t *testing.T) {
 		t.Parallel()
 		db := dbfake.New()
-		exp := dbgen.WorkspaceResourceMetadata(t, db, database.WorkspaceResourceMetadatum{})
+		exp := dbgen.WorkspaceResourceMetadatums(t, db, database.WorkspaceResourceMetadatum{})
 		require.Equal(t, exp, must(db.GetWorkspaceResourceMetadataByResourceIDs(context.Background(), []uuid.UUID{exp[0].WorkspaceResourceID})))
 	})
 

@@ -2,12 +2,14 @@ package cli_test
 
 import (
 	"bytes"
+	"context"
 	"flag"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -20,6 +22,8 @@ import (
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/clitest"
+	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
 )
@@ -28,12 +32,16 @@ import (
 // make update-golden-files
 var updateGoldenFiles = flag.Bool("update", false, "update .golden files")
 
+var timestampRegex = regexp.MustCompile(`(?i)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d+)?Z`)
+
 //nolint:tparallel,paralleltest // These test sets env vars.
 func TestCommandHelp(t *testing.T) {
 	commonEnv := map[string]string{
 		"HOME":             "~",
 		"CODER_CONFIG_DIR": "~/.config/coderv2",
 	}
+
+	rootClient, replacements := prepareTestData(t)
 
 	type testCase struct {
 		name string
@@ -58,6 +66,14 @@ func TestCommandHelp(t *testing.T) {
 			env: map[string]string{
 				"CODER_AGENT_LOG_DIR": "/tmp",
 			},
+		},
+		{
+			name: "coder list --output json",
+			cmd:  []string{"list", "--output", "json"},
+		},
+		{
+			name: "coder users list --output json",
+			cmd:  []string{"users", "list", "--output", "json"},
 		},
 	}
 
@@ -111,21 +127,33 @@ ExtractCommandPathsLoop:
 			}
 			err := os.Chdir(tmpwd)
 			var buf bytes.Buffer
-			root, _ := clitest.New(t, tt.cmd...)
-			root.SetOut(&buf)
+			cmd, cfg := clitest.New(t, tt.cmd...)
+			clitest.SetupConfig(t, rootClient, cfg)
+			cmd.SetOut(&buf)
 			assert.NoError(t, err)
-			err = root.ExecuteContext(ctx)
+			err = cmd.ExecuteContext(ctx)
 			err2 := os.Chdir(wd)
 			require.NoError(t, err)
 			require.NoError(t, err2)
 
 			got := buf.Bytes()
-			// Remove CRLF newlines (Windows).
-			got = bytes.ReplaceAll(got, []byte{'\r', '\n'}, []byte{'\n'})
 
-			// The `coder templates create --help` command prints the path
-			// to the working directory (--directory flag default value).
-			got = bytes.ReplaceAll(got, []byte(fmt.Sprintf("%q", tmpwd)), []byte("\"[current directory]\""))
+			replace := map[string][]byte{
+				// Remove CRLF newlines (Windows).
+				string([]byte{'\r', '\n'}): []byte("\n"),
+				// The `coder templates create --help` command prints the path
+				// to the working directory (--directory flag default value).
+				fmt.Sprintf("%q", tmpwd): []byte("\"[current directory]\""),
+			}
+			for k, v := range replacements {
+				replace[k] = []byte(v)
+			}
+			for k, v := range replace {
+				got = bytes.ReplaceAll(got, []byte(k), v)
+			}
+
+			// Replace any timestamps with a placeholder.
+			got = timestampRegex.ReplaceAll(got, []byte("[timestamp]"))
 
 			gf := filepath.Join("testdata", strings.Replace(tt.name, " ", "_", -1)+".golden")
 			if *updateGoldenFiles {
@@ -154,6 +182,56 @@ func extractVisibleCommandPaths(cmdPath []string, cmds []*cobra.Command) [][]str
 		cmdPaths = append(cmdPaths, extractVisibleCommandPaths(cmdPath, c.Commands())...)
 	}
 	return cmdPaths
+}
+
+func prepareTestData(t *testing.T) (*codersdk.Client, map[string]string) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	rootClient := coderdtest.New(t, &coderdtest.Options{
+		Database:                 db,
+		Pubsub:                   pubsub,
+		IncludeProvisionerDaemon: true,
+	})
+	firstUser := coderdtest.CreateFirstUser(t, rootClient)
+	secondUser, err := rootClient.CreateUser(ctx, codersdk.CreateUserRequest{
+		Email:          "testuser2@coder.com",
+		Username:       "testuser2",
+		Password:       coderdtest.FirstUserParams.Password,
+		OrganizationID: firstUser.OrganizationID,
+	})
+	require.NoError(t, err)
+	version := coderdtest.CreateTemplateVersion(t, rootClient, firstUser.OrganizationID, nil)
+	version = coderdtest.AwaitTemplateVersionJob(t, rootClient, version.ID)
+	template := coderdtest.CreateTemplate(t, rootClient, firstUser.OrganizationID, version.ID, func(req *codersdk.CreateTemplateRequest) {
+		req.Name = "test-template"
+	})
+	workspace := coderdtest.CreateWorkspace(t, rootClient, firstUser.OrganizationID, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+		req.Name = "test-workspace"
+	})
+	workspaceBuild := coderdtest.AwaitWorkspaceBuildJob(t, rootClient, workspace.LatestBuild.ID)
+
+	replacements := map[string]string{
+		firstUser.UserID.String():            "[first user ID]",
+		secondUser.ID.String():               "[second user ID]",
+		firstUser.OrganizationID.String():    "[first org ID]",
+		version.ID.String():                  "[version ID]",
+		version.Name:                         "[version name]",
+		version.Job.ID.String():              "[version job ID]",
+		version.Job.FileID.String():          "[version file ID]",
+		version.Job.WorkerID.String():        "[version worker ID]",
+		template.ID.String():                 "[template ID]",
+		workspace.ID.String():                "[workspace ID]",
+		workspaceBuild.ID.String():           "[workspace build ID]",
+		workspaceBuild.Job.ID.String():       "[workspace build job ID]",
+		workspaceBuild.Job.FileID.String():   "[workspace build file ID]",
+		workspaceBuild.Job.WorkerID.String(): "[workspace build worker ID]",
+	}
+
+	return rootClient, replacements
 }
 
 func TestRoot(t *testing.T) {

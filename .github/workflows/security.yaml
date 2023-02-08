@@ -115,17 +115,6 @@ jobs:
           make -j "$image_job"
           echo "image=$(cat "$image_job")" >> $GITHUB_OUTPUT
 
-      - name: Build Coder linux amd64 Docker image (ironbank)
-        id: build-ironbank
-        run: |
-          set -euo pipefail
-          # NOTE: This is not a real image tag we publish.
-          image_tag="${{ steps.build.outputs.image }}-ironbank"
-          ./scripts/ironbank/build_ironbank.sh \
-            --target "$image_tag" \
-            "build/coder_$(./scripts/version.sh)_linux_amd64"
-          echo "image=$image_tag" >> $GITHUB_OUTPUT
-
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@9ab158e8597f3b310480b9a69402b419bc03dbd5
         with:
@@ -140,34 +129,9 @@ jobs:
           sarif_file: trivy-results.sarif
           category: "Trivy"
 
-      - name: Run Trivy vulnerability scanner (ironbank)
-        uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
-        with:
-          image-ref: ${{ steps.build-ironbank.outputs.image }}
-          format: sarif
-          output: trivy-results-ironbank.sarif
-          severity: "CRITICAL,HIGH"
-
-      # Update the tool name field in the ironbank SARIF file so it's not
-      # indistinguishable from findings in the non-ironbank SARIF file in the
-      # GitHub UI. Without this, findings from both scans would show up as
-      # "Trivy".
-      - name: Update tool name in SARIF file (ironbank)
-        run: |
-          set -euo pipefail
-          yq eval -i '.runs[0].tool.driver.name = "Trivy Ironbank"' trivy-results-ironbank.sarif
-
-      - name: Upload Trivy scan results to GitHub Security tab (ironbank)
-        uses: github/codeql-action/upload-sarif@v2
-        with:
-          sarif_file: trivy-results-ironbank.sarif
-          category: "Trivy Ironbank"
-
       - name: Upload Trivy scan results as an artifact
         uses: actions/upload-artifact@v2
         with:
           name: trivy
-          path: |
-            trivy-results.sarif
-            trivy-results-ironbank.sarif
+          path: trivy-results.sarif
           retention-days: 7

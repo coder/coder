@@ -54,8 +54,8 @@ func TestLogin(t *testing.T) {
 			"first user?", "yes",
 			"username", "testuser",
 			"email", "user@coder.com",
-			"password", "password",
-			"password", "password", // Confirm.
+			"password", "SomeSecurePassword!",
+			"password", "SomeSecurePassword!", // Confirm.
 			"trial", "yes",
 		}
 		for i := 0; i < len(matches); i += 2 {
@@ -89,8 +89,8 @@ func TestLogin(t *testing.T) {
 			"first user?", "yes",
 			"username", "testuser",
 			"email", "user@coder.com",
-			"password", "password",
-			"password", "password", // Confirm.
+			"password", "SomeSecurePassword!",
+			"password", "SomeSecurePassword!", // Confirm.
 			"trial", "yes",
 		}
 		for i := 0; i < len(matches); i += 2 {
@@ -107,7 +107,7 @@ func TestLogin(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		doneChan := make(chan struct{})
-		root, _ := clitest.New(t, "login", client.URL.String(), "--first-user-username", "testuser", "--first-user-email", "user@coder.com", "--first-user-password", "password", "--first-user-trial")
+		root, _ := clitest.New(t, "login", client.URL.String(), "--first-user-username", "testuser", "--first-user-email", "user@coder.com", "--first-user-password", "SomeSecurePassword!", "--first-user-trial")
 		pty := ptytest.New(t)
 		root.SetIn(pty.Input())
 		root.SetOut(pty.Output())
@@ -143,8 +143,8 @@ func TestLogin(t *testing.T) {
 			"first user?", "yes",
 			"username", "testuser",
 			"email", "user@coder.com",
-			"password", "mypass",
-			"password", "wrongpass", // Confirm.
+			"password", "MyFirstSecurePassword!",
+			"password", "MyNonMatchingSecurePassword!", // Confirm.
 		}
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
@@ -157,9 +157,9 @@ func TestLogin(t *testing.T) {
 		pty.ExpectMatch("Passwords do not match")
 		pty.ExpectMatch("Enter a " + cliui.Styles.Field.Render("password"))
 
-		pty.WriteLine("pass")
+		pty.WriteLine("SomeSecurePassword!")
 		pty.ExpectMatch("Confirm")
-		pty.WriteLine("pass")
+		pty.WriteLine("SomeSecurePassword!")
 		pty.ExpectMatch("trial")
 		pty.WriteLine("yes")
 		pty.ExpectMatch("Welcome to Coder")

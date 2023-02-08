@@ -69,7 +69,7 @@ dependencies gh
 # Remove the "v" prefix.
 version="${version#v}"
 if [[ "$version" == "" ]]; then
-	version="$(execrelative ./version.sh)"
+	version="$(execrelative ../version.sh)"
 fi
 
 if [[ -z $release_notes_file ]]; then

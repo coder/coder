@@ -7555,6 +7555,9 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
+                "description_plaintext": {
+                    "type": "string"
+                },
                 "icon": {
                     "type": "string"
                 },
