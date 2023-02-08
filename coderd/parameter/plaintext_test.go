@@ -30,7 +30,7 @@ __This is bold text.__
 
 ` + "`There are also code tags!`"
 
-		expected := "Provide the machine image See the registry for options. Minion This is bold text. This is bold text. This is italic text. Blockquotes can also be nested. Strikethrough. 1. Lorem ipsum dolor sit amet. 2. Consectetur adipiscing elit. 3. Integer molestie lorem at massa. There are also code tags!"
+		expected := "Provide the machine image\nSee the registry (https://container.registry.blah/namespace) for options.\n\nMinion (https://octodex.github.com/images/minion.png)\n\nThis is bold text.\nThis is bold text.\nThis is italic text.\n\nBlockquotes can also be nested.\nStrikethrough.\n\n1. Lorem ipsum dolor sit amet.\n2. Consectetur adipiscing elit.\n3. Integer molestie lorem at massa.\n\nThere are also code tags!"
 
 		stripped, err := parameter.Plaintext(mdDescription)
 		require.NoError(t, err)

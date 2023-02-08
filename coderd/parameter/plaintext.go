@@ -54,7 +54,7 @@ var plaintextStyle = ansi.StyleConfig{
 		BlockPrefix: ". ",
 	}, Task: ansi.StyleTask{},
 	Link: ansi.StylePrimitive{
-		Format: " ",
+		Format: "({{.text}})",
 	},
 	LinkText: ansi.StylePrimitive{
 		Format: "{{.text}}",
@@ -63,7 +63,7 @@ var plaintextStyle = ansi.StyleConfig{
 		Format: "{{.text}}",
 	},
 	Image: ansi.StylePrimitive{
-		Format: " ",
+		Format: "({{.text}})",
 	},
 	Code: ansi.StyleBlock{
 		StylePrimitive: ansi.StylePrimitive{},
@@ -93,7 +93,5 @@ func Plaintext(markdown string) (string, error) {
 	}
 	defer renderer.Close()
 
-	output = strings.ReplaceAll(output, "\n", " ")
-	output = strings.Join(strings.Fields(output), " ")
-	return output, nil
+	return strings.TrimSpace(output), nil
 }
