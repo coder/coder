@@ -75,7 +75,7 @@ func speedtest() *cobra.Command {
 					if err != nil {
 						continue
 					}
-					status := conn.Status()
+					status := conn.Status(true)
 					if len(status.Peers()) != 1 {
 						continue
 					}
