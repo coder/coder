@@ -47,10 +47,10 @@ func TestNotAuthorizedError(t *testing.T) {
 	})
 }
 
-// TestdbauthzRecursive is a simple test to search for infinite recursion
+// TestDBAuthzRecursive is a simple test to search for infinite recursion
 // bugs. It isn't perfect, and only catches a subset of the possible bugs
 // as only the first db call will be made. But it is better than nothing.
-func TestdbauthzRecursive(t *testing.T) {
+func TestDBAuthzRecursive(t *testing.T) {
 	t.Parallel()
 	q := dbauthz.New(dbfake.New(), &coderdtest.RecordingAuthorizer{
 		Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
