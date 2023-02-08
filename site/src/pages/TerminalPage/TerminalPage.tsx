@@ -56,7 +56,7 @@ const TerminalPage: FC<
 > = ({ renderer }) => {
   const navigate = useNavigate()
   const styles = useStyles()
-  const { username, workspace } = useParams()
+  const { username, workspace: workspaceName } = useParams()
   const xtermRef = useRef<HTMLDivElement>(null)
   const [terminal, setTerminal] = useState<XTerm.Terminal | null>(null)
   const [fitAddon, setFitAddon] = useState<FitAddon | null>(null)
@@ -68,7 +68,7 @@ const TerminalPage: FC<
   const command = searchParams.get("command") || undefined
   // The workspace name is in the format:
   // <workspace name>[.<agent name>]
-  const workspaceNameParts = workspace?.split(".")
+  const workspaceNameParts = workspaceName?.split(".")
   const [terminalState, sendEvent] = useMachine(terminalMachine, {
     context: {
       agentName: workspaceNameParts?.[1],
@@ -93,6 +93,7 @@ const TerminalPage: FC<
   const isDisconnected = terminalState.matches("disconnected")
   const {
     workspaceError,
+    workspace,
     workspaceAgentError,
     workspaceAgent,
     websocketError,
@@ -134,9 +135,9 @@ const TerminalPage: FC<
             applicationsHost,
             parseInt(url.port),
             workspaceAgent.name,
-            workspace,
+            workspace.name,
             username,
-          ),
+          ) + url.pathname,
         )
       } catch (ex) {
         open(uri)

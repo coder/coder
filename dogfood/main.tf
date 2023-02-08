@@ -64,7 +64,7 @@ resource "coder_agent" "dev" {
   login_before_ready     = false
   startup_script_timeout = 60
   startup_script         = <<-EOT
-    set -ex
+    set -eux -o pipefail
     # install and start code-server
     curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3
     code-server --auth none --port 13337 &

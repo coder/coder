@@ -924,6 +924,7 @@ export interface WorkspaceAgent {
   readonly operating_system: string
   readonly startup_script?: string
   readonly directory?: string
+  readonly expanded_directory?: string
   readonly version: string
   readonly apps: WorkspaceApp[]
   readonly latency?: Record<string, DERPRegion>
