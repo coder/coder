@@ -39,7 +39,7 @@ realpath() {
 }
 
 # We have to define realpath before these otherwise it fails on Mac's bash.
-SCRIPT_DIR="$(realpath "$(dirname "${BASH_SOURCE[0]}")")"
+SCRIPT_DIR="$(realpath "$(dirname "${BASH_SOURCE[1]}")")"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR" && realpath "$(git rev-parse --show-toplevel)")"
 
 # pushd is a silent alternative to the real pushd shell command.
