@@ -7202,7 +7202,8 @@ const docTemplate = `{
                 "workspace_build",
                 "git_ssh_key",
                 "api_key",
-                "group"
+                "group",
+                "license"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -7212,7 +7213,8 @@ const docTemplate = `{
                 "ResourceTypeWorkspaceBuild",
                 "ResourceTypeGitSSHKey",
                 "ResourceTypeAPIKey",
-                "ResourceTypeGroup"
+                "ResourceTypeGroup",
+                "ResourceTypeLicense"
             ]
         },
         "codersdk.Response": {

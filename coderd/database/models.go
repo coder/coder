@@ -883,6 +883,7 @@ const (
 	ResourceTypeApiKey          ResourceType = "api_key"
 	ResourceTypeGroup           ResourceType = "group"
 	ResourceTypeWorkspaceBuild  ResourceType = "workspace_build"
+	ResourceTypeLicense         ResourceType = "license"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -930,7 +931,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeGitSshKey,
 		ResourceTypeApiKey,
 		ResourceTypeGroup,
-		ResourceTypeWorkspaceBuild:
+		ResourceTypeWorkspaceBuild,
+		ResourceTypeLicense:
 		return true
 	}
 	return false
@@ -947,6 +949,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeApiKey,
 		ResourceTypeGroup,
 		ResourceTypeWorkspaceBuild,
+		ResourceTypeLicense,
 	}
 }
 

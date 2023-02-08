@@ -13,16 +13,15 @@ import (
 // AuditableResources map (below) as our documentation - generated in scripts/auditdocgen/main.go -
 // depends upon it.
 var AuditActionMap = map[string][]codersdk.AuditAction{
-	"GitSSHKey":          {codersdk.AuditActionCreate},
-	"OrganizationMember": {},
-	"Organization":       {},
-	"Template":           {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"TemplateVersion":    {codersdk.AuditActionCreate, codersdk.AuditActionWrite},
-	"User":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"Workspace":          {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"WorkspaceBuild":     {codersdk.AuditActionStart, codersdk.AuditActionStop},
-	"Group":              {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"APIKey":             {codersdk.AuditActionWrite},
+	"GitSSHKey":       {codersdk.AuditActionCreate},
+	"Template":        {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"TemplateVersion": {codersdk.AuditActionCreate, codersdk.AuditActionWrite},
+	"User":            {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"Workspace":       {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"WorkspaceBuild":  {codersdk.AuditActionStart, codersdk.AuditActionStop},
+	"Group":           {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"APIKey":          {codersdk.AuditActionWrite},
+	"License":         {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 }
 
 type Action string
@@ -146,6 +145,13 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"lifetime_seconds": ActionIgnore,
 		"ip_address":       ActionIgnore,
 		"scope":            ActionIgnore,
+	},
+	&database.License{}: {
+		"id":          ActionTrack,
+		"uploaded_at": ActionIgnore,
+		"jwt":         ActionIgnore,
+		"exp":         ActionTrack,
+		"uuid":        ActionIgnore,
 	},
 })
 
