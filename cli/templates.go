@@ -50,23 +50,27 @@ func templates() *cobra.Command {
 }
 
 type templateTableRow struct {
-	Name            string                   `table:"name"`
-	CreatedAt       string                   `table:"created at"`
-	LastUpdated     string                   `table:"last updated"`
-	OrganizationID  uuid.UUID                `table:"organization id"`
-	Provisioner     codersdk.ProvisionerType `table:"provisioner"`
-	ActiveVersionID uuid.UUID                `table:"active version id"`
-	UsedBy          string                   `table:"used by"`
-	DefaultTTL      time.Duration            `table:"default ttl"`
+	// Used by json format:
+	Template codersdk.Template
+
+	// Used by table format:
+	Name            string                   `json:"-" table:"name,default_sort"`
+	CreatedAt       string                   `json:"-" table:"created at"`
+	LastUpdated     string                   `json:"-" table:"last updated"`
+	OrganizationID  uuid.UUID                `json:"-" table:"organization id"`
+	Provisioner     codersdk.ProvisionerType `json:"-" table:"provisioner"`
+	ActiveVersionID uuid.UUID                `json:"-" table:"active version id"`
+	UsedBy          string                   `json:"-" table:"used by"`
+	DefaultTTL      time.Duration            `json:"-" table:"default ttl"`
 }
 
-// displayTemplates will return a table displaying all templates passed in.
-// filterColumns must be a subset of the template fields and will determine which
-// columns to display
-func displayTemplates(filterColumns []string, templates ...codersdk.Template) (string, error) {
+// templateToRows converts a list of templates to a list of templateTableRow for
+// outputting.
+func templatesToRows(templates ...codersdk.Template) []templateTableRow {
 	rows := make([]templateTableRow, len(templates))
 	for i, template := range templates {
 		rows[i] = templateTableRow{
+			Template:        template,
 			Name:            template.Name,
 			CreatedAt:       template.CreatedAt.Format("January 2, 2006"),
 			LastUpdated:     template.UpdatedAt.Format("January 2, 2006"),
@@ -78,5 +82,5 @@ func displayTemplates(filterColumns []string, templates ...codersdk.Template) (s
 		}
 	}
 
-	return cliui.DisplayTable(rows, "name", filterColumns)
+	return rows
 }

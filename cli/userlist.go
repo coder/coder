@@ -2,12 +2,9 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
@@ -17,9 +14,9 @@ import (
 )
 
 func userList() *cobra.Command {
-	var (
-		columns      []string
-		outputFormat string
+	formatter := cliui.NewOutputFormatter(
+		cliui.TableFormat([]codersdk.User{}, []string{"username", "email", "created_at", "status"}),
+		cliui.JSONFormat(),
 	)
 
 	cmd := &cobra.Command{
@@ -35,22 +32,9 @@ func userList() *cobra.Command {
 				return err
 			}
 
-			out := ""
-			switch outputFormat {
-			case "table", "":
-				out, err = cliui.DisplayTable(res.Users, "Username", columns)
-				if err != nil {
-					return xerrors.Errorf("render table: %w", err)
-				}
-			case "json":
-				outBytes, err := json.Marshal(res.Users)
-				if err != nil {
-					return xerrors.Errorf("marshal users to JSON: %w", err)
-				}
-
-				out = string(outBytes)
-			default:
-				return xerrors.Errorf(`unknown output format %q, only "table" and "json" are supported`, outputFormat)
+			out, err := formatter.Format(cmd.Context(), res.Users)
+			if err != nil {
+				return err
 			}
 
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), out)
@@ -58,14 +42,16 @@ func userList() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringArrayVarP(&columns, "column", "c", []string{"username", "email", "created_at", "status"},
-		"Specify a column to filter in the table. Available columns are: id, username, email, created_at, status.")
-	cmd.Flags().StringVarP(&outputFormat, "output", "o", "table", "Output format. Available formats are: table, json.")
+	formatter.AttachFlags(cmd)
 	return cmd
 }
 
 func userSingle() *cobra.Command {
-	var outputFormat string
+	formatter := cliui.NewOutputFormatter(
+		&userShowFormat{},
+		cliui.JSONFormat(),
+	)
+
 	cmd := &cobra.Command{
 		Use:   "show <username|user_id|'me'>",
 		Short: "Show a single user. Use 'me' to indicate the currently authenticated user.",
@@ -86,19 +72,22 @@ func userSingle() *cobra.Command {
 				return err
 			}
 
-			out := ""
-			switch outputFormat {
-			case "table", "":
-				out = displayUser(cmd.Context(), cmd.ErrOrStderr(), client, user)
-			case "json":
-				outBytes, err := json.Marshal(user)
+			orgNames := make([]string, len(user.OrganizationIDs))
+			for i, orgID := range user.OrganizationIDs {
+				org, err := client.Organization(cmd.Context(), orgID)
 				if err != nil {
-					return xerrors.Errorf("marshal user to JSON: %w", err)
+					return xerrors.Errorf("get organization %q: %w", orgID.String(), err)
 				}
 
-				out = string(outBytes)
-			default:
-				return xerrors.Errorf(`unknown output format %q, only "table" and "json" are supported`, outputFormat)
+				orgNames[i] = org.Name
+			}
+
+			out, err := formatter.Format(cmd.Context(), userWithOrgNames{
+				User:              user,
+				OrganizationNames: orgNames,
+			})
+			if err != nil {
+				return err
 			}
 
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), out)
@@ -106,11 +95,34 @@ func userSingle() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&outputFormat, "output", "o", "table", "Output format. Available formats are: table, json.")
+	formatter.AttachFlags(cmd)
 	return cmd
 }
 
-func displayUser(ctx context.Context, stderr io.Writer, client *codersdk.Client, user codersdk.User) string {
+type userWithOrgNames struct {
+	codersdk.User
+	OrganizationNames []string `json:"organization_names"`
+}
+
+type userShowFormat struct{}
+
+var _ cliui.OutputFormat = &userShowFormat{}
+
+// ID implements OutputFormat.
+func (*userShowFormat) ID() string {
+	return "table"
+}
+
+// AttachFlags implements OutputFormat.
+func (*userShowFormat) AttachFlags(_ *cobra.Command) {}
+
+// Format implements OutputFormat.
+func (*userShowFormat) Format(_ context.Context, out interface{}) (string, error) {
+	user, ok := out.(userWithOrgNames)
+	if !ok {
+		return "", xerrors.Errorf("expected type %T, got %T", user, out)
+	}
+
 	tw := cliui.Table()
 	addRow := func(name string, value interface{}) {
 		key := ""
@@ -150,25 +162,18 @@ func displayUser(ctx context.Context, stderr io.Writer, client *codersdk.Client,
 
 	addRow("", "")
 	firstOrg := true
-	for _, orgID := range user.OrganizationIDs {
-		org, err := client.Organization(ctx, orgID)
-		if err != nil {
-			warn := cliui.Styles.Warn.Copy().Align(lipgloss.Left)
-			_, _ = fmt.Fprintf(stderr, warn.Render("Could not fetch organization %s: %+v"), orgID, err)
-			continue
-		}
-
+	for _, orgName := range user.OrganizationNames {
 		key := ""
 		if firstOrg {
 			key = "Organizations"
 			firstOrg = false
 		}
 
-		addRow(key, org.Name)
+		addRow(key, orgName)
 	}
 	if firstOrg {
 		addRow("Organizations", "(none)")
 	}
 
-	return tw.Render()
+	return tw.Render(), nil
 }

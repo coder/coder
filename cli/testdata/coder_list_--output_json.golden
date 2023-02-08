@@ -1,0 +1,51 @@
+[
+  {
+    "id": "[workspace ID]",
+    "created_at": "[timestamp]",
+    "updated_at": "[timestamp]",
+    "owner_id": "[first user ID]",
+    "owner_name": "testuser",
+    "template_id": "[template ID]",
+    "template_name": "test-template",
+    "template_display_name": "",
+    "template_icon": "",
+    "template_allow_user_cancel_workspace_jobs": false,
+    "latest_build": {
+      "id": "[workspace build ID]",
+      "created_at": "[timestamp]",
+      "updated_at": "[timestamp]",
+      "workspace_id": "[workspace ID]",
+      "workspace_name": "test-workspace",
+      "workspace_owner_id": "[first user ID]",
+      "workspace_owner_name": "testuser",
+      "template_version_id": "[version ID]",
+      "template_version_name": "[version name]",
+      "build_number": 1,
+      "transition": "start",
+      "initiator_id": "[first user ID]",
+      "initiator_name": "testuser",
+      "job": {
+        "id": "[workspace build job ID]",
+        "created_at": "[timestamp]",
+        "started_at": "[timestamp]",
+        "completed_at": "[timestamp]",
+        "status": "succeeded",
+        "worker_id": "[workspace build worker ID]",
+        "file_id": "[workspace build file ID]",
+        "tags": {
+          "scope": "organization"
+        }
+      },
+      "reason": "initiator",
+      "resources": [],
+      "deadline": "[timestamp]",
+      "status": "running",
+      "daily_cost": 0
+    },
+    "outdated": false,
+    "name": "test-workspace",
+    "autostart_schedule": "CRON_TZ=US/Central 30 9 * * 1-5",
+    "ttl_ms": 28800000,
+    "last_used_at": "[timestamp]"
+  }
+]
