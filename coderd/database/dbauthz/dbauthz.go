@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"time"
 
 	"golang.org/x/xerrors"
 
@@ -12,6 +11,7 @@ import (
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/google/uuid"
 )
 
 var _ database.Store = (*AuthzQuerier)(nil)
@@ -75,19 +75,6 @@ func New(db database.Store, authorizer rbac.Authorizer, logger slog.Logger) *Aut
 	}
 }
 
-func (q *AuthzQuerier) Ping(ctx context.Context) (time.Duration, error) {
-	return q.db.Ping(ctx)
-}
-
-// InTx runs the given function in a transaction.
-func (q *AuthzQuerier) InTx(function func(querier database.Store) error, txOpts *sql.TxOptions) error {
-	return q.db.InTx(func(tx database.Store) error {
-		// Wrap the transaction store in an AuthzQuerier.
-		wrapped := New(tx, q.auth, q.log)
-		return function(wrapped)
-	}, txOpts)
-}
-
 // authorizeContext is a helper function to authorize an action on an object.
 func (q *AuthzQuerier) authorizeContext(ctx context.Context, action rbac.Action, object rbac.Objecter) error {
 	act, ok := ActorFromContext(ctx)
@@ -100,6 +87,32 @@ func (q *AuthzQuerier) authorizeContext(ctx context.Context, action rbac.Action,
 		return LogNotAuthorizedError(ctx, q.log, err)
 	}
 	return nil
+}
+
+type authContextKey struct{}
+
+// ActorFromContext returns the authorization subject from the context.
+// All authentication flows should set the authorization subject in the context.
+// If no actor is present, the function returns false.
+func ActorFromContext(ctx context.Context) (rbac.Subject, bool) {
+	a, ok := ctx.Value(authContextKey{}).(rbac.Subject)
+	return a, ok
+}
+
+func WithAuthorizeContext(ctx context.Context, actor rbac.Subject) context.Context {
+	return context.WithValue(ctx, authContextKey{}, actor)
+}
+
+func WithAuthorizeSystemContext(ctx context.Context, roles rbac.ExpandableRoles) context.Context {
+	// TODO: Add protections to search for user roles. If user roles are found,
+	// this should panic. That is a developer error that should be caught
+	// in unit tests.
+	return context.WithValue(ctx, authContextKey{}, rbac.Subject{
+		ID:     uuid.Nil.String(),
+		Roles:  roles,
+		Scope:  rbac.ScopeAll,
+		Groups: []string{},
+	})
 }
 
 //

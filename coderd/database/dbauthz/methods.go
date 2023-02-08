@@ -15,6 +15,19 @@ import (
 	"github.com/google/uuid"
 )
 
+func (q *AuthzQuerier) Ping(ctx context.Context) (time.Duration, error) {
+	return q.db.Ping(ctx)
+}
+
+// InTx runs the given function in a transaction.
+func (q *AuthzQuerier) InTx(function func(querier database.Store) error, txOpts *sql.TxOptions) error {
+	return q.db.InTx(func(tx database.Store) error {
+		// Wrap the transaction store in an AuthzQuerier.
+		wrapped := New(tx, q.auth, q.log)
+		return function(wrapped)
+	}, txOpts)
+}
+
 func (q *AuthzQuerier) DeleteAPIKeyByID(ctx context.Context, id string) error {
 	return deleteQ(q.log, q.auth, q.db.GetAPIKeyByID, q.db.DeleteAPIKeyByID)(ctx, id)
 }
