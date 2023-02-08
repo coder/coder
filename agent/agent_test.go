@@ -22,10 +22,6 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/xerrors"
-	"tailscale.com/net/speedtest"
-	"tailscale.com/tailcfg"
-
 	scp "github.com/bramvdbogaerde/go-scp"
 	"github.com/google/uuid"
 	"github.com/pion/udp"
@@ -37,6 +33,9 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/text/encoding/unicode"
 	"golang.org/x/text/transform"
+	"golang.org/x/xerrors"
+	"tailscale.com/net/speedtest"
+	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -52,6 +51,8 @@ import (
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
 }
+
+// NOTE: These tests only work when your default shell is bash for some reason.
 
 func TestAgent_Stats_SSH(t *testing.T) {
 	t.Parallel()
