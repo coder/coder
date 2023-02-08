@@ -86,13 +86,16 @@ func TestServerCreateAdminUser(t *testing.T) {
 		connectionURL, closeFunc, err := postgres.Open()
 		require.NoError(t, err)
 		defer closeFunc()
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
 
 		sqlDB, err := sql.Open("postgres", connectionURL)
 		require.NoError(t, err)
 		defer sqlDB.Close()
 		db := database.New(sqlDB)
+
+		// Sometimes generating SSH keys takes a really long time if there isn't
+		// enough entropy. We don't want the tests to fail in these cases.
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+		defer cancel()
 
 		pingCtx, pingCancel := context.WithTimeout(ctx, testutil.WaitShort)
 		defer pingCancel()
@@ -135,11 +138,6 @@ func TestServerCreateAdminUser(t *testing.T) {
 			errC <- err
 		}()
 
-		// Sometimes generating SSH keys takes a really long time if there isn't
-		// enough entropy. We don't want the tests to fail in these cases.
-		ctx, cancel := context.WithTimeout(ctx, testutil.WaitSuperLong)
-		defer cancel()
-
 		pty.ExpectMatchContext(ctx, "Creating user...")
 		pty.ExpectMatchContext(ctx, "Generating user SSH key...")
 		pty.ExpectMatchContext(ctx, fmt.Sprintf("Adding user to organization %q (%s) as admin...", org1Name, org1ID.String()))
@@ -163,8 +161,11 @@ func TestServerCreateAdminUser(t *testing.T) {
 		connectionURL, closeFunc, err := postgres.Open()
 		require.NoError(t, err)
 		defer closeFunc()
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
+
+		// Sometimes generating SSH keys takes a really long time if there isn't
+		// enough entropy. We don't want the tests to fail in these cases.
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+		defer cancel()
 
 		t.Setenv("CODER_POSTGRES_URL", connectionURL)
 		t.Setenv("CODER_SSH_KEYGEN_ALGORITHM", "ed25519")
@@ -182,11 +183,6 @@ func TestServerCreateAdminUser(t *testing.T) {
 			t.Log("root.ExecuteContext() returned:", err)
 			errC <- err
 		}()
-
-		// Sometimes generating SSH keys takes a really long time if there isn't
-		// enough entropy. We don't want the tests to fail in these cases.
-		ctx, cancel := context.WithTimeout(ctx, testutil.WaitSuperLong)
-		defer cancel()
 
 		pty.ExpectMatchContext(ctx, "User created successfully.")
 		pty.ExpectMatchContext(ctx, username)
@@ -208,8 +204,11 @@ func TestServerCreateAdminUser(t *testing.T) {
 		connectionURL, closeFunc, err := postgres.Open()
 		require.NoError(t, err)
 		defer closeFunc()
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
+
+		// Sometimes generating SSH keys takes a really long time if there isn't
+		// enough entropy. We don't want the tests to fail in these cases.
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+		defer cancel()
 
 		root, _ := clitest.New(t,
 			"server", "create-admin-user",
@@ -227,19 +226,14 @@ func TestServerCreateAdminUser(t *testing.T) {
 			errC <- err
 		}()
 
-		pty.ExpectMatch("> Username")
+		pty.ExpectMatchContext(ctx, "> Username")
 		pty.WriteLine(username)
-		pty.ExpectMatch("> Email")
+		pty.ExpectMatchContext(ctx, "> Email")
 		pty.WriteLine(email)
-		pty.ExpectMatch("> Password")
+		pty.ExpectMatchContext(ctx, "> Password")
 		pty.WriteLine(password)
-		pty.ExpectMatch("> Confirm password")
+		pty.ExpectMatchContext(ctx, "> Confirm password")
 		pty.WriteLine(password)
-
-		// Sometimes generating SSH keys takes a really long time if there isn't
-		// enough entropy. We don't want the tests to fail in these cases.
-		ctx, cancel := context.WithTimeout(ctx, testutil.WaitSuperLong)
-		defer cancel()
 
 		pty.ExpectMatchContext(ctx, "User created successfully.")
 		pty.ExpectMatchContext(ctx, username)
