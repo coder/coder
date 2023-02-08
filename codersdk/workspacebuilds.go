@@ -14,7 +14,6 @@ import (
 type WorkspaceTransition string
 
 const (
-	WorkspaceTransitionCreate WorkspaceTransition = "create"
 	WorkspaceTransitionStart  WorkspaceTransition = "start"
 	WorkspaceTransitionStop   WorkspaceTransition = "stop"
 	WorkspaceTransitionDelete WorkspaceTransition = "delete"

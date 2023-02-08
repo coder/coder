@@ -518,7 +518,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if (createBuild.Transition == codersdk.WorkspaceTransitionStart || createBuild.Transition == codersdk.WorkspaceTransitionCreate) &&
+	if createBuild.Transition == codersdk.WorkspaceTransitionStart &&
 		len(legacyParameters) > 0 && len(parameters) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Rich parameters can't be used together with legacy parameters.",
