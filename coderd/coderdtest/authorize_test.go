@@ -2,6 +2,8 @@ package coderdtest_test
 
 import (
 	"context"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/moby/moby/pkg/namesgenerator"
@@ -12,6 +14,9 @@ import (
 )
 
 func TestAuthorizeAllEndpoints(t *testing.T) {
+	if strings.Contains(os.Getenv("CODER_EXPERIMENTS_TEST"), "authz_querier") {
+		t.Skip("Skipping TestAuthorizeAllEndpoints for authz_querier experiment")
+	}
 	t.Parallel()
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		// Required for any subdomain-based proxy tests to pass.
