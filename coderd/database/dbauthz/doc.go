@@ -7,7 +7,7 @@
 // queries as close to 1 as possible. Each method should do 1 thing, with no
 // unexpected side effects (eg: updating multiple tables in a single method).
 //
-// Avoid implementing business logic in this package. Only authorization related
+// Do not implement business logic in this package. Only authorization related
 // logic should be implemented here. In most cases, this should only be a call to
 // the rbac authorizer.
 //
