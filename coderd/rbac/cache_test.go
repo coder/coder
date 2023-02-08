@@ -14,6 +14,8 @@ func TestCacher(t *testing.T) {
 	t.Parallel()
 
 	t.Run("EmptyCacheCtx", func(t *testing.T) {
+		t.Parallel()
+
 		ctx := context.Background()
 		rec := &coderdtest.RecordingAuthorizer{
 			Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
@@ -31,6 +33,8 @@ func TestCacher(t *testing.T) {
 	})
 
 	t.Run("CacheCtx", func(t *testing.T) {
+		t.Parallel()
+
 		ctx := rbac.WithCacheCtx(context.Background())
 		rec := &coderdtest.RecordingAuthorizer{
 			Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
@@ -48,6 +52,8 @@ func TestCacher(t *testing.T) {
 	})
 
 	t.Run("MultipleSubjects", func(t *testing.T) {
+		t.Parallel()
+
 		ctx := rbac.WithCacheCtx(context.Background())
 		rec := &coderdtest.RecordingAuthorizer{
 			Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},

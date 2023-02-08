@@ -57,6 +57,7 @@ type authorizeCache struct {
 	calls []cachedAuthCall
 }
 
+//nolint:error-return
 func (c *authorizeCache) Load(subject Subject, action Action, object Object) (error, bool) {
 	if c == nil {
 		return nil, false
