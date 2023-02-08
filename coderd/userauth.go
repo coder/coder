@@ -849,7 +849,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 
 		// Ensure groups are correct.
 		if len(params.Groups) > 0 {
-			err := api.Options.SetUserGroups(ctx, tx, user.ID, params.Groups)
+			err := api.Options.SetUserGroups(systemCtx, tx, user.ID, params.Groups)
 			if err != nil {
 				return xerrors.Errorf("set user groups: %w", err)
 			}
