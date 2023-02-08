@@ -2092,6 +2092,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
   {
     "default_value": "string",
     "description": "string",
+    "description_plaintext": "string",
     "icon": "string",
     "mutable": true,
     "name": "string",
@@ -2123,25 +2124,26 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
 
 Status Code **200**
 
-| Name                     | Type                                                                             | Required | Restrictions | Description |
-| ------------------------ | -------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `[array item]`           | array                                                                            | false    |              |             |
-| `» default_value`        | string                                                                           | false    |              |             |
-| `» description`          | string                                                                           | false    |              |             |
-| `» icon`                 | string                                                                           | false    |              |             |
-| `» mutable`              | boolean                                                                          | false    |              |             |
-| `» name`                 | string                                                                           | false    |              |             |
-| `» options`              | array                                                                            | false    |              |             |
-| `»» description`         | string                                                                           | false    |              |             |
-| `»» icon`                | string                                                                           | false    |              |             |
-| `»» name`                | string                                                                           | false    |              |             |
-| `»» value`               | string                                                                           | false    |              |             |
-| `» type`                 | string                                                                           | false    |              |             |
-| `» validation_error`     | string                                                                           | false    |              |             |
-| `» validation_max`       | integer                                                                          | false    |              |             |
-| `» validation_min`       | integer                                                                          | false    |              |             |
-| `» validation_monotonic` | [codersdk.ValidationMonotonicOrder](schemas.md#codersdkvalidationmonotonicorder) | false    |              |             |
-| `» validation_regex`     | string                                                                           | false    |              |             |
+| Name                      | Type                                                                             | Required | Restrictions | Description |
+| ------------------------- | -------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `[array item]`            | array                                                                            | false    |              |             |
+| `» default_value`         | string                                                                           | false    |              |             |
+| `» description`           | string                                                                           | false    |              |             |
+| `» description_plaintext` | string                                                                           | false    |              |             |
+| `» icon`                  | string                                                                           | false    |              |             |
+| `» mutable`               | boolean                                                                          | false    |              |             |
+| `» name`                  | string                                                                           | false    |              |             |
+| `» options`               | array                                                                            | false    |              |             |
+| `»» description`          | string                                                                           | false    |              |             |
+| `»» icon`                 | string                                                                           | false    |              |             |
+| `»» name`                 | string                                                                           | false    |              |             |
+| `»» value`                | string                                                                           | false    |              |             |
+| `» type`                  | string                                                                           | false    |              |             |
+| `» validation_error`      | string                                                                           | false    |              |             |
+| `» validation_max`        | integer                                                                          | false    |              |             |
+| `» validation_min`        | integer                                                                          | false    |              |             |
+| `» validation_monotonic`  | [codersdk.ValidationMonotonicOrder](schemas.md#codersdkvalidationmonotonicorder) | false    |              |             |
+| `» validation_regex`      | string                                                                           | false    |              |             |
 
 #### Enumerated Values
 

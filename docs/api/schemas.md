@@ -4505,6 +4505,7 @@ Parameter represents a set value for the scope.
 {
   "default_value": "string",
   "description": "string",
+  "description_plaintext": "string",
   "icon": "string",
   "mutable": true,
   "name": "string",
@@ -4527,20 +4528,21 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name                   | Type                                                                                        | Required | Restrictions | Description |
-| ---------------------- | ------------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `default_value`        | string                                                                                      | false    |              |             |
-| `description`          | string                                                                                      | false    |              |             |
-| `icon`                 | string                                                                                      | false    |              |             |
-| `mutable`              | boolean                                                                                     | false    |              |             |
-| `name`                 | string                                                                                      | false    |              |             |
-| `options`              | array of [codersdk.TemplateVersionParameterOption](#codersdktemplateversionparameteroption) | false    |              |             |
-| `type`                 | string                                                                                      | false    |              |             |
-| `validation_error`     | string                                                                                      | false    |              |             |
-| `validation_max`       | integer                                                                                     | false    |              |             |
-| `validation_min`       | integer                                                                                     | false    |              |             |
-| `validation_monotonic` | [codersdk.ValidationMonotonicOrder](#codersdkvalidationmonotonicorder)                      | false    |              |             |
-| `validation_regex`     | string                                                                                      | false    |              |             |
+| Name                    | Type                                                                                        | Required | Restrictions | Description |
+| ----------------------- | ------------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `default_value`         | string                                                                                      | false    |              |             |
+| `description`           | string                                                                                      | false    |              |             |
+| `description_plaintext` | string                                                                                      | false    |              |             |
+| `icon`                  | string                                                                                      | false    |              |             |
+| `mutable`               | boolean                                                                                     | false    |              |             |
+| `name`                  | string                                                                                      | false    |              |             |
+| `options`               | array of [codersdk.TemplateVersionParameterOption](#codersdktemplateversionparameteroption) | false    |              |             |
+| `type`                  | string                                                                                      | false    |              |             |
+| `validation_error`      | string                                                                                      | false    |              |             |
+| `validation_max`        | integer                                                                                     | false    |              |             |
+| `validation_min`        | integer                                                                                     | false    |              |             |
+| `validation_monotonic`  | [codersdk.ValidationMonotonicOrder](#codersdkvalidationmonotonicorder)                      | false    |              |             |
+| `validation_regex`      | string                                                                                      | false    |              |             |
 
 #### Enumerated Values
 
