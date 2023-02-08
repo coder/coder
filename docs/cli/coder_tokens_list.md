@@ -9,7 +9,9 @@ coder tokens list [flags]
 ### Options
 
 ```
-  -h, --help   help for list
+  -c, --column strings   Columns to display in table output. Available columns: id, last used, expires at, created at (default [id,last used,expires at,created at])
+  -h, --help             help for list
+  -o, --output string    Output format. Available formats: table, json (default "table")
 ```
 
 ### Options inherited from parent commands

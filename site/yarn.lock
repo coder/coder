@@ -5170,13 +5170,13 @@ caniuse-lite@^1.0.30001109, caniuse-lite@^1.0.30001304, caniuse-lite@^1.0.300014
   resolved "https://registry.yarnpkg.com/caniuse-lite/-/caniuse-lite-1.0.30001431.tgz#e7c59bd1bc518fae03a4656be442ce6c4887a795"
   integrity sha512-zBUoFU0ZcxpvSt9IU66dXVT/3ctO1cy4y9cscs1szkPlcWb6pasYM144GqrUygUbT+k7cmUCW61cvskjcv0enQ==
 
-canvas@2.10.0:
-  version "2.10.0"
-  resolved "https://registry.yarnpkg.com/canvas/-/canvas-2.10.0.tgz#5f48c8d1ff86c96356809097020336c3a1ccce27"
-  integrity sha512-A0RPxLcH0pPKAY2VN243LdCNcOJXAT8n7nJnN7TZMGv9OuF8we9wfpWgVT/eFMzi+cDYf/384w4BpfjGCD9aKQ==
+canvas@^2.11.0:
+  version "2.11.0"
+  resolved "https://registry.yarnpkg.com/canvas/-/canvas-2.11.0.tgz#7f0c3e9ae94cf469269b5d3a7963a7f3a9936434"
+  integrity sha512-bdTjFexjKJEwtIo0oRx8eD4G2yWoUOXP9lj279jmQ2zMnTQhT8C3512OKz3s+ZOaQlLbE7TuVvRDYDB3Llyy5g==
   dependencies:
     "@mapbox/node-pre-gyp" "^1.0.0"
-    nan "^2.15.0"
+    nan "^2.17.0"
     simple-get "^3.0.3"
 
 capture-exit@^2.0.0:
@@ -10788,6 +10788,11 @@ minipass@^3.0.0, minipass@^3.1.1:
   dependencies:
     yallist "^4.0.0"
 
+minipass@^4.0.0:
+  version "4.0.2"
+  resolved "https://registry.yarnpkg.com/minipass/-/minipass-4.0.2.tgz#26fc3364d5ea6cb971c6e5259eac67a0887510d1"
+  integrity sha512-4Hbzei7ZyBp+1aw0874YWpKOubZd/jc53/XU+gkYry1QV+VvrbO8icLM5CUtm4F0hyXn85DXYKEMIS26gitD3A==
+
 minizlib@^2.1.1:
   version "2.1.2"
   resolved "https://registry.yarnpkg.com/minizlib/-/minizlib-2.1.2.tgz#e90d3466ba209b932451508a11ce3d3632145931"
@@ -10917,7 +10922,7 @@ mute-stream@0.0.8:
   resolved "https://registry.yarnpkg.com/mute-stream/-/mute-stream-0.0.8.tgz#1630c42b2251ff81e2a283de96a5497ea92e5e0d"
   integrity sha512-nnbWWOkoWyUsTjKrhgD0dcz22mdkSnpYqbEjIm2nhwhuxlSkpywJmBo8h0ZqJdkp73mb90SssHkN4rsRaBAfAA==
 
-nan@^2.12.1, nan@^2.15.0:
+nan@^2.12.1, nan@^2.17.0:
   version "2.17.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.17.0.tgz#c0150a2368a182f033e9aa5195ec76ea41a199cb"
   integrity sha512-2ZTgtl0nJsO0KQCjEpxcIr5D+Yv90plTitZt9JBfQvVJDS5seMl3FOvsh3+9CoYWXf/1l5OaZzzF6nDm4cagaQ==
@@ -13689,7 +13694,7 @@ tar-stream@^2.0.1:
     inherits "^2.0.3"
     readable-stream "^3.1.1"
 
-tar@^6.0.2, tar@^6.1.11:
+tar@^6.0.2:
   version "6.1.12"
   resolved "https://registry.yarnpkg.com/tar/-/tar-6.1.12.tgz#3b742fb05669b55671fb769ab67a7791ea1a62e6"
   integrity sha512-jU4TdemS31uABHd+Lt5WEYJuzn+TJTCBLljvIAHZOz6M9Os5pJ4dD+vRFLxPa/n3T0iEFzpi+0x1UfuDZYbRMw==
@@ -13697,6 +13702,18 @@ tar@^6.0.2, tar@^6.1.11:
     chownr "^2.0.0"
     fs-minipass "^2.0.0"
     minipass "^3.0.0"
+    minizlib "^2.1.1"
+    mkdirp "^1.0.3"
+    yallist "^4.0.0"
+
+tar@^6.1.11:
+  version "6.1.13"
+  resolved "https://registry.yarnpkg.com/tar/-/tar-6.1.13.tgz#46e22529000f612180601a6fe0680e7da508847b"
+  integrity sha512-jdIBIN6LTIe2jqzay/2vtYLlBHa3JF42ot3h1dW8Q0PaAG4v8rm0cvpVePtau5C6OKXGGcgO9q2AMNSWxiLqKw==
+  dependencies:
+    chownr "^2.0.0"
+    fs-minipass "^2.0.0"
+    minipass "^4.0.0"
     minizlib "^2.1.1"
     mkdirp "^1.0.3"
     yallist "^4.0.0"

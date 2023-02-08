@@ -9,8 +9,9 @@ coder templates list [flags]
 ### Options
 
 ```
-  -c, --column stringArray   Specify a column to filter in the table. (default [name,last_updated,used_by])
-  -h, --help                 help for list
+  -c, --column strings   Columns to display in table output. Available columns: name, created at, last updated, organization id, provisioner, active version id, used by, default ttl (default [name,last updated,used by])
+  -h, --help             help for list
+  -o, --output string    Output format. Available formats: table, json (default "table")
 ```
 
 ### Options inherited from parent commands

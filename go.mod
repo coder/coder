@@ -67,6 +67,7 @@ require (
 	github.com/cakturk/go-netstat v0.0.0-20200220111822-e5b49efee7a5
 	github.com/cenkalti/backoff/v4 v4.1.3
 	github.com/charmbracelet/charm v0.12.1
+	github.com/charmbracelet/glamour v0.6.0
 	github.com/charmbracelet/lipgloss v0.6.0
 	github.com/cli/safeexec v1.0.0
 	github.com/coder/retry v1.3.0
@@ -137,6 +138,7 @@ require (
 	github.com/u-root/u-root v0.10.0
 	github.com/unrolled/secure v1.13.0
 	github.com/valyala/fasthttp v1.44.0
+	github.com/wagslane/go-password-validator v0.3.0
 	go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1
 	go.nhat.io/otelsql v0.7.0
 	go.opentelemetry.io/otel v1.11.1
@@ -189,6 +191,8 @@ require (
 	github.com/alexbrainman/sspi v0.0.0-20210105120005-909beea2cc74 // indirect
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
 	github.com/apparentlymart/go-textseg/v13 v13.0.0 // indirect
+	github.com/aymanbagabas/go-osc52 v1.0.3 // indirect
+	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bep/godartsass v0.16.0 // indirect
 	github.com/bep/golibsass v1.1.0 // indirect
@@ -230,6 +234,7 @@ require (
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.2.0 // indirect
+	github.com/gorilla/css v1.0.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.7.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
@@ -259,13 +264,14 @@ require (
 	github.com/magiconair/properties v1.8.6 // indirect
 	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
-	github.com/mattn/go-runewidth v0.0.13 // indirect
+	github.com/mattn/go-runewidth v0.0.14 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/mdlayher/genetlink v1.2.0 // indirect
 	github.com/mdlayher/netlink v1.6.0 // indirect
 	github.com/mdlayher/sdnotify v1.0.0 // indirect
 	github.com/mdlayher/socket v0.2.3 // indirect
 	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b // indirect
+	github.com/microcosm-cc/bluemonday v1.0.21 // indirect
 	github.com/miekg/dns v1.1.45 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/go-ps v1.0.0 // indirect
@@ -273,9 +279,10 @@ require (
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/moby/term v0.0.0-20210619224110-3f7ff695adc6 // indirect
 	github.com/muesli/ansi v0.0.0-20211031195517-c9f0611b6c70 // indirect
-	github.com/muesli/termenv v0.11.1-0.20220212125758-44cd13922739 // indirect
+	github.com/muesli/termenv v0.13.0 // indirect
 	github.com/niklasfasching/go-org v1.6.5 // indirect
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
+	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.3-0.20220114050600-8b9d41f48198 // indirect
 	github.com/opencontainers/runc v1.1.2 // indirect
@@ -318,6 +325,7 @@ require (
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	github.com/yashtewari/glob-intersection v0.1.0 // indirect
 	github.com/yuin/goldmark v1.5.3 // indirect
+	github.com/yuin/goldmark-emoji v1.0.1 // indirect
 	github.com/zclconf/go-cty v1.10.0 // indirect
 	github.com/zeebo/errs v1.3.0 // indirect
 	go.opencensus.io v0.24.0 // indirect

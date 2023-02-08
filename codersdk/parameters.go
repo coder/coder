@@ -55,7 +55,7 @@ type Parameter struct {
 	ID                uuid.UUID                  `json:"id" table:"id" format:"uuid"`
 	Scope             ParameterScope             `json:"scope" table:"scope" enums:"template,workspace,import_job"`
 	ScopeID           uuid.UUID                  `json:"scope_id" table:"scope id" format:"uuid"`
-	Name              string                     `json:"name" table:"name"`
+	Name              string                     `json:"name" table:"name,default_sort"`
 	SourceScheme      ParameterSourceScheme      `json:"source_scheme" table:"source scheme" validate:"ne=none" enums:"none,data"`
 	DestinationScheme ParameterDestinationScheme `json:"destination_scheme" table:"destination scheme" validate:"ne=none" enums:"none,environment_variable,provisioner_variable"`
 	CreatedAt         time.Time                  `json:"created_at" table:"created at" format:"date-time"`

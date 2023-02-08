@@ -12,6 +12,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbfake"
+	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/metricscache"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
@@ -168,32 +169,30 @@ func TestCache_TemplateUsers(t *testing.T) {
 
 			defer cache.Close()
 
-			templateID := uuid.New()
-			db.InsertTemplate(context.Background(), database.InsertTemplateParams{
-				ID:          templateID,
+			template := dbgen.Template(t, db, database.Template{
 				Provisioner: database.ProvisionerTypeEcho,
 			})
 
-			gotUniqueUsers, ok := cache.TemplateUniqueUsers(templateID)
+			gotUniqueUsers, ok := cache.TemplateUniqueUsers(template.ID)
 			require.False(t, ok, "template shouldn't have loaded yet")
 			require.EqualValues(t, -1, gotUniqueUsers)
 
 			for _, row := range tt.args.rows {
-				row.TemplateID = templateID
+				row.TemplateID = template.ID
 				db.InsertAgentStat(context.Background(), row)
 			}
 
 			require.Eventuallyf(t, func() bool {
-				_, ok := cache.TemplateDAUs(templateID)
+				_, ok := cache.TemplateDAUs(template.ID)
 				return ok
 			}, testutil.WaitShort, testutil.IntervalMedium,
 				"TemplateDAUs never populated",
 			)
 
-			gotUniqueUsers, ok = cache.TemplateUniqueUsers(templateID)
+			gotUniqueUsers, ok = cache.TemplateUniqueUsers(template.ID)
 			require.True(t, ok)
 
-			gotEntries, ok := cache.TemplateDAUs(templateID)
+			gotEntries, ok := cache.TemplateDAUs(template.ID)
 			require.True(t, ok)
 			require.Equal(t, tt.want.entries, gotEntries.Entries)
 			require.Equal(t, tt.want.uniqueUsers, gotUniqueUsers)

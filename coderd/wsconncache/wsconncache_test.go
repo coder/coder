@@ -226,6 +226,6 @@ func (*client) PostAppHealth(_ context.Context, _ agentsdk.PostAppHealthsRequest
 	return nil
 }
 
-func (*client) PostVersion(_ context.Context, _ string) error {
+func (*client) PostStartup(_ context.Context, _ agentsdk.PostStartupRequest) error {
 	return nil
 }

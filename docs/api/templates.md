@@ -1566,6 +1566,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
           "property1": "string",
           "property2": "string"
         },
+        "expanded_directory": "string",
         "first_connected_at": "2019-08-24T14:15:22Z",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "instance_id": "string",
@@ -1649,6 +1650,7 @@ Status Code **200**
 | `»» disconnected_at`                | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» environment_variables`          | object                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» [any property]`                | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» expanded_directory`             | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» first_connected_at`             | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» id`                             | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
 | `»» instance_id`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
@@ -1918,6 +1920,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
           "property1": "string",
           "property2": "string"
         },
+        "expanded_directory": "string",
         "first_connected_at": "2019-08-24T14:15:22Z",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "instance_id": "string",
@@ -2001,6 +2004,7 @@ Status Code **200**
 | `»» disconnected_at`                | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» environment_variables`          | object                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» [any property]`                | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» expanded_directory`             | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» first_connected_at`             | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» id`                             | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
 | `»» instance_id`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
@@ -2088,6 +2092,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
   {
     "default_value": "string",
     "description": "string",
+    "description_plaintext": "string",
     "icon": "string",
     "mutable": true,
     "name": "string",
@@ -2119,25 +2124,26 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
 
 Status Code **200**
 
-| Name                     | Type                                                                             | Required | Restrictions | Description |
-| ------------------------ | -------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `[array item]`           | array                                                                            | false    |              |             |
-| `» default_value`        | string                                                                           | false    |              |             |
-| `» description`          | string                                                                           | false    |              |             |
-| `» icon`                 | string                                                                           | false    |              |             |
-| `» mutable`              | boolean                                                                          | false    |              |             |
-| `» name`                 | string                                                                           | false    |              |             |
-| `» options`              | array                                                                            | false    |              |             |
-| `»» description`         | string                                                                           | false    |              |             |
-| `»» icon`                | string                                                                           | false    |              |             |
-| `»» name`                | string                                                                           | false    |              |             |
-| `»» value`               | string                                                                           | false    |              |             |
-| `» type`                 | string                                                                           | false    |              |             |
-| `» validation_error`     | string                                                                           | false    |              |             |
-| `» validation_max`       | integer                                                                          | false    |              |             |
-| `» validation_min`       | integer                                                                          | false    |              |             |
-| `» validation_monotonic` | [codersdk.ValidationMonotonicOrder](schemas.md#codersdkvalidationmonotonicorder) | false    |              |             |
-| `» validation_regex`     | string                                                                           | false    |              |             |
+| Name                      | Type                                                                             | Required | Restrictions | Description |
+| ------------------------- | -------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `[array item]`            | array                                                                            | false    |              |             |
+| `» default_value`         | string                                                                           | false    |              |             |
+| `» description`           | string                                                                           | false    |              |             |
+| `» description_plaintext` | string                                                                           | false    |              |             |
+| `» icon`                  | string                                                                           | false    |              |             |
+| `» mutable`               | boolean                                                                          | false    |              |             |
+| `» name`                  | string                                                                           | false    |              |             |
+| `» options`               | array                                                                            | false    |              |             |
+| `»» description`          | string                                                                           | false    |              |             |
+| `»» icon`                 | string                                                                           | false    |              |             |
+| `»» name`                 | string                                                                           | false    |              |             |
+| `»» value`                | string                                                                           | false    |              |             |
+| `» type`                  | string                                                                           | false    |              |             |
+| `» validation_error`      | string                                                                           | false    |              |             |
+| `» validation_max`        | integer                                                                          | false    |              |             |
+| `» validation_min`        | integer                                                                          | false    |              |             |
+| `» validation_monotonic`  | [codersdk.ValidationMonotonicOrder](schemas.md#codersdkvalidationmonotonicorder) | false    |              |             |
+| `» validation_regex`      | string                                                                           | false    |              |             |
 
 #### Enumerated Values
 

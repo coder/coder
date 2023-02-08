@@ -75,11 +75,12 @@ SET
 WHERE
 	id = $1;
 
--- name: UpdateWorkspaceAgentVersionByID :exec
+-- name: UpdateWorkspaceAgentStartupByID :exec
 UPDATE
 	workspace_agents
 SET
-	version = $2
+	version = $2,
+	expanded_directory = $3
 WHERE
 	id = $1;
 
