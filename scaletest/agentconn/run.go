@@ -87,7 +87,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 
 	// Ensure DERP for completeness.
 	if r.cfg.ConnectionMode == ConnectionModeDerp {
-		status := conn.Status(true)
+		status := conn.Status()
 		if len(status.Peers()) != 1 {
 			return xerrors.Errorf("check connection mode: expected 1 peer, got %d", len(status.Peers()))
 		}
@@ -172,7 +172,7 @@ func waitForDirectConnection(ctx context.Context, logs io.Writer, conn *codersdk
 
 	for i := 0; i < directConnectionAttempts; i++ {
 		_, _ = fmt.Fprintf(logs, "\tDirect connection check %d/%d...\n", i+1, directConnectionAttempts)
-		status := conn.Status(true)
+		status := conn.Status()
 
 		var err error
 		if len(status.Peers()) != 1 {

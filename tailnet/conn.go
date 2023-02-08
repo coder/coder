@@ -353,7 +353,7 @@ func (c *Conn) RemoveAllPeers() error {
 func (c *Conn) UpdateNodes(nodes []*Node) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	status := c.Status(true)
+	status := c.Status()
 	for _, peer := range c.netMap.Peers {
 		peerStatus, ok := status.Peer[peer.Key]
 		if !ok {
@@ -424,8 +424,8 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 }
 
 // Status returns the current ipnstate of a connection.
-func (c *Conn) Status(wantPeers bool) *ipnstate.Status {
-	sb := &ipnstate.StatusBuilder{WantPeers: wantPeers}
+func (c *Conn) Status() *ipnstate.Status {
+	sb := &ipnstate.StatusBuilder{WantPeers: true}
 	c.wireguardEngine.UpdateStatus(sb)
 	return sb.Status()
 }
