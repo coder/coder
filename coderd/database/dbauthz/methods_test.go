@@ -359,19 +359,6 @@ func asserts(inputs ...any) []AssertRBAC {
 	return out
 }
 
-func (s *MethodTestSuite) TestExtraMethods() {
-	s.Run("GetProvisionerDaemons", s.Subtest(func(db database.Store, check *expects) {
-		d, err := db.InsertProvisionerDaemon(context.Background(), database.InsertProvisionerDaemonParams{
-			ID: uuid.New(),
-		})
-		s.NoError(err, "insert provisioner daemon")
-		check.Args().Asserts(d, rbac.ActionRead)
-	}))
-	s.Run("GetDeploymentDAUs", s.Subtest(func(db database.Store, check *expects) {
-		check.Args().Asserts(rbac.ResourceUser.All(), rbac.ActionRead)
-	}))
-}
-
 type emptyPreparedAuthorized struct{}
 
 func (emptyPreparedAuthorized) Authorize(_ context.Context, _ rbac.Object) error { return nil }

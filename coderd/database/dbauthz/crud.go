@@ -1,54 +1,15 @@
 package dbauthz
 
 import (
-	"context"
-	"database/sql"
-	"fmt"
-
 	"cdr.dev/slog"
+	"context"
 
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/rbac"
 )
 
-var (
-	// NoActorError wraps ErrNoRows for the api to return a 404. This is the correct
-	// response when the user is not authorized.
-	NoActorError = xerrors.Errorf("no authorization actor in context: %w", sql.ErrNoRows)
-)
 
-// NotAuthorizedError is a sentinel error that unwraps to sql.ErrNoRows.
-// This allows the internal error to be read by the caller if needed. Otherwise
-// it will be handled as a 404.
-type NotAuthorizedError struct {
-	Err error
-}
-
-func (e NotAuthorizedError) Error() string {
-	return fmt.Sprintf("unauthorized: %s", e.Err.Error())
-}
-
-// Unwrap will always unwrap to a sql.ErrNoRows so the API returns a 404.
-// So 'errors.Is(err, sql.ErrNoRows)' will always be true.
-func (NotAuthorizedError) Unwrap() error {
-	return sql.ErrNoRows
-}
-
-func LogNotAuthorizedError(ctx context.Context, logger slog.Logger, err error) error {
-	// Only log the errors if it is an UnauthorizedError error.
-	internalError := new(rbac.UnauthorizedError)
-	if err != nil && xerrors.As(err, internalError) {
-		logger.Debug(ctx, "unauthorized",
-			slog.F("internal", internalError.Internal()),
-			slog.F("input", internalError.Input()),
-			slog.Error(err),
-		)
-	}
-	return NotAuthorizedError{
-		Err: err,
-	}
-}
 
 // insert runs an rbac.ActionCreate on the rbac object argument before
 // running the insertFunc. The insertFunc is expected to return the object that

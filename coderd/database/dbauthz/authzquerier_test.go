@@ -6,19 +6,53 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
+	"cdr.dev/slog/sloggers/slogtest"
 
 	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 )
+
+func TestPing(t *testing.T) {
+	t.Parallel()
+
+	q := dbauthz.New(dbfake.New(), &coderdtest.RecordingAuthorizer{}, slog.Make())
+	_, err := q.Ping(context.Background())
+	require.NoError(t, err, "must not error")
+}
+
+// TestInTX is not perfect, just checks that it properly checks auth.
+func TestInTX(t *testing.T) {
+	t.Parallel()
+
+	db := dbfake.New()
+	q := dbauthz.New(db, &coderdtest.RecordingAuthorizer{
+		Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: xerrors.New("custom error")},
+	}, slog.Make())
+	actor := rbac.Subject{
+		ID:     uuid.NewString(),
+		Roles:  rbac.RoleNames{rbac.RoleOwner()},
+		Groups: []string{},
+		Scope:  rbac.ScopeAll,
+	}
+
+	w := dbgen.Workspace(t, db, database.Workspace{})
+	ctx := dbauthz.WithAuthorizeContext(context.Background(), actor)
+	err := q.InTx(func(tx database.Store) error {
+		// The inner tx should use the parent's authz
+		_, err := tx.GetWorkspaceByID(ctx, w.ID)
+		return err
+	}, nil)
+	require.Error(t, err, "must error")
+	require.ErrorAs(t, err, &dbauthz.NotAuthorizedError{}, "must be an authorized error")
+}
 
 func TestNotAuthorizedError(t *testing.T) {
 	t.Parallel()
@@ -79,40 +113,6 @@ func TestDBAuthzRecursive(t *testing.T) {
 		// Call the function. Any infinite recursion will stack overflow.
 		reflect.ValueOf(q).Method(i).Call(ins)
 	}
-}
-
-func TestPing(t *testing.T) {
-	t.Parallel()
-
-	q := dbauthz.New(dbfake.New(), &coderdtest.RecordingAuthorizer{}, slog.Make())
-	_, err := q.Ping(context.Background())
-	require.NoError(t, err, "must not error")
-}
-
-// TestInTX is not perfect, just checks that it properly checks auth.
-func TestInTX(t *testing.T) {
-	t.Parallel()
-
-	db := dbfake.New()
-	q := dbauthz.New(db, &coderdtest.RecordingAuthorizer{
-		Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: xerrors.New("custom error")},
-	}, slog.Make())
-	actor := rbac.Subject{
-		ID:     uuid.NewString(),
-		Roles:  rbac.RoleNames{rbac.RoleOwner()},
-		Groups: []string{},
-		Scope:  rbac.ScopeAll,
-	}
-
-	w := dbgen.Workspace(t, db, database.Workspace{})
-	ctx := dbauthz.WithAuthorizeContext(context.Background(), actor)
-	err := q.InTx(func(tx database.Store) error {
-		// The inner tx should use the parent's authz
-		_, err := tx.GetWorkspaceByID(ctx, w.ID)
-		return err
-	}, nil)
-	require.Error(t, err, "must error")
-	require.ErrorAs(t, err, &dbauthz.NotAuthorizedError{}, "must be an authorized error")
 }
 
 func must[T any](value T, err error) T {

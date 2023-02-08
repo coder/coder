@@ -3,7 +3,10 @@ package dbauthz
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
+
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 
@@ -12,6 +15,44 @@ import (
 )
 
 var _ database.Store = (*AuthzQuerier)(nil)
+
+var (
+	// NoActorError wraps ErrNoRows for the api to return a 404. This is the correct
+	// response when the user is not authorized.
+	NoActorError = xerrors.Errorf("no authorization actor in context: %w", sql.ErrNoRows)
+)
+
+// NotAuthorizedError is a sentinel error that unwraps to sql.ErrNoRows.
+// This allows the internal error to be read by the caller if needed. Otherwise
+// it will be handled as a 404.
+type NotAuthorizedError struct {
+	Err error
+}
+
+func (e NotAuthorizedError) Error() string {
+	return fmt.Sprintf("unauthorized: %s", e.Err.Error())
+}
+
+// Unwrap will always unwrap to a sql.ErrNoRows so the API returns a 404.
+// So 'errors.Is(err, sql.ErrNoRows)' will always be true.
+func (NotAuthorizedError) Unwrap() error {
+	return sql.ErrNoRows
+}
+
+func LogNotAuthorizedError(ctx context.Context, logger slog.Logger, err error) error {
+	// Only log the errors if it is an UnauthorizedError error.
+	internalError := new(rbac.UnauthorizedError)
+	if err != nil && xerrors.As(err, internalError) {
+		logger.Debug(ctx, "unauthorized",
+			slog.F("internal", internalError.Internal()),
+			slog.F("input", internalError.Input()),
+			slog.Error(err),
+		)
+	}
+	return NotAuthorizedError{
+		Err: err,
+	}
+}
 
 // AuthzQuerier is a wrapper around the database store that performs authorization
 // checks before returning data. All AuthzQuerier methods expect an authorization
