@@ -60,9 +60,12 @@ func TestList(t *testing.T) {
 		cmd, root := clitest.New(t, "list", "--output=json")
 		clitest.SetupConfig(t, client, root)
 
+		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancelFunc()
+
 		out := bytes.NewBuffer(nil)
 		cmd.SetOut(out)
-		err := cmd.Execute()
+		err := cmd.ExecuteContext(ctx)
 		require.NoError(t, err)
 
 		var templates []codersdk.Workspace

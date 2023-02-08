@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"regexp"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/testutil"
 )
 
 func TestTokens(t *testing.T) {
@@ -18,12 +20,15 @@ func TestTokens(t *testing.T) {
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
 
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancelFunc()
+
 	// helpful empty response
 	cmd, root := clitest.New(t, "tokens", "ls")
 	clitest.SetupConfig(t, client, root)
 	buf := new(bytes.Buffer)
 	cmd.SetOut(buf)
-	err := cmd.Execute()
+	err := cmd.ExecuteContext(ctx)
 	require.NoError(t, err)
 	res := buf.String()
 	require.Contains(t, res, "tokens found")
@@ -32,7 +37,7 @@ func TestTokens(t *testing.T) {
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
 	cmd.SetOut(buf)
-	err = cmd.Execute()
+	err = cmd.ExecuteContext(ctx)
 	require.NoError(t, err)
 	res = buf.String()
 	require.NotEmpty(t, res)
@@ -46,7 +51,7 @@ func TestTokens(t *testing.T) {
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
 	cmd.SetOut(buf)
-	err = cmd.Execute()
+	err = cmd.ExecuteContext(ctx)
 	require.NoError(t, err)
 	res = buf.String()
 	require.NotEmpty(t, res)
@@ -60,7 +65,7 @@ func TestTokens(t *testing.T) {
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
 	cmd.SetOut(buf)
-	err = cmd.Execute()
+	err = cmd.ExecuteContext(ctx)
 	require.NoError(t, err)
 
 	var tokens []codersdk.APIKey
@@ -72,7 +77,7 @@ func TestTokens(t *testing.T) {
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
 	cmd.SetOut(buf)
-	err = cmd.Execute()
+	err = cmd.ExecuteContext(ctx)
 	require.NoError(t, err)
 	res = buf.String()
 	require.NotEmpty(t, res)
