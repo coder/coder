@@ -902,12 +902,18 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 			resp.Message = "Cannot extend workspace: " + err.Error()
 			return err
 		}
+		if !build.MaxDeadline.IsZero() && newDeadline.After(build.MaxDeadline) {
+			code = http.StatusBadRequest
+			resp.Message = "Cannot extend workspace beyond max deadline."
+			return xerrors.New("Cannot extend workspace: deadline is beyond max deadline imposed by template")
+		}
 
 		if _, err := s.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 			ID:               build.ID,
 			UpdatedAt:        build.UpdatedAt,
 			ProvisionerState: build.ProvisionerState,
 			Deadline:         newDeadline,
+			MaxDeadline:      build.MaxDeadline,
 		}); err != nil {
 			code = http.StatusInternalServerError
 			resp.Message = "Failed to extend workspace deadline."

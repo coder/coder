@@ -517,15 +517,31 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 		if err != nil {
 			return nil, xerrors.Errorf("unmarshal workspace provision input: %w", err)
 		}
-		build, err := server.Database.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
-			ID:               input.WorkspaceBuildID,
-			UpdatedAt:        database.Now(),
-			ProvisionerState: jobType.WorkspaceBuild.State,
-			// We are explicitly not updating deadline here.
-		})
+
+		var build database.WorkspaceBuild
+		err := server.Database.InTx(func(db database.Store) error {
+			workspaceBuild, err := server.Database.GetWorkspaceBuildByID(ctx, input.WorkspaceBuildID)
+			if err != nil {
+				return xerrors.Errorf("get workspace build: %w", err)
+			}
+
+			build, err = server.Database.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+				ID:               input.WorkspaceBuildID,
+				UpdatedAt:        database.Now(),
+				ProvisionerState: jobType.WorkspaceBuild.State,
+				Deadline:         workspaceBuild.Deadline,
+				MaxDeadline:      workspaceBuild.MaxDeadline,
+			})
+			if err != nil {
+				return xerrors.Errorf("update workspace build state: %w", err)
+			}
+
+			return nil
+		}, nil)
 		if err != nil {
-			return nil, xerrors.Errorf("update workspace build state: %w", err)
+			return nil, err
 		}
+
 		err = server.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(build.WorkspaceID), []byte{})
 		if err != nil {
 			return nil, xerrors.Errorf("update workspace: %w", err)
@@ -709,8 +725,31 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			} else {
 				// Huh? Did the workspace get deleted?
 				// In any case, since this is just for the TTL, try and continue anyway.
-				server.Logger.Error(ctx, "fetch workspace for build", slog.F("workspace_build_id", workspaceBuild.ID), slog.F("workspace_id", workspaceBuild.WorkspaceID))
+				server.Logger.Error(ctx,
+					"fetch workspace for build",
+					slog.F("workspace_build_id", workspaceBuild.ID),
+					slog.F("workspace_id", workspaceBuild.WorkspaceID),
+				)
 			}
+
+			var workspaceMaxDeadline time.Time
+			template, err := db.GetTemplateByID(ctx, workspace.TemplateID)
+			if err == nil {
+				if template.MaxTtl > 0 {
+					workspaceMaxDeadline = now.Add(time.Duration(template.MaxTtl))
+					if !workspaceDeadline.IsZero() && workspaceMaxDeadline.Before(workspaceDeadline) {
+						workspaceDeadline = workspaceMaxDeadline
+					}
+				}
+			} else {
+				server.Logger.Error(ctx,
+					"fetch template for build",
+					slog.F("workspace_build_id", workspaceBuild.ID),
+					slog.F("workspace_id", workspaceBuild.WorkspaceID),
+					slog.F("template_id", workspace.TemplateID),
+				)
+			}
+
 			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 				ID:        jobID,
 				UpdatedAt: database.Now(),
@@ -725,6 +764,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			_, err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 				ID:               workspaceBuild.ID,
 				Deadline:         workspaceDeadline,
+				MaxDeadline:      workspaceMaxDeadline,
 				ProvisionerState: jobType.WorkspaceBuild.State,
 				UpdatedAt:        now,
 			})

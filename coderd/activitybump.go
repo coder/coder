@@ -70,12 +70,16 @@ func activityBumpWorkspace(log slog.Logger, db database.Store, workspaceID uuid.
 		}
 
 		newDeadline := database.Now().Add(bumpAmount)
+		if !build.MaxDeadline.IsZero() && newDeadline.After(build.MaxDeadline) {
+			newDeadline = build.MaxDeadline
+		}
 
 		if _, err := s.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 			ID:               build.ID,
 			UpdatedAt:        database.Now(),
 			ProvisionerState: build.ProvisionerState,
 			Deadline:         newDeadline,
+			MaxDeadline:      build.MaxDeadline,
 		}); err != nil {
 			return xerrors.Errorf("update workspace build: %w", err)
 		}
