@@ -49,7 +49,7 @@ func TestFirstUser(t *testing.T) {
 		_, err := client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
 			Email:    "some@email.com",
 			Username: "exampleuser",
-			Password: "password",
+			Password: "SomeSecurePassword!",
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -78,7 +78,7 @@ func TestFirstUser(t *testing.T) {
 		req := codersdk.CreateFirstUserRequest{
 			Email:    "testuser@coder.com",
 			Username: "testuser",
-			Password: "testpass",
+			Password: "SomeSecurePassword!",
 			Trial:    true,
 		}
 		_, err := client.CreateFirstUser(ctx, req)
@@ -123,7 +123,7 @@ func TestPostLogin(t *testing.T) {
 		req := codersdk.CreateFirstUserRequest{
 			Email:    "testuser@coder.com",
 			Username: "testuser",
-			Password: "testpass",
+			Password: "SomeSecurePassword!",
 		}
 		_, err := client.CreateFirstUser(ctx, req)
 		require.NoError(t, err)
@@ -172,7 +172,7 @@ func TestPostLogin(t *testing.T) {
 		// Test a new session
 		_, err = client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    memberUser.Email,
-			Password: "testpass",
+			Password: "SomeSecurePassword!",
 		})
 		numLogs++ // add an audit log for login
 		require.ErrorAs(t, err, &apiErr)
@@ -198,7 +198,7 @@ func TestPostLogin(t *testing.T) {
 		defer cancel()
 
 		// With a user account.
-		const password = "testpass"
+		const password = "SomeSecurePassword!"
 		user, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
 			Email:          "test+user-@coder.com",
 			Username:       "user",
@@ -245,7 +245,7 @@ func TestPostLogin(t *testing.T) {
 		req := codersdk.CreateFirstUserRequest{
 			Email:    "testuser@coder.com",
 			Username: "testuser",
-			Password: "testpass",
+			Password: "SomeSecurePassword!",
 		}
 		_, err := client.CreateFirstUser(ctx, req)
 		require.NoError(t, err)
@@ -309,7 +309,7 @@ func TestDeleteUser(t *testing.T) {
 		another, err = api.CreateUser(context.Background(), codersdk.CreateUserRequest{
 			Email:          another.Email,
 			Username:       another.Username,
-			Password:       "testing",
+			Password:       "SomeSecurePassword!",
 			OrganizationID: user.OrganizationID,
 		})
 		require.NoError(t, err)
@@ -421,7 +421,7 @@ func TestPostUsers(t *testing.T) {
 		_, err = client.CreateUser(ctx, codersdk.CreateUserRequest{
 			Email:          me.Email,
 			Username:       me.Username,
-			Password:       "password",
+			Password:       "MySecurePassword!",
 			OrganizationID: uuid.New(),
 		})
 		var apiErr *codersdk.Error
@@ -441,7 +441,7 @@ func TestPostUsers(t *testing.T) {
 			OrganizationID: uuid.New(),
 			Email:          "another@user.org",
 			Username:       "someone-else",
-			Password:       "testing",
+			Password:       "SomeSecurePassword!",
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -466,7 +466,7 @@ func TestPostUsers(t *testing.T) {
 		_, err = notInOrg.CreateUser(ctx, codersdk.CreateUserRequest{
 			Email:          "some@domain.com",
 			Username:       "anotheruser",
-			Password:       "testing",
+			Password:       "SomeSecurePassword!",
 			OrganizationID: org.ID,
 		})
 		var apiErr *codersdk.Error
@@ -491,7 +491,7 @@ func TestPostUsers(t *testing.T) {
 			OrganizationID: user.OrganizationID,
 			Email:          "another@user.org",
 			Username:       "someone-else",
-			Password:       "testing",
+			Password:       "SomeSecurePassword!",
 		})
 		require.NoError(t, err)
 
@@ -561,7 +561,7 @@ func TestUpdateUserProfile(t *testing.T) {
 		existentUser, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
 			Email:          "bruno@coder.com",
 			Username:       "bruno",
-			Password:       "password",
+			Password:       "SomeSecurePassword!",
 			OrganizationID: user.OrganizationID,
 		})
 		require.NoError(t, err)
@@ -627,18 +627,18 @@ func TestUpdateUserPassword(t *testing.T) {
 		member, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
 			Email:          "coder@coder.com",
 			Username:       "coder",
-			Password:       "password",
+			Password:       "SomeStrongPassword!",
 			OrganizationID: admin.OrganizationID,
 		})
 		require.NoError(t, err, "create member")
 		err = client.UpdateUserPassword(ctx, member.ID.String(), codersdk.UpdateUserPasswordRequest{
-			Password: "newpassword",
+			Password: "SomeNewStrongPassword!",
 		})
 		require.NoError(t, err, "admin should be able to update member password")
 		// Check if the member can login using the new password
 		_, err = client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    "coder@coder.com",
-			Password: "newpassword",
+			Password: "SomeNewStrongPassword!",
 		})
 		require.NoError(t, err, "member should login successfully with the new password")
 	})
@@ -659,8 +659,8 @@ func TestUpdateUserPassword(t *testing.T) {
 		defer cancel()
 
 		err := member.UpdateUserPassword(ctx, "me", codersdk.UpdateUserPasswordRequest{
-			OldPassword: "testpass",
-			Password:    "newpassword",
+			OldPassword: "SomeSecurePassword!",
+			Password:    "MyNewSecurePassword!",
 		})
 		numLogs++ // add an audit log for user update
 
@@ -696,7 +696,7 @@ func TestUpdateUserPassword(t *testing.T) {
 		defer cancel()
 
 		err := client.UpdateUserPassword(ctx, "me", codersdk.UpdateUserPasswordRequest{
-			Password: "newpassword",
+			Password: "MySecurePassword!",
 		})
 		numLogs++ // add an audit log for user update
 
@@ -720,7 +720,7 @@ func TestUpdateUserPassword(t *testing.T) {
 		require.NoError(t, err)
 
 		err = client.UpdateUserPassword(ctx, "me", codersdk.UpdateUserPasswordRequest{
-			Password: "newpassword",
+			Password: "MyNewSecurePassword!",
 		})
 		require.NoError(t, err)
 
@@ -733,7 +733,7 @@ func TestUpdateUserPassword(t *testing.T) {
 
 		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    coderdtest.FirstUserParams.Email,
-			Password: "newpassword",
+			Password: "MyNewSecurePassword!",
 		})
 		require.NoError(t, err)
 
@@ -1264,7 +1264,7 @@ func TestGetUsers(t *testing.T) {
 		client.CreateUser(ctx, codersdk.CreateUserRequest{
 			Email:          "alice@email.com",
 			Username:       "alice",
-			Password:       "password",
+			Password:       "MySecurePassword!",
 			OrganizationID: user.OrganizationID,
 		})
 		// No params is all users
@@ -1290,7 +1290,7 @@ func TestGetUsers(t *testing.T) {
 		alice, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
 			Email:          "alice@email.com",
 			Username:       "alice",
-			Password:       "password",
+			Password:       "MySecurePassword!",
 			OrganizationID: first.OrganizationID,
 		})
 		require.NoError(t, err)
@@ -1298,7 +1298,7 @@ func TestGetUsers(t *testing.T) {
 		bruno, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
 			Email:          "bruno@email.com",
 			Username:       "bruno",
-			Password:       "password",
+			Password:       "MySecurePassword!",
 			OrganizationID: first.OrganizationID,
 		})
 		require.NoError(t, err)
@@ -1329,7 +1329,7 @@ func TestGetUsersPagination(t *testing.T) {
 	_, err = client.CreateUser(ctx, codersdk.CreateUserRequest{
 		Email:          "alice@email.com",
 		Username:       "alice",
-		Password:       "password",
+		Password:       "MySecurePassword!",
 		OrganizationID: first.OrganizationID,
 	})
 	require.NoError(t, err)
@@ -1410,13 +1410,13 @@ func TestWorkspacesByUser(t *testing.T) {
 		newUser, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
 			Email:          "test@coder.com",
 			Username:       "someone",
-			Password:       "password",
+			Password:       "MySecurePassword!",
 			OrganizationID: user.OrganizationID,
 		})
 		require.NoError(t, err)
 		auth, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    newUser.Email,
-			Password: "password",
+			Password: "MySecurePassword!",
 		})
 		require.NoError(t, err)
 
@@ -1463,7 +1463,7 @@ func TestSuspendedPagination(t *testing.T) {
 		user, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
 			Email:          email,
 			Username:       username,
-			Password:       "password",
+			Password:       "MySecurePassword!",
 			OrganizationID: orgID,
 		})
 		require.NoError(t, err)
@@ -1526,7 +1526,7 @@ func TestPaginatedUsers(t *testing.T) {
 			newUser, err := client.CreateUser(egCtx, codersdk.CreateUserRequest{
 				Email:          email,
 				Username:       username,
-				Password:       "password",
+				Password:       "MySecurePassword!",
 				OrganizationID: orgID,
 			})
 			if err != nil {

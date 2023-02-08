@@ -1138,7 +1138,7 @@ func TestAppSharing(t *testing.T) {
 
 	setup := func(t *testing.T, allowPathAppSharing, allowSiteOwnerAccess bool) (workspace codersdk.Workspace, agnt codersdk.WorkspaceAgent, user codersdk.User, ownerClient *codersdk.Client, client *codersdk.Client, clientInOtherOrg *codersdk.Client, clientWithNoAuth *codersdk.Client) {
 		//nolint:gosec
-		const password = "password"
+		const password = "SomeSecurePassword!"
 
 		var port uint16
 		ownerClient, _, _, port = setupProxyTest(t, &setupProxyTestOpts{
