@@ -6,14 +6,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/coder/coder/coderd/database/dbgen"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbfake"
+	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/codersdk"
 )

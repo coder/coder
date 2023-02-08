@@ -21,18 +21,19 @@ func TestTemplateParam(t *testing.T) {
 	t.Parallel()
 
 	setupAuthentication := func(db database.Store) (*http.Request, database.Organization) {
-		var ()
-		r := httptest.NewRequest("GET", "/", nil)
-		user := dbgen.User(t, db, database.User{})
-		_, token := dbgen.APIKey(t, db, database.APIKey{
-			UserID: user.ID,
-		})
-		organization := dbgen.Organization(t, db, database.Organization{})
-		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
-			UserID:         user.ID,
-			OrganizationID: organization.ID,
-		})
+		var (
+			user     = dbgen.User(t, db, database.User{})
+			_, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID: user.ID,
+			})
+			organization = dbgen.Organization(t, db, database.Organization{})
+			_            = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+				UserID:         user.ID,
+				OrganizationID: organization.ID,
+			})
+		)
 
+		r := httptest.NewRequest("GET", "/", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, token)
 
 		ctx := chi.NewRouteContext()
@@ -107,13 +108,11 @@ func TestTemplateParam(t *testing.T) {
 		})
 
 		r, org := setupAuthentication(db)
-		template, err := db.InsertTemplate(context.Background(), database.InsertTemplateParams{
-			ID:             uuid.New(),
+		template := dbgen.Template(t, db, database.Template{
 			OrganizationID: org.ID,
-			Name:           "moo",
 			Provisioner:    database.ProvisionerTypeEcho,
 		})
-		require.NoError(t, err)
+
 		chi.RouteContext(r.Context()).URLParams.Add("template", template.ID.String())
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
