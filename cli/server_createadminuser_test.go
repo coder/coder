@@ -162,7 +162,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 		defer cancelFunc()
 
 		t.Setenv("CODER_POSTGRES_URL", connectionURL)
-		t.Setenv("CODER_SSH_KEYGEN_ALGORITHM", "ecdsa")
+		t.Setenv("CODER_SSH_KEYGEN_ALGORITHM", "ed25519")
 		t.Setenv("CODER_USERNAME", username)
 		t.Setenv("CODER_EMAIL", email)
 		t.Setenv("CODER_PASSWORD", password)
@@ -204,7 +204,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 		root, _ := clitest.New(t,
 			"server", "create-admin-user",
 			"--postgres-url", connectionURL,
-			"--ssh-keygen-algorithm", "rsa4096",
+			"--ssh-keygen-algorithm", "ed25519",
 		)
 		pty := ptytest.New(t)
 		root.SetIn(pty.Input())
