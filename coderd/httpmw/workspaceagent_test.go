@@ -1,7 +1,6 @@
 package httpmw_test
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbfake"
+	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/codersdk"
 )
@@ -55,12 +55,9 @@ func TestWorkspaceAgent(t *testing.T) {
 			rw.WriteHeader(http.StatusOK)
 		})
 		r, token := setup(db)
-		_, err := db.InsertWorkspaceAgent(context.Background(), database.InsertWorkspaceAgentParams{
-			ID:        uuid.New(),
+		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 			AuthToken: token,
 		})
-		require.NoError(t, err)
-		require.NoError(t, err)
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
 

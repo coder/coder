@@ -2,19 +2,16 @@ package httpmw_test
 
 import (
 	"context"
-	"crypto/sha256"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbfake"
+	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/codersdk"
 )
@@ -23,32 +20,15 @@ func TestUserParam(t *testing.T) {
 	t.Parallel()
 	setup := func(t *testing.T) (database.Store, *httptest.ResponseRecorder, *http.Request) {
 		var (
-			db         = dbfake.New()
-			id, secret = randomAPIKeyParts()
-			hashed     = sha256.Sum256([]byte(secret))
-			r          = httptest.NewRequest("GET", "/", nil)
-			rw         = httptest.NewRecorder()
+			db = dbfake.New()
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
 		)
-		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
-
-		user, err := db.InsertUser(r.Context(), database.InsertUserParams{
-			ID:        uuid.New(),
-			Email:     "admin@email.com",
-			Username:  "admin",
-			LoginType: database.LoginTypePassword,
+		user := dbgen.User(t, db, database.User{})
+		_, token := dbgen.APIKey(t, db, database.APIKey{
+			UserID: user.ID,
 		})
-		require.NoError(t, err)
-
-		_, err = db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
-			ID:           id,
-			UserID:       user.ID,
-			HashedSecret: hashed[:],
-			LastUsed:     database.Now(),
-			ExpiresAt:    database.Now().Add(time.Minute),
-			LoginType:    database.LoginTypePassword,
-			Scope:        database.APIKeyScopeAll,
-		})
-		require.NoError(t, err)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
 
 		return db, rw, r
 	}
