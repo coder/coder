@@ -56,10 +56,10 @@ import (
 	"github.com/coder/coder/cli/deployment"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/authzquery"
 	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
@@ -187,7 +187,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 				Wrapped: rbac.NewAuthorizer(prometheus.NewRegistry()),
 			}
 		}
-		options.Database = authzquery.New(options.Database, options.Authorizer, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
+		options.Database = dbauthz.New(options.Database, options.Authorizer, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
 	}
 	if options.DeploymentConfig == nil {
 		options.DeploymentConfig = DeploymentConfig(t)

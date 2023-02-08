@@ -10,8 +10,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/coder/coder/coderd/authzquery"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
@@ -44,7 +44,7 @@ func ExtractUserParam(db database.Store, redirectToLoginOnMe bool) func(http.Han
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			var (
 				ctx       = r.Context()
-				systemCtx = authzquery.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
+				systemCtx = dbauthz.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
 				user      database.User
 				err       error
 			)

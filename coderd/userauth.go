@@ -19,8 +19,8 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/authzquery"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
@@ -41,7 +41,7 @@ import (
 func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
-		systemCtx         = authzquery.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
+		systemCtx         = dbauthz.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
 			Audit:   *auditor,
@@ -733,7 +733,7 @@ func (e httpError) Error() string {
 func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cookie, database.APIKey, error) {
 	var (
 		ctx       = r.Context()
-		systemCtx = authzquery.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
+		systemCtx = dbauthz.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
 		user      database.User
 	)
 

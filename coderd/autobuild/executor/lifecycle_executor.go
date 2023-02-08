@@ -10,9 +10,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/authzquery"
 	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/rbac"
 )
 
@@ -36,7 +36,7 @@ type Stats struct {
 func New(ctx context.Context, db database.Store, log slog.Logger, tick <-chan time.Time) *Executor {
 	le := &Executor{
 		// Use an authorized context with an autostart system actor.
-		ctx:  authzquery.WithAuthorizeSystemContext(ctx, rbac.RolesAutostartSystem()),
+		ctx:  dbauthz.WithAuthorizeSystemContext(ctx, rbac.RolesAutostartSystem()),
 		db:   db,
 		tick: tick,
 		log:  log,

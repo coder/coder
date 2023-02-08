@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/coder/coder/coderd/authzquery"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
@@ -32,7 +32,7 @@ func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			systemCtx := authzquery.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
+			systemCtx := dbauthz.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
 			tokenValue := apiTokenFromRequest(r)
 			if tokenValue == "" {
 				httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
@@ -75,7 +75,7 @@ func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 			}
 
 			ctx = context.WithValue(ctx, workspaceAgentContextKey{}, agent)
-			ctx = authzquery.WithAuthorizeContext(ctx, subject)
+			ctx = dbauthz.WithAuthorizeContext(ctx, subject)
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}

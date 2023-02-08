@@ -36,13 +36,13 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/coderd/authzquery"
 
 	// Used to serve the Swagger endpoint
 	_ "github.com/coder/coder/coderd/apidoc"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/database/dbtype"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
@@ -159,8 +159,8 @@ func New(options *Options) *API {
 	experiments := initExperiments(options.Logger, options.DeploymentConfig.Experiments.Value, options.DeploymentConfig.Experimental.Value)
 	// TODO: remove this once we promote authz_querier out of experiments.
 	if experiments.Enabled(codersdk.ExperimentAuthzQuerier) {
-		if _, ok := (options.Database).(*authzquery.AuthzQuerier); !ok {
-			options.Database = authzquery.New(
+		if _, ok := (options.Database).(*dbauthz.AuthzQuerier); !ok {
+			options.Database = dbauthz.New(
 				options.Database,
 				options.Authorizer,
 				options.Logger.Named("authz_query"),
@@ -209,8 +209,8 @@ func New(options *Options) *API {
 	}
 	// TODO: remove this once we promote authz_querier out of experiments.
 	if experiments.Enabled(codersdk.ExperimentAuthzQuerier) {
-		if _, ok := (options.Database).(*authzquery.AuthzQuerier); !ok {
-			options.Database = authzquery.New(options.Database, options.Authorizer, options.Logger.Named("authz_querier"))
+		if _, ok := (options.Database).(*dbauthz.AuthzQuerier); !ok {
+			options.Database = dbauthz.New(options.Database, options.Authorizer, options.Logger.Named("authz_querier"))
 		}
 	}
 	if options.SetUserGroups == nil {

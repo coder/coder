@@ -13,8 +13,8 @@ import (
 	"github.com/google/uuid"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/authzquery"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/retry"
@@ -144,7 +144,7 @@ func countUniqueUsers(rows []database.GetTemplateDAUsRow) int {
 }
 
 func (c *Cache) refresh(ctx context.Context) error {
-	systemCtx := authzquery.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
+	systemCtx := dbauthz.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
 	err := c.database.DeleteOldAgentStats(systemCtx)
 	if err != nil {
 		return xerrors.Errorf("delete old stats: %w", err)

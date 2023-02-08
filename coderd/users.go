@@ -15,8 +15,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/authzquery"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -37,7 +37,7 @@ import (
 // @Success 200 {object} codersdk.Response
 // @Router /users/first [get]
 func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
-	ctx := authzquery.WithAuthorizeSystemContext(r.Context(), rbac.RolesAdminSystem())
+	ctx := dbauthz.WithAuthorizeSystemContext(r.Context(), rbac.RolesAdminSystem())
 	userCount, err := api.Database.GetUserCount(ctx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -72,7 +72,7 @@ func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
 // @Router /users/first [post]
 func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	// TODO: Should this admin system context be in a middleware?
-	ctx := authzquery.WithAuthorizeSystemContext(r.Context(), rbac.RolesAdminSystem())
+	ctx := dbauthz.WithAuthorizeSystemContext(r.Context(), rbac.RolesAdminSystem())
 	var createUser codersdk.CreateFirstUserRequest
 	if !httpapi.Read(ctx, rw, r, &createUser) {
 		return
