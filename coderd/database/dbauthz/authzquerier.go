@@ -39,12 +39,7 @@ func (q *AuthzQuerier) Ping(ctx context.Context) (time.Duration, error) {
 }
 
 // InTx runs the given function in a transaction.
-// TODO: The method signature needs to be switched to use 'AuthzStore'. Until that
-// interface is defined as a subset of database.Store, it would not compile.
-// So use this method signature for now.
-// func (q *AuthzQuerier) InTx(function func(querier AuthzStore) error, txOpts *sql.TxOptions) error {
 func (q *AuthzQuerier) InTx(function func(querier database.Store) error, txOpts *sql.TxOptions) error {
-	// TODO: @emyrk verify this works.
 	return q.db.InTx(func(tx database.Store) error {
 		// Wrap the transaction store in an AuthzQuerier.
 		wrapped := New(tx, q.auth, q.log)
