@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/coder/coder/coderd/authzquery"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/azureidentity"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/rbac"
@@ -128,7 +128,7 @@ func (api *API) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, 
 
 func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, instanceID string) {
 	// TODO: reduce the scope of this auth if possible.
-	ctx := authzquery.WithAuthorizeSystemContext(r.Context(), rbac.RolesAdminSystem())
+	ctx := dbauthz.WithAuthorizeSystemContext(r.Context(), rbac.RolesAdminSystem())
 	agent, err := api.Database.GetWorkspaceAgentByInstanceID(ctx, instanceID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{

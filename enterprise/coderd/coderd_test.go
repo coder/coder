@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/coderd/authzquery"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/rbac"
 
 	"github.com/stretchr/testify/assert"
@@ -103,7 +103,7 @@ func TestEntitlements(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, entitlements.HasLicense)
 		coderdtest.CreateFirstUser(t, client)
-		ctx := authzquery.WithAuthorizeSystemContext(context.Background(), rbac.RolesAdminSystem())
+		ctx := dbauthz.WithAuthorizeSystemContext(context.Background(), rbac.RolesAdminSystem())
 		_, err = api.Database.InsertLicense(ctx, database.InsertLicenseParams{
 			UploadedAt: database.Now(),
 			Exp:        database.Now().AddDate(1, 0, 0),
@@ -132,7 +132,7 @@ func TestEntitlements(t *testing.T) {
 		require.False(t, entitlements.HasLicense)
 		coderdtest.CreateFirstUser(t, client)
 		// Valid
-		ctx := authzquery.WithAuthorizeSystemContext(context.Background(), rbac.RolesAdminSystem())
+		ctx := dbauthz.WithAuthorizeSystemContext(context.Background(), rbac.RolesAdminSystem())
 		_, err = api.Database.InsertLicense(ctx, database.InsertLicenseParams{
 			UploadedAt: database.Now(),
 			Exp:        database.Now().AddDate(1, 0, 0),

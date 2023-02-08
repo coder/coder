@@ -3,7 +3,7 @@ package httpmw
 import (
 	"net/http"
 
-	"github.com/coder/coder/coderd/authzquery"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/rbac"
 )
 
@@ -11,7 +11,7 @@ import (
 // Use sparingly.
 func SystemAuthCtx(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		ctx := authzquery.WithAuthorizeSystemContext(r.Context(), rbac.RolesAdminSystem())
+		ctx := dbauthz.WithAuthorizeSystemContext(r.Context(), rbac.RolesAdminSystem())
 		next.ServeHTTP(rw, r.WithContext(ctx))
 	})
 }

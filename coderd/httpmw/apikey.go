@@ -18,8 +18,8 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/authzquery"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
@@ -116,7 +116,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			systemCtx := authzquery.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
+			systemCtx := dbauthz.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
 			// Write wraps writing a response to redirect if the handler
 			// specified it should. This redirect is used for user-facing pages
 			// like workspace applications.
@@ -358,7 +358,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 				Actor:    actor,
 			})
 			// Set the auth context for the authzquerier as well.
-			ctx = authzquery.WithAuthorizeContext(ctx, actor)
+			ctx = dbauthz.WithAuthorizeContext(ctx, actor)
 
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
