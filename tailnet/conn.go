@@ -149,11 +149,6 @@ func NewConn(options *Options) (*Conn, error) {
 		return nil, xerrors.New("get wireguard internals")
 	}
 
-	connStats := connstats.NewStatistics(0, 0, nil)
-	// stats.TestExtract()
-
-	tunDevice.SetStatistics(connStats)
-
 	// Update the keys for the magic connection!
 	err = magicConn.SetPrivateKey(nodePrivateKey)
 	if err != nil {
@@ -206,7 +201,6 @@ func NewConn(options *Options) (*Conn, error) {
 			LocalAddrs: netMap.Addresses,
 		},
 		wireguardEngine: wireguardEngine,
-		trafficStats:    connStats,
 	}
 	wireguardEngine.SetStatusCallback(func(s *wgengine.Status, err error) {
 		server.logger.Debug(context.Background(), "wireguard status", slog.F("status", s), slog.F("err", err))
@@ -542,9 +536,11 @@ func (c *Conn) Close() error {
 	_ = c.wireguardMonitor.Close()
 	_ = c.tunDevice.Close()
 	c.wireguardEngine.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_ = c.trafficStats.Shutdown(ctx)
+	if c.trafficStats != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = c.trafficStats.Shutdown(ctx)
+	}
 	return nil
 }
 

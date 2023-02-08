@@ -40,9 +40,7 @@ replace github.com/tcnksm/go-httpstat => github.com/kylecarbs/go-httpstat v0.0.0
 
 // There are a few minor changes we make to Tailscale that we're slowly upstreaming. Compare here:
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
-replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20230206232023-2d8652e2964c
-
-replace golang.zx2c4.com/wireguard => github.com/coder/wireguard-go v0.0.0-20230206223559-7bd7dc31300a
+replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20230208230335-91b5d109b142
 
 // Switch to our fork that imports fixes from http://github.com/tailscale/ssh.
 // See: https://github.com/coder/coder/issues/3371
@@ -160,7 +158,7 @@ require (
 	golang.org/x/text v0.6.0
 	golang.org/x/tools v0.4.1-0.20221208213631-3f74d914ae6d
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
-	golang.zx2c4.com/wireguard v0.0.0-20220920152132-bb719d3a6e2c
+	golang.zx2c4.com/wireguard v0.0.0-20230207233929-ebbd4a433088
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20220504211119-3d4a969bb56b
 	google.golang.org/api v0.103.0
 	google.golang.org/grpc v1.52.3
