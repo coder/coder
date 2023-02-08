@@ -99,7 +99,7 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.UserID
 	case database.License:
 		// this isn't right
-		return uuid.Nil
+		return uuid.New()
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -134,6 +134,7 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 // that should be deferred, causing the audit log to be committed when the
 // handler returns.
 func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request[T], func()) {
+	fmt.Println("im in the init request")
 	sw, ok := w.(*tracing.StatusWriter)
 	if !ok {
 		panic("dev error: http.ResponseWriter is not *tracing.StatusWriter")
@@ -144,6 +145,8 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 	}
 
 	return req, func() {
+		fmt.Println("im in the init request callback")
+
 		ctx := context.Background()
 		logCtx := p.Request.Context()
 
@@ -155,6 +158,8 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			// TODO: introduce the concept of an anonymous user so we always have a userID even
 			// when dealing with a mystery user. https://github.com/coder/coder/issues/6054
 			if req.params.Action != database.AuditActionLogin && req.params.Action != database.AuditActionLogout {
+				fmt.Println("im silently bailing")
+
 				return
 			}
 		}

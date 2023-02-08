@@ -8,6 +8,7 @@ import (
 	_ "embed"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -20,6 +21,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/rbac"
@@ -59,7 +61,19 @@ var Keys = map[string]ed25519.PublicKey{"2022-08-12": ed25519.PublicKey(key20220
 // @Success 201 {object} codersdk.License
 // @Router /licenses [post]
 func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	fmt.Println("im in postLicense")
+	var (
+		ctx               = r.Context()
+		auditor           = api.AGPL.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.License](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionCreate,
+		})
+	)
+	defer commitAudit()
+
 	if !api.AGPL.Authorize(r, rbac.ActionCreate, rbac.ResourceLicense) {
 		httpapi.Forbidden(rw)
 		return
@@ -114,6 +128,8 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	aReq.New = dl
+
 	err = api.updateEntitlements(ctx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -181,11 +197,10 @@ func (api *API) licenses(rw http.ResponseWriter, r *http.Request) {
 // @Success 200
 // @Router /licenses/{id} [delete]
 func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	if !api.AGPL.Authorize(r, rbac.ActionDelete, rbac.ResourceLicense) {
-		httpapi.Forbidden(rw)
-		return
-	}
+	var (
+		ctx     = r.Context()
+		auditor = api.AGPL.Auditor.Load()
+	)
 
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 32)
@@ -193,6 +208,27 @@ func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: "License ID must be an integer",
 		})
+		return
+	}
+
+	license, err := api.Database.GetLicense(ctx, int32(id))
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "Could not retrieve license; cannot audit",
+		})
+	}
+
+	aReq, commitAudit := audit.InitRequest[database.License](rw, &audit.RequestParams{
+		Audit:   *auditor,
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionDelete,
+	})
+	defer commitAudit()
+	aReq.Old = license
+
+	if !api.AGPL.Authorize(r, rbac.ActionDelete, rbac.ResourceLicense) {
+		httpapi.Forbidden(rw)
 		return
 	}
 

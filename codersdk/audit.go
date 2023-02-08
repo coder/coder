@@ -45,6 +45,8 @@ func (r ResourceType) FriendlyString() string {
 		return "api key"
 	case ResourceTypeGroup:
 		return "group"
+	case ResourceTypeLicense:
+		return "license"
 	default:
 		return "unknown"
 	}
