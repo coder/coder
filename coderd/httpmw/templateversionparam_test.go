@@ -2,7 +2,6 @@ package httpmw_test
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -37,7 +36,7 @@ func TestTemplateVersionParam(t *testing.T) {
 		})
 
 		r := httptest.NewRequest("GET", "/", nil)
-		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf(token))
+		r.Header.Set(codersdk.SessionTokenHeader, token)
 
 		ctx := chi.NewRouteContext()
 		ctx.URLParams.Add("organization", organization.Name)
