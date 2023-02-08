@@ -33,18 +33,19 @@ const (
 
 // TemplateVersionParameter represents a parameter for a template version.
 type TemplateVersionParameter struct {
-	Name                string                           `json:"name"`
-	Description         string                           `json:"description"`
-	Type                string                           `json:"type" enums:"string,number,bool"`
-	Mutable             bool                             `json:"mutable"`
-	DefaultValue        string                           `json:"default_value"`
-	Icon                string                           `json:"icon"`
-	Options             []TemplateVersionParameterOption `json:"options"`
-	ValidationError     string                           `json:"validation_error,omitempty"`
-	ValidationRegex     string                           `json:"validation_regex,omitempty"`
-	ValidationMin       int32                            `json:"validation_min,omitempty"`
-	ValidationMax       int32                            `json:"validation_max,omitempty"`
-	ValidationMonotonic ValidationMonotonicOrder         `json:"validation_monotonic,omitempty" enums:"increasing,decreasing"`
+	Name                 string                           `json:"name"`
+	Description          string                           `json:"description"`
+	DescriptionPlaintext string                           `json:"description_plaintext"`
+	Type                 string                           `json:"type" enums:"string,number,bool"`
+	Mutable              bool                             `json:"mutable"`
+	DefaultValue         string                           `json:"default_value"`
+	Icon                 string                           `json:"icon"`
+	Options              []TemplateVersionParameterOption `json:"options"`
+	ValidationError      string                           `json:"validation_error,omitempty"`
+	ValidationRegex      string                           `json:"validation_regex,omitempty"`
+	ValidationMin        int32                            `json:"validation_min,omitempty"`
+	ValidationMax        int32                            `json:"validation_max,omitempty"`
+	ValidationMonotonic  ValidationMonotonicOrder         `json:"validation_monotonic,omitempty" enums:"increasing,decreasing"`
 }
 
 // TemplateVersionParameterOption represents a selectable option for a template parameter.

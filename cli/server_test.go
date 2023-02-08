@@ -537,6 +537,7 @@ func TestServer(t *testing.T) {
 			tlsListener  bool
 			redirect     bool
 			accessURL    string
+			requestURL   string
 			// Empty string means no redirect.
 			expectRedirect string
 		}{
@@ -554,6 +555,14 @@ func TestServer(t *testing.T) {
 				tlsListener:    true,
 				accessURL:      "https://example.com",
 				expectRedirect: "",
+			},
+			{
+				name:           "NoRedirectWithWildcard",
+				tlsListener:    true,
+				accessURL:      "https://example.com",
+				requestURL:     "https://dev.example.com",
+				expectRedirect: "",
+				redirect:       true,
 			},
 			{
 				name:           "NoTLSListener",
@@ -580,6 +589,10 @@ func TestServer(t *testing.T) {
 				ctx, cancelFunc := context.WithCancel(context.Background())
 				defer cancelFunc()
 
+				if c.requestURL == "" {
+					c.requestURL = c.accessURL
+				}
+
 				httpListenAddr := ""
 				if c.httpListener {
 					httpListenAddr = ":0"
@@ -598,6 +611,7 @@ func TestServer(t *testing.T) {
 						"--tls-address", ":0",
 						"--tls-cert-file", certPath,
 						"--tls-key-file", keyPath,
+						"--wildcard-access-url", "*.example.com",
 					)
 				}
 				if c.accessURL != "" {
@@ -658,7 +672,7 @@ func TestServer(t *testing.T) {
 
 				// Verify TLS
 				if c.tlsListener {
-					accessURLParsed, err := url.Parse(c.accessURL)
+					accessURLParsed, err := url.Parse(c.requestURL)
 					require.NoError(t, err)
 					client := codersdk.New(accessURLParsed)
 					client.HTTPClient = &http.Client{
@@ -676,8 +690,9 @@ func TestServer(t *testing.T) {
 					}
 					defer client.HTTPClient.CloseIdleConnections()
 					_, err = client.HasFirstUser(ctx)
-					require.NoError(t, err)
-
+					if err != nil {
+						require.ErrorContains(t, err, "Invalid application URL")
+					}
 					cancelFunc()
 					require.NoError(t, <-errC)
 				}

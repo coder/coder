@@ -306,6 +306,9 @@ func TestSSH_ForwardGPG(t *testing.T) {
 		// same process.
 		t.Skip("Test not supported on windows")
 	}
+	if testing.Short() {
+		t.SkipNow()
+	}
 
 	// This key is for dean@coder.com.
 	const randPublicKeyFingerprint = "7BDFBA0CC7F5A96537C806C427BC6335EB5117F1"

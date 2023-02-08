@@ -92,6 +92,9 @@ jobs:
           restore-keys: |
             js-${{ runner.os }}-
 
+      - name: Install yq
+        run: go run github.com/mikefarah/yq/v4@v4.30.6
+
       - name: Build Coder linux amd64 Docker image
         id: build
         run: |
@@ -124,6 +127,7 @@ jobs:
         uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: trivy-results.sarif
+          category: "Trivy"
 
       - name: Upload Trivy scan results as an artifact
         uses: actions/upload-artifact@v2

@@ -4104,7 +4104,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaceagents/me/version": {
+        "/workspaceagents/me/startup": {
             "post": {
                 "security": [
                     {
@@ -4120,16 +4120,16 @@ const docTemplate = `{
                 "tags": [
                     "Agents"
                 ],
-                "summary": "Submit workspace agent version",
-                "operationId": "submit-workspace-agent-version",
+                "summary": "Submit workspace agent startup",
+                "operationId": "submit-workspace-agent-startup",
                 "parameters": [
                     {
-                        "description": "Version request",
+                        "description": "Startup request",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/agentsdk.PostVersionRequest"
+                            "$ref": "#/definitions/agentsdk.PostStartupRequest"
                         }
                     }
                 ],
@@ -5099,9 +5099,12 @@ const docTemplate = `{
                 }
             }
         },
-        "agentsdk.PostVersionRequest": {
+        "agentsdk.PostStartupRequest": {
             "type": "object",
             "properties": {
+                "expanded_directory": {
+                    "type": "string"
+                },
                 "version": {
                     "type": "string"
                 }
@@ -7552,6 +7555,9 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
+                "description_plaintext": {
+                    "type": "string"
+                },
                 "icon": {
                     "type": "string"
                 },
@@ -7944,6 +7950,9 @@ const docTemplate = `{
                     "additionalProperties": {
                         "type": "string"
                     }
+                },
+                "expanded_directory": {
+                    "type": "string"
                 },
                 "first_connected_at": {
                     "type": "string",

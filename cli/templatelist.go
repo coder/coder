@@ -5,12 +5,16 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+
+	"github.com/coder/coder/cli/cliui"
 )
 
 func templateList() *cobra.Command {
-	var (
-		columns []string
+	formatter := cliui.NewOutputFormatter(
+		cliui.TableFormat([]templateTableRow{}, []string{"name", "last updated", "used by"}),
+		cliui.JSONFormat(),
 	)
+
 	cmd := &cobra.Command{
 		Use:     "list",
 		Short:   "List all the templates available for the organization",
@@ -35,7 +39,8 @@ func templateList() *cobra.Command {
 				return nil
 			}
 
-			out, err := displayTemplates(columns, templates...)
+			rows := templatesToRows(templates...)
+			out, err := formatter.Format(cmd.Context(), rows)
 			if err != nil {
 				return err
 			}
@@ -44,7 +49,7 @@ func templateList() *cobra.Command {
 			return err
 		},
 	}
-	cmd.Flags().StringArrayVarP(&columns, "column", "c", []string{"name", "last_updated", "used_by"},
-		"Specify a column to filter in the table.")
+
+	formatter.AttachFlags(cmd)
 	return cmd
 }

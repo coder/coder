@@ -2,12 +2,9 @@ package httpmw_test
 
 import (
 	"context"
-	"crypto/sha256"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -15,9 +12,9 @@ import (
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbfake"
+	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/cryptorand"
 )
 
 func TestOrganizationParam(t *testing.T) {
@@ -25,36 +22,16 @@ func TestOrganizationParam(t *testing.T) {
 
 	setupAuthentication := func(db database.Store) (*http.Request, database.User) {
 		var (
-			id, secret = randomAPIKeyParts()
-			r          = httptest.NewRequest("GET", "/", nil)
-			hashed     = sha256.Sum256([]byte(secret))
+			r = httptest.NewRequest("GET", "/", nil)
 		)
-		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
 
-		userID := uuid.New()
-		username, err := cryptorand.String(8)
-		require.NoError(t, err)
-
-		user, err := db.InsertUser(r.Context(), database.InsertUserParams{
-			ID:             userID,
-			Email:          "testaccount@coder.com",
-			HashedPassword: hashed[:],
-			Username:       username,
-			CreatedAt:      database.Now(),
-			UpdatedAt:      database.Now(),
-			LoginType:      database.LoginTypePassword,
+		user := dbgen.User(t, db, database.User{
+			ID: uuid.New(),
 		})
-		require.NoError(t, err)
-		_, err = db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
-			ID:           id,
-			UserID:       user.ID,
-			HashedSecret: hashed[:],
-			LastUsed:     database.Now(),
-			ExpiresAt:    database.Now().Add(time.Minute),
-			LoginType:    database.LoginTypePassword,
-			Scope:        database.APIKeyScopeAll,
+		_, token := dbgen.APIKey(t, db, database.APIKey{
+			UserID: user.ID,
 		})
-		require.NoError(t, err)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
 		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, chi.NewRouteContext()))
 		return r, user
 	}
@@ -168,20 +145,11 @@ func TestOrganizationParam(t *testing.T) {
 			r, user = setupAuthentication(db)
 			rtr     = chi.NewRouter()
 		)
-		organization, err := db.InsertOrganization(r.Context(), database.InsertOrganizationParams{
-			ID:        uuid.New(),
-			Name:      "test",
-			CreatedAt: database.Now(),
-			UpdatedAt: database.Now(),
-		})
-		require.NoError(t, err)
-		_, err = db.InsertOrganizationMember(r.Context(), database.InsertOrganizationMemberParams{
+		organization := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			OrganizationID: organization.ID,
 			UserID:         user.ID,
-			CreatedAt:      database.Now(),
-			UpdatedAt:      database.Now(),
 		})
-		require.NoError(t, err)
 		chi.RouteContext(r.Context()).URLParams.Add("organization", organization.ID.String())
 		chi.RouteContext(r.Context()).URLParams.Add("user", user.ID.String())
 		rtr.Use(

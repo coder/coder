@@ -753,6 +753,7 @@ export interface TemplateVersion {
 export interface TemplateVersionParameter {
   readonly name: string
   readonly description: string
+  readonly description_plaintext: string
   readonly type: string
   readonly mutable: boolean
   readonly default_value: string
@@ -923,6 +924,7 @@ export interface WorkspaceAgent {
   readonly operating_system: string
   readonly startup_script?: string
   readonly directory?: string
+  readonly expanded_directory?: string
   readonly version: string
   readonly apps: WorkspaceApp[]
   readonly latency?: Record<string, DERPRegion>

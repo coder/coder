@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,14 +13,21 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+// workspaceListRow is the type provided to the OutputFormatter. This is a bit
+// dodgy but it's the only way to do complex display code for one format vs. the
+// other.
 type workspaceListRow struct {
-	Workspace  string `table:"workspace"`
-	Template   string `table:"template"`
-	Status     string `table:"status"`
-	LastBuilt  string `table:"last built"`
-	Outdated   bool   `table:"outdated"`
-	StartsAt   string `table:"starts at"`
-	StopsAfter string `table:"stops after"`
+	// For JSON format:
+	codersdk.Workspace `table:"-"`
+
+	// For table format:
+	WorkspaceName string `json:"-" table:"workspace,default_sort"`
+	Template      string `json:"-" table:"template"`
+	Status        string `json:"-" table:"status"`
+	LastBuilt     string `json:"-" table:"last built"`
+	Outdated      bool   `json:"-" table:"outdated"`
+	StartsAt      string `json:"-" table:"starts at"`
+	StopsAfter    string `json:"-" table:"stops after"`
 }
 
 func workspaceListRowFromWorkspace(now time.Time, usersByID map[uuid.UUID]codersdk.User, workspace codersdk.Workspace) workspaceListRow {
@@ -47,24 +53,27 @@ func workspaceListRowFromWorkspace(now time.Time, usersByID map[uuid.UUID]coders
 
 	user := usersByID[workspace.OwnerID]
 	return workspaceListRow{
-		Workspace:  user.Username + "/" + workspace.Name,
-		Template:   workspace.TemplateName,
-		Status:     status,
-		LastBuilt:  durationDisplay(lastBuilt),
-		Outdated:   workspace.Outdated,
-		StartsAt:   autostartDisplay,
-		StopsAfter: autostopDisplay,
+		Workspace:     workspace,
+		WorkspaceName: user.Username + "/" + workspace.Name,
+		Template:      workspace.TemplateName,
+		Status:        status,
+		LastBuilt:     durationDisplay(lastBuilt),
+		Outdated:      workspace.Outdated,
+		StartsAt:      autostartDisplay,
+		StopsAfter:    autostopDisplay,
 	}
 }
 
 func list() *cobra.Command {
 	var (
 		all               bool
-		columns           []string
 		defaultQuery      = "owner:me"
 		searchQuery       string
-		me                bool
 		displayWorkspaces []workspaceListRow
+		formatter         = cliui.NewOutputFormatter(
+			cliui.TableFormat([]workspaceListRow{}, nil),
+			cliui.JSONFormat(),
+		)
 	)
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
@@ -83,14 +92,6 @@ func list() *cobra.Command {
 			}
 			if all && searchQuery == defaultQuery {
 				filter.FilterQuery = ""
-			}
-
-			if me {
-				myUser, err := client.User(cmd.Context(), codersdk.Me)
-				if err != nil {
-					return err
-				}
-				filter.Owner = myUser.Username
 			}
 
 			res, err := client.Workspaces(cmd.Context(), filter)
@@ -121,7 +122,7 @@ func list() *cobra.Command {
 				displayWorkspaces[i] = workspaceListRowFromWorkspace(now, usersByID, workspace)
 			}
 
-			out, err := cliui.DisplayTable(displayWorkspaces, "workspace", columns)
+			out, err := formatter.Format(cmd.Context(), displayWorkspaces)
 			if err != nil {
 				return err
 			}
@@ -131,16 +132,10 @@ func list() *cobra.Command {
 		},
 	}
 
-	availColumns, err := cliui.TableHeaders(displayWorkspaces)
-	if err != nil {
-		panic(err)
-	}
-	columnString := strings.Join(availColumns[:], ", ")
-
 	cmd.Flags().BoolVarP(&all, "all", "a", false,
 		"Specifies whether all workspaces will be listed or not.")
-	cmd.Flags().StringArrayVarP(&columns, "column", "c", nil,
-		fmt.Sprintf("Specify a column to filter in the table. Available columns are: %v", columnString))
 	cmd.Flags().StringVar(&searchQuery, "search", defaultQuery, "Search for a workspace with a query.")
+
+	formatter.AttachFlags(cmd)
 	return cmd
 }

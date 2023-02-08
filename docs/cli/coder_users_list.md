@@ -7,9 +7,9 @@ coder users list [flags]
 ### Options
 
 ```
-  -c, --column stringArray   Specify a column to filter in the table. Available columns are: id, username, email, created_at, status. (default [username,email,created_at,status])
-  -h, --help                 help for list
-  -o, --output string        Output format. Available formats are: table, json. (default "table")
+  -c, --column strings   Columns to display in table output. Available columns: id, username, email, created at, status (default [username,email,created_at,status])
+  -h, --help             help for list
+  -o, --output string    Output format. Available formats: table, json (default "table")
 ```
 
 ### Options inherited from parent commands

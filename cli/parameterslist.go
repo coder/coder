@@ -12,9 +12,11 @@ import (
 )
 
 func parameterList() *cobra.Command {
-	var (
-		columns []string
+	formatter := cliui.NewOutputFormatter(
+		cliui.TableFormat([]codersdk.Parameter{}, []string{"name", "scope", "destination scheme"}),
+		cliui.JSONFormat(),
 	)
+
 	cmd := &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
@@ -71,16 +73,16 @@ func parameterList() *cobra.Command {
 				return xerrors.Errorf("fetch params: %w", err)
 			}
 
-			out, err := cliui.DisplayTable(params, "name", columns)
+			out, err := formatter.Format(cmd.Context(), params)
 			if err != nil {
-				return xerrors.Errorf("render table: %w", err)
+				return xerrors.Errorf("render output: %w", err)
 			}
 
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), out)
 			return err
 		},
 	}
-	cmd.Flags().StringArrayVarP(&columns, "column", "c", []string{"name", "scope", "destination scheme"},
-		"Specify a column to filter in the table.")
+
+	formatter.AttachFlags(cmd)
 	return cmd
 }

@@ -344,7 +344,7 @@ func assertProduce(t *testing.T, comment SwaggerComment) {
 		assert.Contains(t, allowedProduceTypes, comment.produce, "@Produce value is limited to specific types: %s", strings.Join(allowedProduceTypes, ","))
 	} else {
 		if (comment.router == "/workspaceagents/me/app-health" && comment.method == "post") ||
-			(comment.router == "/workspaceagents/me/version" && comment.method == "post") ||
+			(comment.router == "/workspaceagents/me/startup" && comment.method == "post") ||
 			(comment.router == "/licenses/{id}" && comment.method == "delete") ||
 			(comment.router == "/debug/coordinator" && comment.method == "get") {
 			return // Exception: HTTP 200 is returned without response entity
