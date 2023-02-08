@@ -70,7 +70,6 @@ main() {
 	#   27386d49d08455b6f8fbf2c18f38244d03fda892 author:hello labels:label:security
 	#   d9f2aaf3b430d8b6f3d5f24032ed6357adaab1f1 author:world
 	#   fd54512858c906e66f04b0744d8715c2e0de97e6 author:bye labels:label:stale label:enhancement
-	from_commit_date=2023-01-18
 	pr_list_out="$(
 		gh pr list \
 			--base main \
