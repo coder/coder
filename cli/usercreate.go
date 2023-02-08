@@ -53,7 +53,7 @@ func userCreate() *cobra.Command {
 				}
 			}
 			if password == "" {
-				password, err = cryptorand.StringCharset(cryptorand.Human, 12)
+				password, err = cryptorand.StringCharset(cryptorand.Human, 20)
 				if err != nil {
 					return err
 				}
