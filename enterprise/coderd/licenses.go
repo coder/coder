@@ -8,7 +8,6 @@ import (
 	_ "embed"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -61,7 +60,6 @@ var Keys = map[string]ed25519.PublicKey{"2022-08-12": ed25519.PublicKey(key20220
 // @Success 201 {object} codersdk.License
 // @Router /licenses [post]
 func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
-	fmt.Println("im in postLicense")
 	var (
 		ctx               = r.Context()
 		auditor           = api.AGPL.Auditor.Load()
