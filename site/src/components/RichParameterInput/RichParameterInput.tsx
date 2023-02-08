@@ -42,9 +42,11 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ index, parameter }) => {
           </label>
         </span>
       </span>
-      <span className={styles.labelDescription}>
-        <MemoizedMarkdown>{parameter.description}</MemoizedMarkdown>
-      </span>
+      {parameter.description && (
+        <span className={styles.labelDescription}>
+          <MemoizedMarkdown>{parameter.description}</MemoizedMarkdown>
+        </span>
+      )}
       {!parameter.mutable && (
         <div className={styles.labelImmutable}>
           This parameter cannot be changed after creating workspace.
