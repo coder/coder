@@ -100,7 +100,8 @@ fi
 # Check the current version tag from GitHub (by number) using the API to
 # ensure no local tags are considered.
 log "Checking GitHub for latest release..."
-mapfile -t versions < <(gh api -H "Accept: application/vnd.github+json" /repos/coder/coder/git/refs/tags -q '.[].ref | split("/") | .[2]' | grep '^v' | sort -r -V)
+versions_out="$(gh api -H "Accept: application/vnd.github+json" /repos/coder/coder/git/refs/tags -q '.[].ref | split("/") | .[2]' | grep '^v' | sort -r -V)"
+mapfile -t versions <<<"$versions_out"
 old_version=${versions[0]}
 log "Latest release: $old_version"
 log
@@ -156,7 +157,7 @@ log 'Waiting for job to become "in_progress"...'
 
 # Wait at most 3 minutes (3*60)/3 = 60 for the job to start.
 for _ in $(seq 1 60); do
-	mapfile -t run < <(
+	output="$(
 		# Output:
 		# 3886828508
 		# in_progress
@@ -164,7 +165,8 @@ for _ in $(seq 1 60); do
 			--limit 1 \
 			--json status,databaseId \
 			--jq '.[] | (.databaseId | tostring), .status'
-	)
+	)"
+	mapfile -t run <<<"$output"
 	if [[ ${run[1]} != "in_progress" ]]; then
 		sleep 3
 		continue
