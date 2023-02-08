@@ -19,6 +19,11 @@ import { AuditLogDescription } from "./AuditLogDescription"
 import { determineGroupDiff } from "./auditUtils"
 
 const httpStatusColor = (httpStatus: number): PaletteIndex => {
+  // redirects are successful
+  if (httpStatus === 307) {
+    return "success"
+  }
+
   if (httpStatus >= 300 && httpStatus < 500) {
     return "warning"
   }
