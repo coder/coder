@@ -5,9 +5,11 @@ import ComputerIcon from "@material-ui/icons/Computer"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { combineClasses } from "../../util/combineClasses"
+import { generateRandomString } from "../../util/random"
 
 export const Language = {
   linkText: "Terminal",
+  terminalTitle: (identifier: string): string => `Terminal - ${identifier}`,
 }
 
 export interface TerminalLinkProps {
@@ -40,6 +42,14 @@ export const TerminalLink: FC<React.PropsWithChildren<TerminalLinkProps>> = ({
       href={href}
       className={combineClasses([styles.link, className])}
       target="_blank"
+      onClick={(event) => {
+        event.preventDefault()
+        window.open(
+          href,
+          Language.terminalTitle(generateRandomString(12)),
+          "width=900,height=600",
+        )
+      }}
     >
       <Button startIcon={<ComputerIcon />} size="small">
         {Language.linkText}
