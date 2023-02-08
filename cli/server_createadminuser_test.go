@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -135,14 +136,20 @@ func TestServerCreateAdminUser(t *testing.T) {
 			errC <- err
 		}()
 
-		pty.ExpectMatch("Creating user...")
-		pty.ExpectMatch("Generating user SSH key...")
-		pty.ExpectMatch(fmt.Sprintf("Adding user to organization %q (%s) as admin...", org1Name, org1ID.String()))
-		pty.ExpectMatch(fmt.Sprintf("Adding user to organization %q (%s) as admin...", org2Name, org2ID.String()))
-		pty.ExpectMatch("User created successfully.")
-		pty.ExpectMatch(username)
-		pty.ExpectMatch(email)
-		pty.ExpectMatch("****")
+		// Sometimes generating SSH keys takes a really long time if there isn't
+		// enough entropy. We don't want the tests to fail in these cases.
+		//nolint:gocritic
+		ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+		defer cancel()
+
+		pty.ExpectMatchContext(ctx, "Creating user...")
+		pty.ExpectMatchContext(ctx, "Generating user SSH key...")
+		pty.ExpectMatchContext(ctx, fmt.Sprintf("Adding user to organization %q (%s) as admin...", org1Name, org1ID.String()))
+		pty.ExpectMatchContext(ctx, fmt.Sprintf("Adding user to organization %q (%s) as admin...", org2Name, org2ID.String()))
+		pty.ExpectMatchContext(ctx, "User created successfully.")
+		pty.ExpectMatchContext(ctx, username)
+		pty.ExpectMatchContext(ctx, email)
+		pty.ExpectMatchContext(ctx, "****")
 
 		require.NoError(t, <-errC)
 
@@ -178,10 +185,16 @@ func TestServerCreateAdminUser(t *testing.T) {
 			errC <- err
 		}()
 
-		pty.ExpectMatch("User created successfully.")
-		pty.ExpectMatch(username)
-		pty.ExpectMatch(email)
-		pty.ExpectMatch("****")
+		// Sometimes generating SSH keys takes a really long time if there isn't
+		// enough entropy. We don't want the tests to fail in these cases.
+		//nolint:gocritic
+		ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+		defer cancel()
+
+		pty.ExpectMatchContext(ctx, "User created successfully.")
+		pty.ExpectMatchContext(ctx, username)
+		pty.ExpectMatchContext(ctx, email)
+		pty.ExpectMatchContext(ctx, "****")
 
 		require.NoError(t, <-errC)
 
@@ -226,10 +239,16 @@ func TestServerCreateAdminUser(t *testing.T) {
 		pty.ExpectMatch("> Confirm password")
 		pty.WriteLine(password)
 
-		pty.ExpectMatch("User created successfully.")
-		pty.ExpectMatch(username)
-		pty.ExpectMatch(email)
-		pty.ExpectMatch("****")
+		// Sometimes generating SSH keys takes a really long time if there isn't
+		// enough entropy. We don't want the tests to fail in these cases.
+		//nolint:gocritic
+		ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+		defer cancel()
+
+		pty.ExpectMatchContext(ctx, "User created successfully.")
+		pty.ExpectMatchContext(ctx, username)
+		pty.ExpectMatchContext(ctx, email)
+		pty.ExpectMatchContext(ctx, "****")
 
 		require.NoError(t, <-errC)
 
