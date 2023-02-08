@@ -1,9 +1,8 @@
 package authzquery_test
 
 import (
-	"github.com/coder/coder/coderd/database/dbgen"
-
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/rbac"
 )
 
