@@ -56,11 +56,6 @@ type Options struct {
 	// If so, only DERPs can establish connections.
 	BlockEndpoints bool
 	Logger         slog.Logger
-
-	// EnableTrafficStats enables per-connection traffic statistics.
-	// ExtractTrafficStats must be called to reset the counters and be
-	// periodically called while enabled to avoid unbounded memory use.
-	EnableTrafficStats bool
 }
 
 // NewConn constructs a new Wireguard server that will accept connections from the addresses provided.
@@ -74,6 +69,7 @@ func NewConn(options *Options) (*Conn, error) {
 	if options.DERPMap == nil {
 		return nil, xerrors.New("DERPMap must be provided")
 	}
+
 	nodePrivateKey := key.NewNode()
 	nodePublicKey := nodePrivateKey.Public()
 
@@ -712,21 +708,15 @@ func (c *Conn) forwardTCPToLocal(conn net.Conn, port uint16) {
 	c.logger.Debug(c.dialContext, "forwarded connection closed", slog.F("local_addr", dialAddrStr))
 }
 
-// ExtractTrafficStats extracts and resets the counters for all active
-// connections. It must be called periodically otherwise the memory used is
-// unbounded. EnableTrafficStats must be true when calling NewConn.
-// func (c *Conn) ExtractTrafficStats() map[netlogtype.Connection]netlogtype.Counts {
-// 	virt, _ := c.trafficStats.TestExtract()
-// 	return virt
-// }
-
+// SetConnStatsCallback sets a callback to be called after maxPeriod or
+// maxConns, whichever comes first. Multiple calls overwrites the callback.
 func (c *Conn) SetConnStatsCallback(maxPeriod time.Duration, maxConns int, dump func(start, end time.Time, virtual, physical map[netlogtype.Connection]netlogtype.Counts)) {
 	connStats := connstats.NewStatistics(maxPeriod, maxConns, dump)
 
 	c.mutex.Lock()
 	old := c.trafficStats
 	c.trafficStats = connStats
-	c.mutex.Lock()
+	c.mutex.Unlock()
 
 	// Make sure to shutdown the old callback.
 	if old != nil {

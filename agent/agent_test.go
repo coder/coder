@@ -1103,17 +1103,16 @@ func setupAgent(t *testing.T, metadata agentsdk.Metadata, ptyTimeout time.Durati
 	closer := agent.New(agent.Options{
 		Client:                 c,
 		Filesystem:             fs,
-		Logger:                 slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+		Logger:                 slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 		ReconnectingPTYTimeout: ptyTimeout,
 	})
 	t.Cleanup(func() {
 		_ = closer.Close()
 	})
 	conn, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:          []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
-		DERPMap:            metadata.DERPMap,
-		Logger:             slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
-		EnableTrafficStats: true,
+		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+		DERPMap:   metadata.DERPMap,
+		Logger:    slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
 	})
 	require.NoError(t, err)
 	clientConn, serverConn := net.Pipe()

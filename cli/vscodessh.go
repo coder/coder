@@ -120,9 +120,7 @@ func vscodeSSH() *cobra.Command {
 				}
 			}
 
-			agentConn, err := client.DialWorkspaceAgent(ctx, agent.ID, &codersdk.DialWorkspaceAgentOptions{
-				EnableTrafficStats: true,
-			})
+			agentConn, err := client.DialWorkspaceAgent(ctx, agent.ID, &codersdk.DialWorkspaceAgentOptions{})
 			if err != nil {
 				return xerrors.Errorf("dial workspace agent: %w", err)
 			}
