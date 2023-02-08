@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"runtime"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -138,8 +137,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 
 		// Sometimes generating SSH keys takes a really long time if there isn't
 		// enough entropy. We don't want the tests to fail in these cases.
-		//nolint:gocritic
-		ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+		ctx, cancel := context.WithTimeout(ctx, testutil.WaitSuperLong)
 		defer cancel()
 
 		pty.ExpectMatchContext(ctx, "Creating user...")
@@ -187,8 +185,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 
 		// Sometimes generating SSH keys takes a really long time if there isn't
 		// enough entropy. We don't want the tests to fail in these cases.
-		//nolint:gocritic
-		ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+		ctx, cancel := context.WithTimeout(ctx, testutil.WaitSuperLong)
 		defer cancel()
 
 		pty.ExpectMatchContext(ctx, "User created successfully.")
@@ -241,8 +238,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 
 		// Sometimes generating SSH keys takes a really long time if there isn't
 		// enough entropy. We don't want the tests to fail in these cases.
-		//nolint:gocritic
-		ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+		ctx, cancel := context.WithTimeout(ctx, testutil.WaitSuperLong)
 		defer cancel()
 
 		pty.ExpectMatchContext(ctx, "User created successfully.")
