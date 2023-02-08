@@ -75,7 +75,7 @@ type Client interface {
 	ReportStats(ctx context.Context, log slog.Logger, stats func() *agentsdk.Stats) (io.Closer, error)
 	PostLifecycle(ctx context.Context, state agentsdk.PostLifecycleRequest) error
 	PostAppHealth(ctx context.Context, req agentsdk.PostAppHealthsRequest) error
-	PostVersion(ctx context.Context, version string) error
+	PostStartup(ctx context.Context, req agentsdk.PostStartupRequest) error
 }
 
 func New(options Options) io.Closer {
@@ -236,16 +236,29 @@ func (a *agent) run(ctx context.Context) error {
 	}
 	a.sessionToken.Store(&sessionToken)
 
-	err = a.client.PostVersion(ctx, buildinfo.Version())
-	if err != nil {
-		return xerrors.Errorf("update workspace agent version: %w", err)
-	}
-
 	metadata, err := a.client.Metadata(ctx)
 	if err != nil {
 		return xerrors.Errorf("fetch metadata: %w", err)
 	}
 	a.logger.Info(ctx, "fetched metadata")
+
+	// Expand the directory and send it back to coderd so external
+	// applications that rely on the directory can use it.
+	//
+	// An example is VS Code Remote, which must know the directory
+	// before initializing a connection.
+	metadata.Directory, err = expandDirectory(metadata.Directory)
+	if err != nil {
+		return xerrors.Errorf("expand directory: %w", err)
+	}
+	err = a.client.PostStartup(ctx, agentsdk.PostStartupRequest{
+		Version:           buildinfo.Version(),
+		ExpandedDirectory: metadata.Directory,
+	})
+	if err != nil {
+		return xerrors.Errorf("update workspace agent version: %w", err)
+	}
+
 	oldMetadata := a.metadata.Swap(metadata)
 
 	// The startup script should only execute on the first run!
@@ -803,7 +816,11 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 
 	cmd := exec.CommandContext(ctx, shell, args...)
 	cmd.Dir = metadata.Directory
-	if cmd.Dir == "" {
+
+	// If the metadata directory doesn't exist, we run the command
+	// in the users home directory.
+	_, err = os.Stat(cmd.Dir)
+	if cmd.Dir == "" || err != nil {
 		// Default to user home if a directory is not set.
 		homedir, err := userHomeDir()
 		if err != nil {
@@ -1313,4 +1330,21 @@ func userHomeDir() (string, error) {
 		return "", xerrors.Errorf("current user: %w", err)
 	}
 	return u.HomeDir, nil
+}
+
+// expandDirectory converts a directory path to an absolute path.
+// It primarily resolves the home directory and any environment
+// variables that may be set
+func expandDirectory(dir string) (string, error) {
+	if dir == "" {
+		return "", nil
+	}
+	if dir[0] == '~' {
+		home, err := userHomeDir()
+		if err != nil {
+			return "", err
+		}
+		dir = filepath.Join(home, dir[1:])
+	}
+	return os.ExpandEnv(dir), nil
 }

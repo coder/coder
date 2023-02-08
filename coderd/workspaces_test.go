@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
@@ -1788,12 +1789,12 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 	const (
 		firstParameterName        = "first_parameter"
 		firstParameterType        = "string"
-		firstParameterDescription = "This is first parameter"
+		firstParameterDescription = "This is _first_ *parameter*"
 		firstParameterValue       = "1"
 
 		secondParameterName                = "second_parameter"
 		secondParameterType                = "number"
-		secondParameterDescription         = "This is second parameter"
+		secondParameterDescription         = "_This_ is second *parameter*"
 		secondParameterValue               = "2"
 		secondParameterValidationMonotonic = codersdk.MonotonicOrderIncreasing
 	)
@@ -1835,16 +1836,24 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
+	firstParameterDescriptionPlaintext, err := parameter.Plaintext(firstParameterDescription)
+	require.NoError(t, err)
+	secondParameterDescriptionPlaintext, err := parameter.Plaintext(secondParameterDescription)
+	require.NoError(t, err)
+
 	templateRichParameters, err := client.TemplateVersionRichParameters(ctx, version.ID)
 	require.NoError(t, err)
 	require.Len(t, templateRichParameters, 2)
-	require.Equal(t, templateRichParameters[0].Name, firstParameterName)
-	require.Equal(t, templateRichParameters[0].Type, firstParameterType)
-	require.Equal(t, templateRichParameters[0].ValidationMonotonic, codersdk.ValidationMonotonicOrder("")) // no validation for string
-
-	require.Equal(t, templateRichParameters[1].Name, secondParameterName)
-	require.Equal(t, templateRichParameters[1].Type, secondParameterType)
-	require.Equal(t, templateRichParameters[1].ValidationMonotonic, secondParameterValidationMonotonic)
+	require.Equal(t, firstParameterName, templateRichParameters[0].Name)
+	require.Equal(t, firstParameterType, templateRichParameters[0].Type)
+	require.Equal(t, firstParameterDescription, templateRichParameters[0].Description)
+	require.Equal(t, firstParameterDescriptionPlaintext, templateRichParameters[0].DescriptionPlaintext)
+	require.Equal(t, codersdk.ValidationMonotonicOrder(""), templateRichParameters[0].ValidationMonotonic) // no validation for string
+	require.Equal(t, secondParameterName, templateRichParameters[1].Name)
+	require.Equal(t, secondParameterType, templateRichParameters[1].Type)
+	require.Equal(t, secondParameterDescription, templateRichParameters[1].Description)
+	require.Equal(t, secondParameterDescriptionPlaintext, templateRichParameters[1].DescriptionPlaintext)
+	require.Equal(t, secondParameterValidationMonotonic, templateRichParameters[1].ValidationMonotonic)
 
 	expectedBuildParameters := []codersdk.WorkspaceBuildParameter{
 		{Name: firstParameterName, Value: firstParameterValue},

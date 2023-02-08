@@ -54,7 +54,7 @@ First, [register a GitLab OAuth application](https://docs.gitlab.com/ee/integrat
 
 - **Redirect URI**: Set to `https://coder.domain.com/api/v2/users/oidc/callback`
 
-### Step 2: Configure Coder with the OpenID Connect credentials
+### Step 2: Configure Coder with the Gitlab OpenID Connect credentials
 
 Navigate to your Coder host and run the following command to start up the Coder
 server:
@@ -96,7 +96,7 @@ First, [register a Google OAuth application](https://support.google.com/cloud/an
 - **Authorized JavaScript origins**: Set to your Coder domain (e.g. `https://coder.domain.com`)
 - **Redirect URIs**: Set to `https://coder.domain.com/api/v2/users/oidc/callback`
 
-### Step 2: Configure Coder with the OpenID Connect credentials
+### Step 2: Configure Coder with the Google OpenID Connect credentials
 
 Navigate to your Coder host and run the following command to start up the Coder
 server:
@@ -120,18 +120,24 @@ Once complete, run `sudo service coder restart` to reboot Coder.
 
 ## OIDC Claims
 
-Coder requires all OIDC email addresses to be verified by default. If the `email_verified` claim is present in the token response from the identity provider, Coder will validate that its value is `true`.
-If needed, you can disable this behavior with the following setting:
+Coder requires all OIDC email addresses to be verified by default. If the
+`email_verified` claim is present in the token response from the identity
+provider, Coder will validate that its value is `true`. If needed, you can
+disable this behavior with the following setting:
 
 ```console
 CODER_OIDC_IGNORE_EMAIL_VERIFIED=true
 ```
 
-> **Note:** This will cause Coder to implicitly treat all OIDC emails as "verified".
+> **Note:** This will cause Coder to implicitly treat all OIDC emails as
+> "verified".
 
-When a new user is created, the `preferred_username` claim becomes the username. If this claim is empty, the email address will be stripped of the domain, and become the username (e.g. `example@coder.com` becomes `example`).
+When a new user is created, the `preferred_username` claim becomes the username.
+If this claim is empty, the email address will be stripped of the domain, and
+become the username (e.g. `example@coder.com` becomes `example`).
 
-If you'd like to change the OpenID Connect button text and/or icon, you can configure them like so:
+If you'd like to change the OpenID Connect button text and/or icon, you can
+configure them like so:
 
 ```console
 CODER_OIDC_SIGN_IN_TEXT="Sign in with Gitea"
@@ -157,3 +163,22 @@ If your OpenID Connect provider requires client TLS certificates for authenticat
 CODER_TLS_CLIENT_CERT_FILE=/path/to/cert.pem
 CODER_TLS_CLIENT_KEY_FILE=/path/to/key.pem
 ```
+
+## Group Sync (enterprise)
+
+If your OpenID Connect provider supports group claims, you can configure Coder
+to synchronize groups in your auth provider to groups within Coder.
+
+To enable group sync, ensure that the `group` claim is set:
+
+```console
+# as an environment variable
+CODER_OIDC_SCOPES=openid,profile,email,groups
+# as a flag
+--oidc-scopes openid,profile,email,groups
+```
+
+On login, users will automatically be assigned to groups that have matching
+names in Coder and removed from groups that the user no longer belongs to.
+
+> **Note:** Groups are only updated on login.

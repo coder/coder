@@ -82,7 +82,7 @@ ref=$(git rev-parse --short "$ref")
 
 log "Checking commit metadata for changes since $old_version..."
 # shellcheck source=scripts/release/check_commit_metadata.sh
-source "$SCRIPT_DIR/release/check_commit_metadata.sh" "$old_version" "$ref"
+source "$SCRIPT_DIR/check_commit_metadata.sh" "$old_version" "$ref"
 
 if ((COMMIT_METADATA_BREAKING == 1)); then
 	prev_increment=$increment

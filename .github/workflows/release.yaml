@@ -63,6 +63,7 @@ jobs:
 
       - name: Create release notes
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # We always have to set this since there might be commits on
           # main that didn't have a PR.
           CODER_IGNORE_MISSING_COMMIT_METADATA: "1"
@@ -288,6 +289,7 @@ jobs:
           retention-days: 7
 
       - name: Start Packer builds
+        if: ${{ !inputs.dry_run }}
         uses: peter-evans/repository-dispatch@v2
         with:
           token: ${{ secrets.CDRCI_GITHUB_TOKEN }}

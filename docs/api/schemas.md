@@ -228,19 +228,21 @@
 | ------- | -------------------------------------------------------------------- | -------- | ------------ | ----------- |
 | `state` | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |             |
 
-## agentsdk.PostVersionRequest
+## agentsdk.PostStartupRequest
 
 ```json
 {
+  "expanded_directory": "string",
   "version": "string"
 }
 ```
 
 ### Properties
 
-| Name      | Type   | Required | Restrictions | Description |
-| --------- | ------ | -------- | ------------ | ----------- |
-| `version` | string | false    |              |             |
+| Name                 | Type   | Required | Restrictions | Description |
+| -------------------- | ------ | -------- | ------------ | ----------- |
+| `expanded_directory` | string | false    |              |             |
+| `version`            | string | false    |              |             |
 
 ## agentsdk.Stats
 
@@ -4503,6 +4505,7 @@ Parameter represents a set value for the scope.
 {
   "default_value": "string",
   "description": "string",
+  "description_plaintext": "string",
   "icon": "string",
   "mutable": true,
   "name": "string",
@@ -4525,20 +4528,21 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name                   | Type                                                                                        | Required | Restrictions | Description |
-| ---------------------- | ------------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `default_value`        | string                                                                                      | false    |              |             |
-| `description`          | string                                                                                      | false    |              |             |
-| `icon`                 | string                                                                                      | false    |              |             |
-| `mutable`              | boolean                                                                                     | false    |              |             |
-| `name`                 | string                                                                                      | false    |              |             |
-| `options`              | array of [codersdk.TemplateVersionParameterOption](#codersdktemplateversionparameteroption) | false    |              |             |
-| `type`                 | string                                                                                      | false    |              |             |
-| `validation_error`     | string                                                                                      | false    |              |             |
-| `validation_max`       | integer                                                                                     | false    |              |             |
-| `validation_min`       | integer                                                                                     | false    |              |             |
-| `validation_monotonic` | [codersdk.ValidationMonotonicOrder](#codersdkvalidationmonotonicorder)                      | false    |              |             |
-| `validation_regex`     | string                                                                                      | false    |              |             |
+| Name                    | Type                                                                                        | Required | Restrictions | Description |
+| ----------------------- | ------------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `default_value`         | string                                                                                      | false    |              |             |
+| `description`           | string                                                                                      | false    |              |             |
+| `description_plaintext` | string                                                                                      | false    |              |             |
+| `icon`                  | string                                                                                      | false    |              |             |
+| `mutable`               | boolean                                                                                     | false    |              |             |
+| `name`                  | string                                                                                      | false    |              |             |
+| `options`               | array of [codersdk.TemplateVersionParameterOption](#codersdktemplateversionparameteroption) | false    |              |             |
+| `type`                  | string                                                                                      | false    |              |             |
+| `validation_error`      | string                                                                                      | false    |              |             |
+| `validation_max`        | integer                                                                                     | false    |              |             |
+| `validation_min`        | integer                                                                                     | false    |              |             |
+| `validation_monotonic`  | [codersdk.ValidationMonotonicOrder](#codersdkvalidationmonotonicorder)                      | false    |              |             |
+| `validation_regex`      | string                                                                                      | false    |              |             |
 
 #### Enumerated Values
 
@@ -4942,6 +4946,7 @@ Parameter represents a set value for the scope.
               "property1": "string",
               "property2": "string"
             },
+            "expanded_directory": "string",
             "first_connected_at": "2019-08-24T14:15:22Z",
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "instance_id": "string",
@@ -5064,6 +5069,7 @@ Parameter represents a set value for the scope.
     "property1": "string",
     "property2": "string"
   },
+  "expanded_directory": "string",
   "first_connected_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "instance_id": "string",
@@ -5104,6 +5110,7 @@ Parameter represents a set value for the scope.
 | `disconnected_at`                | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `environment_variables`          | object                                                               | false    |              |                                                                                                                                                                                                            |
 | » `[any property]`               | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `expanded_directory`             | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `first_connected_at`             | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `id`                             | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `instance_id`                    | string                                                               | false    |              |                                                                                                                                                                                                            |
@@ -5397,6 +5404,7 @@ Parameter represents a set value for the scope.
             "property1": "string",
             "property2": "string"
           },
+          "expanded_directory": "string",
           "first_connected_at": "2019-08-24T14:15:22Z",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "instance_id": "string",
@@ -5565,6 +5573,7 @@ Parameter represents a set value for the scope.
         "property1": "string",
         "property2": "string"
       },
+      "expanded_directory": "string",
       "first_connected_at": "2019-08-24T14:15:22Z",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "instance_id": "string",
@@ -5755,6 +5764,7 @@ Parameter represents a set value for the scope.
                   "property1": "string",
                   "property2": "string"
                 },
+                "expanded_directory": "string",
                 "first_connected_at": "2019-08-24T14:15:22Z",
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "instance_id": "string",

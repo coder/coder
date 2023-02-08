@@ -7,6 +7,7 @@ import { Stack } from "components/Stack/Stack"
 import { FC, useState } from "react"
 import { TemplateVersionParameter } from "../../api/typesGenerated"
 import { colors } from "theme/colors"
+import { MemoizedMarkdown } from "components/Markdown/Markdown"
 
 const isBoolean = (parameter: TemplateVersionParameter) => {
   return parameter.type === "bool"
@@ -41,7 +42,11 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ index, parameter }) => {
           </label>
         </span>
       </span>
-      <span className={styles.labelDescription}>{parameter.description}</span>
+      {parameter.description && (
+        <span className={styles.labelDescription}>
+          <MemoizedMarkdown>{parameter.description}</MemoizedMarkdown>
+        </span>
+      )}
       {!parameter.mutable && (
         <div className={styles.labelImmutable}>
           This parameter cannot be changed after creating workspace.
