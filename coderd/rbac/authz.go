@@ -267,7 +267,6 @@ func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action A
 	if err != nil {
 		return xerrors.Errorf("convert input to value: %w", err)
 	}
-	var _ = astV
 
 	results, err := a.query.Eval(ctx, rego.EvalParsedInput(astV))
 	if err != nil {
