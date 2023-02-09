@@ -164,28 +164,32 @@ func TestParse(t *testing.T) {
 			Files: map[string]string{
 				"main.tf": `variable "A" {
 				description = "Testing!"
+				type = "string"
+				default = "abc"
+				required = true
+				sensitive = true
 			}
 
 			provider "coder" {
-				enable_managed_variables = "true"
+				feature_use_managed_variables = true
 			}`,
 			},
 			Response: &proto.Parse_Response{
 				Type: &proto.Parse_Response_Complete{
 					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{{
-							Name:                "A",
-							RedisplayValue:      true,
-							AllowOverrideSource: true,
-							Description:         "Testing!",
-							DefaultDestination: &proto.ParameterDestination{
-								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+						TemplateVariables: []*proto.TemplateVariable{
+							{
+								Name:         "A",
+								Description:  "Testing!",
+								Type:         "string",
+								DefaultValue: "abc",
+								Required:     false,
+								Sensitive:    true,
 							},
-						}},
+						},
 					},
 				},
 			},
-			ErrorContains: "blah",
 		},
 	}
 

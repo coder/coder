@@ -4,16 +4,40 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/gohcl"
+	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/hashicorp/terraform-config-inspect/tfconfig"
 	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/provisionersdk/proto"
 )
+
+const featureUseManagedVariables = "feature_use_managed_variables"
+
+var terraformWithFeaturesSchema = &hcl.BodySchema{
+	Blocks: []hcl.BlockHeaderSchema{
+		{
+			Type:       "provider",
+			LabelNames: []string{"type"},
+		},
+	},
+}
+
+var providerFeaturesConfigSchema = &hcl.BodySchema{
+	Attributes: []hcl.AttributeSchema{
+		{
+			Name: featureUseManagedVariables,
+		},
+	},
+}
 
 // Parse extracts Terraform variables from source-code.
 func (*server) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_ParseStream) error {
@@ -23,7 +47,13 @@ func (*server) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_
 		return xerrors.Errorf("load module: %s", formatDiagnostics(request.Directory, diags))
 	}
 
-	fmt.Println(module.ProviderConfigs["coder"].Name)
+	flags, flagsDiags, err := loadEnabledFeatures(request.Directory)
+	if flagsDiags.HasErrors() {
+		return xerrors.Errorf("load coder provider features: %s", formatDiagnostics(request.Directory, diags))
+	}
+	if err != nil {
+		return xerrors.Errorf("load coder provider features: %w", err)
+	}
 
 	// Sort variables by (filename, line) to make the ordering consistent
 	variables := make([]*tfconfig.Variable, 0, len(module.Variables))
@@ -34,23 +64,67 @@ func (*server) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_
 		return compareSourcePos(variables[i].Pos, variables[j].Pos)
 	})
 
-	parameters := make([]*proto.ParameterSchema, 0, len(variables))
-	for _, v := range variables {
-		schema, err := convertVariableToParameter(v)
-		if err != nil {
-			return xerrors.Errorf("convert variable %q: %w", v.Name, err)
+	var parameters []*proto.ParameterSchema
+	var templateVariables []*proto.TemplateVariable
+
+	useManagedVariables := flags[featureUseManagedVariables]
+	if useManagedVariables {
+		for _, v := range variables {
+			mv, err := convertTerraformVariableToManagedVariable(v)
+			if err != nil {
+				return xerrors.Errorf("can't convert the Terraform variable to a managed one: %w", err)
+			}
+			templateVariables = append(templateVariables, mv)
 		}
+	} else {
+		for _, v := range variables {
+			schema, err := convertVariableToParameter(v)
+			if err != nil {
+				return xerrors.Errorf("convert variable %q: %w", v.Name, err)
+			}
 
-		parameters = append(parameters, schema)
+			parameters = append(parameters, schema)
+		}
 	}
-
 	return stream.Send(&proto.Parse_Response{
 		Type: &proto.Parse_Response_Complete{
 			Complete: &proto.Parse_Complete{
-				ParameterSchemas: parameters,
+				ParameterSchemas:  parameters,
+				TemplateVariables: templateVariables,
 			},
 		},
 	})
+}
+
+func loadEnabledFeatures(moduleDir string) (map[string]bool, hcl.Diagnostics, error) {
+	parser := hclparse.NewParser()
+	mainFile, err := parser.ParseHCLFile(path.Join(moduleDir, "main.tf"))
+	if err != nil {
+		return nil, nil, xerrors.Errorf("can't parse main.tf file: %w", err)
+	}
+
+	flags := map[string]bool{}
+	var diags hcl.Diagnostics
+
+	content, _ := mainFile.Body.Content(terraformWithFeaturesSchema)
+	for _, block := range content.Blocks {
+		if block.Type == "provider" && block.Labels[0] == "coder" {
+			content, _, partialDiags := block.Body.PartialContent(providerFeaturesConfigSchema)
+			diags = append(diags, partialDiags...)
+			if attr, defined := content.Attributes[featureUseManagedVariables]; defined {
+				var useManagedVariables string
+				partialDiags := gohcl.DecodeExpression(attr.Expr, nil, &useManagedVariables)
+				diags = append(diags, partialDiags...)
+
+				b, err := strconv.ParseBool(useManagedVariables)
+				if err != nil {
+					return nil, nil, xerrors.Errorf("can't parse %s flag as boolean: %w", featureUseManagedVariables, err)
+				}
+				flags[featureUseManagedVariables] = b
+			}
+		}
+	}
+	return flags, diags, nil
 }
 
 // Converts a Terraform variable to a provisioner parameter.
@@ -96,6 +170,31 @@ func convertVariableToParameter(variable *tfconfig.Variable) (*proto.ParameterSc
 	}
 
 	return schema, nil
+}
+
+// Converts a Terraform variable to a managed variable.
+func convertTerraformVariableToManagedVariable(variable *tfconfig.Variable) (*proto.TemplateVariable, error) {
+	var defaultData string
+	if variable.Default != nil {
+		var valid bool
+		defaultData, valid = variable.Default.(string)
+		if !valid {
+			defaultDataRaw, err := json.Marshal(variable.Default)
+			if err != nil {
+				return nil, xerrors.Errorf("parse variable %q default: %w", variable.Name, err)
+			}
+			defaultData = string(defaultDataRaw)
+		}
+	}
+
+	return &proto.TemplateVariable{
+		Name:         variable.Name,
+		Description:  variable.Description,
+		Type:         variable.Type,
+		DefaultValue: defaultData,
+		Required:     variable.Required,
+		Sensitive:    variable.Sensitive,
+	}, nil
 }
 
 // formatDiagnostics returns a nicely formatted string containing all of the
