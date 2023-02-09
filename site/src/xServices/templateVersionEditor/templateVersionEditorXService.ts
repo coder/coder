@@ -7,8 +7,8 @@ import {
 } from "api/typesGenerated"
 import { assign, createMachine } from "xstate"
 import * as API from "api/api"
-import { TemplateVersionFileTree } from "util/templateVersion"
 import Tar from "tar-js"
+import { FileTree, traverse } from "util/filetree"
 
 export interface CreateVersionData {
   file: File
@@ -17,7 +17,7 @@ export interface CreateVersionData {
 export interface TemplateVersionEditorMachineContext {
   orgId: string
   templateId?: string
-  files?: TemplateVersionFileTree
+  fileTree?: FileTree
   uploadResponse?: UploadResponse
   version?: TemplateVersion
   resources?: WorkspaceResource[]
@@ -33,7 +33,7 @@ export const templateVersionEditorMachine = createMachine(
       events: {} as
         | {
             type: "CREATE_VERSION"
-            files: TemplateVersionFileTree
+            fileTree: FileTree
             templateId: string
           }
         | { type: "CANCEL_VERSION" }
@@ -165,7 +165,7 @@ export const templateVersionEditorMachine = createMachine(
   {
     actions: {
       assignCreateBuild: assign({
-        files: (_, event) => event.files,
+        fileTree: (_, event) => event.fileTree,
         templateId: (_, event) => event.templateId,
         buildLogs: (_, _1) => [],
         resources: (_, _1) => [],
@@ -204,28 +204,16 @@ export const templateVersionEditorMachine = createMachine(
     },
     services: {
       uploadTar: (ctx) => {
-        if (!ctx.files) {
+        if (!ctx.fileTree) {
           throw new Error("files must be set")
         }
         const tar = new Tar()
         let out: Uint8Array = new Uint8Array()
-
-        const appendToTar = (
-          fileTree: TemplateVersionFileTree,
-          parent?: string,
-        ) => {
-          Object.keys(fileTree).forEach((filename) => {
-            const currentPath = parent ? `${parent}/${filename}` : filename
-            const content = fileTree[filename]
-
-            if (typeof content === "string") {
-              out = tar.append(currentPath, content)
-            } else {
-              appendToTar(content, currentPath)
-            }
-          })
-        }
-        appendToTar(ctx.files)
+        traverse(ctx.fileTree, (content, _filename, fullPath) => {
+          if (typeof content === "string") {
+            out = tar.append(fullPath, content)
+          }
+        })
         return API.uploadTemplateFile(new File([out], "template.tar"))
       },
       createBuild: (ctx) => {
