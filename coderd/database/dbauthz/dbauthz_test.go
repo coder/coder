@@ -63,7 +63,7 @@ func TestNotAuthorizedError(t *testing.T) {
 
 		testErr := xerrors.New("custom error")
 
-		err := dbauthz.LogNotAuthorizedError(context.Background(), slogtest.Make(t, nil), testErr)
+		err := dbauthz.logNotAuthorizedError(context.Background(), slogtest.Make(t, nil), testErr)
 		require.ErrorIs(t, err, sql.ErrNoRows, "must be a sql.ErrNoRows")
 
 		var authErr dbauthz.NotAuthorizedError

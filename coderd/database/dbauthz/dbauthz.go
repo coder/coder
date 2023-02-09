@@ -15,7 +15,7 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 )
 
-var _ database.Store = (*AuthzQuerier)(nil)
+var _ database.Store = (*authzQuerier)(nil)
 
 var (
 	// NoActorError wraps ErrNoRows for the api to return a 404. This is the correct
@@ -40,7 +40,7 @@ func (NotAuthorizedError) Unwrap() error {
 	return sql.ErrNoRows
 }
 
-func LogNotAuthorizedError(ctx context.Context, logger slog.Logger, err error) error {
+func logNotAuthorizedError(ctx context.Context, logger slog.Logger, err error) error {
 	// Only log the errors if it is an UnauthorizedError error.
 	internalError := new(rbac.UnauthorizedError)
 	if err != nil && xerrors.As(err, internalError) {
@@ -55,21 +55,26 @@ func LogNotAuthorizedError(ctx context.Context, logger slog.Logger, err error) e
 	}
 }
 
-// AuthzQuerier is a wrapper around the database store that performs authorization
-// checks before returning data. All AuthzQuerier methods expect an authorization
+// authzQuerier is a wrapper around the database store that performs authorization
+// checks before returning data. All authzQuerier methods expect an authorization
 // subject present in the context. If no subject is present, most methods will
 // fail.
 //
 // Use WithAuthorizeContext to set the authorization subject in the context for
 // the common user case.
-type AuthzQuerier struct {
+type authzQuerier struct {
 	db   database.Store
 	auth rbac.Authorizer
 	log  slog.Logger
 }
 
-func New(db database.Store, authorizer rbac.Authorizer, logger slog.Logger) *AuthzQuerier {
-	return &AuthzQuerier{
+func New(db database.Store, authorizer rbac.Authorizer, logger slog.Logger) database.Store {
+	// If the underlying db store is already an authzquerier, return it.
+	// Do not double wrap.
+	if _, ok := db.(*authzQuerier); ok {
+		return db
+	}
+	return &authzQuerier{
 		db:   db,
 		auth: authorizer,
 		log:  logger,
@@ -77,7 +82,7 @@ func New(db database.Store, authorizer rbac.Authorizer, logger slog.Logger) *Aut
 }
 
 // authorizeContext is a helper function to authorize an action on an object.
-func (q *AuthzQuerier) authorizeContext(ctx context.Context, action rbac.Action, object rbac.Objecter) error {
+func (q *authzQuerier) authorizeContext(ctx context.Context, action rbac.Action, object rbac.Objecter) error {
 	act, ok := ActorFromContext(ctx)
 	if !ok {
 		return NoActorError
@@ -85,7 +90,7 @@ func (q *AuthzQuerier) authorizeContext(ctx context.Context, action rbac.Action,
 
 	err := q.auth.Authorize(ctx, act, action, object.RBACObject())
 	if err != nil {
-		return LogNotAuthorizedError(ctx, q.log, err)
+		return logNotAuthorizedError(ctx, q.log, err)
 	}
 	return nil
 }
@@ -143,7 +148,7 @@ func insert[
 		// Authorize the action
 		err = authorizer.Authorize(ctx, act, rbac.ActionCreate, object.RBACObject())
 		if err != nil {
-			return empty, LogNotAuthorizedError(ctx, logger, err)
+			return empty, logNotAuthorizedError(ctx, logger, err)
 		}
 
 		// Insert the database object
@@ -226,7 +231,7 @@ func fetch[
 		// Authorize the action
 		err = authorizer.Authorize(ctx, act, rbac.ActionRead, object.RBACObject())
 		if err != nil {
-			return empty, LogNotAuthorizedError(ctx, logger, err)
+			return empty, logNotAuthorizedError(ctx, logger, err)
 		}
 
 		return object, nil
@@ -290,7 +295,7 @@ func fetchAndQuery[
 		// Authorize the action
 		err = authorizer.Authorize(ctx, act, action, object.RBACObject())
 		if err != nil {
-			return empty, LogNotAuthorizedError(ctx, logger, err)
+			return empty, logNotAuthorizedError(ctx, logger, err)
 		}
 
 		return queryFunc(ctx, arg)
