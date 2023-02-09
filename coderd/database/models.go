@@ -1460,6 +1460,24 @@ type TemplateVersionParameter struct {
 	ValidationMonotonic string `db:"validation_monotonic" json:"validation_monotonic"`
 }
 
+type TemplateVersionVariable struct {
+	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
+	// Variable name
+	Name string `db:"name" json:"name"`
+	// Variable description
+	Description string `db:"description" json:"description"`
+	// Variable type
+	Type string `db:"type" json:"type"`
+	// Variable value
+	Value string `db:"value" json:"value"`
+	// Variable default value
+	DefaultValue string `db:"default_value" json:"default_value"`
+	// Is variable required?
+	Required bool `db:"required" json:"required"`
+	// Is variable sensitive?
+	Sensitive bool `db:"sensitive" json:"sensitive"`
+}
+
 type User struct {
 	ID             uuid.UUID      `db:"id" json:"id"`
 	Email          string         `db:"email" json:"email"`

@@ -23,6 +23,8 @@ func (*server) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_
 		return xerrors.Errorf("load module: %s", formatDiagnostics(request.Directory, diags))
 	}
 
+	fmt.Println(module.ProviderConfigs["coder"].Name)
+
 	// Sort variables by (filename, line) to make the ordering consistent
 	variables := make([]*tfconfig.Variable, 0, len(module.Variables))
 	for _, v := range module.Variables {

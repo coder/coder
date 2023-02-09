@@ -382,6 +382,31 @@ COMMENT ON COLUMN template_version_parameters.validation_error IS 'Validation: e
 
 COMMENT ON COLUMN template_version_parameters.validation_monotonic IS 'Validation: consecutive values preserve the monotonic order';
 
+CREATE TABLE template_version_variables (
+    template_version_id uuid NOT NULL,
+    name text NOT NULL,
+    description text NOT NULL,
+    type text NOT NULL,
+    value text NOT NULL,
+    default_value text NOT NULL,
+    required boolean NOT NULL,
+    sensitive boolean NOT NULL
+);
+
+COMMENT ON COLUMN template_version_variables.name IS 'Variable name';
+
+COMMENT ON COLUMN template_version_variables.description IS 'Variable description';
+
+COMMENT ON COLUMN template_version_variables.type IS 'Variable type';
+
+COMMENT ON COLUMN template_version_variables.value IS 'Variable value';
+
+COMMENT ON COLUMN template_version_variables.default_value IS 'Variable default value';
+
+COMMENT ON COLUMN template_version_variables.required IS 'Is variable required?';
+
+COMMENT ON COLUMN template_version_variables.sensitive IS 'Is variable sensitive?';
+
 CREATE TABLE template_versions (
     id uuid NOT NULL,
     template_id uuid,
@@ -654,6 +679,9 @@ ALTER TABLE ONLY site_configs
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_name_key UNIQUE (template_version_id, name);
 
+ALTER TABLE ONLY template_version_variables
+    ADD CONSTRAINT template_version_variables_template_version_id_name_key UNIQUE (template_version_id, name);
+
 ALTER TABLE ONLY template_versions
     ADD CONSTRAINT template_versions_pkey PRIMARY KEY (id);
 
@@ -779,6 +807,9 @@ ALTER TABLE ONLY provisioner_jobs
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY template_version_variables
+    ADD CONSTRAINT template_version_variables_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY template_versions
     ADD CONSTRAINT template_versions_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT;
 
@@ -829,4 +860,3 @@ ALTER TABLE ONLY workspaces
 
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_template_id_fkey FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE RESTRICT;
-

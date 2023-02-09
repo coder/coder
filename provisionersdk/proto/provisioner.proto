@@ -52,6 +52,16 @@ message ParameterSchema {
     string validation_condition = 11;
 }
 
+// TemplateVariable represents a Terraform variable.
+message TemplateVariable {
+    string name = 1;
+    string description = 2;
+    string type = 3;
+    string default_value = 4;
+	bool required = 5;
+    bool sensitive = 6;
+}
+
 // RichParameterOption represents a singular option that a parameter may expose.
 message RichParameterOption {
     string name = 1;
@@ -175,7 +185,8 @@ message Parse {
         string directory = 1;
     }
     message Complete {
-        repeated ParameterSchema parameter_schemas = 2;
+        repeated ParameterSchema parameter_schemas = 1;
+		repeated TemplateVariable template_variables = 2;
     }
     message Response {
         oneof type {

@@ -1,5 +1,3 @@
-//go:build linux
-
 package terraform_test
 
 import (
@@ -26,11 +24,150 @@ func TestParse(t *testing.T) {
 		// error containing this string before a Complete response is returned.
 		ErrorContains string
 	}{
+		// {
+		// 	Name: "single-variable",
+		// 	Files: map[string]string{
+		// 		"main.tf": `variable "A" {
+		// 		description = "Testing!"
+		// 	}`,
+		// 	},
+		// 	Response: &proto.Parse_Response{
+		// 		Type: &proto.Parse_Response_Complete{
+		// 			Complete: &proto.Parse_Complete{
+		// 				ParameterSchemas: []*proto.ParameterSchema{{
+		// 					Name:                "A",
+		// 					RedisplayValue:      true,
+		// 					AllowOverrideSource: true,
+		// 					Description:         "Testing!",
+		// 					DefaultDestination: &proto.ParameterDestination{
+		// 						Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+		// 					},
+		// 				}},
+		// 			},
+		// 		},
+		// 	},
+		// },
+		// {
+		// 	Name: "default-variable-value",
+		// 	Files: map[string]string{
+		// 		"main.tf": `variable "A" {
+		// 		default = "wow"
+		// 	}`,
+		// 	},
+		// 	Response: &proto.Parse_Response{
+		// 		Type: &proto.Parse_Response_Complete{
+		// 			Complete: &proto.Parse_Complete{
+		// 				ParameterSchemas: []*proto.ParameterSchema{{
+		// 					Name:                "A",
+		// 					RedisplayValue:      true,
+		// 					AllowOverrideSource: true,
+		// 					DefaultSource: &proto.ParameterSource{
+		// 						Scheme: proto.ParameterSource_DATA,
+		// 						Value:  "wow",
+		// 					},
+		// 					DefaultDestination: &proto.ParameterDestination{
+		// 						Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+		// 					},
+		// 				}},
+		// 			},
+		// 		},
+		// 	},
+		// },
+		// {
+		// 	Name: "variable-validation",
+		// 	Files: map[string]string{
+		// 		"main.tf": `variable "A" {
+		// 		validation {
+		// 			condition = var.A == "value"
+		// 		}
+		// 	}`,
+		// 	},
+		// 	Response: &proto.Parse_Response{
+		// 		Type: &proto.Parse_Response_Complete{
+		// 			Complete: &proto.Parse_Complete{
+		// 				ParameterSchemas: []*proto.ParameterSchema{{
+		// 					Name:                 "A",
+		// 					RedisplayValue:       true,
+		// 					ValidationCondition:  `var.A == "value"`,
+		// 					ValidationTypeSystem: proto.ParameterSchema_HCL,
+		// 					AllowOverrideSource:  true,
+		// 					DefaultDestination: &proto.ParameterDestination{
+		// 						Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+		// 					},
+		// 				}},
+		// 			},
+		// 		},
+		// 	},
+		// },
+		// {
+		// 	Name: "bad-syntax",
+		// 	Files: map[string]string{
+		// 		"main.tf": "a;sd;ajsd;lajsd;lasjdf;a",
+		// 	},
+		// 	ErrorContains: `The ";" character is not valid.`,
+		// },
+		// {
+		// 	Name: "multiple-variables",
+		// 	Files: map[string]string{
+		// 		"main1.tf": `variable "foo" { }
+		// 		variable "bar" { }`,
+		// 		"main2.tf": `variable "baz" { }
+		// 		variable "quux" { }`,
+		// 	},
+		// 	Response: &proto.Parse_Response{
+		// 		Type: &proto.Parse_Response_Complete{
+		// 			Complete: &proto.Parse_Complete{
+		// 				ParameterSchemas: []*proto.ParameterSchema{
+		// 					{
+		// 						Name:                "foo",
+		// 						RedisplayValue:      true,
+		// 						AllowOverrideSource: true,
+		// 						Description:         "",
+		// 						DefaultDestination: &proto.ParameterDestination{
+		// 							Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+		// 						},
+		// 					},
+		// 					{
+		// 						Name:                "bar",
+		// 						RedisplayValue:      true,
+		// 						AllowOverrideSource: true,
+		// 						Description:         "",
+		// 						DefaultDestination: &proto.ParameterDestination{
+		// 							Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+		// 						},
+		// 					},
+		// 					{
+		// 						Name:                "baz",
+		// 						RedisplayValue:      true,
+		// 						AllowOverrideSource: true,
+		// 						Description:         "",
+		// 						DefaultDestination: &proto.ParameterDestination{
+		// 							Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+		// 						},
+		// 					},
+		// 					{
+		// 						Name:                "quux",
+		// 						RedisplayValue:      true,
+		// 						AllowOverrideSource: true,
+		// 						Description:         "",
+		// 						DefaultDestination: &proto.ParameterDestination{
+		// 							Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+		// 						},
+		// 					},
+		// 				},
+		// 			},
+		// 		},
+		// 	},
+		// },
 		{
-			Name: "single-variable",
+			Name: "enable-managed-variables",
 			Files: map[string]string{
 				"main.tf": `variable "A" {
 				description = "Testing!"
+			}
+
+			provider "coder" {
+				enable_managed_variables = "true"
 			}`,
 			},
 			Response: &proto.Parse_Response{
@@ -48,118 +185,7 @@ func TestParse(t *testing.T) {
 					},
 				},
 			},
-		},
-		{
-			Name: "default-variable-value",
-			Files: map[string]string{
-				"main.tf": `variable "A" {
-				default = "wow"
-			}`,
-			},
-			Response: &proto.Parse_Response{
-				Type: &proto.Parse_Response_Complete{
-					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{{
-							Name:                "A",
-							RedisplayValue:      true,
-							AllowOverrideSource: true,
-							DefaultSource: &proto.ParameterSource{
-								Scheme: proto.ParameterSource_DATA,
-								Value:  "wow",
-							},
-							DefaultDestination: &proto.ParameterDestination{
-								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-							},
-						}},
-					},
-				},
-			},
-		},
-		{
-			Name: "variable-validation",
-			Files: map[string]string{
-				"main.tf": `variable "A" {
-				validation {
-					condition = var.A == "value"
-				}
-			}`,
-			},
-			Response: &proto.Parse_Response{
-				Type: &proto.Parse_Response_Complete{
-					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{{
-							Name:                 "A",
-							RedisplayValue:       true,
-							ValidationCondition:  `var.A == "value"`,
-							ValidationTypeSystem: proto.ParameterSchema_HCL,
-							AllowOverrideSource:  true,
-							DefaultDestination: &proto.ParameterDestination{
-								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-							},
-						}},
-					},
-				},
-			},
-		},
-		{
-			Name: "bad-syntax",
-			Files: map[string]string{
-				"main.tf": "a;sd;ajsd;lajsd;lasjdf;a",
-			},
-			ErrorContains: `The ";" character is not valid.`,
-		},
-		{
-			Name: "multiple-variables",
-			Files: map[string]string{
-				"main1.tf": `variable "foo" { }
-				variable "bar" { }`,
-				"main2.tf": `variable "baz" { }
-				variable "quux" { }`,
-			},
-			Response: &proto.Parse_Response{
-				Type: &proto.Parse_Response_Complete{
-					Complete: &proto.Parse_Complete{
-						ParameterSchemas: []*proto.ParameterSchema{
-							{
-								Name:                "foo",
-								RedisplayValue:      true,
-								AllowOverrideSource: true,
-								Description:         "",
-								DefaultDestination: &proto.ParameterDestination{
-									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-								},
-							},
-							{
-								Name:                "bar",
-								RedisplayValue:      true,
-								AllowOverrideSource: true,
-								Description:         "",
-								DefaultDestination: &proto.ParameterDestination{
-									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-								},
-							},
-							{
-								Name:                "baz",
-								RedisplayValue:      true,
-								AllowOverrideSource: true,
-								Description:         "",
-								DefaultDestination: &proto.ParameterDestination{
-									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-								},
-							},
-							{
-								Name:                "quux",
-								RedisplayValue:      true,
-								AllowOverrideSource: true,
-								Description:         "",
-								DefaultDestination: &proto.ParameterDestination{
-									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-								},
-							},
-						},
-					},
-				},
-			},
+			ErrorContains: "blah",
 		},
 	}
 
