@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -250,43 +249,6 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subject Subject, action A
 
 	a.authorizeHist.WithLabelValues("true").Observe(dur.Seconds())
 	return nil
-}
-
-type inputType struct {
-	Subject authSubject `json:"subject"`
-	Action  Action      `json:"action"`
-	Object  Object      `json:"object"`
-}
-
-func (i inputType) Value() (ast.Value, error) {
-	s := [2]*ast.Term{
-		ast.StringTerm("subject"),
-		ast.NewTerm(ast.NewObject([2]*ast.Term{
-			// ID
-			ast.StringTerm("id"),
-			ast.NewTerm(ast.NewObject([2]*ast.Term{
-				ast.StringTerm("id"),
-				ast.StringTerm(i.Subject.ID),
-			})),
-			////
-			//ast.NewTerm(ast.NewObject([2]*ast.Term{
-			//	ast.StringTerm("groups"),
-			//	ast.NewTerm(ast.NewArray(i.Subject.Groups)),
-			//})),
-		})),
-	}
-	o := [2]*ast.Term{
-		ast.StringTerm("subject"),
-		ast.StringTerm(i.Subject.ID),
-	}
-	a := [2]*ast.Term{
-		ast.StringTerm("action"),
-		ast.StringTerm(string(i.Action)),
-	}
-
-	input := ast.NewObject(s, a, o)
-
-	return input, nil
 }
 
 // authorize is the internal function that does the actual authorization.

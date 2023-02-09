@@ -5,6 +5,9 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// regoInputValue returns a rego input value for the given subject, action, and
+// object. This rego input is already parsed and can be used directly in a
+// rego query.
 func regoInputValue(subject Subject, action Action, object Object) (ast.Value, error) {
 	regoSubj, err := subject.regoValue()
 	if err != nil {
@@ -29,6 +32,7 @@ func regoInputValue(subject Subject, action Action, object Object) (ast.Value, e
 	return input, nil
 }
 
+// regoValue returns the ast.Object representation of the subject.
 func (s Subject) regoValue() (ast.Value, error) {
 	subjRoles, err := s.Roles.Expand()
 	if err != nil {
@@ -153,6 +157,8 @@ type regoValue interface {
 	regoValue() ast.Value
 }
 
+// regoSlice returns the ast.Array representation of the slice.
+// The slice must contain only types that implement the regoValue interface.
 func regoSlice[T regoValue](slice []T) *ast.Array {
 	terms := make([]*ast.Term, len(slice))
 	for i, v := range slice {
