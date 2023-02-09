@@ -68,7 +68,10 @@ func workspaceAgent() *cobra.Command {
 				// Do not start a reaper on the child process. It's important
 				// to do this else we fork bomb ourselves.
 				args := append(os.Args, "--no-reap")
-				err := reaper.ForkReap(reaper.WithExecArgs(args...))
+				err := reaper.ForkReap(
+					reaper.WithExecArgs(args...),
+					reaper.WithCatchSignals(InterruptSignals...),
+				)
 				if err != nil {
 					logger.Error(ctx, "failed to reap", slog.Error(err))
 					return xerrors.Errorf("fork reap: %w", err)

@@ -4,6 +4,7 @@ package reaper
 
 import (
 	"os"
+	"os/signal"
 	"syscall"
 
 	"github.com/hashicorp/go-reap"
@@ -13,6 +14,24 @@ import (
 // IsInitProcess returns true if the current process's PID is 1.
 func IsInitProcess() bool {
 	return os.Getpid() == 1
+}
+
+func catchSignals(pid int, sigs []os.Signal) {
+	if len(sigs) == 0 {
+		return
+	}
+
+	sc := make(chan os.Signal, 1)
+	signal.Notify(sc, sigs...)
+	defer signal.Stop(sc)
+
+	for {
+		s := <-sc
+		sig, ok := s.(syscall.Signal)
+		if ok {
+			_ = syscall.Kill(pid, sig)
+		}
+	}
 }
 
 // ForkReap spawns a goroutine that reaps children. In order to avoid
@@ -51,13 +70,17 @@ func ForkReap(opt ...Option) error {
 	}
 
 	//#nosec G204
-	pid, _ := syscall.ForkExec(opts.ExecArgs[0], opts.ExecArgs, pattrs)
+	pid, err := syscall.ForkExec(opts.ExecArgs[0], opts.ExecArgs, pattrs)
+	if err != nil {
+		return xerrors.Errorf("fork exec: %w", err)
+	}
+
+	go catchSignals(pid, opts.CatchSignals)
 
 	var wstatus syscall.WaitStatus
 	_, err = syscall.Wait4(pid, &wstatus, 0, nil)
 	for xerrors.Is(err, syscall.EINTR) {
 		_, err = syscall.Wait4(pid, &wstatus, 0, nil)
 	}
-
-	return nil
+	return err
 }
