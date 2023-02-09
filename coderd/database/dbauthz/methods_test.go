@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/util/slice"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 )
 
 func (s *MethodTestSuite) TestAPIKey() {

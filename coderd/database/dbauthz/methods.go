@@ -7,12 +7,12 @@ import (
 	"errors"
 	"time"
 
-	"github.com/coder/coder/coderd/util/slice"
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/rbac"
-	"github.com/google/uuid"
+	"github.com/coder/coder/coderd/util/slice"
 )
 
 func (q *AuthzQuerier) Ping(ctx context.Context) (time.Duration, error) {

@@ -9,9 +9,10 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/google/uuid"
+
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/rbac"
-	"github.com/google/uuid"
 )
 
 var _ database.Store = (*AuthzQuerier)(nil)

@@ -8,6 +8,10 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
+
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
@@ -15,9 +19,6 @@ import (
 	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/rbac"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 )
 
 func TestPing(t *testing.T) {
