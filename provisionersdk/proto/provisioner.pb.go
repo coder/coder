@@ -1236,13 +1236,14 @@ type Agent struct {
 	//
 	//	*Agent_Token
 	//	*Agent_InstanceId
-	Auth                        isAgent_Auth `protobuf_oneof:"auth"`
-	ConnectionTimeoutSeconds    int32        `protobuf:"varint,11,opt,name=connection_timeout_seconds,json=connectionTimeoutSeconds,proto3" json:"connection_timeout_seconds,omitempty"`
-	TroubleshootingUrl          string       `protobuf:"bytes,12,opt,name=troubleshooting_url,json=troubleshootingUrl,proto3" json:"troubleshooting_url,omitempty"`
-	MotdFile                    string       `protobuf:"bytes,13,opt,name=motd_file,json=motdFile,proto3" json:"motd_file,omitempty"`
-	LoginBeforeReady            bool         `protobuf:"varint,14,opt,name=login_before_ready,json=loginBeforeReady,proto3" json:"login_before_ready,omitempty"`
-	StartupScriptTimeoutSeconds int32        `protobuf:"varint,15,opt,name=startup_script_timeout_seconds,json=startupScriptTimeoutSeconds,proto3" json:"startup_script_timeout_seconds,omitempty"`
-	ShutdownScript              string       `protobuf:"bytes,16,opt,name=shutdown_script,json=shutdownScript,proto3" json:"shutdown_script,omitempty"`
+	Auth                         isAgent_Auth `protobuf_oneof:"auth"`
+	ConnectionTimeoutSeconds     int32        `protobuf:"varint,11,opt,name=connection_timeout_seconds,json=connectionTimeoutSeconds,proto3" json:"connection_timeout_seconds,omitempty"`
+	TroubleshootingUrl           string       `protobuf:"bytes,12,opt,name=troubleshooting_url,json=troubleshootingUrl,proto3" json:"troubleshooting_url,omitempty"`
+	MotdFile                     string       `protobuf:"bytes,13,opt,name=motd_file,json=motdFile,proto3" json:"motd_file,omitempty"`
+	LoginBeforeReady             bool         `protobuf:"varint,14,opt,name=login_before_ready,json=loginBeforeReady,proto3" json:"login_before_ready,omitempty"`
+	StartupScriptTimeoutSeconds  int32        `protobuf:"varint,15,opt,name=startup_script_timeout_seconds,json=startupScriptTimeoutSeconds,proto3" json:"startup_script_timeout_seconds,omitempty"`
+	ShutdownScript               string       `protobuf:"bytes,16,opt,name=shutdown_script,json=shutdownScript,proto3" json:"shutdown_script,omitempty"`
+	ShutdownScriptTimeoutSeconds int32        `protobuf:"varint,17,opt,name=shutdown_script_timeout_seconds,json=shutdownScriptTimeoutSeconds,proto3" json:"shutdown_script_timeout_seconds,omitempty"`
 }
 
 func (x *Agent) Reset() {
@@ -1394,6 +1395,13 @@ func (x *Agent) GetShutdownScript() string {
 		return x.ShutdownScript
 	}
 	return ""
+}
+
+func (x *Agent) GetShutdownScriptTimeoutSeconds() int32 {
+	if x != nil {
+		return x.ShutdownScriptTimeoutSeconds
+	}
+	return 0
 }
 
 type isAgent_Auth interface {

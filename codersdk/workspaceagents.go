@@ -76,10 +76,11 @@ type WorkspaceAgent struct {
 	ConnectionTimeoutSeconds int32                 `json:"connection_timeout_seconds"`
 	TroubleshootingURL       string                `json:"troubleshooting_url"`
 	// LoginBeforeReady if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).
-	LoginBeforeReady bool `db:"login_before_ready" json:"login_before_ready"`
+	LoginBeforeReady bool `json:"login_before_ready"`
 	// StartupScriptTimeoutSeconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.
-	StartupScriptTimeoutSeconds int32  `db:"startup_script_timeout_seconds" json:"startup_script_timeout_seconds"`
-	ShutdownScript              string `json:"shutdown_script,omitempty"`
+	StartupScriptTimeoutSeconds  int32  `json:"startup_script_timeout_seconds"`
+	ShutdownScript               string `json:"shutdown_script,omitempty"`
+	ShutdownScriptTimeoutSeconds int32  `json:"shutdown_script_timeout_seconds"`
 }
 
 type DERPRegion struct {

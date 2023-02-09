@@ -995,6 +995,7 @@ export interface WorkspaceAgent {
   readonly login_before_ready: boolean
   readonly startup_script_timeout_seconds: number
   readonly shutdown_script?: string
+  readonly shutdown_script_timeout_seconds: number
 }
 
 // From codersdk/workspaceagentconn.go

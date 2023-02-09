@@ -16,20 +16,21 @@ import (
 
 // A mapping of attributes on the "coder_agent" resource.
 type agentAttributes struct {
-	Auth                        string            `mapstructure:"auth"`
-	OperatingSystem             string            `mapstructure:"os"`
-	Architecture                string            `mapstructure:"arch"`
-	Directory                   string            `mapstructure:"dir"`
-	ID                          string            `mapstructure:"id"`
-	Token                       string            `mapstructure:"token"`
-	Env                         map[string]string `mapstructure:"env"`
-	StartupScript               string            `mapstructure:"startup_script"`
-	ConnectionTimeoutSeconds    int32             `mapstructure:"connection_timeout"`
-	TroubleshootingURL          string            `mapstructure:"troubleshooting_url"`
-	MOTDFile                    string            `mapstructure:"motd_file"`
-	LoginBeforeReady            bool              `mapstructure:"login_before_ready"`
-	StartupScriptTimeoutSeconds int32             `mapstructure:"startup_script_timeout"`
-	ShutdownScript              string            `mapstructure:"shutdown_script"`
+	Auth                         string            `mapstructure:"auth"`
+	OperatingSystem              string            `mapstructure:"os"`
+	Architecture                 string            `mapstructure:"arch"`
+	Directory                    string            `mapstructure:"dir"`
+	ID                           string            `mapstructure:"id"`
+	Token                        string            `mapstructure:"token"`
+	Env                          map[string]string `mapstructure:"env"`
+	StartupScript                string            `mapstructure:"startup_script"`
+	ConnectionTimeoutSeconds     int32             `mapstructure:"connection_timeout"`
+	TroubleshootingURL           string            `mapstructure:"troubleshooting_url"`
+	MOTDFile                     string            `mapstructure:"motd_file"`
+	LoginBeforeReady             bool              `mapstructure:"login_before_ready"`
+	StartupScriptTimeoutSeconds  int32             `mapstructure:"startup_script_timeout"`
+	ShutdownScript               string            `mapstructure:"shutdown_script"`
+	ShutdownScriptTimeoutSeconds int32             `mapstructure:"shutdown_script_timeout"`
 }
 
 // A mapping of attributes on the "coder_app" resource.
@@ -140,19 +141,20 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 			}
 
 			agent := &proto.Agent{
-				Name:                        tfResource.Name,
-				Id:                          attrs.ID,
-				Env:                         attrs.Env,
-				StartupScript:               attrs.StartupScript,
-				OperatingSystem:             attrs.OperatingSystem,
-				Architecture:                attrs.Architecture,
-				Directory:                   attrs.Directory,
-				ConnectionTimeoutSeconds:    attrs.ConnectionTimeoutSeconds,
-				TroubleshootingUrl:          attrs.TroubleshootingURL,
-				MotdFile:                    attrs.MOTDFile,
-				LoginBeforeReady:            loginBeforeReady,
-				StartupScriptTimeoutSeconds: attrs.StartupScriptTimeoutSeconds,
-				ShutdownScript:              attrs.ShutdownScript,
+				Name:                         tfResource.Name,
+				Id:                           attrs.ID,
+				Env:                          attrs.Env,
+				StartupScript:                attrs.StartupScript,
+				OperatingSystem:              attrs.OperatingSystem,
+				Architecture:                 attrs.Architecture,
+				Directory:                    attrs.Directory,
+				ConnectionTimeoutSeconds:     attrs.ConnectionTimeoutSeconds,
+				TroubleshootingUrl:           attrs.TroubleshootingURL,
+				MotdFile:                     attrs.MOTDFile,
+				LoginBeforeReady:             loginBeforeReady,
+				StartupScriptTimeoutSeconds:  attrs.StartupScriptTimeoutSeconds,
+				ShutdownScript:               attrs.ShutdownScript,
+				ShutdownScriptTimeoutSeconds: attrs.ShutdownScriptTimeoutSeconds,
 			}
 			switch attrs.Auth {
 			case "token":

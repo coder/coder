@@ -1549,6 +1549,8 @@ type WorkspaceAgent struct {
 	ExpandedDirectory string `db:"expanded_directory" json:"expanded_directory"`
 	// Script that is executed before the agent is stopped.
 	ShutdownScript sql.NullString `db:"shutdown_script" json:"shutdown_script"`
+	// The number of seconds to wait for the shutdown script to complete. If the script does not complete within this time, the agent lifecycle will be marked as shutdown_timeout.
+	ShutdownScriptTimeoutSeconds int32 `db:"shutdown_script_timeout_seconds" json:"shutdown_script_timeout_seconds"`
 }
 
 type WorkspaceAgentStat struct {

@@ -5201,6 +5201,9 @@ const docTemplate = `{
                 "shutdown_script": {
                     "type": "string"
                 },
+                "shutdown_script_timeout": {
+                    "type": "integer"
+                },
                 "startup_script": {
                     "type": "string"
                 },
@@ -8430,6 +8433,9 @@ const docTemplate = `{
                 },
                 "shutdown_script": {
                     "type": "string"
+                },
+                "shutdown_script_timeout_seconds": {
+                    "type": "integer"
                 },
                 "startup_script": {
                     "type": "string"
