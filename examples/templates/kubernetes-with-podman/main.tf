@@ -32,8 +32,10 @@ resource "coder_agent" "dev" {
   dir            = "/home/podman"
   startup_script = <<EOF
     #!/bin/sh
-    curl -fsSL https://code-server.dev/install.sh | sh
-    code-server --auth none --port 13337 &
+    # Install and start code-server. We install under /tmp as we may not have permission to write outside /home/coder.
+    # The standalone method also requires no sudo or root permissions, as opposed to the autodetect method.
+    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server
+    /tmp/code-server/bin/code-server --auth none --port 13337 &
 
     # Run once to avoid unnecessary warning: "/" is not a shared mount
     podman ps

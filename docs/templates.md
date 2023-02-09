@@ -160,12 +160,13 @@ resource "coder_agent" "coder" {
   startup_script = <<EOT
 #!/bin/bash
 
-# install code-server 4.8.3
-curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3
+# install code-server 4.8.3 under /tmp/code-server
+curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3
+/tmp/code-server/bin/code-server --auth none --port 13337 &
 
 # The & prevents the startup_script from blocking so the
 # next commands can run.
-code-server --auth none --port &
+code-server --auth none --port 13337 &
 
 # var.repo and var.dotfiles_uri is specified
 # elsewhere in the Terraform code as input

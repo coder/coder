@@ -65,9 +65,8 @@ resource "coder_agent" "dev" {
   startup_script_timeout = 60
   startup_script         = <<-EOT
     set -eux -o pipefail
-    # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3
-    code-server --auth none --port 13337 &
+    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server
+    /tmp/code-server/bin/code-server --auth none --port 13337 &
     sudo service docker start
     DOTFILES_URI=${var.dotfiles_uri}
     rm -f ~/.personalize.log
