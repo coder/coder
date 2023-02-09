@@ -24,149 +24,148 @@ func TestParse(t *testing.T) {
 		// error containing this string before a Complete response is returned.
 		ErrorContains string
 	}{
-		// {
-		// 	Name: "single-variable",
-		// 	Files: map[string]string{
-		// 		"main.tf": `variable "A" {
-		// 		description = "Testing!"
-		// 	}`,
-		// 	},
-		// 	Response: &proto.Parse_Response{
-		// 		Type: &proto.Parse_Response_Complete{
-		// 			Complete: &proto.Parse_Complete{
-		// 				ParameterSchemas: []*proto.ParameterSchema{{
-		// 					Name:                "A",
-		// 					RedisplayValue:      true,
-		// 					AllowOverrideSource: true,
-		// 					Description:         "Testing!",
-		// 					DefaultDestination: &proto.ParameterDestination{
-		// 						Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-		// 					},
-		// 				}},
-		// 			},
-		// 		},
-		// 	},
-		// },
-		// {
-		// 	Name: "default-variable-value",
-		// 	Files: map[string]string{
-		// 		"main.tf": `variable "A" {
-		// 		default = "wow"
-		// 	}`,
-		// 	},
-		// 	Response: &proto.Parse_Response{
-		// 		Type: &proto.Parse_Response_Complete{
-		// 			Complete: &proto.Parse_Complete{
-		// 				ParameterSchemas: []*proto.ParameterSchema{{
-		// 					Name:                "A",
-		// 					RedisplayValue:      true,
-		// 					AllowOverrideSource: true,
-		// 					DefaultSource: &proto.ParameterSource{
-		// 						Scheme: proto.ParameterSource_DATA,
-		// 						Value:  "wow",
-		// 					},
-		// 					DefaultDestination: &proto.ParameterDestination{
-		// 						Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-		// 					},
-		// 				}},
-		// 			},
-		// 		},
-		// 	},
-		// },
-		// {
-		// 	Name: "variable-validation",
-		// 	Files: map[string]string{
-		// 		"main.tf": `variable "A" {
-		// 		validation {
-		// 			condition = var.A == "value"
-		// 		}
-		// 	}`,
-		// 	},
-		// 	Response: &proto.Parse_Response{
-		// 		Type: &proto.Parse_Response_Complete{
-		// 			Complete: &proto.Parse_Complete{
-		// 				ParameterSchemas: []*proto.ParameterSchema{{
-		// 					Name:                 "A",
-		// 					RedisplayValue:       true,
-		// 					ValidationCondition:  `var.A == "value"`,
-		// 					ValidationTypeSystem: proto.ParameterSchema_HCL,
-		// 					AllowOverrideSource:  true,
-		// 					DefaultDestination: &proto.ParameterDestination{
-		// 						Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-		// 					},
-		// 				}},
-		// 			},
-		// 		},
-		// 	},
-		// },
-		// {
-		// 	Name: "bad-syntax",
-		// 	Files: map[string]string{
-		// 		"main.tf": "a;sd;ajsd;lajsd;lasjdf;a",
-		// 	},
-		// 	ErrorContains: `The ";" character is not valid.`,
-		// },
-		// {
-		// 	Name: "multiple-variables",
-		// 	Files: map[string]string{
-		// 		"main1.tf": `variable "foo" { }
-		// 		variable "bar" { }`,
-		// 		"main2.tf": `variable "baz" { }
-		// 		variable "quux" { }`,
-		// 	},
-		// 	Response: &proto.Parse_Response{
-		// 		Type: &proto.Parse_Response_Complete{
-		// 			Complete: &proto.Parse_Complete{
-		// 				ParameterSchemas: []*proto.ParameterSchema{
-		// 					{
-		// 						Name:                "foo",
-		// 						RedisplayValue:      true,
-		// 						AllowOverrideSource: true,
-		// 						Description:         "",
-		// 						DefaultDestination: &proto.ParameterDestination{
-		// 							Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-		// 						},
-		// 					},
-		// 					{
-		// 						Name:                "bar",
-		// 						RedisplayValue:      true,
-		// 						AllowOverrideSource: true,
-		// 						Description:         "",
-		// 						DefaultDestination: &proto.ParameterDestination{
-		// 							Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-		// 						},
-		// 					},
-		// 					{
-		// 						Name:                "baz",
-		// 						RedisplayValue:      true,
-		// 						AllowOverrideSource: true,
-		// 						Description:         "",
-		// 						DefaultDestination: &proto.ParameterDestination{
-		// 							Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-		// 						},
-		// 					},
-		// 					{
-		// 						Name:                "quux",
-		// 						RedisplayValue:      true,
-		// 						AllowOverrideSource: true,
-		// 						Description:         "",
-		// 						DefaultDestination: &proto.ParameterDestination{
-		// 							Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-		// 						},
-		// 					},
-		// 				},
-		// 			},
-		// 		},
-		// 	},
-		// },
 		{
-			Name: "enable-managed-variables",
+			Name: "single-variable",
 			Files: map[string]string{
 				"main.tf": `variable "A" {
 				description = "Testing!"
-				type = "string"
+			}`,
+			},
+			Response: &proto.Parse_Response{
+				Type: &proto.Parse_Response_Complete{
+					Complete: &proto.Parse_Complete{
+						ParameterSchemas: []*proto.ParameterSchema{{
+							Name:                "A",
+							RedisplayValue:      true,
+							AllowOverrideSource: true,
+							Description:         "Testing!",
+							DefaultDestination: &proto.ParameterDestination{
+								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+							},
+						}},
+					},
+				},
+			},
+		},
+		{
+			Name: "default-variable-value",
+			Files: map[string]string{
+				"main.tf": `variable "A" {
+				default = "wow"
+			}`,
+			},
+			Response: &proto.Parse_Response{
+				Type: &proto.Parse_Response_Complete{
+					Complete: &proto.Parse_Complete{
+						ParameterSchemas: []*proto.ParameterSchema{{
+							Name:                "A",
+							RedisplayValue:      true,
+							AllowOverrideSource: true,
+							DefaultSource: &proto.ParameterSource{
+								Scheme: proto.ParameterSource_DATA,
+								Value:  "wow",
+							},
+							DefaultDestination: &proto.ParameterDestination{
+								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+							},
+						}},
+					},
+				},
+			},
+		},
+		{
+			Name: "variable-validation",
+			Files: map[string]string{
+				"main.tf": `variable "A" {
+				validation {
+					condition = var.A == "value"
+				}
+			}`,
+			},
+			Response: &proto.Parse_Response{
+				Type: &proto.Parse_Response_Complete{
+					Complete: &proto.Parse_Complete{
+						ParameterSchemas: []*proto.ParameterSchema{{
+							Name:                 "A",
+							RedisplayValue:       true,
+							ValidationCondition:  `var.A == "value"`,
+							ValidationTypeSystem: proto.ParameterSchema_HCL,
+							AllowOverrideSource:  true,
+							DefaultDestination: &proto.ParameterDestination{
+								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+							},
+						}},
+					},
+				},
+			},
+		},
+		{
+			Name: "bad-syntax",
+			Files: map[string]string{
+				"main.tf": "a;sd;ajsd;lajsd;lasjdf;a",
+			},
+			ErrorContains: `The ";" character is not valid.`,
+		},
+		{
+			Name: "multiple-variables",
+			Files: map[string]string{
+				"main1.tf": `variable "foo" { }
+				variable "bar" { }`,
+				"main2.tf": `variable "baz" { }
+				variable "quux" { }`,
+			},
+			Response: &proto.Parse_Response{
+				Type: &proto.Parse_Response_Complete{
+					Complete: &proto.Parse_Complete{
+						ParameterSchemas: []*proto.ParameterSchema{
+							{
+								Name:                "foo",
+								RedisplayValue:      true,
+								AllowOverrideSource: true,
+								Description:         "",
+								DefaultDestination: &proto.ParameterDestination{
+									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+								},
+							},
+							{
+								Name:                "bar",
+								RedisplayValue:      true,
+								AllowOverrideSource: true,
+								Description:         "",
+								DefaultDestination: &proto.ParameterDestination{
+									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+								},
+							},
+							{
+								Name:                "baz",
+								RedisplayValue:      true,
+								AllowOverrideSource: true,
+								Description:         "",
+								DefaultDestination: &proto.ParameterDestination{
+									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+								},
+							},
+							{
+								Name:                "quux",
+								RedisplayValue:      true,
+								AllowOverrideSource: true,
+								Description:         "",
+								DefaultDestination: &proto.ParameterDestination{
+									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "enable-managed-variables-with-default-value",
+			Files: map[string]string{
+				"main.tf": `variable "A" {
+				description = "Testing!"
+				type = 	string
 				default = "abc"
-				required = true
 				sensitive = true
 			}
 
@@ -185,6 +184,35 @@ func TestParse(t *testing.T) {
 								DefaultValue: "abc",
 								Required:     false,
 								Sensitive:    true,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "enable-managed-variables-without-default",
+			Files: map[string]string{
+				"main.tf": `variable "A" {
+				description = "Testing!"
+				type = string
+				sensitive = true
+			}
+
+			provider "coder" {
+				feature_use_managed_variables = true
+			}`,
+			},
+			Response: &proto.Parse_Response{
+				Type: &proto.Parse_Response_Complete{
+					Complete: &proto.Parse_Complete{
+						TemplateVariables: []*proto.TemplateVariable{
+							{
+								Name:        "A",
+								Description: "Testing!",
+								Type:        "string",
+								Required:    true,
+								Sensitive:   true,
 							},
 						},
 					},

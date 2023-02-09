@@ -67,7 +67,7 @@ func (*server) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_
 	var parameters []*proto.ParameterSchema
 	var templateVariables []*proto.TemplateVariable
 
-	useManagedVariables := flags[featureUseManagedVariables]
+	useManagedVariables := flags != nil && flags[featureUseManagedVariables]
 	if useManagedVariables {
 		for _, v := range variables {
 			mv, err := convertTerraformVariableToManagedVariable(v)
@@ -97,14 +97,23 @@ func (*server) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_
 }
 
 func loadEnabledFeatures(moduleDir string) (map[string]bool, hcl.Diagnostics, error) {
-	parser := hclparse.NewParser()
-	mainFile, err := parser.ParseHCLFile(path.Join(moduleDir, "main.tf"))
-	if err != nil {
-		return nil, nil, xerrors.Errorf("can't parse main.tf file: %w", err)
-	}
-
 	flags := map[string]bool{}
 	var diags hcl.Diagnostics
+
+	// FIXME: Only flags placed in the "main.tf" are considered.
+	mainFilepath := path.Join(moduleDir, "main.tf")
+	_, err := os.Stat(mainFilepath)
+	if os.IsNotExist(err) {
+		return flags, diags, nil
+	} else if err != nil {
+		return flags, diags, xerrors.Errorf("can't stat file %q: %w", mainFilepath, err)
+	}
+
+	parser := hclparse.NewParser()
+	mainFile, diags := parser.ParseHCLFile(mainFilepath)
+	if diags.HasErrors() {
+		return flags, diags, xerrors.Errorf("can't parse file %q: %w", mainFilepath, diags)
+	}
 
 	content, _ := mainFile.Body.Content(terraformWithFeaturesSchema)
 	for _, block := range content.Blocks {
@@ -192,7 +201,7 @@ func convertTerraformVariableToManagedVariable(variable *tfconfig.Variable) (*pr
 		Description:  variable.Description,
 		Type:         variable.Type,
 		DefaultValue: defaultData,
-		Required:     variable.Required,
+		Required:     defaultData == "", // variable.Required is always false?
 		Sensitive:    variable.Sensitive,
 	}, nil
 }
