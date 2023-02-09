@@ -93,6 +93,8 @@ default scope_org := 0
 scope_org := org_allow([input.scope])
 
 org_allow(roles) := num {
+	# Rule index on org_owner being set.
+	input.object.org_owner != ""
 	allow := { id: num |
 		id := org_members[_]
 		set := { x |
