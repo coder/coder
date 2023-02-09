@@ -1301,19 +1301,15 @@ func (a *agent) Close() error {
 	close(a.closed)
 	a.closeCancel()
 
-	rawMetadata := a.metadata.Load()
-	if rawMetadata == nil {
-		return xerrors.Errorf("no metadata was provided")
-	}
-	metadata, valid := rawMetadata.(codersdk.WorkspaceAgentMetadata)
-	if !valid {
-		return xerrors.Errorf("metadata is the wrong type: %T", metadata)
-	}
-
-	ctx := context.Background()
-	err := a.runShutdownScript(ctx, metadata.ShutdownScript)
-	if err != nil {
-		a.logger.Error(ctx, "shutdown script failed", slog.Error(err))
+	if metadata, ok := a.metadata.Load().(agentsdk.Metadata); ok {
+		ctx := context.Background()
+		err := a.runShutdownScript(ctx, metadata.ShutdownScript)
+		if err != nil {
+			a.logger.Error(ctx, "shutdown script failed", slog.Error(err))
+		}
+	} else {
+		// No metadata.. halt?
+		_ = false
 	}
 
 	if a.network != nil {

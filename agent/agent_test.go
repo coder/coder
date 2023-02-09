@@ -834,12 +834,12 @@ func TestAgent_Lifecycle(t *testing.T) {
 		client := &client{
 			t:       t,
 			agentID: uuid.New(),
-			metadata: codersdk.WorkspaceAgentMetadata{
+			metadata: agentsdk.Metadata{
 				DERPMap:        tailnettest.RunDERPAndSTUN(t),
 				StartupScript:  "echo 1",
 				ShutdownScript: "echo " + expected,
 			},
-			statsChan:   make(chan *codersdk.AgentStats),
+			statsChan:   make(chan *agentsdk.Stats),
 			coordinator: tailnet.NewCoordinator(),
 		}
 
