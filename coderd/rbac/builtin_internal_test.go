@@ -148,7 +148,6 @@ func TestRegoInputValue(t *testing.T) {
 
 		cmp := manual.Compare(general)
 		require.Equal(t, 0, cmp, "manual and general input values should be equal")
-
 	})
 }
 
