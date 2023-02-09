@@ -7,7 +7,7 @@ import {
 } from "api/typesGenerated"
 import { assign, createMachine } from "xstate"
 import * as API from "api/api"
-import { TemplateVersionFiles } from "util/templateVersion"
+import { TemplateVersionFileTree } from "util/templateVersion"
 import Tar from "tar-js"
 
 export interface CreateVersionData {
@@ -16,9 +16,8 @@ export interface CreateVersionData {
 
 export interface TemplateVersionEditorMachineContext {
   orgId: string
-
   templateId?: string
-  files?: TemplateVersionFiles
+  files?: TemplateVersionFileTree
   uploadResponse?: UploadResponse
   version?: TemplateVersion
   resources?: WorkspaceResource[]
@@ -34,7 +33,7 @@ export const templateVersionEditorMachine = createMachine(
       events: {} as
         | {
             type: "CREATE_VERSION"
-            files: TemplateVersionFiles
+            files: TemplateVersionFileTree
             templateId: string
           }
         | { type: "CANCEL_VERSION" }
@@ -131,8 +130,7 @@ export const templateVersionEditorMachine = createMachine(
             actions: "addBuildLog",
           },
           CANCEL_VERSION: {
-            actions: "cancelBuild",
-            target: "idle",
+            target: "cancelingBuild",
           },
           CREATE_VERSION: {
             actions: ["assignCreateBuild"],
@@ -211,9 +209,23 @@ export const templateVersionEditorMachine = createMachine(
         }
         const tar = new Tar()
         let out: Uint8Array = new Uint8Array()
-        Object.entries(ctx.files).forEach(([path, content]) => {
-          out = tar.append(path, content)
-        })
+
+        const appendToTar = (
+          fileTree: TemplateVersionFileTree,
+          parent?: string,
+        ) => {
+          Object.keys(fileTree).forEach((filename) => {
+            const currentPath = parent ? `${parent}/${filename}` : filename
+            const content = fileTree[filename]
+
+            if (typeof content === "string") {
+              out = tar.append(currentPath, content)
+            } else {
+              appendToTar(content, currentPath)
+            }
+          })
+        }
+        appendToTar(ctx.files)
         return API.uploadTemplateFile(new File([out], "template.tar"))
       },
       createBuild: (ctx) => {

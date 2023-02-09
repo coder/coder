@@ -6,7 +6,7 @@ import TreeItem from "@material-ui/lab/TreeItem"
 import Menu from "@material-ui/core/Menu"
 import MenuItem from "@material-ui/core/MenuItem"
 import { FC, useMemo, useState } from "react"
-import { TemplateVersionFiles } from "util/templateVersion"
+import { TemplateVersionFileTree } from "util/templateVersion"
 import { DockerIcon } from "components/Icons/DockerIcon"
 
 export interface File {
@@ -15,50 +15,44 @@ export interface File {
   children: Record<string, File>
 }
 
+const mapFileTreeToFiles = (
+  fileTree: TemplateVersionFileTree,
+  parent?: string,
+): Record<string, File> => {
+  const files: Record<string, File> = {}
+
+  Object.keys(fileTree).forEach((filename) => {
+    const currentPath = parent ? `${parent}/${filename}` : filename
+    const content = fileTree[filename]
+    if (typeof content === "string") {
+      files[currentPath] = {
+        path: currentPath,
+        content,
+        children: {},
+      }
+    } else {
+      files[currentPath] = {
+        path: currentPath,
+        children: mapFileTreeToFiles(content, currentPath),
+      }
+    }
+  })
+
+  return files
+}
+
 export const FileTree: FC<{
   onSelect: (file: File) => void
   onDelete: (file: File) => void
   onRename: (file: File) => void
-  files: TemplateVersionFiles
+  files: TemplateVersionFileTree
   activeFile?: File
 }> = ({ activeFile, files, onDelete, onRename, onSelect }) => {
   const styles = useStyles()
-  const fileTree = useMemo<Record<string, File>>(() => {
-    const paths = Object.keys(files)
-    const roots: Record<string, File> = {}
-    paths.forEach((path) => {
-      const pathParts = path.split("/")
-      const firstPart = pathParts.shift()
-      if (!firstPart) {
-        // Not possible!
-        return
-      }
-      let activeFile = roots[firstPart]
-      if (!activeFile) {
-        activeFile = {
-          path: firstPart,
-          children: {},
-        }
-        roots[firstPart] = activeFile
-      }
-      while (pathParts.length > 0) {
-        const pathPart = pathParts.shift()
-        if (!pathPart) {
-          continue
-        }
-        if (!activeFile.children[pathPart]) {
-          activeFile.children[pathPart] = {
-            path: activeFile.path + "/" + pathPart,
-            children: {},
-          }
-        }
-        activeFile = activeFile.children[pathPart]
-      }
-      activeFile.content = files[path]
-      activeFile.path = path
-    })
-    return roots
-  }, [files])
+  const fileTree = useMemo<Record<string, File>>(
+    () => mapFileTreeToFiles(files),
+    [files],
+  )
   const [contextMenu, setContextMenu] = useState<
     | {
         file: File
@@ -89,7 +83,8 @@ export const FileTree: FC<{
           file.path === activeFile?.path ? "active" : ""
         }`}
         onClick={() => {
-          if (file.content) {
+          // Content can be an empty string
+          if (file.content !== undefined) {
             onSelect(file)
           }
         }}
@@ -110,9 +105,22 @@ export const FileTree: FC<{
         }}
         icon={icon}
       >
-        {Object.entries(file.children || {}).map(([name, file]) => {
-          return buildTreeItems(name, file)
-        })}
+        {Object.keys(file.children)
+          .sort((a, b) => {
+            const child = file.children[a]
+            const childB = file.children[b]
+            if (child.content === undefined) {
+              return -1
+            }
+            if (childB.content === undefined) {
+              return 1
+            }
+            return a.localeCompare(b)
+          })
+          .map((path) => {
+            const child = file.children[path]
+            return buildTreeItems(path, child)
+          })}
       </TreeItem>
     )
   }
@@ -124,9 +132,22 @@ export const FileTree: FC<{
       aria-label="Files"
       className={styles.fileTree}
     >
-      {Object.entries(fileTree).map(([name, file]) => {
-        return buildTreeItems(name, file)
-      })}
+      {Object.keys(fileTree)
+        .sort((a, b) => {
+          const child = fileTree[a]
+          const childB = fileTree[b]
+          if (child.content === undefined) {
+            return -1
+          }
+          if (childB.content === undefined) {
+            return 1
+          }
+          return a.localeCompare(b)
+        })
+        .map((path) => {
+          const child = fileTree[path]
+          return buildTreeItems(path, child)
+        })}
 
       <Menu
         onClose={() => setContextMenu(undefined)}
