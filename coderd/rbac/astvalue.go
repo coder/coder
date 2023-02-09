@@ -155,7 +155,10 @@ func (role Role) regoValue() ast.Value {
 }
 
 func (s Scope) regoValue() ast.Value {
-	r := s.Role.regoValue().(ast.Object)
+	r, ok := s.Role.regoValue().(ast.Object)
+	if !ok {
+		panic("developer error: role is not an object")
+	}
 	r.Insert(
 		ast.StringTerm("allow_list"),
 		ast.NewTerm(regoSliceString(s.AllowIDList...)),
