@@ -58,7 +58,7 @@ message TemplateVariable {
     string description = 2;
     string type = 3;
     string default_value = 4;
-	bool required = 5;
+    bool required = 5;
     bool sensitive = 6;
 }
 
