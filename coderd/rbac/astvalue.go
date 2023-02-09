@@ -32,6 +32,8 @@ func regoInputValue(subject Subject, action Action, object Object) (ast.Value, e
 	return input, nil
 }
 
+// regoPartialInputValue is the same as regoInputValue but only includes the
+// object type. This is for partial evaluations.
 func regoPartialInputValue(subject Subject, action Action, objectType string) (ast.Value, error) {
 	regoSubj, err := subject.regoValue()
 	if err != nil {
