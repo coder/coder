@@ -32,6 +32,35 @@ func regoInputValue(subject Subject, action Action, object Object) (ast.Value, e
 	return input, nil
 }
 
+func regoPartialInputValue(subject Subject, action Action, objectType string) (ast.Value, error) {
+	regoSubj, err := subject.regoValue()
+	if err != nil {
+		return nil, xerrors.Errorf("subject: %w", err)
+	}
+
+	s := [2]*ast.Term{
+		ast.StringTerm("subject"),
+		ast.NewTerm(regoSubj),
+	}
+	a := [2]*ast.Term{
+		ast.StringTerm("action"),
+		ast.StringTerm(string(action)),
+	}
+	o := [2]*ast.Term{
+		ast.StringTerm("object"),
+		ast.NewTerm(ast.NewObject(
+			[2]*ast.Term{
+				ast.StringTerm("type"),
+				ast.StringTerm(objectType),
+			}),
+		),
+	}
+
+	input := ast.NewObject(s, a, o)
+
+	return input, nil
+}
+
 // regoValue returns the ast.Object representation of the subject.
 func (s Subject) regoValue() (ast.Value, error) {
 	subjRoles, err := s.Roles.Expand()

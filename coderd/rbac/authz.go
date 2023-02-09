@@ -274,29 +274,6 @@ func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action A
 	}
 	var _, _ = subjRoles, subjScope
 
-	//input := inputType{
-	//	Subject: authSubject{
-	//		ID:     subject.ID,
-	//		Roles:  subjRoles,
-	//		Groups: subject.Groups,
-	//		Scope:  subjScope,
-	//	},
-	//	Action: action,
-	//	Object: object,
-	//}
-
-	//jinput := map[string]interface{}{
-	//	"subject": authSubject{
-	//		ID:     subject.ID,
-	//		Roles:  subjRoles,
-	//		Groups: subject.Groups,
-	//		Scope:  subjScope,
-	//	},
-	//	"object": object,
-	//	"action": action,
-	//}
-	//var _ = jinput
-
 	astV, err := regoInputValue(subject, action, object)
 	if err != nil {
 		return xerrors.Errorf("convert input to value: %w", err)
@@ -305,11 +282,11 @@ func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action A
 
 	results, err := a.query.Eval(ctx, rego.EvalParsedInput(astV))
 	if err != nil {
-		return ForbiddenWithInternal(xerrors.Errorf("eval rego: %w", err), nil, results)
+		return ForbiddenWithInternal(xerrors.Errorf("eval rego: %w", err), subject, action, object, results)
 	}
 
 	if !results.Allowed() {
-		return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), nil, results)
+		return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), subject, action, object, results)
 	}
 	return nil
 }

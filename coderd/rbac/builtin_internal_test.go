@@ -62,6 +62,8 @@ func BenchmarkRBACValueAllocation(b *testing.B) {
 // and the custom parser is used to reduce allocations. This optimization
 // should yield the same results. Anything different is a bug.
 func TestRegoInputValue(t *testing.T) {
+	t.Parallel()
+
 	actor := Subject{
 		Roles:  RoleNames{RoleOrgMember(uuid.New()), RoleOrgAdmin(uuid.New()), RoleMember()},
 		ID:     uuid.NewString(),
@@ -84,32 +86,70 @@ func TestRegoInputValue(t *testing.T) {
 
 	action := ActionRead
 
-	// This is the input that would be passed to the rego policy.
-	jsonInput := map[string]interface{}{
-		"subject": authSubject{
-			ID:     actor.ID,
-			Roles:  must(actor.Roles.Expand()),
-			Groups: actor.Groups,
-			Scope:  must(actor.Scope.Expand()),
-		},
-		"action": action,
-		"object": obj,
-	}
+	t.Run("InputValue", func(t *testing.T) {
+		t.Parallel()
 
-	manual, err := regoInputValue(actor, action, obj)
-	require.NoError(t, err)
+		// This is the input that would be passed to the rego policy.
+		jsonInput := map[string]interface{}{
+			"subject": authSubject{
+				ID:     actor.ID,
+				Roles:  must(actor.Roles.Expand()),
+				Groups: actor.Groups,
+				Scope:  must(actor.Scope.Expand()),
+			},
+			"action": action,
+			"object": obj,
+		}
 
-	general, err := ast.InterfaceToValue(jsonInput)
-	require.NoError(t, err)
+		manual, err := regoInputValue(actor, action, obj)
+		require.NoError(t, err)
 
-	// The custom parser does not set these fields because they are not needed.
-	// To ensure the outputs are identical, intentionally overwrite all names
-	// to the same values.
-	ignoreNames(t, manual)
-	ignoreNames(t, general)
+		general, err := ast.InterfaceToValue(jsonInput)
+		require.NoError(t, err)
 
-	cmp := manual.Compare(general)
-	require.Equal(t, 0, cmp, "manual and general input values should be equal")
+		// The custom parser does not set these fields because they are not needed.
+		// To ensure the outputs are identical, intentionally overwrite all names
+		// to the same values.
+		ignoreNames(t, manual)
+		ignoreNames(t, general)
+
+		cmp := manual.Compare(general)
+		require.Equal(t, 0, cmp, "manual and general input values should be equal")
+	})
+
+	t.Run("PartialInputValue", func(t *testing.T) {
+		t.Parallel()
+
+		// This is the input that would be passed to the rego policy.
+		jsonInput := map[string]interface{}{
+			"subject": authSubject{
+				ID:     actor.ID,
+				Roles:  must(actor.Roles.Expand()),
+				Groups: actor.Groups,
+				Scope:  must(actor.Scope.Expand()),
+			},
+			"action": action,
+			"object": map[string]interface{}{
+				"type": obj.Type,
+			},
+		}
+
+		manual, err := regoPartialInputValue(actor, action, obj.Type)
+		require.NoError(t, err)
+
+		general, err := ast.InterfaceToValue(jsonInput)
+		require.NoError(t, err)
+
+		// The custom parser does not set these fields because they are not needed.
+		// To ensure the outputs are identical, intentionally overwrite all names
+		// to the same values.
+		ignoreNames(t, manual)
+		ignoreNames(t, general)
+
+		cmp := manual.Compare(general)
+		require.Equal(t, 0, cmp, "manual and general input values should be equal")
+
+	})
 }
 
 // ignoreNames sets all names to "ignore" to ensure the values are identical.
