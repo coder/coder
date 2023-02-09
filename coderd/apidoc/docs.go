@@ -8474,14 +8474,22 @@ const docTemplate = `{
                 "starting",
                 "start_timeout",
                 "start_error",
-                "ready"
+                "ready",
+                "shutting_down",
+                "shutdown_timeout",
+                "shutdown_error",
+                "off"
             ],
             "x-enum-varnames": [
                 "WorkspaceAgentLifecycleCreated",
                 "WorkspaceAgentLifecycleStarting",
                 "WorkspaceAgentLifecycleStartTimeout",
                 "WorkspaceAgentLifecycleStartError",
-                "WorkspaceAgentLifecycleReady"
+                "WorkspaceAgentLifecycleReady",
+                "WorkspaceAgentLifecycleShuttingDown",
+                "WorkspaceAgentLifecycleShutdownTimeout",
+                "WorkspaceAgentLifecycleShutdownError",
+                "WorkspaceAgentLifecycleOff"
             ]
         },
         "codersdk.WorkspaceAgentListeningPort": {

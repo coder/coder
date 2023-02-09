@@ -5604,13 +5604,17 @@ Parameter represents a set value for the scope.
 
 #### Enumerated Values
 
-| Value           |
-| --------------- |
-| `created`       |
-| `starting`      |
-| `start_timeout` |
-| `start_error`   |
-| `ready`         |
+| Value              |
+| ------------------ |
+| `created`          |
+| `starting`         |
+| `start_timeout`    |
+| `start_error`      |
+| `ready`            |
+| `shutting_down`    |
+| `shutdown_timeout` |
+| `shutdown_error`   |
+| `off`              |
 
 ## codersdk.WorkspaceAgentListeningPort
 

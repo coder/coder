@@ -107,7 +107,11 @@ CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
     'starting',
     'start_timeout',
     'start_error',
-    'ready'
+    'ready',
+    'shutting_down',
+    'shutdown_timeout',
+    'shutdown_error',
+    'off'
 );
 
 CREATE TYPE workspace_app_health AS ENUM (

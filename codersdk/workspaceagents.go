@@ -44,12 +44,34 @@ type WorkspaceAgentLifecycle string
 
 // WorkspaceAgentLifecycle enums.
 const (
-	WorkspaceAgentLifecycleCreated      WorkspaceAgentLifecycle = "created"
-	WorkspaceAgentLifecycleStarting     WorkspaceAgentLifecycle = "starting"
-	WorkspaceAgentLifecycleStartTimeout WorkspaceAgentLifecycle = "start_timeout"
-	WorkspaceAgentLifecycleStartError   WorkspaceAgentLifecycle = "start_error"
-	WorkspaceAgentLifecycleReady        WorkspaceAgentLifecycle = "ready"
+	WorkspaceAgentLifecycleCreated         WorkspaceAgentLifecycle = "created"
+	WorkspaceAgentLifecycleStarting        WorkspaceAgentLifecycle = "starting"
+	WorkspaceAgentLifecycleStartTimeout    WorkspaceAgentLifecycle = "start_timeout"
+	WorkspaceAgentLifecycleStartError      WorkspaceAgentLifecycle = "start_error"
+	WorkspaceAgentLifecycleReady           WorkspaceAgentLifecycle = "ready"
+	WorkspaceAgentLifecycleShuttingDown    WorkspaceAgentLifecycle = "shutting_down"
+	WorkspaceAgentLifecycleShutdownTimeout WorkspaceAgentLifecycle = "shutdown_timeout"
+	WorkspaceAgentLifecycleShutdownError   WorkspaceAgentLifecycle = "shutdown_error"
+	WorkspaceAgentLifecycleOff             WorkspaceAgentLifecycle = "off"
 )
+
+// WorkspaceAgentLifecycleOrder is the order in which workspace agent
+// lifecycle states are expected to be reported during the lifetime of
+// the agent process. For instance, the agent can go from starting to
+// ready without reporting timeout or error, but it should not go from
+// ready to starting. This is merely a hint for the agent process, and
+// is not enforced by the server.
+var WorkspaceAgentLifecycleOrder = []WorkspaceAgentLifecycle{
+	WorkspaceAgentLifecycleCreated,
+	WorkspaceAgentLifecycleStarting,
+	WorkspaceAgentLifecycleStartTimeout,
+	WorkspaceAgentLifecycleStartError,
+	WorkspaceAgentLifecycleReady,
+	WorkspaceAgentLifecycleShuttingDown,
+	WorkspaceAgentLifecycleShutdownTimeout,
+	WorkspaceAgentLifecycleShutdownError,
+	WorkspaceAgentLifecycleOff,
+}
 
 type WorkspaceAgent struct {
 	ID                   uuid.UUID               `json:"id" format:"uuid"`

@@ -121,6 +121,7 @@ func New(options Options) io.Closer {
 		logDir:                 options.LogDir,
 		tempDir:                options.TempDir,
 		lifecycleUpdate:        make(chan struct{}, 1),
+		lifecycleReported:      make(chan codersdk.WorkspaceAgentLifecycle, 1),
 		connStatsChan:          make(chan *agentsdk.Stats, 1),
 	}
 	a.init(ctx)
@@ -149,9 +150,10 @@ type agent struct {
 	sessionToken atomic.Pointer[string]
 	sshServer    *ssh.Server
 
-	lifecycleUpdate chan struct{}
-	lifecycleMu     sync.Mutex // Protects following.
-	lifecycleState  codersdk.WorkspaceAgentLifecycle
+	lifecycleUpdate   chan struct{}
+	lifecycleReported chan codersdk.WorkspaceAgentLifecycle
+	lifecycleMu       sync.RWMutex // Protects following.
+	lifecycleState    codersdk.WorkspaceAgentLifecycle
 
 	network       *tailnet.Conn
 	connStatsChan chan *agentsdk.Stats
@@ -207,9 +209,9 @@ func (a *agent) reportLifecycleLoop(ctx context.Context) {
 		}
 
 		for r := retry.New(time.Second, 15*time.Second); r.Wait(ctx); {
-			a.lifecycleMu.Lock()
+			a.lifecycleMu.RLock()
 			state := a.lifecycleState
-			a.lifecycleMu.Unlock()
+			a.lifecycleMu.RUnlock()
 
 			if state == lastReported {
 				break
@@ -222,6 +224,11 @@ func (a *agent) reportLifecycleLoop(ctx context.Context) {
 			})
 			if err == nil {
 				lastReported = state
+				select {
+				case a.lifecycleReported <- state:
+				case <-a.lifecycleReported:
+					a.lifecycleReported <- state
+				}
 				break
 			}
 			if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
@@ -233,13 +240,20 @@ func (a *agent) reportLifecycleLoop(ctx context.Context) {
 	}
 }
 
+// setLifecycle sets the lifecycle state and notifies the lifecycle loop.
+// The state is only updated if it's a valid state transition.
 func (a *agent) setLifecycle(ctx context.Context, state codersdk.WorkspaceAgentLifecycle) {
 	a.lifecycleMu.Lock()
-	defer a.lifecycleMu.Unlock()
-
-	a.logger.Debug(ctx, "set lifecycle state", slog.F("state", state), slog.F("previous", a.lifecycleState))
-
+	lastState := a.lifecycleState
+	if slices.Index(codersdk.WorkspaceAgentLifecycleOrder, lastState) > slices.Index(codersdk.WorkspaceAgentLifecycleOrder, state) {
+		a.logger.Warn(ctx, "attempted to set lifecycle state to a previous state", slog.F("last", lastState), slog.F("state", state))
+		a.lifecycleMu.Unlock()
+		return
+	}
 	a.lifecycleState = state
+	a.logger.Debug(ctx, "set lifecycle state", slog.F("state", state), slog.F("last", lastState))
+	a.lifecycleMu.Unlock()
+
 	select {
 	case a.lifecycleUpdate <- struct{}{}:
 	default:
@@ -330,15 +344,15 @@ func (a *agent) run(ctx context.Context) error {
 				return
 			}
 			execTime := time.Since(scriptStart)
-			lifecycleStatus := codersdk.WorkspaceAgentLifecycleReady
+			lifecycleState := codersdk.WorkspaceAgentLifecycleReady
 			if err != nil {
 				a.logger.Warn(ctx, "startup script failed", slog.F("execution_time", execTime), slog.Error(err))
-				lifecycleStatus = codersdk.WorkspaceAgentLifecycleStartError
+				lifecycleState = codersdk.WorkspaceAgentLifecycleStartError
 			} else {
 				a.logger.Info(ctx, "startup script completed", slog.F("execution_time", execTime))
 			}
 
-			a.setLifecycle(ctx, lifecycleStatus)
+			a.setLifecycle(ctx, lifecycleState)
 		}()
 	}
 
@@ -1298,25 +1312,72 @@ func (a *agent) Close() error {
 	if a.isClosed() {
 		return nil
 	}
-	close(a.closed)
-	a.closeCancel()
 
+	ctx := context.Background()
+	a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleShuttingDown)
+
+	// Close services before running shutdown script.
+	// TODO(mafredri): Gracefully shutdown:
+	// - Close active SSH server connections
+	// - Close processes (send HUP, wait, etc.)
+
+	lifecycleState := codersdk.WorkspaceAgentLifecycleOff
 	if metadata, ok := a.metadata.Load().(agentsdk.Metadata); ok {
-		ctx := context.Background()
-		err := a.runShutdownScript(ctx, metadata.ShutdownScript)
-		if err != nil {
-			a.logger.Error(ctx, "shutdown script failed", slog.Error(err))
+		scriptDone := make(chan error, 1)
+		scriptStart := time.Now()
+		go func() {
+			defer close(scriptDone)
+			scriptDone <- a.runShutdownScript(ctx, metadata.ShutdownScript)
+		}()
+
+		var timeout <-chan time.Time
+		// If timeout is zero, an older version of the coder
+		// provider was used. Otherwise a timeout is always > 0.
+		if metadata.ShutdownScriptTimeout > 0 {
+			t := time.NewTimer(metadata.ShutdownScriptTimeout)
+			defer t.Stop()
+			timeout = t.C
 		}
-	} else {
-		// No metadata.. halt?
+
+		var err error
+		select {
+		case err = <-scriptDone:
+		case <-timeout:
+			a.logger.Warn(ctx, "shutdown script timed out")
+			a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleShutdownTimeout)
+			err = <-scriptDone // The script can still complete after a timeout.
+		}
+		execTime := time.Since(scriptStart)
+		if err != nil {
+			a.logger.Warn(ctx, "shutdown script failed", slog.F("execution_time", execTime), slog.Error(err))
+			lifecycleState = codersdk.WorkspaceAgentLifecycleShutdownError
+		} else {
+			a.logger.Info(ctx, "shutdown script completed", slog.F("execution_time", execTime))
+		}
+	}
+
+	// Set final state and wait for it to be reported because context
+	// cancellation will stop the report loop.
+	a.setLifecycle(ctx, lifecycleState)
+	for s := range a.lifecycleReported {
+		if s == lifecycleState {
+			break
+		}
+	}
+
+	if lifecycleState != codersdk.WorkspaceAgentLifecycleOff {
+		// TODO(mafredri): Delay shutdown, ensure debugging is possible.
 		_ = false
 	}
 
+	close(a.closed)
+	a.closeCancel()
+	_ = a.sshServer.Close()
 	if a.network != nil {
 		_ = a.network.Close()
 	}
-	_ = a.sshServer.Close()
 	a.connCloseWait.Wait()
+
 	return nil
 }
 

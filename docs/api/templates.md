@@ -1705,27 +1705,31 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property               | Value           |
-| ---------------------- | --------------- |
-| `health`               | `disabled`      |
-| `health`               | `initializing`  |
-| `health`               | `healthy`       |
-| `health`               | `unhealthy`     |
-| `sharing_level`        | `owner`         |
-| `sharing_level`        | `authenticated` |
-| `sharing_level`        | `public`        |
-| `lifecycle_state`      | `created`       |
-| `lifecycle_state`      | `starting`      |
-| `lifecycle_state`      | `start_timeout` |
-| `lifecycle_state`      | `start_error`   |
-| `lifecycle_state`      | `ready`         |
-| `status`               | `connecting`    |
-| `status`               | `connected`     |
-| `status`               | `disconnected`  |
-| `status`               | `timeout`       |
-| `workspace_transition` | `start`         |
-| `workspace_transition` | `stop`          |
-| `workspace_transition` | `delete`        |
+| Property               | Value              |
+| ---------------------- | ------------------ |
+| `health`               | `disabled`         |
+| `health`               | `initializing`     |
+| `health`               | `healthy`          |
+| `health`               | `unhealthy`        |
+| `sharing_level`        | `owner`            |
+| `sharing_level`        | `authenticated`    |
+| `sharing_level`        | `public`           |
+| `lifecycle_state`      | `created`          |
+| `lifecycle_state`      | `starting`         |
+| `lifecycle_state`      | `start_timeout`    |
+| `lifecycle_state`      | `start_error`      |
+| `lifecycle_state`      | `ready`            |
+| `lifecycle_state`      | `shutting_down`    |
+| `lifecycle_state`      | `shutdown_timeout` |
+| `lifecycle_state`      | `shutdown_error`   |
+| `lifecycle_state`      | `off`              |
+| `status`               | `connecting`       |
+| `status`               | `connected`        |
+| `status`               | `disconnected`     |
+| `status`               | `timeout`          |
+| `workspace_transition` | `start`            |
+| `workspace_transition` | `stop`             |
+| `workspace_transition` | `delete`           |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2126,27 +2130,31 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property               | Value           |
-| ---------------------- | --------------- |
-| `health`               | `disabled`      |
-| `health`               | `initializing`  |
-| `health`               | `healthy`       |
-| `health`               | `unhealthy`     |
-| `sharing_level`        | `owner`         |
-| `sharing_level`        | `authenticated` |
-| `sharing_level`        | `public`        |
-| `lifecycle_state`      | `created`       |
-| `lifecycle_state`      | `starting`      |
-| `lifecycle_state`      | `start_timeout` |
-| `lifecycle_state`      | `start_error`   |
-| `lifecycle_state`      | `ready`         |
-| `status`               | `connecting`    |
-| `status`               | `connected`     |
-| `status`               | `disconnected`  |
-| `status`               | `timeout`       |
-| `workspace_transition` | `start`         |
-| `workspace_transition` | `stop`          |
-| `workspace_transition` | `delete`        |
+| Property               | Value              |
+| ---------------------- | ------------------ |
+| `health`               | `disabled`         |
+| `health`               | `initializing`     |
+| `health`               | `healthy`          |
+| `health`               | `unhealthy`        |
+| `sharing_level`        | `owner`            |
+| `sharing_level`        | `authenticated`    |
+| `sharing_level`        | `public`           |
+| `lifecycle_state`      | `created`          |
+| `lifecycle_state`      | `starting`         |
+| `lifecycle_state`      | `start_timeout`    |
+| `lifecycle_state`      | `start_error`      |
+| `lifecycle_state`      | `ready`            |
+| `lifecycle_state`      | `shutting_down`    |
+| `lifecycle_state`      | `shutdown_timeout` |
+| `lifecycle_state`      | `shutdown_error`   |
+| `lifecycle_state`      | `off`              |
+| `status`               | `connecting`       |
+| `status`               | `connected`        |
+| `status`               | `disconnected`     |
+| `status`               | `timeout`          |
+| `workspace_transition` | `start`            |
+| `workspace_transition` | `stop`             |
+| `workspace_transition` | `delete`           |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

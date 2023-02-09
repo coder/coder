@@ -1014,11 +1014,15 @@ func AllUserStatusValues() []UserStatus {
 type WorkspaceAgentLifecycleState string
 
 const (
-	WorkspaceAgentLifecycleStateCreated      WorkspaceAgentLifecycleState = "created"
-	WorkspaceAgentLifecycleStateStarting     WorkspaceAgentLifecycleState = "starting"
-	WorkspaceAgentLifecycleStateStartTimeout WorkspaceAgentLifecycleState = "start_timeout"
-	WorkspaceAgentLifecycleStateStartError   WorkspaceAgentLifecycleState = "start_error"
-	WorkspaceAgentLifecycleStateReady        WorkspaceAgentLifecycleState = "ready"
+	WorkspaceAgentLifecycleStateCreated         WorkspaceAgentLifecycleState = "created"
+	WorkspaceAgentLifecycleStateStarting        WorkspaceAgentLifecycleState = "starting"
+	WorkspaceAgentLifecycleStateStartTimeout    WorkspaceAgentLifecycleState = "start_timeout"
+	WorkspaceAgentLifecycleStateStartError      WorkspaceAgentLifecycleState = "start_error"
+	WorkspaceAgentLifecycleStateReady           WorkspaceAgentLifecycleState = "ready"
+	WorkspaceAgentLifecycleStateShuttingDown    WorkspaceAgentLifecycleState = "shutting_down"
+	WorkspaceAgentLifecycleStateShutdownTimeout WorkspaceAgentLifecycleState = "shutdown_timeout"
+	WorkspaceAgentLifecycleStateShutdownError   WorkspaceAgentLifecycleState = "shutdown_error"
+	WorkspaceAgentLifecycleStateOff             WorkspaceAgentLifecycleState = "off"
 )
 
 func (e *WorkspaceAgentLifecycleState) Scan(src interface{}) error {
@@ -1062,7 +1066,11 @@ func (e WorkspaceAgentLifecycleState) Valid() bool {
 		WorkspaceAgentLifecycleStateStarting,
 		WorkspaceAgentLifecycleStateStartTimeout,
 		WorkspaceAgentLifecycleStateStartError,
-		WorkspaceAgentLifecycleStateReady:
+		WorkspaceAgentLifecycleStateReady,
+		WorkspaceAgentLifecycleStateShuttingDown,
+		WorkspaceAgentLifecycleStateShutdownTimeout,
+		WorkspaceAgentLifecycleStateShutdownError,
+		WorkspaceAgentLifecycleStateOff:
 		return true
 	}
 	return false
@@ -1075,6 +1083,10 @@ func AllWorkspaceAgentLifecycleStateValues() []WorkspaceAgentLifecycleState {
 		WorkspaceAgentLifecycleStateStartTimeout,
 		WorkspaceAgentLifecycleStateStartError,
 		WorkspaceAgentLifecycleStateReady,
+		WorkspaceAgentLifecycleStateShuttingDown,
+		WorkspaceAgentLifecycleStateShutdownTimeout,
+		WorkspaceAgentLifecycleStateShutdownError,
+		WorkspaceAgentLifecycleStateOff,
 	}
 }
 
