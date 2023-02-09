@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -251,6 +252,43 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subject Subject, action A
 	return nil
 }
 
+type inputType struct {
+	Subject authSubject `json:"subject"`
+	Action  Action      `json:"action"`
+	Object  Object      `json:"object"`
+}
+
+func (i inputType) Value() (ast.Value, error) {
+	s := [2]*ast.Term{
+		ast.StringTerm("subject"),
+		ast.NewTerm(ast.NewObject([2]*ast.Term{
+			// ID
+			ast.StringTerm("id"),
+			ast.NewTerm(ast.NewObject([2]*ast.Term{
+				ast.StringTerm("id"),
+				ast.StringTerm(i.Subject.ID),
+			})),
+			////
+			//ast.NewTerm(ast.NewObject([2]*ast.Term{
+			//	ast.StringTerm("groups"),
+			//	ast.NewTerm(ast.NewArray(i.Subject.Groups)),
+			//})),
+		})),
+	}
+	o := [2]*ast.Term{
+		ast.StringTerm("subject"),
+		ast.StringTerm(i.Subject.ID),
+	}
+	a := [2]*ast.Term{
+		ast.StringTerm("action"),
+		ast.StringTerm(string(i.Action)),
+	}
+
+	input := ast.NewObject(s, a, o)
+
+	return input, nil
+}
+
 // authorize is the internal function that does the actual authorization.
 // It is a different function so the exported one can add tracing + metrics.
 // That code tends to clutter up the actual logic, so it's separated out.
@@ -272,25 +310,44 @@ func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action A
 	if err != nil {
 		return xerrors.Errorf("expand scope: %w", err)
 	}
+	var _, _ = subjRoles, subjScope
 
-	input := map[string]interface{}{
-		"subject": authSubject{
-			ID:     subject.ID,
-			Roles:  subjRoles,
-			Groups: subject.Groups,
-			Scope:  subjScope,
-		},
-		"object": object,
-		"action": action,
-	}
+	//input := inputType{
+	//	Subject: authSubject{
+	//		ID:     subject.ID,
+	//		Roles:  subjRoles,
+	//		Groups: subject.Groups,
+	//		Scope:  subjScope,
+	//	},
+	//	Action: action,
+	//	Object: object,
+	//}
 
-	results, err := a.query.Eval(ctx, rego.EvalInput(input))
+	//jinput := map[string]interface{}{
+	//	"subject": authSubject{
+	//		ID:     subject.ID,
+	//		Roles:  subjRoles,
+	//		Groups: subject.Groups,
+	//		Scope:  subjScope,
+	//	},
+	//	"object": object,
+	//	"action": action,
+	//}
+	//var _ = jinput
+
+	astV, err := regoInputValue(subject, action, object)
 	if err != nil {
-		return ForbiddenWithInternal(xerrors.Errorf("eval rego: %w", err), input, results)
+		return xerrors.Errorf("convert input to value: %w", err)
+	}
+	var _ = astV
+
+	results, err := a.query.Eval(ctx, rego.EvalParsedInput(astV))
+	if err != nil {
+		return ForbiddenWithInternal(xerrors.Errorf("eval rego: %w", err), nil, results)
 	}
 
 	if !results.Allowed() {
-		return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), input, results)
+		return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), nil, results)
 	}
 	return nil
 }

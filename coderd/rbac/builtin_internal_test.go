@@ -3,10 +3,52 @@ package rbac
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/google/uuid"
+	"github.com/open-policy-agent/opa/ast"
+	"github.com/stretchr/testify/require"
 )
+
+func BenchmarkRBACValueAllocation(b *testing.B) {
+	actor := Subject{
+		Roles:  RoleNames{RoleOrgMember(uuid.New()), RoleOrgAdmin(uuid.New()), RoleMember()},
+		ID:     uuid.NewString(),
+		Scope:  ScopeAll,
+		Groups: []string{uuid.NewString(), uuid.NewString(), uuid.NewString()},
+	}
+	obj := ResourceTemplate.
+		WithID(uuid.New()).
+		InOrg(uuid.New()).
+		WithOwner(uuid.NewString()).
+		WithGroupACL(map[string][]Action{
+			uuid.NewString(): {ActionRead, ActionCreate},
+			uuid.NewString(): {ActionRead, ActionCreate},
+			uuid.NewString(): {ActionRead, ActionCreate},
+		}).WithACLUserList(map[string][]Action{
+		uuid.NewString(): {ActionRead, ActionCreate},
+		uuid.NewString(): {ActionRead, ActionCreate},
+	})
+
+	jsonSubject := authSubject{
+		ID:     actor.ID,
+		Roles:  must(actor.Roles.Expand()),
+		Groups: actor.Groups,
+		Scope:  must(actor.Scope.Expand()),
+	}
+
+	b.Run("ManualRegoValue", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_, err := regoInputValue(actor, ActionRead, obj)
+			require.NoError(b, err)
+		}
+	})
+	b.Run("JSONRegoValue", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_, err := ast.InterfaceToValue(jsonSubject)
+			require.NoError(b, err)
+		}
+	})
+
+}
 
 func TestRoleByName(t *testing.T) {
 	t.Parallel()
