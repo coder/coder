@@ -263,17 +263,6 @@ func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action A
 		return xerrors.Errorf("subject must have a scope")
 	}
 
-	subjRoles, err := subject.Roles.Expand()
-	if err != nil {
-		return xerrors.Errorf("expand roles: %w", err)
-	}
-
-	subjScope, err := subject.Scope.Expand()
-	if err != nil {
-		return xerrors.Errorf("expand scope: %w", err)
-	}
-	var _, _ = subjRoles, subjScope
-
 	astV, err := regoInputValue(subject, action, object)
 	if err != nil {
 		return xerrors.Errorf("convert input to value: %w", err)
