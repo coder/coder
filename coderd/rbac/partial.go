@@ -127,6 +127,23 @@ EachQueryLoop:
 		pa.subjectInput, pa.subjectAction, pa.subjectResourceType, nil)
 }
 
+// Precompiled values to be reused for each Prepare call.
+// These values are static and do not change.
+var (
+	// unknownTerms are the unknown values in the rego input.
+	// These values are pre-parsed to prevent reparsing on every Prepare call.
+	unknownTerms = []*ast.Term{
+		ast.MustParseTerm("input.object.id"),
+		ast.MustParseTerm("input.object.owner"),
+		ast.MustParseTerm("input.object.org_owner"),
+		ast.MustParseTerm("input.object.acl_user_list"),
+		ast.MustParseTerm("input.object.acl_group_list"),
+	}
+
+	partialQuery = ast.MustParseBody("data.authz.allow = true")
+	policyModule = ast.MustParseModule(policy)
+)
+
 func newPartialAuthorizer(ctx context.Context, subject Subject, action Action, objectType string) (*PartialAuthorizer, error) {
 	if subject.Roles == nil {
 		return nil, xerrors.Errorf("subject must have roles")
@@ -143,15 +160,9 @@ func newPartialAuthorizer(ctx context.Context, subject Subject, action Action, o
 	// Run the rego policy with a few unknown fields. This should simplify our
 	// policy to a set of queries.
 	partialQueries, err := rego.New(
-		rego.Query("data.authz.allow = true"),
-		rego.Module("policy.rego", policy),
-		rego.Unknowns([]string{
-			"input.object.id",
-			"input.object.owner",
-			"input.object.org_owner",
-			"input.object.acl_user_list",
-			"input.object.acl_group_list",
-		}),
+		rego.ParsedQuery(partialQuery),
+		rego.ParsedModule(policyModule),
+		rego.ParsedUnknowns(unknownTerms),
 		rego.ParsedInput(input),
 	).Partial(ctx)
 	if err != nil {
