@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS template_version_variables (
     description text not null,
     type text not null,
     value text not null,
-	default_value text not null,
+    default_value text not null,
     required boolean not null,
     sensitive boolean not null,
     unique (template_version_id, name)
