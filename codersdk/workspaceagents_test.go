@@ -91,5 +91,6 @@ func TestAgentReportStats(t *testing.T) {
 		func() bool { return numReports.Load() >= 3 },
 		testutil.WaitMedium, testutil.IntervalFast,
 	)
+	closeStream.Close()
 	require.Equal(t, int64(1), numIntervalCalls.Load())
 }

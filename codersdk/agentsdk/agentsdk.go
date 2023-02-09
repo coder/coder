@@ -371,6 +371,7 @@ func (c *Client) AuthAzureInstanceIdentity(ctx context.Context) (AuthenticateRes
 func (c *Client) ReportStats(ctx context.Context, log slog.Logger, statsChan <-chan *Stats, setInterval func(time.Duration)) (io.Closer, error) {
 	var interval time.Duration
 	ctx, cancel := context.WithCancel(ctx)
+	exited := make(chan struct{})
 
 	postStat := func(stat *Stats) {
 		var nextInterval time.Duration
@@ -387,7 +388,7 @@ func (c *Client) ReportStats(ctx context.Context, log slog.Logger, statsChan <-c
 			break
 		}
 
-		if interval != nextInterval {
+		if nextInterval != 0 && interval != nextInterval {
 			setInterval(nextInterval)
 		}
 		interval = nextInterval
@@ -397,6 +398,8 @@ func (c *Client) ReportStats(ctx context.Context, log slog.Logger, statsChan <-c
 	postStat(&Stats{ConnsByProto: map[string]int64{}})
 
 	go func() {
+		defer close(exited)
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -413,6 +416,7 @@ func (c *Client) ReportStats(ctx context.Context, log slog.Logger, statsChan <-c
 
 	return closeFunc(func() error {
 		cancel()
+		<-exited
 		return nil
 	}), nil
 }
