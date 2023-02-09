@@ -19,19 +19,19 @@ import { FC, useCallback, useEffect, useRef, useState } from "react"
 import { navHeight } from "theme/constants"
 import {
   existsFile,
+  FileTree,
   getFileContent,
   isFolder,
   removeFile,
   setFile,
-  TemplateVersionFileTree,
   traverse,
-} from "util/templateVersion"
+} from "util/filetree"
 import {
   CreateFileDialog,
   DeleteFileDialog,
   RenameFileDialog,
 } from "./FileDialog"
-import { FileTree } from "./FileTree"
+import { FileTreeView } from "./FileTreeView"
 import { MonacoEditor } from "./MonacoEditor"
 import {
   getStatus,
@@ -41,20 +41,18 @@ import {
 export interface TemplateVersionEditorProps {
   template: Template
   templateVersion: TemplateVersion
-  initialFiles: TemplateVersionFileTree
+  defaultFileTree: FileTree
   buildLogs?: ProvisionerJobLog[]
   resources?: WorkspaceResource[]
   disablePreview: boolean
   disableUpdate: boolean
-  onPreview: (files: TemplateVersionFileTree) => void
+  onPreview: (files: FileTree) => void
   onUpdate: () => void
 }
 
 const topbarHeight = navHeight
 
-const findInitialFile = (
-  fileTree: TemplateVersionFileTree,
-): string | undefined => {
+const findInitialFile = (fileTree: FileTree): string | undefined => {
   let initialFile: string | undefined
 
   traverse(fileTree, (content, filename, path) => {
@@ -71,7 +69,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   disableUpdate,
   template,
   templateVersion,
-  initialFiles,
+  defaultFileTree,
   onPreview,
   onUpdate,
   buildLogs,
@@ -82,7 +80,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
     // This is for Storybook!
     return resources ? 1 : 0
   })
-  const [fileTree, setFileTree] = useState(initialFiles)
+  const [fileTree, setFileTree] = useState(defaultFileTree)
   const [createFileOpen, setCreateFileOpen] = useState(false)
   const [deleteFileOpen, setDeleteFileOpen] = useState<string>()
   const [renameFileOpen, setRenameFileOpen] = useState<string>()
@@ -283,7 +281,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               }}
             />
           </div>
-          <FileTree
+          <FileTreeView
             fileTree={fileTree}
             onDelete={(file) => setDeleteFileOpen(file)}
             onSelect={(filePath) => {

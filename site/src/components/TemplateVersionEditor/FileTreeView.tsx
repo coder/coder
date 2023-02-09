@@ -6,21 +6,20 @@ import TreeItem from "@material-ui/lab/TreeItem"
 import Menu from "@material-ui/core/Menu"
 import MenuItem from "@material-ui/core/MenuItem"
 import { FC, useState } from "react"
-import { TemplateVersionFileTree } from "util/templateVersion"
+import { FileTree } from "util/filetree"
 import { DockerIcon } from "components/Icons/DockerIcon"
 
-const sortFileTree =
-  (fileTree: TemplateVersionFileTree) => (a: string, b: string) => {
-    const contentA = fileTree[a]
-    const contentB = fileTree[b]
-    if (typeof contentA === "object") {
-      return -1
-    }
-    if (typeof contentB === "object") {
-      return 1
-    }
-    return a.localeCompare(b)
+const sortFileTree = (fileTree: FileTree) => (a: string, b: string) => {
+  const contentA = fileTree[a]
+  const contentB = fileTree[b]
+  if (typeof contentA === "object") {
+    return -1
   }
+  if (typeof contentB === "object") {
+    return 1
+  }
+  return a.localeCompare(b)
+}
 
 type ContextMenu = {
   path: string
@@ -28,11 +27,11 @@ type ContextMenu = {
   clientY: number
 }
 
-export const FileTree: FC<{
+export const FileTreeView: FC<{
   onSelect: (path: string) => void
   onDelete: (path: string) => void
   onRename: (path: string) => void
-  fileTree: TemplateVersionFileTree
+  fileTree: FileTree
   activePath?: string
 }> = ({ fileTree, activePath, onDelete, onRename, onSelect }) => {
   const styles = useStyles()
@@ -40,7 +39,7 @@ export const FileTree: FC<{
 
   const buildTreeItems = (
     filename: string,
-    content?: TemplateVersionFileTree | string,
+    content?: FileTree | string,
     parentPath?: string,
   ): JSX.Element => {
     const currentPath = parentPath ? `${parentPath}/${filename}` : filename

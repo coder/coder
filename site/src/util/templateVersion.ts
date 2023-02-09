@@ -1,10 +1,7 @@
 import * as API from "api/api"
 import { TemplateVersion } from "api/typesGenerated"
 import untar from "js-untar"
-import set from "lodash/set"
-import has from "lodash/has"
-import omit from "lodash/omit"
-import get from "lodash/get"
+import { FileTree, setFile } from "./filetree"
 
 /**
  * Content by filename
@@ -42,87 +39,29 @@ export const getTemplateVersionFiles = async (
   return files
 }
 
-export type TemplateVersionFileTree = {
-  [key: string]: TemplateVersionFileTree | string
-}
+const allowedExtensions = ["tf", "md", "Dockerfile"]
 
-export const getTemplateVersionFileTree = async (
+export const createTemplateVersionFileTree = async (
   version: TemplateVersion,
-  allowedExtensions: string[],
-  allowedFiles: string[],
-): Promise<TemplateVersionFileTree> => {
-  let fileTree: TemplateVersionFileTree = {}
+): Promise<FileTree> => {
+  let fileTree: FileTree = {}
   const tarFile = await API.getFile(version.job.file_id)
   const blobs: Record<string, Blob> = {}
 
   await untar(tarFile).then(undefined, undefined, async (file) => {
-    const fullPath = file.name
-    const paths = fullPath.split("/")
-    const filename = paths[paths.length - 1]
-    const [_, extension] = filename.split(".")
-
-    if (
-      allowedExtensions.includes(extension) ||
-      allowedFiles.includes(filename)
-    ) {
-      blobs[fullPath] = file.blob
+    if (allowedExtensions.some((ext) => file.name.endsWith(ext))) {
+      blobs[file.name] = file.blob
     }
   })
 
+  // We don't want to get the blob text during untar to not block the main thread.
+  // Also, by doing it here, we can make all the loading in parallel.
   await Promise.all(
     Object.entries(blobs).map(async ([fullPath, blob]) => {
-      const paths = fullPath.split("/")
       const content = await blob.text()
-      fileTree = set(fileTree, paths, content)
+      fileTree = setFile(fullPath, content, fileTree)
     }),
   )
 
   return fileTree
-}
-
-export const setFile = (
-  path: string,
-  content: string,
-  fileTree: TemplateVersionFileTree,
-): TemplateVersionFileTree => {
-  return set(fileTree, path.split("/"), content)
-}
-
-export const existsFile = (path: string, fileTree: TemplateVersionFileTree) => {
-  return has(fileTree, path.split("/"))
-}
-
-export const removeFile = (path: string, fileTree: TemplateVersionFileTree) => {
-  return omit(fileTree, path.split("/"))
-}
-
-export const getFileContent = (
-  path: string,
-  fileTree: TemplateVersionFileTree,
-) => {
-  return get(fileTree, path.split("/")) as string | TemplateVersionFileTree
-}
-
-export const isFolder = (path: string, fileTree: TemplateVersionFileTree) => {
-  const content = getFileContent(path, fileTree)
-  return typeof content === "object"
-}
-
-export const traverse = (
-  fileTree: TemplateVersionFileTree,
-  callback: (
-    content: TemplateVersionFileTree | string,
-    filename: string,
-    fullPath: string,
-  ) => void,
-  parent?: string,
-) => {
-  Object.keys(fileTree).forEach((filename) => {
-    const fullPath = parent ? `${parent}/${filename}` : filename
-    const content = fileTree[filename]
-    callback(content, filename, fullPath)
-    if (typeof content === "object") {
-      traverse(content, callback, fullPath)
-    }
-  })
 }

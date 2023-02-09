@@ -35,7 +35,7 @@ export const TemplateVersionEditorPage: FC = () => {
         <TemplateVersionEditor
           template={data.template}
           templateVersion={editorState.context.version || data.currentVersion}
-          initialFiles={data.files}
+          defaultFileTree={data.fileTree}
           onPreview={(files) => {
             sendEvent({
               type: "CREATE_VERSION",

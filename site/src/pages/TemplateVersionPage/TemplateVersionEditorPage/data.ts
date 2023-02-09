@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { getTemplateByName, getTemplateVersionByName } from "api/api"
-import { getTemplateVersionFileTree } from "util/templateVersion"
+import { createTemplateVersionFileTree } from "util/templateVersion"
 
 const getTemplateVersionData = async (
   orgId: string,
@@ -11,19 +11,12 @@ const getTemplateVersionData = async (
     getTemplateByName(orgId, templateName),
     getTemplateVersionByName(orgId, templateName, versionName),
   ])
-
-  const allowedExtensions = ["tf", "md", "Dockerfile"]
-  const allowedFiles = ["Dockerfile"]
-  const files = await getTemplateVersionFileTree(
-    currentVersion,
-    allowedExtensions,
-    allowedFiles,
-  )
+  const fileTree = await createTemplateVersionFileTree(currentVersion)
 
   return {
     template,
     currentVersion,
-    files,
+    fileTree,
   }
 }
 
