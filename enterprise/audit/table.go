@@ -146,8 +146,10 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"ip_address":       ActionIgnore,
 		"scope":            ActionIgnore,
 	},
+	// TODO: track an ID here when the below ticket is completed:
+	// https://github.com/coder/coder/pull/6012
 	&database.License{}: {
-		"id":          ActionTrack,
+		"id":          ActionIgnore,
 		"uploaded_at": ActionIgnore,
 		"jwt":         ActionIgnore,
 		"exp":         ActionTrack,

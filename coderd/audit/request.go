@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/tabbed/pqtype"
@@ -73,7 +72,10 @@ func ResourceTarget[T Auditable](tgt T) string {
 		// this isn't used
 		return ""
 	case database.License:
-		return strconv.FormatInt(int64(typed.ID), 10)
+		// this isn't used
+		// TODO: return an ID here when the below ticket is completed:
+		// https://github.com/coder/coder/pull/6012
+		return ""
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -98,7 +100,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 	case database.APIKey:
 		return typed.UserID
 	case database.License:
-		// this isn't right
+		// TODO: return a valid ID here when the below ticket is completed:
+		// https://github.com/coder/coder/pull/6012
 		return uuid.New()
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
