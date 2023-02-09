@@ -15,53 +15,53 @@ import (
 	"github.com/coder/coder/coderd/util/slice"
 )
 
-func (q *authzQuerier) Ping(ctx context.Context) (time.Duration, error) {
+func (q *querier) Ping(ctx context.Context) (time.Duration, error) {
 	return q.db.Ping(ctx)
 }
 
 // InTx runs the given function in a transaction.
-func (q *authzQuerier) InTx(function func(querier database.Store) error, txOpts *sql.TxOptions) error {
+func (q *querier) InTx(function func(querier database.Store) error, txOpts *sql.TxOptions) error {
 	return q.db.InTx(func(tx database.Store) error {
-		// Wrap the transaction store in an authzQuerier.
+		// Wrap the transaction store in a querier.
 		wrapped := New(tx, q.auth, q.log)
 		return function(wrapped)
 	}, txOpts)
 }
 
-func (q *authzQuerier) DeleteAPIKeyByID(ctx context.Context, id string) error {
+func (q *querier) DeleteAPIKeyByID(ctx context.Context, id string) error {
 	return deleteQ(q.log, q.auth, q.db.GetAPIKeyByID, q.db.DeleteAPIKeyByID)(ctx, id)
 }
 
-func (q *authzQuerier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
+func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
 	return fetch(q.log, q.auth, q.db.GetAPIKeyByID)(ctx, id)
 }
 
-func (q *authzQuerier) GetAPIKeysByLoginType(ctx context.Context, loginType database.LoginType) ([]database.APIKey, error) {
+func (q *querier) GetAPIKeysByLoginType(ctx context.Context, loginType database.LoginType) ([]database.APIKey, error) {
 	return fetchWithPostFilter(q.auth, q.db.GetAPIKeysByLoginType)(ctx, loginType)
 }
 
-func (q *authzQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]database.APIKey, error) {
+func (q *querier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]database.APIKey, error) {
 	return fetchWithPostFilter(q.auth, q.db.GetAPIKeysLastUsedAfter)(ctx, lastUsed)
 }
 
-func (q *authzQuerier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
+func (q *querier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
 	return insert(q.log, q.auth,
 		rbac.ResourceAPIKey.WithOwner(arg.UserID.String()),
 		q.db.InsertAPIKey)(ctx, arg)
 }
 
-func (q *authzQuerier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKeyByIDParams) error {
+func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKeyByIDParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateAPIKeyByIDParams) (database.APIKey, error) {
 		return q.db.GetAPIKeyByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateAPIKeyByID)(ctx, arg)
 }
 
-func (q *authzQuerier) InsertAuditLog(ctx context.Context, arg database.InsertAuditLogParams) (database.AuditLog, error) {
+func (q *querier) InsertAuditLog(ctx context.Context, arg database.InsertAuditLogParams) (database.AuditLog, error) {
 	return insert(q.log, q.auth, rbac.ResourceAuditLog, q.db.InsertAuditLog)(ctx, arg)
 }
 
-func (q *authzQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
+func (q *querier) GetAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
 	// To optimize audit logs, we only check the global audit log permission once.
 	// This is because we expect a large unbounded set of audit logs, and applying a SQL
 	// filter would slow down the query for no benefit.
@@ -71,23 +71,23 @@ func (q *authzQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetA
 	return q.db.GetAuditLogsOffset(ctx, arg)
 }
 
-func (q *authzQuerier) GetFileByHashAndCreator(ctx context.Context, arg database.GetFileByHashAndCreatorParams) (database.File, error) {
+func (q *querier) GetFileByHashAndCreator(ctx context.Context, arg database.GetFileByHashAndCreatorParams) (database.File, error) {
 	return fetch(q.log, q.auth, q.db.GetFileByHashAndCreator)(ctx, arg)
 }
 
-func (q *authzQuerier) GetFileByID(ctx context.Context, id uuid.UUID) (database.File, error) {
+func (q *querier) GetFileByID(ctx context.Context, id uuid.UUID) (database.File, error) {
 	return fetch(q.log, q.auth, q.db.GetFileByID)(ctx, id)
 }
 
-func (q *authzQuerier) InsertFile(ctx context.Context, arg database.InsertFileParams) (database.File, error) {
+func (q *querier) InsertFile(ctx context.Context, arg database.InsertFileParams) (database.File, error) {
 	return insert(q.log, q.auth, rbac.ResourceFile.WithOwner(arg.CreatedBy.String()), q.db.InsertFile)(ctx, arg)
 }
 
-func (q *authzQuerier) DeleteGroupByID(ctx context.Context, id uuid.UUID) error {
+func (q *querier) DeleteGroupByID(ctx context.Context, id uuid.UUID) error {
 	return deleteQ(q.log, q.auth, q.db.GetGroupByID, q.db.DeleteGroupByID)(ctx, id)
 }
 
-func (q *authzQuerier) DeleteGroupMemberFromGroup(ctx context.Context, arg database.DeleteGroupMemberFromGroupParams) error {
+func (q *querier) DeleteGroupMemberFromGroup(ctx context.Context, arg database.DeleteGroupMemberFromGroupParams) error {
 	// Deleting a group member counts as updating a group.
 	fetch := func(ctx context.Context, arg database.DeleteGroupMemberFromGroupParams) (database.Group, error) {
 		return q.db.GetGroupByID(ctx, arg.GroupID)
@@ -95,7 +95,7 @@ func (q *authzQuerier) DeleteGroupMemberFromGroup(ctx context.Context, arg datab
 	return update(q.log, q.auth, fetch, q.db.DeleteGroupMemberFromGroup)(ctx, arg)
 }
 
-func (q *authzQuerier) InsertUserGroupsByName(ctx context.Context, arg database.InsertUserGroupsByNameParams) error {
+func (q *querier) InsertUserGroupsByName(ctx context.Context, arg database.InsertUserGroupsByNameParams) error {
 	// This will add the user to all named groups. This counts as updating a group.
 	// NOTE: instead of checking if the user has permission to update each group, we instead
 	// check if the user has permission to update *a* group in the org.
@@ -105,7 +105,7 @@ func (q *authzQuerier) InsertUserGroupsByName(ctx context.Context, arg database.
 	return update(q.log, q.auth, fetch, q.db.InsertUserGroupsByName)(ctx, arg)
 }
 
-func (q *authzQuerier) DeleteGroupMembersByOrgAndUser(ctx context.Context, arg database.DeleteGroupMembersByOrgAndUserParams) error {
+func (q *querier) DeleteGroupMembersByOrgAndUser(ctx context.Context, arg database.DeleteGroupMembersByOrgAndUserParams) error {
 	// This will remove the user from all groups in the org. This counts as updating a group.
 	// NOTE: instead of fetching all groups in the org with arg.UserID as a member, we instead
 	// check if the caller has permission to update any group in the org.
@@ -115,45 +115,45 @@ func (q *authzQuerier) DeleteGroupMembersByOrgAndUser(ctx context.Context, arg d
 	return update(q.log, q.auth, fetch, q.db.DeleteGroupMembersByOrgAndUser)(ctx, arg)
 }
 
-func (q *authzQuerier) GetGroupByID(ctx context.Context, id uuid.UUID) (database.Group, error) {
+func (q *querier) GetGroupByID(ctx context.Context, id uuid.UUID) (database.Group, error) {
 	return fetch(q.log, q.auth, q.db.GetGroupByID)(ctx, id)
 }
 
-func (q *authzQuerier) GetGroupByOrgAndName(ctx context.Context, arg database.GetGroupByOrgAndNameParams) (database.Group, error) {
+func (q *querier) GetGroupByOrgAndName(ctx context.Context, arg database.GetGroupByOrgAndNameParams) (database.Group, error) {
 	return fetch(q.log, q.auth, q.db.GetGroupByOrgAndName)(ctx, arg)
 }
 
-func (q *authzQuerier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]database.User, error) {
+func (q *querier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]database.User, error) {
 	if _, err := q.GetGroupByID(ctx, groupID); err != nil { // AuthZ check
 		return nil, err
 	}
 	return q.db.GetGroupMembers(ctx, groupID)
 }
 
-func (q *authzQuerier) InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (database.Group, error) {
+func (q *querier) InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (database.Group, error) {
 	// This method creates a new group.
 	return insert(q.log, q.auth, rbac.ResourceGroup.InOrg(organizationID), q.db.InsertAllUsersGroup)(ctx, organizationID)
 }
 
-func (q *authzQuerier) InsertGroup(ctx context.Context, arg database.InsertGroupParams) (database.Group, error) {
+func (q *querier) InsertGroup(ctx context.Context, arg database.InsertGroupParams) (database.Group, error) {
 	return insert(q.log, q.auth, rbac.ResourceGroup.InOrg(arg.OrganizationID), q.db.InsertGroup)(ctx, arg)
 }
 
-func (q *authzQuerier) InsertGroupMember(ctx context.Context, arg database.InsertGroupMemberParams) error {
+func (q *querier) InsertGroupMember(ctx context.Context, arg database.InsertGroupMemberParams) error {
 	fetch := func(ctx context.Context, arg database.InsertGroupMemberParams) (database.Group, error) {
 		return q.db.GetGroupByID(ctx, arg.GroupID)
 	}
 	return update(q.log, q.auth, fetch, q.db.InsertGroupMember)(ctx, arg)
 }
 
-func (q *authzQuerier) UpdateGroupByID(ctx context.Context, arg database.UpdateGroupByIDParams) (database.Group, error) {
+func (q *querier) UpdateGroupByID(ctx context.Context, arg database.UpdateGroupByIDParams) (database.Group, error) {
 	fetch := func(ctx context.Context, arg database.UpdateGroupByIDParams) (database.Group, error) {
 		return q.db.GetGroupByID(ctx, arg.ID)
 	}
 	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateGroupByID)(ctx, arg)
 }
 
-func (q *authzQuerier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg database.UpdateProvisionerJobWithCancelByIDParams) error {
+func (q *querier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg database.UpdateProvisionerJobWithCancelByIDParams) error {
 	job, err := q.db.GetProvisionerJobByID(ctx, arg.ID)
 	if err != nil {
 		return err
@@ -220,7 +220,7 @@ func (q *authzQuerier) UpdateProvisionerJobWithCancelByID(ctx context.Context, a
 	return q.db.UpdateProvisionerJobWithCancelByID(ctx, arg)
 }
 
-func (q *authzQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
+func (q *querier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
 	job, err := q.db.GetProvisionerJobByID(ctx, id)
 	if err != nil {
 		return database.ProvisionerJob{}, err
@@ -247,13 +247,13 @@ func (q *authzQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) 
 	return job, nil
 }
 
-func (q *authzQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
+func (q *querier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
 	// TODO: This is missing authorization and is incorrect. This call is used by telemetry, and by 1 http route.
 	// That http handler should find a better way to fetch these jobs with easier rbac authz.
 	return q.db.GetProvisionerJobsByIDs(ctx, ids)
 }
 
-func (q *authzQuerier) GetProvisionerLogsByIDBetween(ctx context.Context, arg database.GetProvisionerLogsByIDBetweenParams) ([]database.ProvisionerJobLog, error) {
+func (q *querier) GetProvisionerLogsByIDBetween(ctx context.Context, arg database.GetProvisionerLogsByIDBetweenParams) ([]database.ProvisionerJobLog, error) {
 	// Authorized read on job lets the actor also read the logs.
 	_, err := q.GetProvisionerJobByID(ctx, arg.JobID)
 	if err != nil {
@@ -262,39 +262,39 @@ func (q *authzQuerier) GetProvisionerLogsByIDBetween(ctx context.Context, arg da
 	return q.db.GetProvisionerLogsByIDBetween(ctx, arg)
 }
 
-func (q *authzQuerier) GetLicenses(ctx context.Context) ([]database.License, error) {
+func (q *querier) GetLicenses(ctx context.Context) ([]database.License, error) {
 	fetch := func(ctx context.Context, _ interface{}) ([]database.License, error) {
 		return q.db.GetLicenses(ctx)
 	}
 	return fetchWithPostFilter(q.auth, fetch)(ctx, nil)
 }
 
-func (q *authzQuerier) InsertLicense(ctx context.Context, arg database.InsertLicenseParams) (database.License, error) {
+func (q *querier) InsertLicense(ctx context.Context, arg database.InsertLicenseParams) (database.License, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceLicense); err != nil {
 		return database.License{}, err
 	}
 	return q.db.InsertLicense(ctx, arg)
 }
 
-func (q *authzQuerier) InsertOrUpdateLogoURL(ctx context.Context, value string) error {
+func (q *querier) InsertOrUpdateLogoURL(ctx context.Context, value string) error {
 	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
 	}
 	return q.db.InsertOrUpdateLogoURL(ctx, value)
 }
 
-func (q *authzQuerier) InsertOrUpdateServiceBanner(ctx context.Context, value string) error {
+func (q *querier) InsertOrUpdateServiceBanner(ctx context.Context, value string) error {
 	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
 	}
 	return q.db.InsertOrUpdateServiceBanner(ctx, value)
 }
 
-func (q *authzQuerier) GetLicenseByID(ctx context.Context, id int32) (database.License, error) {
+func (q *querier) GetLicenseByID(ctx context.Context, id int32) (database.License, error) {
 	return fetch(q.log, q.auth, q.db.GetLicenseByID)(ctx, id)
 }
 
-func (q *authzQuerier) DeleteLicense(ctx context.Context, id int32) (int32, error) {
+func (q *querier) DeleteLicense(ctx context.Context, id int32) (int32, error) {
 	err := deleteQ(q.log, q.auth, q.db.GetLicenseByID, func(ctx context.Context, id int32) error {
 		_, err := q.db.DeleteLicense(ctx, id)
 		return err
@@ -305,77 +305,77 @@ func (q *authzQuerier) DeleteLicense(ctx context.Context, id int32) (int32, erro
 	return id, nil
 }
 
-func (q *authzQuerier) GetDeploymentID(ctx context.Context) (string, error) {
+func (q *querier) GetDeploymentID(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetDeploymentID(ctx)
 }
 
-func (q *authzQuerier) GetLogoURL(ctx context.Context) (string, error) {
+func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetLogoURL(ctx)
 }
 
-func (q *authzQuerier) GetServiceBanner(ctx context.Context) (string, error) {
+func (q *querier) GetServiceBanner(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetServiceBanner(ctx)
 }
 
-func (q *authzQuerier) GetProvisionerDaemons(ctx context.Context) ([]database.ProvisionerDaemon, error) {
+func (q *querier) GetProvisionerDaemons(ctx context.Context) ([]database.ProvisionerDaemon, error) {
 	fetch := func(ctx context.Context, _ interface{}) ([]database.ProvisionerDaemon, error) {
 		return q.db.GetProvisionerDaemons(ctx)
 	}
 	return fetchWithPostFilter(q.auth, fetch)(ctx, nil)
 }
 
-func (q *authzQuerier) GetDeploymentDAUs(ctx context.Context) ([]database.GetDeploymentDAUsRow, error) {
+func (q *querier) GetDeploymentDAUs(ctx context.Context) ([]database.GetDeploymentDAUsRow, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUser.All()); err != nil {
 		return nil, err
 	}
 	return q.db.GetDeploymentDAUs(ctx)
 }
 
-func (q *authzQuerier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {
+func (q *querier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {
 	return fetchWithPostFilter(q.auth, q.db.GetGroupsByOrganizationID)(ctx, organizationID)
 }
 
-func (q *authzQuerier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
+func (q *querier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
 	return fetch(q.log, q.auth, q.db.GetOrganizationByID)(ctx, id)
 }
 
-func (q *authzQuerier) GetOrganizationByName(ctx context.Context, name string) (database.Organization, error) {
+func (q *querier) GetOrganizationByName(ctx context.Context, name string) (database.Organization, error) {
 	return fetch(q.log, q.auth, q.db.GetOrganizationByName)(ctx, name)
 }
 
-func (q *authzQuerier) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetOrganizationIDsByMemberIDsRow, error) {
+func (q *querier) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetOrganizationIDsByMemberIDsRow, error) {
 	// TODO: This should be rewritten to return a list of database.OrganizationMember for consistent RBAC objects.
 	// Currently this row returns a list of org ids per user, which is challenging to check against the RBAC system.
 	return fetchWithPostFilter(q.auth, q.db.GetOrganizationIDsByMemberIDs)(ctx, ids)
 }
 
-func (q *authzQuerier) GetOrganizationMemberByUserID(ctx context.Context, arg database.GetOrganizationMemberByUserIDParams) (database.OrganizationMember, error) {
+func (q *querier) GetOrganizationMemberByUserID(ctx context.Context, arg database.GetOrganizationMemberByUserIDParams) (database.OrganizationMember, error) {
 	return fetch(q.log, q.auth, q.db.GetOrganizationMemberByUserID)(ctx, arg)
 }
 
-func (q *authzQuerier) GetOrganizationMembershipsByUserID(ctx context.Context, userID uuid.UUID) ([]database.OrganizationMember, error) {
+func (q *querier) GetOrganizationMembershipsByUserID(ctx context.Context, userID uuid.UUID) ([]database.OrganizationMember, error) {
 	return fetchWithPostFilter(q.auth, q.db.GetOrganizationMembershipsByUserID)(ctx, userID)
 }
 
-func (q *authzQuerier) GetOrganizations(ctx context.Context) ([]database.Organization, error) {
+func (q *querier) GetOrganizations(ctx context.Context) ([]database.Organization, error) {
 	fetch := func(ctx context.Context, _ interface{}) ([]database.Organization, error) {
 		return q.db.GetOrganizations(ctx)
 	}
 	return fetchWithPostFilter(q.auth, fetch)(ctx, nil)
 }
 
-func (q *authzQuerier) GetOrganizationsByUserID(ctx context.Context, userID uuid.UUID) ([]database.Organization, error) {
+func (q *querier) GetOrganizationsByUserID(ctx context.Context, userID uuid.UUID) ([]database.Organization, error) {
 	return fetchWithPostFilter(q.auth, q.db.GetOrganizationsByUserID)(ctx, userID)
 }
 
-func (q *authzQuerier) InsertOrganization(ctx context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {
+func (q *querier) InsertOrganization(ctx context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {
 	return insert(q.log, q.auth, rbac.ResourceOrganization, q.db.InsertOrganization)(ctx, arg)
 }
 
-func (q *authzQuerier) InsertOrganizationMember(ctx context.Context, arg database.InsertOrganizationMemberParams) (database.OrganizationMember, error) {
+func (q *querier) InsertOrganizationMember(ctx context.Context, arg database.InsertOrganizationMemberParams) (database.OrganizationMember, error) {
 	// All roles are added roles. Org member is always implied.
 	addedRoles := append(arg.Roles, rbac.RoleOrgMember(arg.OrganizationID))
 	err := q.canAssignRoles(ctx, &arg.OrganizationID, addedRoles, []string{})
@@ -387,7 +387,7 @@ func (q *authzQuerier) InsertOrganizationMember(ctx context.Context, arg databas
 	return insert(q.log, q.auth, obj, q.db.InsertOrganizationMember)(ctx, arg)
 }
 
-func (q *authzQuerier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
+func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
 	// Authorized fetch will check that the actor has read access to the org member since the org member is returned.
 	member, err := q.GetOrganizationMemberByUserID(ctx, database.GetOrganizationMemberByUserIDParams{
 		OrganizationID: arg.OrgID,
@@ -408,7 +408,7 @@ func (q *authzQuerier) UpdateMemberRoles(ctx context.Context, arg database.Updat
 	return q.db.UpdateMemberRoles(ctx, arg)
 }
 
-func (q *authzQuerier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, removed []string) error {
+func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, removed []string) error {
 	actor, ok := ActorFromContext(ctx)
 	if !ok {
 		return NoActorError
@@ -455,7 +455,7 @@ func (q *authzQuerier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, add
 	return nil
 }
 
-func (q *authzQuerier) parameterRBACResource(ctx context.Context, scope database.ParameterScope, scopeID uuid.UUID) (rbac.Objecter, error) {
+func (q *querier) parameterRBACResource(ctx context.Context, scope database.ParameterScope, scopeID uuid.UUID) (rbac.Objecter, error) {
 	var resource rbac.Objecter
 	var err error
 	switch scope {
@@ -484,7 +484,7 @@ func (q *authzQuerier) parameterRBACResource(ctx context.Context, scope database
 	}
 }
 
-func (q *authzQuerier) InsertParameterValue(ctx context.Context, arg database.InsertParameterValueParams) (database.ParameterValue, error) {
+func (q *querier) InsertParameterValue(ctx context.Context, arg database.InsertParameterValueParams) (database.ParameterValue, error) {
 	resource, err := q.parameterRBACResource(ctx, arg.Scope, arg.ScopeID)
 	if err != nil {
 		return database.ParameterValue{}, err
@@ -498,7 +498,7 @@ func (q *authzQuerier) InsertParameterValue(ctx context.Context, arg database.In
 	return q.db.InsertParameterValue(ctx, arg)
 }
 
-func (q *authzQuerier) ParameterValue(ctx context.Context, id uuid.UUID) (database.ParameterValue, error) {
+func (q *querier) ParameterValue(ctx context.Context, id uuid.UUID) (database.ParameterValue, error) {
 	parameter, err := q.db.ParameterValue(ctx, id)
 	if err != nil {
 		return database.ParameterValue{}, err
@@ -520,7 +520,7 @@ func (q *authzQuerier) ParameterValue(ctx context.Context, id uuid.UUID) (databa
 // ParameterValues is implemented as an all or nothing query. If the user is not
 // able to read a single parameter value, then the entire query is denied.
 // This should likely be revisited and see if the usage of this function cannot be changed.
-func (q *authzQuerier) ParameterValues(ctx context.Context, arg database.ParameterValuesParams) ([]database.ParameterValue, error) {
+func (q *querier) ParameterValues(ctx context.Context, arg database.ParameterValuesParams) ([]database.ParameterValue, error) {
 	// This is a bit of a special case. Each parameter value returned might have a different scope. This could likely
 	// be implemented in a more efficient manner.
 	values, err := q.db.ParameterValues(ctx, arg)
@@ -549,7 +549,7 @@ func (q *authzQuerier) ParameterValues(ctx context.Context, arg database.Paramet
 	return values, nil
 }
 
-func (q *authzQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ParameterSchema, error) {
+func (q *querier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ParameterSchema, error) {
 	version, err := q.db.GetTemplateVersionByJobID(ctx, jobID)
 	if err != nil {
 		return nil, err
@@ -570,7 +570,7 @@ func (q *authzQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uui
 	return q.db.GetParameterSchemasByJobID(ctx, jobID)
 }
 
-func (q *authzQuerier) GetParameterValueByScopeAndName(ctx context.Context, arg database.GetParameterValueByScopeAndNameParams) (database.ParameterValue, error) {
+func (q *querier) GetParameterValueByScopeAndName(ctx context.Context, arg database.GetParameterValueByScopeAndNameParams) (database.ParameterValue, error) {
 	resource, err := q.parameterRBACResource(ctx, arg.Scope, arg.ScopeID)
 	if err != nil {
 		return database.ParameterValue{}, err
@@ -584,7 +584,7 @@ func (q *authzQuerier) GetParameterValueByScopeAndName(ctx context.Context, arg 
 	return q.db.GetParameterValueByScopeAndName(ctx, arg)
 }
 
-func (q *authzQuerier) DeleteParameterValueByID(ctx context.Context, id uuid.UUID) error {
+func (q *querier) DeleteParameterValueByID(ctx context.Context, id uuid.UUID) error {
 	parameter, err := q.db.ParameterValue(ctx, id)
 	if err != nil {
 		return err
@@ -604,7 +604,7 @@ func (q *authzQuerier) DeleteParameterValueByID(ctx context.Context, id uuid.UUI
 	return q.db.DeleteParameterValueByID(ctx, id)
 }
 
-func (q *authzQuerier) GetPreviousTemplateVersion(ctx context.Context, arg database.GetPreviousTemplateVersionParams) (database.TemplateVersion, error) {
+func (q *querier) GetPreviousTemplateVersion(ctx context.Context, arg database.GetPreviousTemplateVersionParams) (database.TemplateVersion, error) {
 	// An actor can read the previous template version if they can read the related template.
 	// If no linked template exists, we check if the actor can read *a* template.
 	if !arg.TemplateID.Valid {
@@ -618,7 +618,7 @@ func (q *authzQuerier) GetPreviousTemplateVersion(ctx context.Context, arg datab
 	return q.db.GetPreviousTemplateVersion(ctx, arg)
 }
 
-func (q *authzQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
+func (q *querier) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
 	// An actor can read the average build time if they can read the related template.
 	// It doesn't make any sense to get the average build time for a template that doesn't
 	// exist, so omitting this check here.
@@ -628,15 +628,15 @@ func (q *authzQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg data
 	return q.db.GetTemplateAverageBuildTime(ctx, arg)
 }
 
-func (q *authzQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (database.Template, error) {
+func (q *querier) GetTemplateByID(ctx context.Context, id uuid.UUID) (database.Template, error) {
 	return fetch(q.log, q.auth, q.db.GetTemplateByID)(ctx, id)
 }
 
-func (q *authzQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg database.GetTemplateByOrganizationAndNameParams) (database.Template, error) {
+func (q *querier) GetTemplateByOrganizationAndName(ctx context.Context, arg database.GetTemplateByOrganizationAndNameParams) (database.Template, error) {
 	return fetch(q.log, q.auth, q.db.GetTemplateByOrganizationAndName)(ctx, arg)
 }
 
-func (q *authzQuerier) GetTemplateDAUs(ctx context.Context, templateID uuid.UUID) ([]database.GetTemplateDAUsRow, error) {
+func (q *querier) GetTemplateDAUs(ctx context.Context, templateID uuid.UUID) ([]database.GetTemplateDAUsRow, error) {
 	// An actor can read the DAUs if they can read the related template.
 	// Again, it doesn't make sense to get DAUs for a template that doesn't exist.
 	if _, err := q.GetTemplateByID(ctx, templateID); err != nil {
@@ -645,7 +645,7 @@ func (q *authzQuerier) GetTemplateDAUs(ctx context.Context, templateID uuid.UUID
 	return q.db.GetTemplateDAUs(ctx, templateID)
 }
 
-func (q *authzQuerier) GetTemplateVersionByID(ctx context.Context, tvid uuid.UUID) (database.TemplateVersion, error) {
+func (q *querier) GetTemplateVersionByID(ctx context.Context, tvid uuid.UUID) (database.TemplateVersion, error) {
 	tv, err := q.db.GetTemplateVersionByID(ctx, tvid)
 	if err != nil {
 		return database.TemplateVersion{}, err
@@ -662,7 +662,7 @@ func (q *authzQuerier) GetTemplateVersionByID(ctx context.Context, tvid uuid.UUI
 	return tv, nil
 }
 
-func (q *authzQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.UUID) (database.TemplateVersion, error) {
+func (q *querier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.UUID) (database.TemplateVersion, error) {
 	tv, err := q.db.GetTemplateVersionByJobID(ctx, jobID)
 	if err != nil {
 		return database.TemplateVersion{}, err
@@ -679,7 +679,7 @@ func (q *authzQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid
 	return tv, nil
 }
 
-func (q *authzQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, arg database.GetTemplateVersionByTemplateIDAndNameParams) (database.TemplateVersion, error) {
+func (q *querier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, arg database.GetTemplateVersionByTemplateIDAndNameParams) (database.TemplateVersion, error) {
 	tv, err := q.db.GetTemplateVersionByTemplateIDAndName(ctx, arg)
 	if err != nil {
 		return database.TemplateVersion{}, err
@@ -696,7 +696,7 @@ func (q *authzQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context
 	return tv, nil
 }
 
-func (q *authzQuerier) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionParameter, error) {
+func (q *querier) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionParameter, error) {
 	// An actor can read template version parameters if they can read the related template.
 	tv, err := q.db.GetTemplateVersionByID(ctx, templateVersionID)
 	if err != nil {
@@ -720,7 +720,7 @@ func (q *authzQuerier) GetTemplateVersionParameters(ctx context.Context, templat
 	return q.db.GetTemplateVersionParameters(ctx, templateVersionID)
 }
 
-func (q *authzQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.TemplateVersion, error) {
+func (q *querier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.TemplateVersion, error) {
 	// TODO: This is so inefficient
 	versions, err := q.db.GetTemplateVersionsByIDs(ctx, ids)
 	if err != nil {
@@ -749,7 +749,7 @@ func (q *authzQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.
 	return versions, nil
 }
 
-func (q *authzQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg database.GetTemplateVersionsByTemplateIDParams) ([]database.TemplateVersion, error) {
+func (q *querier) GetTemplateVersionsByTemplateID(ctx context.Context, arg database.GetTemplateVersionsByTemplateIDParams) ([]database.TemplateVersion, error) {
 	// An actor can read template versions if they can read the related template.
 	template, err := q.db.GetTemplateByID(ctx, arg.TemplateID)
 	if err != nil {
@@ -763,7 +763,7 @@ func (q *authzQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg 
 	return q.db.GetTemplateVersionsByTemplateID(ctx, arg)
 }
 
-func (q *authzQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.TemplateVersion, error) {
+func (q *querier) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.TemplateVersion, error) {
 	// An actor can read execute this query if they can read all templates.
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTemplate.All()); err != nil {
 		return nil, err
@@ -771,12 +771,12 @@ func (q *authzQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, crea
 	return q.db.GetTemplateVersionsCreatedAfter(ctx, createdAt)
 }
 
-func (q *authzQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, _ rbac.PreparedAuthorized) ([]database.Template, error) {
+func (q *querier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, _ rbac.PreparedAuthorized) ([]database.Template, error) {
 	// TODO Delete this function, all GetTemplates should be authorized. For now just call getTemplates on the authz querier.
 	return q.GetTemplatesWithFilter(ctx, arg)
 }
 
-func (q *authzQuerier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTemplatesWithFilterParams) ([]database.Template, error) {
+func (q *querier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTemplatesWithFilterParams) ([]database.Template, error) {
 	prep, err := prepareSQLFilter(ctx, q.auth, rbac.ActionRead, rbac.ResourceTemplate.Type)
 	if err != nil {
 		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
@@ -784,12 +784,12 @@ func (q *authzQuerier) GetTemplatesWithFilter(ctx context.Context, arg database.
 	return q.db.GetAuthorizedTemplates(ctx, arg, prep)
 }
 
-func (q *authzQuerier) InsertTemplate(ctx context.Context, arg database.InsertTemplateParams) (database.Template, error) {
+func (q *querier) InsertTemplate(ctx context.Context, arg database.InsertTemplateParams) (database.Template, error) {
 	obj := rbac.ResourceTemplate.InOrg(arg.OrganizationID)
 	return insert(q.log, q.auth, obj, q.db.InsertTemplate)(ctx, arg)
 }
 
-func (q *authzQuerier) InsertTemplateVersion(ctx context.Context, arg database.InsertTemplateVersionParams) (database.TemplateVersion, error) {
+func (q *querier) InsertTemplateVersion(ctx context.Context, arg database.InsertTemplateVersionParams) (database.TemplateVersion, error) {
 	if !arg.TemplateID.Valid {
 		// Making a new template version is the same permission as creating a new template.
 		err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceTemplate.InOrg(arg.OrganizationID))
@@ -812,7 +812,7 @@ func (q *authzQuerier) InsertTemplateVersion(ctx context.Context, arg database.I
 	return q.db.InsertTemplateVersion(ctx, arg)
 }
 
-func (q *authzQuerier) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {
+func (q *querier) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {
 	// UpdateTemplateACL uses the ActionCreate action. Only users that can create the template
 	// may update the ACL.
 	fetch := func(ctx context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {
@@ -821,14 +821,14 @@ func (q *authzQuerier) UpdateTemplateACLByID(ctx context.Context, arg database.U
 	return fetchAndQuery(q.log, q.auth, rbac.ActionCreate, fetch, q.db.UpdateTemplateACLByID)(ctx, arg)
 }
 
-func (q *authzQuerier) UpdateTemplateActiveVersionByID(ctx context.Context, arg database.UpdateTemplateActiveVersionByIDParams) error {
+func (q *querier) UpdateTemplateActiveVersionByID(ctx context.Context, arg database.UpdateTemplateActiveVersionByIDParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateTemplateActiveVersionByIDParams) (database.Template, error) {
 		return q.db.GetTemplateByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateTemplateActiveVersionByID)(ctx, arg)
 }
 
-func (q *authzQuerier) SoftDeleteTemplateByID(ctx context.Context, id uuid.UUID) error {
+func (q *querier) SoftDeleteTemplateByID(ctx context.Context, id uuid.UUID) error {
 	deleteF := func(ctx context.Context, id uuid.UUID) error {
 		return q.db.UpdateTemplateDeletedByID(ctx, database.UpdateTemplateDeletedByIDParams{
 			ID:        id,
@@ -840,18 +840,18 @@ func (q *authzQuerier) SoftDeleteTemplateByID(ctx context.Context, id uuid.UUID)
 }
 
 // Deprecated: use SoftDeleteTemplateByID instead.
-func (q *authzQuerier) UpdateTemplateDeletedByID(ctx context.Context, arg database.UpdateTemplateDeletedByIDParams) error {
+func (q *querier) UpdateTemplateDeletedByID(ctx context.Context, arg database.UpdateTemplateDeletedByIDParams) error {
 	return q.SoftDeleteTemplateByID(ctx, arg.ID)
 }
 
-func (q *authzQuerier) UpdateTemplateMetaByID(ctx context.Context, arg database.UpdateTemplateMetaByIDParams) (database.Template, error) {
+func (q *querier) UpdateTemplateMetaByID(ctx context.Context, arg database.UpdateTemplateMetaByIDParams) (database.Template, error) {
 	fetch := func(ctx context.Context, arg database.UpdateTemplateMetaByIDParams) (database.Template, error) {
 		return q.db.GetTemplateByID(ctx, arg.ID)
 	}
 	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateTemplateMetaByID)(ctx, arg)
 }
 
-func (q *authzQuerier) UpdateTemplateVersionByID(ctx context.Context, arg database.UpdateTemplateVersionByIDParams) error {
+func (q *querier) UpdateTemplateVersionByID(ctx context.Context, arg database.UpdateTemplateVersionByIDParams) error {
 	template, err := q.db.GetTemplateByID(ctx, arg.TemplateID.UUID)
 	if err != nil {
 		return err
@@ -862,7 +862,7 @@ func (q *authzQuerier) UpdateTemplateVersionByID(ctx context.Context, arg databa
 	return q.db.UpdateTemplateVersionByID(ctx, arg)
 }
 
-func (q *authzQuerier) UpdateTemplateVersionDescriptionByJobID(ctx context.Context, arg database.UpdateTemplateVersionDescriptionByJobIDParams) error {
+func (q *querier) UpdateTemplateVersionDescriptionByJobID(ctx context.Context, arg database.UpdateTemplateVersionDescriptionByJobIDParams) error {
 	// An actor is allowed to update the template version description if they are authorized to update the template.
 	tv, err := q.db.GetTemplateVersionByJobID(ctx, arg.JobID)
 	if err != nil {
@@ -884,7 +884,7 @@ func (q *authzQuerier) UpdateTemplateVersionDescriptionByJobID(ctx context.Conte
 	return q.db.UpdateTemplateVersionDescriptionByJobID(ctx, arg)
 }
 
-func (q *authzQuerier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateGroup, error) {
+func (q *querier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateGroup, error) {
 	// An actor is authorized to read template group roles if they are authorized to read the template.
 	template, err := q.db.GetTemplateByID(ctx, id)
 	if err != nil {
@@ -896,7 +896,7 @@ func (q *authzQuerier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) 
 	return q.db.GetTemplateGroupRoles(ctx, id)
 }
 
-func (q *authzQuerier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateUser, error) {
+func (q *querier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateUser, error) {
 	// An actor is authorized to query template user roles if they are authorized to read the template.
 	template, err := q.db.GetTemplateByID(ctx, id)
 	if err != nil {
@@ -908,7 +908,7 @@ func (q *authzQuerier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) (
 	return q.db.GetTemplateUserRoles(ctx, id)
 }
 
-func (q *authzQuerier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
+func (q *querier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
 	// TODO: This is not 100% correct because it omits apikey IDs.
 	err := q.authorizeContext(ctx, rbac.ActionDelete,
 		rbac.ResourceAPIKey.WithOwner(userID.String()))
@@ -918,7 +918,7 @@ func (q *authzQuerier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UU
 	return q.db.DeleteAPIKeysByUserID(ctx, userID)
 }
 
-func (q *authzQuerier) GetQuotaAllowanceForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
+func (q *querier) GetQuotaAllowanceForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
 	err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUser.WithID(userID))
 	if err != nil {
 		return -1, err
@@ -926,7 +926,7 @@ func (q *authzQuerier) GetQuotaAllowanceForUser(ctx context.Context, userID uuid
 	return q.db.GetQuotaAllowanceForUser(ctx, userID)
 }
 
-func (q *authzQuerier) GetQuotaConsumedForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
+func (q *querier) GetQuotaConsumedForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
 	err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUser.WithID(userID))
 	if err != nil {
 		return -1, err
@@ -934,19 +934,19 @@ func (q *authzQuerier) GetQuotaConsumedForUser(ctx context.Context, userID uuid.
 	return q.db.GetQuotaConsumedForUser(ctx, userID)
 }
 
-func (q *authzQuerier) GetUserByEmailOrUsername(ctx context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
+func (q *querier) GetUserByEmailOrUsername(ctx context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
 	return fetch(q.log, q.auth, q.db.GetUserByEmailOrUsername)(ctx, arg)
 }
 
-func (q *authzQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (database.User, error) {
+func (q *querier) GetUserByID(ctx context.Context, id uuid.UUID) (database.User, error) {
 	return fetch(q.log, q.auth, q.db.GetUserByID)(ctx, id)
 }
 
-func (q *authzQuerier) GetAuthorizedUserCount(ctx context.Context, arg database.GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
+func (q *querier) GetAuthorizedUserCount(ctx context.Context, arg database.GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
 	return q.db.GetAuthorizedUserCount(ctx, arg, prepared)
 }
 
-func (q *authzQuerier) GetFilteredUserCount(ctx context.Context, arg database.GetFilteredUserCountParams) (int64, error) {
+func (q *querier) GetFilteredUserCount(ctx context.Context, arg database.GetFilteredUserCountParams) (int64, error) {
 	prep, err := prepareSQLFilter(ctx, q.auth, rbac.ActionRead, rbac.ResourceUser.Type)
 	if err != nil {
 		return -1, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
@@ -955,12 +955,12 @@ func (q *authzQuerier) GetFilteredUserCount(ctx context.Context, arg database.Ge
 	return q.GetAuthorizedUserCount(ctx, arg, prep)
 }
 
-func (q *authzQuerier) GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error) {
+func (q *querier) GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error) {
 	// TODO: We should use GetUsersWithCount with a better method signature.
 	return fetchWithPostFilter(q.auth, q.db.GetUsers)(ctx, arg)
 }
 
-func (q *authzQuerier) GetUsersWithCount(ctx context.Context, arg database.GetUsersParams) ([]database.User, int64, error) {
+func (q *querier) GetUsersWithCount(ctx context.Context, arg database.GetUsersParams) ([]database.User, int64, error) {
 	// TODO Implement this with a SQL filter. The count is incorrect without it.
 	rowUsers, err := q.db.GetUsers(ctx, arg)
 	if err != nil {
@@ -987,11 +987,11 @@ func (q *authzQuerier) GetUsersWithCount(ctx context.Context, arg database.GetUs
 }
 
 // TODO: Remove this and use a filter on GetUsers
-func (q *authzQuerier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]database.User, error) {
+func (q *querier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]database.User, error) {
 	return fetchWithPostFilter(q.auth, q.db.GetUsersByIDs)(ctx, ids)
 }
 
-func (q *authzQuerier) InsertUser(ctx context.Context, arg database.InsertUserParams) (database.User, error) {
+func (q *querier) InsertUser(ctx context.Context, arg database.InsertUserParams) (database.User, error) {
 	// Always check if the assigned roles can actually be assigned by this actor.
 	impliedRoles := append([]string{rbac.RoleMember()}, arg.RBACRoles...)
 	err := q.canAssignRoles(ctx, nil, impliedRoles, []string{})
@@ -1003,14 +1003,14 @@ func (q *authzQuerier) InsertUser(ctx context.Context, arg database.InsertUserPa
 }
 
 // TODO: Should this be in system.go?
-func (q *authzQuerier) InsertUserLink(ctx context.Context, arg database.InsertUserLinkParams) (database.UserLink, error) {
+func (q *querier) InsertUserLink(ctx context.Context, arg database.InsertUserLinkParams) (database.UserLink, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceUser.WithID(arg.UserID)); err != nil {
 		return database.UserLink{}, err
 	}
 	return q.db.InsertUserLink(ctx, arg)
 }
 
-func (q *authzQuerier) SoftDeleteUserByID(ctx context.Context, id uuid.UUID) error {
+func (q *querier) SoftDeleteUserByID(ctx context.Context, id uuid.UUID) error {
 	deleteF := func(ctx context.Context, id uuid.UUID) error {
 		return q.db.UpdateUserDeletedByID(ctx, database.UpdateUserDeletedByIDParams{
 			ID:      id,
@@ -1023,7 +1023,7 @@ func (q *authzQuerier) SoftDeleteUserByID(ctx context.Context, id uuid.UUID) err
 // UpdateUserDeletedByID
 // Deprecated: Delete this function in favor of 'SoftDeleteUserByID'. Deletes are
 // irreversible.
-func (q *authzQuerier) UpdateUserDeletedByID(ctx context.Context, arg database.UpdateUserDeletedByIDParams) error {
+func (q *querier) UpdateUserDeletedByID(ctx context.Context, arg database.UpdateUserDeletedByIDParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateUserDeletedByIDParams) (database.User, error) {
 		return q.db.GetUserByID(ctx, arg.ID)
 	}
@@ -1032,7 +1032,7 @@ func (q *authzQuerier) UpdateUserDeletedByID(ctx context.Context, arg database.U
 	return deleteQ(q.log, q.auth, fetch, q.db.UpdateUserDeletedByID)(ctx, arg)
 }
 
-func (q *authzQuerier) UpdateUserHashedPassword(ctx context.Context, arg database.UpdateUserHashedPasswordParams) error {
+func (q *querier) UpdateUserHashedPassword(ctx context.Context, arg database.UpdateUserHashedPasswordParams) error {
 	user, err := q.db.GetUserByID(ctx, arg.ID)
 	if err != nil {
 		return err
@@ -1046,14 +1046,14 @@ func (q *authzQuerier) UpdateUserHashedPassword(ctx context.Context, arg databas
 	return q.db.UpdateUserHashedPassword(ctx, arg)
 }
 
-func (q *authzQuerier) UpdateUserLastSeenAt(ctx context.Context, arg database.UpdateUserLastSeenAtParams) (database.User, error) {
+func (q *querier) UpdateUserLastSeenAt(ctx context.Context, arg database.UpdateUserLastSeenAtParams) (database.User, error) {
 	fetch := func(ctx context.Context, arg database.UpdateUserLastSeenAtParams) (database.User, error) {
 		return q.db.GetUserByID(ctx, arg.ID)
 	}
 	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateUserLastSeenAt)(ctx, arg)
 }
 
-func (q *authzQuerier) UpdateUserProfile(ctx context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
+func (q *querier) UpdateUserProfile(ctx context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
 	u, err := q.db.GetUserByID(ctx, arg.ID)
 	if err != nil {
 		return database.User{}, err
@@ -1064,48 +1064,48 @@ func (q *authzQuerier) UpdateUserProfile(ctx context.Context, arg database.Updat
 	return q.db.UpdateUserProfile(ctx, arg)
 }
 
-func (q *authzQuerier) UpdateUserStatus(ctx context.Context, arg database.UpdateUserStatusParams) (database.User, error) {
+func (q *querier) UpdateUserStatus(ctx context.Context, arg database.UpdateUserStatusParams) (database.User, error) {
 	fetch := func(ctx context.Context, arg database.UpdateUserStatusParams) (database.User, error) {
 		return q.db.GetUserByID(ctx, arg.ID)
 	}
 	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateUserStatus)(ctx, arg)
 }
 
-func (q *authzQuerier) DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error {
+func (q *querier) DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error {
 	return deleteQ(q.log, q.auth, q.db.GetGitSSHKey, q.db.DeleteGitSSHKey)(ctx, userID)
 }
 
-func (q *authzQuerier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
+func (q *querier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
 	return fetch(q.log, q.auth, q.db.GetGitSSHKey)(ctx, userID)
 }
 
-func (q *authzQuerier) InsertGitSSHKey(ctx context.Context, arg database.InsertGitSSHKeyParams) (database.GitSSHKey, error) {
+func (q *querier) InsertGitSSHKey(ctx context.Context, arg database.InsertGitSSHKeyParams) (database.GitSSHKey, error) {
 	return insert(q.log, q.auth, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID), q.db.InsertGitSSHKey)(ctx, arg)
 }
 
-func (q *authzQuerier) UpdateGitSSHKey(ctx context.Context, arg database.UpdateGitSSHKeyParams) (database.GitSSHKey, error) {
+func (q *querier) UpdateGitSSHKey(ctx context.Context, arg database.UpdateGitSSHKeyParams) (database.GitSSHKey, error) {
 	fetch := func(ctx context.Context, arg database.UpdateGitSSHKeyParams) (database.GitSSHKey, error) {
 		return q.db.GetGitSSHKey(ctx, arg.UserID)
 	}
 	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateGitSSHKey)(ctx, arg)
 }
 
-func (q *authzQuerier) GetGitAuthLink(ctx context.Context, arg database.GetGitAuthLinkParams) (database.GitAuthLink, error) {
+func (q *querier) GetGitAuthLink(ctx context.Context, arg database.GetGitAuthLinkParams) (database.GitAuthLink, error) {
 	return fetch(q.log, q.auth, q.db.GetGitAuthLink)(ctx, arg)
 }
 
-func (q *authzQuerier) InsertGitAuthLink(ctx context.Context, arg database.InsertGitAuthLinkParams) (database.GitAuthLink, error) {
+func (q *querier) InsertGitAuthLink(ctx context.Context, arg database.InsertGitAuthLinkParams) (database.GitAuthLink, error) {
 	return insert(q.log, q.auth, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID), q.db.InsertGitAuthLink)(ctx, arg)
 }
 
-func (q *authzQuerier) UpdateGitAuthLink(ctx context.Context, arg database.UpdateGitAuthLinkParams) error {
+func (q *querier) UpdateGitAuthLink(ctx context.Context, arg database.UpdateGitAuthLinkParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateGitAuthLinkParams) (database.GitAuthLink, error) {
 		return q.db.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateGitAuthLink)(ctx, arg)
 }
 
-func (q *authzQuerier) UpdateUserLink(ctx context.Context, arg database.UpdateUserLinkParams) (database.UserLink, error) {
+func (q *querier) UpdateUserLink(ctx context.Context, arg database.UpdateUserLinkParams) (database.UserLink, error) {
 	fetch := func(ctx context.Context, arg database.UpdateUserLinkParams) (database.UserLink, error) {
 		return q.db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
 			UserID:    arg.UserID,
@@ -1117,7 +1117,7 @@ func (q *authzQuerier) UpdateUserLink(ctx context.Context, arg database.UpdateUs
 
 // UpdateUserRoles updates the site roles of a user. The validation for this function include more than
 // just a basic RBAC check.
-func (q *authzQuerier) UpdateUserRoles(ctx context.Context, arg database.UpdateUserRolesParams) (database.User, error) {
+func (q *querier) UpdateUserRoles(ctx context.Context, arg database.UpdateUserRolesParams) (database.User, error) {
 	// We need to fetch the user being updated to identify the change in roles.
 	// This requires read access on the user in question, since the user is
 	// returned from this function.
@@ -1138,12 +1138,12 @@ func (q *authzQuerier) UpdateUserRoles(ctx context.Context, arg database.UpdateU
 	return q.db.UpdateUserRoles(ctx, arg)
 }
 
-func (q *authzQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, _ rbac.PreparedAuthorized) ([]database.GetWorkspacesRow, error) {
+func (q *querier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, _ rbac.PreparedAuthorized) ([]database.GetWorkspacesRow, error) {
 	// TODO Delete this function, all GetWorkspaces should be authorized. For now just call GetWorkspaces on the authz querier.
 	return q.GetWorkspaces(ctx, arg)
 }
 
-func (q *authzQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {
+func (q *querier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {
 	prep, err := prepareSQLFilter(ctx, q.auth, rbac.ActionRead, rbac.ResourceWorkspace.Type)
 	if err != nil {
 		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
@@ -1151,14 +1151,14 @@ func (q *authzQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorksp
 	return q.db.GetAuthorizedWorkspaces(ctx, arg, prep)
 }
 
-func (q *authzQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
+func (q *querier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
 	if _, err := q.GetWorkspaceByID(ctx, workspaceID); err != nil {
 		return database.WorkspaceBuild{}, err
 	}
 	return q.db.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspaceID)
 }
 
-func (q *authzQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
+func (q *querier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
 	// This is not ideal as not all builds will be returned if the workspace cannot be read.
 	// This should probably be handled differently? Maybe join workspace builds with workspace
 	// ownership properties and filter on that.
@@ -1172,7 +1172,7 @@ func (q *authzQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Contex
 	return q.db.GetLatestWorkspaceBuildsByWorkspaceIDs(ctx, ids)
 }
 
-func (q *authzQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
+func (q *querier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
 	if _, err := q.GetWorkspaceByAgentID(ctx, id); err != nil {
 		return database.WorkspaceAgent{}, err
 	}
@@ -1183,7 +1183,7 @@ func (q *authzQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) 
 // but this will fail. Need to figure out what AuthInstanceID is, and if it
 // is essentially an auth token. But the caller using this function is not
 // an authenticated user. So this authz check will fail.
-func (q *authzQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanceID string) (database.WorkspaceAgent, error) {
+func (q *querier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanceID string) (database.WorkspaceAgent, error) {
 	agent, err := q.db.GetWorkspaceAgentByInstanceID(ctx, authInstanceID)
 	if err != nil {
 		return database.WorkspaceAgent{}, err
@@ -1197,7 +1197,7 @@ func (q *authzQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authIn
 
 // GetWorkspaceAgentsByResourceIDs is an all or nothing call. If the user cannot read
 // a single agent, the entire call will fail.
-func (q *authzQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgent, error) {
+func (q *querier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgent, error) {
 	if _, ok := ActorFromContext(ctx); !ok {
 		return nil, NoActorError
 	}
@@ -1226,7 +1226,7 @@ func (q *authzQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids 
 	return agents, nil
 }
 
-func (q *authzQuerier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg database.UpdateWorkspaceAgentLifecycleStateByIDParams) error {
+func (q *querier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg database.UpdateWorkspaceAgentLifecycleStateByIDParams) error {
 	agent, err := q.db.GetWorkspaceAgentByID(ctx, arg.ID)
 	if err != nil {
 		return err
@@ -1244,7 +1244,7 @@ func (q *authzQuerier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Contex
 	return q.db.UpdateWorkspaceAgentLifecycleStateByID(ctx, arg)
 }
 
-func (q *authzQuerier) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg database.UpdateWorkspaceAgentStartupByIDParams) error {
+func (q *querier) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg database.UpdateWorkspaceAgentStartupByIDParams) error {
 	agent, err := q.db.GetWorkspaceAgentByID(ctx, arg.ID)
 	if err != nil {
 		return err
@@ -1262,7 +1262,7 @@ func (q *authzQuerier) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg 
 	return q.db.UpdateWorkspaceAgentStartupByID(ctx, arg)
 }
 
-func (q *authzQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg database.GetWorkspaceAppByAgentIDAndSlugParams) (database.WorkspaceApp, error) {
+func (q *querier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg database.GetWorkspaceAppByAgentIDAndSlugParams) (database.WorkspaceApp, error) {
 	// If we can fetch the workspace, we can fetch the apps. Use the authorized call.
 	if _, err := q.GetWorkspaceByAgentID(ctx, arg.AgentID); err != nil {
 		return database.WorkspaceApp{}, err
@@ -1271,7 +1271,7 @@ func (q *authzQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg 
 	return q.db.GetWorkspaceAppByAgentIDAndSlug(ctx, arg)
 }
 
-func (q *authzQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceApp, error) {
+func (q *querier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceApp, error) {
 	if _, err := q.GetWorkspaceByAgentID(ctx, agentID); err != nil {
 		return nil, err
 	}
@@ -1279,7 +1279,7 @@ func (q *authzQuerier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uu
 }
 
 // GetWorkspaceAppsByAgentIDs is an all or nothing call. If the user cannot read a single app, the entire call will fail.
-func (q *authzQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceApp, error) {
+func (q *querier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceApp, error) {
 	// TODO: This should be reworked. All these apps are likely owned by the same workspace, so we should be able to
 	// do 1 authz call. We should refactor this to be GetWorkspaceAppsByWorkspaceID.
 	for _, id := range ids {
@@ -1292,7 +1292,7 @@ func (q *authzQuerier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uui
 	return q.db.GetWorkspaceAppsByAgentIDs(ctx, ids)
 }
 
-func (q *authzQuerier) GetWorkspaceBuildByID(ctx context.Context, buildID uuid.UUID) (database.WorkspaceBuild, error) {
+func (q *querier) GetWorkspaceBuildByID(ctx context.Context, buildID uuid.UUID) (database.WorkspaceBuild, error) {
 	build, err := q.db.GetWorkspaceBuildByID(ctx, buildID)
 	if err != nil {
 		return database.WorkspaceBuild{}, err
@@ -1303,7 +1303,7 @@ func (q *authzQuerier) GetWorkspaceBuildByID(ctx context.Context, buildID uuid.U
 	return build, nil
 }
 
-func (q *authzQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UUID) (database.WorkspaceBuild, error) {
+func (q *querier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UUID) (database.WorkspaceBuild, error) {
 	build, err := q.db.GetWorkspaceBuildByJobID(ctx, jobID)
 	if err != nil {
 		return database.WorkspaceBuild{}, err
@@ -1316,14 +1316,14 @@ func (q *authzQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.
 	return build, nil
 }
 
-func (q *authzQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Context, arg database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (database.WorkspaceBuild, error) {
+func (q *querier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Context, arg database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (database.WorkspaceBuild, error) {
 	if _, err := q.GetWorkspaceByID(ctx, arg.WorkspaceID); err != nil {
 		return database.WorkspaceBuild{}, err
 	}
 	return q.db.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx, arg)
 }
 
-func (q *authzQuerier) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
+func (q *querier) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
 	// Authorized call to get the workspace build. If we can read the build,
 	// we can read the params.
 	_, err := q.GetWorkspaceBuildByID(ctx, workspaceBuildID)
@@ -1334,26 +1334,26 @@ func (q *authzQuerier) GetWorkspaceBuildParameters(ctx context.Context, workspac
 	return q.db.GetWorkspaceBuildParameters(ctx, workspaceBuildID)
 }
 
-func (q *authzQuerier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg database.GetWorkspaceBuildsByWorkspaceIDParams) ([]database.WorkspaceBuild, error) {
+func (q *querier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg database.GetWorkspaceBuildsByWorkspaceIDParams) ([]database.WorkspaceBuild, error) {
 	if _, err := q.GetWorkspaceByID(ctx, arg.WorkspaceID); err != nil {
 		return nil, err
 	}
 	return q.db.GetWorkspaceBuildsByWorkspaceID(ctx, arg)
 }
 
-func (q *authzQuerier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (database.Workspace, error) {
+func (q *querier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (database.Workspace, error) {
 	return fetch(q.log, q.auth, q.db.GetWorkspaceByAgentID)(ctx, agentID)
 }
 
-func (q *authzQuerier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (database.Workspace, error) {
+func (q *querier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (database.Workspace, error) {
 	return fetch(q.log, q.auth, q.db.GetWorkspaceByID)(ctx, id)
 }
 
-func (q *authzQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg database.GetWorkspaceByOwnerIDAndNameParams) (database.Workspace, error) {
+func (q *querier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg database.GetWorkspaceByOwnerIDAndNameParams) (database.Workspace, error) {
 	return fetch(q.log, q.auth, q.db.GetWorkspaceByOwnerIDAndName)(ctx, arg)
 }
 
-func (q *authzQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID) (database.WorkspaceResource, error) {
+func (q *querier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID) (database.WorkspaceResource, error) {
 	// TODO: Optimize this
 	resource, err := q.db.GetWorkspaceResourceByID(ctx, id)
 	if err != nil {
@@ -1370,7 +1370,7 @@ func (q *authzQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUI
 
 // GetWorkspaceResourceMetadataByResourceIDs is an all or nothing call. If a single resource is not authorized, then
 // an error is returned.
-func (q *authzQuerier) GetWorkspaceResourceMetadataByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceResourceMetadatum, error) {
+func (q *querier) GetWorkspaceResourceMetadataByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceResourceMetadatum, error) {
 	// TODO: This is very inefficient. Since all these resources are likely asscoiated with the same workspace.
 	for _, id := range ids {
 		// If we can read the resource, we can read the metadata.
@@ -1383,7 +1383,7 @@ func (q *authzQuerier) GetWorkspaceResourceMetadataByResourceIDs(ctx context.Con
 	return q.db.GetWorkspaceResourceMetadataByResourceIDs(ctx, ids)
 }
 
-func (q *authzQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.WorkspaceResource, error) {
+func (q *querier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.WorkspaceResource, error) {
 	job, err := q.db.GetProvisionerJobByID(ctx, jobID)
 	if err != nil {
 		return nil, err
@@ -1430,7 +1430,7 @@ func (q *authzQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID u
 
 // GetWorkspaceResourcesByJobIDs is an all or nothing call. If a single resource is not authorized, then
 // an error is returned.
-func (q *authzQuerier) GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceResource, error) {
+func (q *querier) GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceResource, error) {
 	// TODO: This is very inefficient. Since all these resources are likely asscoiated with the same workspace.
 	for _, id := range ids {
 		// If we can read the resource, we can read the metadata.
@@ -1443,12 +1443,12 @@ func (q *authzQuerier) GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []
 	return q.db.GetWorkspaceResourcesByJobIDs(ctx, ids)
 }
 
-func (q *authzQuerier) InsertWorkspace(ctx context.Context, arg database.InsertWorkspaceParams) (database.Workspace, error) {
+func (q *querier) InsertWorkspace(ctx context.Context, arg database.InsertWorkspaceParams) (database.Workspace, error) {
 	obj := rbac.ResourceWorkspace.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID)
 	return insert(q.log, q.auth, obj, q.db.InsertWorkspace)(ctx, arg)
 }
 
-func (q *authzQuerier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertWorkspaceBuildParams) (database.WorkspaceBuild, error) {
+func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertWorkspaceBuildParams) (database.WorkspaceBuild, error) {
 	w, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
 	if err != nil {
 		return database.WorkspaceBuild{}, err
@@ -1466,7 +1466,7 @@ func (q *authzQuerier) InsertWorkspaceBuild(ctx context.Context, arg database.In
 	return q.db.InsertWorkspaceBuild(ctx, arg)
 }
 
-func (q *authzQuerier) InsertWorkspaceBuildParameters(ctx context.Context, arg database.InsertWorkspaceBuildParametersParams) error {
+func (q *querier) InsertWorkspaceBuildParameters(ctx context.Context, arg database.InsertWorkspaceBuildParametersParams) error {
 	// TODO: Optimize this. We always have the workspace and build already fetched.
 	build, err := q.db.GetWorkspaceBuildByID(ctx, arg.WorkspaceBuildID)
 	if err != nil {
@@ -1486,14 +1486,14 @@ func (q *authzQuerier) InsertWorkspaceBuildParameters(ctx context.Context, arg d
 	return q.db.InsertWorkspaceBuildParameters(ctx, arg)
 }
 
-func (q *authzQuerier) UpdateWorkspace(ctx context.Context, arg database.UpdateWorkspaceParams) (database.Workspace, error) {
+func (q *querier) UpdateWorkspace(ctx context.Context, arg database.UpdateWorkspaceParams) (database.Workspace, error) {
 	fetch := func(ctx context.Context, arg database.UpdateWorkspaceParams) (database.Workspace, error) {
 		return q.db.GetWorkspaceByID(ctx, arg.ID)
 	}
 	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateWorkspace)(ctx, arg)
 }
 
-func (q *authzQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) error {
+func (q *querier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) error {
 	// TODO: This is a workspace agent operation. Should users be able to query this?
 	fetch := func(ctx context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) (database.Workspace, error) {
 		return q.db.GetWorkspaceByAgentID(ctx, arg.ID)
@@ -1501,7 +1501,7 @@ func (q *authzQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, a
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceAgentConnectionByID)(ctx, arg)
 }
 
-func (q *authzQuerier) InsertAgentStat(ctx context.Context, arg database.InsertAgentStatParams) (database.AgentStat, error) {
+func (q *querier) InsertAgentStat(ctx context.Context, arg database.InsertAgentStatParams) (database.AgentStat, error) {
 	// TODO: This is a workspace agent operation. Should users be able to query this?
 	// Not really sure what this is for.
 	workspace, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
@@ -1515,7 +1515,7 @@ func (q *authzQuerier) InsertAgentStat(ctx context.Context, arg database.InsertA
 	return q.db.InsertAgentStat(ctx, arg)
 }
 
-func (q *authzQuerier) UpdateWorkspaceAppHealthByID(ctx context.Context, arg database.UpdateWorkspaceAppHealthByIDParams) error {
+func (q *querier) UpdateWorkspaceAppHealthByID(ctx context.Context, arg database.UpdateWorkspaceAppHealthByIDParams) error {
 	// TODO: This is a workspace agent operation. Should users be able to query this?
 	workspace, err := q.db.GetWorkspaceByWorkspaceAppID(ctx, arg.ID)
 	if err != nil {
@@ -1529,14 +1529,14 @@ func (q *authzQuerier) UpdateWorkspaceAppHealthByID(ctx context.Context, arg dat
 	return q.db.UpdateWorkspaceAppHealthByID(ctx, arg)
 }
 
-func (q *authzQuerier) UpdateWorkspaceAutostart(ctx context.Context, arg database.UpdateWorkspaceAutostartParams) error {
+func (q *querier) UpdateWorkspaceAutostart(ctx context.Context, arg database.UpdateWorkspaceAutostartParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateWorkspaceAutostartParams) (database.Workspace, error) {
 		return q.db.GetWorkspaceByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceAutostart)(ctx, arg)
 }
 
-func (q *authzQuerier) UpdateWorkspaceBuildByID(ctx context.Context, arg database.UpdateWorkspaceBuildByIDParams) (database.WorkspaceBuild, error) {
+func (q *querier) UpdateWorkspaceBuildByID(ctx context.Context, arg database.UpdateWorkspaceBuildByIDParams) (database.WorkspaceBuild, error) {
 	build, err := q.db.GetWorkspaceBuildByID(ctx, arg.ID)
 	if err != nil {
 		return database.WorkspaceBuild{}, err
@@ -1554,7 +1554,7 @@ func (q *authzQuerier) UpdateWorkspaceBuildByID(ctx context.Context, arg databas
 	return q.db.UpdateWorkspaceBuildByID(ctx, arg)
 }
 
-func (q *authzQuerier) SoftDeleteWorkspaceByID(ctx context.Context, id uuid.UUID) error {
+func (q *querier) SoftDeleteWorkspaceByID(ctx context.Context, id uuid.UUID) error {
 	return deleteQ(q.log, q.auth, q.db.GetWorkspaceByID, func(ctx context.Context, id uuid.UUID) error {
 		return q.db.UpdateWorkspaceDeletedByID(ctx, database.UpdateWorkspaceDeletedByIDParams{
 			ID:      id,
@@ -1564,7 +1564,7 @@ func (q *authzQuerier) SoftDeleteWorkspaceByID(ctx context.Context, id uuid.UUID
 }
 
 // Deprecated: Use SoftDeleteWorkspaceByID
-func (q *authzQuerier) UpdateWorkspaceDeletedByID(ctx context.Context, arg database.UpdateWorkspaceDeletedByIDParams) error {
+func (q *querier) UpdateWorkspaceDeletedByID(ctx context.Context, arg database.UpdateWorkspaceDeletedByIDParams) error {
 	// TODO deleteQ me, placeholder for database.Store
 	fetch := func(ctx context.Context, arg database.UpdateWorkspaceDeletedByIDParams) (database.Workspace, error) {
 		return q.db.GetWorkspaceByID(ctx, arg.ID)
@@ -1573,25 +1573,25 @@ func (q *authzQuerier) UpdateWorkspaceDeletedByID(ctx context.Context, arg datab
 	return deleteQ(q.log, q.auth, fetch, q.db.UpdateWorkspaceDeletedByID)(ctx, arg)
 }
 
-func (q *authzQuerier) UpdateWorkspaceLastUsedAt(ctx context.Context, arg database.UpdateWorkspaceLastUsedAtParams) error {
+func (q *querier) UpdateWorkspaceLastUsedAt(ctx context.Context, arg database.UpdateWorkspaceLastUsedAtParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateWorkspaceLastUsedAtParams) (database.Workspace, error) {
 		return q.db.GetWorkspaceByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceLastUsedAt)(ctx, arg)
 }
 
-func (q *authzQuerier) UpdateWorkspaceTTL(ctx context.Context, arg database.UpdateWorkspaceTTLParams) error {
+func (q *querier) UpdateWorkspaceTTL(ctx context.Context, arg database.UpdateWorkspaceTTLParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateWorkspaceTTLParams) (database.Workspace, error) {
 		return q.db.GetWorkspaceByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceTTL)(ctx, arg)
 }
 
-func (q *authzQuerier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceAppID uuid.UUID) (database.Workspace, error) {
+func (q *querier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceAppID uuid.UUID) (database.Workspace, error) {
 	return fetch(q.log, q.auth, q.db.GetWorkspaceByWorkspaceAppID)(ctx, workspaceAppID)
 }
 
-func authorizedTemplateVersionFromJob(ctx context.Context, q *authzQuerier, job database.ProvisionerJob) (database.TemplateVersion, error) {
+func authorizedTemplateVersionFromJob(ctx context.Context, q *querier, job database.ProvisionerJob) (database.TemplateVersion, error) {
 	switch job.Type {
 	case database.ProvisionerJobTypeTemplateVersionDryRun:
 		// TODO: This is really unfortunate that we need to inspect the json

@@ -2,11 +2,8 @@ package dbauthz_test
 
 import (
 	"context"
-	"database/sql"
 	"reflect"
 	"testing"
-
-	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -55,31 +52,31 @@ func TestInTX(t *testing.T) {
 	require.ErrorAs(t, err, &dbauthz.NotAuthorizedError{}, "must be an authorized error")
 }
 
-func TestNotAuthorizedError(t *testing.T) {
+// TestNew should not double wrap a querier.
+func TestNew(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Is404", func(t *testing.T) {
-		t.Parallel()
-
-		testErr := xerrors.New("custom error")
-
-		err := dbauthz.logNotAuthorizedError(context.Background(), slogtest.Make(t, nil), testErr)
-		require.ErrorIs(t, err, sql.ErrNoRows, "must be a sql.ErrNoRows")
-
-		var authErr dbauthz.NotAuthorizedError
-		require.ErrorAs(t, err, &authErr, "must be a NotAuthorizedError")
-		require.ErrorIs(t, authErr.Err, testErr, "internal error must match")
-	})
-
-	t.Run("MissingActor", func(t *testing.T) {
-		t.Parallel()
-		q := dbauthz.New(dbfake.New(), &coderdtest.RecordingAuthorizer{
+	var (
+		db  = dbfake.New()
+		exp = dbgen.Workspace(t, db, database.Workspace{})
+		rec = &coderdtest.RecordingAuthorizer{
 			Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
-		}, slog.Make())
-		// This should fail because the actor is missing.
-		_, err := q.GetWorkspaceByID(context.Background(), uuid.New())
-		require.ErrorIs(t, err, dbauthz.NoActorError, "must be a NoActorError")
-	})
+		}
+		subj = rbac.Subject{}
+		ctx  = dbauthz.WithAuthorizeContext(context.Background(), rbac.Subject{})
+	)
+
+	// Double wrap should not cause an actual double wrap. So only 1 rbac call
+	// should be made.
+	az := dbauthz.New(db, rec, slog.Make())
+	az = dbauthz.New(az, rec, slog.Make())
+
+	w, err := az.GetWorkspaceByID(ctx, exp.ID)
+	require.NoError(t, err, "must not error")
+	require.Equal(t, exp, w, "must be equal")
+
+	rec.AssertActor(t, subj, rec.Pair(rbac.ActionRead, exp))
+	require.NoError(t, rec.AllAsserted(), "should only be 1 rbac call")
 }
 
 // TestDBAuthzRecursive is a simple test to search for infinite recursion

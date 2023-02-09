@@ -15,7 +15,7 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 )
 
-var _ database.Store = (*authzQuerier)(nil)
+var _ database.Store = (*querier)(nil)
 
 var (
 	// NoActorError wraps ErrNoRows for the api to return a 404. This is the correct
@@ -55,26 +55,26 @@ func logNotAuthorizedError(ctx context.Context, logger slog.Logger, err error) e
 	}
 }
 
-// authzQuerier is a wrapper around the database store that performs authorization
-// checks before returning data. All authzQuerier methods expect an authorization
+// querier is a wrapper around the database store that performs authorization
+// checks before returning data. All querier methods expect an authorization
 // subject present in the context. If no subject is present, most methods will
 // fail.
 //
 // Use WithAuthorizeContext to set the authorization subject in the context for
 // the common user case.
-type authzQuerier struct {
+type querier struct {
 	db   database.Store
 	auth rbac.Authorizer
 	log  slog.Logger
 }
 
 func New(db database.Store, authorizer rbac.Authorizer, logger slog.Logger) database.Store {
-	// If the underlying db store is already an authzquerier, return it.
+	// If the underlying db store is already a querier, return it.
 	// Do not double wrap.
-	if _, ok := db.(*authzQuerier); ok {
+	if _, ok := db.(*querier); ok {
 		return db
 	}
-	return &authzQuerier{
+	return &querier{
 		db:   db,
 		auth: authorizer,
 		log:  logger,
@@ -82,7 +82,7 @@ func New(db database.Store, authorizer rbac.Authorizer, logger slog.Logger) data
 }
 
 // authorizeContext is a helper function to authorize an action on an object.
-func (q *authzQuerier) authorizeContext(ctx context.Context, action rbac.Action, object rbac.Objecter) error {
+func (q *querier) authorizeContext(ctx context.Context, action rbac.Action, object rbac.Objecter) error {
 	act, ok := ActorFromContext(ctx)
 	if !ok {
 		return NoActorError

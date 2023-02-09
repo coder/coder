@@ -40,8 +40,8 @@ func TestMethodTestSuite(t *testing.T) {
 	suite.Run(t, new(MethodTestSuite))
 }
 
-// MethodTestSuite runs all methods tests for authzQuerier. We use
-// a test suite so we can account for all functions tested on the authzQuerier.
+// MethodTestSuite runs all methods tests for querier. We use
+// a test suite so we can account for all functions tested on the querier.
 // We can then assert all methods were tested and asserted for proper RBAC
 // checks. This forces RBAC checks to be written for all methods.
 // Additionally, the way unit tests are written allows for easily executing
@@ -52,7 +52,7 @@ type MethodTestSuite struct {
 	methodAccounting map[string]int
 }
 
-// SetupSuite sets up the suite by creating a map of all methods on authzQuerier
+// SetupSuite sets up the suite by creating a map of all methods on querier
 // and setting their count to 0.
 func (s *MethodTestSuite) SetupSuite() {
 	az := dbauthz.New(nil, nil, slog.Make())
