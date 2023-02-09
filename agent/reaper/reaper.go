@@ -1,6 +1,10 @@
 package reaper
 
-import "github.com/hashicorp/go-reap"
+import (
+	"os"
+
+	"github.com/hashicorp/go-reap"
+)
 
 type Option func(o *options)
 
@@ -22,7 +26,16 @@ func WithPIDCallback(ch reap.PidCh) Option {
 	}
 }
 
+// WithCatchSignals sets the signals that are caught and forwarded to the
+// child process. By default no signals are forwarded.
+func WithCatchSignals(sigs ...os.Signal) Option {
+	return func(o *options) {
+		o.CatchSignals = sigs
+	}
+}
+
 type options struct {
-	ExecArgs []string
-	PIDs     reap.PidCh
+	ExecArgs     []string
+	PIDs         reap.PidCh
+	CatchSignals []os.Signal
 }
