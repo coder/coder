@@ -209,11 +209,10 @@ func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	license, err := api.Database.GetLicense(ctx, int32(id))
+	dl, err := api.Database.GetLicense(ctx, int32(id))
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: "Could not retrieve license; cannot audit",
-		})
+		// don't fail the HTTP request simply because we cannot audit
+		api.Logger.Error(context.Background(), "could not retrieve license; cannot audit", slog.Error(err))
 	}
 
 	aReq, commitAudit := audit.InitRequest[database.License](rw, &audit.RequestParams{
@@ -223,7 +222,7 @@ func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {
 		Action:  database.AuditActionDelete,
 	})
 	defer commitAudit()
-	aReq.Old = license
+	aReq.Old = dl
 
 	if !api.AGPL.Authorize(r, rbac.ActionDelete, rbac.ResourceLicense) {
 		httpapi.Forbidden(rw)

@@ -147,7 +147,6 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 	}
 
 	return req, func() {
-
 		ctx := context.Background()
 		logCtx := p.Request.Context()
 
