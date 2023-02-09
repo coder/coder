@@ -60,8 +60,9 @@ coder:
   # - CODER_TLS_ENABLE: set if tls.secretName is not empty.
   # - CODER_TLS_CERT_FILE: set if tls.secretName is not empty.
   # - CODER_TLS_KEY_FILE: set if tls.secretName is not empty.
-  # - CODER_PROMETHEUS_ADDRESS: set to 0.0.0.0:6060 and cannot be changed.
+  # - CODER_PROMETHEUS_ADDRESS: set to 0.0.0.0:2112 and cannot be changed.
   #   Prometheus must still be enabled by setting CODER_PROMETHEUS_ENABLE.
+  # - CODER_PROMETHEUS_ENABLE: prometheus enabled if set to "true", not enabled if set ot "false".
   # - KUBE_POD_IP
   # - CODER_DERP_SERVER_RELAY_URL
   #

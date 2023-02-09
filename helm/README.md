@@ -45,9 +45,36 @@ coder:
           key: url
 
     # This env enables the Prometheus metrics endpoint.
+    - name: CODER_PROMETHEUS_ENABLE
+      value: "true"
     - name: CODER_PROMETHEUS_ADDRESS
       value: "0.0.0.0:2112"
   tls:
     secretNames:
       - my-tls-secret-name
+
+# extraTemplates -- Array of extra objects to deploy with the release. Strings
+# are evaluated as a template and can use template expansions and functions. All
+# other objects are used as yaml.
+extraTemplates:
+  - |
+    # Service to publish Prometheus Metrics
+    # Prometheus Metrics will be exposed at
+    # coder-prometheus.coder.svc.cluster.local
+    # on port 2112
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: coder-prometheus
+      namespace: coder
+    spec:
+      type: ClusterIP
+      selector:
+        app.kubernetes.io/instance: coder
+        app.kubernetes.io/name: coder
+      ports:
+        - name: http
+          port: 2112
+          protocol: TCP
+          targetPort:: 2112
 ```
