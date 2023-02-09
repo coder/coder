@@ -50,6 +50,33 @@ coder:
     # coder.serviceAccount.name -- The service account name
     name: coder
 
+  # coder.securityContext -- Fields related to the container's security
+  # context (as opposed to the pod). Some fields are also present in the pod
+  # security context, in which case these values will take precedence.
+  securityContext:
+    # coder.securityContext.runAsNonRoot -- Requires that the coder container
+    # runs as an unprivileged user. If setting runAsUser to 0 (root), this
+    # will need to be set to false.
+    runAsNonRoot: true
+    # coder.securityContext.runAsUser -- Sets the user id of the pod.
+    # For security reasons, we recommend using a non-root user.
+    runAsUser: 1000
+    # coder.securityContext.runAsGroup -- Sets the group id of the pod.
+    # For security reasons, we recommend using a non-root group.
+    runAsGroup: 1000
+    # coder.securityContext.readOnlyRootFilesystem -- Mounts the container's
+    # root filesystem as read-only. It is recommended to leave this setting
+    # enabled in production. This will override the same setting in the pod
+    readOnlyRootFilesystem: true
+    # coder.securityContext.seccompProfile -- Sets the seccomp profile for
+    # the coder container.
+    seccompProfile:
+      type: RuntimeDefault
+    # coder.securityContext.allowPrivilegeEscalation -- Controls whether
+    # the container can gain additional privileges, such as escalating to
+    # root. It is recommended to leave this setting disabled in production.
+    allowPrivilegeEscalation: false
+
   # coder.env -- The environment variables to set for Coder. These can be used
   # to configure all aspects of `coder server`. Please see `coder server --help`
   # for information about what environment variables can be set.
