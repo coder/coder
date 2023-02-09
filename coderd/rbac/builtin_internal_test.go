@@ -8,6 +8,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func BenchmarkAlloc(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		r, err := RoleByName(RoleMember())
+		require.NoError(b, err)
+		var _ = r
+	}
+}
+
 // BenchmarkRBACValueAllocation benchmarks the cost of allocating a rego input
 // value. By default, `ast.InterfaceToValue` is used to convert the input,
 // which uses json marshalling under the hood.

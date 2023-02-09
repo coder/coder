@@ -1,5 +1,7 @@
 package rbac
 
+import "github.com/open-policy-agent/opa/ast"
+
 // ExpandableRoles is any type that can be expanded into a []Role. This is implemented
 // as an interface so we can have RoleNames for user defined roles, and implement
 // custom ExpandableRoles for system type users (eg autostart/autostop system role).
@@ -41,6 +43,9 @@ type Role struct {
 	// roles.
 	Org  map[string][]Permission `json:"org"`
 	User []Permission            `json:"user"`
+
+	// cachedRegoValue is an optimization to avoid re-computing the rego value
+	cachedRegoValue *ast.Value
 }
 
 type Roles []Role

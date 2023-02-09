@@ -62,7 +62,81 @@ func RoleOrgMember(organizationID uuid.UUID) string {
 	return roleName(orgMember, organizationID.String())
 }
 
+func init() {
+	for k, v := range staticRoles {
+		r := v.regoValue()
+		v.cachedRegoValue = &r
+		staticRoles[k] = v
+	}
+}
+
 var (
+	staticRoles = map[string]Role{
+		owner: {
+			Name:        owner,
+			DisplayName: "Owner",
+			Site: permissions(map[string][]Action{
+				ResourceWildcard.Type: {WildcardSymbol},
+			}),
+			Org:  map[string][]Permission{},
+			User: []Permission{},
+		},
+		member: {
+			Name:        member,
+			DisplayName: "",
+			Site: permissions(map[string][]Action{
+				// All users can read all other users and know they exist.
+				ResourceUser.Type:           {ActionRead},
+				ResourceRoleAssignment.Type: {ActionRead},
+				// All users can see the provisioner daemons.
+				ResourceProvisionerDaemon.Type: {ActionRead},
+			}),
+			Org: map[string][]Permission{},
+			User: permissions(map[string][]Action{
+				ResourceWildcard.Type: {WildcardSymbol},
+			}),
+		},
+		auditor: {
+			Name:        auditor,
+			DisplayName: "Auditor",
+			Site: permissions(map[string][]Action{
+				// Should be able to read all template details, even in orgs they
+				// are not in.
+				ResourceTemplate.Type: {ActionRead},
+				ResourceAuditLog.Type: {ActionRead},
+			}),
+			Org:  map[string][]Permission{},
+			User: []Permission{},
+		},
+		templateAdmin: {
+			Name:        templateAdmin,
+			DisplayName: "Template Admin",
+			Site: permissions(map[string][]Action{
+				ResourceTemplate.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+				// CRUD all files, even those they did not upload.
+				ResourceFile.Type:      {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+				ResourceWorkspace.Type: {ActionRead},
+				// CRUD to provisioner daemons for now.
+				ResourceProvisionerDaemon.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			}),
+			Org:  map[string][]Permission{},
+			User: []Permission{},
+		},
+		userAdmin: {
+			Name:        userAdmin,
+			DisplayName: "User Admin",
+			Site: permissions(map[string][]Action{
+				ResourceRoleAssignment.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+				ResourceUser.Type:           {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+				// Full perms to manage org members
+				ResourceOrganizationMember.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+				ResourceGroup.Type:              {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			}),
+			Org:  map[string][]Permission{},
+			User: []Permission{},
+		},
+	}
+
 	// builtInRoles are just a hard coded set for now. Ideally we store these in
 	// the database. Right now they are functions because the org id should scope
 	// certain roles. When we store them in the database, each organization should
@@ -74,85 +148,90 @@ var (
 	builtInRoles = map[string]func(orgID string) Role{
 		// admin grants all actions to all resources.
 		owner: func(_ string) Role {
-			return Role{
-				Name:        owner,
-				DisplayName: "Owner",
-				Site: permissions(map[string][]Action{
-					ResourceWildcard.Type: {WildcardSymbol},
-				}),
-				Org:  map[string][]Permission{},
-				User: []Permission{},
-			}
+			return staticRoles[owner]
+			//return Role{
+			//	Name:        owner,
+			//	DisplayName: "Owner",
+			//	Site: permissions(map[string][]Action{
+			//		ResourceWildcard.Type: {WildcardSymbol},
+			//	}),
+			//	Org:  map[string][]Permission{},
+			//	User: []Permission{},
+			//}
 		},
 
 		// member grants all actions to all resources owned by the user
 		member: func(_ string) Role {
-			return Role{
-				Name:        member,
-				DisplayName: "",
-				Site: permissions(map[string][]Action{
-					// All users can read all other users and know they exist.
-					ResourceUser.Type:           {ActionRead},
-					ResourceRoleAssignment.Type: {ActionRead},
-					// All users can see the provisioner daemons.
-					ResourceProvisionerDaemon.Type: {ActionRead},
-				}),
-				Org: map[string][]Permission{},
-				User: permissions(map[string][]Action{
-					ResourceWildcard.Type: {WildcardSymbol},
-				}),
-			}
+			return staticRoles[member]
+			//return Role{
+			//	Name:        member,
+			//	DisplayName: "",
+			//	Site: permissions(map[string][]Action{
+			//		// All users can read all other users and know they exist.
+			//		ResourceUser.Type:           {ActionRead},
+			//		ResourceRoleAssignment.Type: {ActionRead},
+			//		// All users can see the provisioner daemons.
+			//		ResourceProvisionerDaemon.Type: {ActionRead},
+			//	}),
+			//	Org: map[string][]Permission{},
+			//	User: permissions(map[string][]Action{
+			//		ResourceWildcard.Type: {WildcardSymbol},
+			//	}),
+			//}
 		},
 
 		// auditor provides all permissions required to effectively read and understand
 		// audit log events.
 		// TODO: Finish the auditor as we add resources.
 		auditor: func(_ string) Role {
-			return Role{
-				Name:        auditor,
-				DisplayName: "Auditor",
-				Site: permissions(map[string][]Action{
-					// Should be able to read all template details, even in orgs they
-					// are not in.
-					ResourceTemplate.Type: {ActionRead},
-					ResourceAuditLog.Type: {ActionRead},
-				}),
-				Org:  map[string][]Permission{},
-				User: []Permission{},
-			}
+			return staticRoles[auditor]
+			//return Role{
+			//	Name:        auditor,
+			//	DisplayName: "Auditor",
+			//	Site: permissions(map[string][]Action{
+			//		// Should be able to read all template details, even in orgs they
+			//		// are not in.
+			//		ResourceTemplate.Type: {ActionRead},
+			//		ResourceAuditLog.Type: {ActionRead},
+			//	}),
+			//	Org:  map[string][]Permission{},
+			//	User: []Permission{},
+			//}
 		},
 
 		templateAdmin: func(_ string) Role {
-			return Role{
-				Name:        templateAdmin,
-				DisplayName: "Template Admin",
-				Site: permissions(map[string][]Action{
-					ResourceTemplate.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-					// CRUD all files, even those they did not upload.
-					ResourceFile.Type:      {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-					ResourceWorkspace.Type: {ActionRead},
-					// CRUD to provisioner daemons for now.
-					ResourceProvisionerDaemon.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-				}),
-				Org:  map[string][]Permission{},
-				User: []Permission{},
-			}
+			return staticRoles[templateAdmin]
+			//return Role{
+			//	Name:        templateAdmin,
+			//	DisplayName: "Template Admin",
+			//	Site: permissions(map[string][]Action{
+			//		ResourceTemplate.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			//		// CRUD all files, even those they did not upload.
+			//		ResourceFile.Type:      {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			//		ResourceWorkspace.Type: {ActionRead},
+			//		// CRUD to provisioner daemons for now.
+			//		ResourceProvisionerDaemon.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			//	}),
+			//	Org:  map[string][]Permission{},
+			//	User: []Permission{},
+			//}
 		},
 
 		userAdmin: func(_ string) Role {
-			return Role{
-				Name:        userAdmin,
-				DisplayName: "User Admin",
-				Site: permissions(map[string][]Action{
-					ResourceRoleAssignment.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-					ResourceUser.Type:           {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-					// Full perms to manage org members
-					ResourceOrganizationMember.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-					ResourceGroup.Type:              {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-				}),
-				Org:  map[string][]Permission{},
-				User: []Permission{},
-			}
+			return staticRoles[userAdmin]
+			//return Role{
+			//	Name:        userAdmin,
+			//	DisplayName: "User Admin",
+			//	Site: permissions(map[string][]Action{
+			//		ResourceRoleAssignment.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			//		ResourceUser.Type:           {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			//		// Full perms to manage org members
+			//		ResourceOrganizationMember.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			//		ResourceGroup.Type:              {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			//	}),
+			//	Org:  map[string][]Permission{},
+			//	User: []Permission{},
+			//}
 		},
 
 		// orgAdmin returns a role with all actions allows in a given
