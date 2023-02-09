@@ -50,26 +50,6 @@ coder:
     # coder.serviceAccount.name -- The service account name
     name: coder
 
-  # coder.podSecurityContext -- Fields related to the pod's security context
-  # (as opposed to the container). Some fields are also present in the
-  # container security context, which will take precedence over these values.
-  podSecurityContext:
-    # coder.podSecurityContext.runAsNonRoot -- Requires that containers in
-    # the pod run as an unprivileged user. If setting runAsUser to 0 (root),
-    # this will need to be set to false.
-    runAsNonRoot: true
-    # coder.podSecurityContext.runAsUser -- Sets the user id of the pod.
-    # For security reasons, we recommend using a non-root user.
-    runAsUser: 1000
-    # coder.podSecurityContext.runAsGroup -- Sets the group id of the pod.
-    # For security reasons, we recommend using a non-root group.
-    runAsGroup: 1000
-    # coder.podSecurityContext.seccompProfile -- Sets the seccomp profile
-    # for the pod. If set, the container security context setting will take
-    # precedence over this value.
-    seccompProfile:
-      type: RuntimeDefault
-
   # coder.securityContext -- Fields related to the container's security
   # context (as opposed to the pod). Some fields are also present in the pod
   # security context, in which case these values will take precedence.

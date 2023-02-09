@@ -26,7 +26,6 @@ spec:
       labels:
         {{- include "coder.labels" . | nindent 8 }}
     spec:
-      securityContext: {{ toYaml .Values.coder.podSecurityContext | nindent 8 }}
       serviceAccountName: {{ .Values.coder.serviceAccount.name | quote }}
       restartPolicy: Always
       {{- with .Values.coder.image.pullSecrets }}
@@ -49,7 +48,6 @@ spec:
       {{- with .Values.coder.initContainers }}
       initContainers:
       {{ toYaml . | nindent 8 }}
-          securityContext: {{ toYaml .Values.coder.securityContext | nindent 12 }}
       {{- end }}
       containers:
         - name: coder
