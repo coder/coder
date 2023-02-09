@@ -23,6 +23,7 @@ import {
   removeFile,
   setFile,
   TemplateVersionFileTree,
+  traverse,
 } from "util/templateVersion"
 import {
   CreateFileDialog,
@@ -58,26 +59,20 @@ const topbarHeight = navHeight
 
 const findInitialFile = (
   fileTree: TemplateVersionFileTree,
-  parent?: string,
 ): File | undefined => {
-  for (const key of Object.keys(fileTree)) {
-    const currentPath = parent ? `${parent}/${key}` : key
+  let initialFile: File | undefined
 
-    if (key.endsWith(".tf")) {
-      return {
-        path: currentPath,
-        content: fileTree[key] as string,
+  traverse(fileTree, (content, filename, path) => {
+    if (filename.endsWith(".tf")) {
+      initialFile = {
+        path,
+        content: content as string,
         children: {},
       }
     }
+  })
 
-    if (typeof fileTree[key] !== "string") {
-      return findInitialFile(
-        fileTree[key] as TemplateVersionFileTree,
-        currentPath,
-      )
-    }
-  }
+  return initialFile
 }
 
 export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({

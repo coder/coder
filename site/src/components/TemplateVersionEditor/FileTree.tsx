@@ -41,6 +41,31 @@ const mapFileTreeToFiles = (
   return files
 }
 
+const sortFileChildren = (file: File) => (a: string, b: string) => {
+  const child = file.children[a]
+  const childB = file.children[b]
+  if (child.content === undefined) {
+    return -1
+  }
+  if (childB.content === undefined) {
+    return 1
+  }
+  return a.localeCompare(b)
+}
+
+const sortRootFiles =
+  (rootFiles: Record<string, File>) => (a: string, b: string) => {
+    const child = rootFiles[a]
+    const childB = rootFiles[b]
+    if (child.content === undefined) {
+      return -1
+    }
+    if (childB.content === undefined) {
+      return 1
+    }
+    return a.localeCompare(b)
+  }
+
 export const FileTree: FC<{
   onSelect: (file: File) => void
   onDelete: (file: File) => void
@@ -106,17 +131,7 @@ export const FileTree: FC<{
         icon={icon}
       >
         {Object.keys(file.children)
-          .sort((a, b) => {
-            const child = file.children[a]
-            const childB = file.children[b]
-            if (child.content === undefined) {
-              return -1
-            }
-            if (childB.content === undefined) {
-              return 1
-            }
-            return a.localeCompare(b)
-          })
+          .sort(sortFileChildren(file))
           .map((path) => {
             const child = file.children[path]
             return buildTreeItems(path, child)
@@ -133,17 +148,7 @@ export const FileTree: FC<{
       className={styles.fileTree}
     >
       {Object.keys(fileTree)
-        .sort((a, b) => {
-          const child = fileTree[a]
-          const childB = fileTree[b]
-          if (child.content === undefined) {
-            return -1
-          }
-          if (childB.content === undefined) {
-            return 1
-          }
-          return a.localeCompare(b)
-        })
+        .sort(sortRootFiles(fileTree))
         .map((path) => {
           const child = fileTree[path]
           return buildTreeItems(path, child)

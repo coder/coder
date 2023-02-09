@@ -102,3 +102,22 @@ export const getFileContent = (
 ) => {
   return get(fileTree, path.split("/"))
 }
+
+export const traverse = (
+  fileTree: TemplateVersionFileTree,
+  callback: (
+    content: TemplateVersionFileTree | string,
+    filename: string,
+    fullPath: string,
+  ) => void,
+  parent?: string,
+) => {
+  Object.keys(fileTree).forEach((filename) => {
+    const fullPath = parent ? `${parent}/${filename}` : filename
+    const content = fileTree[filename]
+    callback(content, filename, fullPath)
+    if (typeof content === "object") {
+      traverse(content, callback, fullPath)
+    }
+  })
+}
