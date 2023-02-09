@@ -20,6 +20,7 @@ import { navHeight } from "theme/constants"
 import {
   existsFile,
   getFileContent,
+  isFolder,
   removeFile,
   setFile,
   TemplateVersionFileTree,
@@ -37,12 +38,6 @@ import {
   TemplateVersionStatusBadge,
 } from "./TemplateVersionStatusBadge"
 
-interface File {
-  path: string
-  content?: string
-  children: Record<string, File>
-}
-
 export interface TemplateVersionEditorProps {
   template: Template
   templateVersion: TemplateVersion
@@ -59,16 +54,12 @@ const topbarHeight = navHeight
 
 const findInitialFile = (
   fileTree: TemplateVersionFileTree,
-): File | undefined => {
-  let initialFile: File | undefined
+): string | undefined => {
+  let initialFile: string | undefined
 
   traverse(fileTree, (content, filename, path) => {
     if (filename.endsWith(".tf")) {
-      initialFile = {
-        path,
-        content: content as string,
-        children: {},
-      }
+      initialFile = path
     }
   })
 
@@ -93,9 +84,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   })
   const [fileTree, setFileTree] = useState(initialFiles)
   const [createFileOpen, setCreateFileOpen] = useState(false)
-  const [deleteFileOpen, setDeleteFileOpen] = useState<File>()
-  const [renameFileOpen, setRenameFileOpen] = useState<File>()
-  const [activeFile, setActiveFile] = useState<File | undefined>(() =>
+  const [deleteFileOpen, setDeleteFileOpen] = useState<string>()
+  const [renameFileOpen, setRenameFileOpen] = useState<string>()
+  const [activePath, setActivePath] = useState<string | undefined>(() =>
     findInitialFile(fileTree),
   )
 
@@ -149,6 +140,8 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   const hasIcon = template.icon && template.icon !== ""
   const templateVersionSucceeded = templateVersion.job.status === "succeeded"
   const showBuildLogs = Boolean(buildLogs)
+  const editorValue = getFileContent(activePath ?? "", fileTree) as string
+
   useEffect(() => {
     window.dispatchEvent(new Event("resize"))
   }, [showBuildLogs])
@@ -243,11 +236,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               checkExists={(path) => existsFile(path, fileTree)}
               onConfirm={(path) => {
                 setFileTree((fileTree) => setFile(path, "", fileTree))
-                setActiveFile({
-                  path,
-                  content: "",
-                  children: {},
-                })
+                setActivePath(path)
                 setCreateFileOpen(false)
                 setDirty(true)
               }}
@@ -257,25 +246,23 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 if (!deleteFileOpen) {
                   throw new Error("delete file must be set")
                 }
-                setFileTree((fileTree) =>
-                  removeFile(deleteFileOpen.path, fileTree),
-                )
+                setFileTree((fileTree) => removeFile(deleteFileOpen, fileTree))
                 setDeleteFileOpen(undefined)
-                if (activeFile?.path === deleteFileOpen.path) {
-                  setActiveFile(undefined)
+                if (activePath === deleteFileOpen) {
+                  setActivePath(undefined)
                 }
                 setDirty(true)
               }}
               open={Boolean(deleteFileOpen)}
               onClose={() => setDeleteFileOpen(undefined)}
-              filename={deleteFileOpen?.path || ""}
+              filename={deleteFileOpen || ""}
             />
             <RenameFileDialog
               open={Boolean(renameFileOpen)}
               onClose={() => {
                 setRenameFileOpen(undefined)
               }}
-              filename={renameFileOpen?.path || ""}
+              filename={renameFileOpen || ""}
               checkExists={(path) => existsFile(path, fileTree)}
               onConfirm={(newPath) => {
                 if (!renameFileOpen) {
@@ -284,40 +271,43 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 setFileTree((fileTree) => {
                   fileTree = setFile(
                     newPath,
-                    getFileContent(renameFileOpen.path, fileTree),
+                    getFileContent(renameFileOpen, fileTree) as string,
                     fileTree,
                   )
-                  fileTree = removeFile(renameFileOpen.path, fileTree)
+                  fileTree = removeFile(renameFileOpen, fileTree)
                   return fileTree
                 })
-                renameFileOpen.path = newPath
-                setActiveFile(renameFileOpen)
+                setActivePath(newPath)
                 setRenameFileOpen(undefined)
                 setDirty(true)
               }}
             />
           </div>
           <FileTree
-            files={fileTree}
+            fileTree={fileTree}
             onDelete={(file) => setDeleteFileOpen(file)}
-            onSelect={(file) => setActiveFile(file)}
+            onSelect={(filePath) => {
+              if (!isFolder(filePath, fileTree)) {
+                setActivePath(filePath)
+              }
+            }}
             onRename={(file) => setRenameFileOpen(file)}
-            activeFile={activeFile}
+            activePath={activePath}
           />
         </div>
 
         <div className={styles.editorPane}>
           <div className={styles.editor} data-chromatic="ignore">
-            {activeFile ? (
+            {activePath ? (
               <MonacoEditor
-                value={activeFile?.content}
-                path={activeFile?.path}
+                value={editorValue}
+                path={activePath}
                 onChange={(value) => {
-                  if (!activeFile) {
+                  if (!activePath) {
                     return
                   }
                   setFileTree((fileTree) =>
-                    setFile(activeFile.path, value, fileTree),
+                    setFile(activePath, value, fileTree),
                   )
                   setDirty(true)
                 }}

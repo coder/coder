@@ -100,7 +100,12 @@ export const getFileContent = (
   path: string,
   fileTree: TemplateVersionFileTree,
 ) => {
-  return get(fileTree, path.split("/"))
+  return get(fileTree, path.split("/")) as string | TemplateVersionFileTree
+}
+
+export const isFolder = (path: string, fileTree: TemplateVersionFileTree) => {
+  const content = getFileContent(path, fileTree)
+  return typeof content === "object"
 }
 
 export const traverse = (
