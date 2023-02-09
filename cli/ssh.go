@@ -17,6 +17,7 @@ import (
 	"github.com/gen2brain/beeep"
 	"github.com/gofrs/flock"
 	"github.com/google/uuid"
+	"github.com/kballard/go-shellquote"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 	gossh "golang.org/x/crypto/ssh"
@@ -30,7 +31,6 @@ import (
 	"github.com/coder/coder/coderd/autobuild/notify"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/cryptorand"
 )
 
 var (
@@ -41,7 +41,6 @@ var (
 func ssh() *cobra.Command {
 	var (
 		stdio          bool
-		shuffle        bool
 		forwardAgent   bool
 		forwardGPG     bool
 		identityAgent  string
@@ -62,19 +61,12 @@ func ssh() *cobra.Command {
 				return err
 			}
 
-			if shuffle {
-				err := cobra.ExactArgs(0)(cmd, args)
-				if err != nil {
-					return err
-				}
-			} else {
-				err := cobra.MinimumNArgs(1)(cmd, args)
-				if err != nil {
-					return err
-				}
+			err = cobra.MinimumNArgs(1)(cmd, args)
+			if err != nil {
+				return err
 			}
 
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, cmd, client, codersdk.Me, args[0], shuffle)
+			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, cmd, client, codersdk.Me, args[0])
 			if err != nil {
 				return err
 			}
@@ -84,8 +76,9 @@ func ssh() *cobra.Command {
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), updateWorkspaceBanner)
 			}
 
-			// OpenSSH passes stderr directly to the calling TTY.
-			// This is required in "stdio" mode so a connecting indicator can be displayed.
+			// OpenSSH passes stderr directly to the calling TTY. This is
+			// required in "stdio" mode so a connecting indicator can be
+			// displayed.
 			err = cliui.Agent(ctx, cmd.ErrOrStderr(), cliui.AgentOptions{
 				WorkspaceName: workspace.Name,
 				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
@@ -177,7 +170,8 @@ func ssh() *cobra.Command {
 
 			stdoutFile, validOut := cmd.OutOrStdout().(*os.File)
 			stdinFile, validIn := cmd.InOrStdin().(*os.File)
-			if validOut && validIn && isatty.IsTerminal(stdoutFile.Fd()) {
+			usingTTY := validOut && validIn && isatty.IsTerminal(stdoutFile.Fd())
+			if usingTTY {
 				state, err := term.MakeRaw(int(stdinFile.Fd()))
 				if err != nil {
 					return err
@@ -201,18 +195,24 @@ func ssh() *cobra.Command {
 						_ = sshSession.WindowChange(height, width)
 					}
 				}()
-			}
 
-			err = sshSession.RequestPty("xterm-256color", 128, 128, gossh.TerminalModes{})
-			if err != nil {
-				return err
+				err = sshSession.RequestPty("xterm-256color", 128, 128, gossh.TerminalModes{})
+				if err != nil {
+					return xerrors.Errorf("request PTY: %w", err)
+				}
 			}
 
 			sshSession.Stdin = cmd.InOrStdin()
 			sshSession.Stdout = cmd.OutOrStdout()
 			sshSession.Stderr = cmd.ErrOrStderr()
 
-			err = sshSession.Shell()
+			// Either launch the provided command or a shell.
+			if len(args) > 1 {
+				cmd := shellquote.Join(args[1:]...)
+				err = sshSession.Run(cmd)
+			} else {
+				err = sshSession.Shell()
+			}
 			if err != nil {
 				return err
 			}
@@ -221,13 +221,15 @@ func ssh() *cobra.Command {
 			// shutdown of services.
 			defer cancel()
 
-			if validOut {
-				// Set initial window size.
-				width, height, err := term.GetSize(int(stdoutFile.Fd()))
-				if err == nil {
-					_ = sshSession.WindowChange(height, width)
+			/*
+				if usingTTY {
+					// Set initial window size.
+					width, height, err := term.GetSize(int(stdoutFile.Fd()))
+					if err == nil {
+						_ = sshSession.WindowChange(height, width)
+					}
 				}
-			}
+			*/
 
 			err = sshSession.Wait()
 			if err != nil {
@@ -244,8 +246,6 @@ func ssh() *cobra.Command {
 		},
 	}
 	cliflag.BoolVarP(cmd.Flags(), &stdio, "stdio", "", "CODER_SSH_STDIO", false, "Specifies whether to emit SSH output over stdin/stdout.")
-	cliflag.BoolVarP(cmd.Flags(), &shuffle, "shuffle", "", "CODER_SSH_SHUFFLE", false, "Specifies whether to choose a random workspace")
-	_ = cmd.Flags().MarkHidden("shuffle")
 	cliflag.BoolVarP(cmd.Flags(), &forwardAgent, "forward-agent", "A", "CODER_SSH_FORWARD_AGENT", false, "Specifies whether to forward the SSH agent specified in $SSH_AUTH_SOCK")
 	cliflag.BoolVarP(cmd.Flags(), &forwardGPG, "forward-gpg", "G", "CODER_SSH_FORWARD_GPG", false, "Specifies whether to forward the GPG agent. Unsupported on Windows workspaces, but supports all clients. Requires gnupg (gpg, gpgconf) on both the client and workspace. The GPG agent must already be running locally and will not be started for you. If a GPG agent is already running in the workspace, it will be attempted to be killed.")
 	cliflag.StringVarP(cmd.Flags(), &identityAgent, "identity-agent", "", "CODER_SSH_IDENTITY_AGENT", "", "Specifies which identity agent to use (overrides $SSH_AUTH_SOCK), forward agent must also be enabled")
@@ -255,34 +255,16 @@ func ssh() *cobra.Command {
 }
 
 // getWorkspaceAgent returns the workspace and agent selected using either the
-// `<workspace>[.<agent>]` syntax via `in` or picks a random workspace and agent
-// if `shuffle` is true.
-func getWorkspaceAndAgent(ctx context.Context, cmd *cobra.Command, client *codersdk.Client, userID string, in string, shuffle bool) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
+// `<workspace>[.<agent>]` syntax via `in`.
+func getWorkspaceAndAgent(ctx context.Context, cmd *cobra.Command, client *codersdk.Client, userID string, in string) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
 	var (
 		workspace      codersdk.Workspace
 		workspaceParts = strings.Split(in, ".")
 		err            error
 	)
-	if shuffle {
-		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			Owner: userID,
-		})
-		if err != nil {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
-		}
-		if len(res.Workspaces) == 0 {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("no workspaces to shuffle")
-		}
-
-		workspace, err = cryptorand.Element(res.Workspaces)
-		if err != nil {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
-		}
-	} else {
-		workspace, err = namedWorkspace(cmd, client, workspaceParts[0])
-		if err != nil {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
-		}
+	workspace, err = namedWorkspace(cmd, client, workspaceParts[0])
+	if err != nil {
+		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 	}
 
 	if workspace.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
@@ -322,13 +304,7 @@ func getWorkspaceAndAgent(ctx context.Context, cmd *cobra.Command, client *coder
 	}
 	if workspaceAgent.ID == uuid.Nil {
 		if len(agents) > 1 {
-			if !shuffle {
-				return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("you must specify the name of an agent")
-			}
-			workspaceAgent, err = cryptorand.Element(agents)
-			if err != nil {
-				return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
-			}
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("you must specify the name of an agent")
 		} else {
 			workspaceAgent = agents[0]
 		}

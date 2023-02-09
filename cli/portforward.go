@@ -70,7 +70,7 @@ func portForward() *cobra.Command {
 				return err
 			}
 
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, cmd, client, codersdk.Me, args[0], false)
+			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, cmd, client, codersdk.Me, args[0])
 			if err != nil {
 				return err
 			}
