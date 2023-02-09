@@ -16,7 +16,7 @@ import { AvatarData } from "components/AvatarData/AvatarData"
 import { TemplateResourcesTable } from "components/TemplateResourcesTable/TemplateResourcesTable"
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
 import { FC, useCallback, useEffect, useRef, useState } from "react"
-import { navHeight } from "theme/constants"
+import { navHeight, dashboardContentBottomPadding } from "theme/constants"
 import {
   existsFile,
   FileTree,
@@ -404,6 +404,7 @@ const useStyles = makeStyles<
     flex: 1,
     display: "flex",
     flexDirection: "column",
+    marginBottom: -dashboardContentBottomPadding, // Remove dashboard bottom padding
   },
   topbar: {
     padding: theme.spacing(2),
