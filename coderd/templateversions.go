@@ -243,6 +243,56 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 	httpapi.Write(ctx, rw, http.StatusOK, templateVersionParameters)
 }
 
+// @Summary Get template variables by template version
+// @ID get-template-variables-by-template-version
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Param templateversion path string true "Template version ID" format(uuid)
+// @Success 200 {array} codersdk.TemplateVersionVariable
+// @Router /templateversions/{templateversion}/variables [get]
+func (api *API) templateVersionVariables(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	templateVersion := httpmw.TemplateVersionParam(r)
+	template := httpmw.TemplateParam(r)
+	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner job.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !job.CompletedAt.Valid {
+		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
+			Message: "Job hasn't completed!",
+		})
+		return
+	}
+	dbTemplateVersionVariables, err := api.Database.GetTemplateVersionVariables(ctx, templateVersion.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template version variables.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	templateVersionVariables, err := convertTemplateVersionParameters(dbTemplateVersionVariables)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error converting template version parameter.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, templateVersionVariables)
+}
+
 // @Summary Get parameters by template version
 // @ID get-parameters-by-template-version
 // @Security CoderSessionToken
@@ -1477,6 +1527,30 @@ func convertTemplateVersionParameter(param database.TemplateVersionParameter) (c
 		ValidationMax:        param.ValidationMax,
 		ValidationError:      param.ValidationError,
 		ValidationMonotonic:  codersdk.ValidationMonotonicOrder(param.ValidationMonotonic),
+	}, nil
+}
+
+func convertTemplateVersionVariables(dbVariables []database.TemplateVersionVariable) ([]codersdk.TemplateVersionVariable, error) {
+	variables := make([]codersdk.TemplateVersionVariable, 0)
+	for _, dbVariable := range dbVariables {
+		param, err := convertTemplateVersionVariable(dbVariable)
+		if err != nil {
+			return nil, err
+		}
+		variables = append(variables, param)
+	}
+	return variables, nil
+}
+
+func convertTemplateVersionVariable(variable database.TemplateVersionVariable) (codersdk.TemplateVersionVariable, error) {
+	return codersdk.TemplateVersionVariable{
+		Name:         variable.Name,
+		Description:  variable.Description,
+		Type:         variable.Type,
+		Value:        variable.Value,
+		DefaultValue: variable.DefaultValue,
+		Required:     variable.Required,
+		Sensitive:    variable.Sensitive,
 	}, nil
 }
 

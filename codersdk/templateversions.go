@@ -56,6 +56,17 @@ type TemplateVersionParameterOption struct {
 	Icon        string `json:"icon"`
 }
 
+// TemplateVersionVariable represents a managed template variable.
+type TemplateVersionVariable struct {
+	Name         string `json:"name"`
+	Description  string `json:"description"`
+	Type         string `json:"type" enums:"string,number,bool"`
+	Value        string `json:"value"`
+	DefaultValue string `json:"default_value"`
+	Required     bool   `json:"required"`
+	Sensitive    bool   `json:"sensitive"`
+}
+
 // TemplateVersion returns a template version by ID.
 func (c *Client) TemplateVersion(ctx context.Context, id uuid.UUID) (TemplateVersion, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s", id), nil)

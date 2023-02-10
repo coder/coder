@@ -461,6 +461,7 @@ func New(options *Options) *API {
 			r.Get("/schema", api.templateVersionSchema)
 			r.Get("/parameters", api.templateVersionParameters)
 			r.Get("/rich-parameters", api.templateVersionRichParameters)
+			r.Get("/variables", api.templateVersionVariables)
 			r.Get("/resources", api.templateVersionResources)
 			r.Get("/logs", api.templateVersionLogs)
 			r.Route("/dry-run", func(r chi.Router) {
