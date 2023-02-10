@@ -149,7 +149,7 @@ func vscodeSSH() *cobra.Command {
 			networkInfoFilePath := filepath.Join(networkInfoDir, fmt.Sprintf("%d.json", os.Getppid()))
 
 			statsErrChan := make(chan error, 1)
-			agentConn.SetConnStatsCallback(networkInfoInterval, 2048, func(start, end time.Time, virtual, _ map[netlogtype.Connection]netlogtype.Counts) {
+			cb := func(start, end time.Time, virtual, _ map[netlogtype.Connection]netlogtype.Counts) {
 				sendErr := func(err error) {
 					select {
 					case statsErrChan <- err:
@@ -173,7 +173,11 @@ func vscodeSSH() *cobra.Command {
 					sendErr(err)
 					return
 				}
-			})
+			}
+
+			now := time.Now()
+			cb(now, now.Add(time.Nanosecond), map[netlogtype.Connection]netlogtype.Counts{}, map[netlogtype.Connection]netlogtype.Counts{})
+			agentConn.SetConnStatsCallback(networkInfoInterval, 2048, cb)
 
 			select {
 			case <-ctx.Done():
