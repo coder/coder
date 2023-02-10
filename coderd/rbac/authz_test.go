@@ -189,6 +189,17 @@ func BenchmarkRBACFilter(b *testing.B) {
 	)
 
 	authorizer := rbac.NewAuthorizer(prometheus.NewRegistry())
+
+	for _, c := range benchCases {
+		b.Run("PrepareOnly-"+c.Name, func(b *testing.B) {
+			obType := rbac.ResourceWorkspace.Type
+			for i := 0; i < b.N; i++ {
+				_, err := authorizer.Prepare(context.Background(), c.Actor, rbac.ActionRead, obType)
+				require.NoError(b, err)
+			}
+		})
+	}
+
 	for _, c := range benchCases {
 		b.Run(c.Name, func(b *testing.B) {
 			objects := benchmarkSetup(orgs, users, b.N)
