@@ -133,23 +133,23 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("unmarshal job input %q: %s", job.Input, err))
 		}
-		workspaceBuild, err := server.Database.GetWorkspaceBuildByID(ctx, input.WorkspaceBuildID)
+		workspaceBuild, err := server.Database.GetWorkspaceBuildByID(dbauthz.AsSystem(ctx), input.WorkspaceBuildID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get workspace build: %s", err))
 		}
-		workspace, err := server.Database.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
+		workspace, err := server.Database.GetWorkspaceByID(dbauthz.AsSystem(ctx), workspaceBuild.WorkspaceID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get workspace: %s", err))
 		}
-		templateVersion, err := server.Database.GetTemplateVersionByID(ctx, workspaceBuild.TemplateVersionID)
+		templateVersion, err := server.Database.GetTemplateVersionByID(dbauthz.AsSystem(ctx), workspaceBuild.TemplateVersionID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get template version: %s", err))
 		}
-		template, err := server.Database.GetTemplateByID(ctx, templateVersion.TemplateID.UUID)
+		template, err := server.Database.GetTemplateByID(dbauthz.AsSystem(ctx), templateVersion.TemplateID.UUID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get template: %s", err))
 		}
-		owner, err := server.Database.GetUserByID(ctx, workspace.OwnerID)
+		owner, err := server.Database.GetUserByID(dbauthz.AsSystem(ctx), workspace.OwnerID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get owner: %s", err))
 		}
@@ -257,7 +257,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 	}
 	switch job.StorageMethod {
 	case database.ProvisionerStorageMethodFile:
-		file, err := server.Database.GetFileByID(ctx, job.FileID)
+		file, err := server.Database.GetFileByID(dbauthz.AsSystem(ctx), job.FileID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get file by hash: %s", err))
 		}

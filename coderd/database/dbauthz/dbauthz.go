@@ -132,6 +132,7 @@ func AsSystem(ctx context.Context) context.Context {
 				User: []rbac.Permission{},
 			},
 		}),
+		Scope: rbac.ScopeAll,
 	},
 	)
 }
