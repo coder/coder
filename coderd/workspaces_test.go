@@ -1563,6 +1563,10 @@ func TestWorkspaceWatcher(t *testing.T) {
 	}()
 
 	wait("agent connected")
+	// This could be racy since we don't guarantee that agent all
+	// lifecycles are reported (if they happen in quick succession).
+	wait("agent lifecycle starting")
+	wait("agent lifecycle ready")
 	agentCloser.Close()
 	wait("agent disconnected")
 
