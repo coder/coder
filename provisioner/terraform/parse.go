@@ -67,7 +67,7 @@ func (*server) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_
 	var templateVariables []*proto.TemplateVariable
 
 	useManagedVariables := flags != nil && flags[featureUseManagedVariables]
-	if useManagedVariables {
+	if useManagedVariables || true { // FIXME
 		for _, v := range variables {
 			mv, err := convertTerraformVariableToManagedVariable(v)
 			if err != nil {

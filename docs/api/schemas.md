@@ -4611,6 +4611,40 @@ Parameter represents a set value for the scope.
 | `name`        | string | false    |              |             |
 | `value`       | string | false    |              |             |
 
+## codersdk.TemplateVersionVariable
+
+```json
+{
+  "default_value": "string",
+  "description": "string",
+  "name": "string",
+  "required": true,
+  "sensitive": true,
+  "type": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name            | Type    | Required | Restrictions | Description |
+| --------------- | ------- | -------- | ------------ | ----------- |
+| `default_value` | string  | false    |              |             |
+| `description`   | string  | false    |              |             |
+| `name`          | string  | false    |              |             |
+| `required`      | boolean | false    |              |             |
+| `sensitive`     | boolean | false    |              |             |
+| `type`          | string  | false    |              |             |
+| `value`         | string  | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value    |
+| -------- | -------- |
+| `type`   | `string` |
+| `type`   | `number` |
+| `type`   | `bool`   |
+
 ## codersdk.TraceConfig
 
 ```json

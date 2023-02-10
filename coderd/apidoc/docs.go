@@ -2693,6 +2693,44 @@ const docTemplate = `{
                 }
             }
         },
+        "/templateversions/{templateversion}/variables": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get template variables by template version",
+                "operationId": "get-template-variables-by-template-version",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversion",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.TemplateVersionVariable"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/updatecheck": {
             "get": {
                 "produces": [
@@ -7664,6 +7702,37 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.TemplateVersionVariable": {
+            "type": "object",
+            "properties": {
+                "default_value": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "required": {
+                    "type": "boolean"
+                },
+                "sensitive": {
+                    "type": "boolean"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "string",
+                        "number",
+                        "bool"
+                    ]
                 },
                 "value": {
                     "type": "string"

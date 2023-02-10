@@ -386,7 +386,7 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 		}
 
 		for _, templateVariable := range request.TemplateVariables {
-			server.Logger.Debug(ctx, "insert template variable", slog.F("template_version_id", templateVersion.ID), slog.F("template_variable", templateVariable))
+			server.Logger.Info(ctx, "insert template variable", slog.F("template_version_id", templateVersion.ID), slog.F("template_variable", templateVariable))
 
 			_, err = server.Database.InsertTemplateVersionVariable(ctx, database.InsertTemplateVersionVariableParams{
 				TemplateVersionID: templateVersion.ID,
