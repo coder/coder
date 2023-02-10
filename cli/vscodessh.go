@@ -150,20 +150,27 @@ func vscodeSSH() *cobra.Command {
 
 			statsErrChan := make(chan error, 1)
 			agentConn.SetConnStatsCallback(networkInfoInterval, 2048, func(start, end time.Time, virtual, _ map[netlogtype.Connection]netlogtype.Counts) {
+				sendErr := func(err error) {
+					select {
+					case statsErrChan <- err:
+					default:
+					}
+				}
+
 				stats, err := collectNetworkStats(ctx, agentConn, start, end, virtual)
 				if err != nil {
-					statsErrChan <- err
+					sendErr(err)
 					return
 				}
 
 				rawStats, err := json.Marshal(stats)
 				if err != nil {
-					statsErrChan <- err
+					sendErr(err)
 					return
 				}
 				err = afero.WriteFile(fs, networkInfoFilePath, rawStats, 0600)
 				if err != nil {
-					statsErrChan <- err
+					sendErr(err)
 					return
 				}
 			})
