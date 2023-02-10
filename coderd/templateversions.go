@@ -282,7 +282,7 @@ func (api *API) templateVersionVariables(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	templateVersionVariables, err := convertTemplateVersionParameters(dbTemplateVersionVariables)
+	templateVersionVariables, err := convertTemplateVersionVariables(dbTemplateVersionVariables)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error converting template version parameter.",

@@ -774,6 +774,17 @@ export interface TemplateVersionParameterOption {
   readonly icon: string
 }
 
+// From codersdk/templateversions.go
+export interface TemplateVersionVariable {
+  readonly name: string
+  readonly description: string
+  readonly type: string
+  readonly value: string
+  readonly default_value: string
+  readonly required: boolean
+  readonly sensitive: boolean
+}
+
 // From codersdk/templates.go
 export interface TemplateVersionsByTemplateRequest extends Pagination {
   readonly template_id: string
