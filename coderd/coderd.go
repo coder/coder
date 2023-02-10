@@ -295,8 +295,11 @@ func New(options *Options) *API {
 				DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value,
 				Optional:                    true,
 			}),
-			httpmw.ExtractUserParam(api.Database, false),
-			httpmw.ExtractWorkspaceAndAgentParam(api.Database),
+			// TODO: We should remove this auth context after middleware.
+			httpmw.AsAuthzSystem(
+				httpmw.ExtractUserParam(api.Database, false),
+				httpmw.ExtractWorkspaceAndAgentParam(api.Database),
+			),
 		),
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
@@ -323,6 +326,8 @@ func New(options *Options) *API {
 				DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value,
 				Optional:                    true,
 			}),
+			// TODO: We should remove this auth context after middleware.
+			httpmw.SystemAuthCtx,
 			// Redirect to the login page if the user tries to open an app with
 			// "me" as the username and they are not logged in.
 			httpmw.ExtractUserParam(api.Database, true),
