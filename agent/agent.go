@@ -1318,8 +1318,11 @@ func (a *agent) Close() error {
 
 	// Close services before running shutdown script.
 	// TODO(mafredri): Gracefully shutdown:
+	// - Cancel startup script, if running
 	// - Close active SSH server connections
 	// - Close processes (send HUP, wait, etc.)
+
+	// TODO(mafredri): Only run shutdown script if the agent is 'ready'?
 
 	lifecycleState := codersdk.WorkspaceAgentLifecycleOff
 	if metadata, ok := a.metadata.Load().(agentsdk.Metadata); ok {
@@ -1359,6 +1362,7 @@ func (a *agent) Close() error {
 	// Set final state and wait for it to be reported because context
 	// cancellation will stop the report loop.
 	a.setLifecycle(ctx, lifecycleState)
+	// TODO(mafredri): What if the agent token is revoked, build outdated, etc.?
 	for s := range a.lifecycleReported {
 		if s == lifecycleState {
 			break
