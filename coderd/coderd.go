@@ -238,7 +238,7 @@ func New(options *Options) *API {
 		ID:          uuid.New(),
 		Options:     options,
 		RootHandler: r,
-		siteHandler: site.Handler(site.FS(), binFS, binHashes),
+		siteHandler: staticHandler,
 		HTTPAuth: &HTTPAuthorizer{
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
