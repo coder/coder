@@ -7,7 +7,6 @@ import (
 	"path"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
@@ -121,15 +120,10 @@ func loadEnabledFeatures(moduleDir string) (map[string]bool, hcl.Diagnostics, er
 			content, _, partialDiags := block.Body.PartialContent(providerFeaturesConfigSchema)
 			diags = append(diags, partialDiags...)
 			if attr, defined := content.Attributes[featureUseManagedVariables]; defined {
-				var useManagedVariables string
+				var useManagedVariables bool
 				partialDiags := gohcl.DecodeExpression(attr.Expr, nil, &useManagedVariables)
 				diags = append(diags, partialDiags...)
-
-				b, err := strconv.ParseBool(useManagedVariables)
-				if err != nil {
-					return nil, nil, xerrors.Errorf("can't parse %s flag as boolean: %w", featureUseManagedVariables, err)
-				}
-				flags[featureUseManagedVariables] = b
+				flags[featureUseManagedVariables] = useManagedVariables
 			}
 		}
 	}
