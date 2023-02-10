@@ -11,8 +11,6 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/rbac/regosql"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -23,6 +21,8 @@ import (
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/rbac/regosql"
+	"github.com/coder/coder/coderd/util/slice"
 )
 
 var (
@@ -140,12 +140,21 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 
 		require.NotNil(t, callMethod, "method %q does not exist", methodName)
 
-		// Run tests that are only run if the method makes rbac assertions.
-		// These tests assert the error conditions of the method.
 		if len(testCase.assertions) > 0 {
 			// Only run these tests if we know the underlying call makes
 			// rbac assertions.
 			s.NotAuthorizedErrorTest(ctx, fakeAuthorizer, callMethod)
+		}
+
+		if len(testCase.assertions) > 0 ||
+			slice.Contains([]string{
+				"GetAuthorizedWorkspaces",
+				"GetAuthorizedTemplates",
+			}, methodName) {
+
+			// Some methods do no make rbac assertions because they use
+			// SQL. We still want to test that they return an error if the
+			// actor is not set.
 			s.NoActorErrorTest(callMethod)
 		}
 

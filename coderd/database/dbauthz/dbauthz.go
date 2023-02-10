@@ -369,7 +369,7 @@ func fetchWithPostFilter[
 func prepareSQLFilter(ctx context.Context, authorizer rbac.Authorizer, action rbac.Action, resourceType string) (rbac.PreparedAuthorized, error) {
 	act, ok := ActorFromContext(ctx)
 	if !ok {
-		return nil, xerrors.Errorf("no authorization actor in context")
+		return nil, NoActorError
 	}
 
 	return authorizer.Prepare(ctx, act, action, resourceType)

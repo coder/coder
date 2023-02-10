@@ -66,7 +66,7 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		UserACL:                      seed.UserACL,
 		GroupACL:                     seed.GroupACL,
 		DisplayName:                  takeFirst(seed.DisplayName, namesgenerator.GetRandomName(1)),
-		AllowUserCancelWorkspaceJobs: takeFirst(seed.AllowUserCancelWorkspaceJobs, true),
+		AllowUserCancelWorkspaceJobs: seed.AllowUserCancelWorkspaceJobs,
 	})
 	require.NoError(t, err, "insert template")
 	return template
