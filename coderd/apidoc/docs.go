@@ -6146,6 +6146,12 @@ const docTemplate = `{
                 "ssh_keygen_algorithm": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
                 },
+                "strict_transport_security": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-int"
+                },
+                "strict_transport_security_options": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
+                },
                 "swagger": {
                     "$ref": "#/definitions/codersdk.SwaggerConfig"
                 },
