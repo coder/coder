@@ -633,7 +633,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 			Valid: true,
 		}
 		_ = updateConnectionTimes(ctx)
-		_ = api.Pubsub.Publish(watchWorkspaceChannel(build.WorkspaceID), []byte{})
+		api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
 	}()
 
 	err = updateConnectionTimes(ctx)
