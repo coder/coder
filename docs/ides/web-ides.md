@@ -52,11 +52,12 @@ resource "coder_agent" "main" {
     #!/bin/sh
     # install code-server
     # add '-s -- --version x.x.x' to install a specific code-server version
-    curl -fsSL https://code-server.dev/install.sh | sh
+    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server
 
     # start code-server on a specific port
     # authn is off since the user already authn-ed into the coder deployment
-    code-server --auth none --port 13337
+    # & is used to run the process in the background
+    /tmp/code-server/bin/code-server --auth none --port 13337 &
     EOF
 }
 ```
@@ -67,7 +68,9 @@ For advanced use, we recommend installing code-server in your VM snapshot or con
 FROM codercom/enterprise-base:ubuntu
 
 # install the latest version
+USER root
 RUN curl -fsSL https://code-server.dev/install.sh | sh
+USER coder
 
 # pre-install VS Code extensions
 RUN code-server --install-extension eamodio.gitlens
