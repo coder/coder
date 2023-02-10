@@ -313,9 +313,10 @@ func (a *agent) run(ctx context.Context) error {
 			}
 		}
 
+		lifecycleState := codersdk.WorkspaceAgentLifecycleReady
 		scriptDone := make(chan error, 1)
 		scriptStart := time.Now()
-		err := a.trackConnGoroutine(func() {
+		err = a.trackConnGoroutine(func() {
 			defer close(scriptDone)
 			scriptDone <- a.runStartupScript(ctx, metadata.StartupScript)
 		})
@@ -343,15 +344,16 @@ func (a *agent) run(ctx context.Context) error {
 			if errors.Is(err, context.Canceled) {
 				return
 			}
-			execTime := time.Since(scriptStart)
-			lifecycleState := codersdk.WorkspaceAgentLifecycleReady
-			if err != nil {
-				a.logger.Warn(ctx, "startup script failed", slog.F("execution_time", execTime), slog.Error(err))
-				lifecycleState = codersdk.WorkspaceAgentLifecycleStartError
-			} else {
-				a.logger.Info(ctx, "startup script completed", slog.F("execution_time", execTime))
+			// Only log if there was a startup script.
+			if metadata.StartupScript != "" {
+				execTime := time.Since(scriptStart)
+				if err != nil {
+					a.logger.Warn(ctx, "startup script failed", slog.F("execution_time", execTime), slog.Error(err))
+					lifecycleState = codersdk.WorkspaceAgentLifecycleStartError
+				} else {
+					a.logger.Info(ctx, "startup script completed", slog.F("execution_time", execTime))
+				}
 			}
-
 			a.setLifecycle(ctx, lifecycleState)
 		}()
 	}
@@ -1325,7 +1327,7 @@ func (a *agent) Close() error {
 	// TODO(mafredri): Only run shutdown script if the agent is 'ready'?
 
 	lifecycleState := codersdk.WorkspaceAgentLifecycleOff
-	if metadata, ok := a.metadata.Load().(agentsdk.Metadata); ok {
+	if metadata, ok := a.metadata.Load().(agentsdk.Metadata); ok && metadata.ShutdownScript != "" {
 		scriptDone := make(chan error, 1)
 		scriptStart := time.Now()
 		go func() {
