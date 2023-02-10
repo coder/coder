@@ -5,9 +5,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/coder/coder/coderd/httpmw"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/coderd/httpmw"
 )
 
 func TestHSTS(t *testing.T) {
