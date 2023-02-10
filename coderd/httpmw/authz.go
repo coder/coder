@@ -18,7 +18,11 @@ func AsAuthzSystem(mws ...func(http.Handler) http.Handler) func(http.Handler) ht
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			before, _ := dbauthz.ActorFromContext(r.Context())
+			before, beforeExists := dbauthz.ActorFromContext(r.Context())
+			if !beforeExists {
+				// AsRemoveActor will actually remove the actor from the context.
+				before = dbauthz.AsRemoveActor
+			}
 
 			r = r.WithContext(dbauthz.AsSystem(ctx))
 			chain.Handler(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {

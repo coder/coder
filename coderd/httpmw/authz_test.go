@@ -6,17 +6,15 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-
-	"github.com/coder/coder/coderd/httpmw"
-
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database/dbauthz"
+	"github.com/coder/coder/coderd/httpmw"
 )
 
 func TestAsAuthzSystem(t *testing.T) {
-	userActor := rbac.Subject{ID: uuid.NewString()}
+	userActor := coderdtest.RandomRBACSubject()
 
 	base := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		actor, ok := dbauthz.ActorFromContext(r.Context())
@@ -59,6 +57,13 @@ func TestAsAuthzSystem(t *testing.T) {
 		r.Use(
 			// First assert there is no actor context
 			mwAssertNoUser,
+			httpmw.AsAuthzSystem(
+				// Assert the system actor
+				mwAssertSystem,
+				mwAssertSystem,
+			),
+			mwAssertNoUser,
+			// ----
 			// Set to the user actor
 			mwSetUser,
 			// Assert the user actor
