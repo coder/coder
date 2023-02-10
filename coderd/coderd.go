@@ -295,7 +295,6 @@ func New(options *Options) *API {
 				DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value,
 				Optional:                    true,
 			}),
-			// TODO: We should remove this auth context after middleware.
 			httpmw.AsAuthzSystem(
 				httpmw.ExtractUserParam(api.Database, false),
 				httpmw.ExtractWorkspaceAndAgentParam(api.Database),
