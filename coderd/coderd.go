@@ -325,7 +325,6 @@ func New(options *Options) *API {
 				DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value,
 				Optional:                    true,
 			}),
-			// TODO: We should remove this auth context after middleware.
 			httpmw.AsAuthzSystem(
 				// Redirect to the login page if the user tries to open an app with
 				// "me" as the username and they are not logged in.

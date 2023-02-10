@@ -201,7 +201,7 @@ func (s *MethodTestSuite) NoActorErrorTest(callMethod func(ctx context.Context) 
 // Asserts that the error returned is a NotAuthorizedError.
 func (s *MethodTestSuite) NotAuthorizedErrorTest(ctx context.Context, az *coderdtest.FakeAuthorizer, callMethod func(ctx context.Context) ([]reflect.Value, error)) {
 	s.Run("NotAuthorized", func() {
-		az.AlwaysReturn = xerrors.New("Always fail authz")
+		az.AlwaysReturn = rbac.ForbiddenWithInternal(xerrors.New("Always fail authz"), rbac.Subject{}, "", rbac.Object{}, nil)
 
 		// If we have assertions, that means the method should FAIL
 		// if RBAC will disallow the request. The returned error should
@@ -211,6 +211,7 @@ func (s *MethodTestSuite) NotAuthorizedErrorTest(ctx context.Context, az *coderd
 		// This is unfortunate, but if we are using `Filter` the error returned will be nil. So filter out
 		// any case where the error is nil and the response is an empty slice.
 		if err != nil || !hasEmptySliceResponse(resp) {
+			s.ErrorContainsf(err, "unauthorized", "error string should have a good message")
 			s.Errorf(err, "method should an error with disallow authz")
 			s.ErrorIsf(err, sql.ErrNoRows, "error should match sql.ErrNoRows")
 			s.ErrorAs(err, &dbauthz.NotAuthorizedError{}, "error should be NotAuthorizedError")
