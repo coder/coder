@@ -93,7 +93,7 @@ func New(clientDialer Dialer, opts *Options) *Server {
 		opts.Metrics = &mets
 	}
 
-	ctx, ctxCancel := context.WithCancel(ctx)
+	ctx, ctxCancel := context.WithCancel(context.Background())
 	daemon := &Server{
 		opts:   opts,
 		tracer: opts.TracerProvider.Tracer(tracing.TracerName),
