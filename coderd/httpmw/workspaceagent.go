@@ -32,7 +32,7 @@ func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			systemCtx := dbauthz.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
+			// dbauthz.AsSystem(ctx) := dbauthz.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
 			tokenValue := apiTokenFromRequest(r)
 			if tokenValue == "" {
 				httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
@@ -48,7 +48,7 @@ func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 				})
 				return
 			}
-			agent, err := db.GetWorkspaceAgentByAuthToken(systemCtx, token)
+			agent, err := db.GetWorkspaceAgentByAuthToken(dbauthz.AsSystem(ctx), token)
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
 					httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
@@ -65,7 +65,7 @@ func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 				return
 			}
 
-			subject, err := getAgentSubject(systemCtx, db, agent)
+			subject, err := getAgentSubject(dbauthz.AsSystem(ctx), db, agent)
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching workspace agent.",
@@ -75,7 +75,8 @@ func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 			}
 
 			ctx = context.WithValue(ctx, workspaceAgentContextKey{}, agent)
-			ctx = dbauthz.WithAuthorizeContext(ctx, subject)
+			// Also set the dbauthz actor for the request.
+			ctx = dbauthz.As(ctx, subject)
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}

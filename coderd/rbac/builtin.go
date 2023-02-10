@@ -36,36 +36,36 @@ func (names RoleNames) Names() []string {
 // RolesAutostartSystem is the limited set of permissions required for autostart
 // to function.
 // It is EXPLICITLY NOT included in builtinRoles so that it CANNOT be assigned to a user.
-func RolesAutostartSystem() Roles {
-	return Roles{
-		Role{
-			Name:        "auto-start",
-			DisplayName: "Autostart",
-			Site: permissions(map[string][]Action{
-				ResourceWorkspace.Type: {ActionRead, ActionUpdate},
-				ResourceTemplate.Type:  {ActionRead},
-			}),
-			Org:  map[string][]Permission{},
-			User: []Permission{},
-		},
-	}
-}
+// func RolesAutostartSystem() Roles {
+// return Roles{
+// Role{
+// Name:        "auto-start",
+// DisplayName: "Autostart",
+// Site: permissions(map[string][]Action{
+// ResourceWorkspace.Type: {ActionRead, ActionUpdate},
+// ResourceTemplate.Type:  {ActionRead},
+// }),
+// Org:  map[string][]Permission{},
+// User: []Permission{},
+// },
+// }
+// }
 
 // RolesAdminSystem is an all-powerful system role. Use sparingly.
 // It is EXPLICITLY NOT included in builtinRoles so that it CANNOT be assigned to a user.
-func RolesAdminSystem() Roles {
-	return Roles{
-		Role{
-			Name:        "system",
-			DisplayName: "System",
-			Site: permissions(map[string][]Action{
-				ResourceWildcard.Type: {WildcardSymbol},
-			}),
-			Org:  map[string][]Permission{},
-			User: []Permission{},
-		},
-	}
-}
+// func RolesAdminSystem() Roles {
+// 	return Roles{
+// 		Role{
+// 			Name:        "system",
+// 			DisplayName: "System",
+// 			Site: permissions(map[string][]Action{
+// 				ResourceWildcard.Type: {WildcardSymbol},
+// 			}),
+// 			Org:  map[string][]Permission{},
+// 			User: []Permission{},
+// 		},
+// 	}
+// }
 
 // The functions below ONLY need to exist for roles that are "defaulted" in some way.
 // Any other roles (like auditor), can be listed and let the user select/assigned.

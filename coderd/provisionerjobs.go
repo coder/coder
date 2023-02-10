@@ -380,7 +380,6 @@ func (api *API) followLogs(actor rbac.Subject, jobID uuid.UUID) (<-chan database
 	closeSubscribe, err := api.Pubsub.Subscribe(
 		provisionerJobLogsChannel(jobID),
 		func(ctx context.Context, message []byte) {
-			ctx = dbauthz.WithAuthorizeContext(ctx, actor)
 			select {
 			case <-closed:
 				return
@@ -395,7 +394,7 @@ func (api *API) followLogs(actor rbac.Subject, jobID uuid.UUID) (<-chan database
 			}
 
 			if jlMsg.CreatedAfter != 0 {
-				logs, err := api.Database.GetProvisionerLogsByIDBetween(ctx, database.GetProvisionerLogsByIDBetweenParams{
+				logs, err := api.Database.GetProvisionerLogsByIDBetween(dbauthz.As(ctx, actor), database.GetProvisionerLogsByIDBetweenParams{
 					JobID:        jobID,
 					CreatedAfter: jlMsg.CreatedAfter,
 				})

@@ -19,6 +19,7 @@ type authSubject struct {
 	Actor rbac.Subject
 }
 
+// TODO: add the SYSTEM to the MATRIX
 func TestRolePermissions(t *testing.T) {
 	t.Parallel()
 

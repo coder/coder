@@ -37,8 +37,8 @@ import (
 // @Success 200 {object} codersdk.Response
 // @Router /users/first [get]
 func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
-	ctx := dbauthz.WithAuthorizeSystemContext(r.Context(), rbac.RolesAdminSystem())
-	userCount, err := api.Database.GetUserCount(ctx)
+	ctx := r.Context()
+	userCount, err := api.Database.GetUserCount(dbauthz.AsSystem(ctx))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user count.",
@@ -72,14 +72,14 @@ func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
 // @Router /users/first [post]
 func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	// TODO: Should this admin system context be in a middleware?
-	ctx := dbauthz.WithAuthorizeSystemContext(r.Context(), rbac.RolesAdminSystem())
+	ctx := r.Context()
 	var createUser codersdk.CreateFirstUserRequest
 	if !httpapi.Read(ctx, rw, r, &createUser) {
 		return
 	}
 
 	// This should only function for the first user.
-	userCount, err := api.Database.GetUserCount(ctx)
+	userCount, err := api.Database.GetUserCount(dbauthz.AsSystem(ctx))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user count.",
@@ -119,7 +119,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, organizationID, err := api.CreateUser(ctx, api.Database, CreateUserRequest{
+	user, organizationID, err := api.CreateUser(dbauthz.AsSystem(ctx), api.Database, CreateUserRequest{
 		CreateUserRequest: codersdk.CreateUserRequest{
 			Email:    createUser.Email,
 			Username: createUser.Username,
@@ -148,7 +148,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	// 	the user. Maybe I add this ability to grant roles in the createUser api
 	//	and add some rbac bypass when calling api functions this way??
 	// Add the admin role to this first user.
-	_, err = api.Database.UpdateUserRoles(ctx, database.UpdateUserRolesParams{
+	_, err = api.Database.UpdateUserRoles(dbauthz.AsSystem(ctx), database.UpdateUserRolesParams{
 		GrantedRoles: []string{rbac.RoleOwner()},
 		ID:           user.ID,
 	})

@@ -105,20 +105,56 @@ func ActorFromContext(ctx context.Context) (rbac.Subject, bool) {
 	return a, ok
 }
 
-func WithAuthorizeContext(ctx context.Context, actor rbac.Subject) context.Context {
-	return context.WithValue(ctx, authContextKey{}, actor)
+// func WithAuthorizeContext(ctx context.Context, actor rbac.Subject) context.Context {
+// 	return context.WithValue(ctx, authContextKey{}, actor)
+// }
+
+// func WithAuthorizeSystemContext(ctx context.Context, roles rbac.ExpandableRoles) context.Context {
+// 	// TODO: Add protections to search for user roles. If user roles are found,
+// 	// this should panic. That is a developer error that should be caught
+// 	// in unit tests.
+// 	return context.WithValue(ctx, authContextKey{}, rbac.Subject{
+// 		ID:     uuid.Nil.String(),
+// 		Roles:  roles,
+// 		Scope:  rbac.ScopeAll,
+// 		Groups: []string{},
+// 	})
+// }
+
+// AsSystem returns a context with a system actor. This is used for internal
+// system operations that do not require authorization.
+//
+// We trust you have received the usual lecture from the local System
+// Administrator. It usually boils down to these three things:
+// #1) Respect the privacy of others.
+// #2) Think before you type.
+// #3) With great power comes great responsibility.
+func AsSystem(ctx context.Context) context.Context {
+	return context.WithValue(ctx, authContextKey{}, rbac.Subject{
+		ID: uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Name:        "system",
+				DisplayName: "System",
+				Site: []rbac.Permission{
+					{
+						ResourceType: rbac.ResourceWildcard.Type,
+						Action:       rbac.WildcardSymbol,
+					},
+				},
+				Org:  map[string][]rbac.Permission{},
+				User: []rbac.Permission{},
+			},
+		}),
+	},
+	)
 }
 
-func WithAuthorizeSystemContext(ctx context.Context, roles rbac.ExpandableRoles) context.Context {
-	// TODO: Add protections to search for user roles. If user roles are found,
-	// this should panic. That is a developer error that should be caught
-	// in unit tests.
-	return context.WithValue(ctx, authContextKey{}, rbac.Subject{
-		ID:     uuid.Nil.String(),
-		Roles:  roles,
-		Scope:  rbac.ScopeAll,
-		Groups: []string{},
-	})
+// As returns a context with the given actor stored in the context.
+// This is used for cases where the actor touching the database is not the
+// actor stored in the context.
+func As(ctx context.Context, actor rbac.Subject) context.Context {
+	return context.WithValue(ctx, authContextKey{}, actor)
 }
 
 //

@@ -317,8 +317,7 @@ func (api *API) parseWorkspaceApplicationHostname(rw http.ResponseWriter, r *htt
 }
 
 func (api *API) handleWorkspaceAppLogout(rw http.ResponseWriter, r *http.Request) {
-	// TODO: Limit permissions of this system user. Using scope or new role.
-	ctx := dbauthz.WithAuthorizeSystemContext(r.Context(), rbac.RolesAdminSystem())
+	ctx := r.Context()
 
 	// Delete the API key and cookie first before attempting to parse/validate
 	// the redirect URI.
@@ -332,7 +331,7 @@ func (api *API) handleWorkspaceAppLogout(rw http.ResponseWriter, r *http.Request
 			// different auth formats, and tricks this endpoint into deleting an
 			// unchecked API key, we validate that the secret matches the secret
 			// we store in the database.
-			apiKey, err := api.Database.GetAPIKeyByID(ctx, id)
+			apiKey, err := api.Database.GetAPIKeyByID(dbauthz.AsSystem(ctx), id)
 			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Failed to lookup API key.",
@@ -351,7 +350,7 @@ func (api *API) handleWorkspaceAppLogout(rw http.ResponseWriter, r *http.Request
 					})
 					return
 				}
-				err = api.Database.DeleteAPIKeyByID(ctx, id)
+				err = api.Database.DeleteAPIKeyByID(dbauthz.AsSystem(ctx), id)
 				if err != nil {
 					httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 						Message: "Failed to delete API key.",

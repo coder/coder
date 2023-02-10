@@ -59,7 +59,7 @@ type Server struct {
 // AcquireJob queries the database to lock a job.
 func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
 	// TODO: make a provisionerd role
-	ctx = dbauthz.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
+	// ctx = dbauthz.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
 	// This prevents loads of provisioner daemons from consistently
 	// querying the database when no jobs are available.
 	//
@@ -72,7 +72,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 	}
 	lastAcquireMutex.RUnlock()
 	// This marks the job as locked in the database.
-	job, err := server.Database.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+	job, err := server.Database.AcquireProvisionerJob(dbauthz.AsSystem(ctx), database.AcquireProvisionerJobParams{
 		StartedAt: sql.NullTime{
 			Time:  database.Now(),
 			Valid: true,
@@ -99,7 +99,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 
 	// Marks the acquired job as failed with the error message provided.
 	failJob := func(errorMessage string) error {
-		err = server.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
+		err = server.Database.UpdateProvisionerJobWithCompleteByID(dbauthz.AsSystem(ctx), database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID: job.ID,
 			CompletedAt: sql.NullTime{
 				Time:  database.Now(),
@@ -116,7 +116,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 		return xerrors.Errorf("request job was invalidated: %s", errorMessage)
 	}
 
-	user, err := server.Database.GetUserByID(ctx, job.InitiatorID)
+	user, err := server.Database.GetUserByID(dbauthz.AsSystem(ctx), job.InitiatorID)
 	if err != nil {
 		return nil, failJob(fmt.Sprintf("get user: %s", err))
 	}
@@ -185,7 +185,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 			return nil, failJob(fmt.Sprintf("convert workspace transition: %s", err))
 		}
 
-		workspaceBuildParameters, err := server.Database.GetWorkspaceBuildParameters(ctx, workspaceBuild.ID)
+		workspaceBuildParameters, err := server.Database.GetWorkspaceBuildParameters(dbauthz.AsSystem(ctx), workspaceBuild.ID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get workspace build parameters: %s", err))
 		}
@@ -215,7 +215,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 			return nil, failJob(fmt.Sprintf("unmarshal job input %q: %s", job.Input, err))
 		}
 
-		templateVersion, err := server.Database.GetTemplateVersionByID(ctx, input.TemplateVersionID)
+		templateVersion, err := server.Database.GetTemplateVersionByID(dbauthz.AsSystem(ctx), input.TemplateVersionID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get template version: %s", err))
 		}
@@ -304,13 +304,13 @@ func (server *Server) CommitQuota(ctx context.Context, request *proto.CommitQuot
 
 func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
 	// TODO: make a provisionerd role
-	ctx = dbauthz.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
+	// ctx = dbauthz.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
 	parsedID, err := uuid.Parse(request.JobId)
 	if err != nil {
 		return nil, xerrors.Errorf("parse job id: %w", err)
 	}
 	server.Logger.Debug(ctx, "UpdateJob starting", slog.F("job_id", parsedID))
-	job, err := server.Database.GetProvisionerJobByID(ctx, parsedID)
+	job, err := server.Database.GetProvisionerJobByID(dbauthz.AsSystem(ctx), parsedID)
 	if err != nil {
 		return nil, xerrors.Errorf("get job: %w", err)
 	}
@@ -320,7 +320,7 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 	if job.WorkerID.UUID.String() != server.ID.String() {
 		return nil, xerrors.New("you don't own this job")
 	}
-	err = server.Database.UpdateProvisionerJobByID(ctx, database.UpdateProvisionerJobByIDParams{
+	err = server.Database.UpdateProvisionerJobByID(dbauthz.AsSystem(ctx), database.UpdateProvisionerJobByIDParams{
 		ID:        parsedID,
 		UpdatedAt: database.Now(),
 	})
@@ -351,7 +351,7 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 				slog.F("stage", log.Stage),
 				slog.F("output", log.Output))
 		}
-		logs, err := server.Database.InsertProvisionerJobLogs(context.Background(), insertParams)
+		logs, err := server.Database.InsertProvisionerJobLogs(dbauthz.AsSystem(context.Background()), insertParams)
 		if err != nil {
 			server.Logger.Error(ctx, "failed to insert job logs", slog.F("job_id", parsedID), slog.Error(err))
 			return nil, xerrors.Errorf("insert job logs: %w", err)
@@ -375,7 +375,7 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 	}
 
 	if len(request.Readme) > 0 {
-		err := server.Database.UpdateTemplateVersionDescriptionByJobID(ctx, database.UpdateTemplateVersionDescriptionByJobIDParams{
+		err := server.Database.UpdateTemplateVersionDescriptionByJobID(dbauthz.AsSystem(ctx), database.UpdateTemplateVersionDescriptionByJobIDParams{
 			JobID:     job.ID,
 			Readme:    string(request.Readme),
 			UpdatedAt: database.Now(),
@@ -440,7 +440,7 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 
 		var templateID uuid.NullUUID
 		if job.Type == database.ProvisionerJobTypeTemplateVersionImport {
-			templateVersion, err := server.Database.GetTemplateVersionByJobID(ctx, job.ID)
+			templateVersion, err := server.Database.GetTemplateVersionByJobID(dbauthz.AsSystem(ctx), job.ID)
 			if err != nil {
 				return nil, xerrors.Errorf("get template version by job id: %w", err)
 			}
@@ -477,13 +477,13 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 
 func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.Empty, error) {
 	// TODO: make a provisionerd role
-	ctx = dbauthz.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
+	// ctx = dbauthz.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
 	jobID, err := uuid.Parse(failJob.JobId)
 	if err != nil {
 		return nil, xerrors.Errorf("parse job id: %w", err)
 	}
 	server.Logger.Debug(ctx, "FailJob starting", slog.F("job_id", jobID))
-	job, err := server.Database.GetProvisionerJobByID(ctx, jobID)
+	job, err := server.Database.GetProvisionerJobByID(dbauthz.AsSystem(ctx), jobID)
 	if err != nil {
 		return nil, xerrors.Errorf("get provisioner job: %w", err)
 	}

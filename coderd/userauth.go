@@ -40,8 +40,8 @@ import (
 // @Router /users/login [post]
 func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx               = r.Context()
-		systemCtx         = dbauthz.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
+		ctx = r.Context()
+		// dbauthz.AsSystem(ctx)         = dbauthz.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
 			Audit:   *auditor,
@@ -58,7 +58,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := api.Database.GetUserByEmailOrUsername(systemCtx, database.GetUserByEmailOrUsernameParams{
+	user, err := api.Database.GetUserByEmailOrUsername(dbauthz.AsSystem(ctx), database.GetUserByEmailOrUsernameParams{
 		Email: loginWithPassword.Email,
 	})
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
@@ -120,7 +120,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cookie, key, err := api.createAPIKey(systemCtx, createAPIKeyParams{
+	cookie, key, err := api.createAPIKey(dbauthz.AsSystem(ctx), createAPIKeyParams{
 		UserID:     user.ID,
 		LoginType:  database.LoginTypePassword,
 		RemoteAddr: r.RemoteAddr,
@@ -732,9 +732,9 @@ func (e httpError) Error() string {
 
 func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cookie, database.APIKey, error) {
 	var (
-		ctx       = r.Context()
-		systemCtx = dbauthz.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
-		user      database.User
+		ctx = r.Context()
+		// dbauthz.AsSystem(ctx) = dbauthz.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
+		user database.User
 	)
 
 	err := api.Database.InTx(func(tx database.Store) error {
@@ -767,7 +767,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		// with OIDC for the first time.
 		if user.ID == uuid.Nil {
 			var organizationID uuid.UUID
-			organizations, _ := tx.GetOrganizations(systemCtx)
+			organizations, _ := tx.GetOrganizations(dbauthz.AsSystem(ctx))
 			if len(organizations) > 0 {
 				// Add the user to the first organization. Once multi-organization
 				// support is added, we should enable a configuration map of user
@@ -775,7 +775,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 				organizationID = organizations[0].ID
 			}
 
-			_, err := tx.GetUserByEmailOrUsername(systemCtx, database.GetUserByEmailOrUsernameParams{
+			_, err := tx.GetUserByEmailOrUsername(dbauthz.AsSystem(ctx), database.GetUserByEmailOrUsernameParams{
 				Username: params.Username,
 			})
 			if err == nil {
@@ -788,7 +788,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 
 					params.Username = httpapi.UsernameFrom(alternate)
 
-					_, err := tx.GetUserByEmailOrUsername(systemCtx, database.GetUserByEmailOrUsernameParams{
+					_, err := tx.GetUserByEmailOrUsername(dbauthz.AsSystem(ctx), database.GetUserByEmailOrUsernameParams{
 						Username: params.Username,
 					})
 					if xerrors.Is(err, sql.ErrNoRows) {
@@ -807,7 +807,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 				}
 			}
 
-			user, _, err = api.CreateUser(systemCtx, tx, CreateUserRequest{
+			user, _, err = api.CreateUser(dbauthz.AsSystem(ctx), tx, CreateUserRequest{
 				CreateUserRequest: codersdk.CreateUserRequest{
 					Email:          params.Email,
 					Username:       params.Username,
@@ -821,7 +821,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		}
 
 		if link.UserID == uuid.Nil {
-			link, err = tx.InsertUserLink(systemCtx, database.InsertUserLinkParams{
+			link, err = tx.InsertUserLink(dbauthz.AsSystem(ctx), database.InsertUserLinkParams{
 				UserID:            user.ID,
 				LoginType:         params.LoginType,
 				LinkedID:          params.LinkedID,
@@ -835,7 +835,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		}
 
 		if link.UserID != uuid.Nil {
-			link, err = tx.UpdateUserLink(systemCtx, database.UpdateUserLinkParams{
+			link, err = tx.UpdateUserLink(dbauthz.AsSystem(ctx), database.UpdateUserLinkParams{
 				UserID:            user.ID,
 				LoginType:         params.LoginType,
 				OAuthAccessToken:  params.State.Token.AccessToken,
@@ -849,7 +849,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 
 		// Ensure groups are correct.
 		if len(params.Groups) > 0 {
-			err := api.Options.SetUserGroups(systemCtx, tx, user.ID, params.Groups)
+			err := api.Options.SetUserGroups(dbauthz.AsSystem(ctx), tx, user.ID, params.Groups)
 			if err != nil {
 				return xerrors.Errorf("set user groups: %w", err)
 			}
@@ -882,7 +882,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 			// In such cases in the current implementation this user can now no
 			// longer sign in until an administrator finds the offending built-in
 			// user and changes their username.
-			user, err = tx.UpdateUserProfile(systemCtx, database.UpdateUserProfileParams{
+			user, err = tx.UpdateUserProfile(dbauthz.AsSystem(ctx), database.UpdateUserProfileParams{
 				ID:        user.ID,
 				Email:     user.Email,
 				Username:  user.Username,
@@ -900,7 +900,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		return nil, database.APIKey{}, xerrors.Errorf("in tx: %w", err)
 	}
 
-	cookie, key, err := api.createAPIKey(systemCtx, createAPIKeyParams{
+	cookie, key, err := api.createAPIKey(dbauthz.AsSystem(ctx), createAPIKeyParams{
 		UserID:     user.ID,
 		LoginType:  params.LoginType,
 		RemoteAddr: r.RemoteAddr,

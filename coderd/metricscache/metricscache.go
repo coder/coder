@@ -15,7 +15,6 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/retry"
 )
@@ -144,8 +143,8 @@ func countUniqueUsers(rows []database.GetTemplateDAUsRow) int {
 }
 
 func (c *Cache) refresh(ctx context.Context) error {
-	systemCtx := dbauthz.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
-	err := c.database.DeleteOldAgentStats(systemCtx)
+	// dbauthz.AsSystem(ctx) := dbauthz.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
+	err := c.database.DeleteOldAgentStats(dbauthz.AsSystem(ctx))
 	if err != nil {
 		return xerrors.Errorf("delete old stats: %w", err)
 	}
@@ -162,7 +161,7 @@ func (c *Cache) refresh(ctx context.Context) error {
 		templateAverageBuildTimes = make(map[uuid.UUID]database.GetTemplateAverageBuildTimeRow)
 	)
 
-	rows, err := c.database.GetDeploymentDAUs(systemCtx)
+	rows, err := c.database.GetDeploymentDAUs(dbauthz.AsSystem(ctx))
 	if err != nil {
 		return err
 	}
@@ -170,14 +169,14 @@ func (c *Cache) refresh(ctx context.Context) error {
 	c.deploymentDAUResponses.Store(&deploymentDAUs)
 
 	for _, template := range templates {
-		rows, err := c.database.GetTemplateDAUs(systemCtx, template.ID)
+		rows, err := c.database.GetTemplateDAUs(dbauthz.AsSystem(ctx), template.ID)
 		if err != nil {
 			return err
 		}
 		templateDAUs[template.ID] = convertDAUResponse(rows)
 		templateUniqueUsers[template.ID] = countUniqueUsers(rows)
 
-		templateAvgBuildTime, err := c.database.GetTemplateAverageBuildTime(systemCtx, database.GetTemplateAverageBuildTimeParams{
+		templateAvgBuildTime, err := c.database.GetTemplateAverageBuildTime(dbauthz.AsSystem(ctx), database.GetTemplateAverageBuildTimeParams{
 			TemplateID: uuid.NullUUID{
 				UUID:  template.ID,
 				Valid: true,

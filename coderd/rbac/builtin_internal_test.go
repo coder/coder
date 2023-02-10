@@ -10,7 +10,7 @@ import (
 
 // BenchmarkRBACValueAllocation benchmarks the cost of allocating a rego input
 // value. By default, `ast.InterfaceToValue` is used to convert the input,
-// which uses json marshalling under the hood.
+// which uses json marshaling under the hood.
 //
 // Currently ast.Object.insert() is the slowest part of the process and allocates
 // the most amount of bytes. This general approach copies all of our struct
