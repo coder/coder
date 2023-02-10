@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
@@ -40,7 +39,7 @@ func TestAuthzRecorder(t *testing.T) {
 		rec := &coderdtest.RecordingAuthorizer{
 			Wrapped: &coderdtest.FakeAuthorizer{},
 		}
-		sub := randomSubject()
+		sub := coderdtest.RandomRBACSubject()
 		pairs := fuzzAuthz(t, sub, rec, 10)
 		rec.AssertActor(t, sub, pairs...)
 		require.NoError(t, rec.AllAsserted(), "all assertions should have been made")
@@ -52,10 +51,10 @@ func TestAuthzRecorder(t *testing.T) {
 		rec := &coderdtest.RecordingAuthorizer{
 			Wrapped: &coderdtest.FakeAuthorizer{},
 		}
-		a := randomSubject()
+		a := coderdtest.RandomRBACSubject()
 		aPairs := fuzzAuthz(t, a, rec, 10)
 
-		b := randomSubject()
+		b := coderdtest.RandomRBACSubject()
 		bPairs := fuzzAuthz(t, b, rec, 10)
 
 		rec.AssertActor(t, b, bPairs...)
@@ -69,12 +68,12 @@ func TestAuthzRecorder(t *testing.T) {
 		rec := &coderdtest.RecordingAuthorizer{
 			Wrapped: &coderdtest.FakeAuthorizer{},
 		}
-		a := randomSubject()
+		a := coderdtest.RandomRBACSubject()
 		aPairs := fuzzAuthz(t, a, rec, 10)
 
-		b := randomSubject()
+		b := coderdtest.RandomRBACSubject()
 
-		act, objTy := randomAction(), randomObject().Type
+		act, objTy := coderdtest.RandomRBACAction(), coderdtest.RandomRBACObject().Type
 		prep, _ := rec.Prepare(context.Background(), b, act, objTy)
 		bPairs := fuzzAuthzPrep(t, prep, 10, act, objTy)
 
@@ -90,7 +89,7 @@ func fuzzAuthzPrep(t *testing.T, prep rbac.PreparedAuthorized, n int, action rba
 	pairs := make([]coderdtest.ActionObjectPair, 0, n)
 
 	for i := 0; i < n; i++ {
-		obj := randomObject()
+		obj := coderdtest.RandomRBACObject()
 		obj.Type = objectType
 		p := coderdtest.ActionObjectPair{Action: action, Object: obj}
 		_ = prep.Authorize(context.Background(), p.Object)
@@ -104,37 +103,9 @@ func fuzzAuthz(t *testing.T, sub rbac.Subject, rec rbac.Authorizer, n int) []cod
 	pairs := make([]coderdtest.ActionObjectPair, 0, n)
 
 	for i := 0; i < n; i++ {
-		p := coderdtest.ActionObjectPair{Action: randomAction(), Object: randomObject()}
+		p := coderdtest.ActionObjectPair{Action: coderdtest.RandomRBACAction(), Object: coderdtest.RandomRBACObject()}
 		_ = rec.Authorize(context.Background(), sub, p.Action, p.Object)
 		pairs = append(pairs, p)
 	}
 	return pairs
-}
-
-func randomAction() rbac.Action {
-	return rbac.Action(namesgenerator.GetRandomName(1))
-}
-
-func randomObject() rbac.Object {
-	return rbac.Object{
-		ID:    namesgenerator.GetRandomName(1),
-		Owner: namesgenerator.GetRandomName(1),
-		OrgID: namesgenerator.GetRandomName(1),
-		Type:  namesgenerator.GetRandomName(1),
-		ACLUserList: map[string][]rbac.Action{
-			namesgenerator.GetRandomName(1): {rbac.ActionRead},
-		},
-		ACLGroupList: map[string][]rbac.Action{
-			namesgenerator.GetRandomName(1): {rbac.ActionRead},
-		},
-	}
-}
-
-func randomSubject() rbac.Subject {
-	return rbac.Subject{
-		ID:     namesgenerator.GetRandomName(1),
-		Roles:  rbac.RoleNames{rbac.RoleMember()},
-		Groups: []string{namesgenerator.GetRandomName(1)},
-		Scope:  rbac.ScopeAll,
-	}
 }

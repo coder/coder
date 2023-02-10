@@ -141,9 +141,10 @@ func waitForDisco(ctx context.Context, logs io.Writer, conn *codersdk.WorkspaceA
 	for i := 0; i < pingAttempts; i++ {
 		_, _ = fmt.Fprintf(logs, "\tDisco ping attempt %d/%d...\n", i+1, pingAttempts)
 		pingCtx, cancel := context.WithTimeout(ctx, defaultRequestTimeout)
-		_, _, err := conn.Ping(pingCtx)
+		_, p2p, err := conn.Ping(pingCtx)
 		cancel()
 		if err == nil {
+			_, _ = fmt.Fprintf(logs, "\tDisco ping succeeded after %d attempts, p2p = %v\n", i+1, p2p)
 			break
 		}
 		if i == pingAttempts-1 {
@@ -175,7 +176,7 @@ func waitForDirectConnection(ctx context.Context, logs io.Writer, conn *codersdk
 
 		var err error
 		if len(status.Peers()) != 1 {
-			_, _ = fmt.Fprintf(logs, "\t\tExpected 1 peer, found %d", len(status.Peers()))
+			_, _ = fmt.Fprintf(logs, "\t\tExpected 1 peer, found %d\n", len(status.Peers()))
 			err = xerrors.Errorf("expected 1 peer, got %d", len(status.Peers()))
 		} else {
 			peer := status.Peer[status.Peers()[0]]

@@ -263,34 +263,18 @@ func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action A
 		return xerrors.Errorf("subject must have a scope")
 	}
 
-	subjRoles, err := subject.Roles.Expand()
+	astV, err := regoInputValue(subject, action, object)
 	if err != nil {
-		return xerrors.Errorf("expand roles: %w", err)
+		return xerrors.Errorf("convert input to value: %w", err)
 	}
 
-	subjScope, err := subject.Scope.Expand()
+	results, err := a.query.Eval(ctx, rego.EvalParsedInput(astV))
 	if err != nil {
-		return xerrors.Errorf("expand scope: %w", err)
-	}
-
-	input := map[string]interface{}{
-		"subject": authSubject{
-			ID:     subject.ID,
-			Roles:  subjRoles,
-			Groups: subject.Groups,
-			Scope:  subjScope,
-		},
-		"object": object,
-		"action": action,
-	}
-
-	results, err := a.query.Eval(ctx, rego.EvalInput(input))
-	if err != nil {
-		return ForbiddenWithInternal(xerrors.Errorf("eval rego: %w", err), input, results)
+		return ForbiddenWithInternal(xerrors.Errorf("eval rego: %w", err), subject, action, object, results)
 	}
 
 	if !results.Allowed() {
-		return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), input, results)
+		return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), subject, action, object, results)
 	}
 	return nil
 }
